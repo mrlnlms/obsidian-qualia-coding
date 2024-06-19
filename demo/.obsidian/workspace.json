@@ -13,13 +13,13 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Sample.md",
+                "file": "2024-06-19_v2-modular/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
               },
               "icon": "lucide-file",
-              "title": "Sample"
+              "title": "test-note"
             }
           }
         ]
@@ -123,8 +123,30 @@
   },
   "active": "4f7d62913ecb1c43",
   "lastOpenFiles": [
+    "Sample 1.md",
+    "2024-06-19_v2-modular/test-note.md",
+    "2024-06-19_v2-modular/_demo-notes/editor-playground-coded-sample.md",
+    "2024-06-19_v2-modular/_demo-notes",
+    "2024-06-19_v2-modular",
+    "2024-06-19_v1-primeiro-qda/templates/extraction-template.md",
+    "2024-06-19_v1-primeiro-qda/_historico/qda-v1-file-structure-suggestion.md",
+    "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
+    "2024-06-19_v1-primeiro-qda/_historico/matriz-csd-framework.md",
+    "2024-06-19_v1-primeiro-qda/_demo-notes/transcript-meiuca-diogo-roncatto.md",
+    "2024-06-19_v1-primeiro-qda/_demo-notes/extraction-003.md",
+    "2024-06-19_v1-primeiro-qda/_demo-notes/extraction-002.md",
+    "2024-06-19_v1-primeiro-qda/_demo-notes/extraction-001.md",
+    "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-politica-publica.md",
+    "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-politic-science.md",
+    "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-mmmm-project.md",
+    "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-marlon.md",
+    "2024-06-19_v1-primeiro-qda/_demo-notes/analysis-extraction-type-overview.md",
+    "2024-06-19_v1-primeiro-qda/_demo-notes/analysis-code-overview.md",
+    "2024-06-19_v1-primeiro-qda/templates",
+    "2024-06-19_v1-primeiro-qda/_historico",
+    "2024-06-19_v1-primeiro-qda/_demo-notes",
+    "2024-06-19_v1-primeiro-qda",
     "templates/extraction-template.md",
-    "Sample.md",
     "_historico/qda-data-model.canvas",
     "_historico/qda-v1-file-structure-suggestion.md",
     "_historico/matriz-csd-framework.md",
@@ -135,10 +157,7 @@
     "_demo-notes/code-def-politic-science.md",
     "_demo-notes/code-def-mmmm-project.md",
     "_demo-notes/code-def-marlon.md",
-    "_demo-notes/analysis-extraction-type-overview.md",
-    "_demo-notes/analysis-code-overview.md",
     "templates",
-    "_demo-notes/extraction-002.md",
     "_demo-notes",
     "_historico"
   ]

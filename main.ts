@@ -1,202 +1,20 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, Editor, MarkdownView, TFile, Menu, MenuItem } from 'obsidian';
+import { Plugin, MenuItem, Menu, MarkdownView, Editor } from 'obsidian';
+import { ApplyCodeModal } from './modals/ApplyCodeModal';
+import { RemoveCodeModal } from './modals/RemoveCodeModal';
+import { CodeTooltip } from './tooltip/CodeTooltip';
 
-// Modal para Aplicação de Código
-class ApplyCodeModal extends Modal {
-	editor: Editor;
-	code: string;
-
-	constructor(app: App, editor: Editor) {
-		super(app);
-		this.editor = editor;
-	}
-
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.createEl('h2', { text: 'Apply Code' });
-
-		const codeInput = contentEl.createEl('input', { type: 'text', placeholder: 'Enter code' }) as HTMLInputElement;
-		const colorInput = contentEl.createEl('input', { type: 'color', value: '#ffff00' }) as HTMLInputElement;
-		const applyButton = contentEl.createEl('button', { text: 'Apply' });
-
-		applyButton.onclick = () => {
-			this.code = codeInput.value.trim();
-			const color = colorInput.value;
-			if (this.code) {
-				this.applyCodeToSelection(this.code, color);
-			}
-			this.close();
-		};
-	}
-
-	applyCodeToSelection(code: string, color: string) {
-		const selection = this.editor.getSelection();
-		const codedText = `<span class="coded-text ${this.sanitizeCodeName(code)}" data-code="${code}" data-color="${color}">${selection}</span>`;
-		this.editor.replaceSelection(codedText);
-		this.saveCodeData(this.editor.getDoc().getValue());
-		this.addDynamicStyle(code, color);
-	}
-
-	saveCodeData(content: string) {
-		const filePath = this.app.workspace.getActiveFile()?.path;
-		if (filePath) {
-			const codeData = { path: filePath, content: content };
-			localStorage.setItem('codeData', JSON.stringify(codeData));
-		}
-	}
-
-	addDynamicStyle(code: string, color: string) {
-		const styleId = `style-${this.sanitizeCodeName(code)}`;
-		let style = document.getElementById(styleId);
-
-		if (!style) {
-			style = document.createElement('style');
-			style.id = styleId;
-			//style.type = 'text/css';
-			document.head.appendChild(style);
-		}
-
-		style.innerHTML = `.coded-text.${this.sanitizeCodeName(code)} { background-color: ${color}; }`;
-	}
-
-	sanitizeCodeName(code: string): string {
-		return code.replace(/[^a-z0-9]/gi, '-').toLowerCase();
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
-	}
-}
-
-// Modal para Remoção de Código
-class RemoveCodeModal extends Modal {
-	editor: Editor;
-
-	constructor(app: App, editor: Editor) {
-		super(app);
-		this.editor = editor;
-	}
-
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.createEl('h2', { text: 'Remove Code' });
-
-		const removeButton = contentEl.createEl('button', { text: 'Remove' });
-
-		removeButton.onclick = () => {
-			this.removeCodeFromSelection();
-			this.close();
-		};
-	}
-
-	removeCodeFromSelection() {
-		const selection = this.editor.getSelection();
-		const cleanedText = selection.replace(/<span\b[^>]*?\bclass="[^"]*\bcoded-text\b[^"]*"[^>]*?>(.*?)<\/span>/gis, '$1');
-		this.editor.replaceSelection(cleanedText);
-		this.saveCodeData(this.editor.getDoc().getValue());
-
-		// Remover o estilo dinâmico (opcional)
-		this.removeDynamicStyle(cleanedText);
-	}
-
-	saveCodeData(content: string) {
-		const filePath = this.app.workspace.getActiveFile()?.path;
-		if (filePath) {
-			const codeData = { path: filePath, content: content };
-			localStorage.setItem('codeData', JSON.stringify(codeData));
-		}
-	}
-
-	removeDynamicStyle(code: string) {
-		const styleId = `style-${this.sanitizeCodeName(code)}`;
-		const style = document.getElementById(styleId);
-		if (style) {
-			style.remove();
-		}
-	}
-
-	sanitizeCodeName(code: string): string {
-		return code.replace(/[^a-z0-9]/gi, '-').toLowerCase();
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
-	}
-}
-
-// Tooltip para Exibir Informações do Código
-class CodeTooltip {
-	element: HTMLElement;
-	constructor() {
-		this.element = document.createElement('div');
-		this.element.className = 'code-tooltip';
-		this.element.innerHTML = `
-			<div class="tooltip-content">
-				<span class="color-circle"></span>
-				<span class="code-name"></span>
-				<button class="remove-code">x</button>
-			</div>
-		`;
-		document.body.appendChild(this.element);
-
-		const removeButton = this.element.querySelector('.remove-code');
-		if (removeButton) {
-			removeButton.addEventListener('click', () => {
-				this.removeCode();
-			});
-		}
-	}
-
-	show(target: HTMLElement, code: string, color: string) {
-		const rect = target.getBoundingClientRect();
-		this.element.style.top = `${rect.top - 30}px`;
-		this.element.style.left = `${rect.left}px`;
-
-		const colorCircle = this.element.querySelector('.color-circle');
-		if (colorCircle) {
-			(colorCircle as HTMLElement).style.backgroundColor = color;
-		}
-
-		const codeNameElement = this.element.querySelector('.code-name');
-		if (codeNameElement) {
-			codeNameElement.textContent = code;
-		}
-
-		this.element.style.display = 'block';
-	}
-
-	hide() {
-		this.element.style.display = 'none';
-	}
-
-	removeCode() {
-		const selection = window.getSelection();
-		if (selection && selection.rangeCount > 0) {
-			const range = selection.getRangeAt(0);
-			const span = range.commonAncestorContainer.parentElement;
-			if (span && span.classList.contains('coded-text')) {
-				const cleanedText = span.innerHTML;
-				span.outerHTML = cleanedText;
-			}
-		}
-		this.hide();
-	}
-}
-
-// Plugin Principal
 export default class QualitativeCodingPlugin extends Plugin {
 	tooltip: CodeTooltip;
 
 	async onload() {
-		console.log('[qualitative-coding-plugin] v1 loaded — ApplyCodeModal + highlight com cor');
+		console.log('[qualitative-coding-plugin] v2 loaded -- Modular: modals/, tooltip/, types/');
 
 		this.tooltip = new CodeTooltip();
 
 		this.addCommand({
 			id: 'apply-code',
 			name: 'Apply Code to Selected Text',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
+			editorCallback: (editor, view) => {
 				new ApplyCodeModal(this.app, editor).open();
 			}
 		});
@@ -204,26 +22,45 @@ export default class QualitativeCodingPlugin extends Plugin {
 		this.addCommand({
 			id: 'remove-code',
 			name: 'Remove Code from Selected Text',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
+			editorCallback: (editor, view) => {
 				new RemoveCodeModal(this.app, editor).open();
 			}
 		});
 
-		this.addRibbonIcon('sun', 'Apply Code', (evt: MouseEvent) => {
+		this.addCommand({
+			id: 'clean-all-codes',
+			name: 'Clean All Codes from Document',
+			callback: () => {
+				const editor = this.getActiveEditor();
+				if (editor) {
+					this.cleanAllCodes(editor);
+				}
+			}
+		});
+
+		this.addRibbonIcon('sun', 'Apply Code', (evt) => {
 			const editor = this.getActiveEditor();
 			if (editor) {
 				new ApplyCodeModal(this.app, editor).open();
 			}
 		});
 
-		this.addRibbonIcon('cross', 'Remove Code', (evt: MouseEvent) => {
+		this.addRibbonIcon('cross', 'Remove Code', (evt) => {
 			const editor = this.getActiveEditor();
 			if (editor) {
 				new RemoveCodeModal(this.app, editor).open();
 			}
 		});
 
-		this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
+		this.addRibbonIcon('trash', 'Clean All Codes', (evt) => {
+			const editor = this.getActiveEditor();
+			if (editor) {
+				this.cleanAllCodes(editor);
+			}
+		});
+
+		//this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
+		this.registerEvent(this.app.workspace.on('editor-menu', (menu, file) => {
 			this.addContextMenuItems(menu);
 		}));
 
@@ -232,20 +69,22 @@ export default class QualitativeCodingPlugin extends Plugin {
 			link.rel = 'stylesheet';
 			link.href = 'styles.css';
 			document.head.appendChild(link);
+			this.reapplyStyles(); // Reapply styles when the document is loaded
 		});
 
-		this.registerDomEvent(document, 'mouseover', (evt: MouseEvent) => {
+		this.registerDomEvent(document, 'mouseover', (evt) => {
 			const target = evt.target as HTMLElement;
 			if (target && target.classList.contains('coded-text')) {
 				const code = target.getAttribute('data-code');
-				const color = target.getAttribute('data-color');
-				if (code && color) {
+				if (code) { // Adicionando verificação para garantir que 'code' não seja null
+					const styles = JSON.parse(localStorage.getItem('dynamicStyles') || '{}');
+					const color = styles[code] || '#ffff00';
 					this.tooltip.show(target, code, color);
 				}
 			}
 		});
 
-		this.registerDomEvent(document, 'mouseout', (evt: MouseEvent) => {
+		this.registerDomEvent(document, 'mouseout', (evt) => {
 			const target = evt.target as HTMLElement;
 			if (target && target.classList.contains('coded-text')) {
 				this.tooltip.hide();
@@ -254,6 +93,7 @@ export default class QualitativeCodingPlugin extends Plugin {
 
 		this.registerEvent(this.app.workspace.on('file-open', () => {
 			this.loadCodeData();
+			this.reapplyStyles(); // Reapply styles when a file is opened
 		}));
 	}
 
@@ -264,8 +104,10 @@ export default class QualitativeCodingPlugin extends Plugin {
 	getActiveEditor(): Editor | null {
 		const activeLeaf = this.app.workspace.activeLeaf;
 		if (activeLeaf) {
-			const view = activeLeaf.view as MarkdownView;
-			return view.editor;
+			const view = activeLeaf.view;
+			if (view instanceof MarkdownView) {
+				return view.editor;
+			}
 		}
 		return null;
 	}
@@ -273,7 +115,8 @@ export default class QualitativeCodingPlugin extends Plugin {
 	addContextMenuItems(menu: Menu) {
 		menu.addSeparator();
 		menu.addItem((item: MenuItem) => {
-			item.setTitle("Qualitative Coding").setIcon("pencil");
+			//item.setTitle("Qualitative Coding").setIcon("pencil");
+			item.setSection("Qualitative Coding").setTitle("Qualitative Coding").setIcon("pencil");
 		});
 		menu.addItem((item: MenuItem) => {
 			item.setTitle("Apply Code")
@@ -295,20 +138,63 @@ export default class QualitativeCodingPlugin extends Plugin {
 					}
 				});
 		});
-		menu.addSeparator();
-		}
-
-		loadCodeData() {
-			const filePath = this.app.workspace.getActiveFile()?.path;
-			const codeData = localStorage.getItem('codeData');
-			if (filePath && codeData) {
-				const parsedCodeData = JSON.parse(codeData);
-				if (parsedCodeData.path === filePath) {
-					const activeFile = this.app.workspace.getActiveFile();
-					if (activeFile) {
-						this.app.vault.modify(activeFile, parsedCodeData.content);
+		menu.addItem((item: MenuItem) => {
+			item.setTitle("Clean All Codes")
+				.setIcon("trash")
+				.onClick(() => {
+					const editor = this.getActiveEditor();
+					if (editor) {
+						this.cleanAllCodes(editor);
 					}
+				});
+		});
+		menu.addSeparator();
+	}
+
+	loadCodeData() {
+		const filePath = this.app.workspace.getActiveFile()?.path;
+		const codeData = localStorage.getItem('codeData');
+		if (filePath && codeData) {
+			const parsedCodeData = JSON.parse(codeData);
+			if (parsedCodeData.path === filePath) {
+				const activeFile = this.app.workspace.getActiveFile();
+				if (activeFile) {
+					this.app.vault.modify(activeFile, parsedCodeData.content);
 				}
 			}
 		}
+	}
+
+	reapplyStyles() {
+		const styles = JSON.parse(localStorage.getItem('dynamicStyles') || '{}') as Record<string, string>;
+		for (const [code, color] of Object.entries(styles)) {
+			this.addDynamicStyle(code, color);
+		}
+	}
+
+	addDynamicStyle(code: string, color: string) {
+		const styleId = `style-${this.sanitizeCodeName(code)}`;
+		let style = document.getElementById(styleId);
+
+		if (!style) {
+			style = document.createElement('style');
+			style.id = styleId;
+			//style.type = 'text/css';
+			document.head.appendChild(style);
+		}
+
+		style.innerHTML = `.coded-text.${this.sanitizeCodeName(code)} { background-color: ${color}; }`;
+	}
+
+	sanitizeCodeName(code: string): string {
+		return code.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+	}
+
+	cleanAllCodes(editor: Editor) {
+		const content = editor.getValue();
+		const cleanedContent = content.replace(/<span\b[^>]*?\bclass="[^"]*\bcoded-text\b[^"]*"[^>]*?>(.*?)<\/span>/gis, '$1');
+		editor.setValue(cleanedContent);
+		// Optionally remove the dynamic styles from localStorage
+		localStorage.removeItem('dynamicStyles');
+	}
 }
