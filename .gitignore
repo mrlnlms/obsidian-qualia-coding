@@ -1,0 +1,23 @@
+# npm (root + engine plugins in demo vault)
+node_modules/
+
+# build artifact (root only — engine main.js in demo IS committed)
+/main.js
+
+# sourcemaps
+*.map
+
+# obsidian runtime config
+data.json
+
+# macOS
+.DS_Store
+
+# dev-only / hot-reload
+.hotreload
+demo/.obsidian/plugins/hot-reload/
+demo/.obsidian/plugins/obsidian42-brat/
+
+# porting tooling
+.claude/
+CLAUDE.md

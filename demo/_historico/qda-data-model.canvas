@@ -1,0 +1,14 @@
+{
+	"nodes":[
+		{"id":"0078e406fcae26d4","type":"text","text":"Arquivos MD\n\nA cada trecho codificado no conteúdo do arquivo de entrevista é criado um arquivo novo (.md), contendo o trecho. O código ainda não vamos criar o arquivo, vamos tentar manipular a visualização via sidepanel. entao o codigo fica apenas no plugin, e no yaml?","x":-420,"y":-160,"width":1120,"height":120,"color":"2"},
+		{"id":"72670790cde36083","type":"text","text":"Entrevista\n\n\n---\n\nTrechos: \n- {\n  source: [Entrevista], contentID: 900909908998, content: \"blablablablalba\", codes: [code1, code2, ....]\n  }\n\n\n","x":-420,"y":-20,"width":300,"height":440},
+		{"id":"d89fb7dd71f48fb5","type":"text","text":"Trechos\n\n---\ncontentID: 900909908998\nsource: [Entrevista]\n\ncodes:\n- [code1]\n  [code2]\ncontent: \"bbalbalabalblalabbalbalblabalblblabalbalabalblbalbalabalblabalblablablbalbalabl\"\ntags: code1, code2.. ","x":105,"y":440,"width":355,"height":480},
+		{"id":"3a79a6a8245db3e2","type":"text","text":"Codigos\n\n- nome do codigo\n- descricao\n- cor\n- quantidade de itens usando este codigo\n\n- Trechos:\n\t- ...","x":105,"y":-20,"width":250,"height":380},
+		{"id":"91cda2dec304f72f","type":"text","text":"Usuário seleciona um texto\nabre um menu com opções\no usuário digitar o nome do codigo\n","x":-395,"y":440,"width":335,"height":480,"color":"#ffffff"}
+	],
+	"edges":[
+		{"id":"0c344cd0a1294286","fromNode":"72670790cde36083","fromSide":"right","toNode":"3a79a6a8245db3e2","toSide":"left"},
+		{"id":"4b7ad570ac910605","fromNode":"72670790cde36083","fromSide":"right","toNode":"d89fb7dd71f48fb5","toSide":"left"},
+		{"id":"92e5915f2358d15c","fromNode":"3a79a6a8245db3e2","fromSide":"bottom","toNode":"d89fb7dd71f48fb5","toSide":"top"}
+	]
+}

@@ -1,0 +1,1 @@
+Texto que seria marcado de <span class="coded-text codigo" data-code="codigo" data-color="#ffff00">alguma</span> forma
