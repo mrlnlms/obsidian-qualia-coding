@@ -1,1 +1,42 @@
-../../../../styles.css
+/*
+
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+
+If your plugin does not need CSS, delete this file.
+
+*/
+
+.code-tooltip {
+	display: none;
+	position: absolute;
+	background: rgba(0, 0, 0, 0.8);
+	color: white;
+	border-radius: 5px;
+	padding: 5px;
+	z-index: 1000;
+}
+
+.tooltip-content {
+	display: flex;
+	align-items: center;
+}
+
+.color-circle {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background-color: yellow;
+	margin-right: 5px;
+}
+
+.code-name {
+	margin-right: 10px;
+}
+
+.remove-code {
+	background: transparent;
+	border: none;
+	color: white;
+	cursor: pointer;
+}

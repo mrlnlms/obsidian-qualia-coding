@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2024-06-19_v2-modular/test-note.md",
+                "file": "2024-06-23_v3-refactor-imports-modulares/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
@@ -118,13 +118,19 @@
       "bases:Create new base": false,
       "obsidian42-brat:BRAT": false,
       "qualitative-coding-plugin:Apply Code": false,
-      "qualitative-coding-plugin:Remove Code": false
+      "qualitative-coding-plugin:Remove Code": false,
+      "qualitative-coding-plugin:Clean All Codes": false,
+      "qualitative-coding-plugin:Add New Code": false,
+      "qualitative-coding-plugin:Add Existing Code": false,
+      "qualitative-coding-plugin:Remove All Codes": false
     }
   },
   "active": "4f7d62913ecb1c43",
   "lastOpenFiles": [
-    "Sample 1.md",
     "2024-06-19_v2-modular/test-note.md",
+    "2024-06-23_v3-refactor-imports-modulares/test-note.md",
+    "2024-06-23_v3-refactor-imports-modulares",
+    "Sample 1.md",
     "2024-06-19_v2-modular/_demo-notes/editor-playground-coded-sample.md",
     "2024-06-19_v2-modular/_demo-notes",
     "2024-06-19_v2-modular",
@@ -156,7 +162,6 @@
     "_demo-notes/code-def-politica-publica.md",
     "_demo-notes/code-def-politic-science.md",
     "_demo-notes/code-def-mmmm-project.md",
-    "_demo-notes/code-def-marlon.md",
     "templates",
     "_demo-notes",
     "_historico"

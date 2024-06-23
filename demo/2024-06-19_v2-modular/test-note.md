@@ -20,8 +20,8 @@ description: "Modular: modals/, tooltip/, types/"
 
 ## Como verificar
 
-1. Console<span class="coded-text teste" data-code="teste" data-color="#ffff00">: `[qualitative-coding-plugin] v2 loaded`
-2. Abra `editor-playground-coded-</span>sample.md` — texto ja tem spans codificados
+1. Console: `[qualitative-coding-plugin] v2 loaded`
+2. Abra `editor-playground-coded-sample.md` — texto ja tem spans codificados
 3. Hover sobre texto codificado — tooltip aparece com cor e nome
 4. Teste o comando "Clean All Codes" — remove todos os spans
 5. Context menu (botao direito) — itens de Qualitative Coding aparecem

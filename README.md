@@ -2,36 +2,33 @@
 
 Plugin para Analise de Dados Qualitativos (QDA) no Obsidian.
 
-## v2 — Modular: modals/, tooltip/, types/
+## v3 — Refactor: imports modulares, moxs-qda (broken stubs)
 
-Refatoracao para estrutura modular. Logica extraida de main.ts para modulos separados.
+Refatoracao arquitetural completa. Classe principal renomeada para `MyPlugin`, logica de menus extraida para `src/obsidian_ui_menus/obsidian_menus`, settings para `src/SampleSettingTab`.
 
 ### Estrutura
 
 ```
-main.ts                    <- plugin principal (imports modulares)
-modals/ApplyCodeModal.ts   <- modal de aplicar codigo
-modals/RemoveCodeModal.ts  <- modal de remover codigo
-tooltip/CodeTooltip.ts     <- tooltip no hover
-types/obsidian-ex.d.ts     <- type augmentations (Menu, MenuItem)
+main.ts                                      <- plugin principal (MyPlugin)
+src/obsidian_ui_menus/obsidian_menus.ts      <- menus editor/file (stubs)
+src/SampleSettingTab.ts                      <- aba de settings (stub)
 ```
+
+### Estado atual
+
+Esta versao representa o refactor "moxs-qda" — uma tentativa de reorganizacao que ficou quebrada. Os modulos importados pelo main.ts nao foram preservados no backup original, entao stubs foram criados para permitir o build.
 
 ### Funcionalidades
 
-- **ApplyCodeModal** — aplica codigos qualitativos a selecoes de texto
-- **RemoveCodeModal** — remove codigos de selecoes
-- **CodeTooltip** — tooltip no hover mostrando nome do codigo e cor
-- **Clean All Codes** — comando para limpar todos os codigos do documento
-- **Highlight colorido** — estilos dinamicos por codigo, persistidos no localStorage
-- **Context menu** — itens no editor-menu (botao direito)
-- **Ribbon icons** — sol (apply), cross (remove), trash (clean all)
-- **reapplyStyles()** — estilos recarregados ao abrir arquivo
+- **Selection menu** — popup com opcoes ao selecionar texto (mouseup event)
+- **Context menu** — itens no editor-menu e file-menu via funcoes modulares
+- **Ribbon icons** — plus (add new), check (add existing), trash (remove), x (remove all)
+- **Commands** — Add New/Existing Code, Remove Code, Remove All Codes
+- **Settings tab** — SampleSettingTab (stub basico)
+- **resetMenu()** — logica de reset extraida para modulo separado
 
-### Como usar
+### Notas
 
-1. Selecione texto no editor
-2. Use o comando "Apply Code to Selected Text" (ou o icone sol na ribbon)
-3. Digite o nome do codigo e escolha uma cor
-4. O texto fica highlighted com a cor escolhida
-5. Passe o mouse sobre texto codificado para ver o tooltip
-6. Use "Clean All Codes" para limpar todos os codigos do documento
+- Modulos originais (`modals/`, `tooltip/`, `types/`) da v2 foram substituidos
+- Stubs em `src/` permitem build mas nao tem a implementacao original
+- Menus mostram items mas as acoes sao no-op nos stubs
