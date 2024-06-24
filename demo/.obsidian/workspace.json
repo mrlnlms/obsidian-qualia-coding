@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2024-06-24_v4-svelte-branch-displaymenus-completo/test-note.md",
+                "file": "2024-06-24_v5-displaymenus-completo/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
@@ -122,13 +122,21 @@
       "qualitative-coding-plugin:Clean All Codes": false,
       "qualitative-coding-plugin:Add New Code": false,
       "qualitative-coding-plugin:Add Existing Code": false,
-      "qualitative-coding-plugin:Remove All Codes": false
+      "qualitative-coding-plugin:Remove All Codes": false,
+      "menu-editors:": false,
+      "menu-editors:Toggle Example": false,
+      "menu-editors:Add New Code": false,
+      "menu-editors:Add Existing Code": false,
+      "menu-editors:Remove Code": false,
+      "menu-editors:Remove All Codes": false
     }
   },
   "active": "4f7d62913ecb1c43",
   "lastOpenFiles": [
-    "2024-06-23_v3-refactor-imports-modulares/test-note.md",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/test-note.md",
+    "2024-06-24_v5-displaymenus-completo/test-note.md",
+    "2024-06-24_v5-displaymenus-completo",
+    "2024-06-23_v3-refactor-imports-modulares/test-note.md",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico/backup-mara.ts",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico/backup.ts",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico/finalmente.ts",
@@ -155,7 +163,6 @@
     "2024-06-19_v1-primeiro-qda/_demo-notes/analysis-extraction-type-overview.md",
     "2024-06-19_v1-primeiro-qda/_demo-notes/analysis-code-overview.md",
     "2024-06-19_v1-primeiro-qda/templates",
-    "2024-06-19_v1-primeiro-qda/_historico",
     "templates/extraction-template.md",
     "_historico/qda-data-model.canvas",
     "_historico/qda-v1-file-structure-suggestion.md",
@@ -163,7 +170,6 @@
     "_demo-notes/transcript-meiuca-diogo-roncatto.md",
     "_demo-notes/extraction-003.md",
     "_demo-notes/extraction-001.md",
-    "_demo-notes/code-def-politica-publica.md",
-    "_demo-notes/code-def-politic-science.md"
+    "_demo-notes/code-def-politica-publica.md"
   ]
 }

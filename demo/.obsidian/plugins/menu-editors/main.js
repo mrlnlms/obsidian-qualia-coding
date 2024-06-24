@@ -27,110 +27,414 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian2 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // src/DisplayMenus.ts
 var import_obsidian = require("obsidian");
-function createEditorMenu(menu, editor, plugin) {
-  menu.addItem((item) => {
-    item.setTitle("Add New Code").setIcon("plus").onClick(() => {
-      new import_obsidian.Notice("Add New Code");
-      resetMenu(plugin);
-    });
+function createCodingsMenu(plugin) {
+  createRibbonButtons(plugin);
+  createCommands(plugin);
+}
+function createRibbonButtons(plugin) {
+  Object.values(plugin.menuOptions).forEach((option) => {
+    plugin.addRibbonIcon(option.icon, option.title, () => option.action(plugin));
   });
-  menu.addItem((item) => {
-    item.setTitle("Add Existing Code").setIcon("check").onClick(() => {
-      new import_obsidian.Notice("Add Existing Code");
-      resetMenu(plugin);
-    });
-  });
-  menu.addItem((item) => {
-    item.setTitle("Remove Code").setIcon("trash").onClick(() => {
-      new import_obsidian.Notice("Remove Code");
-      resetMenu(plugin);
-    });
-  });
-  menu.addItem((item) => {
-    item.setTitle("Remove All Codes").setIcon("x").onClick(() => {
-      new import_obsidian.Notice("Remove All Codes");
-      resetMenu(plugin);
+}
+function createCommands(plugin) {
+  Object.values(plugin.menuOptions).forEach((option) => {
+    plugin.addCommand({
+      id: option.title.toLowerCase().replace(/ /g, "-"),
+      name: option.title,
+      callback: () => option.action(plugin)
     });
   });
 }
 function createFileMenu(menu, file, plugin) {
-  menu.addItem((item) => {
-    item.setTitle("Add New Code").setIcon("plus").onClick(() => {
-      new import_obsidian.Notice("Add New Code");
-      resetMenu(plugin);
-    });
-  });
-  menu.addItem((item) => {
-    item.setTitle("Add Existing Code").setIcon("check").onClick(() => {
-      new import_obsidian.Notice("Add Existing Code");
-      resetMenu(plugin);
-    });
-  });
-  menu.addItem((item) => {
-    item.setTitle("Remove Code").setIcon("trash").onClick(() => {
-      new import_obsidian.Notice("Remove Code");
-      resetMenu(plugin);
-    });
-  });
-  menu.addItem((item) => {
-    item.setTitle("Remove All Codes").setIcon("x").onClick(() => {
-      new import_obsidian.Notice("Remove All Codes");
-      resetMenu(plugin);
-    });
-  });
+  createDefaultObsidianMenus(menu, plugin);
 }
-function resetMenu(plugin) {
+function createEditorMenu(menu, plugin) {
+  createDefaultObsidianMenus(menu, plugin);
+}
+async function createEditorCodingMenu(editor, evt, plugin) {
+  const selectedText = editor.getSelection();
+  if (selectedText && !plugin.selectionTriggeredMenu) {
+    plugin.selectionTriggeredMenu = true;
+    plugin.menuStayOpen = true;
+    if (plugin.currentMenu) {
+      plugin.currentMenu.hide();
+    }
+    const submenu = new import_obsidian.Menu();
+    const cleanupCallbacks = [];
+    Object.values(plugin.menuOptions).forEach((option) => {
+      if (option.isToggle) {
+        submenu.addItem((item) => {
+          var _a;
+          const toggleComponent = new import_obsidian.ToggleComponent(item.dom);
+          toggleComponent.setValue((_a = option.isEnabled) != null ? _a : false);
+          toggleComponent.onChange((value) => {
+            new import_obsidian.Notice("##$$$");
+            option.isEnabled = value;
+            option.action(plugin);
+            plugin.menuStayOpen = true;
+            plugin.selectionTriggeredMenu = true;
+          });
+          item.setTitle(option.title).setIcon(option.icon);
+          item.dom.classList.add("menu-item-toggle");
+          item.dom.addEventListener("click", (evt2) => {
+            new import_obsidian.Notice("AQUI");
+            evt2.stopPropagation();
+            const currentValue = toggleComponent.getValue();
+            toggleComponent.setValue(!currentValue);
+          });
+        });
+      } else if (option.isTextField) {
+        submenu.addItem((item) => {
+          const textComponent = new import_obsidian.TextComponent(item.dom);
+          textComponent.setPlaceholder("Enter text...");
+          textComponent.onChange((value) => {
+            option.action(plugin);
+          });
+          item.setTitle(option.title).setIcon(option.icon);
+          item.dom.classList.add("menu-item-textfield");
+          item.dom.addEventListener("click", (evt2) => {
+            evt2.stopPropagation();
+            textComponent.inputEl.focus();
+          });
+          const handleEnterKey = (evt2) => {
+            if (evt2.key === "Enter") {
+              evt2.preventDefault();
+              evt2.stopPropagation();
+              new import_obsidian.Notice(`1---`);
+              new import_obsidian.Notice(`${plugin.selectionTriggeredMenu}`);
+              new import_obsidian.Notice(`${plugin.contextMenuOpened}`);
+              new import_obsidian.Notice(`${plugin.codingMenuOpened}`);
+              new import_obsidian.Notice(`${plugin.menuStayOpen}`);
+              new import_obsidian.Notice(`2---`);
+              addItemToEditorCodingMenu(textComponent.inputEl.value, plugin, editor, submenu);
+              textComponent.inputEl.value = "";
+              textComponent.inputEl.focus();
+            }
+          };
+          window.addEventListener("keydown", handleEnterKey, true);
+          textComponent.inputEl.addEventListener("keydown", handleEnterKey, true);
+          cleanupCallbacks.push(() => {
+            console.log("Removing keydown event listener for Enter key");
+            window.removeEventListener("keydown", handleEnterKey, true);
+            textComponent.inputEl.removeEventListener("keydown", handleEnterKey, true);
+          });
+        });
+      } else {
+        submenu.addItem((item) => {
+          item.setTitle(option.title).setIcon(option.icon).onClick(() => {
+            option.action(plugin);
+            resetMenu(plugin);
+          });
+        });
+      }
+    });
+    submenu.onHide(() => {
+      console.log("Submenu onHide called");
+      cleanupCallbacks.forEach((callback) => callback());
+      plugin.selectionTriggeredMenu = false;
+    });
+    submenu.showAtPosition({ x: evt.pageX, y: evt.pageY });
+    plugin.currentMenu = submenu;
+  }
+}
+function resetMenu(plugin, hideMenu = true) {
+  new import_obsidian.Notice("SAIU");
   if (plugin.currentMenu) {
     plugin.currentMenu.hide();
     plugin.currentMenu = null;
   }
   plugin.selectionTriggeredMenu = false;
   plugin.contextMenuOpened = false;
-  plugin.codingMenuOpened = false;
+}
+function createDefaultObsidianMenus(menu, plugin) {
+  menu.addSeparator();
+  menu.addItem((item) => {
+    item.setTitle("Code Options").setIcon("dice");
+    const submenu = item.setSubmenu();
+    Object.values(plugin.menuOptions).forEach((option) => {
+      submenu.addItem((subItem) => {
+        subItem.setTitle(option.title).setIcon(option.icon).onClick(() => option.action(plugin));
+      });
+    });
+  });
+}
+function toggleExample(plugin) {
+  const toggleOption = plugin.menuOptions.find((option) => option.title === "Toggle Example");
+  if (toggleOption) {
+    new import_obsidian.Notice(`Toggle is now ${toggleOption.isEnabled ? "enabled" : "disabled"}`);
+  }
+}
+function addItemToEditorCodingMenu(value, plugin, editor, submenu) {
+  if (value.trim() !== "") {
+    const newOption = {
+      title: value,
+      icon: "tag",
+      action: (plugin2) => {
+        plugin2.toggleQueue = true;
+        new import_obsidian.Notice(`Toggle ${value} executed`);
+      },
+      isToggle: true,
+      isEnabled: false
+    };
+    plugin.menuOptions.push(newOption);
+    submenu.addItem((item) => {
+      var _a;
+      const toggleComponent = new import_obsidian.ToggleComponent(item.dom);
+      toggleComponent.setValue((_a = newOption.isEnabled) != null ? _a : false);
+      toggleComponent.onChange((toggleValue) => {
+        if (!plugin.toggleQueue) {
+          plugin.toggleQueue = true;
+          setTimeout(() => plugin.toggleQueue = false, 1e3);
+          newOption.isEnabled = toggleValue;
+          newOption.action(plugin);
+        }
+      });
+      item.setTitle(newOption.title).setIcon(newOption.icon);
+      item.dom.classList.add("menu-item-toggle");
+      item.dom.addEventListener("click", (evt) => {
+        if (!plugin.toggleQueue) {
+          const targetElement = evt.target;
+          evt.stopPropagation();
+          const currentValue = toggleComponent.getValue();
+          toggleComponent.setValue(!currentValue);
+        }
+      });
+    });
+    submenu.hide();
+    submenu.showAtPosition({ x: submenu.posX, y: submenu.posY });
+    if (!plugin.menuStayOpen) {
+      plugin.selectionTriggeredMenu = false;
+      plugin.menuStayOpen = false;
+    } else {
+      plugin.selectionTriggeredMenu = true;
+      plugin.menuStayOpen = true;
+    }
+  }
 }
 
-// main.ts
-var MyPlugin = class extends import_obsidian2.Plugin {
-  constructor() {
-    super(...arguments);
-    this.currentMenu = null;
-    this.selectionTriggeredMenu = false;
-    this.contextMenuOpened = false;
-    this.codingMenuOpened = false;
+// src/Events.ts
+var import_obsidian3 = require("obsidian");
+
+// src/CodingModals.ts
+var import_obsidian2 = require("obsidian");
+var ApplyCodeModal = class extends import_obsidian2.Modal {
+  constructor(app2, editor) {
+    super(app2);
+    this.editor = editor;
   }
-  async onload() {
-    console.log("[menu-editors] v4 loaded -- Svelte branch (mosxqda) + menuitens: DisplayMenus completo");
-    this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor) => {
-      createEditorMenu(menu, editor, this);
-    }));
-    this.registerEvent(this.app.workspace.on("file-menu", async (menu, file) => {
-      if (file instanceof import_obsidian2.TFile) {
-        createFileMenu(menu, file, this);
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: "Apply Code" });
+    const codeInput = contentEl.createEl("input", { type: "text", placeholder: "Enter code" });
+    const colorInput = contentEl.createEl("input", { type: "color", value: "#ffff00" });
+    const applyButton = contentEl.createEl("button", { text: "Apply" });
+    applyButton.onclick = () => {
+      this.code = codeInput.value.trim();
+      const color = colorInput.value;
+      if (this.code) {
+        this.applyCodeToSelection(this.code, color);
       }
-    }));
-    this.addContextMenuEvent();
-    await this.addMouseUpEvent();
+      this.close();
+    };
   }
-  addContextMenuEvent() {
-    this.registerDomEvent(document, "contextmenu", () => {
+  applyCodeToSelection(code, color) {
+    const selection = this.editor.getSelection();
+    const codedText = `<span class="coded-text ${sanitizeCodeName(code)}" data-code="${code}">${selection}</span>`;
+    this.editor.replaceSelection(codedText);
+    saveCodeData(this.editor.getDoc().getValue());
+    addDynamicStyle(code, color);
+    storeStyle(code, color);
+  }
+  /*
+  	saveCodeData(content: string) {
+  		new Notice("saveCodeData")
+  		const filePath = this.app.workspace.getActiveFile()?.path;
+  		if (filePath) {
+  			const codeData = { path: filePath, content: content };
+  			localStorage.setItem('codeData', JSON.stringify(codeData));
+  		}
+  	}
+  	
+  	addDynamicStyle(code: string, color: string) {
+  		const styleId = `style-${this.sanitizeCodeName(code)}`;
+  		let style = document.getElementById(styleId);
+  
+  		if (!style) {
+  			style = document.createElement('style');
+  			style.id = styleId;
+  			document.head.appendChild(style);
+  		}
+  
+  		style.innerHTML = `.coded-text.${this.sanitizeCodeName(code)} { background-color: ${color}; }`;
+  	}
+  */
+  /* sanitizeCodeName(code: string): string {
+  	return code.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  } */
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+  /* getActiveEditor(): Editor | null {
+  	const activeLeaf = this.app.workspace.activeLeaf;
+  	if (activeLeaf) {
+  		const view = activeLeaf.view as MarkdownView;
+  		return view.editor;
+  	}
+  	return null;
+  } */
+};
+var RemoveCodeModal = class extends import_obsidian2.Modal {
+  constructor(app2, editor) {
+    super(app2);
+    this.editor = editor;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: "Remove Code" });
+    const removeButton = contentEl.createEl("button", { text: "Remove" });
+    removeButton.onclick = () => {
+      this.removeCodeFromSelection();
+      this.close();
+    };
+  }
+  removeCodeFromSelection() {
+    const selection = this.editor.getSelection();
+    const cleanedText = selection.replace(/<span\b[^>]*?\bclass="[^"]*\bcoded-text\b[^"]*"[^>]*?>(.*?)<\/span>/gis, "$1");
+    this.editor.replaceSelection(cleanedText);
+    saveCodeData(this.editor.getDoc().getValue());
+    this.removeDynamicStyle(cleanedText);
+  }
+  /* saveCodeData(content: string) {
+  	const filePath = this.app.workspace.getActiveFile()?.path;
+  	if (filePath) {
+  		const codeData = { path: filePath, content: content };
+  		localStorage.setItem('codeData', JSON.stringify(codeData));
+  	}
+  } */
+  removeDynamicStyle(code) {
+    const styleId = `style-${sanitizeCodeName(code)}`;
+    const style = document.getElementById(styleId);
+    if (style) {
+      style.remove();
+    }
+  }
+  /* sanitizeCodeName(code: string): string {
+  	return code.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  } */
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+function cleanAllCodes(editor) {
+  const content = editor.getValue();
+  const cleanedContent = content.replace(/<span\b[^>]*?\bclass="[^"]*\bcoded-text\b[^"]*"[^>]*?>(.*?)<\/span>/gis, "$1");
+  editor.setValue(cleanedContent);
+  localStorage.removeItem("dynamicStyles");
+}
+function getActiveEditor() {
+  const activeLeaf = this.app.workspace.activeLeaf;
+  if (activeLeaf) {
+    const view = activeLeaf.view;
+    if (view instanceof import_obsidian2.MarkdownView) {
+      return view.editor;
+    }
+  }
+  return null;
+}
+function saveCodeData(content) {
+  var _a;
+  const filePath = (_a = app.workspace.getActiveFile()) == null ? void 0 : _a.path;
+  if (filePath) {
+    const codeData = { path: filePath, content };
+    localStorage.setItem("codeData", JSON.stringify(codeData));
+  }
+}
+function loadCodeData() {
+  var _a;
+  const filePath = (_a = this.app.workspace.getActiveFile()) == null ? void 0 : _a.path;
+  const codeData = localStorage.getItem("codeData");
+  if (filePath && codeData) {
+    const parsedCodeData = JSON.parse(codeData);
+    if (parsedCodeData.path === filePath) {
+      const activeFile = this.app.workspace.getActiveFile();
+      if (activeFile) {
+        this.app.vault.modify(activeFile, parsedCodeData.content);
+      }
+    }
+  }
+}
+function reapplyStyles() {
+  const styles = JSON.parse(localStorage.getItem("dynamicStyles") || "{}");
+  for (const [code, color] of Object.entries(styles)) {
+    addDynamicStyle(code, color);
+  }
+}
+function addDynamicStyle(code, color) {
+  const styleId = `style-${sanitizeCodeName(code)}`;
+  let style = document.getElementById(styleId);
+  if (!style) {
+    style = document.createElement("style");
+    style.id = styleId;
+    document.head.appendChild(style);
+  }
+  style.innerHTML = `.coded-text.${sanitizeCodeName(code)} { background-color: ${color}; }`;
+}
+function storeStyle(code, color) {
+  const styles = JSON.parse(localStorage.getItem("dynamicStyles") || "{}");
+  styles[code] = color;
+  localStorage.setItem("dynamicStyles", JSON.stringify(styles));
+}
+function sanitizeCodeName(code) {
+  return code.replace(/[^a-z0-9]/gi, "-").toLowerCase();
+}
+
+// src/Events.ts
+function createRegisterEvents(plugin) {
+  plugin.registerEvent(plugin.app.workspace.on("editor-menu", (menu, editor) => {
+    createEditorMenu(menu, plugin);
+  }));
+  plugin.registerEvent(plugin.app.workspace.on("file-menu", async (menu, file) => {
+    if (file instanceof import_obsidian3.TFile) {
+      createFileMenu(menu, file, plugin);
+    }
+  }));
+  plugin.registerDomEvent(document, "contextmenu", (evt) => {
+    const activeLeaf = plugin.app.workspace.activeLeaf;
+    if (!((activeLeaf == null ? void 0 : activeLeaf.view) instanceof import_obsidian3.MarkdownView)) {
+      return;
+    }
+    plugin.contextMenuOpened = true;
+  });
+  plugin.registerEvent(this.app.workspace.on("file-open", () => {
+    loadCodeData();
+    reapplyStyles();
+  }));
+  plugin.registerDomEvent(document, "DOMContentLoaded", () => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "styles.css";
+    document.head.appendChild(link);
+    reapplyStyles();
+  });
+  addMouseUpEvent(plugin);
+}
+function addMouseUpEvent(plugin) {
+  plugin.registerDomEvent(
+    document,
+    "mouseup",
+    async (evt) => {
+      if (!plugin.selectionTriggeredMenu) {
+        console.log("padr\xE3o");
+        resetMenu(plugin);
+      }
       const activeLeaf = this.app.workspace.activeLeaf;
-      if (!((activeLeaf == null ? void 0 : activeLeaf.view) instanceof import_obsidian2.MarkdownView)) {
-        return;
-      }
-      this.contextMenuOpened = true;
-    });
-  }
-  async addMouseUpEvent() {
-    this.registerDomEvent(document, "mouseup", async (evt) => {
-      if (!this.selectionTriggeredMenu) {
-        resetMenu(this);
-      }
-      const activeLeaf = this.app.workspace.activeLeaf;
-      if (!((activeLeaf == null ? void 0 : activeLeaf.view) instanceof import_obsidian2.MarkdownView)) {
+      if (!((activeLeaf == null ? void 0 : activeLeaf.view) instanceof import_obsidian3.MarkdownView)) {
         return;
       }
       const editor = activeLeaf.view.editor;
@@ -144,7 +448,7 @@ var MyPlugin = class extends import_obsidian2.Plugin {
         return;
       }
       if (this.contextMenuOpened) {
-        resetMenu(this);
+        resetMenu(plugin);
         this.contextMenuOpened = false;
         this.codingMenuOpened = true;
         return;
@@ -156,84 +460,77 @@ var MyPlugin = class extends import_obsidian2.Plugin {
         return;
       }
       if (!this.codingMenuOpened && !this.contextMenuOpened) {
-        console.log("this.selectionTriggeredMenu:: " + this.selectionTriggeredMenu);
-        await this.handleTextSelection(editor, evt);
-        console.log("this.selectionTriggeredMenu:: " + this.selectionTriggeredMenu);
+        await createEditorCodingMenu(editor, evt, plugin);
       } else if (this.codingMenuOpened) {
-        resetMenu(this);
+        resetMenu(plugin);
         this.codingMenuOpened = false;
         return;
       }
-      console.log("****************");
-    });
-  }
-  async handleTextSelection(editor, evt) {
-    const selectedText = editor.getSelection();
-    if (selectedText && !this.selectionTriggeredMenu) {
-      this.selectionTriggeredMenu = true;
-      new import_obsidian2.Notice("Text selected: " + selectedText);
-      if (this.currentMenu) {
-        this.currentMenu.hide();
-      }
-      const submenu = new import_obsidian2.Menu();
-      submenu.addItem((item) => {
-        item.setTitle("Add New Code").setIcon("plus").onClick(() => {
-          this.addNewCode();
-          resetMenu(this);
-        });
-      });
-      submenu.addItem((item) => {
-        item.setTitle("Add Existing Code").setIcon("check").onClick(() => {
-          this.addExistingCode();
-          resetMenu(this);
-        });
-      });
-      submenu.addItem((item) => {
-        item.setTitle("Remove Code").setIcon("trash").onClick(() => {
-          this.removeCode();
-          resetMenu(this);
-        });
-      });
-      submenu.addItem((item) => {
-        item.setTitle("Remove All Codes").setIcon("x").onClick(() => {
-          this.removeAllCodes();
-          resetMenu(this);
-        });
-      });
-      submenu.onHide(() => {
-        this.selectionTriggeredMenu = false;
-      });
-      submenu.showAtPosition({ x: evt.pageX, y: evt.pageY });
-      this.currentMenu = submenu;
     }
+  );
+}
+
+// src/Coding.ts
+var import_obsidian4 = require("obsidian");
+function addNewCode(plugin) {
+  const editor = getActiveEditor();
+  if (editor) {
+    new ApplyCodeModal(plugin.app, editor).open();
   }
-  resetMenu() {
-    if (this.currentMenu) {
-      this.currentMenu.hide();
-      this.currentMenu = null;
-    }
+  resetMenu(this);
+}
+function addExistingCode(plugin) {
+  new import_obsidian4.Notice("Add Existing Code");
+  resetMenu(this);
+}
+function removeCode(plugin) {
+  new import_obsidian4.Notice("Remove Code");
+  const editor = getActiveEditor();
+  if (editor) {
+    new RemoveCodeModal(plugin.app, editor).open();
+  }
+  resetMenu(this);
+}
+function removeAllCodes(plugin) {
+  new import_obsidian4.Notice("Remove Code");
+  const editor = getActiveEditor();
+  if (editor) {
+    cleanAllCodes(editor);
+  }
+  resetMenu(this);
+}
+
+// main.ts
+var MyPlugin = class extends import_obsidian5.Plugin {
+  constructor() {
+    super(...arguments);
+    // See more icon options here:
+    //https://forum.obsidian.md/uploads/default/original/3X/8/b/8be3c937905f08c5e0c532228d904e6cb425ab58.png
+    this.currentMenu = null;
+    this.menuOptions = [
+      { title: "", icon: "tag", action: (plugin) => {
+      }, isTextField: true },
+      // Nova opção de campo de texto
+      { title: "Toggle Example", icon: "switch", action: (plugin) => toggleExample(plugin), isToggle: true, isEnabled: false },
+      { title: "Add New Code", icon: "plus-with-circle", action: (plugin) => addNewCode(plugin) },
+      { title: "Add Existing Code", icon: "tag", action: (plugin) => addExistingCode(plugin) },
+      { title: "Remove Code", icon: "trash", action: (plugin) => removeCode(plugin) },
+      { title: "Remove All Codes", icon: "minus-with-circle", action: (plugin) => removeAllCodes(plugin) }
+    ];
     this.selectionTriggeredMenu = false;
     this.contextMenuOpened = false;
     this.codingMenuOpened = false;
+    this.menuStayOpen = false;
+    this.removeAll = false;
+    this.toggleQueue = false;
+  }
+  // open queue = true; close queue = false (default state, if queue = true doesn't execute some functions)
+  async onload() {
+    console.log("[menu-editors] v5 loaded -- DisplayMenus completo: menus DOM, coding modals, reapplyStyles");
+    createRegisterEvents(this);
+    createCodingsMenu(this);
   }
   onunload() {
-    new import_obsidian2.Notice("Plugin unloaded");
-  }
-  addNewCode() {
-    new import_obsidian2.Notice("Add New Code");
-    resetMenu(this);
-  }
-  addExistingCode() {
-    new import_obsidian2.Notice("Add Existing Code");
-    resetMenu(this);
-  }
-  removeCode() {
-    new import_obsidian2.Notice("Remove Code");
-    resetMenu(this);
-  }
-  removeAllCodes() {
-    new import_obsidian2.Notice("Remove All Codes");
-    resetMenu(this);
+    new import_obsidian5.Notice("Plugin unloaded");
   }
 };
-//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKICAic291cmNlcyI6IFsibWFpbi50cyIsICJzcmMvRGlzcGxheU1lbnVzLnRzIl0sCiAgInNvdXJjZXNDb250ZW50IjogWyJpbXBvcnQgeyBFZGl0b3IsIE1hcmtkb3duVmlldywgTWVudSwgTm90aWNlLCBQbHVnaW4sIFRGaWxlIH0gZnJvbSAnb2JzaWRpYW4nO1xuaW1wb3J0IHsgY3JlYXRlRWRpdG9yTWVudSwgY3JlYXRlRmlsZU1lbnUsIHJlc2V0TWVudSB9IGZyb20gJy4vc3JjL0Rpc3BsYXlNZW51cyc7XG5cbmV4cG9ydCBkZWZhdWx0IGNsYXNzIE15UGx1Z2luIGV4dGVuZHMgUGx1Z2luIHtcblx0Y3VycmVudE1lbnU6IE1lbnUgfCBudWxsID0gbnVsbDtcblx0c2VsZWN0aW9uVHJpZ2dlcmVkTWVudTogYm9vbGVhbiA9IGZhbHNlO1xuXHRjb250ZXh0TWVudU9wZW5lZDogYm9vbGVhbiA9IGZhbHNlO1xuXHRjb2RpbmdNZW51T3BlbmVkOiBib29sZWFuID0gZmFsc2U7XG5cblx0YXN5bmMgb25sb2FkKCkge1xuXHRcdGNvbnNvbGUubG9nKCdbbWVudS1lZGl0b3JzXSB2NCBsb2FkZWQgLS0gU3ZlbHRlIGJyYW5jaCAobW9zeHFkYSkgKyBtZW51aXRlbnM6IERpc3BsYXlNZW51cyBjb21wbGV0bycpO1xuXHRcdHRoaXMucmVnaXN0ZXJFdmVudCh0aGlzLmFwcC53b3Jrc3BhY2Uub24oJ2VkaXRvci1tZW51JywgKG1lbnUsIGVkaXRvcikgPT4ge1xuXHRcdFx0Y3JlYXRlRWRpdG9yTWVudShtZW51LCBlZGl0b3IsIHRoaXMpO1xuXHRcdH0pKTtcblxuXHRcdC8vIEFkZCB0byBmaWxlIG1lbnUgKHJpZ2h0LWNsaWNrIG1lbnUgb24gYSBmaWxlKVxuXHRcdHRoaXMucmVnaXN0ZXJFdmVudCh0aGlzLmFwcC53b3Jrc3BhY2Uub24oJ2ZpbGUtbWVudScsIGFzeW5jIChtZW51LCBmaWxlKSA9PiB7XG5cdFx0XHRpZiAoZmlsZSBpbnN0YW5jZW9mIFRGaWxlKSB7XG5cdFx0XHRcdC8vdGhpcy5jcmVhdGVGaWxlTWVudShtZW51LCBmaWxlKTtcblx0XHRcdFx0Y3JlYXRlRmlsZU1lbnUobWVudSwgZmlsZSwgdGhpcyk7XG5cdFx0XHR9XG5cdFx0fSkpO1xuXHRcdHRoaXMuYWRkQ29udGV4dE1lbnVFdmVudCgpO1xuXHRcdGF3YWl0IHRoaXMuYWRkTW91c2VVcEV2ZW50KCk7XG5cblx0fVxuXG5cdGFkZENvbnRleHRNZW51RXZlbnQoKSB7XG5cdFx0dGhpcy5yZWdpc3RlckRvbUV2ZW50KGRvY3VtZW50LCAnY29udGV4dG1lbnUnLCAoKSA9PiB7XG5cdFx0XHRjb25zdCBhY3RpdmVMZWFmID0gdGhpcy5hcHAud29ya3NwYWNlLmFjdGl2ZUxlYWY7XG5cdFx0XHRpZiAoIShhY3RpdmVMZWFmPy52aWV3IGluc3RhbmNlb2YgTWFya2Rvd25WaWV3KSkge1xuXHRcdFx0XHRyZXR1cm47XG5cdFx0XHR9XG5cdFx0XHR0aGlzLmNvbnRleHRNZW51T3BlbmVkID0gdHJ1ZTtcblx0XHR9KTtcblx0fVxuXG5cdGFzeW5jIGFkZE1vdXNlVXBFdmVudCgpIHtcblx0XHR0aGlzLnJlZ2lzdGVyRG9tRXZlbnQoZG9jdW1lbnQsICdtb3VzZXVwJywgYXN5bmMgKGV2dDogTW91c2VFdmVudCkgPT4ge1xuXG5cdFx0Ly8gQ29ycmlnZSBvIHByb2JsZW1hIGRlIG11bHRpcGxvcyBjbGlxdWVzIGRvIHVzdVx1MDBFMXJpb1xuXHRcdFx0aWYoIXRoaXMuc2VsZWN0aW9uVHJpZ2dlcmVkTWVudSl7XG5cdFx0XHRcdHJlc2V0TWVudSh0aGlzKTtcblx0XHRcdH1cblxuXHQvL1NlIG8gY2xpcXVlIGZvciBmb3JhIGRvIGVkaXRvcjogRmlsZS1NZW51IChsYXRlcmFsKTsgUmliYm9uIEJ1dHRvbnM7XG5cdFx0XHRjb25zdCBhY3RpdmVMZWFmID0gdGhpcy5hcHAud29ya3NwYWNlLmFjdGl2ZUxlYWY7XG5cdFx0XHRpZiAoIShhY3RpdmVMZWFmPy52aWV3IGluc3RhbmNlb2YgTWFya2Rvd25WaWV3KSkge1xuXHRcdFx0XHQvL2NvbnNvbGUubG9nKCcxLjEgLS0gYWRkTW91c2VVcEV2ZW50KCknKTtcblx0XHRcdFx0cmV0dXJuO1xuXHRcdFx0fVxuXG5cdC8vIENvbmRpXHUwMEU3XHUwMEY1ZXMgZGUgaW50ZXJhXHUwMEU3XHUwMEUzbyBxdWUgY2FlbSBhcXVpOiBDbGlxdWUgbm8gYGZpbGUtbWVudWAsIGB0YWItZmlsZWAgKG9uZGUgZmljYSBvIG5vbWUgZG9zIGFycXVpdm9zICsgY2xvc2UoKTspIGUgc2lkZU1lbnUoKTspIC8vIGNvcnJpZ2UgbyBwcm9ibGVtYSBkZSBleGliaXIgYSBvcFx1MDBFN1x1MDBFM28gZm9yYSBkbyBlZGl0b3Jcblx0XHRcdGNvbnN0IGVkaXRvciA9IGFjdGl2ZUxlYWYudmlldy5lZGl0b3I7XG5cdFx0XHRpZiAoIWVkaXRvci5oYXNGb2N1cygpKSB7XG5cblx0XHRcdFx0Ly90aGlzLmNvZGluZ01lbnVPcGVuZWQgPSBmYWxzZTtcblx0XHRcdFx0cmV0dXJuO1xuXHRcdFx0fVxuXG5cdC8vIENsaXF1ZSByaWdodCAvLyBjb25maWd1cmEgYXMgdmFycyBwYXJhIGNvcnJpZ2lyIG8gcHJvYmxlbWEgZGUgZXhpYmlcdTAwRTdcdTAwRTNvIGRvIG1lbnUgYXBcdTAwRjNzIGNsaWNhciBlbSBvcFx1MDBFN1x1MDBGNWVzIGRvIG1lbnUtZWRpdG9yLlxuXHRcdFx0aWYgKGV2dC5idXR0b24gPT09IDIpIHtcblx0XHRcdFx0dGhpcy5zZWxlY3Rpb25UcmlnZ2VyZWRNZW51ID0gdHJ1ZTsgLy8gXHUwMEU5IGNvbW8gc2UgZm9zZSB1bSBqZWl0byBkZSBlbmdhbmFyIG8gc2lzdGVtYSBlIGZ1bmNpb25hciwgblx1MDBFM28gZXhpYmluZG8gbyBtZW51IGFwXHUwMEYzcyBjbGljYXIgZW0gYWxndW1hIG9wXHUwMEU3XHUwMEUzb1xuXHRcdFx0XHR0aGlzLmNvbnRleHRNZW51T3BlbmVkID0gdHJ1ZTtcblx0XHRcdFx0dGhpcy5jb2RpbmdNZW51T3BlbmVkID0gZmFsc2U7XG5cdFx0XHRcdHJldHVybjtcblxuXHRcdFx0fVxuXG5cblx0Ly8gRXN0ZSBjYXNvIGZ1bmNpb25hIG11aXRvIGJlbSBwYXJhIHF1YW5kbyBlc3RhbW9zIHVzYW5kbyBhcyBmdW5cdTAwRTdcdTAwRjVlcyBkbyBmaWxlLW1lbnUsIG5cdTAwRTNvIGRpc3BhcmFuZG8gbmVuaHVtIGV2ZW50byBkZSBtb3VzZXVwIGVtIG9wXHUwMEU3XHUwMEY1ZXMgZG8gbWVudSBkZSBjb250ZXh0by5cblx0XHRcdGlmKHRoaXMuY29udGV4dE1lbnVPcGVuZWQpe1xuXG5cdFx0XHRcdC8vY29uc29sZS5sb2coXCJNZW51IGRlIGNvbnRleHRvIEVzdFx1MDBFMSBhYmVydG8gZSBwb3IgaXNzbyBuXHUwMEUzbyBhY29udGVjZXJcdTAwRTEgbmFkYVwiKVxuXHRcdFx0XHQvLyB0YWx2ZXMgZXNzYSBwYXJ0ZSBkbyBjXHUwMEYzZGlnbyBwb3NzYSBzZXIgZGVsZXRhZGEuIEF0XHUwMEU5IG9uZGUgZW50ZW5kaSBuZW5odW1hIGNvbmRpXHUwMEU3XHUwMEUzbyBjYWkgYXF1aS5cblx0XHRcdFx0cmVzZXRNZW51KHRoaXMpO1xuXHRcdFx0XHR0aGlzLmNvbnRleHRNZW51T3BlbmVkID0gZmFsc2U7XG5cdFx0XHRcdHRoaXMuY29kaW5nTWVudU9wZW5lZCA9IHRydWU7IC8vIE5lc3RlIGNhc28gcHJlY2lzYSBzZXIgdHJ1ZSBwYXJhIG5cdTAwRTNvIGV4aWJpciBkZSBub3ZvIGFwXHUwMEYzcyBvIG1lbnUgZGUgY29udGV4dG8gc2VyIGNsaWNhZG8gcG9yIGFsZ3VtYSBvcFx1MDBFN1x1MDBFM28uXG5cdFx0XHRcdHJldHVybjtcblx0XHRcdH1cblxuXHQvLyBWYWxpZGFcdTAwRTdcdTAwRTNvIHBhcmEgblx1MDBFM28gZXhpYmlyIHF1YW5kbyBmb3IgdGV4dG9zIG51bGwgZSBFbXB0eTtcblx0XHRcdGNvbnN0IHNlbGVjdGVkVGV4dCA9IGVkaXRvci5nZXRTZWxlY3Rpb24oKTtcblx0XHRcdCBpZiAoc2VsZWN0ZWRUZXh0ID09PSAnICcpe1xuXHRcdFx0XHQvL2NvbnNvbGUubG9nKFwic2VsZWN0ZWRUZXh0ID09PSBOQURBXCIpXG5cdFx0XHRcdHRoaXMuY29udGV4dE1lbnVPcGVuZWQgPSBmYWxzZTtcblx0XHRcdFx0dGhpcy5jb2RpbmdNZW51T3BlbmVkID0gZmFsc2U7XG5cdFx0XHRcdHJldHVyblxuXHRcdFx0fVxuXG5cdC8vIFZhbGlkYVx1MDBFN1x1MDBFM28gcGFyYSBzYWJlciBzZSBvcyBtZW51cyBlc3RcdTAwRTNvIGFiZXJ0b3MgZSBleGliaXIgbyBtb2RhbDtcblx0XHRcdGlmKCF0aGlzLmNvZGluZ01lbnVPcGVuZWQgJiYgIXRoaXMuY29udGV4dE1lbnVPcGVuZWQpe1xuXG5cdFx0XHRcdGNvbnNvbGUubG9nKFwidGhpcy5zZWxlY3Rpb25UcmlnZ2VyZWRNZW51OjogXCIrIHRoaXMuc2VsZWN0aW9uVHJpZ2dlcmVkTWVudSlcblx0XHRcdFx0YXdhaXQgdGhpcy5oYW5kbGVUZXh0U2VsZWN0aW9uKGVkaXRvciwgZXZ0KTtcblx0XHRcdFx0Y29uc29sZS5sb2coXCJ0aGlzLnNlbGVjdGlvblRyaWdnZXJlZE1lbnU6OiBcIisgdGhpcy5zZWxlY3Rpb25UcmlnZ2VyZWRNZW51KVxuXG5cdFx0XHRcdC8vcmV0dXJuO1xuXHRcdFx0fSBlbHNlIGlmKHRoaXMuY29kaW5nTWVudU9wZW5lZCl7XG5cdC8vIEVzdGUgY2FzbyBmdW5jaW9uYSBwYXJhIHF1YW5kbyBvIHNpc3RlbWEgZXhpYmUgbyBtZW51IGNvbnRleHR1YWwgZG8gZWRpdG9yIGUgZmlsZS4gY29kaW5nTWVudU9wZW5lZCBzXHUwMEYzIGNoZWdhIGFxdWkgdHJ1ZSBxdWFuZG8gcGFzc2EgcGVsbyBtZW51IGRvIG9ic2lkaWFuO1xuXG5cdFx0XHRcdC8vY29uc29sZS5sb2coXCIgTWVudSBkbyBwbHVnaW4gRXN0XHUwMEUxIGFiZXJ0byBlIHBvciBpc3NvIG5cdTAwRTNvIGFjb250ZWNlclx1MDBFMSBuYWRhXCIpXG5cdFx0XHRcdHJlc2V0TWVudSh0aGlzKTtcblx0XHRcdFx0dGhpcy5jb2RpbmdNZW51T3BlbmVkID0gZmFsc2U7XG5cdFx0XHRcdHJldHVybjtcblx0XHRcdH1cblx0XHRcdGNvbnNvbGUubG9nKFwiKioqKioqKioqKioqKioqKlwiKSAvL05hZGEgYWNvbnRlY2UgKyBmdW5cdTAwRTdcdTAwRjVlcyBmdW5jaW9uYW5kbyBub3MgbWVudXMgKipcblx0XHR9KTtcblx0fVxuXG5cdGFzeW5jIGhhbmRsZVRleHRTZWxlY3Rpb24oZWRpdG9yOiBFZGl0b3IsIGV2dDogTW91c2VFdmVudCkge1xuXHRcdGNvbnN0IHNlbGVjdGVkVGV4dCA9IGVkaXRvci5nZXRTZWxlY3Rpb24oKTtcblx0XHRpZiAoc2VsZWN0ZWRUZXh0ICYmICF0aGlzLnNlbGVjdGlvblRyaWdnZXJlZE1lbnUpIHtcblx0XHRcdHRoaXMuc2VsZWN0aW9uVHJpZ2dlcmVkTWVudSA9IHRydWU7XG5cdFx0XHRuZXcgTm90aWNlKCdUZXh0IHNlbGVjdGVkOiAnICsgc2VsZWN0ZWRUZXh0KTtcblxuXHRcdFx0aWYgKHRoaXMuY3VycmVudE1lbnUpIHtcblx0XHRcdFx0dGhpcy5jdXJyZW50TWVudS5oaWRlKCk7XG5cdFx0XHR9XG5cblx0XHRcdGNvbnN0IHN1Ym1lbnUgPSBuZXcgTWVudSgpO1xuXHRcdFx0c3VibWVudS5hZGRJdGVtKChpdGVtKSA9PiB7XG5cdFx0XHRcdGl0ZW0uc2V0VGl0bGUoJ0FkZCBOZXcgQ29kZScpXG5cdFx0XHRcdFx0LnNldEljb24oJ3BsdXMnKVxuXHRcdFx0XHRcdC5vbkNsaWNrKCgpID0+IHtcblx0XHRcdFx0XHRcdHRoaXMuYWRkTmV3Q29kZSgpO1xuXHRcdFx0XHRcdFx0Ly90aGlzLnJlc2V0TWVudSgpO1xuXHRcdFx0XHRcdFx0cmVzZXRNZW51KHRoaXMpO1xuXHRcdFx0XHRcdH0pO1xuXHRcdFx0fSk7XG5cdFx0XHRzdWJtZW51LmFkZEl0ZW0oKGl0ZW0pID0+IHtcblx0XHRcdFx0aXRlbS5zZXRUaXRsZSgnQWRkIEV4aXN0aW5nIENvZGUnKVxuXHRcdFx0XHRcdC5zZXRJY29uKCdjaGVjaycpXG5cdFx0XHRcdFx0Lm9uQ2xpY2soKCkgPT4ge1xuXHRcdFx0XHRcdFx0dGhpcy5hZGRFeGlzdGluZ0NvZGUoKTtcblx0XHRcdFx0XHRcdC8vdGhpcy5yZXNldE1lbnUoKTtcblx0XHRcdFx0XHRcdHJlc2V0TWVudSh0aGlzKTtcblx0XHRcdFx0XHR9KTtcblx0XHRcdH0pO1xuXHRcdFx0c3VibWVudS5hZGRJdGVtKChpdGVtKSA9PiB7XG5cdFx0XHRcdGl0ZW0uc2V0VGl0bGUoJ1JlbW92ZSBDb2RlJylcblx0XHRcdFx0XHQuc2V0SWNvbigndHJhc2gnKVxuXHRcdFx0XHRcdC5vbkNsaWNrKCgpID0+IHtcblx0XHRcdFx0XHRcdHRoaXMucmVtb3ZlQ29kZSgpO1xuXHRcdFx0XHRcdFx0Ly90aGlzLnJlc2V0TWVudSgpO1xuXHRcdFx0XHRcdFx0cmVzZXRNZW51KHRoaXMpO1xuXHRcdFx0XHRcdH0pO1xuXHRcdFx0fSk7XG5cdFx0XHRzdWJtZW51LmFkZEl0ZW0oKGl0ZW0pID0+IHtcblx0XHRcdFx0aXRlbS5zZXRUaXRsZSgnUmVtb3ZlIEFsbCBDb2RlcycpXG5cdFx0XHRcdFx0LnNldEljb24oJ3gnKVxuXHRcdFx0XHRcdC5vbkNsaWNrKCgpID0+IHtcblx0XHRcdFx0XHRcdHRoaXMucmVtb3ZlQWxsQ29kZXMoKTtcblx0XHRcdFx0XHRcdC8vdGhpcy5yZXNldE1lbnUoKTtcblx0XHRcdFx0XHRcdHJlc2V0TWVudSh0aGlzKTtcblx0XHRcdFx0XHR9KTtcblx0XHRcdH0pO1xuXG5cdFx0XHRzdWJtZW51Lm9uSGlkZSgoKSA9PiB7XG5cdFx0XHRcdHRoaXMuc2VsZWN0aW9uVHJpZ2dlcmVkTWVudSA9IGZhbHNlO1xuXHRcdFx0fSk7XG5cblx0XHRcdHN1Ym1lbnUuc2hvd0F0UG9zaXRpb24oeyB4OiBldnQucGFnZVgsIHk6IGV2dC5wYWdlWSB9KTtcblx0XHRcdHRoaXMuY3VycmVudE1lbnUgPSBzdWJtZW51O1xuXHRcdH1cblx0XHQvL3RoaXMuc2VsZWN0aW9uVHJpZ2dlcmVkTWVudSA9IHRydWU7XG5cdFx0Ly90aGlzLmNvZGluZ01lbnVPcGVuZWQgPSB0cnVlO1xuXHR9XG5cblx0cmVzZXRNZW51KCkge1xuXHRcdGlmICh0aGlzLmN1cnJlbnRNZW51KSB7XG5cdFx0XHR0aGlzLmN1cnJlbnRNZW51LmhpZGUoKTtcblx0XHRcdHRoaXMuY3VycmVudE1lbnUgPSBudWxsO1xuXHRcdH1cblx0XHR0aGlzLnNlbGVjdGlvblRyaWdnZXJlZE1lbnUgPSBmYWxzZTtcblx0XHR0aGlzLmNvbnRleHRNZW51T3BlbmVkID0gZmFsc2U7XG5cdFx0dGhpcy5jb2RpbmdNZW51T3BlbmVkID0gZmFsc2U7XG5cdH1cblxuXHRvbnVubG9hZCgpIHtcblx0XHRuZXcgTm90aWNlKCdQbHVnaW4gdW5sb2FkZWQnKTtcblx0fVxuXG5cdGFkZE5ld0NvZGUoKSB7XG5cdFx0bmV3IE5vdGljZSgnQWRkIE5ldyBDb2RlJyk7XG5cdFx0Ly90aGlzLnJlc2V0TWVudSgpO1xuXHRcdHJlc2V0TWVudSh0aGlzKTtcblx0fVxuXG5cdGFkZEV4aXN0aW5nQ29kZSgpIHtcblx0XHRuZXcgTm90aWNlKCdBZGQgRXhpc3RpbmcgQ29kZScpO1xuXHRcdC8vdGhpcy5yZXNldE1lbnUoKTtcblx0XHRyZXNldE1lbnUodGhpcyk7XG5cdH1cblxuXHRyZW1vdmVDb2RlKCkge1xuXHRcdG5ldyBOb3RpY2UoJ1JlbW92ZSBDb2RlJyk7XG5cdFx0Ly90aGlzLnJlc2V0TWVudSgpO1xuXHRcdHJlc2V0TWVudSh0aGlzKTtcblx0fVxuXG5cdHJlbW92ZUFsbENvZGVzKCkge1xuXHRcdG5ldyBOb3RpY2UoJ1JlbW92ZSBBbGwgQ29kZXMnKTtcblx0XHQvL3RoaXMucmVzZXRNZW51KCk7XG5cdFx0cmVzZXRNZW51KHRoaXMpO1xuXHR9XG59XG4iLCAiaW1wb3J0IHsgTWVudSwgRWRpdG9yLCBURmlsZSwgTm90aWNlIH0gZnJvbSAnb2JzaWRpYW4nO1xuaW1wb3J0IE15UGx1Z2luIGZyb20gJy4uL21haW4nO1xuXG4vKiogQ3JpYSBvIG1lbnUgY29udGV4dHVhbCAoY2xpY2stcmlnaHQpIG5vIEVkaXRvciBjb20gYXMgb3Bjb2VzIGRvIHBsdWdpbiAqL1xuZXhwb3J0IGZ1bmN0aW9uIGNyZWF0ZUVkaXRvck1lbnUobWVudTogTWVudSwgZWRpdG9yOiBFZGl0b3IsIHBsdWdpbjogTXlQbHVnaW4pOiB2b2lkIHtcblx0bWVudS5hZGRJdGVtKChpdGVtKSA9PiB7XG5cdFx0aXRlbS5zZXRUaXRsZSgnQWRkIE5ldyBDb2RlJylcblx0XHRcdC5zZXRJY29uKCdwbHVzJylcblx0XHRcdC5vbkNsaWNrKCgpID0+IHtcblx0XHRcdFx0bmV3IE5vdGljZSgnQWRkIE5ldyBDb2RlJyk7XG5cdFx0XHRcdHJlc2V0TWVudShwbHVnaW4pO1xuXHRcdFx0fSk7XG5cdH0pO1xuXHRtZW51LmFkZEl0ZW0oKGl0ZW0pID0+IHtcblx0XHRpdGVtLnNldFRpdGxlKCdBZGQgRXhpc3RpbmcgQ29kZScpXG5cdFx0XHQuc2V0SWNvbignY2hlY2snKVxuXHRcdFx0Lm9uQ2xpY2soKCkgPT4ge1xuXHRcdFx0XHRuZXcgTm90aWNlKCdBZGQgRXhpc3RpbmcgQ29kZScpO1xuXHRcdFx0XHRyZXNldE1lbnUocGx1Z2luKTtcblx0XHRcdH0pO1xuXHR9KTtcblx0bWVudS5hZGRJdGVtKChpdGVtKSA9PiB7XG5cdFx0aXRlbS5zZXRUaXRsZSgnUmVtb3ZlIENvZGUnKVxuXHRcdFx0LnNldEljb24oJ3RyYXNoJylcblx0XHRcdC5vbkNsaWNrKCgpID0+IHtcblx0XHRcdFx0bmV3IE5vdGljZSgnUmVtb3ZlIENvZGUnKTtcblx0XHRcdFx0cmVzZXRNZW51KHBsdWdpbik7XG5cdFx0XHR9KTtcblx0fSk7XG5cdG1lbnUuYWRkSXRlbSgoaXRlbSkgPT4ge1xuXHRcdGl0ZW0uc2V0VGl0bGUoJ1JlbW92ZSBBbGwgQ29kZXMnKVxuXHRcdFx0LnNldEljb24oJ3gnKVxuXHRcdFx0Lm9uQ2xpY2soKCkgPT4ge1xuXHRcdFx0XHRuZXcgTm90aWNlKCdSZW1vdmUgQWxsIENvZGVzJyk7XG5cdFx0XHRcdHJlc2V0TWVudShwbHVnaW4pO1xuXHRcdFx0fSk7XG5cdH0pO1xufVxuXG4vKiogQ3JpYSBvIG1lbnUgbm8gZmlsZS1tZW51IChyaWdodC1jbGljayBlbSBhcnF1aXZvKSAqL1xuZXhwb3J0IGZ1bmN0aW9uIGNyZWF0ZUZpbGVNZW51KG1lbnU6IE1lbnUsIGZpbGU6IFRGaWxlLCBwbHVnaW46IE15UGx1Z2luKTogdm9pZCB7XG5cdG1lbnUuYWRkSXRlbSgoaXRlbSkgPT4ge1xuXHRcdGl0ZW0uc2V0VGl0bGUoJ0FkZCBOZXcgQ29kZScpXG5cdFx0XHQuc2V0SWNvbigncGx1cycpXG5cdFx0XHQub25DbGljaygoKSA9PiB7XG5cdFx0XHRcdG5ldyBOb3RpY2UoJ0FkZCBOZXcgQ29kZScpO1xuXHRcdFx0XHRyZXNldE1lbnUocGx1Z2luKTtcblx0XHRcdH0pO1xuXHR9KTtcblx0bWVudS5hZGRJdGVtKChpdGVtKSA9PiB7XG5cdFx0aXRlbS5zZXRUaXRsZSgnQWRkIEV4aXN0aW5nIENvZGUnKVxuXHRcdFx0LnNldEljb24oJ2NoZWNrJylcblx0XHRcdC5vbkNsaWNrKCgpID0+IHtcblx0XHRcdFx0bmV3IE5vdGljZSgnQWRkIEV4aXN0aW5nIENvZGUnKTtcblx0XHRcdFx0cmVzZXRNZW51KHBsdWdpbik7XG5cdFx0XHR9KTtcblx0fSk7XG5cdG1lbnUuYWRkSXRlbSgoaXRlbSkgPT4ge1xuXHRcdGl0ZW0uc2V0VGl0bGUoJ1JlbW92ZSBDb2RlJylcblx0XHRcdC5zZXRJY29uKCd0cmFzaCcpXG5cdFx0XHQub25DbGljaygoKSA9PiB7XG5cdFx0XHRcdG5ldyBOb3RpY2UoJ1JlbW92ZSBDb2RlJyk7XG5cdFx0XHRcdHJlc2V0TWVudShwbHVnaW4pO1xuXHRcdFx0fSk7XG5cdH0pO1xuXHRtZW51LmFkZEl0ZW0oKGl0ZW0pID0+IHtcblx0XHRpdGVtLnNldFRpdGxlKCdSZW1vdmUgQWxsIENvZGVzJylcblx0XHRcdC5zZXRJY29uKCd4Jylcblx0XHRcdC5vbkNsaWNrKCgpID0+IHtcblx0XHRcdFx0bmV3IE5vdGljZSgnUmVtb3ZlIEFsbCBDb2RlcycpO1xuXHRcdFx0XHRyZXNldE1lbnUocGx1Z2luKTtcblx0XHRcdH0pO1xuXHR9KTtcbn1cblxuLyoqIFJlc2V0IGRvIG1lbnUgXHUyMDE0IGxpbXBhIGVzdGFkbyBkbyBwbHVnaW4gKi9cbmV4cG9ydCBmdW5jdGlvbiByZXNldE1lbnUocGx1Z2luOiBNeVBsdWdpbik6IHZvaWQge1xuXHRpZiAocGx1Z2luLmN1cnJlbnRNZW51KSB7XG5cdFx0cGx1Z2luLmN1cnJlbnRNZW51LmhpZGUoKTtcblx0XHRwbHVnaW4uY3VycmVudE1lbnUgPSBudWxsO1xuXHR9XG5cdHBsdWdpbi5zZWxlY3Rpb25UcmlnZ2VyZWRNZW51ID0gZmFsc2U7XG5cdHBsdWdpbi5jb250ZXh0TWVudU9wZW5lZCA9IGZhbHNlO1xuXHRwbHVnaW4uY29kaW5nTWVudU9wZW5lZCA9IGZhbHNlO1xufVxuIl0sCiAgIm1hcHBpbmdzIjogIjs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7O0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLElBQUFBLG1CQUFrRTs7O0FDQWxFLHNCQUE0QztBQUlyQyxTQUFTLGlCQUFpQixNQUFZLFFBQWdCLFFBQXdCO0FBQ3BGLE9BQUssUUFBUSxDQUFDLFNBQVM7QUFDdEIsU0FBSyxTQUFTLGNBQWMsRUFDMUIsUUFBUSxNQUFNLEVBQ2QsUUFBUSxNQUFNO0FBQ2QsVUFBSSx1QkFBTyxjQUFjO0FBQ3pCLGdCQUFVLE1BQU07QUFBQSxJQUNqQixDQUFDO0FBQUEsRUFDSCxDQUFDO0FBQ0QsT0FBSyxRQUFRLENBQUMsU0FBUztBQUN0QixTQUFLLFNBQVMsbUJBQW1CLEVBQy9CLFFBQVEsT0FBTyxFQUNmLFFBQVEsTUFBTTtBQUNkLFVBQUksdUJBQU8sbUJBQW1CO0FBQzlCLGdCQUFVLE1BQU07QUFBQSxJQUNqQixDQUFDO0FBQUEsRUFDSCxDQUFDO0FBQ0QsT0FBSyxRQUFRLENBQUMsU0FBUztBQUN0QixTQUFLLFNBQVMsYUFBYSxFQUN6QixRQUFR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QUFRLENBQUMsU0FBUztBQUN6QixhQUFLLFNBQVMsY0FBYyxFQUMxQixRQUFRLE1BQU0sRUFDZCxRQUFRLE1BQU07QUFDZCxlQUFLLFdBQVc7QUFFaEIsb0JBQVUsSUFBSTtBQUFBLFFBQ2YsQ0FBQztBQUFBLE1BQ0gsQ0FBQztBQUNELGNBQVEsUUFBUSxDQUFDLFNBQVM7QUFDekIsYUFBSyxTQUFTLG1CQUFtQixFQUMvQixRQUFRLE9BQU8sRUFDZixRQUFRLE1BQU07QUFDZCxlQUFLLGdCQUFnQjtBQUVyQixvQkFBVSxJQUFJO0FBQUEsUUFDZixDQUFDO0FBQUEsTUFDSCxDQUFDO0FBQ0QsY0FBUSxRQUFRLENBQUMsU0FBUztBQUN6QixhQUFLLFNBQVMsYUFBYSxFQUN6QixRQUFRLE9BQU8sRUFDZixRQUFRLE1BQU07QUFDZCxlQUFLLFdBQVc7QUFFaEIsb0JBQVUsSUFBSTtBQUFBLFFBQ2YsQ0FBQztBQUFBLE1BQ0gsQ0FBQztBQUNELGNBQVEsUUFBUSxDQUFDLFNBQVM7QUFDekIsYUFBSyxTQUFTLGtCQUFrQixFQUM5QixRQUFRLEdBQUcsRUFDWCxRQUFRLE1BQU07QUFDZCxlQUFLLGVBQWU7QUFFcEIsb0JBQVUsSUFBSTtBQUFBLFFBQ2YsQ0FBQztBQUFBLE1BQ0gsQ0FBQztBQUVELGNBQVEsT0FBTyxNQUFNO0FBQ3BCLGFBQUsseUJBQXlCO0FBQUEsTUFDL0IsQ0FBQztBQUVELGNBQVEsZUFBZSxFQUFFLEdBQUcsSUFBSSxPQUFPLEdBQUcsSUFBSSxNQUFNLENBQUM7QUFDckQsV0FBSyxjQUFjO0FBQUEsSUFDcEI7QUFBQSxFQUdEO0FBQUEsRUFFQSxZQUFZO0FBQ1gsUUFBSSxLQUFLLGFBQWE7QUFDckIsV0FBSyxZQUFZLEtBQUs7QUFDdEIsV0FBSyxjQUFjO0FBQUEsSUFDcEI7QUFDQSxTQUFLLHlCQUF5QjtBQUM5QixTQUFLLG9CQUFvQjtBQUN6QixTQUFLLG1CQUFtQjtBQUFBLEVBQ3pCO0FBQUEsRUFFQSxXQUFXO0FBQ1YsUUFBSSx3QkFBTyxpQkFBaUI7QUFBQSxFQUM3QjtBQUFBLEVBRUEsYUFBYTtBQUNaLFFBQUksd0JBQU8sY0FBYztBQUV6QixjQUFVLElBQUk7QUFBQSxFQUNmO0FBQUEsRUFFQSxrQkFBa0I7QUFDakIsUUFBSSx3QkFBTyxtQkFBbUI7QUFFOUIsY0FBVSxJQUFJO0FBQUEsRUFDZjtBQUFBLEVBRUEsYUFBYTtBQUNaLFFBQUksd0JBQU8sYUFBYTtBQUV4QixjQUFVLElBQUk7QUFBQSxFQUNmO0FBQUEsRUFFQSxpQkFBaUI7QUFDaEIsUUFBSSx3QkFBTyxrQkFBa0I7QUFFN0IsY0FBVSxJQUFJO0FBQUEsRUFDZjtBQUNEOyIsCiAgIm5hbWVzIjogWyJpbXBvcnRfb2JzaWRpYW4iXQp9Cg==
