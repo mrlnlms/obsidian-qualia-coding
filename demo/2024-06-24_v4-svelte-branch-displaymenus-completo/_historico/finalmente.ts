@@ -8,7 +8,6 @@ export default class MyPlugin extends Plugin {
 	codingMenuOpened: boolean = false;
 
 	async onload() {
-		console.log('[menu-editors] v4 loaded -- Svelte branch (mosxqda) + menuitens: DisplayMenus completo');
 		this.registerEvent(this.app.workspace.on('editor-menu', (menu, editor) => {
 			createEditorMenu(menu, editor, this);
 		}));
@@ -22,9 +21,9 @@ export default class MyPlugin extends Plugin {
 		}));
 		this.addContextMenuEvent();
 		await this.addMouseUpEvent();
-
+		
 	}
-
+	
 	addContextMenuEvent() {
 		this.registerDomEvent(document, 'contextmenu', () => {
 			const activeLeaf = this.app.workspace.activeLeaf;
@@ -42,14 +41,14 @@ export default class MyPlugin extends Plugin {
 			if(!this.selectionTriggeredMenu){
 				resetMenu(this);
 			}
-
-	//Se o clique for fora do editor: File-Menu (lateral); Ribbon Buttons;
+			
+	//Se o clique for fora do editor: File-Menu (lateral); Ribbon Buttons; 
 			const activeLeaf = this.app.workspace.activeLeaf;
 			if (!(activeLeaf?.view instanceof MarkdownView)) {
 				//console.log('1.1 -- addMouseUpEvent()');
 				return;
 			}
-
+			
 	// Condições de interação que caem aqui: Clique no `file-menu`, `tab-file` (onde fica o nome dos arquivos + close();) e sideMenu();) // corrige o problema de exibir a opção fora do editor
 			const editor = activeLeaf.view.editor;
 			if (!editor.hasFocus()) {
@@ -57,7 +56,7 @@ export default class MyPlugin extends Plugin {
 				//this.codingMenuOpened = false;
 				return;
 			}
-
+		
 	// Clique right // configura as vars para corrigir o problema de exibição do menu após clicar em opções do menu-editor.
 			if (evt.button === 2) {
 				this.selectionTriggeredMenu = true; // é como se fose um jeito de enganar o sistema e funcionar, não exibindo o menu após clicar em alguma opção
@@ -66,8 +65,8 @@ export default class MyPlugin extends Plugin {
 				return;
 
 			}
-
-
+		
+	
 	// Este caso funciona muito bem para quando estamos usando as funções do file-menu, não disparando nenhum evento de mouseup em opções do menu de contexto.
 			if(this.contextMenuOpened){
 
@@ -78,7 +77,7 @@ export default class MyPlugin extends Plugin {
 				this.codingMenuOpened = true; // Neste caso precisa ser true para não exibir de novo após o menu de contexto ser clicado por alguma opção.
 				return;
 			}
-
+		
 	// Validação para não exibir quando for textos null e Empty;
 			const selectedText = editor.getSelection();
 			 if (selectedText === ' '){
@@ -87,10 +86,10 @@ export default class MyPlugin extends Plugin {
 				this.codingMenuOpened = false;
 				return
 			}
-
+	
 	// Validação para saber se os menus estão abertos e exibir o modal;
 			if(!this.codingMenuOpened && !this.contextMenuOpened){
-
+				
 				console.log("this.selectionTriggeredMenu:: "+ this.selectionTriggeredMenu)
 				await this.handleTextSelection(editor, evt);
 				console.log("this.selectionTriggeredMenu:: "+ this.selectionTriggeredMenu)
@@ -98,7 +97,7 @@ export default class MyPlugin extends Plugin {
 				//return;
 			} else if(this.codingMenuOpened){
 	// Este caso funciona para quando o sistema exibe o menu contextual do editor e file. codingMenuOpened só chega aqui true quando passa pelo menu do obsidian;
-
+				
 				//console.log(" Menu do plugin Está aberto e por isso não acontecerá nada")
 				resetMenu(this);
 				this.codingMenuOpened = false;
@@ -205,3 +204,4 @@ export default class MyPlugin extends Plugin {
 		resetMenu(this);
 	}
 }
+

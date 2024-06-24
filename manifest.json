@@ -1,11 +1,11 @@
 {
-	"id": "qualitative-coding-plugin",
-	"name": "Qualitative Coding Plugin",
+	"id": "menu-editors",
+	"name": "menu-editors",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Qualitative Data Analysis Plugin.",
+	"description": "Demonstrates some of the capabilities of the Obsidian API.",
 	"author": "Marlon Lemes",
 	"authorUrl": "https://obsidian.md",
 	"fundingUrl": "https://obsidian.md/pricing",
-	"isDesktopOnly": true
+	"isDesktopOnly": false
 }

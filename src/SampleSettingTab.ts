@@ -1,30 +1,32 @@
-// Stub: SampleSettingTab — v3 refactor (broken import target)
-// Original module was not preserved. Stub created to allow build.
-
 import { App, PluginSettingTab, Setting } from 'obsidian';
+import MyPlugin from 'main';
 
 export class SampleSettingTab extends PluginSettingTab {
-	plugin: any;
+	plugin: MyPlugin;
 
-	constructor(app: App, plugin: any) {
+	constructor(app: App, plugin: MyPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
 	display(): void {
 		const { containerEl } = this;
-		containerEl.empty();
-		containerEl.createEl('h2', { text: 'Qualitative Coding Settings' });
 
+		containerEl.empty();
+
+		containerEl.createEl('h2', { text: 'Settings for my awesome plugin.' });
+
+		/*
 		new Setting(containerEl)
-			.setName('Setting')
-			.setDesc('Default setting (stub)')
+			.setName('Setting #1')
+			.setDesc('It\'s a secret')
 			.addText(text => text
-				.setPlaceholder('Enter value')
+				.setPlaceholder('Enter your secret')
 				.setValue(this.plugin.settings.mySetting)
 				.onChange(async (value) => {
 					this.plugin.settings.mySetting = value;
 					await this.plugin.saveSettings();
 				}));
+	*/
 	}
 }

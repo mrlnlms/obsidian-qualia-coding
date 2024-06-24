@@ -1,7 +1,7 @@
 import esbuild from "esbuild";
 import process from "process";
 import builtins from "builtin-modules";
-import { copyFileSync, mkdirSync } from "fs";
+import { copyFileSync, mkdirSync, readFileSync } from "fs";
 
 const banner =
 `/*
@@ -16,12 +16,13 @@ const copyToDemo = {
 	name: 'copy-to-demo',
 	setup(build) {
 		build.onEnd(() => {
-			const dest = 'demo/.obsidian/plugins/qualitative-coding-plugin';
+			const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
+			const dest = `demo/.obsidian/plugins/${manifest.id}`;
 			mkdirSync(dest, { recursive: true });
 			copyFileSync('main.js', `${dest}/main.js`);
 			copyFileSync('manifest.json', `${dest}/manifest.json`);
 			copyFileSync('styles.css', `${dest}/styles.css`);
-			console.log('[copyToDemo] Copied main.js, manifest.json, styles.css to demo vault');
+			console.log(`[copyToDemo] Synced to ${dest}`);
 		});
 	},
 };

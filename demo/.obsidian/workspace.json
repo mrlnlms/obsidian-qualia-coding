@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2024-06-23_v3-refactor-imports-modulares/test-note.md",
+                "file": "2024-06-24_v4-svelte-branch-displaymenus-completo/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
@@ -127,8 +127,14 @@
   },
   "active": "4f7d62913ecb1c43",
   "lastOpenFiles": [
-    "2024-06-19_v2-modular/test-note.md",
     "2024-06-23_v3-refactor-imports-modulares/test-note.md",
+    "2024-06-24_v4-svelte-branch-displaymenus-completo/test-note.md",
+    "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico/backup-mara.ts",
+    "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico/backup.ts",
+    "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico/finalmente.ts",
+    "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico",
+    "2024-06-24_v4-svelte-branch-displaymenus-completo",
+    "2024-06-19_v2-modular/test-note.md",
     "2024-06-23_v3-refactor-imports-modulares",
     "Sample 1.md",
     "2024-06-19_v2-modular/_demo-notes/editor-playground-coded-sample.md",
@@ -150,8 +156,6 @@
     "2024-06-19_v1-primeiro-qda/_demo-notes/analysis-code-overview.md",
     "2024-06-19_v1-primeiro-qda/templates",
     "2024-06-19_v1-primeiro-qda/_historico",
-    "2024-06-19_v1-primeiro-qda/_demo-notes",
-    "2024-06-19_v1-primeiro-qda",
     "templates/extraction-template.md",
     "_historico/qda-data-model.canvas",
     "_historico/qda-v1-file-structure-suggestion.md",
@@ -160,10 +164,6 @@
     "_demo-notes/extraction-003.md",
     "_demo-notes/extraction-001.md",
     "_demo-notes/code-def-politica-publica.md",
-    "_demo-notes/code-def-politic-science.md",
-    "_demo-notes/code-def-mmmm-project.md",
-    "templates",
-    "_demo-notes",
-    "_historico"
+    "_demo-notes/code-def-politic-science.md"
   ]
 }
