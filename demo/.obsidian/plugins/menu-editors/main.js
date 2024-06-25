@@ -34,6 +34,7 @@ var import_obsidian = require("obsidian");
 function createCodingsMenu(plugin) {
   createRibbonButtons(plugin);
   createCommands(plugin);
+  console.log(plugin.menuOptions);
 }
 function createRibbonButtons(plugin) {
   Object.values(plugin.menuOptions).forEach((option) => {
@@ -50,107 +51,6 @@ function createCommands(plugin) {
   });
 }
 function createFileMenu(menu, file, plugin) {
-  createDefaultObsidianMenus(menu, plugin);
-}
-function createEditorMenu(menu, plugin) {
-  createDefaultObsidianMenus(menu, plugin);
-}
-async function createEditorCodingMenu(editor, evt, plugin) {
-  const selectedText = editor.getSelection();
-  if (selectedText && !plugin.selectionTriggeredMenu) {
-    plugin.selectionTriggeredMenu = true;
-    plugin.menuStayOpen = true;
-    if (plugin.currentMenu) {
-      plugin.currentMenu.hide();
-    }
-    const submenu = new import_obsidian.Menu();
-    const cleanupCallbacks = [];
-    Object.values(plugin.menuOptions).forEach((option) => {
-      if (option.isToggle) {
-        submenu.addItem((item) => {
-          var _a;
-          const toggleComponent = new import_obsidian.ToggleComponent(item.dom);
-          toggleComponent.setValue((_a = option.isEnabled) != null ? _a : false);
-          toggleComponent.onChange((value) => {
-            new import_obsidian.Notice("##$$$");
-            option.isEnabled = value;
-            option.action(plugin);
-            plugin.menuStayOpen = true;
-            plugin.selectionTriggeredMenu = true;
-          });
-          item.setTitle(option.title).setIcon(option.icon);
-          item.dom.classList.add("menu-item-toggle");
-          item.dom.addEventListener("click", (evt2) => {
-            new import_obsidian.Notice("AQUI");
-            evt2.stopPropagation();
-            const currentValue = toggleComponent.getValue();
-            toggleComponent.setValue(!currentValue);
-          });
-        });
-      } else if (option.isTextField) {
-        submenu.addItem((item) => {
-          const textComponent = new import_obsidian.TextComponent(item.dom);
-          textComponent.setPlaceholder("Enter text...");
-          textComponent.onChange((value) => {
-            option.action(plugin);
-          });
-          item.setTitle(option.title).setIcon(option.icon);
-          item.dom.classList.add("menu-item-textfield");
-          item.dom.addEventListener("click", (evt2) => {
-            evt2.stopPropagation();
-            textComponent.inputEl.focus();
-          });
-          const handleEnterKey = (evt2) => {
-            if (evt2.key === "Enter") {
-              evt2.preventDefault();
-              evt2.stopPropagation();
-              new import_obsidian.Notice(`1---`);
-              new import_obsidian.Notice(`${plugin.selectionTriggeredMenu}`);
-              new import_obsidian.Notice(`${plugin.contextMenuOpened}`);
-              new import_obsidian.Notice(`${plugin.codingMenuOpened}`);
-              new import_obsidian.Notice(`${plugin.menuStayOpen}`);
-              new import_obsidian.Notice(`2---`);
-              addItemToEditorCodingMenu(textComponent.inputEl.value, plugin, editor, submenu);
-              textComponent.inputEl.value = "";
-              textComponent.inputEl.focus();
-            }
-          };
-          window.addEventListener("keydown", handleEnterKey, true);
-          textComponent.inputEl.addEventListener("keydown", handleEnterKey, true);
-          cleanupCallbacks.push(() => {
-            console.log("Removing keydown event listener for Enter key");
-            window.removeEventListener("keydown", handleEnterKey, true);
-            textComponent.inputEl.removeEventListener("keydown", handleEnterKey, true);
-          });
-        });
-      } else {
-        submenu.addItem((item) => {
-          item.setTitle(option.title).setIcon(option.icon).onClick(() => {
-            option.action(plugin);
-            resetMenu(plugin);
-          });
-        });
-      }
-    });
-    submenu.onHide(() => {
-      console.log("Submenu onHide called");
-      cleanupCallbacks.forEach((callback) => callback());
-      plugin.selectionTriggeredMenu = false;
-    });
-    submenu.showAtPosition({ x: evt.pageX, y: evt.pageY });
-    plugin.currentMenu = submenu;
-  }
-}
-function resetMenu(plugin, hideMenu = true) {
-  new import_obsidian.Notice("SAIU");
-  if (plugin.currentMenu) {
-    plugin.currentMenu.hide();
-    plugin.currentMenu = null;
-  }
-  plugin.selectionTriggeredMenu = false;
-  plugin.contextMenuOpened = false;
-}
-function createDefaultObsidianMenus(menu, plugin) {
   menu.addSeparator();
   menu.addItem((item) => {
     item.setTitle("Code Options").setIcon("dice");
@@ -162,58 +62,48 @@ function createDefaultObsidianMenus(menu, plugin) {
     });
   });
 }
-function toggleExample(plugin) {
-  const toggleOption = plugin.menuOptions.find((option) => option.title === "Toggle Example");
-  if (toggleOption) {
-    new import_obsidian.Notice(`Toggle is now ${toggleOption.isEnabled ? "enabled" : "disabled"}`);
-  }
-}
-function addItemToEditorCodingMenu(value, plugin, editor, submenu) {
-  if (value.trim() !== "") {
-    const newOption = {
-      title: value,
-      icon: "tag",
-      action: (plugin2) => {
-        plugin2.toggleQueue = true;
-        new import_obsidian.Notice(`Toggle ${value} executed`);
-      },
-      isToggle: true,
-      isEnabled: false
-    };
-    plugin.menuOptions.push(newOption);
-    submenu.addItem((item) => {
-      var _a;
-      const toggleComponent = new import_obsidian.ToggleComponent(item.dom);
-      toggleComponent.setValue((_a = newOption.isEnabled) != null ? _a : false);
-      toggleComponent.onChange((toggleValue) => {
-        if (!plugin.toggleQueue) {
-          plugin.toggleQueue = true;
-          setTimeout(() => plugin.toggleQueue = false, 1e3);
-          newOption.isEnabled = toggleValue;
-          newOption.action(plugin);
-        }
-      });
-      item.setTitle(newOption.title).setIcon(newOption.icon);
-      item.dom.classList.add("menu-item-toggle");
-      item.dom.addEventListener("click", (evt) => {
-        if (!plugin.toggleQueue) {
-          const targetElement = evt.target;
-          evt.stopPropagation();
-          const currentValue = toggleComponent.getValue();
-          toggleComponent.setValue(!currentValue);
-        }
+function createEditorMenu(menu, file, plugin) {
+  menu.addSeparator();
+  menu.addItem((item) => {
+    item.setTitle("Code Options").setIcon("dice");
+    const submenu = item.setSubmenu();
+    Object.values(plugin.menuOptions).forEach((option) => {
+      submenu.addItem((subItem) => {
+        subItem.setTitle(option.title).setIcon(option.icon).onClick(() => option.action(plugin));
       });
     });
-    submenu.hide();
-    submenu.showAtPosition({ x: submenu.posX, y: submenu.posY });
-    if (!plugin.menuStayOpen) {
-      plugin.selectionTriggeredMenu = false;
-      plugin.menuStayOpen = false;
-    } else {
-      plugin.selectionTriggeredMenu = true;
-      plugin.menuStayOpen = true;
+  });
+}
+async function createEditorCodingMenu(editor, evt, plugin) {
+  const selectedText = editor.getSelection();
+  if (selectedText && !plugin.selectionTriggeredMenu) {
+    plugin.selectionTriggeredMenu = true;
+    if (plugin.currentMenu) {
+      plugin.currentMenu.hide();
     }
+    const submenu = new import_obsidian.Menu();
+    Object.values(plugin.menuOptions).forEach((option) => {
+      submenu.addItem((item) => {
+        item.setTitle(option.title).setIcon(option.icon).onClick(() => {
+          option.action(plugin);
+          resetMenu(plugin);
+        });
+      });
+    });
+    submenu.onHide(() => {
+      plugin.selectionTriggeredMenu = false;
+    });
+    submenu.showAtPosition({ x: evt.pageX, y: evt.pageY });
+    plugin.currentMenu = submenu;
   }
+}
+function resetMenu(plugin) {
+  if (plugin.currentMenu) {
+    plugin.currentMenu.hide();
+    plugin.currentMenu = null;
+  }
+  plugin.selectionTriggeredMenu = false;
+  plugin.contextMenuOpened = false;
 }
 
 // src/Events.ts
@@ -504,29 +394,18 @@ function removeAllCodes(plugin) {
 var MyPlugin = class extends import_obsidian5.Plugin {
   constructor() {
     super(...arguments);
-    // See more icon options here:
-    //https://forum.obsidian.md/uploads/default/original/3X/8/b/8be3c937905f08c5e0c532228d904e6cb425ab58.png
     this.currentMenu = null;
     this.menuOptions = [
-      { title: "", icon: "tag", action: (plugin) => {
-      }, isTextField: true },
-      // Nova opção de campo de texto
-      { title: "Toggle Example", icon: "switch", action: (plugin) => toggleExample(plugin), isToggle: true, isEnabled: false },
-      { title: "Add New Code", icon: "plus-with-circle", action: (plugin) => addNewCode(plugin) },
-      { title: "Add Existing Code", icon: "tag", action: (plugin) => addExistingCode(plugin) },
+      { title: "Add New Code", icon: "plus", action: (plugin) => addNewCode(plugin) },
+      { title: "Add Existing Code", icon: "check", action: (plugin) => addExistingCode(plugin) },
       { title: "Remove Code", icon: "trash", action: (plugin) => removeCode(plugin) },
-      { title: "Remove All Codes", icon: "minus-with-circle", action: (plugin) => removeAllCodes(plugin) }
+      { title: "Remove All Codes", icon: "x", action: (plugin) => removeAllCodes(plugin) }
     ];
     this.selectionTriggeredMenu = false;
     this.contextMenuOpened = false;
-    this.codingMenuOpened = false;
-    this.menuStayOpen = false;
-    this.removeAll = false;
-    this.toggleQueue = false;
   }
-  // open queue = true; close queue = false (default state, if queue = true doesn't execute some functions)
   async onload() {
-    console.log("[menu-editors] v5 loaded -- DisplayMenus completo: menus DOM, coding modals, reapplyStyles");
+    console.log("[menu-editors] v6 loaded -- DisplayMenus modulo isolado: createCodingsMenu, ribbons");
     createRegisterEvents(this);
     createCodingsMenu(this);
   }

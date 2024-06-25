@@ -26,6 +26,6 @@ plugin-id: menu-editors
 ## Demo content
 This is a test paragraph for coding. Select any word below to test the coding menu:
 
-**Qualitative coding** is a method of categorizing text segments with descriptive labels.
+<span class="coded-text teste" data-code="teste">**Qualitative coding** is a method of categorizing text segments with descriptive labels.</span>
 
 Select this sentence to test the Add New Code modal with color picker.

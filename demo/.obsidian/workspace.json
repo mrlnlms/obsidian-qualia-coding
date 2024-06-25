@@ -133,6 +133,10 @@
   },
   "active": "4f7d62913ecb1c43",
   "lastOpenFiles": [
+    "2024-06-25_v6-displaymenus-modulo-isolado/test-note.md",
+    "2024-06-25_v6-displaymenus-modulo-isolado/_historico/gpt-debug-toggle-click-menu.md",
+    "2024-06-25_v6-displaymenus-modulo-isolado/_historico",
+    "2024-06-25_v6-displaymenus-modulo-isolado",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/test-note.md",
     "2024-06-24_v5-displaymenus-completo/test-note.md",
     "2024-06-24_v5-displaymenus-completo",
@@ -147,7 +151,6 @@
     "Sample 1.md",
     "2024-06-19_v2-modular/_demo-notes/editor-playground-coded-sample.md",
     "2024-06-19_v2-modular/_demo-notes",
-    "2024-06-19_v2-modular",
     "2024-06-19_v1-primeiro-qda/templates/extraction-template.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-v1-file-structure-suggestion.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
@@ -162,14 +165,11 @@
     "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-marlon.md",
     "2024-06-19_v1-primeiro-qda/_demo-notes/analysis-extraction-type-overview.md",
     "2024-06-19_v1-primeiro-qda/_demo-notes/analysis-code-overview.md",
-    "2024-06-19_v1-primeiro-qda/templates",
     "templates/extraction-template.md",
     "_historico/qda-data-model.canvas",
     "_historico/qda-v1-file-structure-suggestion.md",
     "_historico/matriz-csd-framework.md",
     "_demo-notes/transcript-meiuca-diogo-roncatto.md",
-    "_demo-notes/extraction-003.md",
-    "_demo-notes/extraction-001.md",
-    "_demo-notes/code-def-politica-publica.md"
+    "_demo-notes/extraction-003.md"
   ]
 }
