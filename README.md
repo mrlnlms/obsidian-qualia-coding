@@ -2,42 +2,46 @@
 
 Plugin para Analise de Dados Qualitativos (QDA) no Obsidian.
 
-## v6 — DisplayMenus modulo isolado: createCodingsMenu, ribbons
+## v8 — Abertura working: menu open + ToggleComponent, backupDisplayMenus (17K)
 
-Backup do DisplayMenus.ts em estado simplificado — modulo isolado com apenas as funcoes essenciais de menu, sem os experimentos DOM (toggles, text fields, menu stay-open logic).
+DisplayMenus.ts completo (17K) com ToggleComponent e TextComponent dentro do menu flutuante. Menu permanece aberto ao interagir com toggles (stopPropagation). TextField com Enter key handler adiciona novos items dinamicamente ao menu.
 
 ### Estrutura
 
 ```
-main.ts                    <- plugin principal (MyPlugin) — MenuOption interface simplificada
-src/DisplayMenus.ts        <- createCodingsMenu, ribbons, commands, file/editor/coding menus
+main.ts                    <- plugin principal (MyPlugin) — MenuOption com isToggle/isTextField/isEnabled
+src/DisplayMenus.ts        <- backupDisplayMenus completo (17K): toggles, textfields, DOM menu items
 src/Events.ts              <- createRegisterEvents: editor-menu, file-menu, contextmenu, mouseup, file-open, DOMContentLoaded
 src/CodingModals.ts        <- ApplyCodeModal, RemoveCodeModal, cleanAllCodes, reapplyStyles, localStorage persistence
 src/Coding.ts              <- addNewCode, addExistingCode, removeCode, removeAllCodes
 src/SampleSettingTab.ts    <- aba de settings (vazia, comentada)
-obsidian-ex.d.ts           <- type declarations extras
 ```
 
 ### Estado atual
 
 - Plugin ID: `menu-editors`
-- MenuOption interface simplificada (title, icon, action — sem isToggle/isTextField/isEnabled)
+- MenuOption interface expandida (title, icon, action, isToggle?, isTextField?, isEnabled?)
+- ToggleComponent dentro de menu items — toggle on/off sem fechar o menu
+- TextComponent com Enter handler — adiciona novos toggle items dinamicamente
+- addItemToEditorCodingMenu: cria DOM elements (div.menu-item) diretamente no menu
 - Ribbon buttons e commands gerados dinamicamente do array menuOptions
-- Selecao de texto abre coding menu com opcoes basicas
 - Context menu (editor-menu, file-menu) com submenu Code Options
-- DisplayMenus.ts com blocos comentados mostrando versoes anteriores das funcoes
-- CodingModals e Events continuam inalterados
+- DisplayMenus.ts com 3 versoes comentadas de createEditorCodingMenu mostrando evolucao
 
 ### Funcionalidades
 
-- **Coding menu** — popup ao selecionar texto com Add New/Existing Code, Remove Code/All
+- **Menu flutuante** — popup ao selecionar texto com toggles, textfields e actions
+- **ToggleComponent** — toggle items dentro do menu que nao fecham ao clicar
+- **TextComponent** — campo de texto no menu, Enter cria novo toggle item
+- **addItemToEditorCodingMenu** — adicao dinamica de items via DOM manipulation
 - **File/editor menus** — submenu Code Options com createFileMenu e createEditorMenu
 - **Ribbon buttons** — icones para cada MenuOption no ribbon bar
 - **Commands** — cada MenuOption vira um command no palette
-- **resetMenu()** — limpa menu e flags de estado
+- **toggleExample()** — funcao exportada para toggle state management
 
 ### Notas
 
-- DisplayMenus.ts contem versoes comentadas das funcoes (pre-refactor com hardcoded items)
-- Imports de Coding module (addNewCode, addExistingCode, removeCode, removeAllCodes)
-- Sem toggleExample, sem TextField, sem DOM menu complexity
+- backupDisplayMenus.ts e o modulo mais completo ate agora (17K)
+- 3 versoes comentadas de createEditorCodingMenu documentam a evolucao do menu
+- Override de submenu.hide() para impedir fechamento durante Enter no TextField
+- Event listeners (window/element) com cleanup no onHide

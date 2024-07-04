@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2024-06-24_v5-displaymenus-completo/test-note.md",
+                "file": "2024-07-04_v8-abertura-working/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
@@ -128,29 +128,32 @@
       "menu-editors:Add New Code": false,
       "menu-editors:Add Existing Code": false,
       "menu-editors:Remove Code": false,
-      "menu-editors:Remove All Codes": false
+      "menu-editors:Remove All Codes": false,
+      "menu-editors:New Item": false
     }
   },
   "active": "4f7d62913ecb1c43",
   "lastOpenFiles": [
+    "Sample 1.md",
+    "2024-06-24_v5-displaymenus-completo/test-note.md",
+    "2024-07-04_v8-abertura-working/test-note.md",
+    "2024-07-04_v8-abertura-working/_historico/ux-principles.md",
+    "2024-07-04_v8-abertura-working/_historico/abertura-funcnioando.ts",
+    "2024-07-04_v8-abertura-working/_historico",
+    "2024-07-04_v8-abertura-working",
     "2024-06-25_v6-displaymenus-modulo-isolado/test-note.md",
     "2024-06-25_v6-displaymenus-modulo-isolado/_historico/gpt-debug-toggle-click-menu.md",
     "2024-06-25_v6-displaymenus-modulo-isolado/_historico",
     "2024-06-25_v6-displaymenus-modulo-isolado",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/test-note.md",
-    "2024-06-24_v5-displaymenus-completo/test-note.md",
     "2024-06-24_v5-displaymenus-completo",
     "2024-06-23_v3-refactor-imports-modulares/test-note.md",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico/backup-mara.ts",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico/backup.ts",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico/finalmente.ts",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/_historico",
-    "2024-06-24_v4-svelte-branch-displaymenus-completo",
     "2024-06-19_v2-modular/test-note.md",
-    "2024-06-23_v3-refactor-imports-modulares",
-    "Sample 1.md",
     "2024-06-19_v2-modular/_demo-notes/editor-playground-coded-sample.md",
-    "2024-06-19_v2-modular/_demo-notes",
     "2024-06-19_v1-primeiro-qda/templates/extraction-template.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-v1-file-structure-suggestion.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
@@ -168,8 +171,6 @@
     "templates/extraction-template.md",
     "_historico/qda-data-model.canvas",
     "_historico/qda-v1-file-structure-suggestion.md",
-    "_historico/matriz-csd-framework.md",
-    "_demo-notes/transcript-meiuca-diogo-roncatto.md",
-    "_demo-notes/extraction-003.md"
+    "_historico/matriz-csd-framework.md"
   ]
 }

@@ -1,5 +1,5 @@
 import { Editor, MarkdownView, Menu, Notice, Plugin, TFile } from 'obsidian';
-import { createCodingsMenu } from './src/DisplayMenus';
+import { createCodingsMenu, toggleExample } from './src/DisplayMenus';
 import { createRegisterEvents } from 'src/Events';
 import { reapplyStyles } from 'src/CodingModals';
 import { addExistingCode, addNewCode, removeAllCodes, removeCode } from 'src/Coding';
@@ -8,6 +8,9 @@ export interface MenuOption {
 	title: string;
 	icon: string;
 	action: (plugin: MyPlugin) => void;
+	isToggle?: boolean;
+	isTextField?: boolean;
+	isEnabled?: boolean;
 }
 
 export default class MyPlugin extends Plugin {
@@ -17,13 +20,15 @@ export default class MyPlugin extends Plugin {
 		{ title: 'Add New Code', icon: 'plus', action: (plugin) => addNewCode(plugin) },
 		{ title: 'Add Existing Code', icon: 'check', action: (plugin) => addExistingCode(plugin) },
 		{ title: 'Remove Code', icon: 'trash', action: (plugin) => removeCode(plugin) },
-		{ title: 'Remove All Codes', icon: 'x', action: (plugin) => removeAllCodes(plugin) }
+		{ title: 'Remove All Codes', icon: 'x', action: (plugin) => removeAllCodes(plugin) },
+		{ title: 'Toggle Example', icon: 'toggle-left', action: (plugin) => toggleExample(plugin), isToggle: true, isEnabled: false },
+		{ title: 'New Item', icon: 'pencil', action: () => {}, isTextField: true }
 	];
 	selectionTriggeredMenu: boolean = false;
 	contextMenuOpened: boolean = false;
 
 	async onload() {
-		console.log('[menu-editors] v6 loaded -- DisplayMenus modulo isolado: createCodingsMenu, ribbons');
+		console.log('[menu-editors] v8 loaded -- Abertura working: menu open + ToggleComponent, backupDisplayMenus (17K)');
 		createRegisterEvents(this);
 		createCodingsMenu(this);
 	}
