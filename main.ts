@@ -28,7 +28,7 @@ export default class MyPlugin extends Plugin {
 	contextMenuOpened: boolean = false;
 
 	async onload() {
-		console.log('[menu-editors] v8 loaded -- Abertura working: menu open + ToggleComponent, backupDisplayMenus (17K)');
+		console.log('[menu-editors] v9 loaded -- Clique milestone: click post create item funcionando');
 		createRegisterEvents(this);
 		createCodingsMenu(this);
 	}

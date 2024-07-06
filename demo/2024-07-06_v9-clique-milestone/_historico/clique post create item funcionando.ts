@@ -1,77 +1,3 @@
-// # ./src/DisplayMenus.ts
-
-import { Menu, Editor, TFile, Notice, MenuItem, Plugin, ToggleComponent, TextComponent } from 'obsidian';
-import MyPlugin from '../main';
-//import { addNewCode,addExistingCode,removeCode,removeAllCodes } from './Coding';
-/*
-* Melhorias:
-* - Edição dos ícones e labels;
-*
-*/
-
-/** Cria os botões principais para interação com usuário,
- * enquanto as outras funções são gerenciadas pelos Events.ts
- *
- */
-export function createCodingsMenu(plugin: MyPlugin){
-	createRibbonButtons(plugin);
-	createCommands(plugin);
-}
-
-/** Criando os botões ribbon
- *
- */
-function createRibbonButtons(plugin: MyPlugin): void {
-
-
-	Object.values(plugin.menuOptions).forEach(option => {
-		plugin.addRibbonIcon(option.icon, option.title, () => option.action(plugin));
-	});
-
-}
-
-/** Cria os commands
- *
- */
-function createCommands(plugin: MyPlugin): void {
-	Object.values(plugin.menuOptions).forEach(option => {
-		plugin.addCommand({
-			id: option.title.toLowerCase().replace(/ /g, '-'),
-			name: option.title,
-			callback: () => option.action(plugin)
-		});
-	});
-}
-
-/**
- * Essas funções abaixo são chamadas por meio dos Eventos Registrados no arquivo `Events.ts`.
- * Elas criam os menus no editor ou no file-menu dinamicamente, ou seja, após o clique do usuário
- * em determinadas áreas da aplicação, citadas acima.
- **/
-
-
-/** Cria o menu no menu contextual lateral superior direito (ao lado do título) e no file-menu.
-* Esta opção insere o mesmo menu contextual (click-right) no menu de arquivos;
-*
-* * Melhorias:
-* - Criar nova função `files-menu` e add ou remover codes que estão nos arquivos selecionados
-* -- Talvez seja uma feature mais avançada que possa abrir pelo code e então remover dos arquivos
-*
-*/
-export function createFileMenu(menu: Menu, file: TFile, plugin: MyPlugin): void {
-
-	createDefaultObsidianMenus(menu, plugin);
-}
-
-
-/** Cria o menu contextual (click-right) no Editor com as opções do plugin;
-*
-*/
-export function createEditorMenu(menu: Menu, plugin: MyPlugin): void {
-
-	createDefaultObsidianMenus(menu, plugin);
-}
-
 /// clique post create item funcionando - linha 22 add selectionTriggeredMenu = true;
 
 export async function createEditorCodingMenu(editor: Editor, evt: MouseEvent, plugin: MyPlugin) {
@@ -171,7 +97,7 @@ export async function createEditorCodingMenu(editor: Editor, evt: MouseEvent, pl
 function addItemToEditorCodingMenu(value: string, plugin: MyPlugin, editor: Editor, submenu: Menu) {
     if (value.trim() !== '') {
         new Notice(`Text added to editor: ${value}`);
-
+        
         const newOption = {
             title: value,
             icon: 'tag',
@@ -206,45 +132,5 @@ function addItemToEditorCodingMenu(value: string, plugin: MyPlugin, editor: Edit
         // Reabrir o submenu atualizado
         submenu.hide();
         submenu.showAtPosition({ x: submenu.posX, y: submenu.posY });
-    }
-}
-
-/** Remove o menu contextual do plugin em diversos cenários, gerenciado pelos eventos;
-*
-*
-*/
-export function resetMenu(plugin: MyPlugin, hideMenu: boolean = true) {
-
-	if (plugin.currentMenu) {
-		plugin.currentMenu.hide();
-		plugin.currentMenu = null;
-	}
-	plugin.selectionTriggeredMenu = false;
-	plugin.contextMenuOpened = false;
-}
-
-// Função que carrega um menu padronizado para ambos `file-menu` e `editor-menu`.
-function createDefaultObsidianMenus(menu: Menu, plugin:MyPlugin){
-	menu.addSeparator();
-
-	menu.addItem((item) => {
-		item.setTitle('Code Options')
-			.setIcon('dice');
-
-		const submenu = item.setSubmenu();
-		Object.values(plugin.menuOptions).forEach(option => {
-			submenu.addItem((subItem) => {
-				subItem.setTitle(option.title)
-					.setIcon(option.icon)
-					.onClick(() => option.action(plugin));
-			});
-		});
-	});
-}
-
-export function toggleExample(plugin: MyPlugin) {
-    const toggleOption = plugin.menuOptions.find(option => option.title === 'Toggle Example');
-    if (toggleOption) {
-        new Notice(`Toggle is now ${toggleOption.isEnabled ? 'enabled' : 'disabled'}`);
     }
 }

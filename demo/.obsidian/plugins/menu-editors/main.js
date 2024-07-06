@@ -63,7 +63,7 @@ async function createEditorCodingMenu(editor, evt, plugin) {
       plugin.currentMenu.hide();
     }
     const submenu = new import_obsidian.Menu();
-    plugin.menuOptions.forEach((option) => {
+    Object.values(plugin.menuOptions).forEach((option) => {
       if (option.isToggle) {
         submenu.addItem((item) => {
           var _a;
@@ -72,6 +72,7 @@ async function createEditorCodingMenu(editor, evt, plugin) {
           toggleComponent.onChange((value) => {
             option.isEnabled = value;
             option.action(plugin);
+            plugin.selectionTriggeredMenu = true;
           });
           item.setTitle(option.title).setIcon(option.icon);
           item.dom.classList.add("menu-item-toggle");
@@ -97,21 +98,8 @@ async function createEditorCodingMenu(editor, evt, plugin) {
           });
           const handleEnterKey = (evt2) => {
             if (evt2.key === "Enter") {
-              console.log("Enter key pressed");
-              try {
-                console.log("Attempting to prevent default behavior");
-                evt2.preventDefault();
-                console.log("Default behavior prevented");
-              } catch (error) {
-                console.error("Error preventing default behavior:", error);
-              }
-              try {
-                console.log("Attempting to stop propagation");
-                evt2.stopPropagation();
-                console.log("Propagation stopped");
-              } catch (error) {
-                console.error("Error stopping propagation:", error);
-              }
+              evt2.preventDefault();
+              evt2.stopPropagation();
               addItemToEditorCodingMenu(textComponent.inputEl.value, plugin, editor, submenu);
               textComponent.inputEl.value = "";
               textComponent.inputEl.focus();
@@ -119,18 +107,10 @@ async function createEditorCodingMenu(editor, evt, plugin) {
           };
           window.addEventListener("keydown", handleEnterKey, true);
           textComponent.inputEl.addEventListener("keydown", handleEnterKey, true);
-          const originalHide = submenu.hide.bind(submenu);
-          submenu.hide = () => {
-            const isEnterPressed = window.event && window.event.key === "Enter";
-            if (!isEnterPressed) {
-              return originalHide();
-            }
-            return submenu;
-          };
           submenu.onHide(() => {
             window.removeEventListener("keydown", handleEnterKey, true);
             textComponent.inputEl.removeEventListener("keydown", handleEnterKey, true);
-            submenu.hide = originalHide;
+            plugin.selectionTriggeredMenu = false;
           });
         });
       } else {
@@ -149,6 +129,39 @@ async function createEditorCodingMenu(editor, evt, plugin) {
     });
     submenu.showAtPosition({ x: evt.pageX, y: evt.pageY });
     plugin.currentMenu = submenu;
+  }
+}
+function addItemToEditorCodingMenu(value, plugin, editor, submenu) {
+  if (value.trim() !== "") {
+    new import_obsidian.Notice(`Text added to editor: ${value}`);
+    const newOption = {
+      title: value,
+      icon: "tag",
+      action: (plugin2) => {
+        new import_obsidian.Notice(`Toggle ${value} executed`);
+      },
+      isToggle: true,
+      isEnabled: false
+    };
+    plugin.menuOptions.push(newOption);
+    submenu.addItem((item) => {
+      var _a;
+      const toggleComponent = new import_obsidian.ToggleComponent(item.dom);
+      toggleComponent.setValue((_a = newOption.isEnabled) != null ? _a : false);
+      toggleComponent.onChange((toggleValue) => {
+        newOption.isEnabled = toggleValue;
+        newOption.action(plugin);
+      });
+      item.setTitle(newOption.title).setIcon(newOption.icon);
+      item.dom.classList.add("menu-item-toggle");
+      item.dom.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        const currentValue = toggleComponent.getValue();
+        toggleComponent.setValue(!currentValue);
+      });
+    });
+    submenu.hide();
+    submenu.showAtPosition({ x: submenu.posX, y: submenu.posY });
   }
 }
 function resetMenu(plugin, hideMenu = true) {
@@ -175,44 +188,6 @@ function toggleExample(plugin) {
   const toggleOption = plugin.menuOptions.find((option) => option.title === "Toggle Example");
   if (toggleOption) {
     new import_obsidian.Notice(`Toggle is now ${toggleOption.isEnabled ? "enabled" : "disabled"}`);
-  }
-}
-function addItemToEditorCodingMenu(value, plugin, editor, submenu) {
-  var _a;
-  if (value.trim() !== "") {
-    new import_obsidian.Notice(`Text added to editor: ${value}`);
-    const newOption = {
-      title: value,
-      icon: "tag",
-      action: (plugin2) => {
-        new import_obsidian.Notice(`Toggle ${value} executed`);
-      },
-      isToggle: true,
-      isEnabled: false
-    };
-    plugin.menuOptions.push(newOption);
-    const menuItem = document.createElement("div");
-    menuItem.className = "menu-item";
-    const toggleComponent = new import_obsidian.ToggleComponent(menuItem);
-    toggleComponent.setValue((_a = newOption.isEnabled) != null ? _a : false);
-    toggleComponent.onChange((toggleValue) => {
-      newOption.isEnabled = toggleValue;
-      newOption.action(plugin);
-    });
-    const iconEl = document.createElement("div");
-    iconEl.className = "menu-item-icon";
-    iconEl.innerHTML = '<svg><use href="icons.svg#tag"></use></svg>';
-    const titleEl = document.createElement("div");
-    titleEl.className = "menu-item-title";
-    titleEl.textContent = newOption.title;
-    menuItem.appendChild(iconEl);
-    menuItem.appendChild(titleEl);
-    menuItem.addEventListener("click", (evt) => {
-      evt.stopPropagation();
-      const currentValue = toggleComponent.getValue();
-      toggleComponent.setValue(!currentValue);
-    });
-    submenu.dom.appendChild(menuItem);
   }
 }
 
@@ -518,7 +493,7 @@ var MyPlugin = class extends import_obsidian5.Plugin {
     this.contextMenuOpened = false;
   }
   async onload() {
-    console.log("[menu-editors] v8 loaded -- Abertura working: menu open + ToggleComponent, backupDisplayMenus (17K)");
+    console.log("[menu-editors] v9 loaded -- Clique milestone: click post create item funcionando");
     createRegisterEvents(this);
     createCodingsMenu(this);
   }
