@@ -1,55 +1,48 @@
-# MQDA (Marlon QDA)
+# Editor Playground
 
-Plugin para Analise de Dados Qualitativos (QDA) no Obsidian.
+Plugin experimental para Obsidian — CM5 experiments + Popper.js + Settings suggesters.
 
-## v10 — MQDA: MenuOption, CodingMenuManager, EventManager, FindAndReplace (1467 LOC)
+## v11 — Editor Playground: CM5 experiments + Popper.js + Settings suggesters (892 LOC)
 
-Rewrite modular completo. Plugin renomeado de menu-editors para MQDA. Arquitetura baseada em managers: EventManager centraliza eventos, StandardMenus gera ribbon/commands/menus, customMenus cria o menu flutuante com toggles e textfields. Novos modulos: FindAndReplace (CM5 API), Highlights (spans com dynamic styles), Utils, Comps.
+Rewrite completo. Plugin renomeado de MQDA para Editor Playground. Estrutura flat: main.ts na raiz com settings/ e utils/ como diretorios separados. Foco em experimentacao com CodeMirror 5 API, Popper.js para positioning de suggesters, e Settings Tab com FolderSuggest.
 
 ### Estrutura
 
 ```
-main.ts                        <- plugin principal (MyPlugin) — MenuOption interface, menuInput/menuCodes/menuOptions
-src/standardMenus.ts           <- StandardMenus: ribbon buttons, commands, editor-menu, file-menu
-src/customMenus.ts             <- customMenus: menu flutuante com toggles, textfields, separators, addItem dinamico
-src/Events.ts                  <- EventManager: click handler + coding events (file-open, DOMContentLoaded)
-src/CodingModals.ts            <- ApplyCodeModal, RemoveCodeModal, cleanAllCodes, localStorage persistence
-src/Codings.ts                 <- addNewCode, addExistingCode, removeCode, removeAllCodes
-src/Highlights.ts              <- Highlight class: apply/remove coded-text spans + dynamic styles
-src/FindAndReplace.ts          <- FindAndReplace: CM5 CodeMirror API (find/replace in selection)
-src/Utils.ts                   <- Utils: activeFileEditor helper
-src/Comps.ts                   <- toggleExample
-src/backup/DisplayMenu.ts      <- CodingMenuManager (versao anterior do menu, usada como backup)
-src/backup/backup.ts           <- arquivo vazio de backup
+main.ts                              <- plugin principal — CM5 events, postprocessor, workspace listeners
+settings/settings.ts                 <- SampleSettingTab com FolderSuggest, template folder config
+settings/suggesters/suggest.ts       <- TextInputSuggest base class com Popper.js positioning
+settings/suggesters/FileSuggester.ts <- FileSuggest para template/script files
+settings/suggesters/FolderSuggester.ts <- FolderSuggest para folder selection
+utils/Error.ts                       <- TemplaterError, errorWrapper, errorWrapperSync
+utils/Log.ts                         <- log_update, log_error com Notice
+utils/Utils.ts                       <- arraymove, resolve_tfolder, get_tfiles_from_folder
 ```
 
 ### Estado atual
 
-- Plugin ID: `mqda`
-- Plugin name: Marlon QDA
-- Arquitetura modular com managers separados
-- EventManager centraliza click + coding events
-- customMenus com menu flutuante completo (TextField, Toggles, Actions, Separators)
-- addItemToEditorCodingMenu via menuCodes.unshift + menu reopen
-- Highlight class para apply/remove de coded-text spans com dynamic CSS
-- FindAndReplace usando CodeMirror 5 API (getDoc, somethingSelected, etc.)
-- removeHtmlTags com logica complexa de cursor positioning
+- Plugin ID: `editor-playground`
+- Plugin name: Editor Playground
+- Estrutura flat (main.ts root + settings/ + utils/)
+- CodeMirror 5 import direto (import * as CodeMirror from 'codemirror')
+- Workspace events: layout-change, active-leaf-change, editor-change
+- registerMarkdownPostProcessor para coded-text click handling
+- Settings Tab com FolderSuggest usando Popper.js
+- TextInputSuggest base class com keyboard navigation (ArrowUp/Down/Enter/Escape)
+- Utils portados do Templater (Error wrapper, Log, arraymove)
 
 ### Funcionalidades
 
-- **Menu flutuante** — popup ao clicar com toggles, textfields e actions
-- **ToggleComponent** — toggle items dentro do menu que nao fecham ao clicar
-- **TextComponent** — campo de texto no menu, Enter cria novo toggle item
-- **addItemToEditorCodingMenu** — adicao dinamica de items com menu reopen
-- **File/editor menus** — submenu Code Options com createFileMenu e createEditorMenu
-- **Ribbon buttons** — icones para cada MenuOption no ribbon bar
-- **Commands** — cada MenuOption vira um command no palette
-- **Highlight** — apply/remove de spans com dynamic styles + color picker
-- **FindAndReplace** — busca e substituicao via CM5 API
-- **Code persistence** — localStorage para codeData e dynamicStyles
+- **CM5 experiments** — acesso direto a editor.cm como CodeMirror.Editor
+- **Workspace events** — layout-change e active-leaf-change disparam Notice
+- **Editor-change tracking** — loga cursor position a cada mudanca
+- **Settings suggesters** — FolderSuggest com Popper.js dropdown
+- **Template folder config** — setting para definir pasta de templates
+- **Post processor** — coded-text element click handling
+- **Error handling** — TemplaterError com wrapper sync/async
 
 ### Notas
 
-- Milestone visual: MQDA — arquitetura modular com EventManager + FindAndReplace
-- Primeiro uso de CodeMirror 5 API diretamente (import * as CodeMirror)
-- Dead repo no GitHub (boilerplate only)
+- Milestone visual: Editor playground — CM5 + Popper.js
+- Dead repo no GitHub
+- Codigo baseado em patterns do Templater (suggesters, error handling)

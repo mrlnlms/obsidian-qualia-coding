@@ -124,10 +124,6 @@
   },
   "left-ribbon": {
     "hiddenItems": {
-      "mqda:Add New Code": false,
-      "mqda:Add Existing Code": false,
-      "mqda:Remove Code": false,
-      "mqda:Remove All Codes": false,
       "switcher:Open quick switcher": false,
       "canvas:Create new canvas": false,
       "command-palette:Open command palette": false,
@@ -137,6 +133,9 @@
   },
   "active": "4f7d62913ecb1c43",
   "lastOpenFiles": [
+    "Sample 1.md",
+    "2024-07-14_v11-editor-playground-cm5-popper/test-note.md",
+    "2024-07-14_v11-editor-playground-cm5-popper",
     "2024-07-07_v10-mqda-modular-architecture/test-note.md",
     "2024-07-07_v10-mqda-modular-architecture",
     "2024-07-04_v8-abertura-working/test-note.md",
@@ -145,7 +144,6 @@
     "2024-07-06_v9-clique-milestone/_historico/clique post create item funcionando.ts",
     "2024-07-06_v9-clique-milestone/_historico",
     "2024-07-06_v9-clique-milestone",
-    "Sample 1.md",
     "2024-06-24_v5-displaymenus-completo/test-note.md",
     "2024-07-04_v8-abertura-working/_historico/ux-principles.md",
     "2024-07-04_v8-abertura-working/_historico/abertura-funcnioando.ts",
@@ -156,7 +154,6 @@
     "2024-06-25_v6-displaymenus-modulo-isolado/_historico",
     "2024-06-25_v6-displaymenus-modulo-isolado",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/test-note.md",
-    "2024-06-24_v5-displaymenus-completo",
     "2024-06-23_v3-refactor-imports-modulares/test-note.md",
     "2024-06-19_v2-modular/test-note.md",
     "2024-06-19_v2-modular/_demo-notes/editor-playground-coded-sample.md",
@@ -173,7 +170,6 @@
     "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-mmmm-project.md",
     "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-marlon.md",
     "2024-06-19_v1-primeiro-qda/_demo-notes/analysis-extraction-type-overview.md",
-    "2024-06-19_v1-primeiro-qda/_demo-notes/analysis-code-overview.md",
     "_historico/qda-data-model.canvas"
   ]
 }

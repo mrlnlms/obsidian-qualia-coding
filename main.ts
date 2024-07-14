@@ -1,112 +1,259 @@
-import { Editor, MarkdownView, Menu, Notice, Plugin, TFile } from 'obsidian';
-import { CodingMenuManager } from './src/backup/DisplayMenu';
-import { StandardMenus } from 'src/standardMenus';
-import { EventManager } from './src/Events';
-import { addExistingCode, addNewCode, removeAllCodes, removeCode } from './src/Codings';
-import { toggleExample } from 'src/Comps';
-import { customMenus } from 'src/customMenus';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, MarkdownPostProcessorContext } from 'obsidian';
+import * as CodeMirror from 'codemirror';
+import {
+    DEFAULT_SETTINGS,
+    MyPluginSettings,
+    SampleSettingTab} from "settings/settings";
+// Remember to rename these classes and interfaces!
 
-export interface MenuOption {
-    title: string;
-    icon: string;
-    action: (plugin: MyPlugin) => void;
-    isToggle?: boolean;
-    isEnabled?: boolean;
-    isTextField?: boolean;
+/* interface MyPluginSettings {
+	mySetting: string;
+} */
+
+/* const DEFAULT_SETTINGS: MyPluginSettings = {
+	mySetting: 'default'
+} */
+interface EditorPosition {
+    line: number;
+    ch: number;
 }
-
 export default class MyPlugin extends Plugin {
-    currentMenu: Menu | null = null;
-    
-    menuInput: MenuOption[] = [
-        { title: '', icon: 'tag', action: (plugin) => {}, isTextField: true }
-    ];
-    menuCodes: MenuOption[] = [];
-    
-    menuOptions: MenuOption[] = [
-       //{ title: 'Toggle Example', icon: 'switch', action: (plugin) => toggleExample(plugin), isToggle: true, isEnabled: false },
-       { title: 'Add New Code', icon: 'plus-with-circle', action: (plugin) => addNewCode(plugin) },
-       { title: 'Add Existing Code', icon: 'tag', action: (plugin) => addExistingCode(plugin) },
-       { title: 'Remove Code', icon: 'trash', action: (plugin) => removeCode(plugin) },
-       { title: 'Remove All Codes', icon: 'minus-with-circle', action: (plugin) => removeAllCodes(plugin) }
-    ];
+	settings: MyPluginSettings;
+	marlon: EditorPosition;
 
-    get menuCodesReduced(): MenuOption[] {
-        return this.menuCodes.slice(0, 5);
-    }
-    get myCustomMenu(): MenuOption[] {
-        return [
-            ...this.menuInput,
-            ...this.menuCodesReduced,
-            ...this.menuOptions
-        ];
-    }
 
-    // Definindo propriedades faltantes
-    contextMenuOpened: boolean = false;
-    selectionTriggeredMenu: boolean = false;
-    codingMenuOpened: boolean = false;
-    menuStayOpen: boolean = false; // Adicionado
+	async onload() {
+		console.log('[Editor Playground] v11 loaded -- CM5 experiments + Popper.js + Settings suggesters');
+		await this.loadSettings();
 
-    stdMenuManager: StandardMenus;
-    menuManager: CodingMenuManager;
-    eventManager: EventManager;
-    plugin: MenuOption;
 
-    
-    async onload() {
-        console.log('[Marlon QDA] v10 loaded -- MQDA: MenuOption, CodingMenuManager, EventManager, FindAndReplace');
-        //this.menuManager = new CodingMenuManager(this);
-        this.stdMenuManager = new StandardMenus(this);
-        this.eventManager = new EventManager(this);
-        this.stdMenuManager.createMenus();
-        this.eventManager.registerEvents();
-        
-        //this.app.workspace.on('editor-change', this.onEditorChange.bind(this));
-         // Adicionar listener global para hover
-         /* document.addEventListener('mouseover', (event: MouseEvent) => {
-            console.log("11")
-            const target = event.target as HTMLElement;
-            if (target && target.classList.contains('coded-text')) {
-                console.log("22")
-                customMenus.showCustomMenu(event, this);
-            } else {
-                if(!this.codingMenuOpened){
-                    customMenus.resetMenu(this);
+
+
+		
+
+
+
+		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin); [qse]
+		// Using this function will automatically remove the event listener when this plugin is disabled.
+		/* 
+		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
+			
+			const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+				
+				if (!markdownView) return;
+
+				console.log('click', evt);
+				const editor = markdownView.editor;
+				const start = editor.getCursor("from");
+				const end = editor.getCursor("to");
+				const cursor = editor.getCursor();
+				console.log('start', start)
+				console.log('end', end)
+
+				if(start.line === end.line && start.ch === end.ch){
+					console.log("POINT")
+					console.log(editor.getCursor())
+					editor.setCursor(cursor);
+					console.log(editor.getCursor())
+					let marlon = this.getClickPosition(evt);
+					console.log("***********")
+					console.log(marlon)
+				}else{
+					console.log("There is text selected.");
+				}
+				
+               // Acessa a instância CodeMirror diretamente
+                // @ts-ignore: Ignore TypeScript errors for accessing private properties
+                const cmEditor = editor.cm as CodeMirror.Editor;
+                if (cmEditor) {
+					//const clickPosition = CustomMenus.getClickPosition(editor, evt);
+					//console.log(cmEditor.getLine()));
+					console.log(cmEditor.hasFocus);
+					if(!cmEditor.hasFocus){
+						console.log("SAIU")
+						cmEditor.focus();
+						evt.stopPropagation();
+                    	evt.preventDefault();
+						console.log(cmEditor.hasFocus);
+						console.log("VOLTOU?")
+						console.log(editor.getCursor());
+						//editor.setCursor(1110)
+						
+						
+						//this.marlon.ch = 0;
+						//this.marlon.line = 0;
+						//editor.setSelection({anchor:line:0, ch:0,head:line:0, ch:0});
+					} else {
+						console.log("OK")
+						
+					}
+
+				}
+				
+
+		});
+ */
+		this.registerMarkdownPostProcessor((element: HTMLElement, context: MarkdownPostProcessorContext) => {
+            console.log(">>>>>>>>>>>>>>")
+			const codedTextElements = element.querySelectorAll('coded-text');
+            codedTextElements.forEach((el: HTMLElement) => {
+				console.log(">>>>>>>>>>>>>>")
+                el.addEventListener('click', () => this.handleCodedTextClick(el));
+            });
+        });
+		this.registerEvent(this.app.workspace.on('layout-change', () => {
+			new Notice("layout-change")
+		}));
+		
+		this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
+			new Notice("active-leaf-change'")
+            const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+            if (markdownView) {
+                const editor = markdownView.editor;
+               // Acessa a instância CodeMirror diretamente
+                // @ts-ignore: Ignore TypeScript errors for accessing private properties
+                const cmEditor = editor.cm as CodeMirror.Editor;
+                if (cmEditor) {
+					//console.error("CodeMirror instance not found.");
+					console.log(cmEditor)
+					
+					//const pos = cmEditor.coordsChar({ left, top });
+        			//return { line: pos.line, ch: pos.ch };
+                	/* cmEditor.on('cursorActivity', () => {
+                    	const cursor = editor.getCursor();
+                    	console.log(`Cursor position: Line ${cursor.line}, Column ${cursor.ch}`);
+                	}); */
+				} else {
+                    console.error("CodeMirror instance not found.");
                 }
-                
             }
-        });
-         */
+        }));
+
+		this.registerEvent(this.app.workspace.on('editor-change', (editor: Editor) => {
+			const cursor = editor.getCursor();
+			console.log(`Cursor position: Line ${cursor.line}, Column ${cursor.ch}`);
+		}));
+		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
+		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		
+				// This adds a settings tab so the user can configure various aspects of the plugin
+			this.addSettingTab(new SampleSettingTab(this));
+
+	}
+	
+	
+	async save_settings(): Promise<void> {
         
-        new Notice("MOSx-QDA loaded!!")
+		await this.saveData(this.settings);
     }
 
-    onunload() {
-        CodingMenuManager.cleanupCallbacks.forEach(callback => callback());
-        new Notice('MOSx-QDA unloaded!');
-    }
-    onEditorChange(editor: Editor) {
-        const codedTextElements = document.querySelectorAll('.coded-text');
-        codedTextElements.forEach(span => {
-            this.addHoverListeners(span as HTMLSpanElement);
-            console.log(span)
-        });
-    }
 
-    addHoverListeners(span: HTMLSpanElement) {
-        // Check if the listeners are already added
-        if (!span.classList.contains('hover-listeners-added')) {
-            span.addEventListener('mouseover', (event) => {
-                customMenus.showCustomMenu(event as MouseEvent, this);
-            });
-
-            span.addEventListener('mouseout', () => {
-                // You can add any logic you want for mouseout, e.g., hiding a button or other UI elements
-            });
-
-            // Mark the span to indicate listeners have been added
-            span.classList.add('hover-listeners-added');
+	getClickPosition(evt: MouseEvent): EditorPosition | null {
+		const { clientX, clientY } = evt;
+		const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (markdownView) {
+			const editor = markdownView.editor;
+			// @ts-ignore: Ignore TypeScript errors for accessing private properties
+            const cm = (editor as any).cm as CodeMirror.Editor;
+			
+			if (cm) {
+                //const pos = cm.coordsChar({ left: clientX, top: clientY });
+                //return { line: pos.line, ch: pos.ch };
+            } else {
+                console.error("CodeMirror instance not found.");
+            }
+		}
+		return null;
+	}
+	handleCodedTextClick(el: HTMLElement) {
+        const code = el.getAttribute('data-code');
+        if (code) {
+            console.log(`Clicked on element with code: ${code}`);
+            // Execute your specific function here
+            this.performActionBasedOnCode(code);
         }
     }
+
+    performActionBasedOnCode(code: string) {
+        // Define your specific function here
+        new Notice(`Action performed for code: ${code}`);
+    }
+
+    registerEditorListener() {
+        this.app.workspace.on('active-leaf-change', () => {
+            const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+            if (markdownView) {
+                const editor = markdownView.editor;
+                // @ts-ignore: Ignore TypeScript errors for accessing private properties
+                const cm = editor.cm as any; // Acesse a instância CodeMirror diretamente
+                if (cm) {
+                    cm.on('cursorActivity', () => {
+                        const cursor = editor.getCursor();
+                        console.log(`Cursor position: Line ${cursor.line}, Column ${cursor.ch}`);
+                    });
+                } else {
+                    console.error("CodeMirror instance not found.");
+                }
+            }
+        });
+    }
+	/* getClickPosition(editor: Editor, event: MouseEvent): EditorPosition {
+        const { left, top } = event;
+        const cm = (editor as any).cm; // Obtendo a instância do CodeMirror
+        const pos = cm.coordsChar({ left, top });
+        return { line: pos.line, ch: pos.ch };
+    } */
+	onunload() {
+
+	}
+
+	
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	
 }
+
+class SampleModal extends Modal {
+	constructor(app: App) {
+		super(app);
+	}
+
+	onOpen() {
+		const {contentEl} = this;
+		contentEl.setText('Woah!');
+	}
+
+	onClose() {
+		const {contentEl} = this;
+		contentEl.empty();
+	}
+}
+/* 
+class SampleSettingTab extends PluginSettingTab {
+	plugin: MyPlugin;
+
+	constructor(app: App, plugin: MyPlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		const {containerEl} = this;
+
+		containerEl.empty();
+
+		new Setting(containerEl)
+			.setName('Setting #1')
+			.setDesc('It\'s a secret')
+			.addText(text => text
+				.setPlaceholder('Enter your secret')
+				.setValue(this.plugin.settings.mySetting)
+				.onChange(async (value) => {
+					this.plugin.settings.mySetting = value;
+					await this.plugin.saveSettings();
+				}));
+	}
+}
+ */
