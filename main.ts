@@ -1,259 +1,145 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, MarkdownPostProcessorContext } from 'obsidian';
-import * as CodeMirror from 'codemirror';
-import {
-    DEFAULT_SETTINGS,
-    MyPluginSettings,
-    SampleSettingTab} from "settings/settings";
-// Remember to rename these classes and interfaces!
+import { App, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, ItemView, Notice, Modal, TextComponent, normalizePath } from 'obsidian';
+import { writeFile, appendFile, readFile, access, constants } from 'fs/promises';
+import * as path from 'path';
 
-/* interface MyPluginSettings {
-	mySetting: string;
-} */
+const VIEW_TYPE_CSV = "csv-view";
 
-/* const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-} */
-interface EditorPosition {
-    line: number;
-    ch: number;
-}
 export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
-	marlon: EditorPosition;
-
-
 	async onload() {
-		console.log('[Editor Playground] v11 loaded -- CM5 experiments + Popper.js + Settings suggesters');
-		await this.loadSettings();
-
-
-
-
-		
-
-
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin); [qse]
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		/* 
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			
-			const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				
-				if (!markdownView) return;
-
-				console.log('click', evt);
-				const editor = markdownView.editor;
-				const start = editor.getCursor("from");
-				const end = editor.getCursor("to");
-				const cursor = editor.getCursor();
-				console.log('start', start)
-				console.log('end', end)
-
-				if(start.line === end.line && start.ch === end.ch){
-					console.log("POINT")
-					console.log(editor.getCursor())
-					editor.setCursor(cursor);
-					console.log(editor.getCursor())
-					let marlon = this.getClickPosition(evt);
-					console.log("***********")
-					console.log(marlon)
-				}else{
-					console.log("There is text selected.");
-				}
-				
-               // Acessa a instância CodeMirror diretamente
-                // @ts-ignore: Ignore TypeScript errors for accessing private properties
-                const cmEditor = editor.cm as CodeMirror.Editor;
-                if (cmEditor) {
-					//const clickPosition = CustomMenus.getClickPosition(editor, evt);
-					//console.log(cmEditor.getLine()));
-					console.log(cmEditor.hasFocus);
-					if(!cmEditor.hasFocus){
-						console.log("SAIU")
-						cmEditor.focus();
-						evt.stopPropagation();
-                    	evt.preventDefault();
-						console.log(cmEditor.hasFocus);
-						console.log("VOLTOU?")
-						console.log(editor.getCursor());
-						//editor.setCursor(1110)
-						
-						
-						//this.marlon.ch = 0;
-						//this.marlon.line = 0;
-						//editor.setSelection({anchor:line:0, ch:0,head:line:0, ch:0});
-					} else {
-						console.log("OK")
-						
-					}
-
-				}
-				
-
+		console.log('[Management Codes] v12 loaded -- Code management: CSV view + file operations');
+		this.addRibbonIcon('file-plus', 'Add Item', async () => {
+			new InputModal(this).open();
 		});
- */
-		this.registerMarkdownPostProcessor((element: HTMLElement, context: MarkdownPostProcessorContext) => {
-            console.log(">>>>>>>>>>>>>>")
-			const codedTextElements = element.querySelectorAll('coded-text');
-            codedTextElements.forEach((el: HTMLElement) => {
-				console.log(">>>>>>>>>>>>>>")
-                el.addEventListener('click', () => this.handleCodedTextClick(el));
-            });
-        });
-		this.registerEvent(this.app.workspace.on('layout-change', () => {
-			new Notice("layout-change")
-		}));
-		
-		this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
-			new Notice("active-leaf-change'")
-            const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-            if (markdownView) {
-                const editor = markdownView.editor;
-               // Acessa a instância CodeMirror diretamente
-                // @ts-ignore: Ignore TypeScript errors for accessing private properties
-                const cmEditor = editor.cm as CodeMirror.Editor;
-                if (cmEditor) {
-					//console.error("CodeMirror instance not found.");
-					console.log(cmEditor)
-					
-					//const pos = cmEditor.coordsChar({ left, top });
-        			//return { line: pos.line, ch: pos.ch };
-                	/* cmEditor.on('cursorActivity', () => {
-                    	const cursor = editor.getCursor();
-                    	console.log(`Cursor position: Line ${cursor.line}, Column ${cursor.ch}`);
-                	}); */
-				} else {
-                    console.error("CodeMirror instance not found.");
-                }
-            }
-        }));
 
-		this.registerEvent(this.app.workspace.on('editor-change', (editor: Editor) => {
-			const cursor = editor.getCursor();
-			console.log(`Cursor position: Line ${cursor.line}, Column ${cursor.ch}`);
-		}));
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-		
-				// This adds a settings tab so the user can configure various aspects of the plugin
-			this.addSettingTab(new SampleSettingTab(this));
+		this.registerView(
+			VIEW_TYPE_CSV,
+			(leaf) => new CSVView(leaf, this)
+		);
 
-	}
-	
-	
-	async save_settings(): Promise<void> {
-        
-		await this.saveData(this.settings);
-    }
-
-
-	getClickPosition(evt: MouseEvent): EditorPosition | null {
-		const { clientX, clientY } = evt;
-		const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (markdownView) {
-			const editor = markdownView.editor;
-			// @ts-ignore: Ignore TypeScript errors for accessing private properties
-            const cm = (editor as any).cm as CodeMirror.Editor;
-			
-			if (cm) {
-                //const pos = cm.coordsChar({ left: clientX, top: clientY });
-                //return { line: pos.line, ch: pos.ch };
-            } else {
-                console.error("CodeMirror instance not found.");
-            }
+		// Abrir automaticamente a view na sidebar
+		if (!this.app.workspace.getLeavesOfType(VIEW_TYPE_CSV).length) {
+			this.app.workspace.getRightLeaf(false)?.setViewState({
+				type: VIEW_TYPE_CSV,
+			});
 		}
-		return null;
-	}
-	handleCodedTextClick(el: HTMLElement) {
-        const code = el.getAttribute('data-code');
-        if (code) {
-            console.log(`Clicked on element with code: ${code}`);
-            // Execute your specific function here
-            this.performActionBasedOnCode(code);
-        }
-    }
-
-    performActionBasedOnCode(code: string) {
-        // Define your specific function here
-        new Notice(`Action performed for code: ${code}`);
-    }
-
-    registerEditorListener() {
-        this.app.workspace.on('active-leaf-change', () => {
-            const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-            if (markdownView) {
-                const editor = markdownView.editor;
-                // @ts-ignore: Ignore TypeScript errors for accessing private properties
-                const cm = editor.cm as any; // Acesse a instância CodeMirror diretamente
-                if (cm) {
-                    cm.on('cursorActivity', () => {
-                        const cursor = editor.getCursor();
-                        console.log(`Cursor position: Line ${cursor.line}, Column ${cursor.ch}`);
-                    });
-                } else {
-                    console.error("CodeMirror instance not found.");
-                }
-            }
-        });
-    }
-	/* getClickPosition(editor: Editor, event: MouseEvent): EditorPosition {
-        const { left, top } = event;
-        const cm = (editor as any).cm; // Obtendo a instância do CodeMirror
-        const pos = cm.coordsChar({ left, top });
-        return { line: pos.line, ch: pos.ch };
-    } */
-	onunload() {
-
 	}
 
-	
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	async saveItemToCSV(item: string) {
+		const filePath = this.getCSVFilePath();
+		try {
+			await this.ensureFileExists(filePath);
+			await appendFile(filePath, `${item}\n`);
+			new Notice('Item added to CSV');
+			this.updateCSVView();
+		} catch (error) {
+			console.error('Failed to save item to CSV:', error);
+			new Notice('Failed to save item to CSV');
+		}
 	}
 
-	
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	getCSVFilePath(): string {
+		const basePath = (this.app.vault.adapter as any).basePath || (this.app.vault as any).configDir;
+		return path.join(basePath, 'items.csv');
 	}
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
+	async ensureFileExists(filePath: string) {
+		try {
+			await access(filePath, constants.F_OK);
+		} catch (error) {
+			await writeFile(filePath, ''); // Create the file if it does not exist
+		}
 	}
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+	async updateCSVView() {
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CSV);
+		if (leaves.length) {
+			const view = leaves[0].view as CSVView;
+			view.loadItemsFromCSV();
+		}
 	}
 }
-/* 
-class SampleSettingTab extends PluginSettingTab {
+
+class CSVView extends ItemView {
 	plugin: MyPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
+	constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
+		super(leaf);
+		this.plugin = plugin;
+		this.loadItemsFromCSV();
+	}
+
+	getViewType() {
+		return VIEW_TYPE_CSV;
+	}
+
+	getDisplayText() {
+		return 'CSV Items';
+	}
+
+	async loadItemsFromCSV() {
+		const filePath = this.plugin.getCSVFilePath();
+		let content = '';
+
+		try {
+			await this.plugin.ensureFileExists(filePath);
+			content = await readFile(filePath, 'utf-8');
+		} catch (error) {
+			console.error('Failed to read CSV file:', error);
+			new Notice('Failed to load CSV items');
+		}
+
+		const items = content.split('\n').filter((line) => line.trim() !== '');
+		const container = this.containerEl.children[1];
+
+		container.empty();
+		items.forEach((item) => {
+			const div = document.createElement('div');
+			div.textContent = item;
+			container.appendChild(div);
+		});
+	}
+
+	async onOpen() {
+		this.loadItemsFromCSV();
+	}
+
+	async onClose() {
+		// Handle any cleanup if necessary
+	}
+}
+
+class InputModal extends Modal {
+	plugin: MyPlugin;
+	input: TextComponent;
+
+	constructor(plugin: MyPlugin) {
+		super(plugin.app);
 		this.plugin = plugin;
 	}
 
-	display(): void {
-		const {containerEl} = this;
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.createEl('h2', { text: 'Add New Item' });
 
-		containerEl.empty();
+		this.input = new TextComponent(contentEl);
+		this.input.inputEl.style.width = '100%';
+		this.input.inputEl.focus();
 
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+		const saveButton = contentEl.createEl('button', { text: 'Save' });
+		saveButton.style.marginTop = '10px';
+		saveButton.onclick = async () => {
+			const newItem = this.input.getValue();
+			if (newItem) {
+				await this.plugin.saveItemToCSV(newItem);
+				this.close();
+			} else {
+				new Notice('Please enter a valid item');
+			}
+		};
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
 	}
 }
- */

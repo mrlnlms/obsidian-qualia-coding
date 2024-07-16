@@ -1,48 +1,36 @@
-# Editor Playground
+# Management Codes
 
-Plugin experimental para Obsidian — CM5 experiments + Popper.js + Settings suggesters.
+Plugin experimental para Obsidian — Code management com CSV view e file operations.
 
-## v11 — Editor Playground: CM5 experiments + Popper.js + Settings suggesters (892 LOC)
+## v12 — Management Codes: CSV view + file operations (143 LOC)
 
-Rewrite completo. Plugin renomeado de MQDA para Editor Playground. Estrutura flat: main.ts na raiz com settings/ e utils/ como diretorios separados. Foco em experimentacao com CodeMirror 5 API, Popper.js para positioning de suggesters, e Settings Tab com FolderSuggest.
+Rewrite completo. Plugin renomeado de Editor Playground para Management Codes. Abordagem completamente diferente: em vez de CM5 experiments, foco em file operations com Node.js fs/promises e uma ItemView sidebar para listar itens de CSV.
 
 ### Estrutura
 
 ```
-main.ts                              <- plugin principal — CM5 events, postprocessor, workspace listeners
-settings/settings.ts                 <- SampleSettingTab com FolderSuggest, template folder config
-settings/suggesters/suggest.ts       <- TextInputSuggest base class com Popper.js positioning
-settings/suggesters/FileSuggester.ts <- FileSuggest para template/script files
-settings/suggesters/FolderSuggester.ts <- FolderSuggest para folder selection
-utils/Error.ts                       <- TemplaterError, errorWrapper, errorWrapperSync
-utils/Log.ts                         <- log_update, log_error com Notice
-utils/Utils.ts                       <- arraymove, resolve_tfolder, get_tfiles_from_folder
+main.ts                              <- plugin principal — CSV view, InputModal, file ops
 ```
 
 ### Estado atual
 
-- Plugin ID: `editor-playground`
-- Plugin name: Editor Playground
-- Estrutura flat (main.ts root + settings/ + utils/)
-- CodeMirror 5 import direto (import * as CodeMirror from 'codemirror')
-- Workspace events: layout-change, active-leaf-change, editor-change
-- registerMarkdownPostProcessor para coded-text click handling
-- Settings Tab com FolderSuggest usando Popper.js
-- TextInputSuggest base class com keyboard navigation (ArrowUp/Down/Enter/Escape)
-- Utils portados do Templater (Error wrapper, Log, arraymove)
+- Plugin ID: `management-codes`
+- Plugin name: Management Codes
+- Arquivo unico (main.ts root, 143 LOC)
+- Node.js fs/promises para file I/O (readFile, writeFile, appendFile, access)
+- ItemView (CSVView) registrada como sidebar view
+- InputModal para adicionar itens via ribbon icon
 
 ### Funcionalidades
 
-- **CM5 experiments** — acesso direto a editor.cm como CodeMirror.Editor
-- **Workspace events** — layout-change e active-leaf-change disparam Notice
-- **Editor-change tracking** — loga cursor position a cada mudanca
-- **Settings suggesters** — FolderSuggest com Popper.js dropdown
-- **Template folder config** — setting para definir pasta de templates
-- **Post processor** — coded-text element click handling
-- **Error handling** — TemplaterError com wrapper sync/async
+- **CSV sidebar view** — ItemView que lista itens de items.csv na right leaf
+- **Ribbon icon** — file-plus icon abre InputModal para adicionar itens
+- **File operations** — readFile, writeFile, appendFile via Node.js fs/promises
+- **Auto-open** — CSV view abre automaticamente na sidebar direita ao carregar
+- **ensureFileExists** — cria items.csv se nao existir
 
 ### Notas
 
-- Milestone visual: Editor playground — CM5 + Popper.js
 - Dead repo no GitHub
-- Codigo baseado em patterns do Templater (suggesters, error handling)
+- Sem settings, sem CM5, sem Popper.js — rewrite limpo e minimalista
+- Usa path.join para construir caminho do CSV no vault
