@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2024-07-16_v12-csv-view-file-operations/test-note.md",
+                "file": "2024-10-16_v13-coded-span-html-test/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
@@ -142,11 +142,15 @@
       "editor-playground:Add Item": false
     }
   },
-  "active": "c4b809ab6a431f13",
+  "active": "4f7d62913ecb1c43",
   "lastOpenFiles": [
+    "2024-10-16_v13-coded-span-html-test/_historico/coded-span-html-test.md",
+    "2024-10-16_v13-coded-span-html-test/test-note.md",
+    "2024-07-16_v12-csv-view-file-operations/test-note.md",
+    "2024-10-16_v13-coded-span-html-test/_historico",
+    "2024-10-16_v13-coded-span-html-test",
     "2024-07-16_v12-csv-view-file-operations/_demo-notes/items 1.csv",
     "Sample 1.md",
-    "2024-07-16_v12-csv-view-file-operations/test-note.md",
     "2024-07-16_v12-csv-view-file-operations/_demo-notes/items.csv",
     "2024-07-16_v12-csv-view-file-operations/_demo-notes",
     "2024-07-16_v12-csv-view-file-operations",
@@ -159,11 +163,8 @@
     "2024-07-06_v9-clique-milestone/test-note.md",
     "2024-07-06_v9-clique-milestone/_historico/ux-feedback-errors-notes.md",
     "2024-07-06_v9-clique-milestone/_historico/clique post create item funcionando.ts",
-    "2024-07-06_v9-clique-milestone/_historico",
-    "2024-07-06_v9-clique-milestone",
     "2024-06-24_v5-displaymenus-completo/test-note.md",
     "2024-07-04_v8-abertura-working/_historico/ux-principles.md",
-    "2024-07-04_v8-abertura-working/_historico/abertura-funcnioando.ts",
     "2024-06-25_v6-displaymenus-modulo-isolado/test-note.md",
     "2024-06-25_v6-displaymenus-modulo-isolado/_historico/gpt-debug-toggle-click-menu.md",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/test-note.md",
@@ -180,7 +181,6 @@
     "2024-06-19_v1-primeiro-qda/_demo-notes/extraction-001.md",
     "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-politica-publica.md",
     "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-politic-science.md",
-    "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-mmmm-project.md",
     "_historico/qda-data-model.canvas"
   ]
 }

@@ -2,6 +2,16 @@
 
 Plugin experimental para Obsidian — Code management com CSV view e file operations.
 
+## v13 — HTML span experiment: coded-text class test (docs-only)
+
+Teste de conceito HTML — sem codigo novo de plugin. Nota de vault testando `<span class="coded-text">` com atributo `data-code` para highlight de trechos codificados. Validacao do approach que seria usado nas versoes seguintes.
+
+### Estado atual
+
+- Plugin ID: `management-codes` (sem mudanca)
+- Sem build — apenas nota de teste no demo vault
+- Approach: HTML span inline com classe CSS + data attribute
+
 ## v12 — Management Codes: CSV view + file operations (143 LOC)
 
 Rewrite completo. Plugin renomeado de Editor Playground para Management Codes. Abordagem completamente diferente: em vez de CM5 experiments, foco em file operations com Node.js fs/promises e uma ItemView sidebar para listar itens de CSV.
