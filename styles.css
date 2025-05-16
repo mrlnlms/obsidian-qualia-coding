@@ -1,51 +1,79 @@
-/* Estilo simples e eficaz de marca-texto */
+/* No arquivo styles.css */
 .codemarker-highlight {
-    border-radius: 3px;
-    cursor: pointer;
-    background-color: rgba(255, 255, 0, 0.4); /* Cor amarela marca-texto */
-    box-decoration-break: clone; /* Mantém o highlight consistente quando quebra linha */
-    
-    /* Aumentar o espaço acima e abaixo do texto: */
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
     padding-top: 3px;
-    padding-bottom: 3px;
-    
-    /* Opcionalmente, adicionar um pequeno padding horizontal: */
-    padding-left: 1px;
-    padding-right: 1px;
-    
-    /* Ajustar a linha para acomodar melhor o padding: */
-    display: inline-block;
-    line-height: 1.5em;
-  }
+  padding-bottom: 3px;
   
-  .codemarker-highlight:hover {
-    background-color: rgba(255, 255, 0, 0.6); /* Um pouco mais intenso no hover */
-  }
+  color: var(--text-normal) !important; /* Força a cor normal do texto */
+}
 
-  /* Estilos para as alças de redimensionamento */
-  /* Em styles.css */
+
+/* 
+ * Usando pseudo-elementos para criar o destaque atrás do texto
+ * Esta é uma técnica avançada que permite controlar melhor as camadas
+ */
+.codemarker-highlight::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 3px;
+  opacity: 0.25;
+  z-index: -1; /* Coloca o destaque atrás do texto */
+  pointer-events: none; /* Permite clicar "através" do fundo */
+  /* Usa a cor do marcador ou o padrão amarelo */
+  background-color: var(--marker-bg-color, rgba(255, 215, 0, 0.25));
+}
+.codemarker-highlight:hover::before {
+  opacity: 0.9;
+}
+
+/* Use atributos de dados para cores personalizadas */
+.codemarker-highlight[data-marker-color]::before {
+  background-color: attr(data-marker-color);
+}
+
+/* Fallbacks para cores específicas para compatibilidade */
+.codemarker-highlight[data-marker-color="#FFD700"]::before {
+  background-color: rgba(255, 215, 0, 0.90);
+}
+
+
+
+
+
+
+
+
+
+.handle-start {
+  cursor: w-resize !important;
+}
+
+.handle-end {
+  cursor: e-resize !important;
+}
+
+
+
 .codemarker-handle {
-    position: absolute;
-    width: 18px !important; /* Muito maior para fácil interação */
-    height: 18px !important;
-    background-color: #6200EE !important; /* Roxo mais vibrante */
-    border-radius: 50%;
-    z-index: 9999;
-    transform: translate(-50%, -50%);
-    border: 2px solid white !important;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.8) !important;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-  
-  .codemarker-handle:hover {
-    transform: translate(-50%, -50%) scale(1.3) !important;
-    box-shadow: 0 0 8px rgba(0, 0, 0, 0.808) !important;
-  }
-  
-  .handle-start {
-    cursor: w-resize !important;
-  }
-  
-  .handle-end {
-    cursor: e-resize !important;
-  }
+  position: absolute;
+  width: 18px !important; /* Muito maior para fácil interação */
+  height: 18px !important;
+  background-color: #6200EE !important; /* Roxo mais vibrante */
+  border-radius: 50%;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  border: 2px solid white !important;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.8) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.codemarker-handle:hover {
+  transform: translate(-50%, -50%) scale(1.3) !important;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.9) !important;
+}

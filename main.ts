@@ -4,23 +4,23 @@ import { CodeMarkerSettingTab } from './src/views/settingsTab';
 import { CodeMarkerModel } from './src/models/codeMarkerModel';
 import { ResizeHandles } from './src/views/resizeHandles';
 
+
 export default class CodeMarkerPlugin extends Plugin {
   settings: CodeMarkerSettings;
   model: CodeMarkerModel;
-  resizeHandles: ResizeHandles; // Nova propriedade
+  resizeHandles: ResizeHandles;
 
 
   async onload() {
     await this.loadSettings();
     
-    // Inicializar o modelo de dados
+    // Carregar marcações salvas anteriormente // Inicializar o modelo de dados
     this.model = new CodeMarkerModel(this);
+    
+    // Inicializar as alças de redimensionamento
     this.resizeHandles = new ResizeHandles(this.model);
-
-    
-    // Carregar marcações salvas anteriormente
     await this.model.loadMarkers();
-    
+
     // Comando para criar uma nova marcação
     this.addCommand({
       id: 'create-code-marker',
@@ -40,12 +40,9 @@ export default class CodeMarkerPlugin extends Plugin {
       }
     });
 
-
-    
-
     // Registrar a extensão do editor para as decorações
     this.registerEditorExtension([this.model.getEditorExtension()]);
-
+    
     // Registrar evento para atualizar marcações quando um arquivo é aberto
     this.registerEvent(
       this.app.workspace.on('file-open', (file) => {
@@ -54,25 +51,24 @@ export default class CodeMarkerPlugin extends Plugin {
         }
       })
     );
-     // Registrar evento para esconder alças quando a visualização ativa muda
-      this.registerEvent(
-        this.app.workspace.on('active-leaf-change', () => {
-          this.resizeHandles.hideHandles();
-        })
-      );
-      
-      // Registrar evento para esconder alças quando o layout muda
-      this.registerEvent(
-        this.app.workspace.on('layout-change', () => {
-          this.resizeHandles.hideHandles();
-        })
-      );
-
-      
+    
+  // Registrar evento para esconder alças quando a visualização ativa muda
+    this.registerEvent(
+      this.app.workspace.on('active-leaf-change', () => {
+        this.resizeHandles.hideHandles();
+      })
+    );
+    
+    // Registrar evento para esconder alças quando o layout muda
+    this.registerEvent(
+      this.app.workspace.on('layout-change', () => {
+        this.resizeHandles.hideHandles();
+      })
+    );
     // Adicionar a tab de configurações
     this.addSettingTab(new CodeMarkerSettingTab(this.app, this));
 
-    console.log('[CodeMarker] v14 loaded -- CodeMarker CM6 inicial: highlight + handles (erro interacao)');
+    console.log('[CodeMarker] v15 loaded -- Seletor bem feito, handles exibindo (sem drag)');
   }
 
   onunload() {

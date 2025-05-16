@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2025-05-16_v14-codemarker-cm6-inicial/test-note.md",
+                "file": "2025-05-16_v15-seletor-bem-feito-handles-exibindo/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
@@ -102,19 +102,8 @@
               "icon": "lucide-archive",
               "title": "All properties"
             }
-          },
-          {
-            "id": "c4b809ab6a431f13",
-            "type": "leaf",
-            "state": {
-              "type": "csv-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "csv-view"
-            }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "horizontal",
@@ -131,13 +120,15 @@
   "active": "528d92634c0a53ed",
   "lastOpenFiles": [
     "Sample 1.md",
-    "2025-05-16_v14-codemarker-cm6-inicial/test-note.md",
+    "2025-05-16_v15-seletor-bem-feito-handles-exibindo/test-note.md",
+    "2025-05-16_v15-seletor-bem-feito-handles-exibindo",
+    "items.csv",
     "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-workflow-debug-text.md",
     "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-dev-prompt.md",
     "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-cm6-test-instructions.md",
+    "2025-05-16_v14-codemarker-cm6-inicial/test-note.md",
     "2025-05-16_v14-codemarker-cm6-inicial/_historico",
     "2025-05-16_v14-codemarker-cm6-inicial",
-    "items.csv",
     "2024-10-16_v13-coded-span-html-test/_historico/coded-span-html-test.md",
     "2024-10-16_v13-coded-span-html-test/test-note.md",
     "2024-10-16_v13-coded-span-html-test/_historico",
@@ -149,7 +140,6 @@
     "2024-07-14_v11-editor-playground-cm5-popper/test-note.md",
     "2024-07-14_v11-editor-playground-cm5-popper",
     "2024-07-07_v10-mqda-modular-architecture/test-note.md",
-    "2024-07-07_v10-mqda-modular-architecture",
     "2024-07-06_v9-clique-milestone/_historico/ux-feedback-errors-notes.md",
     "2024-07-06_v9-clique-milestone/test-note.md",
     "2024-07-04_v8-abertura-working/_historico/ux-principles.md",
@@ -166,7 +156,6 @@
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "2024-06-19_v1-primeiro-qda/_historico/matriz-csd-framework.md",
     "2024-06-19_v1-primeiro-qda/_demo-notes/transcript-meiuca-diogo-roncatto.md",
-    "2024-06-19_v1-primeiro-qda/_demo-notes/extraction-003.md",
     "_historico/qda-data-model.canvas"
   ]
 }

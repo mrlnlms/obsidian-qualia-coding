@@ -44,23 +44,33 @@ export class CodeMarkerSettingTab extends PluginSettingTab {
           this.plugin.settings.storeMarkersInFrontmatter = value;
           await this.plugin.saveSettings();
         }));
-    
+
     // Adicione após as outras configurações
-  // Após o ColorPicker nas configurações, adicione isto:
     new Setting(containerEl)
-      .setName('Cores de marca-texto')
-      .setDesc('Escolha entre cores de marca-texto predefinidas')
-      .addDropdown(dropdown => dropdown
-        .addOption('#FFFF00', 'Amarelo')
-        .addOption('#90EE90', 'Verde claro')
-        .addOption('#ADD8E6', 'Azul claro')
-        .addOption('#FFA07A', 'Salmão')
-        .addOption('#D8BFD8', 'Lilás')
-        .setValue(this.plugin.settings.defaultColor)
+      .setName('Opacidade da marcação')
+      .setDesc('Controle o nível de transparência das marcações (valor menor = mais transparente)')
+      .addSlider(slider => slider
+        .setLimits(0.1, 0.5, 0.05)
+        .setValue(this.plugin.settings.markerOpacity)
+        .setDynamicTooltip()
         .onChange(async (value) => {
-          this.plugin.settings.defaultColor = value;
+          this.plugin.settings.markerOpacity = value;
           await this.plugin.saveSettings();
         }));
 
+        new Setting(containerEl)
+        .setName('Cores de marca-texto')
+        .setDesc('Escolha entre cores de marca-texto predefinidas')
+        .addDropdown(dropdown => dropdown
+          .addOption('#FFFF00', 'Amarelo')
+          .addOption('#90EE90', 'Verde claro')
+          .addOption('#ADD8E6', 'Azul claro')
+          .addOption('#FFA07A', 'Salmão')
+          .addOption('#D8BFD8', 'Lilás')
+          .setValue(this.plugin.settings.defaultColor)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultColor = value;
+            await this.plugin.saveSettings();
+          }));
   }
 }
