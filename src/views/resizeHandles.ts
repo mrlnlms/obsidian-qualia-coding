@@ -6,17 +6,17 @@ export class ResizeHandles {
   private activeMarker: Marker | null = null;
   private isDragging = false;
   private dragType: 'start' | 'end' | null = null;
-  
+  private dragStartX = 0;
+private dragStartY = 0;
+
   constructor(model: CodeMarkerModel) {
     this.model = model;
     this.setupEventListeners();
   }
   
   private setupEventListeners() {
-    // Listener para mouseover em marcações
     document.addEventListener('mouseover', (event) => {
       const target = event.target as HTMLElement;
-      
       if (target.classList.contains('codemarker-highlight') && !this.isDragging) {
         const markerId = target.getAttribute('data-marker-id');
         if (markerId) {
@@ -27,14 +27,11 @@ export class ResizeHandles {
         }
       }
     });
-    
-    // Listener para mouseout
+
     document.addEventListener('mouseout', (event) => {
       const target = event.target as HTMLElement;
       const relatedTarget = event.relatedTarget as HTMLElement;
-      
       if (target.classList.contains('codemarker-highlight') && !this.isDragging) {
-        // Verificar se não estamos saindo para um handle ou outro elemento relacionado
         if (!this.isRelatedElement(relatedTarget)) {
           setTimeout(() => {
             if (!this.isMouseOverHandles() && !this.isMouseOverHighlight(target)) {
@@ -44,57 +41,55 @@ export class ResizeHandles {
         }
       }
     });
-    
-    // Listener para mouse down nas alças
+
     document.addEventListener('mousedown', (event) => {
       const target = event.target as HTMLElement;
-      
-      if (target.classList.contains('codemarker-handle')) {
+      const handleEl = target.closest('.codemarker-handle');
+      if (handleEl) {
         event.preventDefault();
         this.isDragging = true;
-        this.dragType = target.classList.contains('handle-start') ? 'start' : 'end';
+        this.dragType = handleEl.classList.contains('handle-start') ? 'start' : 'end';
+        this.dragStartX = event.clientX;
+        this.dragStartY = event.clientY;
       }
     });
-    
-    // Adicionar um listener global para detectar cliques fora das alças
+
     document.addEventListener('mousedown', (event) => {
       if (!this.isDragging) {
         const target = event.target as HTMLElement;
-        // Se clicar em qualquer coisa que não seja uma alça ou uma marcação, esconder
-        if (!target.classList.contains('codemarker-handle') && 
-            !target.classList.contains('codemarker-highlight')) {
+        if (!target.closest('.codemarker-handle') &&
+            !target.closest('.codemarker-highlight')) {
           this.hideHandles();
         }
       }
     });
 
-
-    // Listener para mouse move (redimensionamento)
     document.addEventListener('mousemove', (event) => {
       if (this.isDragging && this.activeMarker) {
-        this.handleDrag(event as MouseEvent);
+        try {
+          this.handleDrag(event as MouseEvent);
+        } catch (error) {
+          console.error("CodeMarker: Erro inesperado ao arrastar alça", error);
+          this.isDragging = false;
+          this.dragType = null;
+          this.hideHandles();
+        }
       }
     });
-
 
     document.addEventListener('mousemove', (event) => {
       if (this.isDragging && this.activeMarker) {
         this.handleDrag(event as MouseEvent);
       } else if (this.activeHandles.length > 0) {
-        // Verificar se o mouse está sobre alguma alça ou marcação
         const target = event.target as HTMLElement;
         const isOverHandle = target.classList.contains('codemarker-handle');
         const isOverHighlight = target.classList.contains('codemarker-highlight');
-        
         if (!isOverHandle && !isOverHighlight && !this.isMouseOverHandles()) {
-          // Se não estiver sobre nenhuma alça, verificar cada elemento de destaque individualmente
           let isOverAnyHighlight = false;
-          
           if (this.activeMarker) {
             const allHighlights = document.querySelectorAll(
               `.codemarker-highlight[data-marker-id="${this.activeMarker.id}"]`
             );
-            
             for (let i = 0; i < allHighlights.length; i++) {
               if (this.isMouseOverHighlight(allHighlights[i] as HTMLElement)) {
                 isOverAnyHighlight = true;
@@ -102,39 +97,30 @@ export class ResizeHandles {
               }
             }
           }
-          
           if (!isOverAnyHighlight) {
             this.hideHandles();
           }
         }
       }
     });
-    
-    // Listener para mouse up (finalizar redimensionamento)
+
     document.addEventListener('mouseup', () => {
       if (this.isDragging && this.activeMarker) {
         this.finalizeDrag();
       }
     });
 
-    // NOVO: Adicionar listeners para eventos de navegação
-    // Isso garante que as alças desapareçam quando a página mudar
     window.addEventListener('hashchange', () => {
       this.hideHandles();
     });
-    
-    // NOVO: Adicionar listener para quando o documento fica invisível
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.hideHandles();
       }
     });
-    
-    // NOVO: Limpar alças quando a janela perder o foco
     window.addEventListener('blur', () => {
       this.hideHandles();
     });
-
   }
   
   private isRelatedElement(element: HTMLElement): boolean {
@@ -142,8 +128,49 @@ export class ResizeHandles {
     return element?.classList?.contains('codemarker-handle') || 
            element?.classList?.contains('codemarker-highlight');
   }
-  
   private showHandlesForMarker(targetElement: HTMLElement, marker: Marker) {
+  // Remover alças existentes primeiro
+  this.hideHandles();
+
+  this.activeMarker = marker;
+
+
+
+  
+  const view = this.model.getActiveView();
+  if (!view || !view.editor) return;
+
+  const editor = view.editor;
+  // @ts-ignore - Acessando o editor CM6
+  const cmEditor = editor.cm;
+  if (!cmEditor) return;
+
+  const startOffset = editor.posToOffset(marker.range.from);
+  const endOffset = editor.posToOffset(marker.range.to);
+
+  if (startOffset === null || endOffset === null) return;
+
+  const startCoords = cmEditor.coordsAtPos(startOffset);
+  const endCoords = cmEditor.coordsAtPos(endOffset);
+
+  if (!startCoords || !endCoords) return;
+
+  // Criar alça de início
+  const startHandle = this.createHandle(startCoords.left, startCoords.top, 'handle-start');
+  document.body.appendChild(startHandle);
+  this.activeHandles.push(startHandle);
+
+  // Criar alça de fim
+  const endHandle = this.createHandle(endCoords.left, endCoords.top, 'handle-end');
+  document.body.appendChild(endHandle);
+  this.activeHandles.push(endHandle);
+
+document.querySelectorAll(`.codemarker-highlight[data-marker-id="${marker.id}"]`)
+  .forEach(el => el.classList.add('codemarker-hover'));
+
+
+}
+  private showHandlesForMarker2(targetElement: HTMLElement, marker: Marker) {
     // Remover alças existentes primeiro
     this.hideHandles();
     
@@ -249,24 +276,37 @@ export class ResizeHandles {
     handle.style.borderRadius = '50%';
     handle.style.cursor = className === 'handle-start' ? 'w-resize' : 'e-resize';
     handle.style.zIndex = '9999';
-    handle.style.transform = 'translate(-50%, -50%)';
-    handle.style.left = `${x}px`;
-    handle.style.top = `${y}px`;
+    //handle.style.transform = 'translate(-50%, -50%)';
+    // Detecta se é alça de início ou fim para aplicar deslocamento visual
+      if (className === 'handle-start') {
+        handle.style.left = `${x - 1}px`;   // desloca um pouco para a esquerda
+        handle.style.top = `${y - 8}px`;    // sobe um pouco
+      } else {
+        handle.style.left = `${x+1}px`;   // desloca um pouco para a direita
+        handle.style.top = `${y + 26}px`;   // desce para alinhar com o fundo da linha
+      }
     handle.style.border = '2px solid white'; // Borda destacada
     handle.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.8)'; // Sombra mais pronunciada
+
+
+    // Cria a bolinha interna como filho real
+  const ball = document.createElement('div');
+  ball.className = 'codemarker-ball';
+  handle.appendChild(ball);
+
+  return handle;
+    // // Efeito ao passar o mouse (opcional, mais avançado)
+    // handle.onmouseenter = () => {
+    //   handle.style.transform = 'translate(-50%, -50%) scale(1.2)';
+    //   handle.style.boxShadow = '0 0 8px rgba(0, 0, 0, 0.9)';
+    // };
     
-    // Efeito ao passar o mouse (opcional, mais avançado)
-    handle.onmouseenter = () => {
-      handle.style.transform = 'translate(-50%, -50%) scale(1.2)';
-      handle.style.boxShadow = '0 0 8px rgba(0, 0, 0, 0.9)';
-    };
+    // handle.onmouseleave = () => {
+    //   handle.style.transform = 'translate(-50%, -50%)';
+    //   handle.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.8)';
+    // };
     
-    handle.onmouseleave = () => {
-      handle.style.transform = 'translate(-50%, -50%)';
-      handle.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.8)';
-    };
-    
-    return handle;
+    // return handle;
   }
   
   public hideHandles() {
@@ -281,6 +321,9 @@ export class ResizeHandles {
     if (!this.isDragging) {
       this.activeMarker = null;
     }
+    document.querySelectorAll('.codemarker-highlight.codemarker-hover')
+      .forEach(el => el.classList.remove('codemarker-hover'));
+
   }
   
   private isMouseOverHandles(): boolean {
@@ -347,105 +390,142 @@ private isMouseOverHighlight(element?: HTMLElement): boolean {
   }
   private handleDrag(event: MouseEvent) {
     if (!this.activeMarker || !this.dragType) return;
-    
+
     const view = this.model.getActiveView();
     if (!view || !view.editor) return;
-    
+    const editor = view.editor;
+
     try {
-      // @ts-ignore - Acessando propriedades internas do editor
-      const posAtMouse = view.editor.posAtMouse({x: event.clientX, y: event.clientY});
-      
-      if (!posAtMouse) {
-        console.error("CodeMarker: Não foi possível obter posição no ponto do mouse");
-        return;
-      }
-      
-      // Atualiza o marker com a nova posição
+      // @ts-ignore
+      const cmEditor = editor.cm;
+      if (!cmEditor) return;
+
+      const editorRect = cmEditor.dom.getBoundingClientRect();
+      const x = event.clientX;
+      let y = event.clientY;
+
+      y = Math.max(editorRect.top + 1, Math.min(y, editorRect.bottom - 1));
+
+      // @ts-ignore
+      const posAtMouse = cmEditor.posAtCoords({ x, y });
+      if (!posAtMouse) return;
+
       if (this.dragType === 'start') {
-        // Garantir que a posição inicial não fique após a posição final
-        const endPos = this.activeMarker.range.to;
-        if (posAtMouse.line < endPos.line || (posAtMouse.line === endPos.line && posAtMouse.ch < endPos.ch)) {
+        if (this.model.isPositionBefore(posAtMouse, this.activeMarker.range.to)) {
           this.activeMarker.range.from = posAtMouse;
         }
       } else {
-        // Garantir que a posição final não fique antes da posição inicial
-        const startPos = this.activeMarker.range.from;
-        if (posAtMouse.line > startPos.line || (posAtMouse.line === startPos.line && posAtMouse.ch > startPos.ch)) {
+        if (this.model.isPositionBefore(this.activeMarker.range.from, posAtMouse)) {
           this.activeMarker.range.to = posAtMouse;
         }
       }
-      
-      // Atualiza a visualização
+
+      if (this.model.isPositionAfter(this.activeMarker.range.from, this.activeMarker.range.to)) {
+        const temp = this.activeMarker.range.from;
+        this.activeMarker.range.from = this.activeMarker.range.to;
+        this.activeMarker.range.to = temp;
+      }
+
       this.model.updateMarker(this.activeMarker);
       const file = view.file;
       if (file) {
         this.model.updateMarkersForFile(file.path);
-        
-        // Reposicionar as alças após atualização
-        setTimeout(() => {
-          this.updateHandlePositions();
-        }, 50); // Pequeno atraso para permitir que as marcações sejam atualizadas
+        setTimeout(() => this.updateHandlePositions(), 50);
       }
     } catch (e) {
-      console.error("CodeMarker: Erro ao arrastar alça", e);
+      console.error("CodeMarker: Erro inesperado ao arrastar alça", e);
+      this.isDragging = false;
+      this.dragType = null;
+      this.hideHandles();
     }
   }
+
   
-  private updateHandlePositions() {
-    if (!this.activeMarker || this.activeHandles.length !== 2) return;
+  // private updateHandlePositions() {
+  //   if (!this.activeMarker || this.activeHandles.length !== 2) return;
     
-    // Obter todos os elementos de destaque com o mesmo ID de marcação
-    const allHighlights = document.querySelectorAll(`.codemarker-highlight[data-marker-id="${this.activeMarker.id}"]`);
+  //   // Obter todos os elementos de destaque com o mesmo ID de marcação
+  //   const allHighlights = document.querySelectorAll(`.codemarker-highlight[data-marker-id="${this.activeMarker.id}"]`);
     
-    if (allHighlights.length === 0) return;
+  //   if (allHighlights.length === 0) return;
     
-    // Encontrar extremos
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
+  //   //Encontrar extremos
+  //   let minX = Infinity;
+  //   let minY = Infinity;
+  //   let maxX = -Infinity;
+  //   let maxY = -Infinity;
     
-    allHighlights.forEach((element) => {
-      const rect = element.getBoundingClientRect();
+  //   allHighlights.forEach((element) => {
+  //     const rect = element.getBoundingClientRect();
       
-      minX = Math.min(minX, rect.left);
-      minY = Math.min(minY, rect.top);
-      maxX = Math.max(maxX, rect.right);
-      maxY = Math.max(maxY, rect.bottom);
-    });
+  //     minX = Math.min(minX, rect.left);
+  //     minY = Math.min(minY, rect.top);
+  //     maxX = Math.max(maxX, rect.right);
+  //     maxY = Math.max(maxY, rect.bottom);
+  //   });
     
-    // Atualiza as posições das alças se os extremos são válidos
-    if (minX !== Infinity && minY !== Infinity && maxX !== -Infinity && maxY !== -Infinity) {
-      const startHandle = this.activeHandles[0];
-      startHandle.style.left = `${minX}px`;
-      startHandle.style.top = `${minY}px`;
+  //   // Atualiza as posições das alças se os extremos são válidos
+  //   if (minX !== Infinity && minY !== Infinity && maxX !== -Infinity && maxY !== -Infinity) {
+  //     const startHandle = this.activeHandles[0];
+  //     startHandle.style.left = `${minX}px`;
+  //     startHandle.style.top = `${minY}px`;
       
-      const endHandle = this.activeHandles[1];
-      endHandle.style.left = `${maxX}px`;
-      endHandle.style.top = `${maxY}px`;
-    }
-  }
+  //     const endHandle = this.activeHandles[1];
+  //     endHandle.style.left = `${maxX}px`;
+  //     endHandle.style.top = `${maxY}px`;
+  //   }
+  // }
+
+private updateHandlePositions() {
+  if (!this.activeMarker || this.activeHandles.length !== 2) return;
+
+  const view = this.model.getActiveView();
+  if (!view?.editor) return;
+
+  // @ts-ignore
+  const cm = view.editor.cm;
+  if (!cm) return;
+
+  const startOffset = view.editor.posToOffset(this.activeMarker.range.from);
+  const endOffset = view.editor.posToOffset(this.activeMarker.range.to);
+
+  if (startOffset == null || endOffset == null) return;
+
+  const startCoords = cm.coordsAtPos(startOffset);
+  const endCoords = cm.coordsAtPos(endOffset);
+
+  if (!startCoords || !endCoords) return;
+
+  const startHandle = this.activeHandles[0];
+  startHandle.style.left = `${startCoords.left}px`;
+  startHandle.style.top = `${startCoords.top}px`;
+
+  const endHandle = this.activeHandles[1];
+  endHandle.style.left = `${endCoords.left}px`;
+  endHandle.style.top = `${endCoords.top}px`;
+}
+
+
   
-  private finalizeDrag() {
-    if (!this.activeMarker) return;
-    
-    // Atualiza timestamp
-    this.activeMarker.updatedAt = Date.now();
-    
-    // Salva a marcação atualizada
-    this.model.updateMarker(this.activeMarker);
-    
-    // Atualiza visualização
-    const view = this.model.getActiveView();
-    if (view && view.file) {
-      this.model.updateMarkersForFile(view.file.path);
-    }
-    
-    // Limpa estado
-    this.isDragging = false;
-    this.dragType = null;
+private finalizeDrag() {
+  if (!this.activeMarker) return;
+
+  this.activeMarker.updatedAt = Date.now();
+  this.model.updateMarker(this.activeMarker);
+
+  const view = this.model.getActiveView();
+  if (view?.file) {
+    this.model.updateMarkersForFile(view.file.path);
   }
-  public cleanup() {
-    this.hideHandles();
-  }
+
+  // Limpar estado
+  this.isDragging = false;
+  this.dragType = null;
+  this.hideHandles();
+}
+public cleanup() {
+  this.hideHandles();
+}
+
+
 }

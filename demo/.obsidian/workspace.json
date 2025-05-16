@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2025-05-16_v15-seletor-bem-feito-handles-exibindo/test-note.md",
+                "file": "2025-05-16_v16-marcacoes-estilizadas-hover-reset/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
@@ -119,8 +119,10 @@
   },
   "active": "528d92634c0a53ed",
   "lastOpenFiles": [
-    "Sample 1.md",
     "2025-05-16_v15-seletor-bem-feito-handles-exibindo/test-note.md",
+    "2025-05-16_v16-marcacoes-estilizadas-hover-reset/test-note.md",
+    "2025-05-16_v16-marcacoes-estilizadas-hover-reset",
+    "Sample 1.md",
     "2025-05-16_v15-seletor-bem-feito-handles-exibindo",
     "items.csv",
     "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-workflow-debug-text.md",
@@ -138,7 +140,6 @@
     "2024-07-16_v12-csv-view-file-operations/_demo-notes",
     "2024-07-16_v12-csv-view-file-operations",
     "2024-07-14_v11-editor-playground-cm5-popper/test-note.md",
-    "2024-07-14_v11-editor-playground-cm5-popper",
     "2024-07-07_v10-mqda-modular-architecture/test-note.md",
     "2024-07-06_v9-clique-milestone/_historico/ux-feedback-errors-notes.md",
     "2024-07-06_v9-clique-milestone/test-note.md",
@@ -155,7 +156,6 @@
     "2024-06-19_v1-primeiro-qda/_historico/qda-v1-file-structure-suggestion.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "2024-06-19_v1-primeiro-qda/_historico/matriz-csd-framework.md",
-    "2024-06-19_v1-primeiro-qda/_demo-notes/transcript-meiuca-diogo-roncatto.md",
     "_historico/qda-data-model.canvas"
   ]
 }

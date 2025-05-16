@@ -16,6 +16,11 @@ export interface Marker {
   updatedAt: number;
 }
 
+// type DecorationRange = {
+//   from: number;
+//   to: number;
+//   value: Decoration;
+// };
 export class CodeMarkerModel {
   private markers: Map<string, Marker[]> = new Map();
   private plugin: CodeMarkerPlugin;
@@ -142,11 +147,22 @@ export class CodeMarkerModel {
             // Criar um novo conjunto de decorações
             const builder = new RangeSetBuilder<Decoration>();
             
-            for (const marker of markers) {
-              const decoration = this.createDecorationFromMarker(marker);
-              if (decoration) {
-                builder.add(decoration.from, decoration.to, decoration.value);
-              }
+            // Corrigir e ordenar os decorations antes de adicionar
+            const decorationsToAdd = markers
+              .map((m) => this.createDecorationFromMarker(m))
+              .filter((d): d is { from: number; to: number; value: Decoration } => {
+                return (
+                  d !== null &&
+                  typeof d.from === "number" &&
+                  typeof d.to === "number" &&
+                  d.from <= d.to
+                );
+
+              })
+              .sort((a, b) => a.from - b.from);
+
+            for (const d of decorationsToAdd) {
+              builder.add(d.from, d.to, d.value);
             }
             
             decorations = builder.finish();
@@ -165,23 +181,34 @@ export class CodeMarkerModel {
   try {
     const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view || !view.editor) return null;
+
+    let from = this.posToOffset(view.editor, marker.range.from);
+    let to = this.posToOffset(view.editor, marker.range.to);
     
-    const from = this.posToOffset(view.editor, marker.range.from);
-    const to = this.posToOffset(view.editor, marker.range.to);
-    
-    if (from === null || to === null) return null;
-    
-    // Converter o hexadecimal para rgba com 60% de opacidade
-    let bgColor = 'rgba(255, 255, 0, 0.4)'; // Cor padrão amarelo marca-texto
-    
+    if (from === null || to === null) {
+      console.warn("Decoration descartada: posição inválida", marker);
+      return null;
+    }
+
+    // Garantir ordem correta
+    if (from > to) {
+      const temp = from;
+      from = to;
+      to = temp;
+    }
+
+
+    // Definir cor
+    let bgColor = 'rgba(255, 255, 0, 0.4)'; // padrão amarelo
+
     if (marker.color && marker.color.startsWith('#')) {
       const r = parseInt(marker.color.slice(1, 3), 16);
       const g = parseInt(marker.color.slice(3, 5), 16);
       const b = parseInt(marker.color.slice(5, 7), 16);
       bgColor = `rgba(${r}, ${g}, ${b}, 0.4)`;
     }
-    
-    // Criar decoração como marca-texto
+
+    // Criação do highlight com cor inline
     const decoration = Decoration.mark({
       class: "codemarker-highlight",
       attributes: {
@@ -189,13 +216,14 @@ export class CodeMarkerModel {
         "style": `background-color: ${bgColor};`
       }
     }).range(from, to);
-    
+
     return decoration;
   } catch (e) {
     console.error("CodeMarker: Erro ao criar decoração", e);
     return null;
   }
 }
+
   
   // Converter posição de linha/coluna para offset no documento
   private posToOffset(editor: Editor, pos: {line: number, ch: number}): number | null {
@@ -358,5 +386,23 @@ isPositionAfter(pos1: {line: number, ch: number}, pos2: {line: number, ch: numbe
       return null;
     }
   }
+
+  clearAllMarkers() {
+    this.markers.clear();
+    this.plugin.saveData({ markers: {} });
+
+    const view = this.getActiveView();
+    if (!view?.file) return;
+
+    // @ts-ignore - acesso à instância interna do CodeMirr
+    const editorView = view.editor?.cm;
+    if (editorView) {
+      editorView.dispatch({
+        effects: this.updateMarkersEffect.of([]) // limpa decorações
+      });
+    }
+  }
+
+
   
 }

@@ -2,13 +2,14 @@
 
 Qualitative text coding tool for Obsidian (similar to MAXQDA, Atlas.ti, NVivo).
 
-## Current state (v15)
+## Current state (v16)
 
-- CM6 StateField-based highlight decorations with inline background colors
-- Selection-based marker creation via command palette
-- Resize handles appear on hover at marker boundaries (start/end)
-- Multiline marker support with vertical handles at extremes
-- Handles visible but drag functionality not yet working
+- Styled markers with inline background colors and border-radius
+- Hover effect on markers (brightness filter via JS-toggled class)
+- Command to reset/clear all saved markers
+- Resize handles with styled balls (border, shadow, scale on hover)
+- Vertical bars (::after pseudo-elements) connecting handles to markers
+- Distinct cursors on handles: w-resize (start) / e-resize (end)
 - Settings: default color picker, opacity slider, preset color dropdown
 - Markers persist in plugin data storage per file
 - Events: file-open updates markers, active-leaf-change/layout-change hide handles
@@ -25,5 +26,4 @@ src/views/settingsTab.ts         — Obsidian SettingTab with color/opacity cont
 
 ## Known issues
 
-- Handles display correctly but drag interaction does not work yet
-- `resizeHandles.ts` has unreachable code after the if/else block (dead vertical handle code)
+- Handle drag/move interaction not yet implemented (next step)

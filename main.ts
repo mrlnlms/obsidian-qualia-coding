@@ -39,7 +39,16 @@ export default class CodeMarkerPlugin extends Plugin {
         }
       }
     });
-
+    // Comando para resetar todas as marcações manualmente
+    this.addCommand({
+      id: 'reset-code-markers',
+      name: 'Resetar todas as marcações salvas',
+      callback: () => {
+        this.model.clearAllMarkers();
+        new Notice('Todas as marcações foram resetadas.');
+      }
+    });
+    
     // Registrar a extensão do editor para as decorações
     this.registerEditorExtension([this.model.getEditorExtension()]);
     
@@ -68,17 +77,24 @@ export default class CodeMarkerPlugin extends Plugin {
     // Adicionar a tab de configurações
     this.addSettingTab(new CodeMarkerSettingTab(this.app, this));
 
-    console.log('[CodeMarker] v15 loaded -- Seletor bem feito, handles exibindo (sem drag)');
+    
+
+    console.log('[CodeMarker] v16 loaded -- Marcacoes estilizadas, hover OK, reset codigos');
   }
 
   onunload() {
     console.log('Descarregando plugin CodeMarker');
-    
-    // Garantir que todas as alças sejam removidas
+
+    // 🔄 Limpa as marcações salvas ao descarregar o plugin
+    if (this.model) {
+      this.model.clearAllMarkers();
+    }
+
     if (this.resizeHandles) {
       this.resizeHandles.cleanup();
     }
   }
+
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
