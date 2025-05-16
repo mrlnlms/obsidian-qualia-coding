@@ -1,23 +1,35 @@
-# npm (root + engine plugins in demo vault)
-node_modules/
-
-# build artifact (root only — engine main.js in demo IS committed)
-/main.js
-
-# sourcemaps
-*.map
-
-# obsidian runtime config
+# Arquivos de compilação
+main.js
+*.js.map
+*.css.map
 data.json
 
-# macOS
+# vscode
+.vscode 
+
+# Intellij
+*.iml
+.idea
+
+# npm
+node_modules
+
+# Don't include the compiled main.js file in the repo.
+# They should be uploaded to GitHub releases instead.
+main.js
+
+# Exclude sourcemaps
+*.map
+
+# obsidian
+data.json
+
+# Exclude macOS Finder (System Explorer) View States
 .DS_Store
 
-# dev-only / hot-reload
-.hotreload
-demo/.obsidian/plugins/hot-reload/
-demo/.obsidian/plugins/obsidian42-brat/
+# Dependências
+node_modules/
 
-# porting tooling
-.claude/
-CLAUDE.md
+# Outros arquivos
+.DS_Store
+.vscode/

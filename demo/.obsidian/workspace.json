@@ -8,30 +8,18 @@
         "type": "tabs",
         "children": [
           {
-            "id": "4f7d62913ecb1c43",
+            "id": "528d92634c0a53ed",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2024-10-16_v13-coded-span-html-test/test-note.md",
+                "file": "2025-05-16_v14-codemarker-cm6-inicial/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
               },
               "icon": "lucide-file",
               "title": "test-note"
-            }
-          },
-          {
-            "id": "528d92634c0a53ed",
-            "type": "leaf",
-            "state": {
-              "type": "release-notes",
-              "state": {
-                "currentVersion": "1.12.5"
-              },
-              "icon": "lucide-book-up",
-              "title": "Release Notes 1.12.5"
             }
           }
         ]
@@ -121,8 +109,8 @@
             "state": {
               "type": "csv-view",
               "state": {},
-              "icon": "lucide-file",
-              "title": "CSV Items"
+              "icon": "lucide-ghost",
+              "title": "csv-view"
             }
           }
         ],
@@ -137,50 +125,48 @@
       "switcher:Open quick switcher": false,
       "canvas:Create new canvas": false,
       "command-palette:Open command palette": false,
-      "bases:Create new base": false,
-      "obsidian42-brat:BRAT": false,
-      "editor-playground:Add Item": false
+      "bases:Create new base": false
     }
   },
-  "active": "4f7d62913ecb1c43",
+  "active": "528d92634c0a53ed",
   "lastOpenFiles": [
+    "Sample 1.md",
+    "2025-05-16_v14-codemarker-cm6-inicial/test-note.md",
+    "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-workflow-debug-text.md",
+    "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-dev-prompt.md",
+    "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-cm6-test-instructions.md",
+    "2025-05-16_v14-codemarker-cm6-inicial/_historico",
+    "2025-05-16_v14-codemarker-cm6-inicial",
+    "items.csv",
     "2024-10-16_v13-coded-span-html-test/_historico/coded-span-html-test.md",
     "2024-10-16_v13-coded-span-html-test/test-note.md",
-    "2024-07-16_v12-csv-view-file-operations/test-note.md",
     "2024-10-16_v13-coded-span-html-test/_historico",
     "2024-10-16_v13-coded-span-html-test",
-    "2024-07-16_v12-csv-view-file-operations/_demo-notes/items 1.csv",
-    "Sample 1.md",
     "2024-07-16_v12-csv-view-file-operations/_demo-notes/items.csv",
+    "2024-07-16_v12-csv-view-file-operations/test-note.md",
     "2024-07-16_v12-csv-view-file-operations/_demo-notes",
     "2024-07-16_v12-csv-view-file-operations",
-    "items.csv",
     "2024-07-14_v11-editor-playground-cm5-popper/test-note.md",
     "2024-07-14_v11-editor-playground-cm5-popper",
     "2024-07-07_v10-mqda-modular-architecture/test-note.md",
     "2024-07-07_v10-mqda-modular-architecture",
-    "2024-07-04_v8-abertura-working/test-note.md",
-    "2024-07-06_v9-clique-milestone/test-note.md",
     "2024-07-06_v9-clique-milestone/_historico/ux-feedback-errors-notes.md",
-    "2024-07-06_v9-clique-milestone/_historico/clique post create item funcionando.ts",
-    "2024-06-24_v5-displaymenus-completo/test-note.md",
+    "2024-07-06_v9-clique-milestone/test-note.md",
     "2024-07-04_v8-abertura-working/_historico/ux-principles.md",
-    "2024-06-25_v6-displaymenus-modulo-isolado/test-note.md",
+    "2024-07-04_v8-abertura-working/test-note.md",
     "2024-06-25_v6-displaymenus-modulo-isolado/_historico/gpt-debug-toggle-click-menu.md",
+    "2024-06-25_v6-displaymenus-modulo-isolado/test-note.md",
+    "2024-06-24_v5-displaymenus-completo/test-note.md",
     "2024-06-24_v4-svelte-branch-displaymenus-completo/test-note.md",
     "2024-06-23_v3-refactor-imports-modulares/test-note.md",
-    "2024-06-19_v2-modular/test-note.md",
     "2024-06-19_v2-modular/_demo-notes/editor-playground-coded-sample.md",
+    "2024-06-19_v2-modular/test-note.md",
     "2024-06-19_v1-primeiro-qda/templates/extraction-template.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-v1-file-structure-suggestion.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "2024-06-19_v1-primeiro-qda/_historico/matriz-csd-framework.md",
     "2024-06-19_v1-primeiro-qda/_demo-notes/transcript-meiuca-diogo-roncatto.md",
     "2024-06-19_v1-primeiro-qda/_demo-notes/extraction-003.md",
-    "2024-06-19_v1-primeiro-qda/_demo-notes/extraction-002.md",
-    "2024-06-19_v1-primeiro-qda/_demo-notes/extraction-001.md",
-    "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-politica-publica.md",
-    "2024-06-19_v1-primeiro-qda/_demo-notes/code-def-politic-science.md",
     "_historico/qda-data-model.canvas"
   ]
 }
