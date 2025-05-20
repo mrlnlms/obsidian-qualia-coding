@@ -79,7 +79,7 @@ export default class CodeMarkerPlugin extends Plugin {
 
     
 
-    console.log('[CodeMarker] v16 loaded -- Marcacoes estilizadas, hover OK, reset codigos');
+    console.log('[CodeMarker] v17 loaded -- TAG v0.1.0: Estavel, handles visiveis, bug DOM-CM');
   }
 
   onunload() {

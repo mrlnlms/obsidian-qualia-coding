@@ -28,31 +28,37 @@ private dragStartY = 0;
       }
     });
 
-    document.addEventListener('mouseout', (event) => {
-      const target = event.target as HTMLElement;
-      const relatedTarget = event.relatedTarget as HTMLElement;
-      if (target.classList.contains('codemarker-highlight') && !this.isDragging) {
-        if (!this.isRelatedElement(relatedTarget)) {
-          setTimeout(() => {
-            if (!this.isMouseOverHandles() && !this.isMouseOverHighlight(target)) {
-              this.hideHandles();
-            }
-          }, 100);
-        }
-      }
-    });
+   document.addEventListener('mouseout', (event) => {
+  const target = event.target as HTMLElement;
+  const relatedTarget = event.relatedTarget as HTMLElement;
 
-    document.addEventListener('mousedown', (event) => {
-      const target = event.target as HTMLElement;
-      const handleEl = target.closest('.codemarker-handle');
-      if (handleEl) {
-        event.preventDefault();
-        this.isDragging = true;
-        this.dragType = handleEl.classList.contains('handle-start') ? 'start' : 'end';
-        this.dragStartX = event.clientX;
-        this.dragStartY = event.clientY;
+  if (target.classList.contains('codemarker-highlight') && !this.isDragging) {
+    // Se o mouse está saindo para uma alça, NÃO esconda
+    if (relatedTarget?.closest('.codemarker-handle')) return;
+
+    setTimeout(() => {
+      if (!this.isMouseOverHandles() && !this.isMouseOverHighlight(target)) {
+        this.hideHandles();
       }
-    });
+    }, 100);
+  }
+});
+
+    // Substitua o trecho do evento 'mousedown' por:
+document.addEventListener('mousedown', (event) => {
+  const target = event.target as HTMLElement;
+  const handleEl = target.closest('.codemarker-handle');
+  if (handleEl) {
+    event.preventDefault();
+    this.isDragging = true;
+    this.dragType = handleEl.classList.contains('handle-start') ? 'start' : 'end';
+    
+    // Calcular offset RELATIVO AO CENTRO da alça
+    const handleRect = handleEl.getBoundingClientRect();
+    this.handleOffsetX = event.clientX - (handleRect.left + handleRect.width / 2);
+    this.handleOffsetY = event.clientY - (handleRect.top + handleRect.height / 2);
+  }
+});
 
     document.addEventListener('mousedown', (event) => {
       if (!this.isDragging) {
@@ -165,6 +171,20 @@ private dragStartY = 0;
   document.body.appendChild(endHandle);
   this.activeHandles.push(endHandle);
 
+
+// const lineHeight = Math.max(
+//   1.5 * parseFloat(getComputedStyle(cmEditor.dom).lineHeight) || 24,
+//   endCoords.bottom - startCoords.top // Altura real da seleção
+// );
+const lineHeight = parseFloat(getComputedStyle(cmEditor.contentDOM).lineHeight);
+
+// Aplicar altura às barras
+startHandle.style.setProperty('--line-height', `${lineHeight}px`);
+endHandle.style.setProperty('--line-height', `${lineHeight}px`);
+// ▲▲▲ FIM DO TRECHO ADICIONADO ▲▲▲
+
+
+
 document.querySelectorAll(`.codemarker-highlight[data-marker-id="${marker.id}"]`)
   .forEach(el => el.classList.add('codemarker-hover'));
 
@@ -267,7 +287,10 @@ document.querySelectorAll(`.codemarker-highlight[data-marker-id="${marker.id}"]`
   private createHandle(x: number, y: number, className: string): HTMLElement {
     const handle = document.createElement('div');
     handle.className = `codemarker-handle ${className}`;
-    
+      // Centralize a alça no ponto exato do texto
+  handle.style.left = `${x}px`;
+  handle.style.top = `${y}px`;
+
     // Aplicando estilos diretamente para maior controle
     handle.style.position = 'absolute';
     handle.style.width = '16px'; // MUITO maior
@@ -389,122 +412,78 @@ private isMouseOverHighlight(element?: HTMLElement): boolean {
     );
   }
   private handleDrag(event: MouseEvent) {
-    if (!this.activeMarker || !this.dragType) return;
+  if (!this.activeMarker || !this.dragType) return;
 
-    const view = this.model.getActiveView();
-    if (!view || !view.editor) return;
-    const editor = view.editor;
+  const view = this.model.getActiveView();
+  if (!view || !view.editor) return;
+  const editor = view.editor;
 
-    try {
-      // @ts-ignore
-      const cmEditor = editor.cm;
-      if (!cmEditor) return;
+  try {
+    // @ts-ignore - Acessar o editor CM6
+    const cmEditor = editor.cm;
+    if (!cmEditor) return;
 
-      const editorRect = cmEditor.dom.getBoundingClientRect();
-      const x = event.clientX;
-      let y = event.clientY;
+    // Obter coordenadas ajustadas (centralizadas)
+    const adjustedX = event.clientX - this.handleOffsetX;
+    const adjustedY = event.clientY - this.handleOffsetY;
 
-      y = Math.max(editorRect.top + 1, Math.min(y, editorRect.bottom - 1));
+    // Obter posição no editor
+    // @ts-ignore
+    const posAtMouse = cmEditor.posAtCoords({ x: adjustedX, y: adjustedY }, false); // 'false' para coordenadas precisas
+    if (!posAtMouse) return;
 
-      // @ts-ignore
-      const posAtMouse = cmEditor.posAtCoords({ x, y });
-      if (!posAtMouse) return;
-
-      if (this.dragType === 'start') {
-        if (this.model.isPositionBefore(posAtMouse, this.activeMarker.range.to)) {
-          this.activeMarker.range.from = posAtMouse;
-        }
-      } else {
-        if (this.model.isPositionBefore(this.activeMarker.range.from, posAtMouse)) {
-          this.activeMarker.range.to = posAtMouse;
-        }
-      }
-
-      if (this.model.isPositionAfter(this.activeMarker.range.from, this.activeMarker.range.to)) {
-        const temp = this.activeMarker.range.from;
-        this.activeMarker.range.from = this.activeMarker.range.to;
-        this.activeMarker.range.to = temp;
-      }
-
-      this.model.updateMarker(this.activeMarker);
-      const file = view.file;
-      if (file) {
-        this.model.updateMarkersForFile(file.path);
-        setTimeout(() => this.updateHandlePositions(), 50);
-      }
-    } catch (e) {
-      console.error("CodeMarker: Erro inesperado ao arrastar alça", e);
-      this.isDragging = false;
-      this.dragType = null;
-      this.hideHandles();
+    // Atualizar o marcador
+    if (this.dragType === 'start') {
+      this.activeMarker.range.from = posAtMouse;
+    } else {
+      this.activeMarker.range.to = posAtMouse;
     }
+
+    // Forçar atualização IMEDIATA da view
+    this.model.updateMarker(this.activeMarker);
+    this.updateHandlePositions(); // Atualizar alças sem delay
+  } catch (e) {
+    console.error("Erro ao arrastar:", e);
+    this.isDragging = false;
+    this.dragType = null;
   }
+}
 
-  
-  // private updateHandlePositions() {
-  //   if (!this.activeMarker || this.activeHandles.length !== 2) return;
-    
-  //   // Obter todos os elementos de destaque com o mesmo ID de marcação
-  //   const allHighlights = document.querySelectorAll(`.codemarker-highlight[data-marker-id="${this.activeMarker.id}"]`);
-    
-  //   if (allHighlights.length === 0) return;
-    
-  //   //Encontrar extremos
-  //   let minX = Infinity;
-  //   let minY = Infinity;
-  //   let maxX = -Infinity;
-  //   let maxY = -Infinity;
-    
-  //   allHighlights.forEach((element) => {
-  //     const rect = element.getBoundingClientRect();
-      
-  //     minX = Math.min(minX, rect.left);
-  //     minY = Math.min(minY, rect.top);
-  //     maxX = Math.max(maxX, rect.right);
-  //     maxY = Math.max(maxY, rect.bottom);
-  //   });
-    
-  //   // Atualiza as posições das alças se os extremos são válidos
-  //   if (minX !== Infinity && minY !== Infinity && maxX !== -Infinity && maxY !== -Infinity) {
-  //     const startHandle = this.activeHandles[0];
-  //     startHandle.style.left = `${minX}px`;
-  //     startHandle.style.top = `${minY}px`;
-      
-  //     const endHandle = this.activeHandles[1];
-  //     endHandle.style.left = `${maxX}px`;
-  //     endHandle.style.top = `${maxY}px`;
-  //   }
-  // }
-
+// No método updateHandlePositions, ajuste o posicionamento:
 private updateHandlePositions() {
   if (!this.activeMarker || this.activeHandles.length !== 2) return;
 
   const view = this.model.getActiveView();
   if (!view?.editor) return;
 
-  // @ts-ignore
+  // @ts-ignore - Acessar o editor CM6
   const cm = view.editor.cm;
   if (!cm) return;
 
+  // Obter offsets atualizados
   const startOffset = view.editor.posToOffset(this.activeMarker.range.from);
   const endOffset = view.editor.posToOffset(this.activeMarker.range.to);
 
   if (startOffset == null || endOffset == null) return;
 
+  // Forçar atualização do layout ANTES de pegar as coordenadas
+  cm.requestMeasure();
+
+  // Obter coordenadas ATUALIZADAS
   const startCoords = cm.coordsAtPos(startOffset);
   const endCoords = cm.coordsAtPos(endOffset);
 
   if (!startCoords || !endCoords) return;
 
+  // Aplicar posições CENTRALIZADAS
   const startHandle = this.activeHandles[0];
-  startHandle.style.left = `${startCoords.left}px`;
-  startHandle.style.top = `${startCoords.top}px`;
+  startHandle.style.left = `${startCoords.left - startHandle.offsetWidth / 2}px`;
+  startHandle.style.top = `${startCoords.top - startHandle.offsetHeight / 2}px`;
 
   const endHandle = this.activeHandles[1];
-  endHandle.style.left = `${endCoords.left}px`;
-  endHandle.style.top = `${endCoords.top}px`;
+  endHandle.style.left = `${endCoords.left - endHandle.offsetWidth / 2}px`;
+  endHandle.style.top = `${endCoords.top - endHandle.offsetHeight / 2}px`;
 }
-
 
   
 private finalizeDrag() {

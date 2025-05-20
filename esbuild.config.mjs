@@ -1,7 +1,25 @@
 import esbuild from "esbuild";
 import process from "process";
 import builtins from "builtin-modules";
-import { copyFileSync, mkdirSync, readFileSync } from "fs";
+import { copyFileSync, mkdirSync } from "fs";
+
+const demoPluginDir = "demo/.obsidian/plugins/obsidian-codemarker";
+const copyToDemo = {
+	name: "copy-to-demo",
+	setup(build) {
+		build.onEnd(() => {
+			try {
+				mkdirSync(demoPluginDir, { recursive: true });
+				copyFileSync("main.js", `${demoPluginDir}/main.js`);
+				copyFileSync("manifest.json", `${demoPluginDir}/manifest.json`);
+				copyFileSync("styles.css", `${demoPluginDir}/styles.css`);
+				console.log("  → Copied to demo vault");
+			} catch (e) {
+				console.warn("  → Demo copy failed:", e.message);
+			}
+		});
+	}
+};
 
 const banner =
 `/*
@@ -11,21 +29,6 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = (process.argv[2] === "production");
-
-const copyToDemo = {
-	name: 'copy-to-demo',
-	setup(build) {
-		build.onEnd(() => {
-			const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
-			const dest = `demo/.obsidian/plugins/${manifest.id}`;
-			mkdirSync(dest, { recursive: true });
-			copyFileSync('main.js', `${dest}/main.js`);
-			copyFileSync('manifest.json', `${dest}/manifest.json`);
-			copyFileSync('styles.css', `${dest}/styles.css`);
-			console.log(`[copyToDemo] Synced to ${dest}`);
-		});
-	},
-};
 
 const context = await esbuild.context({
 	banner: {
@@ -54,8 +57,8 @@ const context = await esbuild.context({
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
 	outfile: "main.js",
-	plugins: [copyToDemo],
 	minify: prod,
+	plugins: [copyToDemo],
 });
 
 if (prod) {
