@@ -1,6 +1,4 @@
 import { Editor, MarkdownView } from 'obsidian';
-import { EditorView, Decoration, DecorationSet } from "@codemirror/view";
-import { StateField, StateEffect, RangeSetBuilder } from "@codemirror/state";
 import CodeMarkerPlugin from '../../main';
 
 export interface Marker {
@@ -16,19 +14,14 @@ export interface Marker {
   updatedAt: number;
 }
 
-// type DecorationRange = {
-//   from: number;
-//   to: number;
-//   value: Decoration;
-// };
 export class CodeMarkerModel {
   private markers: Map<string, Marker[]> = new Map();
   private plugin: CodeMarkerPlugin;
   
-  // Efeitos para os marcadores
-  private addMarkerEffect = StateEffect.define<Marker>();
-  private removeMarkerEffect = StateEffect.define<string>();
-  private updateMarkersEffect = StateEffect.define<Marker[]>();
+  // Remova esses efeitos daqui, pois agora estarão em markerStateField.ts
+  // private addMarkerEffect = StateEffect.define<Marker>();
+  // private removeMarkerEffect = StateEffect.define<string>();
+  // private updateMarkersEffect = StateEffect.define<Marker[]>();
 
   constructor(plugin: CodeMarkerPlugin) {
     this.plugin = plugin;
@@ -110,150 +103,44 @@ export class CodeMarkerModel {
     this.plugin.saveData({ markers: data });
   }
   
-  // Criação da extensão do editor para marcações visuais
-  getEditorExtension() {
-    return StateField.define<DecorationSet>({
-      create: () => Decoration.none,
-      
-      update: (decorations, transaction) => {
-        // Aplicar alterações no editor às decorações existentes
-        decorations = decorations.map(transaction.changes);
-        
-        // Processar efeitos
-        for (const effect of transaction.effects) {
-          if (effect.is(this.addMarkerEffect)) {
-            // Adicionar nova marcação
-            const marker = effect.value;
-            const decoration = this.createDecorationFromMarker(marker);
-            if (decoration) {
-              decorations = decorations.update({
-                add: [decoration]
-              });
-            }
-          } 
-          else if (effect.is(this.removeMarkerEffect)) {
-            // Remover marcação por ID
-            const markerId = effect.value;
-            decorations = decorations.update({
-              filter: (from, to, value) => {
-                return value.spec.attributes?.["data-marker-id"] !== markerId;
-              }
-            });
-          }
-          else if (effect.is(this.updateMarkersEffect)) {
-            // Atualizar todas as marcações para um arquivo
-            const markers = effect.value;
-            
-            // Criar um novo conjunto de decorações
-            const builder = new RangeSetBuilder<Decoration>();
-            
-            // Corrigir e ordenar os decorations antes de adicionar
-            const decorationsToAdd = markers
-              .map((m) => this.createDecorationFromMarker(m))
-              .filter((d): d is { from: number; to: number; value: Decoration } => {
-                return (
-                  d !== null &&
-                  typeof d.from === "number" &&
-                  typeof d.to === "number" &&
-                  d.from <= d.to
-                );
-
-              })
-              .sort((a, b) => a.from - b.from);
-
-            for (const d of decorationsToAdd) {
-              builder.add(d.from, d.to, d.value);
-            }
-            
-            decorations = builder.finish();
-          }
-        }
-        
-        return decorations;
-      },
-      
-      provide: (field) => EditorView.decorations.from(field)
-    });
-  }
+  // Este método será substituído pela implementação em markerStateField.ts
+  // Então vamos removê-lo 
+  // getEditorExtension() { ... }
   
-  // Criar decoração a partir de um marcador
- private createDecorationFromMarker(marker: Marker) {
-  try {
-    const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view || !view.editor) return null;
-
-    let from = this.posToOffset(view.editor, marker.range.from);
-    let to = this.posToOffset(view.editor, marker.range.to);
-    
-    if (from === null || to === null) {
-      console.warn("Decoration descartada: posição inválida", marker);
-      return null;
-    }
-
-    // Garantir ordem correta
-    if (from > to) {
-      const temp = from;
-      from = to;
-      to = temp;
-    }
-
-
-    // Definir cor
-    let bgColor = 'rgba(255, 255, 0, 0.4)'; // padrão amarelo
-
-    if (marker.color && marker.color.startsWith('#')) {
-      const r = parseInt(marker.color.slice(1, 3), 16);
-      const g = parseInt(marker.color.slice(3, 5), 16);
-      const b = parseInt(marker.color.slice(5, 7), 16);
-      bgColor = `rgba(${r}, ${g}, ${b}, 0.4)`;
-    }
-
-    // Criação do highlight com cor inline
-    const decoration = Decoration.mark({
-      class: "codemarker-highlight",
-      attributes: {
-        "data-marker-id": marker.id,
-        "style": `background-color: ${bgColor};`
-      }
-    }).range(from, to);
-
-    return decoration;
-  } catch (e) {
-    console.error("CodeMarker: Erro ao criar decoração", e);
-    return null;
-  }
-}
-
+  // Este método provavelmente não será mais necessário
+  // createDecorationFromMarker(marker: Marker) { ... }
   
   // Converter posição de linha/coluna para offset no documento
-  private posToOffset(editor: Editor, pos: {line: number, ch: number}): number | null {
+  // Este método continuará sendo útil
+  posToOffset(pos: {line: number, ch: number}): number | null {
     try {
+      const view = this.getActiveView();
+      if (!view?.editor) return null;
+      
       // @ts-ignore - Acessando propriedades internas do editor
-      return editor.posToOffset(pos);
+      return view.editor.posToOffset(pos);
     } catch (e) {
-      console.error("CodeMarker: Erro ao converter posição", e);
+      console.error("CodeMarker: Erro ao converter posição para offset", e);
       return null;
     }
   }
   
-  // Aplicar decoração visual para um marcador
-  applyMarkerDecoration(marker: Marker, view: MarkdownView) {
-    if (!view.editor) return;
-    
-    // @ts-ignore - Acessando a instância interna do editor
-    const editorView = view.editor.cm;
-    
-    if (editorView) {
-      // Despachar o efeito para adicionar a decoração
-      editorView.dispatch({
-        effects: this.addMarkerEffect.of(marker)
-      });
+  // Converter offset para posição {line, ch}
+  offsetToPos(offset: number): {line: number, ch: number} | null {
+    try {
+      const view = this.getActiveView();
+      if (!view?.editor) return null;
+      
+      // @ts-ignore - Acessando propriedades internas do editor
+      return view.editor.offsetToPos(offset);
+    } catch (e) {
+      console.error("CodeMarker: Erro ao converter offset para posição", e);
+      return null;
     }
   }
   
-  // Atualizar marcações para um arquivo específico
-  updateMarkersForFile(fileId: string) {
-    const fileMarkers = this.markers.get(fileId) || [];
+  // Este método será adaptado para usar o novo sistema
+updateMarkersForFile(fileId: string) {
     const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
     
     if (!view || !view.file || view.file.path !== fileId) return;
@@ -261,130 +148,71 @@ export class CodeMarkerModel {
     // @ts-ignore - Acessando a instância interna do editor
     const editorView = view.editor.cm;
     
-    if (editorView) {
-      // Despachar efeito para atualizar todas as marcações
+    if (editorView && this.plugin.updateFileMarkersEffect) {
+      // Usando o StateEffect corretamente
       editorView.dispatch({
-        effects: this.updateMarkersEffect.of(fileMarkers)
+        effects: this.plugin.updateFileMarkersEffect.of({ fileId })
       });
     }
   }
 
-
-
-
-
-
-
-
-
-
-
-
-// Adicione ao final da classe CodeMarkerModel
-
-getMarkerById(markerId: string): Marker | null {
-  for (const [, markers] of this.markers.entries()) {
-    const marker = markers.find(m => m.id === markerId);
-    if (marker) {
-      return marker;
+  getMarkerById(markerId: string): Marker | null {
+    for (const [, markers] of this.markers.entries()) {
+      const marker = markers.find(m => m.id === markerId);
+      if (marker) {
+        return marker;
+      }
     }
+    return null;
   }
-  return null;
-}
-
-updateMarker(marker: Marker) {
-  if (!marker) return;
   
-  const fileMarkers = this.markers.get(marker.fileId);
-  if (!fileMarkers) return;
+  // Adicione este método para obter todos os marcadores de um arquivo
+  getMarkersForFile(fileId: string): Marker[] {
+    return this.markers.get(fileId) || [];
+  }
+
+  updateMarker(marker: Marker) {
+    if (!marker) return;
+    
+    const fileMarkers = this.markers.get(marker.fileId);
+    if (!fileMarkers) return;
+    
+    const index = fileMarkers.findIndex(m => m.id === marker.id);
+    if (index >= 0) {
+      fileMarkers[index] = marker;
+      this.saveMarkers();
+    }
+  }
   
-  const index = fileMarkers.findIndex(m => m.id === marker.id);
-  if (index >= 0) {
-    fileMarkers[index] = marker;
-    this.saveMarkers();
+  // Adicione este método para remover um marcador
+  removeMarker(markerId: string) {
+    for (const [fileId, markers] of this.markers.entries()) {
+      const index = markers.findIndex(m => m.id === markerId);
+      if (index >= 0) {
+        markers.splice(index, 1);
+        this.saveMarkers();
+        this.updateMarkersForFile(fileId);
+        return true;
+      }
+    }
+    return false;
   }
-}
 
-getActiveView(): MarkdownView | null {
-  return this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-}
-
-getPositionAtCoords(editor: Editor, x: number, y: number): {line: number, ch: number} | null {
-  try {
-    // @ts-ignore - Acessando propriedades internas do editor
-    const pos = editor.posAtCoords({left: x, top: y});
-    if (pos) {
-      // @ts-ignore - Convertendo posição interna para o formato {line, ch}
-      return editor.offsetToPos(pos);
-    }
-    return null;
-  } catch (e) {
-    console.error("Erro ao obter posição nas coordenadas", e);
-    return null;
+  getActiveView(): MarkdownView | null {
+    return this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
   }
-}
 
-getEditorCoords(editor: Editor, pos: {line: number, ch: number}): {x: number, y: number} | null {
-  try {
-    console.log("CodeMarker: Obtendo coordenadas para posição", pos);
-    
-    // @ts-ignore - Convertendo posição para offset
-    const offset = editor.posToOffset(pos);
-    console.log("CodeMarker: Offset calculado", offset);
-    
-    // Verificar se temos um offset válido
-    if (offset === undefined || offset === null) {
-      console.error("CodeMarker: Offset inválido para posição", pos);
-      return null;
-    }
-    
-    // @ts-ignore - Acessando a instância CM6 do editor
-    const cmEditor = editor.cm;
-    if (!cmEditor) {
-      console.error("CodeMarker: Editor CM não encontrado");
-      return null;
-    }
-    
-    // @ts-ignore - Obtendo coordenadas no offset
-    const coords = cmEditor.coordsAtPos(offset);
-    console.log("CodeMarker: Coordenadas retornadas", coords);
-    
-    if (!coords) {
-      console.error("CodeMarker: Coordenadas não encontradas");
-      return null;
-    }
-    
-    return {
-      x: coords.left,
-      y: coords.top
-    };
-  } catch (e) {
-    console.error("CodeMarker: Erro ao obter coordenadas na posição", e);
-    return null;
+  // Esses métodos de verificação de posição são úteis e serão mantidos
+  isPositionBefore(pos1: {line: number, ch: number}, pos2: {line: number, ch: number}): boolean {
+    if (pos1.line < pos2.line) return true;
+    if (pos1.line > pos2.line) return false;
+    return pos1.ch <= pos2.ch;
   }
-}
 
-isPositionBefore(pos1: {line: number, ch: number}, pos2: {line: number, ch: number}): boolean {
-  if (pos1.line < pos2.line) return true;
-  if (pos1.line > pos2.line) return false;
-  return pos1.ch <= pos2.ch;
-}
-
-isPositionAfter(pos1: {line: number, ch: number}, pos2: {line: number, ch: number}): boolean {
-  if (pos1.line > pos2.line) return true;
-  if (pos1.line < pos2.line) return false;
-  return pos1.ch >= pos2.ch;
-}
-
-  // Adicione ao codeMarkerModel.ts
-  posAtMouse(editor: Editor, clientX: number, clientY: number): {line: number, ch: number} | null {
-    try {
-      // @ts-ignore - Acessando propriedades internas do editor
-      return editor.posAtMouse({x: clientX, y: clientY});
-    } catch (e) {
-      console.error("CodeMarker: Erro ao obter posição no ponto do mouse", e);
-      return null;
-    }
+  isPositionAfter(pos1: {line: number, ch: number}, pos2: {line: number, ch: number}): boolean {
+    if (pos1.line > pos2.line) return true;
+    if (pos1.line < pos2.line) return false;
+    return pos1.ch >= pos2.ch;
   }
 
   clearAllMarkers() {
@@ -394,15 +222,7 @@ isPositionAfter(pos1: {line: number, ch: number}, pos2: {line: number, ch: numbe
     const view = this.getActiveView();
     if (!view?.file) return;
 
-    // @ts-ignore - acesso à instância interna do CodeMirr
-    const editorView = view.editor?.cm;
-    if (editorView) {
-      editorView.dispatch({
-        effects: this.updateMarkersEffect.of([]) // limpa decorações
-      });
-    }
+    // Atualizar a visualização do arquivo atual
+    this.updateMarkersForFile(view.file.path);
   }
-
-
-  
 }

@@ -13,9 +13,10 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis/test-note.md",
+                "file": "2025-05-20_v18-tag-v0.2.0-cm6-funcionando-perfeitamente/test-note.md",
                 "mode": "source",
-                "source": false
+                "source": false,
+                "backlinks": false
               },
               "icon": "lucide-file",
               "title": "test-note"
@@ -101,69 +102,6 @@
               "icon": "lucide-archive",
               "title": "All properties"
             }
-          },
-          {
-            "id": "848b1c6ac20f8eba",
-            "type": "leaf",
-            "state": {
-              "type": "backlink",
-              "state": {
-                "file": "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis/test-note.md",
-                "collapseAll": false,
-                "extraContext": false,
-                "sortOrder": "alphabetical",
-                "showSearch": false,
-                "searchQuery": "",
-                "backlinkCollapsed": false,
-                "unlinkedCollapsed": true
-              },
-              "icon": "links-coming-in",
-              "title": "Backlinks for test-note"
-            }
-          },
-          {
-            "id": "6d31abd9c4347051",
-            "type": "leaf",
-            "state": {
-              "type": "outgoing-link",
-              "state": {
-                "file": "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis/test-note.md",
-                "linksCollapsed": false,
-                "unlinkedCollapsed": true
-              },
-              "icon": "links-going-out",
-              "title": "Outgoing links from test-note"
-            }
-          },
-          {
-            "id": "f24242629baa807d",
-            "type": "leaf",
-            "state": {
-              "type": "tag",
-              "state": {
-                "sortOrder": "frequency",
-                "useHierarchy": true,
-                "showSearch": false,
-                "searchQuery": ""
-              },
-              "icon": "lucide-tags",
-              "title": "Tags"
-            }
-          },
-          {
-            "id": "ae5d4c2f7648abae",
-            "type": "leaf",
-            "state": {
-              "type": "outline",
-              "state": {
-                "file": "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis/test-note.md",
-                "followCursor": false,
-                "showSearch": false,
-                "searchQuery": ""
-              },
-              "icon": "lucide-list",
-              "title": "Outline of test-note"
-            }
           }
         ]
       }
@@ -173,9 +111,6 @@
   },
   "left-ribbon": {
     "hiddenItems": {
-      "graph:Open graph view": false,
-      "daily-notes:Open today's daily note": false,
-      "templates:Insert template": false,
       "switcher:Open quick switcher": false,
       "canvas:Create new canvas": false,
       "command-palette:Open command palette": false,
@@ -184,10 +119,12 @@
   },
   "active": "528d92634c0a53ed",
   "lastOpenFiles": [
-    "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis/v17-backup/test-note.md",
-    "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis/v17-backup",
+    "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis/test-note.md",
+    "2025-05-20_v18-tag-v0.2.0-cm6-funcionando-perfeitamente/test-note.md",
+    "2025-05-20_v18-tag-v0.2.0-cm6-funcionando-perfeitamente",
     "items.csv",
     "Sample 1.md",
+    "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis",
     "2025-05-16_v16-marcacoes-estilizadas-hover-reset/test-note.md",
     "2025-05-16_v16-marcacoes-estilizadas-hover-reset",
     "2025-05-16_v15-seletor-bem-feito-handles-exibindo/test-note.md",
@@ -204,7 +141,6 @@
     "2024-10-16_v13-coded-span-html-test",
     "2024-07-16_v12-csv-view-file-operations/_demo-notes/items.csv",
     "2024-07-16_v12-csv-view-file-operations/test-note.md",
-    "2024-07-16_v12-csv-view-file-operations/_demo-notes",
     "2024-07-14_v11-editor-playground-cm5-popper/test-note.md",
     "2024-07-07_v10-mqda-modular-architecture/test-note.md",
     "2024-07-06_v9-clique-milestone/_historico/ux-feedback-errors-notes.md",
@@ -219,7 +155,6 @@
     "2024-06-19_v2-modular/_demo-notes/editor-playground-coded-sample.md",
     "2024-06-19_v2-modular/test-note.md",
     "2024-06-19_v1-primeiro-qda/templates/extraction-template.md",
-    "2024-06-19_v1-primeiro-qda/_historico/qda-v1-file-structure-suggestion.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "_historico/qda-data-model.canvas"
   ]

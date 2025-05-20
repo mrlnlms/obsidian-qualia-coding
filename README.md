@@ -1,27 +1,33 @@
 # CodeMarker
 
-Qualitative text coding tool for Obsidian (similar to MAXQDA, Atlas.ti, NVivo).
+Qualitative text coding plugin for Obsidian, similar to MAXQDA, Atlas.ti, and NVivo.
 
-## Current state (v17 — TAG v0.1.0)
+## Current State (v18 — TAG v0.2.0)
 
-First stable tagged release. Handles de redimensionamento sao exibidas nas marcacoes,
-mas a interacao (drag) nao funciona devido a um bug na traducao de coordenadas DOM para CodeMirror.
+CM6 implementation working perfectly. This version marks a breakthrough with posAtCoords-based interaction — drag on marker handles now works correctly.
 
-### Features
-- Criar marcacoes de codigo qualitativo sobre texto selecionado
-- Decoracoes CM6 com highlights coloridos
-- Handles de redimensionamento visiveis (sem interacao funcional)
-- Comando para resetar todas as marcacoes
+### Architecture
+- **CM6 StateField** (`src/cm6/markerStateField.ts`) — manages marker decoration state
+- **CM6 ViewPlugin** (`src/cm6/markerViewPlugin.ts`) — renders decorations and handles interaction
+- **Handle Widget** (`src/cm6/handleWidget.ts`) — marker drag handles
+- **Data Model** (`src/models/codeMarkerModel.ts`) — marker CRUD and persistence
+- **Settings** (`src/models/settings.ts`, `src/views/settingsTab.ts`) — plugin configuration
+
+### Commands
+- **Criar uma nova marcacao de codigo** — select text, then run this command to create a marker
+- **Resetar todas as marcacoes salvas** — clear all markers
+
+### What works
+- Text selection and marker creation
+- CM6 decorations rendering correctly
+- Drag interaction via posAtCoords
+- Marker persistence across sessions
 - Settings tab
-- Eventos de workspace escondem handles ao mudar de leaf/layout
 
-### Known issues
-- Bug DOM-to-CM6: handles nao respondem a drag
-- Marcacoes sao limpas ao descarregar o plugin
-
-## Build
+## Development
 
 ```bash
 npm install
-npm run build
+npm run dev    # watch mode
+npm run build  # production build
 ```
