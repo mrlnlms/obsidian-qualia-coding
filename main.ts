@@ -6,6 +6,7 @@ import { CodeMarkerModel } from './src/models/codeMarkerModel';
 import { createMarkerStateField, updateFileMarkersEffect } from './src/cm6/markerStateField';
 import { createMarkerViewPlugin } from './src/cm6/markerViewPlugin';
 
+
 export default class CodeMarkerPlugin extends Plugin {
   settings: CodeMarkerSettings;
   model: CodeMarkerModel;
@@ -13,6 +14,7 @@ export default class CodeMarkerPlugin extends Plugin {
   updateFileMarkersEffect: StateEffectType<{fileId: string}>;
 
   async onload() {
+    console.log('[CodeMarker] v19 loaded -- TAG v1.0.0: Visual pronto, falta interacoes');
     await this.loadSettings();
     
     // Inicializar o modelo de dados
@@ -27,17 +29,48 @@ export default class CodeMarkerPlugin extends Plugin {
     this.addCommand({
       id: 'create-code-marker',
       name: 'Criar uma nova marcação de código',
-      editorCallback: (editor: Editor, view: MarkdownView) => {
-        const selection = editor.getSelection();
-        if (selection.length > 0) {
-          const marker = this.model.createMarker(editor, view);
-          if (marker && marker.fileId) {
-            // Atualizar as decorações
-            this.model.updateMarkersForFile(marker.fileId);
-            new Notice('Marcação criada!');
-          }
-        } else {
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view) {
+          new Notice('Nenhum arquivo Markdown ativo.');
+          return;
+        }
+    
+        const editor = view.editor;
+        if (!editor) {
+          new Notice('Editor não encontrado.');
+          return;
+        }
+    
+        // Usar listSelections() em vez de getSelection()
+        const selections = editor.listSelections();
+        if (!selections || selections.length === 0) {
+          new Notice('Nenhuma seleção encontrada!');
+          return;
+        }
+    
+        const selection = selections[0]; // Pegar a primeira seleção
+        
+        // Verificar se há realmente uma seleção (anchor diferente de head)
+        if (selection.anchor.line === selection.head.line && 
+            selection.anchor.ch === selection.head.ch) {
           new Notice('Selecione algum texto primeiro!');
+          return;
+        }
+    
+        // Verificar se a seleção tem conteúdo
+        const selectedText = editor.getRange(selection.anchor, selection.head);
+        if (!selectedText || selectedText.trim().length === 0) {
+          new Notice('A seleção está vazia. Selecione algum texto primeiro!');
+          return;
+        }
+    
+        const marker = this.model.createMarker(editor, view);
+        if (marker && marker.fileId) {
+          this.model.updateMarkersForFile(marker.fileId);
+          new Notice(`Marcação criada! Texto: "${selectedText.length > 50 ? selectedText.substring(0, 50) + '...' : selectedText}"`);
+        } else {
+          new Notice('Não foi possível criar a marcação.');
         }
       }
     });
@@ -74,7 +107,7 @@ export default class CodeMarkerPlugin extends Plugin {
     // Adicionar a tab de configurações
     this.addSettingTab(new CodeMarkerSettingTab(this.app, this));
 
-    console.log('[CodeMarker] v18 loaded -- TAG v0.2.0: CM6 funcionando perfeitamente');
+    console.log('CodeMarker: Plugin carregado');
   }
 
   onunload() {

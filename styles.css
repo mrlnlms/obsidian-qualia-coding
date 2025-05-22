@@ -1,31 +1,51 @@
-/* Estilos para o CodeMarker plugin */
+/* Estilos para o CodeMarker */
 
-/* Estilos para as marcações de texto */
+/* Estilo básico para as marcações */
 .codemarker-highlight {
   border-radius: 2px;
   transition: background-color 0.2s ease;
 }
 
-.codemarker-highlight:hover {
-  filter: brightness(1.05);
+/* Tornar todas as alças visíveis SEMPRE */
+/* Efeito de interação nas alças */
+.codemarker-circle {
+  transform-origin: 50% 50%;  /* Define o ponto de origem exatamente no centro do círculo */
+  transition: transform 0.1s ease;
+  transform: scale(1);  /* Estado inicial explícito */
+  will-change: transform;  /* Otimiza a performance da animação */
 }
 
-/* Estilos para as alças de arraste */
+/* ************************************************************************* */
+
 .codemarker-handle-svg {
-  transition: transform 0.1s ease, opacity 0.2s ease;
-  opacity: 0;
+  opacity: 1 !important;
+  filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));
+  transform-origin: center;
 }
 
-.codemarker-highlight:hover + .codemarker-handle-svg,
-.codemarker-handle-svg:hover {
-  opacity: 1;
+
+.codemarker-circle,
+.codemarker-line {
+  transform-origin: center;
+  transition: transform 0.1s ease;
 }
 
-/* Efeito de interação nas bolinas */
-.codemarker-circle:hover {
-  stroke-width: 2px;
-  transform: scale(1.1);
+/* Ajustar o scale para manter a posição */
+.codemarker-handle-svg:hover .codemarker-circle {
+  transform: scale(1.2);
+  transform-origin: center center;
 }
+
+
+
+.codemarker-handle-svg:hover .codemarker-line {
+  transform: scaleY(1.2); /* Escala apenas verticalmente */
+  transform-origin: center center;
+}
+
+
+
+/* ************************************************************************* */
 
 /* Estilos para quando está arrastando */
 body.codemarker-dragging {
@@ -40,18 +60,22 @@ body.codemarker-dragging-end {
   cursor: e-resize !important;
 }
 
-/* Para garantir que as alças se destaquem */
-.codemarker-handle-svg {
-  filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));
-}
-
-/* Esconder as alças quando não estão em uso 
-   mas mostrar quando o mouse passa por cima da marcação */
-.codemarker-handle-svg {
+/* Estilo base para os handles quando showHandlesOnHover está ativo */
+.handles-hover-mode .codemarker-handle {
   opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  pointer-events: none;
 }
 
-.codemarker-highlight:hover ~ .codemarker-handle-svg,
-.codemarker-handle-svg:hover {
+/* Mostrar handles quando o mouse está sobre a marcação */
+.codemarker-highlight.handles-hover-mode:hover .codemarker-handle {
   opacity: 1;
+  pointer-events: auto;
 }
+
+/* Manter handle visível enquanto o mouse estiver sobre ele */
+.handles-hover-mode .codemarker-handle:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+

@@ -3,13 +3,19 @@ import CodeMarkerPlugin from '../../main';
 
 export interface CodeMarkerSettings {
   defaultColor: string;
+  displayInPreviewMode: boolean;
+  storeMarkersInFrontmatter: boolean;
+  markerOpacity: number;
   showHandlesOnHover: boolean;
   handleSize: number;
 }
 
 export const DEFAULT_SETTINGS: CodeMarkerSettings = {
-  defaultColor: '#6200EE', // Roxo padrão
-  showHandlesOnHover: true,
+  defaultColor: '#6200EE',
+  displayInPreviewMode: true,
+  storeMarkersInFrontmatter: true,
+  markerOpacity: 0.4,
+  showHandlesOnHover: false,
   handleSize: 12
 };
 

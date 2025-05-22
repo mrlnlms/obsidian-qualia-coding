@@ -1,5 +1,6 @@
 import { Editor, MarkdownView } from 'obsidian';
 import CodeMarkerPlugin from '../../main';
+import { CodeMarkerSettings } from './settings';
 
 export interface Marker {
   id: string;
@@ -46,33 +47,29 @@ export class CodeMarkerModel {
   createMarker(editor: Editor, view: MarkdownView): Marker | null {
     if (!view.file) return null;
     
-    const selection = editor.listSelections()[0];
-    if (!selection) return null;
-    
-    const anchor = selection.anchor;
-    const head = selection.head;
-
-    // Normaliza a ordem para garantir que `from` sempre venha antes de `to`
+    // ✅ API Obsidian para seleção inicial
+    const selectedText = editor.getSelection();
+    if (!selectedText?.trim()) return null;
+  
+    // ✅ API Obsidian para posições
+    const anchor = editor.getCursor('anchor');
+    const head = editor.getCursor('head');
+  
+    // Normalizar ordem
     const from = this.isPositionBefore(anchor, head) ? anchor : head;
     const to = this.isPositionBefore(anchor, head) ? head : anchor;
-
+  
     const marker: Marker = {
       id: this.generateId(),
       fileId: view.file.path,
-      range: {
-        from,
-        to
-      },
+      range: { from, to },
       color: this.plugin.settings.defaultColor,
       code: '',
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
     
-    // Adicionar o marcador à coleção
     this.addMarkerToFile(view.file.path, marker);
-    
-    // Salvar os marcadores
     this.saveMarkers();
     
     return marker;
@@ -225,4 +222,14 @@ updateMarkersForFile(fileId: string) {
     // Atualizar a visualização do arquivo atual
     this.updateMarkersForFile(view.file.path);
   }
+
+  getSettings(): CodeMarkerSettings {
+    return this.plugin.settings;
+  }
+  
+  // recalculateAllMarkers() {
+  //   const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+  //   if (!view?.file) return;
+  //   this.updateMarkersForFile(view.file.path);
+  // }
 }

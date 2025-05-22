@@ -1,6 +1,6 @@
 import { StateField, EditorState, StateEffect } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
-import { RangeSetBuilder } from "@codemirror/state";  // Correto: RangeSetBuilder está em @codemirror/state
+import { RangeSetBuilder } from "@codemirror/state";
 import { HandleWidget, startDragEffect, updateDragEffect, endDragEffect } from "./handleWidget";
 import { CodeMarkerModel } from "../models/codeMarkerModel";
 
@@ -22,7 +22,6 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
       for (const effect of tr.effects) {
         if (effect.is(startDragEffect)) {
           // Iniciar arraste: não faz nada especial, apenas prepara o estado
-          // No future podemos adicionar classes visuais específicas durante o arraste
         } 
         else if (effect.is(updateDragEffect)) {
           const { markerId, pos, type } = effect.value;
@@ -30,7 +29,6 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
           
           if (marker) {
             try {
-              // Converter posição de offset para formato {line, ch}
               const view = model.getActiveView();
               if (!view?.editor) continue;
               
@@ -67,9 +65,6 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
             
             // Salvar alteração no modelo
             model.updateMarker(marker);
-            
-            // Não precisamos reconstruir as decorações aqui, pois já foram
-            // atualizadas durante o arraste via updateDragEffect
           }
         }
         else if (effect.is(updateFileMarkersEffect)) {
@@ -86,13 +81,42 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
   });
 };
 
-// Função auxiliar para construir decorações para um arquivo
+// Adicionar a função de cálculo do padding fora do buildDecorationsForFile
+function calculatePaddingRatio(fontSize: number, lineHeight: number): number {
+  // Valor base para fonte tamanho 16
+  // Aumentar = marcação mais alta
+  // Diminuir = marcação mais fina
+  const baseRatio = 0.1875;
+
+  // Cálculo do espaçamento ideal entre linhas
+  const idealSpacing = fontSize * 1.2;
+  const actualSpacing = lineHeight;
+
+  // Ajuste baseado no espaçamento
+  // Aumentar 0.1 = mais sensível ao espaçamento entre linhas
+  // Diminuir 0.1 = menos sensível ao espaçamento entre linhas
+  //const spacingAdjustment = (actualSpacing / idealSpacing - 1) * 0.001; // 0.001 = Excelente para font 30
+  const spacingAdjustment = (actualSpacing / idealSpacing - 1) * 0.001; // 0.001 = Excelente para font 30
+
+  // Ajuste baseado no tamanho da fonte
+  // Aumentar 0.005 = ajuste mais agressivo quando muda o tamanho da fonte
+  // Diminuir 0.005 = ajuste mais suave quando muda o tamanho da fonte
+  //const fontSizeAdjustment = (fontSize - 16) * 0.001; // 0.001 = Excelente para font 30
+  const fontSizeAdjustment = (fontSize - 16) * 0.001; // 0.001 = Excelente para font 30
+
+  // Valor mínimo que o ratio pode ter
+  // Aumentar 0.05 = marcação nunca fica muito fina
+  // Diminuir 0.05 = permite marcação mais fina
+  return Math.max(baseRatio - fontSizeAdjustment - spacingAdjustment, 0.05);
+}
+
 function buildDecorationsForFile(state: EditorState, model: CodeMarkerModel, fileId: string): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   
   if (!fileId) return Decoration.none;
   
   const markers = model.getMarkersForFile(fileId);
+  const settings = model.getSettings();
   
   // Primeiro, coletar todas as decorações que precisamos adicionar
   const allDecorations: Array<{from: number, to: number, decoration: Decoration}> = [];
@@ -117,24 +141,35 @@ function buildDecorationsForFile(state: EditorState, model: CodeMarkerModel, fil
       const from = Math.min(startOffset, endOffset);
       const to = Math.max(startOffset, endOffset);
       
+      // Calcular padding baseado no tamanho da fonte e na configuração de espessura
+      // @ts-ignore - Acessar o elemento DOM do CodeMirror
+      const editorElement = view.editor.cm.dom;
+      const computedStyle = window.getComputedStyle(editorElement);
+      const currentFontSize = parseFloat(computedStyle.fontSize);
+      const lineHeight = parseFloat(computedStyle.lineHeight) || currentFontSize * 1.2;
+      
+      // Calcular o padding usando a nova função
+      const paddingRatio = calculatePaddingRatio(currentFontSize, lineHeight);
+      const paddingValue = Math.max(currentFontSize * paddingRatio, 1);
+      
       // Definir cor
-      let bgColor = 'rgba(255, 255, 0, 0.4)'; // padrão amarelo
+      let bgColor = 'rgba(98, 0, 238, 0.4)'; // padrão roxo
       let handleColor = '#6200EE'; // roxo padrão
       
       if (marker.color && marker.color.startsWith('#')) {
         const r = parseInt(marker.color.slice(1, 3), 16);
         const g = parseInt(marker.color.slice(3, 5), 16);
         const b = parseInt(marker.color.slice(5, 7), 16);
-        bgColor = `rgba(${r}, ${g}, ${b}, 0.4)`;
+        bgColor = `rgba(${r}, ${g}, ${b}, ${settings.markerOpacity})`;
         handleColor = marker.color;
       }
       
       // Mark decoration para o texto destacado
       const highlightDecoration = Decoration.mark({
-        class: "codemarker-highlight",
+        class: `codemarker-highlight ${settings.showHandlesOnHover ? 'handles-hover-mode' : ''}`,
         attributes: {
           'data-marker-id': marker.id,
-          'style': `background-color: ${bgColor}; padding: 3px 0;`
+          'style': `background-color: ${bgColor}; padding: ${paddingValue}px 0;`
         }
       });
       
@@ -145,11 +180,11 @@ function buildDecorationsForFile(state: EditorState, model: CodeMarkerModel, fil
         decoration: highlightDecoration
       });
       
-      // Widget para alça de início (ao lado esquerdo do texto destacado)
+      // Widget para alça de início
       const startHandle = Decoration.widget({
-        widget: new HandleWidget(marker, 'start', handleColor),
-        side: -1,    // Posiciona antes do caractere
-        block: false // Não interrompe o fluxo do texto
+        widget: new HandleWidget(marker, 'start', handleColor, settings),
+        side: -1,
+        block: false
       });
       
       allDecorations.push({
@@ -158,11 +193,11 @@ function buildDecorationsForFile(state: EditorState, model: CodeMarkerModel, fil
         decoration: startHandle
       });
       
-      // Widget para alça de fim (ao lado direito do texto destacado)
+      // Widget para alça de fim
       const endHandle = Decoration.widget({
-        widget: new HandleWidget(marker, 'end', handleColor),
-        side: 1,     // Posiciona depois do caractere
-        block: false // Não interrompe o fluxo do texto
+        widget: new HandleWidget(marker, 'end', handleColor, settings),
+        side: 1,
+        block: false
       });
       
       allDecorations.push({
@@ -175,7 +210,7 @@ function buildDecorationsForFile(state: EditorState, model: CodeMarkerModel, fil
     }
   }
   
-  // Agora ordene todas as decorações pela posição 'from'
+  // Ordenar todas as decorações pela posição 'from'
   allDecorations.sort((a, b) => {
     // Primeiro, compare as posições 'from'
     if (a.from !== b.from) return a.from - b.from;

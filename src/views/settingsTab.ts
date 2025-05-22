@@ -58,19 +58,34 @@ export class CodeMarkerSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
-        new Setting(containerEl)
-        .setName('Cores de marca-texto')
-        .setDesc('Escolha entre cores de marca-texto predefinidas')
-        .addDropdown(dropdown => dropdown
-          .addOption('#FFFF00', 'Amarelo')
-          .addOption('#90EE90', 'Verde claro')
-          .addOption('#ADD8E6', 'Azul claro')
-          .addOption('#FFA07A', 'Salmão')
-          .addOption('#D8BFD8', 'Lilás')
-          .setValue(this.plugin.settings.defaultColor)
-          .onChange(async (value) => {
-            this.plugin.settings.defaultColor = value;
-            await this.plugin.saveSettings();
-          }));
+    new Setting(containerEl)
+      .setName('Exibir alças apenas ao passar o mouse')
+      .setDesc('Quando ativado, as alças de marcação só serão exibidas ao passar o mouse sobre a marcação')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.showHandlesOnHover)
+        .onChange(async (value) => {
+          this.plugin.settings.showHandlesOnHover = value;
+          await this.plugin.saveSettings();
+          // Atualizar todas as marcações existentes
+          const activeFile = this.app.workspace.getActiveFile();
+          if (activeFile) {
+            this.plugin.model.updateMarkersForFile(activeFile.path);
+          }
+        }));
+
+    new Setting(containerEl)
+      .setName('Cores de marca-texto')
+      .setDesc('Escolha entre cores de marca-texto predefinidas')
+      .addDropdown(dropdown => dropdown
+        .addOption('#FFFF00', 'Amarelo')
+        .addOption('#90EE90', 'Verde claro')
+        .addOption('#ADD8E6', 'Azul claro')
+        .addOption('#FFA07A', 'Salmão')
+        .addOption('#D8BFD8', 'Lilás')
+        .setValue(this.plugin.settings.defaultColor)
+        .onChange(async (value) => {
+          this.plugin.settings.defaultColor = value;
+          await this.plugin.saveSettings();
+        }));
   }
 }
