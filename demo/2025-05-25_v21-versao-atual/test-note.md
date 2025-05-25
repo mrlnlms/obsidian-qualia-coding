@@ -25,5 +25,4 @@ source: github (e7cd09e)
 
 ## Notas
 
-Continuacao da refatoracao pos-v20 que tinha arquitetura ruim. Esta versao reestrutura
-o StateField e ViewPlugin com separacao clara de responsabilidades.
+Continuacao da refatoracao pos-v20 que tinha arquitetura ruim. Esta versao reestrutura o StateField e ViewPlugin com separacao clara de responsabilidades.

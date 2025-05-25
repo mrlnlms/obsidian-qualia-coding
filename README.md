@@ -1,25 +1,37 @@
-# CodeMarker (Obsidian Qualia Coding)
+# CodeMarker (Qualia Coding) — v22
 
 Qualitative text coding plugin for Obsidian, similar to MAXQDA, Atlas.ti, NVivo.
 
-## Current State (v21)
+## Current state (v22)
 
-- CM6-based architecture with separated StateField (decorations/state) and ViewPlugin (events/identification)
-- Create code markers by selecting text and running the "Criar uma nova marcacao de codigo" command
-- Markers persist across sessions via data.json
-- Multi-file support: markers sync across multiple open editors
-- Handle widgets for visual marker boundaries
+Last commit from the obsidian-codeMarker GitHub repository (Era 2).
+Nearly complete version — marker intersections still need fixing.
+
+### Features
+
+- CM6 architecture: StateField for decorations + ViewPlugin for events
+- Create text markers via command palette ("Criar uma nova marcacao de codigo")
+- Multi-file marker support
+- Color-coded highlights with handles
 - Settings tab for configuration
-- Reset command to clear all markers
+- Debug command for listing active instances
+- Markers persist across sessions via data.json
+
+### Known issues
+
+- Marker intersections (overlapping markers) not yet handled correctly
 
 ## Architecture
 
-- `main.ts` -- Plugin lifecycle, commands, workspace events
-- `src/cm6/markerStateField.ts` -- CM6 StateField for decorations and marker state
-- `src/cm6/markerViewPlugin.ts` -- CM6 ViewPlugin for events and file identification
-- `src/cm6/handleWidget.ts` -- Widget for marker handles
-- `src/models/` -- Data model and settings
-- `src/views/` -- Settings tab
+```
+main.ts                          — Plugin entry, commands, workspace events
+src/models/settings.ts           — Settings interface and defaults
+src/models/codeMarkerModel.ts    — Data model, marker CRUD, persistence
+src/cm6/markerStateField.ts      — CM6 StateField for decorations
+src/cm6/markerViewPlugin.ts      — CM6 ViewPlugin for editor events
+src/cm6/handleWidget.ts          — Handle widget for marker endpoints
+src/views/settingsTab.ts         — Settings tab UI
+```
 
 ## Development
 
@@ -29,11 +41,7 @@ npm run dev    # watch mode
 npm run build  # production build
 ```
 
-## Version History
+## History
 
-This plugin evolved through multiple names and architectures:
-- v1-v6: qualitative-coding-plugin / mosx-qda / menu-editors (Svelte-based)
-- v8-v10: mqda (modular architecture)
-- v11-v12: editor-playground (CM5 + Popper, CSV views)
-- v13: management-codes (vault note, docs only)
-- v14-v21: obsidian-codemarker (CM6 rewrite, current)
+This plugin is being ported version-by-version from its original development history.
+See `demo/` folder for dated snapshots of each version.

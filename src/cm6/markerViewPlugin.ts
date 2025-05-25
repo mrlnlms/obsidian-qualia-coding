@@ -3,22 +3,22 @@ import { MarkdownView } from "obsidian";
 import { CodeMarkerModel } from "../models/codeMarkerModel";
 import { 
   setFileIdEffect, 
-  setHoverEffect,
-  startDragEffect,
-  updateDragEffect,
-  endDragEffect
+  setHoverEffect, 
+  startDragEffect, 
+  updateDragEffect, 
+  endDragEffect 
 } from "./markerStateField";
 
-// 🔥 VIEWPLUGIN COMPLETO COM ARRASTE FUNCIONAL
+// 🔥 VIEWPLUGIN SEGUINDO PADRÕES CODEMIRROR 6
 export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
   return ViewPlugin.fromClass(
     class implements PluginValue {
-      // Estado isolado POR INSTÂNCIA
+      // Estado POR INSTÂNCIA (correto no CM6)
       public instanceId: string;
       public fileId: string | null = null;
       private fileIdSent = false;
       
-      // 🔥 Estado de arraste - RESTAURADO
+      // Estado de arraste
       dragging: { markerId: string, type: 'start' | 'end' } | null = null;
       private lastFontSize: number;
       private cleanup: Array<() => void> = [];
@@ -28,35 +28,32 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
       
       constructor(view: EditorView) {
         this.instanceId = Math.random().toString(36).substr(2, 9);
-        console.log(`🎯 [DEBUG] ViewPlugin ${this.instanceId} constructor iniciado`);
+        console.log(`🎯 [ViewPlugin ${this.instanceId}] Criado seguindo padrões CM6`);
         
         this.lastFontSize = this.getCurrentFontSize(view);
+        
+        // 🔥 IDENTIFICAR E ENVIAR ARQUIVO PARA STATEFIELD
         this.identifyAndSendFileId(view);
         this.setupFontChangeDetection(view);
         
-        console.log(`✅ [DEBUG] ViewPlugin ${this.instanceId} constructor finalizado`);
+        console.log(`✅ [ViewPlugin ${this.instanceId}] Inicializado`);
       }
       
+      // 🔥 IDENTIFICAÇÃO ROBUSTA DE ARQUIVO
       private identifyAndSendFileId(view: EditorView, retryCount = 0) {
-        console.log(`🔍 [DEBUG] ViewPlugin ${this.instanceId} identifyAndSendFileId tentativa ${retryCount + 1}`);
+        console.log(`🔍 [ViewPlugin ${this.instanceId}] Identificando arquivo (tentativa ${retryCount + 1})`);
         
         const fileId = this.identifyFileForView(view);
         
         if (fileId) {
           this.fileId = fileId;
-          console.log(`📤 [DEBUG] ViewPlugin ${this.instanceId} enviando setFileIdEffect: ${fileId}`);
+          console.log(`📤 [ViewPlugin ${this.instanceId}] Enviando setFileIdEffect: ${fileId}`);
           
-          // 🔥 PROTEÇÃO: Verificar se view ainda existe e não foi destruída
-          if (!view.dom || !view.dom.isConnected) {
-            console.warn(`⚠️ [DEBUG] ViewPlugin ${this.instanceId} view foi destruída, cancelando envio`);
-            return;
-          }
-          
+          // Garantir que StateField está pronto
           requestAnimationFrame(() => {
             try {
-              // 🔥 SEGUNDA VERIFICAÇÃO: View ainda válida?
               if (!view.dom || !view.dom.isConnected) {
-                console.warn(`⚠️ [DEBUG] ViewPlugin ${this.instanceId} view destruída durante RAF`);
+                console.warn(`⚠️ [ViewPlugin ${this.instanceId}] View destruída, cancelando`);
                 return;
               }
               
@@ -65,23 +62,12 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
               });
               
               this.fileIdSent = true;
-              console.log(`✅ [DEBUG] ViewPlugin ${this.instanceId} setFileIdEffect enviado com sucesso!`);
-              
-              // 🔥 BACKUP com verificação adicional
-              setTimeout(() => {
-                if (!view.dom || !view.dom.isConnected) return;
-                
-                console.log(`🔄 [DEBUG] ViewPlugin ${this.instanceId} enviando backup setFileIdEffect`);
-                view.dispatch({
-                  effects: setFileIdEffect.of({ fileId })
-                });
-              }, 100);
+              console.log(`✅ [ViewPlugin ${this.instanceId}] setFileIdEffect enviado!`);
               
             } catch (e) {
-              console.error(`❌ [DEBUG] ViewPlugin ${this.instanceId} erro ao enviar setFileIdEffect:`, e);
+              console.error(`❌ [ViewPlugin ${this.instanceId}] Erro ao enviar effect:`, e);
               
-              // Retry apenas se não foi erro de view destruída
-              if (retryCount < 3 && !e.message.includes('update')) {
+              if (retryCount < 3) {
                 setTimeout(() => {
                   this.identifyAndSendFileId(view, retryCount + 1);
                 }, 200);
@@ -90,7 +76,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
           });
           
         } else {
-          console.warn(`❌ [DEBUG] ViewPlugin ${this.instanceId} não conseguiu identificar arquivo!`);
+          console.warn(`❌ [ViewPlugin ${this.instanceId}] Não conseguiu identificar arquivo`);
           
           if (retryCount < 5) {
             setTimeout(() => {
@@ -100,8 +86,9 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
         }
       }
       
+      // 🔥 IDENTIFICAÇÃO MELHORADA
       private identifyFileForView(view: EditorView): string | null {
-        console.log(`🔍 [DEBUG] ViewPlugin ${this.instanceId} identifyFileForView iniciado`);
+        console.log(`🔍 [ViewPlugin ${this.instanceId}] identifyFileForView`);
         
         const app = model.plugin.app;
         const leaves = app.workspace.getLeavesOfType('markdown');
@@ -118,32 +105,16 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
               
               if (isThisView) {
                 const filePath = leafView.file?.path || null;
-                console.log(`✅ [DEBUG] ViewPlugin ${this.instanceId} arquivo identificado: ${filePath}`);
+                console.log(`✅ [ViewPlugin ${this.instanceId}] Arquivo identificado: ${filePath}`);
                 return filePath;
               }
             } catch (e) {
-              console.warn(`⚠️ [DEBUG] ViewPlugin ${this.instanceId} erro ao acessar cm:`, e);
+              console.warn(`⚠️ [ViewPlugin ${this.instanceId}] Erro ao comparar views:`, e);
             }
           }
         }
         
-        // Fallback
-        const activeView = app.workspace.getActiveViewOfType(MarkdownView);
-        if (activeView && activeView.editor) {
-          try {
-            // @ts-ignore
-            const isThisView = activeView.editor.cm === view;
-            if (isThisView) {
-              const filePath = activeView.file?.path || null;
-              console.log(`🔄 [DEBUG] ViewPlugin ${this.instanceId} arquivo identificado via fallback: ${filePath}`);
-              return filePath;
-            }
-          } catch (e) {
-            console.warn(`⚠️ [DEBUG] ViewPlugin ${this.instanceId} erro no fallback:`, e);
-          }
-        }
-        
-        console.warn(`❌ [DEBUG] ViewPlugin ${this.instanceId} não conseguiu identificar arquivo`);
+        console.warn(`❌ [ViewPlugin ${this.instanceId}] Arquivo não identificado`);
         return null;
       }
       
@@ -152,29 +123,82 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
         return parseFloat(computedStyle.fontSize);
       }
       
-      // 🔥 MÉTODO PARA DETECTAR MARCADOR POR POSIÇÃO
+      // 🔥 DETECÇÃO DE MARCADOR CORRIGIDA (VOLTA AO SIMPLES QUE FUNCIONAVA)
       getMarkerAtPos(view: EditorView, pos: number): string | null {
         if (!this.fileId) return null;
         
         const markers = model.getMarkersForFile(this.fileId);
         
+        // 🔥 CORREÇÃO: Procurar TODOS os marcadores na posição e retornar o MENOR
+        const foundMarkers: Array<{marker: any, size: number}> = [];
+        
         for (const marker of markers) {
           try {
-            const startOffset = view.state.doc.line(marker.range.from.line + 1).from + marker.range.from.ch;
-            const endOffset = view.state.doc.line(marker.range.to.line + 1).from + marker.range.to.ch;
+            let startOffset: number, endOffset: number;
             
-            if (pos >= startOffset && pos <= endOffset) {
-              return marker.id;
+            // Método direto primeiro
+            try {
+              startOffset = view.state.doc.line(marker.range.from.line + 1).from + marker.range.from.ch;
+              endOffset = view.state.doc.line(marker.range.to.line + 1).from + marker.range.to.ch;
+            } catch (e) {
+              // Método alternativo via view
+              const targetView = this.getViewForFile(this.fileId);
+              if (!targetView?.editor) continue;
+              
+              // @ts-ignore
+              startOffset = targetView.editor.posToOffset(marker.range.from);
+              // @ts-ignore
+              endOffset = targetView.editor.posToOffset(marker.range.to);
             }
+            
+            if (startOffset === null || endOffset === null || 
+                startOffset === undefined || endOffset === undefined) {
+              continue;
+            }
+            
+            // Verificar se posição está dentro desta marcação
+            if (pos >= startOffset && pos <= endOffset) {
+              const size = endOffset - startOffset;
+              foundMarkers.push({ marker, size });
+              
+              console.log(`📍 [ViewPlugin ${this.instanceId}] Marcador ${marker.id} contém posição ${pos} (tamanho: ${size})`);
+            }
+            
           } catch (e) {
-            // Ignorar erro
+            console.error(`❌ [ViewPlugin ${this.instanceId}] Erro ao verificar marcador ${marker.id}:`, e);
           }
         }
         
+        if (foundMarkers.length === 0) {
+          return null;
+        }
+        
+        // 🔥 PRIORIDADE: Menor marcação (mais específica)
+        foundMarkers.sort((a, b) => a.size - b.size);
+        const selectedMarker = foundMarkers[0].marker;
+        
+        console.log(`✅ [ViewPlugin ${this.instanceId}] Marcador selecionado: ${selectedMarker.id}`, {
+          totalFound: foundMarkers.length,
+          sizes: foundMarkers.map(f => f.size),
+          selected: `${selectedMarker.id} (${foundMarkers[0].size})`
+        });
+        
+        return selectedMarker.id;
+      }
+      
+      private getViewForFile(fileId: string): MarkdownView | null {
+        const app = model.plugin.app;
+        const leaves = app.workspace.getLeavesOfType('markdown');
+        
+        for (const leaf of leaves) {
+          const view = leaf.view;
+          if (view instanceof MarkdownView && view.file?.path === fileId) {
+            return view;
+          }
+        }
         return null;
       }
       
-      // 🔥 MÉTODO PARA ATUALIZAR POSIÇÃO DO MARCADOR (PUBLIC para event handlers)
       updateMarkerPosition(view: EditorView, markerId: string, newPos: number, type: 'start' | 'end') {
         if (!this.fileId) return;
         
@@ -182,21 +206,21 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
         if (!marker || marker.fileId !== this.fileId) return;
         
         try {
-          // Converter offset para posição
-          const newPosConverted = model.offsetToPos(newPos, this.fileId);
+          const targetView = this.getViewForFile(this.fileId);
+          if (!targetView?.editor) return;
+          
+          // @ts-ignore
+          const newPosConverted = targetView.editor.offsetToPos(newPos);
           if (!newPosConverted) return;
           
-          // Atualizar o marcador
           const updatedMarker = { ...marker };
           
           if (type === 'start') {
-            // Garantir que start não passe do end
             if (model.isPositionBefore(newPosConverted, marker.range.to) || 
                 (newPosConverted.line === marker.range.to.line && newPosConverted.ch === marker.range.to.ch)) {
               updatedMarker.range.from = newPosConverted;
             }
           } else {
-            // Garantir que end não fique antes do start
             if (model.isPositionAfter(newPosConverted, marker.range.from) || 
                 (newPosConverted.line === marker.range.from.line && newPosConverted.ch === marker.range.from.ch)) {
               updatedMarker.range.to = newPosConverted;
@@ -204,13 +228,11 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
           }
           
           updatedMarker.updatedAt = Date.now();
-          
-          // Salvar e atualizar
           model.updateMarker(updatedMarker);
           model.updateMarkersForFile(this.fileId);
           
         } catch (e) {
-          console.error('Erro ao atualizar posição do marcador:', e);
+          console.error(`❌ [ViewPlugin ${this.instanceId}] Erro ao atualizar posição:`, e);
         }
       }
       
@@ -219,24 +241,19 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
       }
       
       update(update: ViewUpdate) {
-        console.log(`🔄 [DEBUG] ViewPlugin ${this.instanceId} update() chamado`);
+        console.log(`🔄 [ViewPlugin ${this.instanceId}] update()`);
         
-        // 🔥 CORREÇÃO: Apenas re-identificar se necessário, SEM dispatch durante update
+        // Garantir que arquivo foi identificado
         if (!this.fileId || !this.fileIdSent) {
-          console.log(`🔍 [DEBUG] ViewPlugin ${this.instanceId} re-identificando arquivo no update...`);
-          
-          // 🔥 CRÍTICO: Usar setTimeout para evitar dispatch durante update
+          console.log(`🔍 [ViewPlugin ${this.instanceId}] Re-identificando arquivo...`);
           setTimeout(() => {
             this.identifyAndSendFileId(update.view);
           }, 0);
         }
-        
-        // 🔥 REMOVIDO: Não fazer dispatch durante update() - isso causa recursão infinita!
-        // O StateField já mapeia decorações automaticamente via tr.changes
       }
       
       destroy() {
-        console.log(`🗑️ [DEBUG] ViewPlugin ${this.instanceId} destroy() chamado`);
+        console.log(`🗑️ [ViewPlugin ${this.instanceId}] destroy()`);
         
         this.cleanup.forEach(cleanupFn => cleanupFn());
         this.dragging = null;
@@ -246,17 +263,18 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
         // Limpar cursors de arraste
         document.body.classList.remove('codemarker-dragging', 'codemarker-dragging-start', 'codemarker-dragging-end');
         
-        console.log(`✅ [DEBUG] ViewPlugin ${this.instanceId} destroy() finalizado`);
+        console.log(`✅ [ViewPlugin ${this.instanceId}] Destruído`);
       }
     },
     {
       eventHandlers: {
-        // 🔥 MOUSEDOWN - DETECTAR INÍCIO DE ARRASTE
+        // 🔥 MOUSEDOWN: Detectar arraste das alças
         mousedown(event: MouseEvent, view: EditorView) {
           const target = event.target as HTMLElement;
           
-          // Verificar se clicou em uma alça
-          if (target.closest('.codemarker-handle-svg') || 
+          if (target.tagName === 'svg' || 
+              target.tagName === 'rect' || 
+              target.tagName === 'circle' ||
               target.classList.contains('codemarker-circle') ||
               target.classList.contains('codemarker-line') ||
               target.classList.contains('codemarker-handle-svg')) {
@@ -267,18 +285,13 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
                              target.closest('[data-handle-type]')?.getAttribute('data-handle-type');
             
             if (markerId && handleType && (handleType === 'start' || handleType === 'end')) {
-              console.log(`🔥 [DEBUG] ViewPlugin ${this.instanceId} iniciando arraste:`, {
-                markerId,
-                handleType
-              });
+              console.log(`🔥 [ViewPlugin ${this.instanceId}] Iniciando arraste: ${markerId} (${handleType})`);
               
               event.preventDefault();
               event.stopPropagation();
               
-              // Definir estado de arraste
               this.dragging = { markerId, type: handleType as 'start' | 'end' };
               
-              // Aplicar cursors visuais
               document.body.classList.add('codemarker-dragging');
               if (handleType === 'start') {
                 document.body.classList.add('codemarker-dragging-start');
@@ -286,45 +299,35 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
                 document.body.classList.add('codemarker-dragging-end');
               }
               
-              // Enviar efeito para StateField
               view.dispatch({
                 effects: startDragEffect.of({ markerId, type: handleType as 'start' | 'end' })
               });
-              
-              // Capturar pointer se disponível
-              if ('setPointerCapture' in target && event instanceof PointerEvent) {
-                (target as any).setPointerCapture(event.pointerId);
-              }
               
               return true;
             }
           }
           
-          console.log(`🖱️ [DEBUG] ViewPlugin mousedown normal capturado`);
+          console.log(`🖱️ [ViewPlugin ${this.instanceId}] Mousedown normal`);
           return false;
         },
         
-        // 🔥 MOUSEMOVE - ARRASTAR + HOVER
+        // 🔥 MOUSEMOVE: Arraste + Hover
         mousemove(event: MouseEvent, view: EditorView) {
-          // 🔥 LÓGICA DE ARRASTE
+          // Lógica de arraste
           if (this.dragging) {
             event.preventDefault();
             
             const coords = { x: event.clientX, y: event.clientY };
             let pos = view.posAtCoords(coords);
             
-            // Se saiu da viewport, tentar posição aproximada
             if (pos === null) {
               pos = view.posAtCoords(coords, false);
             }
             
             if (pos !== null) {
-              console.log(`🔄 [DEBUG] ViewPlugin ${this.instanceId} arrastando para posição:`, pos);
-              
-              // Atualizar posição do marcador
+              console.log(`🔄 [ViewPlugin ${this.instanceId}] Arrastando para posição: ${pos}`);
               this.updateMarkerPosition(view, this.dragging.markerId, pos, this.dragging.type);
               
-              // Enviar efeito de atualização
               view.dispatch({
                 effects: updateDragEffect.of({ 
                   markerId: this.dragging.markerId, 
@@ -337,15 +340,16 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
             return true;
           }
           
-          // 🔥 LÓGICA DE HOVER (apenas se não estiver arrastando)
+          // 🔥 LÓGICA DE HOVER CORRIGIDA
           const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
           if (pos !== null) {
             const markerId = this.getMarkerAtPos(view, pos);
             
             if (markerId !== this.hoveredMarkerId) {
-              console.log(`🖱️ [DEBUG] ViewPlugin ${this.instanceId} hover mudou para: ${markerId}`);
+              console.log(`🔄 [ViewPlugin ${this.instanceId}] Hover mudou para: ${markerId}`);
               this.hoveredMarkerId = markerId;
               
+              // 🔥 ENVIAR PARA STATEFIELD VIA EFFECT (PADRÃO CM6)
               view.dispatch({
                 effects: setHoverEffect.of({ markerId })
               });
@@ -355,26 +359,16 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
           return false;
         },
         
-        // 🔥 MOUSEUP - FINALIZAR ARRASTE
+        // 🔥 MOUSEUP: Finalizar arraste
         mouseup(event: MouseEvent, view: EditorView) {
           if (this.dragging) {
-            console.log(`🔥 [DEBUG] ViewPlugin ${this.instanceId} finalizando arraste:`, this.dragging.markerId);
+            console.log(`🔥 [ViewPlugin ${this.instanceId}] Finalizando arraste: ${this.dragging.markerId}`);
             
             const markerId = this.dragging.markerId;
-            
-            // Limpar estado de arraste
             this.dragging = null;
             
-            // Remover cursors visuais
             document.body.classList.remove('codemarker-dragging', 'codemarker-dragging-start', 'codemarker-dragging-end');
             
-            // Liberar pointer capture
-            const target = event.target as HTMLElement;
-            if ('releasePointerCapture' in target && event instanceof PointerEvent) {
-              (target as any).releasePointerCapture(event.pointerId);
-            }
-            
-            // Enviar efeito de fim de arraste
             view.dispatch({
               effects: endDragEffect.of({ markerId })
             });
@@ -385,10 +379,10 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
           return false;
         },
         
-        // 🔥 MOUSELEAVE - LIMPAR HOVER
+        // 🔥 MOUSELEAVE: Limpar hover
         mouseleave(event: MouseEvent, view: EditorView) {
           if (this.hoveredMarkerId) {
-            console.log(`👋 [DEBUG] ViewPlugin ${this.instanceId} mouse saiu do editor`);
+            console.log(`👋 [ViewPlugin ${this.instanceId}] Mouse saiu, limpando hover`);
             this.hoveredMarkerId = null;
             
             view.dispatch({

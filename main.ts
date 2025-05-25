@@ -13,7 +13,7 @@ export default class CodeMarkerPlugin extends Plugin {
   updateFileMarkersEffect: StateEffectType<{fileId: string}>;
 
   async onload() {
-    console.log('[CodeMarker] v21 loaded -- Versao atual');
+    console.log('[CodeMarker] v22 loaded -- Quase final — falta corrigir intersecoes');
     
     await this.loadSettings();
     
