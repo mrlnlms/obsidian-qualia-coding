@@ -22,13 +22,14 @@ export class CombinedHandleWidget extends WidgetType {
   
   constructor(
     private marker: Marker,
-    private color: string
+    private color: string,
+    private zIndex: number = 9999 // 🔥 NOVO: z-index customizável
   ) { 
     super();
   }
 
   eq(other: CombinedHandleWidget) {
-    return this.marker.id === other.marker.id;
+    return this.marker.id === other.marker.id && this.zIndex === other.zIndex;
   }
 
   toDOM(view: EditorView) {
@@ -43,6 +44,7 @@ export class CombinedHandleWidget extends WidgetType {
     container.style.width = '0';
     container.style.height = '0';
     container.style.overflow = 'visible';
+    container.style.zIndex = this.zIndex.toString(); // 🔥 Z-index dinâmico
     
     // Converter cor hexadecimal para RGB
     let displayColor = this.color;
@@ -61,7 +63,7 @@ export class CombinedHandleWidget extends WidgetType {
     
     startHandle.innerHTML = `
       <svg width="${CombinedHandleWidget.BALL_SIZE}" height="${CombinedHandleWidget.TOP_OFFSET + CombinedHandleWidget.BALL_SIZE}" 
-           style="position:absolute; left:-${CombinedHandleWidget.BALL_SIZE/2}px; top:-${CombinedHandleWidget.TOP_OFFSET}px; cursor:w-resize; pointer-events:auto;"
+           style="position:absolute; left:-${CombinedHandleWidget.BALL_SIZE/2}px; top:-${CombinedHandleWidget.TOP_OFFSET}px; cursor:w-resize; pointer-events:auto; z-index:${this.zIndex};"
            class="codemarker-handle-svg" data-marker-id="${this.marker.id}" data-handle-type="start">
         <circle cx="${CombinedHandleWidget.BALL_SIZE/2}" cy="${CombinedHandleWidget.BALL_SIZE/2}" 
                 r="${CombinedHandleWidget.BALL_SIZE/2}" fill="${displayColor}" stroke="white" stroke-width="1.5" 
@@ -81,7 +83,7 @@ export class CombinedHandleWidget extends WidgetType {
     
     endHandle.innerHTML = `
       <svg width="${CombinedHandleWidget.BALL_SIZE}" height="${CombinedHandleWidget.TOP_OFFSET + CombinedHandleWidget.BALL_SIZE}" 
-           style="position:absolute; right:-${CombinedHandleWidget.BALL_SIZE/2}px; top:-${CombinedHandleWidget.TOP_OFFSET}px; cursor:e-resize; pointer-events:auto;"
+           style="position:absolute; right:-${CombinedHandleWidget.BALL_SIZE/2}px; top:-${CombinedHandleWidget.TOP_OFFSET}px; cursor:e-resize; pointer-events:auto; z-index:${this.zIndex};"
            class="codemarker-handle-svg" data-marker-id="${this.marker.id}" data-handle-type="end">
         <rect x="${CombinedHandleWidget.BALL_SIZE/2 - CombinedHandleWidget.BAR_WIDTH/2}" 
               y="0" width="${CombinedHandleWidget.BAR_WIDTH}" 
@@ -115,7 +117,7 @@ export class CombinedHandleWidget extends WidgetType {
 }
 
 /**
- * Widget que representa uma alça de arraste (mantida para compatibilidade)
+ * 🔥 Widget que representa uma alça de arraste - COM Z-INDEX DINÂMICO
  */
 export class HandleWidget extends WidgetType {
   // Definir proporções em vez de valores fixos
@@ -133,7 +135,8 @@ export class HandleWidget extends WidgetType {
     private type: 'start' | 'end',
     private color: string,
     private settings: CodeMarkerSettings,
-    private isHovered: boolean = false // 🔍 NOVO: rastrear se está com hover
+    private isHovered: boolean = false, // 🔍 Rastrear se está com hover
+    private zIndex: number = 9999 // 🔥 NOVO: z-index customizável para sobreposições
   ) { 
     super();
   }
@@ -252,7 +255,8 @@ export class HandleWidget extends WidgetType {
     if (!(widget instanceof HandleWidget)) return false;
     return this.marker.id === widget.marker.id && 
            this.type === widget.type &&
-           this.isHovered === widget.isHovered; // 🔍 NOVO: considerar hover na comparação
+           this.isHovered === widget.isHovered && 
+           this.zIndex === widget.zIndex; // 🔥 NOVO: considerar z-index na comparação
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -272,7 +276,7 @@ export class HandleWidget extends WidgetType {
     handle.style.width = '0px';
     handle.style.height = '0px';
     handle.style.overflow = 'visible';
-    handle.style.zIndex = '9999';
+    handle.style.zIndex = this.zIndex.toString(); // 🔥 NOVO: Z-index dinâmico
     handle.style.pointerEvents = 'none';
 
     // Converter cor hexadecimal para RGB
@@ -304,11 +308,12 @@ export class HandleWidget extends WidgetType {
     svg.style.transformOrigin = "center";
     svg.style.overflow = "visible";
     svg.style.pointerEvents = "auto";
+    svg.style.zIndex = this.zIndex.toString(); // 🔥 NOVO: Z-index no SVG também
     svg.classList.add("codemarker-handle-svg");
     svg.setAttribute('data-marker-id', this.marker.id);
     svg.setAttribute('data-handle-type', this.type);
     
-    // 🔍 NOVO: Aplicar classe baseada no hover e configuração
+    // 🔍 Aplicar classe baseada no hover e configuração
     if (this.settings.showHandlesOnHover) {
       if (this.isHovered) {
         svg.classList.add('codemarker-handle-visible');

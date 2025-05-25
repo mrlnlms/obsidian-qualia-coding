@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "96fc593f0ba6fce9",
+        "id": "78c1918f1bfbd6f5",
         "type": "tabs",
         "children": [
           {
-            "id": "528d92634c0a53ed",
+            "id": "976d78012d1e0067",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -117,15 +117,17 @@
       "bases:Create new base": false
     }
   },
-  "active": "528d92634c0a53ed",
+  "active": "976d78012d1e0067",
   "lastOpenFiles": [
-    "2025-05-22_v19-tag-v1.0.0-visual-pronto/test-note.md",
-    "2025-05-25_v20-multi-arquivo-css-melhor/test-note.md",
-    "2025-05-25_v20-multi-arquivo-css-melhor",
+    "2025-05-25_v21-versao-atual/test-note.md",
+    "2025-05-25_v21-versao-atual",
     "items.csv",
     "Sample 1.md",
+    "2025-05-25_v20-multi-arquivo-css-melhor/test-note.md",
+    "2025-05-25_v20-multi-arquivo-css-melhor",
     "2025-05-22_v19-tag-v1.0.0-visual-pronto/_historico/codemarker-spec.md",
     "2025-05-22_v19-tag-v1.0.0-visual-pronto/_historico/codemarker-cm6-spec.md",
+    "2025-05-22_v19-tag-v1.0.0-visual-pronto/test-note.md",
     "2025-05-22_v19-tag-v1.0.0-visual-pronto/_historico",
     "2025-05-22_v19-tag-v1.0.0-visual-pronto",
     "2025-05-20_v18-tag-v0.2.0-cm6-funcionando-perfeitamente/test-note.md",
@@ -141,7 +143,6 @@
     "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-cm6-test-instructions.md",
     "2025-05-16_v14-codemarker-cm6-inicial/test-note.md",
     "2025-05-16_v14-codemarker-cm6-inicial/_historico",
-    "2025-05-16_v14-codemarker-cm6-inicial",
     "2024-10-16_v13-coded-span-html-test/_historico/coded-span-html-test.md",
     "2024-10-16_v13-coded-span-html-test/test-note.md",
     "2024-07-16_v12-csv-view-file-operations/test-note.md",
@@ -154,7 +155,6 @@
     "2024-06-25_v6-displaymenus-modulo-isolado/_historico/gpt-debug-toggle-click-menu.md",
     "2024-06-25_v6-displaymenus-modulo-isolado/test-note.md",
     "2024-06-24_v5-displaymenus-completo/test-note.md",
-    "2024-06-24_v4-svelte-branch-displaymenus-completo/test-note.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "_historico/qda-data-model.canvas"
   ]

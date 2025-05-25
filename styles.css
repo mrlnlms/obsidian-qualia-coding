@@ -6,35 +6,36 @@
 .codemarker-highlight {
   border-radius: 2px;
   transition: background-color 0.2s ease;
-  /* Garantir que a marcação não interfira com o fluxo do texto */
+  /* 🔥 CRÍTICO PARA SOBREPOSIÇÕES: Position relative para z-index funcionar */
   position: relative;
-  z-index: 1;
+  /* 🔥 Z-index será definido dinamicamente via style inline */
 }
 
 /* ========================================
-   🔥 CORREÇÃO: Alças independentes do background
+   🔥 ALÇAS COM Z-INDEX DINÂMICO PARA SOBREPOSIÇÕES
    ======================================== */
 
-/* Container das alças - ISOLAMENTO TOTAL do background da marcação */
+/* Container das alças - ISOLAMENTO TOTAL + Z-INDEX DINÂMICO */
 .codemarker-handles-container {
   position: relative !important;
   display: inline-block !important;
   width: 0 !important;
   height: 0 !important;
   overflow: visible !important;
-  z-index: 9999 !important;
   pointer-events: none !important;
   /* 🔥 CRÍTICO: Resetar qualquer background herdado */
   background: none !important;
   background-color: transparent !important;
+  /* 🔥 Z-index será definido dinamicamente via JavaScript */
 }
 
-/* 🔥 NOVO: Isolamento específico para alças dentro de marcações */
+/* 🔥 ISOLAMENTO específico para alças dentro de marcações */
 .codemarker-highlight .codemarker-handles-container,
 .codemarker-highlight .codemarker-handle,
 .codemarker-highlight .codemarker-handle-svg {
   background: none !important;
   background-color: transparent !important;
+  /* 🔥 Permitir z-index dinâmico via style inline */
 }
 
 /* ========================================
@@ -47,11 +48,11 @@
   transform-origin: center;
   opacity: 1;
   pointer-events: auto !important;
-  z-index: 10000 !important;
   position: absolute !important;
   /* 🔥 ISOLAMENTO: Garantir que não herda background */
   background: none !important;
   background-color: transparent !important;
+  /* 🔥 Z-index será definido dinamicamente via style inline */
 }
 
 /* Elementos internos das alças */
@@ -157,7 +158,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 }
 
 /* ========================================
-   🔥 ISOLAMENTO ADICIONAL PARA MARCAÇÕES SOBREPOSTAS
+   🔥 CORREÇÃO DEFINITIVA PARA SOBREPOSIÇÕES
    ======================================== */
 
 /* Garantir que marcações aninhadas não afetem alças */
@@ -176,13 +177,24 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   background-color: transparent !important;
 }
 
+/* 🔥 NOVO: Regras específicas para sobreposições */
+.codemarker-highlight[style*="z-index"] {
+  /* Marcações com z-index explícito - permanecem posicionadas relativamente */
+  position: relative !important;
+}
+
+.codemarker-handle-svg[style*="z-index"] {
+  /* Alças com z-index explícito - garantir que fiquem por cima */
+  position: absolute !important;
+}
+
 /* ========================================
    Compatibilidade e Fixes
    ======================================== */
 
 /* Garantir que as alças apareçam acima de outros elementos do Obsidian */
 .cm-editor .codemarker-handle-svg {
-  z-index: 10000 !important;
+  /* 🔥 Z-index será definido dinamicamente via style inline */
   background: none !important;
 }
 
@@ -225,43 +237,4 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
     filter: drop-shadow(0px 1px 3px rgba(0, 0, 0, 0.4));
     background: none !important;
   }
-}
-
-/* Melhorar visibilidade para usuários com necessidades especiais */
-@media (prefers-contrast: high) {
-  .codemarker-circle {
-    stroke-width: 2px !important;
-  }
-  
-  .codemarker-line {
-    opacity: 0.9 !important;
-  }
-}
-
-/* Respeitar preferência de animações reduzidas */
-@media (prefers-reduced-motion: reduce) {
-  .codemarker-handle-svg,
-  .codemarker-circle,
-  .codemarker-line {
-    transition: none !important;
-    animation: none !important;
-  }
-  
-  .codemarker-handle-svg.codemarker-handle-visible {
-    animation: none !important;
-  }
-}
-
-/* ========================================
-   Debug e Desenvolvimento
-   ======================================== */
-
-/* Classe para debug - mostrar bordas dos containers */
-.codemarker-debug .codemarker-handles-container {
-  border: 1px dashed red !important;
-  background: rgba(255, 0, 0, 0.1) !important;
-}
-
-.codemarker-debug .codemarker-highlight {
-  border: 1px dashed blue !important;
 }

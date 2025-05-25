@@ -3,19 +3,20 @@ import process from "process";
 import builtins from "builtin-modules";
 import { copyFileSync, mkdirSync } from "fs";
 
-const demoPluginDir = "demo/.obsidian/plugins/obsidian-codemarker";
+const DEMO_PLUGIN_DIR = "demo/.obsidian/plugins/obsidian-codemarker";
+
 const copyToDemo = {
 	name: "copy-to-demo",
 	setup(build) {
 		build.onEnd(() => {
 			try {
-				mkdirSync(demoPluginDir, { recursive: true });
-				copyFileSync("main.js", `${demoPluginDir}/main.js`);
-				copyFileSync("manifest.json", `${demoPluginDir}/manifest.json`);
-				copyFileSync("styles.css", `${demoPluginDir}/styles.css`);
-				console.log("  → Copied to demo vault");
+				mkdirSync(DEMO_PLUGIN_DIR, { recursive: true });
+				copyFileSync("main.js", `${DEMO_PLUGIN_DIR}/main.js`);
+				copyFileSync("manifest.json", `${DEMO_PLUGIN_DIR}/manifest.json`);
+				copyFileSync("styles.css", `${DEMO_PLUGIN_DIR}/styles.css`);
+				console.log("Copied to demo vault");
 			} catch (e) {
-				console.warn("  → Demo copy failed:", e.message);
+				console.warn("Copy to demo failed:", e.message);
 			}
 		});
 	}

@@ -1,75 +1,149 @@
-import { ViewPlugin, EditorView, PluginValue, ViewUpdate, Decoration, DecorationSet } from "@codemirror/view";
-import { StateField, StateEffect, RangeSetBuilder } from "@codemirror/state";
+import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/view";
 import { MarkdownView } from "obsidian";
-import { HandleWidget } from "./handleWidget";
 import { CodeMarkerModel } from "../models/codeMarkerModel";
+import { 
+  setFileIdEffect, 
+  setHoverEffect,
+  startDragEffect,
+  updateDragEffect,
+  endDragEffect
+} from "./markerStateField";
 
-// 🔥 SOLUÇÃO SIMPLIFICADA: Um único ViewPlugin que gerencia tudo
-
-// Efeitos para comunicação
-export const updateFileMarkersEffect = StateEffect.define<{fileId: string}>();
-export const setHoverEffect = StateEffect.define<{markerId: string | null}>();
-export const startDragEffect = StateEffect.define<{markerId: string, type: 'start' | 'end'}>();
-export const updateDragEffect = StateEffect.define<{markerId: string, pos: number, type: 'start' | 'end'}>();
-export const endDragEffect = StateEffect.define<{markerId: string}>();
-
-// Função para calcular padding
-function calculatePaddingRatio(fontSize: number, lineHeight: number): number {
-  const baseRatio = 0.1875;
-  const idealSpacing = fontSize * 1.2;
-  const actualSpacing = lineHeight;
-  const spacingAdjustment = (actualSpacing / idealSpacing - 1) * 0.001;
-  const fontSizeAdjustment = (fontSize - 16) * 0.001;
-  return Math.max(baseRatio - fontSizeAdjustment - spacingAdjustment, 0.05);
-}
-
-// 🔥 ViewPlugin que gerencia TUDO (estado, decorações, eventos)
+// 🔥 VIEWPLUGIN COMPLETO COM ARRASTE FUNCIONAL
 export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
   return ViewPlugin.fromClass(
     class implements PluginValue {
-      // Estado da instância
+      // Estado isolado POR INSTÂNCIA
       public instanceId: string;
       public fileId: string | null = null;
-      public decorations: DecorationSet = Decoration.none;
+      private fileIdSent = false;
       
-      // Estado de interação
+      // 🔥 Estado de arraste - RESTAURADO
       dragging: { markerId: string, type: 'start' | 'end' } | null = null;
-      hoveredMarkerId: string | null = null;
       private lastFontSize: number;
       private cleanup: Array<() => void> = [];
       
+      // Estado de hover local
+      hoveredMarkerId: string | null = null;
+      
       constructor(view: EditorView) {
         this.instanceId = Math.random().toString(36).substr(2, 9);
-        this.fileId = this.identifyFileForView(view);
+        console.log(`🎯 [DEBUG] ViewPlugin ${this.instanceId} constructor iniciado`);
+        
         this.lastFontSize = this.getCurrentFontSize(view);
-        
-        console.log(`🎯 CodeMarker ViewPlugin criado:`, {
-          instanceId: this.instanceId,
-          fileId: this.fileId
-        });
-        
-        // Construir decorações iniciais
-        this.rebuildDecorations(view);
-        
+        this.identifyAndSendFileId(view);
         this.setupFontChangeDetection(view);
+        
+        console.log(`✅ [DEBUG] ViewPlugin ${this.instanceId} constructor finalizado`);
       }
       
-      // Identificar arquivo desta view
+      private identifyAndSendFileId(view: EditorView, retryCount = 0) {
+        console.log(`🔍 [DEBUG] ViewPlugin ${this.instanceId} identifyAndSendFileId tentativa ${retryCount + 1}`);
+        
+        const fileId = this.identifyFileForView(view);
+        
+        if (fileId) {
+          this.fileId = fileId;
+          console.log(`📤 [DEBUG] ViewPlugin ${this.instanceId} enviando setFileIdEffect: ${fileId}`);
+          
+          // 🔥 PROTEÇÃO: Verificar se view ainda existe e não foi destruída
+          if (!view.dom || !view.dom.isConnected) {
+            console.warn(`⚠️ [DEBUG] ViewPlugin ${this.instanceId} view foi destruída, cancelando envio`);
+            return;
+          }
+          
+          requestAnimationFrame(() => {
+            try {
+              // 🔥 SEGUNDA VERIFICAÇÃO: View ainda válida?
+              if (!view.dom || !view.dom.isConnected) {
+                console.warn(`⚠️ [DEBUG] ViewPlugin ${this.instanceId} view destruída durante RAF`);
+                return;
+              }
+              
+              view.dispatch({
+                effects: setFileIdEffect.of({ fileId })
+              });
+              
+              this.fileIdSent = true;
+              console.log(`✅ [DEBUG] ViewPlugin ${this.instanceId} setFileIdEffect enviado com sucesso!`);
+              
+              // 🔥 BACKUP com verificação adicional
+              setTimeout(() => {
+                if (!view.dom || !view.dom.isConnected) return;
+                
+                console.log(`🔄 [DEBUG] ViewPlugin ${this.instanceId} enviando backup setFileIdEffect`);
+                view.dispatch({
+                  effects: setFileIdEffect.of({ fileId })
+                });
+              }, 100);
+              
+            } catch (e) {
+              console.error(`❌ [DEBUG] ViewPlugin ${this.instanceId} erro ao enviar setFileIdEffect:`, e);
+              
+              // Retry apenas se não foi erro de view destruída
+              if (retryCount < 3 && !e.message.includes('update')) {
+                setTimeout(() => {
+                  this.identifyAndSendFileId(view, retryCount + 1);
+                }, 200);
+              }
+            }
+          });
+          
+        } else {
+          console.warn(`❌ [DEBUG] ViewPlugin ${this.instanceId} não conseguiu identificar arquivo!`);
+          
+          if (retryCount < 5) {
+            setTimeout(() => {
+              this.identifyAndSendFileId(view, retryCount + 1);
+            }, 300);
+          }
+        }
+      }
+      
       private identifyFileForView(view: EditorView): string | null {
+        console.log(`🔍 [DEBUG] ViewPlugin ${this.instanceId} identifyFileForView iniciado`);
+        
         const app = model.plugin.app;
         const leaves = app.workspace.getLeavesOfType('markdown');
         
-        for (const leaf of leaves) {
+        for (let i = 0; i < leaves.length; i++) {
+          const leaf = leaves[i];
           const leafView = leaf.view;
+          
           if (leafView instanceof MarkdownView && leafView.editor) {
-            // @ts-ignore
-            if (leafView.editor.cm === view) {
-              return leafView.file?.path || null;
+            try {
+              // @ts-ignore
+              const cmView = leafView.editor.cm;
+              const isThisView = cmView === view;
+              
+              if (isThisView) {
+                const filePath = leafView.file?.path || null;
+                console.log(`✅ [DEBUG] ViewPlugin ${this.instanceId} arquivo identificado: ${filePath}`);
+                return filePath;
+              }
+            } catch (e) {
+              console.warn(`⚠️ [DEBUG] ViewPlugin ${this.instanceId} erro ao acessar cm:`, e);
             }
           }
         }
         
-        console.warn(`❌ Não foi possível identificar arquivo para instância ${this.instanceId}`);
+        // Fallback
+        const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+        if (activeView && activeView.editor) {
+          try {
+            // @ts-ignore
+            const isThisView = activeView.editor.cm === view;
+            if (isThisView) {
+              const filePath = activeView.file?.path || null;
+              console.log(`🔄 [DEBUG] ViewPlugin ${this.instanceId} arquivo identificado via fallback: ${filePath}`);
+              return filePath;
+            }
+          } catch (e) {
+            console.warn(`⚠️ [DEBUG] ViewPlugin ${this.instanceId} erro no fallback:`, e);
+          }
+        }
+        
+        console.warn(`❌ [DEBUG] ViewPlugin ${this.instanceId} não conseguiu identificar arquivo`);
         return null;
       }
       
@@ -78,440 +152,199 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
         return parseFloat(computedStyle.fontSize);
       }
       
-      // 🔥 Método principal para reconstruir decorações
-      private rebuildDecorations(view: EditorView) {
-        if (!this.fileId) {
-          console.warn(`❌ [${this.instanceId}] Sem arquivo, não construindo decorações`);
-          this.decorations = Decoration.none;
-          return;
-        }
-        
-        const markers = model.getMarkersForFile(this.fileId);
-        const settings = model.getSettings();
-        const builder = new RangeSetBuilder<Decoration>();
-        
-        console.log(`🔨 [${this.instanceId}] Construindo ${markers.length} marcações para ${this.fileId}`);
-        
-        // Encontrar a view correta para este arquivo
-        const targetView = this.getViewForFile(this.fileId);
-        if (!targetView?.editor) {
-          console.warn(`❌ [${this.instanceId}] Não encontrou view para ${this.fileId}`);
-          this.decorations = Decoration.none;
-          return;
-        }
-        
-        const allDecorations: Array<{from: number, to: number, decoration: Decoration}> = [];
-        
-        for (const marker of markers) {
-          try {
-            // @ts-ignore
-            const startOffset = targetView.editor.posToOffset(marker.range.from);
-            // @ts-ignore
-            const endOffset = targetView.editor.posToOffset(marker.range.to);
-            
-            if (startOffset === null || endOffset === null || 
-                startOffset === undefined || endOffset === undefined) {
-              continue;
-            }
-            
-            const from = Math.min(startOffset, endOffset);
-            const to = Math.max(startOffset, endOffset);
-            
-            // Calcular estilo
-            // @ts-ignore
-            const editorElement = targetView.editor.cm.dom;
-            const computedStyle = window.getComputedStyle(editorElement);
-            const currentFontSize = parseFloat(computedStyle.fontSize);
-            const lineHeight = parseFloat(computedStyle.lineHeight) || currentFontSize * 1.2;
-            
-            const paddingRatio = calculatePaddingRatio(currentFontSize, lineHeight);
-            const paddingValue = Math.max(currentFontSize * paddingRatio, 1);
-            
-            let bgColor = 'rgba(98, 0, 238, 0.4)';
-            let handleColor = '#6200EE';
-            
-            if (marker.color && marker.color.startsWith('#')) {
-              const r = parseInt(marker.color.slice(1, 3), 16);
-              const g = parseInt(marker.color.slice(3, 5), 16);
-              const b = parseInt(marker.color.slice(5, 7), 16);
-              bgColor = `rgba(${r}, ${g}, ${b}, ${settings.markerOpacity})`;
-              handleColor = marker.color;
-            }
-            
-            // Decoração de destaque
-            const highlightDecoration = Decoration.mark({
-              class: 'codemarker-highlight',
-              attributes: {
-                'data-marker-id': marker.id,
-                'style': `background-color: ${bgColor}; padding: ${paddingValue}px 0;`
-              }
-            });
-            
-            allDecorations.push({ from, to, decoration: highlightDecoration });
-            
-            // Alças (apenas se configurado ou com hover)
-            const isHovered = marker.id === this.hoveredMarkerId;
-            const shouldShowHandles = !settings.showHandlesOnHover || isHovered;
-            
-            if (shouldShowHandles) {
-              // Alça de início
-              const startHandle = Decoration.widget({
-                widget: new HandleWidget(marker, 'start', handleColor, settings, isHovered),
-                side: -1,
-                block: false
-              });
-              
-              allDecorations.push({ from, to: from, decoration: startHandle });
-              
-              // Alça de fim
-              const endHandle = Decoration.widget({
-                widget: new HandleWidget(marker, 'end', handleColor, settings, isHovered),
-                side: 1,
-                block: false
-              });
-              
-              allDecorations.push({ from: to, to: to, decoration: endHandle });
-            }
-            
-          } catch (e) {
-            console.error(`❌ [${this.instanceId}] Erro ao criar decoração para marcador ${marker.id}:`, e);
-          }
-        }
-        
-        // Ordenar e construir
-        allDecorations.sort((a, b) => {
-          if (a.from !== b.from) return a.from - b.from;
-          if (a.to !== b.to) return a.to - b.to;
-          
-          const aIsMark = a.from !== a.to;
-          const bIsMark = b.from !== b.to;
-          
-          if (aIsMark && !bIsMark) return 1;
-          if (!aIsMark && bIsMark) return -1;
-          
-          return 0;
-        });
-        
-        for (const deco of allDecorations) {
-          builder.add(deco.from, deco.to, deco.decoration);
-        }
-        
-        this.decorations = builder.finish();
-        console.log(`✅ [${this.instanceId}] Construídas ${allDecorations.length} decorações`);
-      }
-      
-      private getViewForFile(fileId: string): MarkdownView | null {
-        const app = model.plugin.app;
-        const leaves = app.workspace.getLeavesOfType('markdown');
-        
-        for (const leaf of leaves) {
-          const view = leaf.view;
-          if (view instanceof MarkdownView && view.file?.path === fileId) {
-            return view;
-          }
-        }
-        return null;
-      }
-      
-      // 🔍 MELHORADO: Verificar marcador na posição (com prioridade para menores)
+      // 🔥 MÉTODO PARA DETECTAR MARCADOR POR POSIÇÃO
       getMarkerAtPos(view: EditorView, pos: number): string | null {
         if (!this.fileId) return null;
         
         const markers = model.getMarkersForFile(this.fileId);
-        const foundMarkers: Array<{marker: any, size: number}> = [];
         
         for (const marker of markers) {
           try {
-            let startOffset: number, endOffset: number;
+            const startOffset = view.state.doc.line(marker.range.from.line + 1).from + marker.range.from.ch;
+            const endOffset = view.state.doc.line(marker.range.to.line + 1).from + marker.range.to.ch;
             
-            // Tentar primeiro método (mais direto)
-            try {
-              startOffset = view.state.doc.line(marker.range.from.line + 1).from + marker.range.from.ch;
-              endOffset = view.state.doc.line(marker.range.to.line + 1).from + marker.range.to.ch;
-            } catch (e) {
-              // Método alternativo se o primeiro falhar
-              const targetView = this.getViewForFile(this.fileId);
-              if (!targetView?.editor) continue;
-              
-              // @ts-ignore
-              startOffset = targetView.editor.posToOffset(marker.range.from);
-              // @ts-ignore
-              endOffset = targetView.editor.posToOffset(marker.range.to);
-            }
-            
-            if (startOffset === null || endOffset === null || 
-                startOffset === undefined || endOffset === undefined) {
-              continue;
-            }
-            
-            // Verificar se a posição está dentro desta marcação
             if (pos >= startOffset && pos <= endOffset) {
-              const size = endOffset - startOffset; // Tamanho da marcação
-              foundMarkers.push({ marker, size });
-              
-              console.log(`📍 [${this.instanceId}] Marcador ${marker.id} contém posição ${pos}:`, {
-                range: `${startOffset}-${endOffset}`,
-                size,
-                text: marker.range
-              });
+              return marker.id;
             }
-            
           } catch (e) {
-            console.error(`❌ [${this.instanceId}] Erro ao verificar marcador ${marker.id}:`, e);
+            // Ignorar erro
           }
         }
         
-        if (foundMarkers.length === 0) {
-          return null;
+        return null;
+      }
+      
+      // 🔥 MÉTODO PARA ATUALIZAR POSIÇÃO DO MARCADOR (PUBLIC para event handlers)
+      updateMarkerPosition(view: EditorView, markerId: string, newPos: number, type: 'start' | 'end') {
+        if (!this.fileId) return;
+        
+        const marker = model.getMarkerById(markerId);
+        if (!marker || marker.fileId !== this.fileId) return;
+        
+        try {
+          // Converter offset para posição
+          const newPosConverted = model.offsetToPos(newPos, this.fileId);
+          if (!newPosConverted) return;
+          
+          // Atualizar o marcador
+          const updatedMarker = { ...marker };
+          
+          if (type === 'start') {
+            // Garantir que start não passe do end
+            if (model.isPositionBefore(newPosConverted, marker.range.to) || 
+                (newPosConverted.line === marker.range.to.line && newPosConverted.ch === marker.range.to.ch)) {
+              updatedMarker.range.from = newPosConverted;
+            }
+          } else {
+            // Garantir que end não fique antes do start
+            if (model.isPositionAfter(newPosConverted, marker.range.from) || 
+                (newPosConverted.line === marker.range.from.line && newPosConverted.ch === marker.range.from.ch)) {
+              updatedMarker.range.to = newPosConverted;
+            }
+          }
+          
+          updatedMarker.updatedAt = Date.now();
+          
+          // Salvar e atualizar
+          model.updateMarker(updatedMarker);
+          model.updateMarkersForFile(this.fileId);
+          
+        } catch (e) {
+          console.error('Erro ao atualizar posição do marcador:', e);
         }
-        
-        // 🔥 PRIORIDADE: Retornar a marcação MENOR (mais específica) quando há sobreposição
-        foundMarkers.sort((a, b) => a.size - b.size);
-        const selectedMarker = foundMarkers[0].marker;
-        
-        console.log(`✅ [${this.instanceId}] Marcador selecionado: ${selectedMarker.id}`, {
-          totalFound: foundMarkers.length,
-          sizes: foundMarkers.map(f => f.size),
-          selected: `${selectedMarker.id} (tamanho: ${foundMarkers[0].size})`
-        });
-        
-        return selectedMarker.id;
       }
       
       private setupFontChangeDetection(view: EditorView) {
-        const handleZoom = (e: WheelEvent) => {
-          if (e.ctrlKey || e.metaKey) {
-            requestAnimationFrame(() => this.checkFontChange(view));
-          }
-        };
-
-        const mutationObserver = new MutationObserver(() => {
-          this.checkFontChange(view);
-        });
-
-        const resizeObserver = new ResizeObserver(() => {
-          this.checkFontChange(view);
-        });
-
-        view.dom.addEventListener('wheel', handleZoom, { passive: true });
-        mutationObserver.observe(document.body, { 
-          attributes: true, 
-          attributeFilter: ['style', 'class'] 
-        });
-        mutationObserver.observe(document.documentElement, { 
-          attributes: true, 
-          attributeFilter: ['style', 'class'] 
-        });
-        resizeObserver.observe(view.dom);
-
-        this.cleanup = [
-          () => view.dom.removeEventListener('wheel', handleZoom),
-          () => mutationObserver.disconnect(),
-          () => resizeObserver.disconnect()
-        ];
-      }
-      
-      private checkFontChange(view: EditorView) {
-        const currentFontSize = this.getCurrentFontSize(view);
-        
-        if (Math.abs(currentFontSize - this.lastFontSize) > 0.1) {
-          console.log(`🔄 [${this.instanceId}] Fonte mudou de ${this.lastFontSize}px para ${currentFontSize}px`);
-          this.lastFontSize = currentFontSize;
-          this.rebuildDecorations(view);
-        }
+        this.cleanup = [];
       }
       
       update(update: ViewUpdate) {
-        // Verificar mudanças durante updates do viewport
-        if (update.geometryChanged || update.viewportChanged) {
-          this.checkFontChange(update.view);
+        console.log(`🔄 [DEBUG] ViewPlugin ${this.instanceId} update() chamado`);
+        
+        // 🔥 CORREÇÃO: Apenas re-identificar se necessário, SEM dispatch durante update
+        if (!this.fileId || !this.fileIdSent) {
+          console.log(`🔍 [DEBUG] ViewPlugin ${this.instanceId} re-identificando arquivo no update...`);
+          
+          // 🔥 CRÍTICO: Usar setTimeout para evitar dispatch durante update
+          setTimeout(() => {
+            this.identifyAndSendFileId(update.view);
+          }, 0);
         }
         
-        // Re-identificar arquivo se necessário
-        if (!this.fileId) {
-          this.fileId = this.identifyFileForView(update.view);
-          if (this.fileId) {
-            this.rebuildDecorations(update.view);
-          }
-        }
-        
-        // Processar efeitos
-        let needsRebuild = false;
-        
-        for (const effect of update.transactions.flatMap(tr => tr.effects)) {
-          if (effect.is(updateFileMarkersEffect)) {
-            const { fileId } = effect.value;
-            if (fileId === this.fileId) {
-              needsRebuild = true;
-              console.log(`🔄 [${this.instanceId}] Rebuild solicitado para ${fileId}`);
-            }
-          }
-          else if (effect.is(setHoverEffect)) {
-            const { markerId } = effect.value;
-            
-            // Só processar se for marcador deste arquivo
-            if (markerId) {
-              const marker = model.getMarkerById(markerId);
-              if (!marker || marker.fileId !== this.fileId) {
-                continue; // Ignorar marcador de outro arquivo
-              }
-            }
-            
-            if (this.hoveredMarkerId !== markerId) {
-              this.hoveredMarkerId = markerId;
-              needsRebuild = true;
-              console.log(`🔍 [${this.instanceId}] Hover mudou para: ${markerId}`);
-            }
-          }
-          else if (effect.is(startDragEffect)) {
-            const { markerId } = effect.value;
-            const marker = model.getMarkerById(markerId);
-            
-            if (marker && marker.fileId === this.fileId) {
-              this.hoveredMarkerId = markerId;
-              needsRebuild = true;
-              console.log(`🎯 [${this.instanceId}] Iniciando arraste: ${markerId}`);
-            }
-          }
-          else if (effect.is(updateDragEffect)) {
-            const { markerId, pos, type } = effect.value;
-            const marker = model.getMarkerById(markerId);
-            
-            if (marker && marker.fileId === this.fileId) {
-              try {
-                const targetView = this.getViewForFile(this.fileId);
-                if (targetView?.editor) {
-                  // @ts-ignore
-                  const posObj = targetView.editor.offsetToPos(pos);
-                  
-                  if (type === 'start') {
-                    if (model.isPositionBefore(posObj, marker.range.to)) {
-                      marker.range.from = posObj;
-                    }
-                  } else {
-                    if (model.isPositionAfter(posObj, marker.range.from)) {
-                      marker.range.to = posObj;
-                    }
-                  }
-                  
-                  this.hoveredMarkerId = markerId;
-                  needsRebuild = true;
-                }
-              } catch (e) {
-                console.error(`❌ [${this.instanceId}] Erro durante arraste:`, e);
-              }
-            }
-          }
-          else if (effect.is(endDragEffect)) {
-            const { markerId } = effect.value;
-            const marker = model.getMarkerById(markerId);
-            
-            if (marker && marker.fileId === this.fileId) {
-              marker.updatedAt = Date.now();
-              model.updateMarker(marker);
-              console.log(`✅ [${this.instanceId}] Arraste finalizado: ${markerId}`);
-            }
-          }
-        }
-        
-        if (needsRebuild) {
-          this.rebuildDecorations(update.view);
-        }
+        // 🔥 REMOVIDO: Não fazer dispatch durante update() - isso causa recursão infinita!
+        // O StateField já mapeia decorações automaticamente via tr.changes
       }
       
       destroy() {
-        console.log(`🗑️ Destruindo instância ${this.instanceId} do arquivo ${this.fileId}`);
+        console.log(`🗑️ [DEBUG] ViewPlugin ${this.instanceId} destroy() chamado`);
+        
         this.cleanup.forEach(cleanupFn => cleanupFn());
         this.dragging = null;
         this.hoveredMarkerId = null;
+        this.fileIdSent = false;
         
-        if (this.dragging) {
-          document.body.classList.remove('codemarker-dragging');
-          document.body.classList.remove('codemarker-dragging-start', 'codemarker-dragging-end');
-        }
+        // Limpar cursors de arraste
+        document.body.classList.remove('codemarker-dragging', 'codemarker-dragging-start', 'codemarker-dragging-end');
+        
+        console.log(`✅ [DEBUG] ViewPlugin ${this.instanceId} destroy() finalizado`);
       }
     },
     {
-      // 🔥 IMPORTANTE: Fornecer decorações ao editor
-      decorations: (value) => value.decorations,
-      
       eventHandlers: {
+        // 🔥 MOUSEDOWN - DETECTAR INÍCIO DE ARRASTE
         mousedown(event: MouseEvent, view: EditorView) {
-          const target = event.target as Element;
+          const target = event.target as HTMLElement;
           
-          if (target.tagName === 'svg' || 
-              target.tagName === 'rect' || 
-              target.tagName === 'circle' ||
+          // Verificar se clicou em uma alça
+          if (target.closest('.codemarker-handle-svg') || 
               target.classList.contains('codemarker-circle') ||
               target.classList.contains('codemarker-line') ||
               target.classList.contains('codemarker-handle-svg')) {
             
-            const svgElement = target.closest('svg') || target;
-            const handleType = svgElement.getAttribute('data-handle-type') as 'start' | 'end';
-            const markerId = svgElement.getAttribute('data-marker-id');
+            const markerId = target.getAttribute('data-marker-id') || 
+                           target.closest('[data-marker-id]')?.getAttribute('data-marker-id');
+            const handleType = target.getAttribute('data-handle-type') || 
+                             target.closest('[data-handle-type]')?.getAttribute('data-handle-type');
             
-            if (markerId && (handleType === 'start' || handleType === 'end')) {
-              const marker = model.getMarkerById(markerId);
-              if (!marker || marker.fileId !== this.fileId) {
-                return false;
-              }
-              
-              console.log(`🎯 [${this.instanceId}] Iniciando arraste do marcador ${markerId}`);
+            if (markerId && handleType && (handleType === 'start' || handleType === 'end')) {
+              console.log(`🔥 [DEBUG] ViewPlugin ${this.instanceId} iniciando arraste:`, {
+                markerId,
+                handleType
+              });
               
               event.preventDefault();
               event.stopPropagation();
               
-              this.dragging = { markerId, type: handleType };
+              // Definir estado de arraste
+              this.dragging = { markerId, type: handleType as 'start' | 'end' };
               
+              // Aplicar cursors visuais
               document.body.classList.add('codemarker-dragging');
-              document.body.classList.add(handleType === 'start' ? 'codemarker-dragging-start' : 'codemarker-dragging-end');
+              if (handleType === 'start') {
+                document.body.classList.add('codemarker-dragging-start');
+              } else {
+                document.body.classList.add('codemarker-dragging-end');
+              }
               
+              // Enviar efeito para StateField
               view.dispatch({
-                effects: startDragEffect.of({ markerId, type: handleType })
+                effects: startDragEffect.of({ markerId, type: handleType as 'start' | 'end' })
               });
+              
+              // Capturar pointer se disponível
+              if ('setPointerCapture' in target && event instanceof PointerEvent) {
+                (target as any).setPointerCapture(event.pointerId);
+              }
               
               return true;
             }
           }
           
+          console.log(`🖱️ [DEBUG] ViewPlugin mousedown normal capturado`);
           return false;
         },
         
+        // 🔥 MOUSEMOVE - ARRASTAR + HOVER
         mousemove(event: MouseEvent, view: EditorView) {
+          // 🔥 LÓGICA DE ARRASTE
           if (this.dragging) {
-            const marker = model.getMarkerById(this.dragging.markerId);
-            if (!marker || marker.fileId !== this.fileId) {
-              return false;
+            event.preventDefault();
+            
+            const coords = { x: event.clientX, y: event.clientY };
+            let pos = view.posAtCoords(coords);
+            
+            // Se saiu da viewport, tentar posição aproximada
+            if (pos === null) {
+              pos = view.posAtCoords(coords, false);
             }
             
-            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-            if (pos === null) return false;
-            
-            view.dispatch({
-              effects: updateDragEffect.of({
-                markerId: this.dragging.markerId,
-                pos,
-                type: this.dragging.type
-              })
-            });
+            if (pos !== null) {
+              console.log(`🔄 [DEBUG] ViewPlugin ${this.instanceId} arrastando para posição:`, pos);
+              
+              // Atualizar posição do marcador
+              this.updateMarkerPosition(view, this.dragging.markerId, pos, this.dragging.type);
+              
+              // Enviar efeito de atualização
+              view.dispatch({
+                effects: updateDragEffect.of({ 
+                  markerId: this.dragging.markerId, 
+                  pos, 
+                  type: this.dragging.type 
+                })
+              });
+            }
             
             return true;
           }
           
-          // 🔍 MELHORADO: Detectar hover com logs detalhados
+          // 🔥 LÓGICA DE HOVER (apenas se não estiver arrastando)
           const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
           if (pos !== null) {
             const markerId = this.getMarkerAtPos(view, pos);
             
-            // Se mudou o estado de hover
             if (markerId !== this.hoveredMarkerId) {
-              if (this.hoveredMarkerId && markerId) {
-                console.log(`🔄 [${this.instanceId}] Hover mudou de ${this.hoveredMarkerId} para ${markerId} na posição ${pos}`);
-              } else if (this.hoveredMarkerId && !markerId) {
-                console.log(`👋 [${this.instanceId}] Saiu da marcação ${this.hoveredMarkerId} na posição ${pos}`);
-              } else if (!this.hoveredMarkerId && markerId) {
-                console.log(`🎯 [${this.instanceId}] Entrou na marcação ${markerId} na posição ${pos}`);
-              }
+              console.log(`🖱️ [DEBUG] ViewPlugin ${this.instanceId} hover mudou para: ${markerId}`);
+              this.hoveredMarkerId = markerId;
               
               view.dispatch({
                 effects: setHoverEffect.of({ markerId })
@@ -522,27 +355,42 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
           return false;
         },
         
+        // 🔥 MOUSEUP - FINALIZAR ARRASTE
         mouseup(event: MouseEvent, view: EditorView) {
-          if (!this.dragging) return false;
-          
-          const marker = model.getMarkerById(this.dragging.markerId);
-          if (!marker || marker.fileId !== this.fileId) {
-            return false;
+          if (this.dragging) {
+            console.log(`🔥 [DEBUG] ViewPlugin ${this.instanceId} finalizando arraste:`, this.dragging.markerId);
+            
+            const markerId = this.dragging.markerId;
+            
+            // Limpar estado de arraste
+            this.dragging = null;
+            
+            // Remover cursors visuais
+            document.body.classList.remove('codemarker-dragging', 'codemarker-dragging-start', 'codemarker-dragging-end');
+            
+            // Liberar pointer capture
+            const target = event.target as HTMLElement;
+            if ('releasePointerCapture' in target && event instanceof PointerEvent) {
+              (target as any).releasePointerCapture(event.pointerId);
+            }
+            
+            // Enviar efeito de fim de arraste
+            view.dispatch({
+              effects: endDragEffect.of({ markerId })
+            });
+            
+            return true;
           }
           
-          document.body.classList.remove('codemarker-dragging');
-          document.body.classList.remove('codemarker-dragging-start', 'codemarker-dragging-end');
-          
-          view.dispatch({
-            effects: endDragEffect.of({ markerId: this.dragging.markerId })
-          });
-          
-          this.dragging = null;
-          return true;
+          return false;
         },
         
+        // 🔥 MOUSELEAVE - LIMPAR HOVER
         mouseleave(event: MouseEvent, view: EditorView) {
           if (this.hoveredMarkerId) {
+            console.log(`👋 [DEBUG] ViewPlugin ${this.instanceId} mouse saiu do editor`);
+            this.hoveredMarkerId = null;
+            
             view.dispatch({
               effects: setHoverEffect.of({ markerId: null })
             });
