@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS: CodeMarkerSettings = {
   displayInPreviewMode: true,
   storeMarkersInFrontmatter: true,
   markerOpacity: 0.4,
-  showHandlesOnHover: false,
+  showHandlesOnHover: true,  // 🔍 MUDANÇA: Agora true por padrão
   handleSize: 12
 };
 

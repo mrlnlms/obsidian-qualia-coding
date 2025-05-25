@@ -8,6 +8,9 @@ export const startDragEffect = StateEffect.define<{markerId: string, type: 'star
 export const updateDragEffect = StateEffect.define<{markerId: string, pos: number, type: 'start' | 'end'}>()
 export const endDragEffect = StateEffect.define<{markerId: string}>()
 
+// 🔍 NOVO: Efeito para rastrear hover sobre marcações
+export const setHoverEffect = StateEffect.define<{markerId: string | null}>();
+
 /**
  * Widget extremamente simplificado que mostra ambas as alças juntas
  */
@@ -129,7 +132,8 @@ export class HandleWidget extends WidgetType {
     private marker: Marker,
     private type: 'start' | 'end',
     private color: string,
-    private settings: CodeMarkerSettings
+    private settings: CodeMarkerSettings,
+    private isHovered: boolean = false // 🔍 NOVO: rastrear se está com hover
   ) { 
     super();
   }
@@ -247,7 +251,8 @@ export class HandleWidget extends WidgetType {
   eq(widget: WidgetType): boolean {
     if (!(widget instanceof HandleWidget)) return false;
     return this.marker.id === widget.marker.id && 
-           this.type === widget.type;
+           this.type === widget.type &&
+           this.isHovered === widget.isHovered; // 🔍 NOVO: considerar hover na comparação
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -258,11 +263,6 @@ export class HandleWidget extends WidgetType {
     const handle = document.createElement('div');
     handle.className = `codemarker-handle ${this.type}-handle`;
     
-    // Adicionar classe específica se o modo hover estiver ativo
-    if (this.settings.showHandlesOnHover) {
-      handle.classList.add('handles-hover-mode');
-    }
-
     handle.setAttribute('data-marker-id', this.marker.id);
     handle.setAttribute('data-handle-type', this.type);
     
@@ -307,6 +307,15 @@ export class HandleWidget extends WidgetType {
     svg.classList.add("codemarker-handle-svg");
     svg.setAttribute('data-marker-id', this.marker.id);
     svg.setAttribute('data-handle-type', this.type);
+    
+    // 🔍 NOVO: Aplicar classe baseada no hover e configuração
+    if (this.settings.showHandlesOnHover) {
+      if (this.isHovered) {
+        svg.classList.add('codemarker-handle-visible');
+      } else {
+        svg.classList.add('codemarker-handle-hidden');
+      }
+    }
 
     const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
     

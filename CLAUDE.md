@@ -16,7 +16,7 @@
 - Timestamp: TBD
 
 ## Learnings
-- Ultimo learning capturado: v18
+- Ultimo learning capturado: v19
 
 ## Ambiente
 - npm run dev: precisa iniciar

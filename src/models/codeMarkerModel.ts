@@ -17,13 +17,8 @@ export interface Marker {
 
 export class CodeMarkerModel {
   private markers: Map<string, Marker[]> = new Map();
-  private plugin: CodeMarkerPlugin;
+  plugin: CodeMarkerPlugin;
   
-  // Remova esses efeitos daqui, pois agora estarão em markerStateField.ts
-  // private addMarkerEffect = StateEffect.define<Marker>();
-  // private removeMarkerEffect = StateEffect.define<string>();
-  // private updateMarkersEffect = StateEffect.define<Marker[]>();
-
   constructor(plugin: CodeMarkerPlugin) {
     this.plugin = plugin;
   }
@@ -36,10 +31,13 @@ export class CodeMarkerModel {
         this.markers.set(fileId, data.markers[fileId]);
       }
       
-      // Atualizar visualização para o arquivo atual
-      const activeView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-      if (activeView && activeView.file) {
-        this.updateMarkersForFile(activeView.file.path);
+      // 🔍 MELHORADO: Atualizar visualização para TODOS os arquivos abertos
+      const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
+      for (const leaf of leaves) {
+        const view = leaf.view;
+        if (view instanceof MarkdownView && view.file) {
+          this.updateMarkersForFile(view.file.path);
+        }
       }
     }
   }
@@ -100,18 +98,10 @@ export class CodeMarkerModel {
     this.plugin.saveData({ markers: data });
   }
   
-  // Este método será substituído pela implementação em markerStateField.ts
-  // Então vamos removê-lo 
-  // getEditorExtension() { ... }
-  
-  // Este método provavelmente não será mais necessário
-  // createDecorationFromMarker(marker: Marker) { ... }
-  
-  // Converter posição de linha/coluna para offset no documento
-  // Este método continuará sendo útil
-  posToOffset(pos: {line: number, ch: number}): number | null {
+  // 🔍 MELHORADO: Converter posição usando view específica
+  posToOffset(pos: {line: number, ch: number}, fileId?: string): number | null {
     try {
-      const view = this.getActiveView();
+      const view = fileId ? this.getViewForFile(fileId) : this.getActiveView();
       if (!view?.editor) return null;
       
       // @ts-ignore - Acessando propriedades internas do editor
@@ -122,10 +112,10 @@ export class CodeMarkerModel {
     }
   }
   
-  // Converter offset para posição {line, ch}
-  offsetToPos(offset: number): {line: number, ch: number} | null {
+  // 🔍 MELHORADO: Converter offset usando view específica
+  offsetToPos(offset: number, fileId?: string): {line: number, ch: number} | null {
     try {
-      const view = this.getActiveView();
+      const view = fileId ? this.getViewForFile(fileId) : this.getActiveView();
       if (!view?.editor) return null;
       
       // @ts-ignore - Acessando propriedades internas do editor
@@ -136,21 +126,32 @@ export class CodeMarkerModel {
     }
   }
   
-  // Este método será adaptado para usar o novo sistema
-updateMarkersForFile(fileId: string) {
-    const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+  // 🔍 MELHORADO: Atualizar marcadores para arquivo específico em todas as suas instâncias
+  updateMarkersForFile(fileId: string) {
+    console.log('🔄 updateMarkersForFile chamado para:', fileId);
     
-    if (!view || !view.file || view.file.path !== fileId) return;
+    // Atualizar TODAS as instâncias do arquivo (pode haver splits/panes múltiplos)
+    const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
+    let updatedCount = 0;
     
-    // @ts-ignore - Acessando a instância interna do editor
-    const editorView = view.editor.cm;
-    
-    if (editorView && this.plugin.updateFileMarkersEffect) {
-      // Usando o StateEffect corretamente
-      editorView.dispatch({
-        effects: this.plugin.updateFileMarkersEffect.of({ fileId })
-      });
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === fileId) {
+        // @ts-ignore - Acessando a instância interna do editor
+        const editorView = view.editor?.cm;
+        
+        if (editorView && this.plugin.updateFileMarkersEffect) {
+          console.log(`📝 Atualizando marcações para view do arquivo: ${fileId}`);
+          // Usando o StateEffect corretamente
+          editorView.dispatch({
+            effects: this.plugin.updateFileMarkersEffect.of({ fileId })
+          });
+          updatedCount++;
+        }
+      }
     }
+    
+    console.log(`✅ Atualizadas ${updatedCount} views para o arquivo ${fileId}`);
   }
 
   getMarkerById(markerId: string): Marker | null {
@@ -163,7 +164,7 @@ updateMarkersForFile(fileId: string) {
     return null;
   }
   
-  // Adicione este método para obter todos os marcadores de um arquivo
+  // Obter todos os marcadores de um arquivo específico
   getMarkersForFile(fileId: string): Marker[] {
     return this.markers.get(fileId) || [];
   }
@@ -181,7 +182,7 @@ updateMarkersForFile(fileId: string) {
     }
   }
   
-  // Adicione este método para remover um marcador
+  // Remover um marcador específico
   removeMarker(markerId: string) {
     for (const [fileId, markers] of this.markers.entries()) {
       const index = markers.findIndex(m => m.id === markerId);
@@ -195,8 +196,38 @@ updateMarkersForFile(fileId: string) {
     return false;
   }
 
+  // 🔍 MANTIDO: Obter view ativa (para compatibilidade)
   getActiveView(): MarkdownView | null {
     return this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+  }
+
+  // 🔍 NOVO: Obter view específica para um arquivo
+  getViewForFile(fileId: string): MarkdownView | null {
+    const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
+    
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === fileId) {
+        return view;
+      }
+    }
+    
+    return null;
+  }
+
+  // 🔍 NOVO: Obter todas as views para um arquivo (para casos de split/panes múltiplos)
+  getAllViewsForFile(fileId: string): MarkdownView[] {
+    const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
+    const views: MarkdownView[] = [];
+    
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === fileId) {
+        views.push(view);
+      }
+    }
+    
+    return views;
   }
 
   // Esses métodos de verificação de posição são úteis e serão mantidos
@@ -216,20 +247,34 @@ updateMarkersForFile(fileId: string) {
     this.markers.clear();
     this.plugin.saveData({ markers: {} });
 
-    const view = this.getActiveView();
-    if (!view?.file) return;
-
-    // Atualizar a visualização do arquivo atual
-    this.updateMarkersForFile(view.file.path);
+    // 🔍 MELHORADO: Atualizar visualização de TODOS os arquivos abertos
+    const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file) {
+        this.updateMarkersForFile(view.file.path);
+      }
+    }
   }
 
   getSettings(): CodeMarkerSettings {
     return this.plugin.settings;
   }
   
-  // recalculateAllMarkers() {
-  //   const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-  //   if (!view?.file) return;
-  //   this.updateMarkersForFile(view.file.path);
-  // }
+  // 🔍 NOVO: Método para debug - listar todas as instâncias ativas
+  debugListActiveInstances(): void {
+    const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
+    
+    console.log('🔍 DEBUG: Instâncias ativas do CodeMarker:');
+    for (let i = 0; i < leaves.length; i++) {
+      const leaf = leaves[i];
+      const view = leaf.view;
+      if (view instanceof MarkdownView) {
+        console.log(`  ${i + 1}. Arquivo: ${view.file?.path || 'Sem arquivo'}`);
+        console.log(`     View: `, view);
+        // @ts-ignore
+        console.log(`     Editor: `, view.editor?.cm);
+      }
+    }
+  }
 }

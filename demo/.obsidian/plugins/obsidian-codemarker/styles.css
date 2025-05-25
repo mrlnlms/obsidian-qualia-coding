@@ -1,81 +1,267 @@
-/* Estilos para o CodeMarker */
+/* ========================================
+   CodeMarker - Estilos do Plugin
+   ======================================== */
 
-/* Estilo básico para as marcações */
+/* Marcação de texto destacado */
 .codemarker-highlight {
   border-radius: 2px;
   transition: background-color 0.2s ease;
+  /* Garantir que a marcação não interfira com o fluxo do texto */
+  position: relative;
+  z-index: 1;
 }
 
-/* Tornar todas as alças visíveis SEMPRE */
-/* Efeito de interação nas alças */
-.codemarker-circle {
-  transform-origin: 50% 50%;  /* Define o ponto de origem exatamente no centro do círculo */
-  transition: transform 0.1s ease;
-  transform: scale(1);  /* Estado inicial explícito */
-  will-change: transform;  /* Otimiza a performance da animação */
+/* ========================================
+   🔥 CORREÇÃO: Alças independentes do background
+   ======================================== */
+
+/* Container das alças - ISOLAMENTO TOTAL do background da marcação */
+.codemarker-handles-container {
+  position: relative !important;
+  display: inline-block !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: visible !important;
+  z-index: 9999 !important;
+  pointer-events: none !important;
+  /* 🔥 CRÍTICO: Resetar qualquer background herdado */
+  background: none !important;
+  background-color: transparent !important;
 }
 
-/* ************************************************************************* */
+/* 🔥 NOVO: Isolamento específico para alças dentro de marcações */
+.codemarker-highlight .codemarker-handles-container,
+.codemarker-highlight .codemarker-handle,
+.codemarker-highlight .codemarker-handle-svg {
+  background: none !important;
+  background-color: transparent !important;
+}
 
+/* ========================================
+   Alças (Handles) - Estilos Base
+   ======================================== */
+
+/* SVG Container das alças */
 .codemarker-handle-svg {
-  opacity: 1 !important;
   filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));
   transform-origin: center;
+  opacity: 1;
+  pointer-events: auto !important;
+  z-index: 10000 !important;
+  position: absolute !important;
+  /* 🔥 ISOLAMENTO: Garantir que não herda background */
+  background: none !important;
+  background-color: transparent !important;
 }
 
-
+/* Elementos internos das alças */
 .codemarker-circle,
 .codemarker-line {
   transform-origin: center;
   transition: transform 0.1s ease;
+  pointer-events: auto !important;
+  /* 🔥 ISOLAMENTO: SVG elements não devem ter background */
+  background: none !important;
 }
 
-/* Ajustar o scale para manter a posição */
+/* 🔥 ISOLAMENTO ESPECÍFICO: Alças dentro de qualquer marcação */
+.codemarker-highlight .codemarker-circle,
+.codemarker-highlight .codemarker-line,
+.codemarker-highlight .codemarker-handle-svg,
+.codemarker-highlight .codemarker-handle {
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* ========================================
+   Alças - Estados de Visibilidade
+   ======================================== */
+
+/* Alça oculta - usa scale e opacity para efeito visual */
+.codemarker-handle-svg.codemarker-handle-hidden {
+  opacity: 0 !important;
+  transform: scale(0.8) !important;
+  pointer-events: none !important;
+  transition: opacity 0.2s ease, transform 0.2s ease !important;
+  background: none !important;
+}
+
+/* Alça visível - escala normal */
+.codemarker-handle-svg.codemarker-handle-visible {
+  opacity: 1 !important;
+  transform: scale(1) !important;
+  pointer-events: auto !important;
+  /* Pequena animação de entrada */
+  animation: fadeInScale 0.2s ease-out;
+  background: none !important;
+}
+
+/* Animação de entrada suave */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ========================================
+   Alças - Efeitos de Hover
+   ======================================== */
+
+/* Aumenta o círculo no hover */
 .codemarker-handle-svg:hover .codemarker-circle {
   transform: scale(1.2);
-  transform-origin: center center;
+  filter: brightness(1.1);
 }
 
-
-
+/* Aumenta a linha verticalmente no hover */
 .codemarker-handle-svg:hover .codemarker-line {
-  transform: scaleY(1.2); /* Escala apenas verticalmente */
-  transform-origin: center center;
+  transform: scaleY(1.2);
+  filter: brightness(1.1);
 }
 
+/* Efeito de hover na alça completa */
+.codemarker-handle-svg:hover {
+  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.4));
+  background: none !important; /* 🔥 Manter isolamento mesmo no hover */
+}
 
+/* ========================================
+   Estados de Arraste
+   ======================================== */
 
-/* ************************************************************************* */
-
-/* Estilos para quando está arrastando */
+/* Cursor geral durante arraste */
 body.codemarker-dragging {
   cursor: grabbing !important;
+  user-select: none !important;
 }
 
+/* Cursor específico para alça inicial */
 body.codemarker-dragging-start {
   cursor: w-resize !important;
 }
 
+/* Cursor específico para alça final */
 body.codemarker-dragging-end {
   cursor: e-resize !important;
 }
 
-/* Estilo base para os handles quando showHandlesOnHover está ativo */
-.handles-hover-mode .codemarker-handle {
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
-  pointer-events: none;
+/* Reduzir opacidade das outras alças durante arraste */
+body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
+  opacity: 0.5;
+  background: none !important;
 }
 
-/* Mostrar handles quando o mouse está sobre a marcação */
-.codemarker-highlight.handles-hover-mode:hover .codemarker-handle {
-  opacity: 1;
-  pointer-events: auto;
+/* ========================================
+   🔥 ISOLAMENTO ADICIONAL PARA MARCAÇÕES SOBREPOSTAS
+   ======================================== */
+
+/* Garantir que marcações aninhadas não afetem alças */
+.codemarker-highlight .codemarker-highlight .codemarker-handle-svg,
+.codemarker-highlight .codemarker-highlight .codemarker-handle,
+.codemarker-highlight .codemarker-highlight .codemarker-handles-container {
+  background: none !important;
+  background-color: transparent !important;
 }
 
-/* Manter handle visível enquanto o mouse estiver sobre ele */
-.handles-hover-mode .codemarker-handle:hover {
-  opacity: 1;
-  pointer-events: auto;
+/* Isolamento para qualquer nível de aninhamento */
+.codemarker-highlight * .codemarker-handle-svg,
+.codemarker-highlight * .codemarker-handle,
+.codemarker-highlight * .codemarker-handles-container {
+  background: none !important;
+  background-color: transparent !important;
 }
 
+/* ========================================
+   Compatibilidade e Fixes
+   ======================================== */
+
+/* Garantir que as alças apareçam acima de outros elementos do Obsidian */
+.cm-editor .codemarker-handle-svg {
+  z-index: 10000 !important;
+  background: none !important;
+}
+
+/* Corrigir possíveis conflitos com temas do Obsidian */
+.codemarker-highlight * {
+  background: inherit !important;
+}
+
+/* 🔥 EXCEÇÃO: Alças NÃO devem herdar background */
+.codemarker-highlight .codemarker-handle-svg,
+.codemarker-highlight .codemarker-handle,
+.codemarker-highlight .codemarker-handles-container,
+.codemarker-highlight .codemarker-circle,
+.codemarker-highlight .codemarker-line {
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* Garantir que o texto dentro da marcação mantenha a cor original */
+.codemarker-highlight {
+  color: inherit !important;
+}
+
+/* Fix para modo escuro - garantir contraste das alças */
+.theme-dark .codemarker-circle {
+  stroke: #ffffff !important;
+}
+
+.theme-light .codemarker-circle {
+  stroke: #000000 !important;
+}
+
+/* ========================================
+   Responsividade e Acessibilidade
+   ======================================== */
+
+/* Tornar as alças mais visíveis em telas de alta resolução */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .codemarker-handle-svg {
+    filter: drop-shadow(0px 1px 3px rgba(0, 0, 0, 0.4));
+    background: none !important;
+  }
+}
+
+/* Melhorar visibilidade para usuários com necessidades especiais */
+@media (prefers-contrast: high) {
+  .codemarker-circle {
+    stroke-width: 2px !important;
+  }
+  
+  .codemarker-line {
+    opacity: 0.9 !important;
+  }
+}
+
+/* Respeitar preferência de animações reduzidas */
+@media (prefers-reduced-motion: reduce) {
+  .codemarker-handle-svg,
+  .codemarker-circle,
+  .codemarker-line {
+    transition: none !important;
+    animation: none !important;
+  }
+  
+  .codemarker-handle-svg.codemarker-handle-visible {
+    animation: none !important;
+  }
+}
+
+/* ========================================
+   Debug e Desenvolvimento
+   ======================================== */
+
+/* Classe para debug - mostrar bordas dos containers */
+.codemarker-debug .codemarker-handles-container {
+  border: 1px dashed red !important;
+  background: rgba(255, 0, 0, 0.1) !important;
+}
+
+.codemarker-debug .codemarker-highlight {
+  border: 1px dashed blue !important;
+}

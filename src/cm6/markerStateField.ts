@@ -1,27 +1,56 @@
 import { StateField, EditorState, StateEffect } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
-import { HandleWidget, startDragEffect, updateDragEffect, endDragEffect } from "./handleWidget";
+import { HandleWidget, startDragEffect, updateDragEffect, endDragEffect, setHoverEffect } from "./handleWidget";
 import { CodeMarkerModel } from "../models/codeMarkerModel";
 
 // Efeito para atualizar todas as marcações de um arquivo
 export const updateFileMarkersEffect = StateEffect.define<{fileId: string}>();
 
+// 🔍 Interface para o estado do campo - adicionar fileId
+interface MarkerFieldState {
+  decorations: DecorationSet;
+  hoveredMarkerId: string | null;
+  fileId: string | null; // 🔍 NOVO: Rastrear o arquivo deste StateField
+}
+
 // StateField para gerenciar as decorações de marcação e alças
 export const createMarkerStateField = (model: CodeMarkerModel) => {
-  return StateField.define<DecorationSet>({
-    create() {
-      return Decoration.none;
+  console.log('🏗️ StateField criado! ID único:', Math.random());
+  
+  return StateField.define<MarkerFieldState>({
+    create(): MarkerFieldState {
+      return {
+        decorations: Decoration.none,
+        hoveredMarkerId: null,
+        fileId: null // 🔍 NOVO
+      };
     },
     
-    update(decorations, tr) {
+    update(state, tr): MarkerFieldState {
       // Mapear decorações através de mudanças no documento
-      decorations = decorations.map(tr.changes);
+      let decorations = state.decorations.map(tr.changes);
+      let hoveredMarkerId = state.hoveredMarkerId;
+      let needsRebuild = false;
       
       // Processar efeitos de estado
       for (const effect of tr.effects) {
-        if (effect.is(startDragEffect)) {
-          // Iniciar arraste: não faz nada especial, apenas prepara o estado
+        if (effect.is(setHoverEffect)) {
+          // 🔍 NOVO: Atualizar estado de hover
+          hoveredMarkerId = effect.value.markerId;
+          needsRebuild = true;
+          console.log('🔍 StateField processando hover:', {
+            markerId: hoveredMarkerId,
+            fileId: '???', // Precisamos identificar qual arquivo é este StateField
+            stateId: Math.random() // Para ver se é o mesmo state ou diferente
+          });
+        }
+        else if (effect.is(startDragEffect)) {
+          // 🔍 IMPORTANTE: Ao iniciar arraste, definir o marcador como "hovered"
+          const { markerId } = effect.value;
+          hoveredMarkerId = markerId;
+          needsRebuild = true;
+          console.log('🎯 Iniciando arraste, marcador em hover:', markerId);
         } 
         else if (effect.is(updateDragEffect)) {
           const { markerId, pos, type } = effect.value;
@@ -48,8 +77,10 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
                 }
               }
               
-              // Reconstruir as decorações com o marcador atualizado
-              decorations = buildDecorationsForFile(tr.state, model, marker.fileId);
+              // 🔍 IMPORTANTE: Durante o arraste, manter o markerId como "hovered"
+              // para que suas alças permaneçam visíveis
+              hoveredMarkerId = markerId;
+              needsRebuild = true;
             } catch (e) {
               console.error("CodeMarker: Erro ao atualizar marcador durante arraste", e);
             }
@@ -68,55 +99,87 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
           }
         }
         else if (effect.is(updateFileMarkersEffect)) {
-          const fileId = effect.value.fileId;
           // Reconstruir todas as decorações para o arquivo
-          decorations = buildDecorationsForFile(tr.state, model, fileId);
+          needsRebuild = true;
         }
       }
       
-      return decorations;
+      // Se precisar reconstruir, fazer isso
+      if (needsRebuild) {
+        // 🔍 PROBLEMA: Não podemos usar getActiveView() aqui!
+        // Precisamos saber QUAL arquivo este StateField pertence
+        
+        // Tentativa de identificar o arquivo correto através do estado
+        const currentDoc = tr.state.doc.toString();
+        const firstLine = currentDoc.split('\n')[0];
+        console.log('🔍 StateField rebuild - primeira linha do doc:', firstLine.substring(0, 50));
+        
+        // Por enquanto, vamos usar o fileId do último efeito ou o arquivo ativo
+        let fileIdToUse = '';
+        
+        // Tentar pegar o fileId do último updateFileMarkersEffect
+        for (const effect of tr.effects) {
+          if (effect.is(updateFileMarkersEffect)) {
+            fileIdToUse = effect.value.fileId;
+            break;
+          }
+        }
+        
+        if (!fileIdToUse) {
+          const view = model.getActiveView();
+          fileIdToUse = view?.file?.path || '';
+        }
+        
+        console.log('🎯 Rebuilding para arquivo:', fileIdToUse);
+        decorations = buildDecorationsForFile(tr.state, model, fileIdToUse, hoveredMarkerId);
+      }
+      
+      return {
+        fileId: state.fileId,
+        decorations,
+        hoveredMarkerId
+      };
     },
     
-    provide: field => EditorView.decorations.from(field)
+    provide: field => EditorView.decorations.from(field, state => state.decorations)
   });
 };
 
 // Adicionar a função de cálculo do padding fora do buildDecorationsForFile
 function calculatePaddingRatio(fontSize: number, lineHeight: number): number {
-  // Valor base para fonte tamanho 16
-  // Aumentar = marcação mais alta
-  // Diminuir = marcação mais fina
   const baseRatio = 0.1875;
-
-  // Cálculo do espaçamento ideal entre linhas
   const idealSpacing = fontSize * 1.2;
   const actualSpacing = lineHeight;
-
-  // Ajuste baseado no espaçamento
-  // Aumentar 0.1 = mais sensível ao espaçamento entre linhas
-  // Diminuir 0.1 = menos sensível ao espaçamento entre linhas
-  //const spacingAdjustment = (actualSpacing / idealSpacing - 1) * 0.001; // 0.001 = Excelente para font 30
-  const spacingAdjustment = (actualSpacing / idealSpacing - 1) * 0.001; // 0.001 = Excelente para font 30
-
-  // Ajuste baseado no tamanho da fonte
-  // Aumentar 0.005 = ajuste mais agressivo quando muda o tamanho da fonte
-  // Diminuir 0.005 = ajuste mais suave quando muda o tamanho da fonte
-  //const fontSizeAdjustment = (fontSize - 16) * 0.001; // 0.001 = Excelente para font 30
-  const fontSizeAdjustment = (fontSize - 16) * 0.001; // 0.001 = Excelente para font 30
-
-  // Valor mínimo que o ratio pode ter
-  // Aumentar 0.05 = marcação nunca fica muito fina
-  // Diminuir 0.05 = permite marcação mais fina
+  const spacingAdjustment = (actualSpacing / idealSpacing - 1) * 0.001;
+  const fontSizeAdjustment = (fontSize - 16) * 0.001;
   return Math.max(baseRatio - fontSizeAdjustment - spacingAdjustment, 0.05);
 }
 
-function buildDecorationsForFile(state: EditorState, model: CodeMarkerModel, fileId: string): DecorationSet {
+function buildDecorationsForFile(
+  state: EditorState, 
+  model: CodeMarkerModel, 
+  fileId: string,
+  hoveredMarkerId: string | null = null // 🔍 NOVO parâmetro
+): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   
   if (!fileId) return Decoration.none;
   
   const markers = model.getMarkersForFile(fileId);
   const settings = model.getSettings();
+  
+  // 🔍 IMPORTANTE: Verificar qual arquivo está sendo processado
+  const activeView = model.getActiveView();
+  const currentFileInView = activeView?.file?.path;
+  
+  console.log('🔨 Building decorations:', {
+    fileId,
+    currentFileInView,
+    fileMatch: fileId === currentFileInView,
+    markersCount: markers.length,
+    hoveredMarkerId,
+    showHandlesOnHover: settings.showHandlesOnHover
+  });
   
   // Primeiro, coletar todas as decorações que precisamos adicionar
   const allDecorations: Array<{from: number, to: number, decoration: Decoration}> = [];
@@ -166,7 +229,7 @@ function buildDecorationsForFile(state: EditorState, model: CodeMarkerModel, fil
       
       // Mark decoration para o texto destacado
       const highlightDecoration = Decoration.mark({
-        class: `codemarker-highlight ${settings.showHandlesOnHover ? 'handles-hover-mode' : ''}`,
+        class: 'codemarker-highlight',
         attributes: {
           'data-marker-id': marker.id,
           'style': `background-color: ${bgColor}; padding: ${paddingValue}px 0;`
@@ -180,9 +243,12 @@ function buildDecorationsForFile(state: EditorState, model: CodeMarkerModel, fil
         decoration: highlightDecoration
       });
       
+      // 🔍 NOVO: Determinar se este marcador está com hover
+      const isHovered = marker.id === hoveredMarkerId;
+      
       // Widget para alça de início
       const startHandle = Decoration.widget({
-        widget: new HandleWidget(marker, 'start', handleColor, settings),
+        widget: new HandleWidget(marker, 'start', handleColor, settings, isHovered),
         side: -1,
         block: false
       });
@@ -195,7 +261,7 @@ function buildDecorationsForFile(state: EditorState, model: CodeMarkerModel, fil
       
       // Widget para alça de fim
       const endHandle = Decoration.widget({
-        widget: new HandleWidget(marker, 'end', handleColor, settings),
+        widget: new HandleWidget(marker, 'end', handleColor, settings, isHovered),
         side: 1,
         block: false
       });

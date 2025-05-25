@@ -1,30 +1,30 @@
-# CodeMarker
+# CodeMarker (Qualia Coding)
 
-Qualitative text coding tool for Obsidian, similar to MAXQDA, Atlas.ti, and NVivo.
+Qualitative text coding plugin for Obsidian — similar to MAXQDA, Atlas.ti, NVivo.
 
-## Current state (v19 — TAG v1.0.0)
+## Current State (v20)
 
-Visual rendering of code markers is complete using CodeMirror 6:
-- Inline highlights with configurable colors
-- Handles visible on marked text segments
-- Settings tab for managing codes and colors
-- Data model for markers with per-file storage
+Multi-arquivo funcionando. CSS melhorado. Marcacoes sincronizam entre varios arquivos abertos. Mouseover funciona em paineis nao ativos. Arquitetura atual considerada ruim pelo autor.
 
-Visual interactions (drag, resize, click behaviors) are not yet implemented.
+### Features
+- Criar marcacoes de texto via comando
+- Marcacoes persistem entre sessoes (data.json)
+- Suporte multi-arquivo: marcacoes funcionam com multiplos arquivos abertos
+- Hover funciona em arquivos nao ativos
+- CSS estilizado para marcacoes
+- Resetar todas as marcacoes via comando
+- Debug de instancias ativas via comando
 
-## Architecture
+### Architecture
+- CM6 ViewPlugin para renderizacao de marcacoes
+- Modelo de dados centralizado (CodeMarkerModel)
+- Sincronizacao via workspace events (file-open, layout-change, active-leaf-change)
 
-- `main.ts` — Plugin entry point, registers CM6 extensions and commands
-- `src/cm6/` — CodeMirror 6 integration (StateField, ViewPlugin, HandleWidget)
-- `src/models/` — Data model and settings
-- `src/views/` — Settings tab
+### Commands
+- `Criar uma nova marcacao de codigo` — selecione texto e execute
+- `Resetar todas as marcacoes salvas` — limpa todas as marcacoes
+- `[DEBUG] Listar instancias ativas do CodeMarker` — mostra instancias no console
 
-## Development
+## Demo Vault
 
-```bash
-npm install
-npm run dev    # watch mode
-npm run build  # production build
-```
-
-Build automatically copies plugin files to `demo/.obsidian/plugins/obsidian-codemarker/`.
+A pasta `demo/` contem um vault de demonstracao com notas de teste para cada versao.
