@@ -1,23 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
 import { builtinModules } from 'node:module';
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-
-const DEMO_PLUGIN_DIR = 'demo/.obsidian/plugins/obsidian-codemarker-v2';
-
-const copyToDemo = {
-	name: 'copy-to-demo',
-	setup(build) {
-		build.onEnd(() => {
-			if (!existsSync(DEMO_PLUGIN_DIR)) mkdirSync(DEMO_PLUGIN_DIR, { recursive: true });
-			for (const f of ['main.js', 'manifest.json', 'styles.css']) {
-				if (existsSync(f)) copyFileSync(f, join(DEMO_PLUGIN_DIR, f));
-			}
-			console.log('[copyToDemo] synced to', DEMO_PLUGIN_DIR);
-		});
-	}
-};
 
 const banner =
 `/*
@@ -56,7 +39,6 @@ const context = await esbuild.context({
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
-	plugins: [copyToDemo],
 });
 
 if (prod) {

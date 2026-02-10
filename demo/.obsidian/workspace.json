@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2026-02-10_v24-port-cm6-engine/test-note.md",
+                "file": "2026-02-10_v25-menu-system-triggers-settings-css/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
@@ -115,13 +115,16 @@
       "switcher:Open quick switcher": false,
       "canvas:Create new canvas": false,
       "command-palette:Open command palette": false,
-      "bases:Create new base": false
+      "bases:Create new base": false,
+      "obsidian-codemarker-v2:Code Selection": false
     }
   },
   "active": "976d78012d1e0067",
   "lastOpenFiles": [
-    "2026-02-10_v23-scaffold-from-sample-plugin/test-note.md",
     "2026-02-10_v24-port-cm6-engine/test-note.md",
+    "2026-02-10_v25-menu-system-triggers-settings-css/test-note.md",
+    "2026-02-10_v25-menu-system-triggers-settings-css",
+    "2026-02-10_v23-scaffold-from-sample-plugin/test-note.md",
     "2026-02-10_v24-port-cm6-engine",
     "Sample 1.md",
     "2026-02-10_v23-scaffold-from-sample-plugin",
@@ -139,7 +142,6 @@
     "2025-05-22_v19-tag-v1.0.0-visual-pronto/_historico",
     "2025-05-22_v19-tag-v1.0.0-visual-pronto",
     "2025-05-20_v18-tag-v0.2.0-cm6-funcionando-perfeitamente/test-note.md",
-    "2025-05-20_v18-tag-v0.2.0-cm6-funcionando-perfeitamente",
     "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis/test-note.md",
     "2025-05-16_v16-marcacoes-estilizadas-hover-reset/test-note.md",
     "2025-05-16_v15-seletor-bem-feito-handles-exibindo/test-note.md",
@@ -155,7 +157,6 @@
     "2024-07-06_v9-clique-milestone/_historico/ux-feedback-errors-notes.md",
     "2024-07-06_v9-clique-milestone/test-note.md",
     "2024-07-04_v8-abertura-working/_historico/ux-principles.md",
-    "2024-07-04_v8-abertura-working/test-note.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "_historico/qda-data-model.canvas"
   ]

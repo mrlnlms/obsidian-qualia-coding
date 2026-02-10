@@ -1,23 +1,39 @@
 # CodeMarker v2
 
-Qualitative text coding plugin for [Obsidian](https://obsidian.md). Select text, assign codes, and see highlights rendered via CodeMirror 6 decorations.
+Qualitative text coding plugin for [Obsidian](https://obsidian.md). Select text, assign codes, and see them as colored highlights — all without modifying your markdown files.
 
-## Current State (v24)
+---
 
-This version ports the CM6 engine from obsidian-codemarker into the v2 scaffold:
+## Current State (v25)
 
-- **StateField + ViewPlugin** architecture for marker decorations
-- **CodeMarkerModel** for marker data management (create, load, clear)
-- **Settings tab** with basic configuration
-- **Commands**: "Create marker from selection" and "Reset all markers"
-- Markers are stored in `data.json`, not in your markdown files
+Menu system, triggers, settings UI, and full CSS styling.
 
-## Commands
+### What works
+
+- **CM6 decorations**: Coded text appears as colored highlights in the editor via CodeMirror 6
+- **Resize handles**: Drag handles appear on markers for boundary adjustment
+- **Menu system**: Two approaches available (configurable in settings):
+  - **Approach A** — Obsidian native Menu API with selection preview
+  - **Approach B** — CM6 Tooltip-based menu using Obsidian CSS variables
+- **5 trigger entry points**: Text selection (mouseup), right-click context menu, file menu, ribbon button, and commands
+- **Settings tab**: Configure menu approach and behavior
+- **Code management**: Create, assign, and remove codes via the coding menu
+- **Data model**: All markers stored in `data.json`, markdown files stay clean
+- **CSS**: Full styles for highlights, handles, drag states, selection preview, and tooltip menu
+
+### Commands
 
 | Command | Description |
 |---------|-------------|
-| **Create marker from selection** | Creates a new marker from the current text selection |
-| **Reset all markers** | Removes all markers from the vault |
+| **Create code marker** | Creates a marker from the current selection |
+| **Open coding menu** | Opens the coding menu for the selection |
+| **Reset code markers** | Removes all markers |
+
+### Settings
+
+Accessible via Settings > CodeMarker v2.
+
+---
 
 ## Installation
 
@@ -28,6 +44,8 @@ cd your-vault/.obsidian/plugins/obsidian-codemarker-v2
 npm install
 npm run build
 ```
+
+---
 
 ## License
 

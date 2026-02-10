@@ -1,33 +1,201 @@
-import { Plugin, MarkdownView, Notice, Editor } from 'obsidian';
+import { Plugin, MarkdownView, Notice, Editor, Menu, TFile } from 'obsidian';
 import { CodeMarkerSettings, DEFAULT_SETTINGS } from './models/settings';
 import { CodeMarkerModel } from './models/codeMarkerModel';
 import { CodeMarkerSettingTab } from './views/settingsTab';
 import { createMarkerStateField, updateFileMarkersEffect } from './cm6/markerStateField';
-import { createMarkerViewPlugin } from './cm6/markerViewPlugin';
+import { createMarkerViewPlugin, SELECTION_EVENT, SelectionEventDetail } from './cm6/markerViewPlugin';
+import { createSelectionMenuField } from './cm6/selectionMenuField';
+import { MenuController } from './menu/menuController';
+import { openObsidianMenu } from './menu/obsidianMenu';
 
 export default class CodeMarkerPlugin extends Plugin {
 	settings: CodeMarkerSettings;
 	model: CodeMarkerModel;
+	menuController: MenuController;
 	updateFileMarkersEffect = updateFileMarkersEffect;
+	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v24 loaded -- Port CM6 engine from obsidian-codemarker');
+		console.log('[CodeMarker v2] v25 loaded -- Menu system, triggers, settings UI, CSS');
 		await this.loadSettings();
 
 		// Initialize data model
 		this.model = new CodeMarkerModel(this);
 		await this.model.loadMarkers();
 
+		// Initialize menu controller
+		this.menuController = new MenuController(this.model);
+
 		// Register CM6 editor extensions
 		this.registerEditorExtension([
 			createMarkerStateField(this.model),
-			createMarkerViewPlugin(this.model)
+			createMarkerViewPlugin(this.model),
+			createSelectionMenuField(this.model)
 		]);
 
 		// Settings tab
 		this.addSettingTab(new CodeMarkerSettingTab(this.app, this));
 
-		// Commands
+		// --- Trigger 1: Selection (mouseup) ---
+		this.registerDomEvent(document, SELECTION_EVENT as any, (evt: CustomEvent<SelectionEventDetail>) => {
+			if (!this.settings.showMenuOnSelection) return;
+			const detail = evt.detail;
+			if (!detail) return;
+
+			this.menuController.openMenu(
+				detail.editorView,
+				{
+					from: detail.from,
+					to: detail.to,
+					text: detail.text,
+					fileId: detail.fileId,
+				},
+				{ x: detail.mouseX, y: detail.mouseY }
+			);
+		});
+
+		// --- Trigger 2: Right-click (editor-menu) ---
+		this.registerEvent(
+			this.app.workspace.on('editor-menu', (menu, editor, view) => {
+				if (!this.settings.showMenuOnRightClick) return;
+				if (!(view instanceof MarkdownView) || !view.file) return;
+
+				const selectedText = editor.getSelection();
+				if (!selectedText?.trim()) return;
+
+				menu.addSeparator();
+				menu.addItem((item) => {
+					item.setTitle('Code Options')
+						.setIcon('tag')
+						.onClick(() => {
+							const anchor = editor.getCursor('anchor');
+							const head = editor.getCursor('head');
+
+							// @ts-ignore
+							const fromOffset = editor.posToOffset(
+								this.model.isPositionBefore(anchor, head) ? anchor : head
+							);
+							// @ts-ignore
+							const toOffset = editor.posToOffset(
+								this.model.isPositionBefore(anchor, head) ? head : anchor
+							);
+
+							// @ts-ignore
+							const editorView = editor.cm;
+							if (!editorView) return;
+
+							openObsidianMenu(
+								this.model,
+								{
+									from: fromOffset,
+									to: toOffset,
+									text: selectedText,
+									fileId: view.file!.path,
+								},
+								editorView,
+								{ x: (item as any).dom.getBoundingClientRect().right, y: (item as any).dom.getBoundingClientRect().top }
+							);
+						});
+				});
+			})
+		);
+
+		// --- Trigger 3: File menu ---
+		this.registerEvent(
+			this.app.workspace.on('file-menu', (menu, file) => {
+				if (!(file instanceof TFile)) return;
+				if (!this.settings.showMenuOnRightClick) return;
+
+				const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+				if (!activeView || activeView.file?.path !== file.path) return;
+
+				const editor = activeView.editor;
+				const selectedText = editor.getSelection();
+				if (!selectedText?.trim()) return;
+
+				menu.addSeparator();
+				menu.addItem((item) => {
+					item.setTitle('Code Options')
+						.setIcon('tag')
+						.onClick(() => {
+							const anchor = editor.getCursor('anchor');
+							const head = editor.getCursor('head');
+
+							// @ts-ignore
+							const fromOffset = editor.posToOffset(
+								this.model.isPositionBefore(anchor, head) ? anchor : head
+							);
+							// @ts-ignore
+							const toOffset = editor.posToOffset(
+								this.model.isPositionBefore(anchor, head) ? head : anchor
+							);
+
+							// @ts-ignore
+							const editorView = editor.cm;
+							if (!editorView) return;
+
+							openObsidianMenu(
+								this.model,
+								{
+									from: fromOffset,
+									to: toOffset,
+									text: selectedText,
+									fileId: file.path,
+								},
+								editorView,
+								{ x: (item as any).dom.getBoundingClientRect().right, y: (item as any).dom.getBoundingClientRect().top }
+							);
+						});
+				});
+			})
+		);
+
+		// --- Trigger 4: Ribbon button ---
+		if (this.settings.showRibbonButton) {
+			this.ribbonIconEl = this.addRibbonIcon('tag', 'Code Selection', () => {
+				const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+				if (!activeView?.file) {
+					new Notice('Open a markdown file first');
+					return;
+				}
+
+				const editor = activeView.editor;
+				const selectedText = editor.getSelection();
+				if (!selectedText?.trim()) {
+					new Notice('Select text first');
+					return;
+				}
+
+				const anchor = editor.getCursor('anchor');
+				const head = editor.getCursor('head');
+
+				// @ts-ignore
+				const fromOffset = editor.posToOffset(
+					this.model.isPositionBefore(anchor, head) ? anchor : head
+				);
+				// @ts-ignore
+				const toOffset = editor.posToOffset(
+					this.model.isPositionBefore(anchor, head) ? head : anchor
+				);
+
+				// @ts-ignore
+				const editorView = editor.cm;
+				if (!editorView) return;
+
+				this.menuController.openMenu(
+					editorView,
+					{
+						from: fromOffset,
+						to: toOffset,
+						text: selectedText,
+						fileId: activeView.file.path,
+					},
+					{ x: window.innerWidth / 2, y: window.innerHeight / 3 }
+				);
+			});
+		}
+
+		// --- Trigger 5: Commands ---
 		this.addCommand({
 			id: 'create-code-marker',
 			name: 'Create marker from selection',
@@ -41,6 +209,47 @@ export default class CodeMarkerPlugin extends Plugin {
 				} else {
 					new Notice('Select text first');
 				}
+			}
+		});
+
+		this.addCommand({
+			id: 'open-coding-menu',
+			name: 'Open coding menu',
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				if (!view.file) return;
+
+				const selectedText = editor.getSelection();
+				if (!selectedText?.trim()) {
+					new Notice('Select text first');
+					return;
+				}
+
+				const anchor = editor.getCursor('anchor');
+				const head = editor.getCursor('head');
+
+				// @ts-ignore
+				const fromOffset = editor.posToOffset(
+					this.model.isPositionBefore(anchor, head) ? anchor : head
+				);
+				// @ts-ignore
+				const toOffset = editor.posToOffset(
+					this.model.isPositionBefore(anchor, head) ? head : anchor
+				);
+
+				// @ts-ignore
+				const editorView = editor.cm;
+				if (!editorView) return;
+
+				this.menuController.openMenu(
+					editorView,
+					{
+						from: fromOffset,
+						to: toOffset,
+						text: selectedText,
+						fileId: view.file.path,
+					},
+					{ x: window.innerWidth / 2, y: window.innerHeight / 3 }
+				);
 			}
 		});
 
