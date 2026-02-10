@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2025-05-25_v22-quase-final-falta-intersecoes/test-note.md",
+                "file": "2026-02-10_v23-scaffold-from-sample-plugin/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
@@ -119,11 +119,14 @@
   },
   "active": "976d78012d1e0067",
   "lastOpenFiles": [
-    "2025-05-25_v21-versao-atual/test-note.md",
+    "Sample 1.md",
+    "2026-02-10_v23-scaffold-from-sample-plugin/test-note.md",
+    "2026-02-10_v23-scaffold-from-sample-plugin",
     "2025-05-25_v22-quase-final-falta-intersecoes/test-note.md",
+    "community-plugins.json",
+    "2025-05-25_v21-versao-atual/test-note.md",
     "2025-05-25_v22-quase-final-falta-intersecoes",
     "items.csv",
-    "Sample 1.md",
     "2025-05-25_v21-versao-atual",
     "2025-05-25_v20-multi-arquivo-css-melhor/test-note.md",
     "2025-05-25_v20-multi-arquivo-css-melhor",
@@ -137,9 +140,7 @@
     "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis/test-note.md",
     "2025-05-19_v17-tag-v0.1.0-estavel-handles-visiveis",
     "2025-05-16_v16-marcacoes-estilizadas-hover-reset/test-note.md",
-    "2025-05-16_v16-marcacoes-estilizadas-hover-reset",
     "2025-05-16_v15-seletor-bem-feito-handles-exibindo/test-note.md",
-    "2025-05-16_v15-seletor-bem-feito-handles-exibindo",
     "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-workflow-debug-text.md",
     "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-dev-prompt.md",
     "2025-05-16_v14-codemarker-cm6-inicial/_historico/codemarker-cm6-test-instructions.md",
@@ -154,7 +155,6 @@
     "2024-07-04_v8-abertura-working/_historico/ux-principles.md",
     "2024-07-04_v8-abertura-working/test-note.md",
     "2024-06-25_v6-displaymenus-modulo-isolado/_historico/gpt-debug-toggle-click-menu.md",
-    "2024-06-25_v6-displaymenus-modulo-isolado/test-note.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "_historico/qda-data-model.canvas"
   ]

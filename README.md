@@ -1,47 +1,48 @@
-# CodeMarker (Qualia Coding) — v22
+# CodeMarker v2
 
-Qualitative text coding plugin for Obsidian, similar to MAXQDA, Atlas.ti, NVivo.
+Qualitative text coding plugin for [Obsidian](https://obsidian.md), inspired by professional QDA tools like MAXQDA and ATLAS.ti.
 
-## Current state (v22)
+---
 
-Last commit from the obsidian-codeMarker GitHub repository (Era 2).
-Nearly complete version — marker intersections still need fixing.
+## Current State (v23)
 
-### Features
+Fresh scaffold from obsidian-sample-plugin. This is the beginning of Era 3 -- a clean rewrite in the code-maker_v2 vault.
 
-- CM6 architecture: StateField for decorations + ViewPlugin for events
-- Create text markers via command palette ("Criar uma nova marcacao de codigo")
-- Multi-file marker support
-- Color-coded highlights with handles
-- Settings tab for configuration
-- Debug command for listing active instances
-- Markers persist across sessions via data.json
+### What works
 
-### Known issues
+- Plugin loads and unloads cleanly
+- Settings tab with default color picker and marker opacity slider
+- Settings persistence via `data.json`
 
-- Marker intersections (overlapping markers) not yet handled correctly
+### What does not exist yet
 
-## Architecture
+- No text coding, no markers, no CM6 decorations
+- No code registry, no margin panel, no code explorer
+- No hover menu, no commands beyond the scaffold
 
-```
-main.ts                          — Plugin entry, commands, workspace events
-src/models/settings.ts           — Settings interface and defaults
-src/models/codeMarkerModel.ts    — Data model, marker CRUD, persistence
-src/cm6/markerStateField.ts      — CM6 StateField for decorations
-src/cm6/markerViewPlugin.ts      — CM6 ViewPlugin for editor events
-src/cm6/handleWidget.ts          — Handle widget for marker endpoints
-src/views/settingsTab.ts         — Settings tab UI
-```
+---
 
-## Development
+## Settings
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Default color | Fallback color for markers | `#6200EE` |
+| Marker opacity | Background opacity of highlights | `0.4` |
+
+---
+
+## Installation
+
+### From Source
 
 ```bash
+cd your-vault/.obsidian/plugins/obsidian-codemarker-v2
 npm install
-npm run dev    # watch mode
-npm run build  # production build
+npm run build
 ```
 
-## History
+---
 
-This plugin is being ported version-by-version from its original development history.
-See `demo/` folder for dated snapshots of each version.
+## License
+
+MIT

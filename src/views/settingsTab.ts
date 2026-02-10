@@ -1,91 +1,94 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import CodeMarkerPlugin from '../../main';
+import CodeMarkerPlugin from '../main';
 
 export class CodeMarkerSettingTab extends PluginSettingTab {
-  plugin: CodeMarkerPlugin;
+	plugin: CodeMarkerPlugin;
 
-  constructor(app: App, plugin: CodeMarkerPlugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
+	constructor(app: App, plugin: CodeMarkerPlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
 
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'Configurações do CodeMarker' });
+		containerEl.createEl('h2', { text: 'CodeMarker v2 Settings' });
 
-    new Setting(containerEl)
-      .setName('Cor padrão')
-      .setDesc('A cor padrão para novas marcações')
-      .addColorPicker(color => color
-        .setValue(this.plugin.settings.defaultColor)
-        .onChange(async (value) => {
-          this.plugin.settings.defaultColor = value;
-          await this.plugin.saveSettings();
-        }));
+		new Setting(containerEl)
+			.setName('Default color')
+			.setDesc('Default highlight color for new markers')
+			.addColorPicker(color => color
+				.setValue(this.plugin.settings.defaultColor)
+				.onChange(async (value) => {
+					this.plugin.settings.defaultColor = value;
+					await this.plugin.saveSettings();
+				}));
 
-    new Setting(containerEl)
-      .setName('Exibir no modo de visualização')
-      .setDesc('Mostrar marcações no modo de visualização (preview)')
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.displayInPreviewMode)
-        .onChange(async (value) => {
-          this.plugin.settings.displayInPreviewMode = value;
-          await this.plugin.saveSettings();
-        }));
+		new Setting(containerEl)
+			.setName('Marker opacity')
+			.setDesc('Transparency of the marker highlight (0.1 - 0.5)')
+			.addSlider(slider => slider
+				.setLimits(0.1, 0.5, 0.05)
+				.setValue(this.plugin.settings.markerOpacity)
+				.setDynamicTooltip()
+				.onChange(async (value) => {
+					this.plugin.settings.markerOpacity = value;
+					await this.plugin.saveSettings();
+				}));
 
-    new Setting(containerEl)
-      .setName('Armazenar marcações no frontmatter')
-      .setDesc('Armazenar marcações no frontmatter YAML do documento')
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.storeMarkersInFrontmatter)
-        .onChange(async (value) => {
-          this.plugin.settings.storeMarkersInFrontmatter = value;
-          await this.plugin.saveSettings();
-        }));
+		new Setting(containerEl)
+			.setName('Show handles on hover')
+			.setDesc('Only show drag handles when hovering over a marker')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.showHandlesOnHover)
+				.onChange(async (value) => {
+					this.plugin.settings.showHandlesOnHover = value;
+					await this.plugin.saveSettings();
+				}));
 
-    // Adicione após as outras configurações
-    new Setting(containerEl)
-      .setName('Opacidade da marcação')
-      .setDesc('Controle o nível de transparência das marcações (valor menor = mais transparente)')
-      .addSlider(slider => slider
-        .setLimits(0.1, 0.5, 0.05)
-        .setValue(this.plugin.settings.markerOpacity)
-        .setDynamicTooltip()
-        .onChange(async (value) => {
-          this.plugin.settings.markerOpacity = value;
-          await this.plugin.saveSettings();
-        }));
+		containerEl.createEl('h3', { text: 'Floating Menu' });
 
-    new Setting(containerEl)
-      .setName('Exibir alças apenas ao passar o mouse')
-      .setDesc('Quando ativado, as alças de marcação só serão exibidas ao passar o mouse sobre a marcação')
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.showHandlesOnHover)
-        .onChange(async (value) => {
-          this.plugin.settings.showHandlesOnHover = value;
-          await this.plugin.saveSettings();
-          // Atualizar todas as marcações existentes
-          const activeFile = this.app.workspace.getActiveFile();
-          if (activeFile) {
-            this.plugin.model.updateMarkersForFile(activeFile.path);
-          }
-        }));
+		new Setting(containerEl)
+			.setName('Menu implementation')
+			.setDesc('Obsidian Native uses the standard menu (may briefly lose selection highlight). CM6 Tooltip keeps selection active.')
+			.addDropdown(dropdown => dropdown
+				.addOption('obsidian-native', 'Obsidian Native Menu')
+				.addOption('cm6-tooltip', 'CM6 Tooltip Menu')
+				.setValue(this.plugin.settings.menuMode)
+				.onChange(async (value) => {
+					this.plugin.settings.menuMode = value as 'obsidian-native' | 'cm6-tooltip';
+					await this.plugin.saveSettings();
+				}));
 
-    new Setting(containerEl)
-      .setName('Cores de marca-texto')
-      .setDesc('Escolha entre cores de marca-texto predefinidas')
-      .addDropdown(dropdown => dropdown
-        .addOption('#FFFF00', 'Amarelo')
-        .addOption('#90EE90', 'Verde claro')
-        .addOption('#ADD8E6', 'Azul claro')
-        .addOption('#FFA07A', 'Salmão')
-        .addOption('#D8BFD8', 'Lilás')
-        .setValue(this.plugin.settings.defaultColor)
-        .onChange(async (value) => {
-          this.plugin.settings.defaultColor = value;
-          await this.plugin.saveSettings();
-        }));
-  }
+		new Setting(containerEl)
+			.setName('Show menu on text selection')
+			.setDesc('Automatically show the coding menu when you select text')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.showMenuOnSelection)
+				.onChange(async (value) => {
+					this.plugin.settings.showMenuOnSelection = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Show in right-click menu')
+			.setDesc('Add code options to the editor right-click context menu')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.showMenuOnRightClick)
+				.onChange(async (value) => {
+					this.plugin.settings.showMenuOnRightClick = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Show ribbon button')
+			.setDesc('Show a "Code Selection" button in the left ribbon')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.showRibbonButton)
+				.onChange(async (value) => {
+					this.plugin.settings.showRibbonButton = value;
+					await this.plugin.saveSettings();
+				}));
+	}
 }
