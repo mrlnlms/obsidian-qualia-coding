@@ -1,35 +1,23 @@
 # CodeMarker v2
 
-Qualitative text coding plugin for [Obsidian](https://obsidian.md), inspired by professional QDA tools like MAXQDA and ATLAS.ti.
+Qualitative text coding plugin for [Obsidian](https://obsidian.md). Select text, assign codes, and see highlights rendered via CodeMirror 6 decorations.
 
----
+## Current State (v24)
 
-## Current State (v23)
+This version ports the CM6 engine from obsidian-codemarker into the v2 scaffold:
 
-Fresh scaffold from obsidian-sample-plugin. This is the beginning of Era 3 -- a clean rewrite in the code-maker_v2 vault.
+- **StateField + ViewPlugin** architecture for marker decorations
+- **CodeMarkerModel** for marker data management (create, load, clear)
+- **Settings tab** with basic configuration
+- **Commands**: "Create marker from selection" and "Reset all markers"
+- Markers are stored in `data.json`, not in your markdown files
 
-### What works
+## Commands
 
-- Plugin loads and unloads cleanly
-- Settings tab with default color picker and marker opacity slider
-- Settings persistence via `data.json`
-
-### What does not exist yet
-
-- No text coding, no markers, no CM6 decorations
-- No code registry, no margin panel, no code explorer
-- No hover menu, no commands beyond the scaffold
-
----
-
-## Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Default color | Fallback color for markers | `#6200EE` |
-| Marker opacity | Background opacity of highlights | `0.4` |
-
----
+| Command | Description |
+|---------|-------------|
+| **Create marker from selection** | Creates a new marker from the current text selection |
+| **Reset all markers** | Removes all markers from the vault |
 
 ## Installation
 
@@ -40,8 +28,6 @@ cd your-vault/.obsidian/plugins/obsidian-codemarker-v2
 npm install
 npm run build
 ```
-
----
 
 ## License
 

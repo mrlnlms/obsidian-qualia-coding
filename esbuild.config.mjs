@@ -1,22 +1,22 @@
 import esbuild from "esbuild";
 import process from "process";
 import { builtinModules } from 'node:module';
-import { copyFileSync, mkdirSync } from "fs";
-import { resolve } from "path";
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 
-const DEMO_PLUGIN_DIR = "demo/.obsidian/plugins/obsidian-codemarker-v2";
+const DEMO_PLUGIN_DIR = 'demo/.obsidian/plugins/obsidian-codemarker-v2';
 
 const copyToDemo = {
-	name: "copy-to-demo",
+	name: 'copy-to-demo',
 	setup(build) {
 		build.onEnd(() => {
-			const dest = resolve(DEMO_PLUGIN_DIR);
-			mkdirSync(dest, { recursive: true });
-			for (const f of ["main.js", "manifest.json", "styles.css"]) {
-				try { copyFileSync(f, resolve(dest, f)); } catch {}
+			if (!existsSync(DEMO_PLUGIN_DIR)) mkdirSync(DEMO_PLUGIN_DIR, { recursive: true });
+			for (const f of ['main.js', 'manifest.json', 'styles.css']) {
+				if (existsSync(f)) copyFileSync(f, join(DEMO_PLUGIN_DIR, f));
 			}
+			console.log('[copyToDemo] synced to', DEMO_PLUGIN_DIR);
 		});
-	},
+	}
 };
 
 const banner =
