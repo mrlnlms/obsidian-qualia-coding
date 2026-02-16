@@ -3,6 +3,7 @@ import { CodeMarkerModel } from '../models/codeMarkerModel';
 import { SelectionSnapshot } from './menuTypes';
 import { openObsidianMenu } from './obsidianMenu';
 import { showCodingMenuEffect } from '../cm6/selectionMenuField';
+import { setSelectionPreviewEffect } from '../cm6/markerStateField';
 
 /**
  * Central orchestrator that decides which menu approach to open.
@@ -29,15 +30,20 @@ export class MenuController {
 
 		const settings = this.model.getSettings();
 
-		if (settings.menuMode === 'cm6-tooltip') {
-			// Approach B: CM6 Tooltip — selection stays active natively
-			editorView.dispatch({
-				effects: showCodingMenuEffect.of({
+		if (settings.menuMode === 'cm6-tooltip' || settings.menuMode === 'cm6-native-tooltip') {
+			// Approaches B/C: CM6 Tooltip
+			const effects: any[] = [
+				showCodingMenuEffect.of({
 					pos: snapshot.from,
 					end: snapshot.to,
 					snapshot
 				})
-			});
+			];
+			// Approach C: also show selection preview decoration
+			if (settings.menuMode === 'cm6-native-tooltip') {
+				effects.push(setSelectionPreviewEffect.of({ from: snapshot.from, to: snapshot.to }));
+			}
+			editorView.dispatch({ effects });
 			// Tooltip manages its own lifecycle via the StateField
 			this.isMenuOpen = false;
 		} else {

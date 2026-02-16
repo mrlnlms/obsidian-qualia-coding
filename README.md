@@ -1,41 +1,40 @@
 # CodeMarker v2
 
-Qualitative text coding plugin for [Obsidian](https://obsidian.md). Select text, assign codes, and see them as colored highlights — all without modifying your markdown files.
+Qualitative text coding plugin for [Obsidian](https://obsidian.md). Select text, assign codes, and see highlights — all without modifying your markdown files.
 
 ---
 
-## Current State (v25)
+## Current State (v26)
 
-Menu system, triggers, settings UI, and full CSS styling.
+This version establishes the Approach C menu baseline: a refined menu system combining Obsidian's native `Menu` API for right-click integration with a custom selection-triggered menu.
 
 ### What works
 
-- **CM6 decorations**: Coded text appears as colored highlights in the editor via CodeMirror 6
-- **Resize handles**: Drag handles appear on markers for boundary adjustment
-- **Menu system**: Two approaches available (configurable in settings):
-  - **Approach A** — Obsidian native Menu API with selection preview
-  - **Approach B** — CM6 Tooltip-based menu using Obsidian CSS variables
-- **5 trigger entry points**: Text selection (mouseup), right-click context menu, file menu, ribbon button, and commands
-- **Settings tab**: Configure menu approach and behavior
-- **Code management**: Create, assign, and remove codes via the coding menu
-- **Data model**: All markers stored in `data.json`, markdown files stay clean
-- **CSS**: Full styles for highlights, handles, drag states, selection preview, and tooltip menu
+- **CM6 decorations**: Text markers render as colored highlights using CodeMirror 6 state field and view plugin
+- **Selection menu**: Select text to open a coding menu (Approach C — selection-triggered via custom DOM event)
+- **Right-click integration**: Right-click selected text to see "Code Options" in Obsidian's native context menu
+- **Resize handles**: Drag handles appear on hover to adjust marker boundaries
+- **Settings tab**: Configure default color, marker opacity, handle size, and toggle triggers
+- **Data model**: Markers and codes stored in `data.json`, keeping markdown files clean
+- **Ribbon button**: Toggle ribbon icon visibility in settings
 
-### Commands
+### Architecture
 
-| Command | Description |
-|---------|-------------|
-| **Create code marker** | Creates a marker from the current selection |
-| **Open coding menu** | Opens the coding menu for the selection |
-| **Reset code markers** | Removes all markers |
-
-### Settings
-
-Accessible via Settings > CodeMarker v2.
+- `src/cm6/` — CM6 state field, view plugin, selection menu field, handle widget
+- `src/menu/` — Menu controller (Approach C), Obsidian menu adapter, CM6 tooltip menus, actions
+- `src/models/` — Code marker data model, settings definitions
+- `src/views/` — Settings tab
 
 ---
 
 ## Installation
+
+### Manual
+
+1. Download `main.js`, `manifest.json`, `styles.css`
+2. Create `.obsidian/plugins/obsidian-codemarker-v2/` in your vault
+3. Place the files inside
+4. Enable the plugin in Settings > Community Plugins
 
 ### From Source
 

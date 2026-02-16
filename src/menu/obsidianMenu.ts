@@ -1,19 +1,38 @@
-import { Menu, Notice } from 'obsidian';
+import { Menu, Notice, TextComponent, ToggleComponent } from 'obsidian';
 import { EditorView } from '@codemirror/view';
 import { CodeMarkerModel } from '../models/codeMarkerModel';
 import { SelectionSnapshot } from './menuTypes';
 import { setSelectionPreviewEffect } from '../cm6/markerStateField';
-import { addCodeAction, removeCodeAction, removeAllCodesAction, getCodesAtSelection } from './menuActions';
+import {
+	addCodeAction,
+	removeCodeAction,
+	removeAllCodesAction,
+	getCodesAtSelection,
+	addNewCodeAction,
+	addExistingCodeAction
+} from './menuActions';
 
 /**
- * Approach A: Obsidian Native Menu with selection preview workaround.
+ * Approach A: Obsidian Native Menu — faithful port of mqda's createEditorCodingMenu.
  *
- * Before opening the menu, dispatches setSelectionPreviewEffect to create a
- * Decoration.mark that visually mimics the native selection. This keeps the
+ * Layout:
+ *   [TextComponent: "Enter text..."]   ← input at the top
+ *   ☑ código-1  (ToggleComponent)      ← one per existing code
+ *   ☑ código-2  (ToggleComponent)
+ *   ───────────── separator ──────────
+ *   ⊕ Add New Code
+ *   🏷 Add Existing Code
+ *   🗑 Remove Code
+ *   ⊖ Remove All Codes
+ *
+ * Before opening, dispatches setSelectionPreviewEffect to keep the
  * selected text highlighted while CM6 loses real focus to the menu.
- *
  * On menu close, removes the preview and restores the real CM6 selection.
  */
+
+const cleanupCallbacks: (() => void)[] = [];
+const focusCallbacks: (() => void)[] = [];
+
 export function openObsidianMenu(
 	model: CodeMarkerModel,
 	snapshot: SelectionSnapshot,
@@ -29,77 +48,130 @@ export function openObsidianMenu(
 	const allCodes = model.getAllCodes();
 	const activeCodes = getCodesAtSelection(model, snapshot);
 
-	// Text input for new code name
+	// ── a) TextComponent — input at the top (ported from customMenus.ts:512-561) ──
 	menu.addItem((item) => {
-		item.setTitle('New code...')
-			.setIcon('plus');
-
 		const dom = (item as any).dom as HTMLElement;
-		dom.empty();
+		const textComponent = new TextComponent(dom);
+		textComponent.setPlaceholder('Enter text...');
+		dom.classList.add('menu-item-textfield');
+		item.setTitle('').setIcon('tag');
 
-		const input = document.createElement('input');
-		input.type = 'text';
-		input.placeholder = 'Enter code name...';
-		input.className = 'codemarker-menu-input';
-
-		input.addEventListener('click', (e) => {
-			e.stopPropagation();
-			e.preventDefault();
+		dom.addEventListener('click', (evt: MouseEvent) => {
+			evt.stopPropagation();
+			evt.preventDefault();
+			textComponent.inputEl.focus();
 		});
 
-		input.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter') {
-				e.stopPropagation();
-				e.preventDefault();
-				const name = input.value.trim();
+		// Enter → add code → close → RECREATE menu at same position
+		const handleEnterKey = (evt: KeyboardEvent) => {
+			if (evt.key === 'Enter') {
+				evt.stopPropagation();
+				evt.preventDefault();
+				const name = textComponent.inputEl.value.trim();
 				if (name) {
 					addCodeAction(model, snapshot, name);
-					new Notice(`Code "${name}" added`);
 					menu.hide();
+					// Recreate menu at the same position with the new toggle
+					openObsidianMenu(model, snapshot, editorView, position);
 				}
 			}
-		});
+		};
 
-		dom.appendChild(input);
-		setTimeout(() => input.focus(), 50);
+		window.addEventListener('keydown', handleEnterKey, true);
+		cleanupCallbacks.push(() => window.removeEventListener('keydown', handleEnterKey, true));
+
+		focusCallbacks.push(() => {
+			textComponent.inputEl.focus();
+		});
 	});
 
-	menu.addSeparator();
-
-	// Existing codes as toggle items
+	// ── b) ToggleComponent for each existing code (ported from customMenus.ts:487-510) ──
 	for (const codeItem of allCodes) {
 		const isActive = activeCodes.includes(codeItem.name);
 		menu.addItem((item) => {
-			item.setTitle(codeItem.name)
-				.setIcon(isActive ? 'check-circle' : 'circle')
-				.onClick(() => {
-					if (isActive) {
-						removeCodeAction(model, snapshot, codeItem.name);
-						new Notice(`Code "${codeItem.name}" removed`);
-					} else {
-						addCodeAction(model, snapshot, codeItem.name);
-						new Notice(`Code "${codeItem.name}" added`);
-					}
-				});
+			const dom = (item as any).dom as HTMLElement;
+			const toggle = new ToggleComponent(dom);
+			toggle.setValue(isActive);
+			toggle.onChange((value) => {
+				if (value) {
+					addCodeAction(model, snapshot, codeItem.name);
+				} else {
+					removeCodeAction(model, snapshot, codeItem.name);
+				}
+			});
+			item.setTitle(codeItem.name).setIcon('tag');
+			dom.classList.add('menu-item-toggle');
+
+			// Click → stopPropagation (menu stays open), toggle inverts
+			dom.addEventListener('click', (evt: MouseEvent) => {
+				evt.stopPropagation();
+				const currentValue = toggle.getValue();
+				toggle.setValue(!currentValue);
+			});
 		});
 	}
 
-	if (allCodes.length > 0) {
-		menu.addSeparator();
-	}
+	// ── c) Separator after last toggle ──
+	menu.addSeparator();
 
-	// Remove All Codes
+	// ── d) 4 action buttons (ported from mqda/main.ts:26-32) ──
 	menu.addItem((item) => {
-		item.setTitle('Remove All Codes')
-			.setIcon('trash-2')
+		item.setTitle('Add New Code')
+			.setIcon('plus-circle')
 			.onClick(() => {
-				removeAllCodesAction(model, snapshot);
-				new Notice('All codes removed');
+				addNewCodeAction(model, snapshot, '');
+				menu.hide();
 			});
 	});
 
-	// Cleanup on hide: remove preview, restore selection
+	menu.addItem((item) => {
+		item.setTitle('Add Existing Code')
+			.setIcon('tag')
+			.onClick(() => {
+				addExistingCodeAction(model, snapshot);
+				menu.hide();
+			});
+	});
+
+	menu.addItem((item) => {
+		item.setTitle('Remove Code')
+			.setIcon('trash')
+			.onClick(() => {
+				// Remove code at selection — if there are active codes, remove the first one
+				// In the original mqda this opened a RemoveCodeModal
+				const codesAtSel = getCodesAtSelection(model, snapshot);
+				if (codesAtSel.length > 0) {
+					for (const code of codesAtSel) {
+						removeCodeAction(model, snapshot, code);
+					}
+					new Notice('Codes removed from selection');
+				} else {
+					new Notice('No codes at selection');
+				}
+				menu.hide();
+			});
+	});
+
+	menu.addItem((item) => {
+		item.setTitle('Remove All Codes')
+			.setIcon('minus-circle')
+			.onClick(() => {
+				removeAllCodesAction(model, snapshot);
+				new Notice('All codes removed');
+				menu.hide();
+			});
+	});
+
+	// ── e) Cleanup on hide (ported from customMenus.ts:574-589) ──
 	menu.onHide(() => {
+		// Run all cleanup callbacks (e.g. remove keydown listeners)
+		for (const cb of cleanupCallbacks) {
+			try { cb(); } catch { /* noop */ }
+		}
+		cleanupCallbacks.length = 0;
+		focusCallbacks.length = 0;
+
+		// Remove selection preview and restore real CM6 selection
 		try {
 			editorView.dispatch({
 				effects: setSelectionPreviewEffect.of(null)
@@ -114,4 +186,10 @@ export function openObsidianMenu(
 	});
 
 	menu.showAtPosition(position);
+
+	// Auto-focus the TextComponent after menu is shown
+	for (const cb of focusCallbacks) {
+		try { cb(); } catch { /* noop */ }
+	}
+	focusCallbacks.length = 0;
 }

@@ -4,7 +4,7 @@ export interface CodeMarkerSettings {
 	markerOpacity: number;
 	showHandlesOnHover: boolean;
 	handleSize: number;
-	menuMode: 'obsidian-native' | 'cm6-tooltip';
+	menuMode: 'obsidian-native' | 'cm6-tooltip' | 'cm6-native-tooltip';
 	showMenuOnSelection: boolean;
 	showMenuOnRightClick: boolean;
 	showRibbonButton: boolean;

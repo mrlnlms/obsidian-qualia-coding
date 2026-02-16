@@ -55,9 +55,10 @@ export class CodeMarkerSettingTab extends PluginSettingTab {
 			.addDropdown(dropdown => dropdown
 				.addOption('obsidian-native', 'Obsidian Native Menu')
 				.addOption('cm6-tooltip', 'CM6 Tooltip Menu')
+				.addOption('cm6-native-tooltip', 'CM6 Tooltip + Native Components')
 				.setValue(this.plugin.settings.menuMode)
 				.onChange(async (value) => {
-					this.plugin.settings.menuMode = value as 'obsidian-native' | 'cm6-tooltip';
+					this.plugin.settings.menuMode = value as 'obsidian-native' | 'cm6-tooltip' | 'cm6-native-tooltip';
 					await this.plugin.saveSettings();
 				}));
 

@@ -16,7 +16,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v25 loaded -- Menu system, triggers, settings UI, CSS');
+		console.log('[CodeMarker v2] v26 loaded -- Baseline: Approach C menu + ARCHITECTURE.md + DEVELOPMENT.md');
 		await this.loadSettings();
 
 		// Initialize data model

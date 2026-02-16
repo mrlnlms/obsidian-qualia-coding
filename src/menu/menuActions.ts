@@ -1,5 +1,30 @@
+import { Notice } from 'obsidian';
 import { CodeMarkerModel } from '../models/codeMarkerModel';
 import { SelectionSnapshot } from './menuTypes';
+
+/**
+ * Alias used by the "Add New Code" button — same as addCodeAction but
+ * accepts name from the TextComponent input.
+ */
+export function addNewCodeAction(
+	model: CodeMarkerModel,
+	snapshot: SelectionSnapshot,
+	codeName: string,
+	color?: string
+): boolean {
+	return addCodeAction(model, snapshot, codeName, color);
+}
+
+/**
+ * Placeholder — mirrors mqda/src/Codings.ts:14-16.
+ * In the original plugin this opened a picker; for now it shows a notice.
+ */
+export function addExistingCodeAction(
+	model: CodeMarkerModel,
+	snapshot: SelectionSnapshot
+): void {
+	new Notice('Add Existing Code — coming soon');
+}
 
 export function addCodeAction(
 	model: CodeMarkerModel,

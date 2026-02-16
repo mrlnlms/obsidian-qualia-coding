@@ -203,6 +203,21 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-m);
 	box-shadow: var(--shadow-s);
+	color-scheme: inherit;
+}
+
+/* Force theme inheritance inside CM6 tooltip for Approach C native components */
+.cm-tooltip .codemarker-tooltip-menu,
+.cm-tooltip .codemarker-tooltip-menu * {
+	color-scheme: inherit;
+}
+
+.cm-tooltip .codemarker-tooltip-menu .checkbox-container {
+	background-color: var(--background-modifier-border-hover);
+}
+
+.cm-tooltip .codemarker-tooltip-menu .checkbox-container.is-enabled {
+	background-color: var(--interactive-accent);
 }
 
 .codemarker-tooltip-menu .menu-item {
@@ -263,21 +278,62 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
 }
 
-/* Obsidian Native Menu input */
-.codemarker-menu-input {
-	width: 100%;
+/* ========================================
+   Approach A: Obsidian Menu — TextComponent & ToggleComponent
+   ======================================== */
+
+/* TextComponent container — keep the input visible inside the menu item */
+.menu-item-textfield {
+	display: flex;
+	align-items: center;
+	padding: var(--size-4-1) var(--size-4-2);
+}
+
+.menu-item-textfield input[type="text"],
+.codemarker-tooltip-menu .menu-item-textfield input[type="text"] {
+	flex: 1;
 	padding: var(--size-4-1) var(--size-4-2);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-s);
-	background: var(--background-primary);
-	color: var(--text-normal);
+	background-color: var(--background-primary) !important;
+	color: var(--text-normal) !important;
 	font-size: var(--font-ui-small);
 	outline: none;
 }
 
-.codemarker-menu-input:focus {
+.menu-item-textfield input[type="text"]:focus,
+.codemarker-tooltip-menu .menu-item-textfield input[type="text"]:focus {
 	border-color: var(--interactive-accent);
 	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+}
+
+/* ToggleComponent container — align switch beside the title */
+.menu-item-toggle {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+}
+
+.menu-item-toggle .checkbox-container {
+	flex-shrink: 0;
+}
+
+/* ========================================
+   Approach B: CM6 Tooltip — toggle checkbox
+   ======================================== */
+
+.codemarker-tooltip-toggle {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+}
+
+.codemarker-tooltip-checkbox {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	accent-color: var(--interactive-accent);
+	cursor: pointer;
 }
 
 /* ========================================
