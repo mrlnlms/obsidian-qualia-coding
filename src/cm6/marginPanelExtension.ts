@@ -121,15 +121,25 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				this.panelClickHandler = (e: MouseEvent) => {
 					const target = e.target as HTMLElement;
 					const hit = target.closest?.('[data-marker-id]') as HTMLElement | null;
-					if (!hit) return;
 
-					const elementType = this.detectElementType(hit);
-					if (elementType !== 'label') return;
+					let markerId: string | null = null;
+					let codeName: string | null = null;
+					let elementType: 'bar' | 'label' | 'dot' | 'tick' | null = null;
 
-					const markerId = hit.getAttribute('data-marker-id');
-					const codeName = hit.getAttribute('data-code-name');
-					if (!markerId || !codeName) return;
+					if (hit) {
+						elementType = this.detectElementType(hit);
+						markerId = hit.getAttribute('data-marker-id');
+						codeName = hit.getAttribute('data-code-name');
+					} else if (this.hoveredElementType === 'label') {
+						// Fallback: DOM foi rebuiltado, usar hover state
+						elementType = this.hoveredElementType;
+						markerId = this.hoveredMarkerId;
+						codeName = this.hoveredCodeName;
+					}
 
+					if (elementType !== 'label' || !markerId || !codeName) return;
+
+					this.suppressMutationUntil = Date.now() + 200;
 					model.plugin.revealCodeDetailPanel(markerId, codeName);
 				};
 				this.panel.addEventListener('mousemove', this.panelMoveHandler);
@@ -264,6 +274,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			}
 
 			private renderBrackets() {
+				this.suppressMutationUntil = Date.now() + 50;
 				this.panel.innerHTML = '';
 
 				if (!this.fileId) return;

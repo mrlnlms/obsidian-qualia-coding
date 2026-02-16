@@ -21,7 +21,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v27.9 loaded — Code Detail Side Panel (ItemView)');
+		console.log('[CodeMarker v2] v27.10 loaded — Fix stacked label clicks');
 		await this.loadSettings();
 
 		// Initialize data model
@@ -306,7 +306,6 @@ export default class CodeMarkerPlugin extends Plugin {
 		if (existing) {
 			const view = existing.view as CodeDetailView;
 			view.setContext(markerId, codeName);
-			this.app.workspace.revealLeaf(existing);
 		} else {
 			const leaf = this.app.workspace.getRightLeaf(false);
 			if (leaf) {
