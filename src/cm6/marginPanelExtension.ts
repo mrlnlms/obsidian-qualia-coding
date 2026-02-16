@@ -1,7 +1,7 @@
 import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/view";
 import { CodeMarkerModel, Marker } from "../models/codeMarkerModel";
 import { findFileIdForEditorView, getViewForFile } from "./utils/viewLookupUtils";
-import { updateFileMarkersEffect } from "./markerStateField";
+import { updateFileMarkersEffect, setHoverEffect } from "./markerStateField";
 
 /**
  * Margin Panel Extension — MAXQDA-style coded segments alongside text.
@@ -36,6 +36,7 @@ interface ResolvedBracket {
 }
 
 interface LabelInfo {
+	markerId: string;
 	codeName: string;
 	color: string;
 	idealY: number;
@@ -53,7 +54,12 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			panel: HTMLElement;
 			fileId: string | null = null;
 			view: EditorView;
+			private hoveredMarkerId: string | null = null;
+			private hoveredCodeName: string | null = null;
+			private hoveredElementType: 'bar' | 'label' | 'dot' | 'tick' | null = null;
 			private scrollHandler: () => void;
+			private panelMoveHandler: (e: MouseEvent) => void;
+			private panelLeaveHandler: () => void;
 			private resizeObserver: ResizeObserver | null = null;
 			private mutationObserver: MutationObserver | null = null;
 			private rafId: number | null = null;
@@ -69,6 +75,44 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				const scroller = view.scrollDOM;
 				scroller.style.position = 'relative';
 				scroller.insertBefore(this.panel, scroller.firstChild);
+
+				// Panel hover: mousemove + mouseleave on the panel container
+				// (same pattern as markerViewPlugin on the editor)
+				this.panelMoveHandler = (e: MouseEvent) => {
+					const target = e.target as HTMLElement;
+					const hit = target.closest?.('[data-marker-id]') as HTMLElement | null;
+
+					const markerId = hit?.getAttribute('data-marker-id') ?? null;
+					const codeName = hit?.getAttribute('data-code-name') ?? null;
+					const elementType = this.detectElementType(hit);
+
+					// Dispatch setHoverEffect when marker changes (including to null)
+					if (markerId !== this.hoveredMarkerId) {
+						this.view.dispatch({
+							effects: setHoverEffect.of({ markerId })
+						});
+					}
+
+					if (markerId !== this.hoveredMarkerId || codeName !== this.hoveredCodeName || elementType !== this.hoveredElementType) {
+						this.hoveredMarkerId = markerId;
+						this.hoveredCodeName = codeName;
+						this.hoveredElementType = elementType;
+						this.applyHoverClasses();
+					}
+				};
+				this.panelLeaveHandler = () => {
+					if (this.hoveredMarkerId) {
+						this.hoveredMarkerId = null;
+						this.hoveredCodeName = null;
+						this.hoveredElementType = null;
+						this.applyHoverClasses();
+						this.view.dispatch({
+							effects: setHoverEffect.of({ markerId: null })
+						});
+					}
+				};
+				this.panel.addEventListener('mousemove', this.panelMoveHandler);
+				this.panel.addEventListener('mouseleave', this.panelLeaveHandler);
 
 				this.scrollHandler = () => this.scheduleUpdate();
 				scroller.addEventListener('scroll', this.scrollHandler, { passive: true });
@@ -116,6 +160,16 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 						if (effect.is(updateFileMarkersEffect) && effect.value.fileId === this.fileId) {
 							needsRender = true;
 						}
+						// Text-side hover → update panel classes (no re-render)
+						if (effect.is(setHoverEffect)) {
+							const newId = effect.value.markerId;
+							if (newId !== this.hoveredMarkerId) {
+								this.hoveredMarkerId = newId;
+								this.hoveredCodeName = null; // text hover → all codes
+								this.hoveredElementType = null;
+								this.applyHoverClasses();
+							}
+						}
 					}
 				}
 
@@ -132,6 +186,55 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 
 				if (needsRender) {
 					this.scheduleUpdate();
+				}
+			}
+
+			/**
+			 * Detect which type of margin element was hit.
+			 */
+			private detectElementType(el: HTMLElement | null): 'bar' | 'label' | 'dot' | 'tick' | null {
+				if (!el) return null;
+				if (el.classList.contains('codemarker-margin-line')) return 'bar';
+				if (el.classList.contains('codemarker-margin-label')) return 'label';
+				if (el.classList.contains('codemarker-margin-dot')) return 'dot';
+				if (el.classList.contains('codemarker-margin-tick')) return 'tick';
+				return null;
+			}
+
+			/**
+			 * Toggle hover classes directly on existing DOM (no re-render).
+			 *
+			 * Underline logic:
+			 * - Hover on bar/dot/tick → all labels of that marker get underline
+			 * - Hover on label → only that specific label gets underline
+			 * - Text-side hover (hoveredElementType null) → all codes of marker
+			 */
+			private applyHoverClasses() {
+				const els = Array.from(this.panel.querySelectorAll('[data-marker-id]'));
+				for (const el of els) {
+					const mid = el.getAttribute('data-marker-id') || '';
+					const cname = el.getAttribute('data-code-name') || '';
+					const isLabel = el.classList.contains('codemarker-margin-label');
+
+					let shouldHover = false;
+					if (this.hoveredMarkerId === mid) {
+						if (isLabel) {
+							if (this.hoveredElementType === 'label') {
+								// Hover on label → only that label
+								shouldHover = this.hoveredCodeName === cname;
+							} else if (this.hoveredElementType !== null) {
+								// Hover on bar/dot/tick → all labels of marker
+								shouldHover = true;
+							} else {
+								// Text-side hover (elementType null) → all codes
+								shouldHover = true;
+							}
+						} else {
+							// Bars, dots, ticks: hover if code matches or all
+							shouldHover = this.hoveredCodeName === null || this.hoveredCodeName === cname;
+						}
+					}
+					el.classList.toggle('codemarker-margin-hovered', shouldHover);
 				}
 			}
 
@@ -268,6 +371,9 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					if (label.actualY > viewBottom) continue;
 					this.renderLabel(label, panelWidth);
 				}
+
+				// Re-apply hover classes after DOM rebuild
+				this.applyHoverClasses();
 			}
 
 			/**
@@ -315,6 +421,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				const labels: LabelInfo[] = brackets.map(b => {
 					const midY = (b.top + b.bottom) / 2 - LABEL_HEIGHT / 2;
 					return {
+						markerId: b.marker.id,
 						codeName: b.codeName,
 						color: b.color,
 						idealY: midY,
@@ -380,6 +487,8 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				// Top tick (extends left)
 				const topTick = document.createElement('div');
 				topTick.className = 'codemarker-margin-tick';
+				topTick.setAttribute('data-marker-id', bracket.marker.id);
+				topTick.setAttribute('data-code-name', bracket.codeName);
 				topTick.style.position = 'absolute';
 				topTick.style.top = `${bracket.top}px`;
 				topTick.style.left = `${colCenter}px`;
@@ -391,6 +500,8 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				// Bottom tick (extends left)
 				const bottomTick = document.createElement('div');
 				bottomTick.className = 'codemarker-margin-tick';
+				bottomTick.setAttribute('data-marker-id', bracket.marker.id);
+				bottomTick.setAttribute('data-code-name', bracket.codeName);
 				bottomTick.style.position = 'absolute';
 				bottomTick.style.top = `${bracket.bottom - LINE_WIDTH}px`;
 				bottomTick.style.left = `${colCenter}px`;
@@ -411,6 +522,8 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 
 				const el = document.createElement('div');
 				el.className = 'codemarker-margin-label';
+				el.setAttribute('data-marker-id', label.markerId);
+				el.setAttribute('data-code-name', label.codeName);
 				el.textContent = label.codeName;
 				el.style.position = 'absolute';
 				el.style.top = `${label.actualY}px`;
@@ -433,6 +546,8 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 
 				const dot = document.createElement('div');
 				dot.className = 'codemarker-margin-dot';
+				dot.setAttribute('data-marker-id', label.markerId);
+				dot.setAttribute('data-code-name', label.codeName);
 				dot.style.position = 'absolute';
 				dot.style.top = `${dotY - DOT_SIZE / 2}px`;
 				dot.style.left = `${colCenter - DOT_SIZE / 2}px`;
@@ -446,6 +561,8 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			destroy() {
 				if (this.rafId !== null) cancelAnimationFrame(this.rafId);
 				this.view.scrollDOM.removeEventListener('scroll', this.scrollHandler);
+				this.panel.removeEventListener('mousemove', this.panelMoveHandler);
+				this.panel.removeEventListener('mouseleave', this.panelLeaveHandler);
 				if (this.resizeObserver) this.resizeObserver.disconnect();
 				if (this.mutationObserver) this.mutationObserver.disconnect();
 				this.view.contentDOM.style.paddingLeft = '';

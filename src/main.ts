@@ -20,7 +20,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v27.6 loaded — MAXQDA bars + dynamic labels + align + RLL fix');
+		console.log('[CodeMarker v2] v27.7 loaded — Bidirectional hover underline');
 		await this.loadSettings();
 
 		// Initialize data model

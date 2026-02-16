@@ -436,6 +436,35 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	user-select: none;
+	cursor: pointer;
+}
+
+/* Hover feedback on margin panel elements */
+.codemarker-margin-label.codemarker-margin-hovered {
+	text-decoration: underline;
+	opacity: 1;
+}
+
+.codemarker-margin-line.codemarker-margin-hovered {
+	opacity: 1;
+	filter: brightness(1.15);
+}
+
+.codemarker-margin-dot.codemarker-margin-hovered {
+	filter: brightness(1.15);
+	transform: scale(1.3);
+}
+
+.codemarker-margin-tick.codemarker-margin-hovered {
+	opacity: 1;
+	filter: brightness(1.15);
+}
+
+.codemarker-margin-line,
+.codemarker-margin-dot,
+.codemarker-margin-label,
+.codemarker-margin-tick {
+	transition: opacity 0.15s ease, filter 0.15s ease, transform 0.15s ease;
 }
 
 /* Push editor content to make room for the panel */
