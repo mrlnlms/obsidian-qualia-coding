@@ -11,7 +11,7 @@
 - Plugin ID atual: obsidian-codemarker-v2
 
 ## Proximo
-- Versao: v28
+- Versao: v27.9
 - Tipo: TBD
 - Source type: TBD
 - Timestamp: TBD
