@@ -11,6 +11,7 @@ import {
 	addExistingCodeAction
 } from './menuActions';
 import { CodeFormModal } from './codeFormModal';
+import { setSelectionPreviewEffect } from '../cm6/markerStateField';
 
 /**
  * Approach C: CM6 Tooltip + Obsidian Native Components.
@@ -135,11 +136,18 @@ export function buildNativeTooltipMenuDOM(
 	container.appendChild(
 		createActionItem('Add New Code', 'plus-circle', () => {
 			onClose();
+			// Re-dispatch selection preview so it stays visible while modal is open
+			view.dispatch({
+				effects: setSelectionPreviewEffect.of({ from: snapshot.from, to: snapshot.to })
+			});
 			new CodeFormModal(
 				model.plugin.app,
 				model.getSettings().defaultColor,
 				(name, color, description) => {
 					addCodeWithDetailsAction(model, snapshot, name, color, description);
+				},
+				() => {
+					// Reopen tooltip menu (save or cancel)
 					onRecreate();
 				}
 			).open();
@@ -154,24 +162,9 @@ export function buildNativeTooltipMenuDOM(
 	);
 
 	container.appendChild(
-		createActionItem('Remove Code', 'trash', () => {
-			const codesAtSel = getCodesAtSelection(model, snapshot);
-			if (codesAtSel.length > 0) {
-				for (const code of codesAtSel) {
-					removeCodeAction(model, snapshot, code);
-				}
-				new Notice('Codes removed from selection');
-			} else {
-				new Notice('No codes at selection');
-			}
-			onClose();
-		})
-	);
-
-	container.appendChild(
-		createActionItem('Remove All Codes', 'minus-circle', () => {
+		createActionItem('Remove Codes', 'trash', () => {
 			removeAllCodesAction(model, snapshot);
-			new Notice('All codes removed');
+			new Notice('Codes removed');
 			onClose();
 		})
 	);

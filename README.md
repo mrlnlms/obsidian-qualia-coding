@@ -29,6 +29,7 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 - **Code definitions**: Each code has a persistent identity with a name, color, and optional description
 - **Auto color palette**: 12 visually distinct colors are assigned automatically as you create codes
 - **Code Form Modal**: Dedicated Obsidian-native modal for creating codes — name, color picker, and optional description in a focused dialog
+- **Selection preview**: When creating a marker via the modal, the selected text is previewed with a highlight before confirming
 - **Create codes inline**: Add new codes directly from the coding menu without interrupting your flow
 - **Custom colors**: Override the auto palette with any color via the color picker
 

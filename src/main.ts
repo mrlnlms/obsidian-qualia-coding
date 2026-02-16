@@ -2,7 +2,7 @@ import { Plugin, MarkdownView, Notice, Editor, Menu, TFile } from 'obsidian';
 import { CodeMarkerSettings, DEFAULT_SETTINGS } from './models/settings';
 import { CodeMarkerModel } from './models/codeMarkerModel';
 import { CodeMarkerSettingTab } from './views/settingsTab';
-import { createMarkerStateField, updateFileMarkersEffect } from './cm6/markerStateField';
+import { createMarkerStateField, updateFileMarkersEffect, setSelectionPreviewEffect } from './cm6/markerStateField';
 import { createMarkerViewPlugin, SELECTION_EVENT, SelectionEventDetail } from './cm6/markerViewPlugin';
 import { createSelectionMenuField } from './cm6/selectionMenuField';
 import { MenuController } from './menu/menuController';
@@ -19,7 +19,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v27.2 loaded — Code Form Modal + polish UI + hover fix');
+		console.log('[obsidian-codemarker-v2] v27.3 loaded — Selection preview + CodeDefinition Registry');
 		await this.loadSettings();
 
 		// Initialize data model
@@ -254,11 +254,24 @@ export default class CodeMarkerPlugin extends Plugin {
 				// Close any existing tooltip before opening the modal
 				this.menuController.closeMenu(editorView);
 
+				// Show selection preview while modal is open
+				editorView.dispatch({
+					effects: setSelectionPreviewEffect.of({ from: snapshot.from, to: snapshot.to })
+				});
+
 				new CodeFormModal(
 					this.app,
 					this.settings.defaultColor,
 					(name, color, description) => {
 						addCodeWithDetailsAction(this.model, snapshot, name, color, description);
+					},
+					() => {
+						// Reopen tooltip menu (save or cancel)
+						this.menuController.openMenu(
+							editorView,
+							snapshot,
+							{ x: window.innerWidth / 2, y: window.innerHeight / 3 }
+						);
 					}
 				).open();
 			}

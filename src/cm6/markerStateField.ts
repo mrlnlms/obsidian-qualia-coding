@@ -193,12 +193,19 @@ function buildDecorationsForFile(
 			let bgColor = 'rgba(98, 0, 238, 0.4)';
 			let handleColor = '#6200EE';
 
-			if (marker.color && marker.color.startsWith('#')) {
-				const r = parseInt(marker.color.slice(1, 3), 16);
-				const g = parseInt(marker.color.slice(3, 5), 16);
-				const b = parseInt(marker.color.slice(5, 7), 16);
+			// Derive color from registry (first code wins), fall back to marker.color
+			let effectiveColor = marker.color;
+			if (marker.codes.length > 0) {
+				const registryColor = model.registry.getColorForCodes(marker.codes);
+				if (registryColor) effectiveColor = registryColor;
+			}
+
+			if (effectiveColor && effectiveColor.startsWith('#')) {
+				const r = parseInt(effectiveColor.slice(1, 3), 16);
+				const g = parseInt(effectiveColor.slice(3, 5), 16);
+				const b = parseInt(effectiveColor.slice(5, 7), 16);
 				bgColor = `rgba(${r}, ${g}, ${b}, ${settings.markerOpacity})`;
-				handleColor = marker.color;
+				handleColor = effectiveColor;
 			}
 
 			const highlightDecoration = Decoration.mark({

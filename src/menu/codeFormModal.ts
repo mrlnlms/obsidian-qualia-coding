@@ -5,15 +5,18 @@ export class CodeFormModal extends Modal {
 	private codeColor: string;
 	private codeDescription = '';
 	private onSave: (name: string, color: string, description: string) => void;
+	private onDismiss?: () => void;
 
 	constructor(
 		app: App,
 		defaultColor: string,
-		onSave: (name: string, color: string, description: string) => void
+		onSave: (name: string, color: string, description: string) => void,
+		onDismiss?: () => void
 	) {
 		super(app);
 		this.codeColor = defaultColor;
 		this.onSave = onSave;
+		this.onDismiss = onDismiss;
 	}
 
 	onOpen() {
@@ -74,5 +77,6 @@ export class CodeFormModal extends Modal {
 
 	onClose() {
 		this.contentEl.empty();
+		this.onDismiss?.();
 	}
 }

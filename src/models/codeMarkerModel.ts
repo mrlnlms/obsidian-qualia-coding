@@ -3,6 +3,7 @@ import CodeMarkerPlugin from '../main';
 import { CodeMarkerSettings } from './settings';
 import { CodeItem, SelectionSnapshot } from '../menu/menuTypes';
 import { getViewForFile as getViewForFileLookup } from '../cm6/utils/viewLookupUtils';
+import { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 
 export interface Marker {
 	id: string;
@@ -20,6 +21,7 @@ export interface Marker {
 export class CodeMarkerModel {
 	private markers: Map<string, Marker[]> = new Map();
 	private codeDescriptions: Record<string, string> = {};
+	readonly registry: CodeDefinitionRegistry = new CodeDefinitionRegistry();
 	plugin: CodeMarkerPlugin;
 
 	constructor(plugin: CodeMarkerPlugin) {
@@ -55,6 +57,45 @@ export class CodeMarkerModel {
 			if (data.codeDescriptions) {
 				this.codeDescriptions = data.codeDescriptions;
 			}
+
+			// Load or migrate CodeDefinition Registry
+			if (data.codeDefinitions) {
+				// Registry already exists — deserialize
+				const loaded = CodeDefinitionRegistry.fromJSON({
+					definitions: data.codeDefinitions,
+					nextPaletteIndex: data.nextPaletteIndex ?? 0
+				});
+				// Replace the default empty registry
+				(this as any).registry = loaded;
+			} else {
+				// Migration: extract codes from existing markers → create definitions
+				this.migrateCodeDefinitions();
+			}
+		}
+	}
+
+	/**
+	 * One-time migration: create CodeDefinitions from existing markers.
+	 * Takes color from the first marker that uses each code,
+	 * and description from codeDescriptions if available.
+	 */
+	private migrateCodeDefinitions() {
+		const seenCodes = new Set<string>();
+
+		for (const [, markers] of this.markers.entries()) {
+			for (const marker of markers) {
+				for (const codeName of marker.codes) {
+					if (!seenCodes.has(codeName)) {
+						seenCodes.add(codeName);
+						const description = this.codeDescriptions[codeName];
+						this.registry.create(codeName, marker.color, description);
+					}
+				}
+			}
+		}
+
+		if (seenCodes.size > 0) {
+			this.saveMarkers();
 		}
 	}
 
@@ -188,34 +229,28 @@ export class CodeMarkerModel {
 	}
 
 	/**
-	 * Get all unique codes across all markers.
+	 * Get all unique codes from the registry.
 	 */
 	getAllCodes(): CodeItem[] {
-		const codeMap = new Map<string, CodeItem>();
-
-		for (const [, markers] of this.markers.entries()) {
-			for (const marker of markers) {
-				for (const codeName of marker.codes) {
-					if (!codeMap.has(codeName)) {
-						codeMap.set(codeName, {
-							name: codeName,
-							color: marker.color,
-							createdAt: marker.createdAt
-						});
-					}
-				}
-			}
-		}
-
-		return Array.from(codeMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+		return this.registry.getAll().map(def => ({
+			name: def.name,
+			color: def.color,
+			createdAt: def.createdAt
+		}));
 	}
 
 	/**
 	 * Add a code to a marker's codes array.
+	 * Ensures a CodeDefinition exists in the registry (auto-creates if missing).
 	 */
 	addCodeToMarker(markerId: string, codeName: string, color?: string): boolean {
 		const marker = this.getMarkerById(markerId);
 		if (!marker) return false;
+
+		// Ensure code definition exists in registry
+		if (!this.registry.getByName(codeName)) {
+			this.registry.create(codeName, color);
+		}
 
 		if (!marker.codes.includes(codeName)) {
 			marker.codes.push(codeName);
@@ -297,6 +332,12 @@ export class CodeMarkerModel {
 
 		data.markers = markersObj;
 		data.codeDescriptions = this.codeDescriptions;
+
+		// Persist registry
+		const registryData = this.registry.toJSON();
+		data.codeDefinitions = registryData.definitions;
+		data.nextPaletteIndex = registryData.nextPaletteIndex;
+
 		await this.plugin.saveData(data);
 	}
 
@@ -430,6 +471,12 @@ export class CodeMarkerModel {
 	}
 
 	setCodeDescription(codeName: string, description: string) {
+		// Write to registry
+		const def = this.registry.getByName(codeName);
+		if (def) {
+			this.registry.update(def.id, { description: description.trim() || undefined });
+		}
+		// Also update legacy field for backward compat
 		if (description.trim()) {
 			this.codeDescriptions[codeName] = description;
 		} else {
@@ -439,6 +486,7 @@ export class CodeMarkerModel {
 	}
 
 	getCodeDescription(codeName: string): string {
-		return this.codeDescriptions[codeName] ?? '';
+		const def = this.registry.getByName(codeName);
+		return def?.description ?? this.codeDescriptions[codeName] ?? '';
 	}
 }
