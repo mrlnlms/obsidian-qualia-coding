@@ -1,4 +1,5 @@
 import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/view";
+import { Notice } from "obsidian";
 import { CodeMarkerModel, Marker } from "../models/codeMarkerModel";
 import { findFileIdForEditorView, getViewForFile } from "./utils/viewLookupUtils";
 import { updateFileMarkersEffect, setHoverEffect } from "./markerStateField";
@@ -60,11 +61,13 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			private scrollHandler: () => void;
 			private panelMoveHandler: (e: MouseEvent) => void;
 			private panelLeaveHandler: () => void;
+			private panelClickHandler: (e: MouseEvent) => void;
 			private resizeObserver: ResizeObserver | null = null;
 			private mutationObserver: MutationObserver | null = null;
 			private rafId: number | null = null;
 			private lastViewportFrom = -1;
 			private lastViewportTo = -1;
+			private suppressMutationUntil = 0;
 
 			constructor(view: EditorView) {
 				this.view = view;
@@ -87,7 +90,11 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					const elementType = this.detectElementType(hit);
 
 					// Dispatch setHoverEffect when marker changes (including to null)
+					// Suppress mutation-triggered re-renders briefly — the hover dispatch
+					// causes decoration rebuilds in the editor DOM which the MutationObserver
+					// would pick up, destroying and recreating panel elements under the cursor.
 					if (markerId !== this.hoveredMarkerId) {
+						this.suppressMutationUntil = Date.now() + 150;
 						this.view.dispatch({
 							effects: setHoverEffect.of({ markerId })
 						});
@@ -106,13 +113,30 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 						this.hoveredCodeName = null;
 						this.hoveredElementType = null;
 						this.applyHoverClasses();
+						this.suppressMutationUntil = Date.now() + 150;
 						this.view.dispatch({
 							effects: setHoverEffect.of({ markerId: null })
 						});
 					}
 				};
+				this.panelClickHandler = (e: MouseEvent) => {
+					const target = e.target as HTMLElement;
+					const hit = target.closest?.('[data-marker-id]') as HTMLElement | null;
+					if (!hit) return;
+
+					const elementType = this.detectElementType(hit);
+					if (elementType !== 'label') return;
+
+					const markerId = hit.getAttribute('data-marker-id');
+					const codeName = hit.getAttribute('data-code-name');
+					console.log('[CodeMarker] label click:', { markerId, codeName, elementType });
+					if (codeName) {
+						new Notice(`Code: ${codeName}`);
+					}
+				};
 				this.panel.addEventListener('mousemove', this.panelMoveHandler);
 				this.panel.addEventListener('mouseleave', this.panelLeaveHandler);
+				this.panel.addEventListener('click', this.panelClickHandler);
 
 				this.scrollHandler = () => this.scheduleUpdate();
 				scroller.addEventListener('scroll', this.scrollHandler, { passive: true });
@@ -120,7 +144,10 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				this.resizeObserver = new ResizeObserver(() => this.scheduleUpdate());
 				this.resizeObserver.observe(view.contentDOM);
 
-				this.mutationObserver = new MutationObserver(() => this.scheduleUpdate());
+				this.mutationObserver = new MutationObserver(() => {
+					if (Date.now() < this.suppressMutationUntil) return;
+					this.scheduleUpdate();
+				});
 				this.mutationObserver.observe(view.dom, {
 					childList: true,
 					subtree: true,
@@ -563,6 +590,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				this.view.scrollDOM.removeEventListener('scroll', this.scrollHandler);
 				this.panel.removeEventListener('mousemove', this.panelMoveHandler);
 				this.panel.removeEventListener('mouseleave', this.panelLeaveHandler);
+				this.panel.removeEventListener('click', this.panelClickHandler);
 				if (this.resizeObserver) this.resizeObserver.disconnect();
 				if (this.mutationObserver) this.mutationObserver.disconnect();
 				this.view.contentDOM.style.paddingLeft = '';

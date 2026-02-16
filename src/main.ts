@@ -20,7 +20,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v27.7 loaded — Bidirectional hover underline');
+		console.log('[CodeMarker v2] v27.8 loaded — Fix hover flickering + click handler');
 		await this.loadSettings();
 
 		// Initialize data model
