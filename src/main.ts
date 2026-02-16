@@ -8,6 +8,8 @@ import { createSelectionMenuField } from './cm6/selectionMenuField';
 import { MenuController } from './menu/menuController';
 import { openObsidianMenu } from './menu/obsidianMenu';
 import { createHoverMenuExtension } from './cm6/hoverMenuExtension';
+import { CodeFormModal } from './menu/codeFormModal';
+import { addCodeWithDetailsAction } from './menu/menuActions';
 
 export default class CodeMarkerPlugin extends Plugin {
 	settings: CodeMarkerSettings;
@@ -17,7 +19,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v27.1 loaded — Menu isolation + fix double-toggle + DRY refactor');
+		console.log('[CodeMarker v2] v27.2 loaded — Code Form Modal + polish UI + hover fix');
 		await this.loadSettings();
 
 		// Initialize data model
@@ -242,16 +244,23 @@ export default class CodeMarkerPlugin extends Plugin {
 				const editorView = editor.cm;
 				if (!editorView) return;
 
-				this.menuController.openMenu(
-					editorView,
-					{
-						from: fromOffset,
-						to: toOffset,
-						text: selectedText,
-						fileId: view.file.path,
-					},
-					{ x: window.innerWidth / 2, y: window.innerHeight / 3 }
-				);
+				const snapshot = {
+					from: fromOffset,
+					to: toOffset,
+					text: selectedText,
+					fileId: view.file!.path,
+				};
+
+				// Close any existing tooltip before opening the modal
+				this.menuController.closeMenu(editorView);
+
+				new CodeFormModal(
+					this.app,
+					this.settings.defaultColor,
+					(name, color, description) => {
+						addCodeWithDetailsAction(this.model, snapshot, name, color, description);
+					}
+				).open();
 			}
 		});
 

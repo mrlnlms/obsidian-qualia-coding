@@ -4,11 +4,13 @@ import { CodeMarkerModel } from '../models/codeMarkerModel';
 import { SelectionSnapshot } from './menuTypes';
 import {
 	addCodeAction,
+	addCodeWithDetailsAction,
 	removeCodeAction,
 	removeAllCodesAction,
 	getCodesAtSelection,
 	addExistingCodeAction
 } from './menuActions';
+import { CodeFormModal } from './codeFormModal';
 
 /**
  * Approach C: CM6 Tooltip + Obsidian Native Components.
@@ -132,8 +134,15 @@ export function buildNativeTooltipMenuDOM(
 	// ── d) 4 action buttons ──────────────────────────────────────────────
 	container.appendChild(
 		createActionItem('Add New Code', 'plus-circle', () => {
-			// Focus the TextComponent for the user to type
-			textComponent.inputEl.focus();
+			onClose();
+			new CodeFormModal(
+				model.plugin.app,
+				model.getSettings().defaultColor,
+				(name, color, description) => {
+					addCodeWithDetailsAction(model, snapshot, name, color, description);
+					onRecreate();
+				}
+			).open();
 		})
 	);
 

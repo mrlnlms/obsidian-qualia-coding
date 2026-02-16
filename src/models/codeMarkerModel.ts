@@ -19,6 +19,7 @@ export interface Marker {
 
 export class CodeMarkerModel {
 	private markers: Map<string, Marker[]> = new Map();
+	private codeDescriptions: Record<string, string> = {};
 	plugin: CodeMarkerPlugin;
 
 	constructor(plugin: CodeMarkerPlugin) {
@@ -27,27 +28,32 @@ export class CodeMarkerModel {
 
 	async loadMarkers() {
 		const data = await this.plugin.loadData();
-		if (data && data.markers) {
-			for (const fileId in data.markers) {
-				const fileMarkers: Marker[] = data.markers[fileId].map((m: any) => {
-					// Migration: convert old `code: string` to `codes: string[]`
-					if ('code' in m && !('codes' in m)) {
-						const codes = m.code ? [m.code] : [];
-						const { code, ...rest } = m;
-						return { ...rest, codes };
-					}
-					return m;
-				});
-				this.markers.set(fileId, fileMarkers);
-			}
-
-			// Update all open views
-			const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
-			for (const leaf of leaves) {
-				const view = leaf.view;
-				if (view instanceof MarkdownView && view.file) {
-					this.updateMarkersForFile(view.file.path);
+		if (data) {
+			if (data.markers) {
+				for (const fileId in data.markers) {
+					const fileMarkers: Marker[] = data.markers[fileId].map((m: any) => {
+						// Migration: convert old `code: string` to `codes: string[]`
+						if ('code' in m && !('codes' in m)) {
+							const codes = m.code ? [m.code] : [];
+							const { code, ...rest } = m;
+							return { ...rest, codes };
+						}
+						return m;
+					});
+					this.markers.set(fileId, fileMarkers);
 				}
+
+				// Update all open views
+				const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
+				for (const leaf of leaves) {
+					const view = leaf.view;
+					if (view instanceof MarkdownView && view.file) {
+						this.updateMarkersForFile(view.file.path);
+					}
+				}
+			}
+			if (data.codeDescriptions) {
+				this.codeDescriptions = data.codeDescriptions;
 			}
 		}
 	}
@@ -290,6 +296,7 @@ export class CodeMarkerModel {
 		});
 
 		data.markers = markersObj;
+		data.codeDescriptions = this.codeDescriptions;
 		await this.plugin.saveData(data);
 	}
 
@@ -420,5 +427,18 @@ export class CodeMarkerModel {
 
 	getSettings(): CodeMarkerSettings {
 		return this.plugin.settings;
+	}
+
+	setCodeDescription(codeName: string, description: string) {
+		if (description.trim()) {
+			this.codeDescriptions[codeName] = description;
+		} else {
+			delete this.codeDescriptions[codeName];
+		}
+		this.saveMarkers();
+	}
+
+	getCodeDescription(codeName: string): string {
+		return this.codeDescriptions[codeName] ?? '';
 	}
 }

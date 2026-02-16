@@ -340,6 +340,68 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
    High-DPI Display Support
    ======================================== */
 
+/* ========================================
+   CodeFormModal — stacked form layout
+   ======================================== */
+
+.codemarker-code-form .modal-content {
+	padding: 0 4px;
+}
+
+.codemarker-code-form .modal-content h3 {
+	margin: 0 0 12px 0;
+	font-size: var(--font-ui-medium);
+	font-weight: 600;
+}
+
+/* Stack Setting items vertically (label above, control below) */
+.codemarker-code-form .setting-item {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+	padding: 8px 0;
+	border-top: none;
+}
+
+.codemarker-code-form .setting-item-info {
+	padding: 0;
+}
+
+.codemarker-code-form .setting-item-name {
+	font-size: var(--font-ui-small);
+	font-weight: 500;
+	color: var(--text-muted);
+}
+
+.codemarker-code-form .setting-item-control {
+	width: 100%;
+	padding: 0;
+}
+
+/* Full-width text input and textarea */
+.codemarker-code-form .setting-item-control input[type="text"] {
+	width: 100%;
+}
+
+.codemarker-code-form .setting-item-control textarea {
+	width: 100%;
+	resize: vertical;
+}
+
+/* Action buttons row */
+.codemarker-code-form .cm-form-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	padding-top: 16px;
+	margin-top: 8px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+/* ========================================
+   High-DPI Display Support
+   ======================================== */
+
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
 	.codemarker-handle-svg {
 		filter: drop-shadow(0px 1px 3px rgba(0, 0, 0, 0.4));

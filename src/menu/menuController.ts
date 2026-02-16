@@ -20,6 +20,18 @@ export class MenuController {
 		this.model = model;
 	}
 
+	/**
+	 * Close any open CM6 tooltip menu + selection preview.
+	 */
+	closeMenu(editorView: EditorView) {
+		editorView.dispatch({
+			effects: [
+				showCodingMenuEffect.of(null),
+				setSelectionPreviewEffect.of(null),
+			]
+		});
+	}
+
 	openMenu(
 		editorView: EditorView,
 		snapshot: SelectionSnapshot,
@@ -43,7 +55,13 @@ export class MenuController {
 			if (settings.menuMode === 'cm6-native-tooltip') {
 				effects.push(setSelectionPreviewEffect.of({ from: snapshot.from, to: snapshot.to }));
 			}
-			editorView.dispatch({ effects });
+			const dispatchSpec: any = { effects };
+			// Restore CM6 selection for command-triggered menus (may have been
+			// lost to command palette focus); skip for hover menus which have no selection.
+			if (!snapshot.hoverMarkerId) {
+				dispatchSpec.selection = { anchor: snapshot.from, head: snapshot.to };
+			}
+			editorView.dispatch(dispatchSpec);
 			// Tooltip manages its own lifecycle via the StateField
 			this.isMenuOpen = false;
 		} else {

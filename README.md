@@ -28,6 +28,7 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 
 - **Code definitions**: Each code has a persistent identity with a name, color, and optional description
 - **Auto color palette**: 12 visually distinct colors are assigned automatically as you create codes
+- **Code Form Modal**: Dedicated Obsidian-native modal for creating codes — name, color picker, and optional description in a focused dialog
 - **Create codes inline**: Add new codes directly from the coding menu without interrupting your flow
 - **Custom colors**: Override the auto palette with any color via the color picker
 
@@ -138,16 +139,6 @@ CodeMarker is evolving toward a full qualitative data analysis platform inside O
 | Power features | Code hierarchy, memos, queries, matrix, export | Planned |
 
 See `ARCHITECTURE.md` for the full architectural study.
-
----
-
-## Changelog
-
-### v27.1 (2026-02-16)
-- Menu operations now isolated to target marker — no cross-marker interference
-- Fixed double-toggle bug when clicking the same code
-- DRY refactor: extracted `findOrCreateMarkerAtSelection` as shared utility
-- Empty marker cleanup deferred to menu close
 
 ---
 

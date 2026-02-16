@@ -51,6 +51,21 @@ export function addCodeAction(
 	return model.addCodeToMarker(marker.id, codeName, color);
 }
 
+export function addCodeWithDetailsAction(
+	model: CodeMarkerModel,
+	snapshot: SelectionSnapshot,
+	codeName: string,
+	color: string,
+	description: string
+): boolean {
+	const marker = model.findOrCreateMarkerAtSelection(snapshot);
+	const added = model.addCodeToMarker(marker.id, codeName, color);
+	if (description) {
+		model.setCodeDescription(codeName, description);
+	}
+	return added;
+}
+
 export function removeCodeAction(
 	model: CodeMarkerModel,
 	snapshot: SelectionSnapshot,
