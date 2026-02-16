@@ -2,6 +2,7 @@ import { Editor, MarkdownView } from 'obsidian';
 import CodeMarkerPlugin from '../main';
 import { CodeMarkerSettings } from './settings';
 import { CodeItem, SelectionSnapshot } from '../menu/menuTypes';
+import { getViewForFile as getViewForFileLookup } from '../cm6/utils/viewLookupUtils';
 
 export interface Marker {
 	id: string;
@@ -83,25 +84,13 @@ export class CodeMarkerModel {
 	 * Find an existing marker that exactly matches a selection range, or create a new one.
 	 */
 	findOrCreateMarkerAtSelection(snapshot: SelectionSnapshot): Marker {
-		const fileMarkers = this.getMarkersForFile(snapshot.fileId);
+		const existing = this.findMarkerAtExactRange(snapshot);
+		if (existing) return existing;
+
+		// No exact match — create new marker
 		const targetView = this.getViewForFile(snapshot.fileId);
 
 		if (targetView?.editor) {
-			for (const marker of fileMarkers) {
-				try {
-					// @ts-ignore
-					const startOffset = targetView.editor.posToOffset(marker.range.from);
-					// @ts-ignore
-					const endOffset = targetView.editor.posToOffset(marker.range.to);
-					if (startOffset === snapshot.from && endOffset === snapshot.to) {
-						return marker;
-					}
-				} catch {
-					continue;
-				}
-			}
-
-			// No exact match — create new marker
 			// @ts-ignore
 			const fromPos = targetView.editor.offsetToPos(snapshot.from);
 			// @ts-ignore
@@ -139,6 +128,31 @@ export class CodeMarkerModel {
 		this.addMarkerToFile(snapshot.fileId, marker);
 		this.saveMarkers();
 		return marker;
+	}
+
+	/**
+	 * Find an existing marker that exactly matches a selection range (no creation).
+	 */
+	findMarkerAtExactRange(snapshot: SelectionSnapshot): Marker | null {
+		const fileMarkers = this.getMarkersForFile(snapshot.fileId);
+		const targetView = this.getViewForFile(snapshot.fileId);
+
+		if (targetView?.editor) {
+			for (const marker of fileMarkers) {
+				try {
+					// @ts-ignore
+					const startOffset = targetView.editor.posToOffset(marker.range.from);
+					// @ts-ignore
+					const endOffset = targetView.editor.posToOffset(marker.range.to);
+					if (startOffset === snapshot.from && endOffset === snapshot.to) {
+						return marker;
+					}
+				} catch {
+					continue;
+				}
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -209,9 +223,10 @@ export class CodeMarkerModel {
 	}
 
 	/**
-	 * Remove a code from a marker. If no codes remain, remove the marker entirely.
+	 * Remove a code from a marker. If no codes remain, remove the marker entirely
+	 * unless keepIfEmpty is true (used to defer deletion while a menu is open).
 	 */
-	removeCodeFromMarker(markerId: string, codeName: string): boolean {
+	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty = false): boolean {
 		const marker = this.getMarkerById(markerId);
 		if (!marker) return false;
 
@@ -220,13 +235,24 @@ export class CodeMarkerModel {
 			marker.codes.splice(idx, 1);
 			marker.updatedAt = Date.now();
 
-			if (marker.codes.length === 0) {
+			if (marker.codes.length === 0 && !keepIfEmpty) {
 				this.removeMarker(markerId);
 			} else {
 				this.saveMarkers();
 				this.updateMarkersForFile(marker.fileId);
 			}
 			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Remove a marker if it has no codes left. Used for deferred cleanup.
+	 */
+	cleanupEmptyMarker(markerId: string): boolean {
+		const marker = this.getMarkerById(markerId);
+		if (marker && marker.codes.length === 0) {
+			return this.removeMarker(markerId);
 		}
 		return false;
 	}
@@ -352,14 +378,7 @@ export class CodeMarkerModel {
 	}
 
 	getViewForFile(fileId: string): MarkdownView | null {
-		const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
-		for (const leaf of leaves) {
-			const view = leaf.view;
-			if (view instanceof MarkdownView && view.file?.path === fileId) {
-				return view;
-			}
-		}
-		return null;
+		return getViewForFileLookup(fileId, this.plugin.app);
 	}
 
 	getAllViewsForFile(fileId: string): MarkdownView[] {

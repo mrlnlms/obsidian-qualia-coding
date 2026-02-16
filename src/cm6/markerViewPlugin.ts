@@ -1,6 +1,7 @@
 import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/view";
-import { MarkdownView } from "obsidian";
 import { CodeMarkerModel } from "../models/codeMarkerModel";
+import { findFileIdForEditorView, getViewForFile } from "./utils/viewLookupUtils";
+import { findSmallestMarkerAtPos } from "./utils/markerPositionUtils";
 import {
 	setFileIdEffect,
 	setHoverEffect,
@@ -73,82 +74,16 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 			}
 
 			private identifyFileForView(view: EditorView): string | null {
-				const app = model.plugin.app;
-				const leaves = app.workspace.getLeavesOfType('markdown');
-
-				for (const leaf of leaves) {
-					const leafView = leaf.view;
-					if (leafView instanceof MarkdownView && leafView.editor) {
-						try {
-							// @ts-ignore
-							const cmView = leafView.editor.cm;
-							if (cmView === view) {
-								return leafView.file?.path || null;
-							}
-						} catch {
-							continue;
-						}
-					}
-				}
-
-				return null;
+				return findFileIdForEditorView(view, model.plugin.app);
 			}
 
 			getMarkerAtPos(view: EditorView, pos: number): string | null {
 				if (!this.fileId) return null;
-
-				const markers = model.getMarkersForFile(this.fileId);
-				const foundMarkers: Array<{marker: any, size: number}> = [];
-
-				for (const marker of markers) {
-					try {
-						let startOffset: number, endOffset: number;
-
-						try {
-							startOffset = view.state.doc.line(marker.range.from.line + 1).from + marker.range.from.ch;
-							endOffset = view.state.doc.line(marker.range.to.line + 1).from + marker.range.to.ch;
-						} catch {
-							const targetView = this.getViewForFile(this.fileId!);
-							if (!targetView?.editor) continue;
-							// @ts-ignore
-							startOffset = targetView.editor.posToOffset(marker.range.from);
-							// @ts-ignore
-							endOffset = targetView.editor.posToOffset(marker.range.to);
-						}
-
-						if (startOffset === null || endOffset === null ||
-							startOffset === undefined || endOffset === undefined) {
-							continue;
-						}
-
-						if (pos >= startOffset && pos <= endOffset) {
-							const size = endOffset - startOffset;
-							foundMarkers.push({ marker, size });
-						}
-
-					} catch {
-						continue;
-					}
-				}
-
-				if (foundMarkers.length === 0) return null;
-
-				// Return smallest (most specific) marker
-				foundMarkers.sort((a, b) => a.size - b.size);
-				const smallest = foundMarkers[0];
-				return smallest ? smallest.marker.id : null;
+				return findSmallestMarkerAtPos(pos, this.fileId, model, view, model.plugin.app);
 			}
 
-			private getViewForFile(fileId: string): MarkdownView | null {
-				const app = model.plugin.app;
-				const leaves = app.workspace.getLeavesOfType('markdown');
-				for (const leaf of leaves) {
-					const view = leaf.view;
-					if (view instanceof MarkdownView && view.file?.path === fileId) {
-						return view;
-					}
-				}
-				return null;
+			private getViewForFileLocal(fileId: string) {
+				return getViewForFile(fileId, model.plugin.app);
 			}
 
 			updateMarkerPosition(view: EditorView, markerId: string, newPos: number, type: 'start' | 'end') {
@@ -158,7 +93,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 				if (!marker || marker.fileId !== this.fileId) return;
 
 				try {
-					const targetView = this.getViewForFile(this.fileId);
+					const targetView = this.getViewForFileLocal(this.fileId);
 					if (!targetView?.editor) return;
 
 					// @ts-ignore

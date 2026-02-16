@@ -11,6 +11,7 @@ export interface SelectionSnapshot {
 	to: number;
 	text: string;
 	fileId: string;
+	hoverMarkerId?: string;
 }
 
 export interface MenuContext {

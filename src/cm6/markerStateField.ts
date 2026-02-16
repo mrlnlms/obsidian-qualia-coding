@@ -3,7 +3,7 @@ import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import { HandleWidget } from "./handleWidget";
 import { CodeMarkerModel } from "../models/codeMarkerModel";
-import { MarkdownView } from "obsidian";
+import { getViewForFile } from "./utils/viewLookupUtils";
 
 // Effects for CM6 state communication
 export const setFileIdEffect = StateEffect.define<{fileId: string}>();
@@ -113,18 +113,8 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 	});
 };
 
-function getViewForFile(fileId: string, model: CodeMarkerModel): MarkdownView | null {
-	const app = model.plugin.app;
-	const leaves = app.workspace.getLeavesOfType('markdown');
-
-	for (const leaf of leaves) {
-		const view = leaf.view;
-		if (view instanceof MarkdownView && view.file?.path === fileId) {
-			return view;
-		}
-	}
-
-	return null;
+function getViewForFileFromModel(fileId: string, model: CodeMarkerModel) {
+	return getViewForFile(fileId, model.plugin.app);
 }
 
 function calculatePaddingRatio(fontSize: number, lineHeight: number): number {
@@ -151,25 +141,44 @@ function buildDecorationsForFile(
 
 	if (markers.length === 0) return Decoration.none;
 
-	const targetView = getViewForFile(fileId, model);
+	const targetView = getViewForFileFromModel(fileId, model);
 	if (!targetView?.editor) return Decoration.none;
 
 	const allDecorations: Array<{from: number, to: number, decoration: Decoration}> = [];
 
+	// Resolve offsets for all markers first, then sort for visual stacking
+	const resolved: Array<{marker: typeof markers[0], from: number, to: number}> = [];
 	for (const marker of markers) {
 		try {
 			// @ts-ignore
 			const startOffset = targetView.editor.posToOffset(marker.range.from);
 			// @ts-ignore
 			const endOffset = targetView.editor.posToOffset(marker.range.to);
+			if (startOffset == null || endOffset == null) continue;
+			resolved.push({ marker, from: Math.min(startOffset, endOffset), to: Math.max(startOffset, endOffset) });
+		} catch (e) {
+			console.warn(`CodeMarker: Error resolving offset for marker ${marker.id}`, e);
+		}
+	}
 
-			if (startOffset === null || endOffset === null ||
-				startOffset === undefined || endOffset === undefined) {
-				continue;
-			}
+	// Sort for visual stacking: markers rendered last appear on top in the DOM.
+	// Containers (larger markers that contain others) go first (render underneath).
+	// For partial intersections, the one starting earlier goes first (later start = on top).
+	resolved.sort((a, b) => {
+		const aContainsB = a.from <= b.from && a.to >= b.to;
+		const bContainsA = b.from <= a.from && b.to >= a.to;
 
-			const from = Math.min(startOffset, endOffset);
-			const to = Math.max(startOffset, endOffset);
+		if (aContainsB) return -1; // A contains B → A renders first (underneath)
+		if (bContainsA) return 1;  // B contains A → B renders first (underneath)
+
+		// Partial intersection: earlier start renders first (later start = on top)
+		return a.from - b.from;
+	});
+
+	for (let markerIndex = 0; markerIndex < resolved.length; markerIndex++) {
+		const entry = resolved[markerIndex]!;
+		const { marker, from, to } = entry;
+		try {
 
 			// Calculate padding based on font size
 			// @ts-ignore
@@ -207,15 +216,16 @@ function buildDecorationsForFile(
 			const shouldShowHandles = !settings.showHandlesOnHover || isHovered;
 
 			if (shouldShowHandles) {
+				const zIndex = 10000 + markerIndex;
 				const startHandle = Decoration.widget({
-					widget: new HandleWidget(marker, 'start', handleColor, settings, isHovered),
+					widget: new HandleWidget(marker, 'start', handleColor, settings, isHovered, zIndex),
 					side: -1,
 					block: false
 				});
 				allDecorations.push({ from, to: from, decoration: startHandle });
 
 				const endHandle = Decoration.widget({
-					widget: new HandleWidget(marker, 'end', handleColor, settings, isHovered),
+					widget: new HandleWidget(marker, 'end', handleColor, settings, isHovered, zIndex),
 					side: 1,
 					block: false
 				});

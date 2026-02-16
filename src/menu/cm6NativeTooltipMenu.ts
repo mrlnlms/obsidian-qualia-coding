@@ -98,6 +98,11 @@ export function buildNativeTooltipMenuDOM(
 
 		const toggle = new ToggleComponent(itemEl);
 		toggle.setValue(isActive);
+		// Prevent double-toggle: ToggleComponent handles its own click internally,
+		// so stop it from bubbling to itemEl's click handler which would toggle again.
+		toggle.toggleEl.addEventListener('click', (evt) => {
+			evt.stopPropagation();
+		});
 		toggle.onChange((value) => {
 			if (value) {
 				addCodeAction(model, snapshot, codeItem.name);
@@ -162,8 +167,10 @@ export function buildNativeTooltipMenuDOM(
 		})
 	);
 
-	// ── e) Auto-focus TextComponent ──────────────────────────────────────
-	setTimeout(() => textComponent.inputEl.focus(), 50);
+	// ── e) Auto-focus TextComponent (skip in hover mode — user is navigating) ──
+	if (!snapshot.hoverMarkerId) {
+		setTimeout(() => textComponent.inputEl.focus(), 50);
+	}
 
 	return container;
 }

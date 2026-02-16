@@ -1,6 +1,21 @@
 import { Notice } from 'obsidian';
-import { CodeMarkerModel } from '../models/codeMarkerModel';
+import { CodeMarkerModel, Marker } from '../models/codeMarkerModel';
 import { SelectionSnapshot } from './menuTypes';
+
+/**
+ * Resolve which single marker the menu is operating on.
+ * - Hover menu → marker by hoverMarkerId
+ * - Selection menu → marker with exact range match (if any)
+ */
+function getTargetMarker(
+	model: CodeMarkerModel,
+	snapshot: SelectionSnapshot
+): Marker | null {
+	if (snapshot.hoverMarkerId) {
+		return model.getMarkerById(snapshot.hoverMarkerId) ?? null;
+	}
+	return model.findMarkerAtExactRange(snapshot) ?? null;
+}
 
 /**
  * Alias used by the "Add New Code" button — same as addCodeAction but
@@ -41,40 +56,28 @@ export function removeCodeAction(
 	snapshot: SelectionSnapshot,
 	codeName: string
 ): boolean {
-	const markers = model.getMarkersInRange(snapshot.fileId, snapshot.from, snapshot.to);
-	let removed = false;
-	for (const marker of markers) {
-		if (model.removeCodeFromMarker(marker.id, codeName)) {
-			removed = true;
-		}
-	}
-	return removed;
+	const marker = getTargetMarker(model, snapshot);
+	if (!marker) return false;
+	// In hover mode, keep the empty marker alive so the menu stays coherent;
+	// cleanup happens when the tooltip closes.
+	const keepIfEmpty = !!snapshot.hoverMarkerId;
+	return model.removeCodeFromMarker(marker.id, codeName, keepIfEmpty);
 }
 
 export function removeAllCodesAction(
 	model: CodeMarkerModel,
 	snapshot: SelectionSnapshot
 ): boolean {
-	const markers = model.getMarkersInRange(snapshot.fileId, snapshot.from, snapshot.to);
-	let removed = false;
-	for (const marker of markers) {
-		if (model.removeAllCodesFromMarker(marker.id)) {
-			removed = true;
-		}
-	}
-	return removed;
+	const marker = getTargetMarker(model, snapshot);
+	if (!marker) return false;
+	return model.removeAllCodesFromMarker(marker.id);
 }
 
 export function getCodesAtSelection(
 	model: CodeMarkerModel,
 	snapshot: SelectionSnapshot
 ): string[] {
-	const markers = model.getMarkersInRange(snapshot.fileId, snapshot.from, snapshot.to);
-	const codes = new Set<string>();
-	for (const marker of markers) {
-		for (const code of marker.codes) {
-			codes.add(code);
-		}
-	}
-	return Array.from(codes);
+	const marker = getTargetMarker(model, snapshot);
+	if (!marker) return [];
+	return [...marker.codes];
 }

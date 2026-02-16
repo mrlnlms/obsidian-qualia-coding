@@ -5,6 +5,7 @@
 ## Progresso
 - Ultima versao commitada: v26
 - Posicao no commit_sequence: 27/90
+- Phase: 2
 - Era atual: 3 -- Qualia Coding scaffold + CM6 port + menu system (v23-v26, local-plugin)
 - Total de commits: 26
 - Plugin ID atual: obsidian-codemarker-v2
@@ -16,7 +17,7 @@
 - Timestamp: TBD
 
 ## Learnings
-- Ultimo learning capturado: v25
+- Ultimo learning capturado: v26
 
 ## Ambiente
 - npm run dev: precisa iniciar

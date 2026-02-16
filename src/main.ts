@@ -7,6 +7,7 @@ import { createMarkerViewPlugin, SELECTION_EVENT, SelectionEventDetail } from '.
 import { createSelectionMenuField } from './cm6/selectionMenuField';
 import { MenuController } from './menu/menuController';
 import { openObsidianMenu } from './menu/obsidianMenu';
+import { createHoverMenuExtension } from './cm6/hoverMenuExtension';
 
 export default class CodeMarkerPlugin extends Plugin {
 	settings: CodeMarkerSettings;
@@ -16,7 +17,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v26 loaded -- Baseline: Approach C menu + ARCHITECTURE.md + DEVELOPMENT.md');
+		console.log('[CodeMarker v2] v27.1 loaded — Menu isolation + fix double-toggle + DRY refactor');
 		await this.loadSettings();
 
 		// Initialize data model
@@ -30,7 +31,8 @@ export default class CodeMarkerPlugin extends Plugin {
 		this.registerEditorExtension([
 			createMarkerStateField(this.model),
 			createMarkerViewPlugin(this.model),
-			createSelectionMenuField(this.model)
+			createSelectionMenuField(this.model),
+			createHoverMenuExtension(this.model)
 		]);
 
 		// Settings tab
