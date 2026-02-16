@@ -434,7 +434,6 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	font-weight: 500;
 	line-height: 1;
 	opacity: 0.9;
-	max-width: 60px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	user-select: none;

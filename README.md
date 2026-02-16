@@ -14,34 +14,56 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 
 ---
 
-## Current State (v27.4)
+## Features
 
-This is a prototype build. Core coding features work, and the margin panel is new in this version.
+### Text Coding
 
-### Working Features
-
-- **Select & code**: Select text and assign codes via floating menu or right-click context menu
+- **Select & code**: Select any text and assign one or more codes to it
 - **Multi-code markers**: A single text passage can carry multiple codes simultaneously
 - **Toggle codes**: Quick on/off toggles for each code in the floating menu
-- **Smart overlap**: Intelligent hit-testing for overlapping markers (smallest marker wins for nested, rightmost start for partial overlap)
-- **Drag-resize handles**: Adjust marker boundaries by dragging handles that appear on hover
-- **Code definitions**: Persistent code identity with name, color, and optional description
-- **Auto color palette**: 12 visually distinct colors assigned automatically
-- **Create codes inline**: Add new codes from the coding menu without interrupting flow
-- **Selection preview**: Visual highlight of the selection while the code form modal is open
-- **Hover menu**: Inspect and edit codes on hover with smart timing (350ms open, 200ms close delay)
+- **Smart overlap**: When markers overlap, the plugin intelligently resolves which one to interact with (smallest marker wins for nested, rightmost start wins for partial overlap)
+- **Drag-resize handles**: Adjust marker boundaries directly in the editor by dragging handles that appear on hover
 
-### New: Margin Panel (Prototype)
+### Code Management
 
-- **MAXQDA-style brackets**: Colored vertical brackets appear in the left margin alongside coded text
-- **Horizontal stacking**: Overlapping codes from different codes are placed in separate columns
-- **Labels**: Code names appear as labels on each bracket
-- **Viewport culling**: Only brackets visible in the current viewport are rendered
+- **Code definitions**: Each code has a persistent identity with a name, color, and optional description
+- **Auto color palette**: 12 visually distinct colors are assigned automatically as you create codes
+- **Create codes inline**: Add new codes directly from the coding menu without interrupting your flow
+- **Custom colors**: Override the auto palette with any color via the color picker
+
+### Margin Panel (MAXQDA-style)
+
+- **Colored bars**: Each coded passage is represented by a colored vertical bar in the left margin, one per code
+- **Labels**: Code names appear centered on their bars with smart collision avoidance
+- **Bidirectional hover**: Hover a bar in the margin and the corresponding text highlights; hover coded text and the margin bars highlight back
+- **Clickable labels**: Click a code label in the margin to open its detail panel
+
+### Code Explorer
+
+- **Tree view**: Browse all codes in a collapsible tree organized by Code > File > Segment
+- **Segment counts**: See how many coded passages each code has, broken down by file
+- **Click to navigate**: Click any segment to scroll the editor to that exact position
+- **Toolbar controls**: Expand/collapse all codes or all files independently with dedicated buttons
+
+### Code Detail Panel
+
+- **Three navigation modes**:
+  - **List mode** — overview of all codes with color swatch, description, and segment count
+  - **Code-focused detail** — all segments for a specific code across all files, with text preview
+  - **Marker-focused detail** — details of a specific marker: text segment, other codes on the same passage, other markers with the same code
+- **Back navigation** — breadcrumb-style "All Codes" button to return to the list
+- **Cross-reference**: Click chips showing other codes on a marker to switch context; click other markers to navigate to them
+
+### Hover Menu
+
+- **Hover to inspect**: Hover over any coded text to see which codes are applied
+- **Edit in place**: Toggle codes on/off directly from the hover menu
+- **Smart timing**: 350ms delay to open (avoids accidental activation), 200ms delay to close (avoids flickering when moving between text and menu)
 
 ### Theme Support
 
-- Full dark/light mode support using native Obsidian components
-- Native look matching Obsidian's design language
+- **Full dark/light mode**: The floating menu renders correctly in both Obsidian themes, using native Obsidian components (toggles, inputs, buttons) that respect the active theme
+- **Native look**: The UI matches Obsidian's design language — no foreign-looking panels
 
 ---
 
@@ -51,6 +73,7 @@ This is a prototype build. Core coding features work, and the margin panel is ne
 |---------|-------------|
 | **Create marker from selection** | Creates a new marker from the current text selection |
 | **Open coding menu** | Opens the coding menu for the current selection or marker |
+| **Open Code Explorer** | Opens the Code Explorer sidebar panel |
 | **Reset all markers** | Removes all markers from the vault (use with caution) |
 
 ---
@@ -97,6 +120,24 @@ cd your-vault/.obsidian/plugins/obsidian-codemarker-v2
 npm install
 npm run build
 ```
+
+---
+
+## Roadmap
+
+CodeMarker is evolving toward a full qualitative data analysis platform inside Obsidian:
+
+| Phase | What | Status |
+|-------|------|--------|
+| Hover tooltip | Inspect & edit codes on hover | Done |
+| Code registry | Persistent code identity, colors, descriptions | Done |
+| Margin panel | MAXQDA-style colored bars with dynamic label positioning | Done |
+| Code Explorer & Detail | Tree view, segment navigation, code detail panel | Done |
+| Per-code decorations | Overlapping color layers per code | Planned |
+| Projects & workspace | Named projects, global codebook, project-level data | Planned |
+| Power features | Code hierarchy, memos, queries, matrix, export | Planned |
+
+See `ARCHITECTURE.md` for the full architectural study.
 
 ---
 

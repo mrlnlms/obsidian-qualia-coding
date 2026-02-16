@@ -4,31 +4,45 @@ import { findFileIdForEditorView, getViewForFile } from "./utils/viewLookupUtils
 import { updateFileMarkersEffect } from "./markerStateField";
 
 /**
- * Margin Panel Extension — MAXQDA-style colored brackets alongside text.
+ * Margin Panel Extension — MAXQDA-style coded segments alongside text.
  *
- * Renders vertical colored brackets to the left of the editor content,
- * showing the extent of each coded marker. Each bracket displays:
- * - A vertical colored line spanning the marker's text range
- * - Small horizontal ticks at top and bottom
- * - The code name as a label
+ * Rule 1 — Column allocation:
+ *   Bars sorted by span (largest first). Each bar goes to the rightmost
+ *   (closest to text) column that's free at its vertical range.
+ *   Larger bars get inner columns, smaller bars get outer columns.
  *
- * Brackets from different codes are stacked horizontally (left offset).
- * Only brackets visible in the viewport are rendered.
+ * Rule 2 — Label positioning:
+ *   Ideal Y = vertical midpoint of the bar.
+ *   Weighted collision avoidance: larger bars keep ideal position,
+ *   smaller bars get displaced. Connector line drawn when displaced.
  */
 
-const BRACKET_WIDTH = 3;
-const TICK_LENGTH = 6;
-const LABEL_OFFSET = 4;
-const COLUMN_WIDTH = 80;  // horizontal space per bracket column
-const PANEL_MIN_WIDTH = 0;
+const LINE_WIDTH = 2;
+const DOT_SIZE = 7;
+const TICK_LENGTH = 5;
+const COLUMN_WIDTH = 16;
+const LABEL_HEIGHT = 16;
+const MIN_LABEL_SPACE = 40;
 
 interface ResolvedBracket {
 	marker: Marker;
 	codeName: string;
 	color: string;
-	top: number;    // px from content top
-	bottom: number; // px from content top
-	column: number; // horizontal stacking index
+	top: number;
+	bottom: number;
+	column: number;
+}
+
+interface LabelInfo {
+	codeName: string;
+	color: string;
+	idealY: number;
+	actualY: number;
+	segmentTop: number;
+	segmentBottom: number;
+	column: number;
+	weight: number;
+	maxColAtY: number;
 }
 
 export const createMarginPanelExtension = (model: CodeMarkerModel) => {
@@ -39,6 +53,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			view: EditorView;
 			private scrollHandler: () => void;
 			private resizeObserver: ResizeObserver | null = null;
+			private mutationObserver: MutationObserver | null = null;
 			private rafId: number | null = null;
 			private lastViewportFrom = -1;
 			private lastViewportTo = -1;
@@ -46,27 +61,28 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			constructor(view: EditorView) {
 				this.view = view;
 
-				// Create the panel container
 				this.panel = document.createElement('div');
 				this.panel.className = 'codemarker-margin-panel';
 
-				// Insert panel into the scroller, before content
 				const scroller = view.scrollDOM;
 				scroller.style.position = 'relative';
 				scroller.insertBefore(this.panel, scroller.firstChild);
 
-				// Scroll sync
 				this.scrollHandler = () => this.scheduleUpdate();
 				scroller.addEventListener('scroll', this.scrollHandler, { passive: true });
 
-				// Resize observer on content
 				this.resizeObserver = new ResizeObserver(() => this.scheduleUpdate());
 				this.resizeObserver.observe(view.contentDOM);
 
-				// Identify file
-				this.identifyFile();
+				this.mutationObserver = new MutationObserver(() => this.scheduleUpdate());
+				this.mutationObserver.observe(view.dom, {
+					childList: true,
+					subtree: true,
+					attributes: true,
+					attributeFilter: ['style', 'class'],
+				});
 
-				// Initial render (deferred to allow file identification)
+				this.identifyFile();
 				setTimeout(() => this.renderBrackets(), 100);
 			}
 
@@ -92,7 +108,6 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			update(update: ViewUpdate) {
 				if (!this.fileId) this.identifyFile();
 
-				// Check for marker update effects
 				let needsRender = false;
 				for (const tr of update.transactions) {
 					for (const effect of tr.effects) {
@@ -102,7 +117,6 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					}
 				}
 
-				// Check viewport changes
 				const vp = update.view.viewport;
 				if (vp.from !== this.lastViewportFrom || vp.to !== this.lastViewportTo) {
 					this.lastViewportFrom = vp.from;
@@ -110,7 +124,6 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					needsRender = true;
 				}
 
-				// Doc changes
 				if (update.docChanged) {
 					needsRender = true;
 				}
@@ -121,7 +134,6 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			}
 
 			private renderBrackets() {
-				// Clear existing
 				this.panel.innerHTML = '';
 
 				if (!this.fileId) return;
@@ -135,7 +147,8 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				const targetView = getViewForFile(this.fileId, model.plugin.app);
 				if (!targetView?.editor) return;
 
-				// Resolve pixel positions for each marker+code pair
+				const contentTop = this.view.contentDOM.offsetTop;
+
 				const brackets: ResolvedBracket[] = [];
 
 				for (const marker of markers) {
@@ -151,7 +164,6 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 						continue;
 					}
 
-					// Get pixel positions using lineBlockAt
 					let topPx: number, bottomPx: number;
 					try {
 						const startBlock = this.view.lineBlockAt(startOffset);
@@ -162,7 +174,6 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 						continue;
 					}
 
-					// Create one bracket per code on this marker
 					for (const codeName of marker.codes) {
 						const def = model.registry.getByName(codeName);
 						const color = def?.color ?? marker.color;
@@ -171,9 +182,9 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 							marker,
 							codeName,
 							color,
-							top: topPx,
-							bottom: bottomPx,
-							column: 0, // assigned below
+							top: topPx + contentTop,
+							bottom: bottomPx + contentTop,
+							column: 0,
 						});
 					}
 				}
@@ -183,122 +194,228 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					return;
 				}
 
-				// Assign columns: brackets that overlap vertically go in different columns
+				// Rule 1: Assign columns — larger bars get rightmost (closest to text)
 				this.assignColumns(brackets);
 
-				const maxColumn = Math.max(...brackets.map(b => b.column));
-				const panelWidth = (maxColumn + 1) * COLUMN_WIDTH;
-				this.panel.style.width = `${Math.max(panelWidth, PANEL_MIN_WIDTH)}px`;
+				// Rule 2: Resolve labels with weighted collision avoidance
+				const labels = this.resolveLabels(brackets);
 
-				// Get scroll offset to determine visibility
+				const maxColumn = Math.max(...brackets.map(b => b.column));
+				const linesWidth = (maxColumn + 1) * COLUMN_WIDTH;
+				const panelWidth = linesWidth + MIN_LABEL_SPACE;
+				this.panel.style.width = `${panelWidth}px`;
+
+				// Compute max column at each label's Y — label must be left of ALL bars at its height
+				for (const label of labels) {
+					let maxColAtY = label.column;
+					for (const bracket of brackets) {
+						if (bracket.top < label.actualY + LABEL_HEIGHT && bracket.bottom > label.actualY) {
+							maxColAtY = Math.max(maxColAtY, bracket.column);
+						}
+					}
+					label.maxColAtY = maxColAtY;
+				}
+
 				const scrollTop = this.view.scrollDOM.scrollTop;
 				const viewportHeight = this.view.scrollDOM.clientHeight;
-				const viewTop = scrollTop - 100; // buffer
+				const viewTop = scrollTop - 100;
 				const viewBottom = scrollTop + viewportHeight + 100;
 
-				// Render each bracket
+				// Render bars
 				for (const bracket of brackets) {
-					// Viewport culling
 					if (bracket.bottom < viewTop || bracket.top > viewBottom) continue;
+					this.renderBar(bracket, panelWidth);
+				}
 
-					this.renderBracket(bracket, panelWidth);
+				// Render labels + connectors
+				for (const label of labels) {
+					const labelBottom = label.actualY + LABEL_HEIGHT;
+					if (labelBottom < viewTop && label.segmentBottom < viewTop) continue;
+					if (label.actualY > viewBottom) continue;
+					this.renderLabel(label, panelWidth);
 				}
 			}
 
+			/**
+			 * Rule 1: Sort by span descending (largest first).
+			 * Allocate each bar to the rightmost free column at its range.
+			 */
 			private assignColumns(brackets: ResolvedBracket[]) {
-				// Sort by start position, then by size (larger first)
 				brackets.sort((a, b) => {
-					if (a.top !== b.top) return a.top - b.top;
-					return (b.bottom - b.top) - (a.bottom - a.top);
+					const spanA = a.bottom - a.top;
+					const spanB = b.bottom - b.top;
+					if (spanB !== spanA) return spanB - spanA; // larger first
+					return a.top - b.top; // tiebreak: earlier start first
 				});
 
-				// Greedy column assignment: each bracket goes in the first column
-				// where it doesn't overlap with existing brackets
-				const columnEnds: number[] = []; // tracks the bottom of the last bracket in each column
+				// columnRanges[col] = occupied vertical ranges in that column
+				const columnRanges: Array<Array<{ top: number; bottom: number }>> = [];
 
 				for (const bracket of brackets) {
 					let assigned = false;
-					for (let col = 0; col < columnEnds.length; col++) {
-						if (bracket.top >= columnEnds[col]!) {
+					for (let col = 0; col < columnRanges.length; col++) {
+						const ranges = columnRanges[col]!;
+						const overlaps = ranges.some(
+							r => bracket.top < r.bottom && bracket.bottom > r.top
+						);
+						if (!overlaps) {
 							bracket.column = col;
-							columnEnds[col] = bracket.bottom;
+							ranges.push({ top: bracket.top, bottom: bracket.bottom });
 							assigned = true;
 							break;
 						}
 					}
 					if (!assigned) {
-						bracket.column = columnEnds.length;
-						columnEnds.push(bracket.bottom);
+						bracket.column = columnRanges.length;
+						columnRanges.push([{ top: bracket.top, bottom: bracket.bottom }]);
 					}
 				}
 			}
 
-			private renderBracket(bracket: ResolvedBracket, panelWidth: number) {
+			/**
+			 * Rule 2: Labels at bar start (top), weighted collision avoidance.
+			 * Heavier bars (larger span) get placed first and keep ideal position.
+			 * Lighter bars get displaced up/down minimally.
+			 */
+			private resolveLabels(brackets: ResolvedBracket[]): LabelInfo[] {
+				const labels: LabelInfo[] = brackets.map(b => ({
+					codeName: b.codeName,
+					color: b.color,
+					idealY: b.top,
+					actualY: b.top,
+					segmentTop: b.top,
+					segmentBottom: b.bottom,
+					column: b.column,
+					weight: b.bottom - b.top,
+					maxColAtY: b.column,
+				}));
+
+				// Place heaviest labels first — they keep ideal position
+				labels.sort((a, b) => b.weight - a.weight);
+
+				const placedYs: number[] = [];
+
+				for (const label of labels) {
+					let bestY = label.idealY;
+
+					const collides = (y: number) =>
+						placedYs.some(py => Math.abs(y - py) < LABEL_HEIGHT);
+
+					if (collides(bestY)) {
+						for (let step = 1; step <= 50; step++) {
+							const yDown = label.idealY + step * LABEL_HEIGHT;
+							if (!collides(yDown)) { bestY = yDown; break; }
+
+							const yUp = label.idealY - step * LABEL_HEIGHT;
+							if (!collides(yUp)) { bestY = yUp; break; }
+						}
+					}
+
+					label.actualY = bestY;
+					placedYs.push(bestY);
+				}
+
+				return labels;
+			}
+
+			/**
+			 * Render a bar: vertical colored line + dots at endpoints.
+			 * Column 0 = rightmost (closest to text).
+			 */
+			private renderBar(bracket: ResolvedBracket, panelWidth: number) {
 				const height = bracket.bottom - bracket.top;
 				if (height < 1) return;
 
-				// Position from the right side of the panel (closest to text = column 0)
-				const x = panelWidth - (bracket.column + 1) * COLUMN_WIDTH + COLUMN_WIDTH / 2;
-
-				const el = document.createElement('div');
-				el.className = 'codemarker-margin-bracket';
-				el.setAttribute('data-marker-id', bracket.marker.id);
-				el.setAttribute('data-code-name', bracket.codeName);
-
-				el.style.position = 'absolute';
-				el.style.top = `${bracket.top}px`;
-				el.style.left = `${x}px`;
-				el.style.height = `${height}px`;
-				el.style.width = `${TICK_LENGTH + BRACKET_WIDTH}px`;
+				const colCenter = panelWidth - (bracket.column + 1) * COLUMN_WIDTH + COLUMN_WIDTH / 2;
 
 				// Vertical line
 				const line = document.createElement('div');
 				line.className = 'codemarker-margin-line';
+				line.setAttribute('data-marker-id', bracket.marker.id);
+				line.setAttribute('data-code-name', bracket.codeName);
 				line.style.position = 'absolute';
-				line.style.right = '0';
-				line.style.top = '0';
-				line.style.bottom = '0';
-				line.style.width = `${BRACKET_WIDTH}px`;
+				line.style.top = `${bracket.top}px`;
+				line.style.left = `${colCenter - LINE_WIDTH / 2}px`;
+				line.style.width = `${LINE_WIDTH}px`;
+				line.style.height = `${height}px`;
 				line.style.backgroundColor = bracket.color;
-				line.style.borderRadius = `${BRACKET_WIDTH / 2}px`;
-				el.appendChild(line);
+				line.style.borderRadius = `${LINE_WIDTH / 2}px`;
+				this.panel.appendChild(line);
 
 				// Top tick
 				const topTick = document.createElement('div');
 				topTick.className = 'codemarker-margin-tick';
 				topTick.style.position = 'absolute';
-				topTick.style.right = '0';
-				topTick.style.top = '0';
+				topTick.style.top = `${bracket.top}px`;
+				topTick.style.left = `${colCenter}px`;
 				topTick.style.width = `${TICK_LENGTH}px`;
-				topTick.style.height = `${BRACKET_WIDTH}px`;
+				topTick.style.height = `${LINE_WIDTH}px`;
 				topTick.style.backgroundColor = bracket.color;
-				topTick.style.borderRadius = `${BRACKET_WIDTH / 2}px`;
-				el.appendChild(topTick);
+				this.panel.appendChild(topTick);
 
 				// Bottom tick
 				const bottomTick = document.createElement('div');
 				bottomTick.className = 'codemarker-margin-tick';
 				bottomTick.style.position = 'absolute';
-				bottomTick.style.right = '0';
-				bottomTick.style.bottom = '0';
+				bottomTick.style.top = `${bracket.bottom - LINE_WIDTH}px`;
+				bottomTick.style.left = `${colCenter}px`;
 				bottomTick.style.width = `${TICK_LENGTH}px`;
-				bottomTick.style.height = `${BRACKET_WIDTH}px`;
+				bottomTick.style.height = `${LINE_WIDTH}px`;
 				bottomTick.style.backgroundColor = bracket.color;
-				bottomTick.style.borderRadius = `${BRACKET_WIDTH / 2}px`;
-				el.appendChild(bottomTick);
+				this.panel.appendChild(bottomTick);
 
-				// Label
-				const label = document.createElement('div');
-				label.className = 'codemarker-margin-label';
-				label.textContent = bracket.codeName;
-				label.style.position = 'absolute';
-				label.style.right = `${BRACKET_WIDTH + LABEL_OFFSET}px`;
-				label.style.top = '0';
-				label.style.color = bracket.color;
-				label.style.whiteSpace = 'nowrap';
-				label.style.direction = 'rtl'; // text flows right-to-left so it extends left
-				el.appendChild(label);
+				// Top dot
+				const topDot = document.createElement('div');
+				topDot.className = 'codemarker-margin-dot';
+				topDot.style.position = 'absolute';
+				topDot.style.top = `${bracket.top - DOT_SIZE / 2}px`;
+				topDot.style.left = `${colCenter - DOT_SIZE / 2}px`;
+				topDot.style.width = `${DOT_SIZE}px`;
+				topDot.style.height = `${DOT_SIZE}px`;
+				topDot.style.borderRadius = '50%';
+				topDot.style.border = `${LINE_WIDTH}px solid ${bracket.color}`;
+				topDot.style.backgroundColor = 'var(--background-primary, #fff)';
+				this.panel.appendChild(topDot);
 
+				// Bottom dot
+				const bottomDot = document.createElement('div');
+				bottomDot.className = 'codemarker-margin-dot';
+				bottomDot.style.position = 'absolute';
+				bottomDot.style.top = `${bracket.bottom - DOT_SIZE / 2}px`;
+				bottomDot.style.left = `${colCenter - DOT_SIZE / 2}px`;
+				bottomDot.style.width = `${DOT_SIZE}px`;
+				bottomDot.style.height = `${DOT_SIZE}px`;
+				bottomDot.style.borderRadius = '50%';
+				bottomDot.style.border = `${LINE_WIDTH}px solid ${bracket.color}`;
+				bottomDot.style.backgroundColor = 'var(--background-primary, #fff)';
+				this.panel.appendChild(bottomDot);
+			}
+
+			/**
+			 * Render a label to the left of its bar's column.
+			 * Right edge of the label aligns near the bar's column.
+			 */
+			private renderLabel(label: LabelInfo, panelWidth: number) {
+				// Label goes to the left of ALL bars active at this Y height
+				const leftmostBarEdge = panelWidth - (label.maxColAtY + 1) * COLUMN_WIDTH;
+				const labelRightPx = (label.maxColAtY + 1) * COLUMN_WIDTH + 2;
+
+				const el = document.createElement('div');
+				el.className = 'codemarker-margin-label';
+				el.textContent = label.codeName;
+				el.style.position = 'absolute';
+				el.style.top = `${label.actualY}px`;
+				el.style.right = `${labelRightPx}px`;
+				el.style.left = 'auto';
+				el.style.width = 'auto';
+				el.style.maxWidth = `${leftmostBarEdge - 2}px`;
+				el.style.color = label.color;
+				el.style.fontSize = '11px';
+				el.style.lineHeight = `${LABEL_HEIGHT}px`;
+				el.style.whiteSpace = 'nowrap';
+				el.style.textAlign = 'right';
+				el.style.overflow = 'hidden';
+				el.style.textOverflow = 'ellipsis';
 				this.panel.appendChild(el);
 			}
 
@@ -306,6 +423,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				if (this.rafId !== null) cancelAnimationFrame(this.rafId);
 				this.view.scrollDOM.removeEventListener('scroll', this.scrollHandler);
 				if (this.resizeObserver) this.resizeObserver.disconnect();
+				if (this.mutationObserver) this.mutationObserver.disconnect();
 				this.panel.remove();
 			}
 		}
