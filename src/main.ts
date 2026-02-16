@@ -20,7 +20,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v27.5 loaded — Refactor margin layout + fix inline title');
+		console.log('[CodeMarker v2] v27.6 loaded — MAXQDA bars + dynamic labels + align + RLL fix');
 		await this.loadSettings();
 
 		// Initialize data model

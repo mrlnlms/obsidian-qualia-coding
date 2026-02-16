@@ -19,10 +19,12 @@ import { updateFileMarkersEffect } from "./markerStateField";
 
 const LINE_WIDTH = 2;
 const DOT_SIZE = 7;
-const TICK_LENGTH = 5;
-const COLUMN_WIDTH = 16;
+const TICK_LENGTH = 4;
+const COLUMN_WIDTH = 10;
 const LABEL_HEIGHT = 16;
-const MIN_LABEL_SPACE = 40;
+const MIN_LABEL_SPACE = 20;
+const MAX_LABEL_SPACE = 120;
+const LABEL_FONT = '500 11px sans-serif';
 
 interface ResolvedBracket {
 	marker: Marker;
@@ -141,6 +143,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				const markers = model.getMarkersForFile(this.fileId);
 				if (markers.length === 0) {
 					this.panel.style.width = '0';
+					this.view.contentDOM.style.paddingLeft = '';
 					return;
 				}
 
@@ -191,6 +194,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 
 				if (brackets.length === 0) {
 					this.panel.style.width = '0';
+					this.view.contentDOM.style.paddingLeft = '';
 					return;
 				}
 
@@ -200,20 +204,50 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				// Rule 2: Resolve labels with weighted collision avoidance
 				const labels = this.resolveLabels(brackets);
 
-				const maxColumn = Math.max(...brackets.map(b => b.column));
-				const linesWidth = (maxColumn + 1) * COLUMN_WIDTH;
-				const panelWidth = linesWidth + MIN_LABEL_SPACE;
-				this.panel.style.width = `${panelWidth}px`;
-
-				// Compute max column at each label's Y — label must be left of ALL bars at its height
+				// Compute max column at each label's ideal Y (bar center), so displaced labels keep same X
 				for (const label of labels) {
 					let maxColAtY = label.column;
 					for (const bracket of brackets) {
-						if (bracket.top < label.actualY + LABEL_HEIGHT && bracket.bottom > label.actualY) {
+						if (bracket.top < label.idealY + LABEL_HEIGHT && bracket.bottom > label.idealY) {
 							maxColAtY = Math.max(maxColAtY, bracket.column);
 						}
 					}
 					label.maxColAtY = maxColAtY;
+				}
+
+				// Measure label text widths to compute dynamic panel width
+				const canvas = document.createElement('canvas');
+				const ctx = canvas.getContext('2d')!;
+				ctx.font = LABEL_FONT;
+
+				let neededLabelSpace = MIN_LABEL_SPACE;
+				for (const label of labels) {
+					const textWidth = ctx.measureText(label.codeName).width;
+					const barsRight = (label.maxColAtY + 1) * COLUMN_WIDTH;
+					const needed = textWidth + barsRight + 4; // 4px padding
+					neededLabelSpace = Math.max(neededLabelSpace, needed);
+				}
+
+				const maxColumn = Math.max(...brackets.map(b => b.column));
+				const linesWidth = (maxColumn + 1) * COLUMN_WIDTH;
+				const labelSpace = Math.min(neededLabelSpace - linesWidth, MAX_LABEL_SPACE);
+				const panelWidth = linesWidth + Math.max(labelSpace, MIN_LABEL_SPACE);
+				const gap = 20;
+				this.panel.style.width = `${panelWidth}px`;
+
+				const neededSpace = panelWidth + gap;
+
+				// Reset padding to detect natural space (from RLL or wide margins)
+				this.view.contentDOM.style.paddingLeft = '';
+				const naturalLeft = this.view.contentDOM.offsetLeft;
+
+				if (naturalLeft >= neededSpace) {
+					// Enough natural space — position panel without forcing padding
+					this.panel.style.left = `${naturalLeft - panelWidth - gap}px`;
+				} else {
+					// Not enough space — force padding (discount natural offset), panel at start
+					this.view.contentDOM.style.paddingLeft = `${neededSpace - naturalLeft}px`;
+					this.panel.style.left = '0px';
 				}
 
 				const scrollTop = this.view.scrollDOM.scrollTop;
@@ -278,20 +312,23 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			 * Lighter bars get displaced up/down minimally.
 			 */
 			private resolveLabels(brackets: ResolvedBracket[]): LabelInfo[] {
-				const labels: LabelInfo[] = brackets.map(b => ({
-					codeName: b.codeName,
-					color: b.color,
-					idealY: b.top,
-					actualY: b.top,
-					segmentTop: b.top,
-					segmentBottom: b.bottom,
-					column: b.column,
-					weight: b.bottom - b.top,
-					maxColAtY: b.column,
-				}));
+				const labels: LabelInfo[] = brackets.map(b => {
+					const midY = (b.top + b.bottom) / 2 - LABEL_HEIGHT / 2;
+					return {
+						codeName: b.codeName,
+						color: b.color,
+						idealY: midY,
+						actualY: midY,
+						segmentTop: b.top,
+						segmentBottom: b.bottom,
+						column: b.column,
+						weight: b.bottom - b.top,
+						maxColAtY: b.column,
+					};
+				});
 
-				// Place heaviest labels first — they keep ideal position
-				labels.sort((a, b) => b.weight - a.weight);
+				// Place leftmost column first (highest column number = outermost)
+				labels.sort((a, b) => b.column - a.column);
 
 				const placedYs: number[] = [];
 
@@ -302,12 +339,10 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 						placedYs.some(py => Math.abs(y - py) < LABEL_HEIGHT);
 
 					if (collides(bestY)) {
+						// Only push down, never up
 						for (let step = 1; step <= 50; step++) {
 							const yDown = label.idealY + step * LABEL_HEIGHT;
 							if (!collides(yDown)) { bestY = yDown; break; }
-
-							const yUp = label.idealY - step * LABEL_HEIGHT;
-							if (!collides(yUp)) { bestY = yUp; break; }
 						}
 					}
 
@@ -319,7 +354,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			}
 
 			/**
-			 * Render a bar: vertical colored line + dots at endpoints.
+			 * Render a bar: vertical colored line.
 			 * Column 0 = rightmost (closest to text).
 			 */
 			private renderBar(bracket: ResolvedBracket, panelWidth: number) {
@@ -342,7 +377,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				line.style.borderRadius = `${LINE_WIDTH / 2}px`;
 				this.panel.appendChild(line);
 
-				// Top tick
+				// Top tick (extends left)
 				const topTick = document.createElement('div');
 				topTick.className = 'codemarker-margin-tick';
 				topTick.style.position = 'absolute';
@@ -353,7 +388,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				topTick.style.backgroundColor = bracket.color;
 				this.panel.appendChild(topTick);
 
-				// Bottom tick
+				// Bottom tick (extends left)
 				const bottomTick = document.createElement('div');
 				bottomTick.className = 'codemarker-margin-tick';
 				bottomTick.style.position = 'absolute';
@@ -363,37 +398,11 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				bottomTick.style.height = `${LINE_WIDTH}px`;
 				bottomTick.style.backgroundColor = bracket.color;
 				this.panel.appendChild(bottomTick);
-
-				// Top dot
-				const topDot = document.createElement('div');
-				topDot.className = 'codemarker-margin-dot';
-				topDot.style.position = 'absolute';
-				topDot.style.top = `${bracket.top - DOT_SIZE / 2}px`;
-				topDot.style.left = `${colCenter - DOT_SIZE / 2}px`;
-				topDot.style.width = `${DOT_SIZE}px`;
-				topDot.style.height = `${DOT_SIZE}px`;
-				topDot.style.borderRadius = '50%';
-				topDot.style.border = `${LINE_WIDTH}px solid ${bracket.color}`;
-				topDot.style.backgroundColor = 'var(--background-primary, #fff)';
-				this.panel.appendChild(topDot);
-
-				// Bottom dot
-				const bottomDot = document.createElement('div');
-				bottomDot.className = 'codemarker-margin-dot';
-				bottomDot.style.position = 'absolute';
-				bottomDot.style.top = `${bracket.bottom - DOT_SIZE / 2}px`;
-				bottomDot.style.left = `${colCenter - DOT_SIZE / 2}px`;
-				bottomDot.style.width = `${DOT_SIZE}px`;
-				bottomDot.style.height = `${DOT_SIZE}px`;
-				bottomDot.style.borderRadius = '50%';
-				bottomDot.style.border = `${LINE_WIDTH}px solid ${bracket.color}`;
-				bottomDot.style.backgroundColor = 'var(--background-primary, #fff)';
-				this.panel.appendChild(bottomDot);
 			}
 
 			/**
-			 * Render a label to the left of its bar's column.
-			 * Right edge of the label aligns near the bar's column.
+			 * Render a label to the left of all bars at its Y height,
+			 * plus a filled dot on the bar's own column.
 			 */
 			private renderLabel(label: LabelInfo, panelWidth: number) {
 				// Label goes to the left of ALL bars active at this Y height
@@ -408,7 +417,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				el.style.right = `${labelRightPx}px`;
 				el.style.left = 'auto';
 				el.style.width = 'auto';
-				el.style.maxWidth = `${leftmostBarEdge - 2}px`;
+				el.style.maxWidth = `${leftmostBarEdge - 14}px`;
 				el.style.color = label.color;
 				el.style.fontSize = '11px';
 				el.style.lineHeight = `${LABEL_HEIGHT}px`;
@@ -417,6 +426,21 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				el.style.overflow = 'hidden';
 				el.style.textOverflow = 'ellipsis';
 				this.panel.appendChild(el);
+
+				// Filled dot on the bar's own column, always at bar's vertical center
+				const colCenter = panelWidth - (label.column + 1) * COLUMN_WIDTH + COLUMN_WIDTH / 2;
+				const dotY = (label.segmentTop + label.segmentBottom) / 2;
+
+				const dot = document.createElement('div');
+				dot.className = 'codemarker-margin-dot';
+				dot.style.position = 'absolute';
+				dot.style.top = `${dotY - DOT_SIZE / 2}px`;
+				dot.style.left = `${colCenter - DOT_SIZE / 2}px`;
+				dot.style.width = `${DOT_SIZE}px`;
+				dot.style.height = `${DOT_SIZE}px`;
+				dot.style.borderRadius = '50%';
+				dot.style.backgroundColor = label.color;
+				this.panel.appendChild(dot);
 			}
 
 			destroy() {
@@ -424,6 +448,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				this.view.scrollDOM.removeEventListener('scroll', this.scrollHandler);
 				if (this.resizeObserver) this.resizeObserver.disconnect();
 				if (this.mutationObserver) this.mutationObserver.disconnect();
+				this.view.contentDOM.style.paddingLeft = '';
 				this.panel.remove();
 			}
 		}

@@ -131,7 +131,7 @@ CodeMarker is evolving toward a full qualitative data analysis platform inside O
 |-------|------|--------|
 | Hover tooltip | Inspect & edit codes on hover | Done |
 | Code registry | Persistent code identity, colors, descriptions | Done |
-| Margin panel | MAXQDA-style colored bars with dynamic label positioning | Done |
+| Margin panel | MAXQDA-style colored bars with bidirectional hover | Done |
 | Code Explorer & Detail | Tree view, segment navigation, code detail panel | Done |
 | Per-code decorations | Overlapping color layers per code | Planned |
 | Projects & workspace | Named projects, global codebook, project-level data | Planned |
