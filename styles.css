@@ -482,3 +482,120 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 		background: none !important;
 	}
 }
+
+/* ========================================
+   Code Detail Side Panel
+   ======================================== */
+
+.codemarker-detail-panel {
+	padding: 12px 16px;
+}
+
+.codemarker-detail-empty {
+	color: var(--text-muted);
+	font-style: italic;
+	font-size: var(--font-ui-small);
+}
+
+.codemarker-detail-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 16px;
+}
+
+.codemarker-detail-swatch {
+	display: inline-block;
+	width: 14px;
+	height: 14px;
+	border-radius: 3px;
+	flex-shrink: 0;
+}
+
+.codemarker-detail-title {
+	font-size: var(--font-ui-medium);
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.codemarker-detail-section {
+	margin-bottom: 14px;
+}
+
+.codemarker-detail-section h6 {
+	margin: 0 0 6px 0;
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.codemarker-detail-description {
+	margin: 0;
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+	line-height: 1.5;
+}
+
+.codemarker-detail-quote {
+	margin: 0;
+	padding: 8px 12px;
+	border-left: 3px solid var(--interactive-accent);
+	background-color: var(--background-secondary);
+	border-radius: 0 var(--radius-s) var(--radius-s) 0;
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+	line-height: 1.5;
+	max-height: 200px;
+	overflow-y: auto;
+}
+
+.codemarker-detail-quote p {
+	margin: 0;
+	white-space: pre-wrap;
+}
+
+.codemarker-detail-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.codemarker-detail-chip {
+	display: inline-block;
+	padding: 2px 8px;
+	border: 1px solid;
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+
+.codemarker-detail-chip:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.codemarker-detail-marker-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.codemarker-detail-marker-item {
+	padding: 4px 8px;
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+	line-height: 1.4;
+}
+
+.codemarker-detail-marker-item:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.codemarker-detail-marker-item + .codemarker-detail-marker-item {
+	margin-top: 2px;
+}

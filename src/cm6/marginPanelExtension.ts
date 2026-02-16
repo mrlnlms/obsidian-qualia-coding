@@ -1,5 +1,4 @@
 import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/view";
-import { Notice } from "obsidian";
 import { CodeMarkerModel, Marker } from "../models/codeMarkerModel";
 import { findFileIdForEditorView, getViewForFile } from "./utils/viewLookupUtils";
 import { updateFileMarkersEffect, setHoverEffect } from "./markerStateField";
@@ -129,10 +128,9 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 
 					const markerId = hit.getAttribute('data-marker-id');
 					const codeName = hit.getAttribute('data-code-name');
-					console.log('[CodeMarker] label click:', { markerId, codeName, elementType });
-					if (codeName) {
-						new Notice(`Code: ${codeName}`);
-					}
+					if (!markerId || !codeName) return;
+
+					model.plugin.revealCodeDetailPanel(markerId, codeName);
 				};
 				this.panel.addEventListener('mousemove', this.panelMoveHandler);
 				this.panel.addEventListener('mouseleave', this.panelLeaveHandler);

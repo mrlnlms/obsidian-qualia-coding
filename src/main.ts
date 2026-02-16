@@ -11,6 +11,7 @@ import { createHoverMenuExtension } from './cm6/hoverMenuExtension';
 import { createMarginPanelExtension } from './cm6/marginPanelExtension';
 import { CodeFormModal } from './menu/codeFormModal';
 import { addCodeWithDetailsAction } from './menu/menuActions';
+import { CodeDetailView, CODE_DETAIL_VIEW_TYPE } from './views/codeDetailView';
 
 export default class CodeMarkerPlugin extends Plugin {
 	settings: CodeMarkerSettings;
@@ -20,7 +21,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v27.8 loaded — Fix hover flickering + click handler');
+		console.log('[CodeMarker v2] v27.9 loaded — Code Detail Side Panel (ItemView)');
 		await this.loadSettings();
 
 		// Initialize data model
@@ -38,6 +39,9 @@ export default class CodeMarkerPlugin extends Plugin {
 			createHoverMenuExtension(this.model),
 			createMarginPanelExtension(this.model)
 		]);
+
+		// Register Code Detail view
+		this.registerView(CODE_DETAIL_VIEW_TYPE, (leaf) => new CodeDetailView(leaf, this.model));
 
 		// Settings tab
 		this.addSettingTab(new CodeMarkerSettingTab(this.app, this));
@@ -292,7 +296,26 @@ export default class CodeMarkerPlugin extends Plugin {
 	}
 
 	onunload() {
+		this.app.workspace.detachLeavesOfType(CODE_DETAIL_VIEW_TYPE);
 		console.log('CodeMarker v2: Unloaded');
+	}
+
+	async revealCodeDetailPanel(markerId: string, codeName: string): Promise<void> {
+		const leaves = this.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
+		const existing = leaves[0];
+		if (existing) {
+			const view = existing.view as CodeDetailView;
+			view.setContext(markerId, codeName);
+			this.app.workspace.revealLeaf(existing);
+		} else {
+			const leaf = this.app.workspace.getRightLeaf(false);
+			if (leaf) {
+				await leaf.setViewState({ type: CODE_DETAIL_VIEW_TYPE, active: true });
+				const view = leaf.view as CodeDetailView;
+				view.setContext(markerId, codeName);
+				this.app.workspace.revealLeaf(leaf);
+			}
+		}
 	}
 
 	async loadSettings() {

@@ -45,14 +45,12 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 - **Click to navigate**: Click any segment to scroll the editor to that exact position
 - **Toolbar controls**: Expand/collapse all codes or all files independently with dedicated buttons
 
-### Code Detail Panel
+### Code Detail Panel (NEW in v27.9)
 
-- **Three navigation modes**:
-  - **List mode** — overview of all codes with color swatch, description, and segment count
-  - **Code-focused detail** — all segments for a specific code across all files, with text preview
-  - **Marker-focused detail** — details of a specific marker: text segment, other codes on the same passage, other markers with the same code
-- **Back navigation** — breadcrumb-style "All Codes" button to return to the list
-- **Cross-reference**: Click chips showing other codes on a marker to switch context; click other markers to navigate to them
+- **Marker-focused detail**: Click a margin label to open a side panel showing the marker's code name, color swatch, description, and text segment
+- **Other codes**: Shows other codes assigned to the same marker as clickable chips — click to switch context
+- **Other markers**: Lists other markers in the same file that share the same code, with text preview and click-to-navigate
+- **Scroll to marker**: Clicking another marker in the list scrolls the editor to that position
 
 ### Hover Menu
 
@@ -132,7 +130,7 @@ CodeMarker is evolving toward a full qualitative data analysis platform inside O
 | Hover tooltip | Inspect & edit codes on hover | Done |
 | Code registry | Persistent code identity, colors, descriptions | Done |
 | Margin panel | MAXQDA-style colored bars with bidirectional hover | Done |
-| Code Explorer & Detail | Tree view, segment navigation, code detail panel | Done |
+| Code Detail Panel | Marker-focused detail view with cross-references | Done |
 | Per-code decorations | Overlapping color layers per code | Planned |
 | Projects & workspace | Named projects, global codebook, project-level data | Planned |
 | Power features | Code hierarchy, memos, queries, matrix, export | Planned |
