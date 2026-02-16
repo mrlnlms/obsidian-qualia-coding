@@ -8,6 +8,7 @@ import { createSelectionMenuField } from './cm6/selectionMenuField';
 import { MenuController } from './menu/menuController';
 import { openObsidianMenu } from './menu/obsidianMenu';
 import { createHoverMenuExtension } from './cm6/hoverMenuExtension';
+import { createMarginPanelExtension } from './cm6/marginPanelExtension';
 import { CodeFormModal } from './menu/codeFormModal';
 import { addCodeWithDetailsAction } from './menu/menuActions';
 
@@ -19,7 +20,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[obsidian-codemarker-v2] v27.3 loaded — Selection preview + CodeDefinition Registry');
+		console.log('[CodeMarker v2] v27.4 loaded — Margin panel prototype (MAXQDA brackets)');
 		await this.loadSettings();
 
 		// Initialize data model
@@ -34,7 +35,8 @@ export default class CodeMarkerPlugin extends Plugin {
 			createMarkerStateField(this.model),
 			createMarkerViewPlugin(this.model),
 			createSelectionMenuField(this.model),
-			createHoverMenuExtension(this.model)
+			createHoverMenuExtension(this.model),
+			createMarginPanelExtension(this.model)
 		]);
 
 		// Settings tab

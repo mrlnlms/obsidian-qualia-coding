@@ -21,7 +21,7 @@ export interface Marker {
 export class CodeMarkerModel {
 	private markers: Map<string, Marker[]> = new Map();
 	private codeDescriptions: Record<string, string> = {};
-	readonly registry: CodeDefinitionRegistry = new CodeDefinitionRegistry();
+	registry: CodeDefinitionRegistry = new CodeDefinitionRegistry();
 	plugin: CodeMarkerPlugin;
 
 	constructor(plugin: CodeMarkerPlugin) {
@@ -61,12 +61,10 @@ export class CodeMarkerModel {
 			// Load or migrate CodeDefinition Registry
 			if (data.codeDefinitions) {
 				// Registry already exists — deserialize
-				const loaded = CodeDefinitionRegistry.fromJSON({
+				this.registry = CodeDefinitionRegistry.fromJSON({
 					definitions: data.codeDefinitions,
 					nextPaletteIndex: data.nextPaletteIndex ?? 0
 				});
-				// Replace the default empty registry
-				(this as any).registry = loaded;
 			} else {
 				// Migration: extract codes from existing markers → create definitions
 				this.migrateCodeDefinitions();

@@ -402,6 +402,53 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
    High-DPI Display Support
    ======================================== */
 
+/* ========================================
+   Margin Panel — MAXQDA-style brackets
+   ======================================== */
+
+.codemarker-margin-panel {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 1;
+	pointer-events: auto;
+	overflow: visible;
+	min-height: 100%;
+}
+
+.codemarker-margin-bracket {
+	cursor: pointer;
+	transition: opacity 0.15s ease;
+}
+
+.codemarker-margin-bracket:hover {
+	opacity: 0.7;
+}
+
+.codemarker-margin-line {
+	opacity: 0.8;
+}
+
+.codemarker-margin-label {
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 1;
+	opacity: 0.9;
+	max-width: 60px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	user-select: none;
+}
+
+/* Push editor content to make room for the panel */
+.cm-scroller:has(.codemarker-margin-panel:not(:empty)) .cm-content {
+	/* Dynamic: panel width is set inline, this just ensures no overlap */
+}
+
+/* ========================================
+   High-DPI Display Support
+   ======================================== */
+
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
 	.codemarker-handle-svg {
 		filter: drop-shadow(0px 1px 3px rgba(0, 0, 0, 0.4));
