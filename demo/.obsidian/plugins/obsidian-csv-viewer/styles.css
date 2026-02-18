@@ -68,6 +68,92 @@
 }
 
 /* Subtle accent on coding column headers */
-.csv-coding-header {
+.csv-coding-header-seg {
   background-color: color-mix(in srgb, var(--interactive-accent) 10%, transparent) !important;
+}
+
+.csv-coding-header-frow {
+  background-color: color-mix(in srgb, var(--text-accent) 10%, transparent) !important;
+}
+
+/* Cod-seg cell — force full-width chain through AG Grid wrappers */
+.ag-cell:has(.csv-cod-seg-cell) {
+  display: flex !important;
+  align-items: center;
+}
+
+.ag-cell:has(.csv-cod-seg-cell) .ag-cell-wrapper {
+  width: 100%;
+}
+
+.ag-cell:has(.csv-cod-seg-cell) .ag-cell-value {
+  width: 100%;
+}
+
+.csv-cod-seg-cell {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 3px;
+}
+
+.csv-cod-seg-text {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.csv-cod-seg-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.3;
+  padding: 6px;
+  border-radius: 4px;
+  transition: opacity 0.15s, background-color 0.15s;
+  color: var(--text-normal);
+}
+
+.csv-cod-seg-btn:hover {
+  opacity: 1;
+  background-color: var(--ag-row-hover-color, rgba(0, 0, 0, 0.08));
+}
+
+/* Tag chips area — takes remaining space, flows horizontally */
+.csv-tag-area {
+  flex: 1 1 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  padding: 10px 0;
+}
+
+.csv-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.csv-tag-chip-x {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.csv-tag-chip-x:hover {
+  opacity: 1;
 }

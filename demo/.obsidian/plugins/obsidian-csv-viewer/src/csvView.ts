@@ -1,10 +1,52 @@
-import { FileView, Modal, Setting, TFile, WorkspaceLeaf, setIcon } from "obsidian";
+import { App, FileView, Modal, Setting, TFile, WorkspaceLeaf, setIcon } from "obsidian";
 import { AllCommunityModule, ModuleRegistry, createGrid, GridApi, themeQuartz } from "ag-grid-community";
 import * as Papa from "papaparse";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 export const CSV_VIEW_TYPE = "csv-viewer";
+
+// ── Test tag pool ────────────────────────────────────────────
+const TEST_TAGS = [
+  { name: "Red tag", bg: "#fdddd5", color: "#9a3412" },
+  { name: "Yellow tag", bg: "#fef3c7", color: "#92400e" },
+  { name: "Green tag", bg: "#d1fae5", color: "#065f46" },
+  { name: "Blue tag", bg: "#dbeafe", color: "#1e40af" },
+  { name: "Purple tag", bg: "#e9d5ff", color: "#6b21a8" },
+];
+
+// State: tags per cell (module-level, non-persistent — test only)
+const cellTags = new Map<string, Set<string>>();
+
+function cellKey(rowIndex: number, field: string): string {
+  return `${rowIndex}:${field}`;
+}
+
+function addNextTag(rowIndex: number, field: string): void {
+  const key = cellKey(rowIndex, field);
+  if (!cellTags.has(key)) cellTags.set(key, new Set());
+  const tags = cellTags.get(key)!;
+  const next = TEST_TAGS.find(t => !tags.has(t.name));
+  if (next) tags.add(next.name);
+}
+
+function removeTag(rowIndex: number, field: string, tagName: string): void {
+  const key = cellKey(rowIndex, field);
+  const tags = cellTags.get(key);
+  if (tags) {
+    tags.delete(tagName);
+    if (tags.size === 0) cellTags.delete(key);
+  }
+}
+
+function getTagsForCell(rowIndex: number, field: string): string[] {
+  const tags = cellTags.get(cellKey(rowIndex, field));
+  return tags ? Array.from(tags) : [];
+}
+
+function getTagDef(name: string) {
+  return TEST_TAGS.find(t => t.name === name);
+}
 
 const obsidianTheme = themeQuartz.withParams({
   backgroundColor: "var(--background-primary)",
@@ -148,7 +190,7 @@ export class CsvView extends FileView {
       if (cell.querySelector(".csv-header-btn")) continue;
 
       const colId = cell.getAttribute("col-id");
-      if (!colId) continue;
+      if (!colId || !colId.endsWith("_cod-frow")) continue;
 
       // Insert custom button into the label container (before filter, which has higher CSS order)
       const labelContainer = cell.querySelector(".ag-cell-label-container");
@@ -174,7 +216,12 @@ export class CsvView extends FileView {
       btn.addEventListener("mouseleave", () => { btn.style.opacity = "0.5"; btn.style.backgroundColor = "transparent"; });
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        console.log("Header button clicked:", colId); // TBD: wire action
+        if (!this.gridApi) return;
+        const rowCount = this.gridApi.getDisplayedRowCount();
+        for (let i = 0; i < rowCount; i++) {
+          addNextTag(i, colId);
+        }
+        this.gridApi.refreshCells({ force: true });
       });
 
       // Insert before labelDiv in DOM → visually between label and filter (row-reverse)
@@ -195,10 +242,96 @@ export class CsvView extends FileView {
   }
 }
 
+/** Renderer for source column when cod-seg is active: text + tag button (right-aligned) */
+function sourceTagBtnRenderer(params: any) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "csv-cod-seg-cell";
+
+  const text = document.createElement("span");
+  text.className = "csv-cod-seg-text";
+  text.style.flex = "1";
+  text.textContent = params.value ?? "";
+
+  const btn = document.createElement("span");
+  btn.className = "csv-cod-seg-btn";
+  setIcon(btn, "tag");
+  const svg = btn.querySelector("svg");
+  if (svg) { svg.style.width = "14px"; svg.style.height = "14px"; svg.style.strokeWidth = "3"; svg.style.color = "var(--text-normal)"; }
+
+  const segField: string = params.codSegField;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    addNextTag(params.rowIndex, segField);
+    params.api.refreshCells({ force: true });
+  });
+
+  wrapper.appendChild(text);
+  wrapper.appendChild(btn);
+  return wrapper;
+}
+
 // Subtle background for coding columns
-const CODING_COL_STYLE = {
+const COD_SEG_STYLE = {
   backgroundColor: "color-mix(in srgb, var(--interactive-accent) 8%, transparent)",
 };
+const COD_FROW_STYLE = {
+  backgroundColor: "color-mix(in srgb, var(--text-accent) 8%, transparent)",
+};
+
+function codCellRenderer(params: any) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "csv-cod-seg-cell";
+
+  const text = document.createElement("span");
+  text.className = "csv-cod-seg-text";
+  text.textContent = params.value ?? "";
+
+  // Tag chips area
+  const field: string = params.colDef.field;
+  const rowIndex: number = params.rowIndex;
+  const tagsArea = document.createElement("span");
+  tagsArea.className = "csv-tag-area";
+
+  const tags = getTagsForCell(rowIndex, field);
+  for (const tagName of tags) {
+    const def = getTagDef(tagName);
+    if (!def) continue;
+
+    const chip = document.createElement("span");
+    chip.className = "csv-tag-chip";
+    chip.style.backgroundColor = def.bg;
+    chip.style.color = def.color;
+    chip.textContent = def.name;
+
+    const x = document.createElement("span");
+    x.className = "csv-tag-chip-x";
+    x.textContent = "×";
+    x.addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeTag(rowIndex, field, tagName);
+      params.api.refreshCells({ force: true });
+    });
+    chip.appendChild(x);
+    tagsArea.appendChild(chip);
+  }
+
+  const btn = document.createElement("span");
+  btn.className = "csv-cod-seg-btn";
+  setIcon(btn, "tag");
+  const svg = btn.querySelector("svg");
+  if (svg) { svg.style.width = "14px"; svg.style.height = "14px"; svg.style.strokeWidth = "3"; svg.style.color = "var(--text-normal)"; }
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    addNextTag(rowIndex, field);
+    params.api.refreshCells({ force: true });
+  });
+
+  wrapper.appendChild(text);
+  wrapper.appendChild(tagsArea);
+  wrapper.appendChild(btn);
+  return wrapper;
+}
 
 class ColumnToggleModal extends Modal {
   private gridApi: GridApi;
@@ -267,24 +400,48 @@ class ColumnToggleModal extends Modal {
   private toggleCodingColumn(field: string, sourceHeader: string, suffix: string, add: boolean) {
     const colDefs = this.gridApi.getColumnDefs();
     if (!colDefs) return;
+    const isCodSeg = suffix === "cod-seg";
 
     if (add) {
       // Find position: right after the source column
       const idx = colDefs.findIndex((c: any) => c.field === sourceHeader);
-      const newCol = {
+      const isFrow = suffix === "cod-frow";
+      const newCol: any = {
         field,
         headerName: `${sourceHeader}_${suffix}`,
         editable: true,
-        cellStyle: CODING_COL_STYLE,
-        headerClass: "csv-coding-header",
+        cellStyle: isFrow ? COD_FROW_STYLE : COD_SEG_STYLE,
+        headerClass: isFrow ? "csv-coding-header-frow" : "csv-coding-header-seg",
         sortable: true,
         filter: true,
         resizable: true,
+        cellRenderer: codCellRenderer,
+        cellRendererParams: { app: this.app },
+        autoHeight: true,
+        wrapText: true,
       };
       colDefs.splice(idx + 1, 0, newCol);
+
+      // Add tag button to source column
+      if (isCodSeg) {
+        const srcDef = colDefs[idx] as any;
+        if (srcDef) {
+          srcDef.cellRenderer = sourceTagBtnRenderer;
+          srcDef.cellRendererParams = { codSegField: field };
+        }
+      }
     } else {
       const idx = colDefs.findIndex((c: any) => c.field === field);
       if (idx >= 0) colDefs.splice(idx, 1);
+
+      // Remove tag button from source column
+      if (isCodSeg) {
+        const srcDef = colDefs.find((c: any) => c.field === sourceHeader) as any;
+        if (srcDef) {
+          delete srcDef.cellRenderer;
+          delete srcDef.cellRendererParams;
+        }
+      }
     }
 
     this.gridApi.setGridOption("columnDefs", colDefs);
@@ -293,4 +450,72 @@ class ColumnToggleModal extends Modal {
   onClose() {
     this.contentEl.empty();
   }
+}
+
+// ── Tag Modals ──────────────────────────────────────────────
+
+class CodFrowHeaderModal extends Modal {
+  private sourceCol: string;
+
+  constructor(app: App, sourceCol: string) {
+    super(app);
+    this.sourceCol = sourceCol;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    this.setTitle(`Tag Full Row — ${this.sourceCol}`);
+    contentEl.createEl("p", { text: `Column: ${this.sourceCol}` });
+    contentEl.createEl("p", { text: "Apply a code to all rows via this column header.", cls: "setting-item-description" });
+  }
+
+  onClose() { this.contentEl.empty(); }
+}
+
+class CodSegCellModal extends Modal {
+  private sourceCol: string;
+  private rowIndex: number;
+  private sourceValue: string;
+
+  constructor(app: App, sourceCol: string, rowIndex: number, sourceValue: string) {
+    super(app);
+    this.sourceCol = sourceCol;
+    this.rowIndex = rowIndex;
+    this.sourceValue = sourceValue;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    this.setTitle(`Tag Segment — Row ${this.rowIndex}`);
+    contentEl.createEl("p", { text: `Column: ${this.sourceCol}` });
+    contentEl.createEl("p", { text: `Text: "${this.sourceValue}"`, cls: "setting-item-description" });
+  }
+
+  onClose() { this.contentEl.empty(); }
+}
+
+class CodFrowCellModal extends Modal {
+  private sourceCol: string;
+  private rowIndex: number;
+  private rowData: Record<string, string>;
+
+  constructor(app: App, sourceCol: string, rowIndex: number, rowData: Record<string, string>) {
+    super(app);
+    this.sourceCol = sourceCol;
+    this.rowIndex = rowIndex;
+    this.rowData = rowData;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    this.setTitle(`Tag Full Row — Row ${this.rowIndex}`);
+    contentEl.createEl("p", { text: `Column: ${this.sourceCol}` });
+    const list = contentEl.createEl("ul");
+    for (const [key, val] of Object.entries(this.rowData)) {
+      if (key.includes("_cod-")) continue; // skip coding columns
+      list.createEl("li", { text: `${key}: ${val}` });
+    }
+  }
+
+  onClose() { this.contentEl.empty(); }
 }
