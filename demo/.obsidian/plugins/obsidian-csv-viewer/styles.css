@@ -19,7 +19,7 @@
 /* Column settings modal */
 .csv-col-modal .csv-col-row {
   display: grid;
-  grid-template-columns: 1fr 70px 100px 100px;
+  grid-template-columns: 1fr 70px 100px 100px 80px;
   align-items: center;
   gap: 4px;
   padding: 2px 0;
@@ -76,6 +76,49 @@
 
 .csv-coding-header-frow {
   background-color: color-mix(in srgb, var(--text-muted) 5%, transparent) !important;
+}
+
+.csv-coding-header-comment {
+  background-color: color-mix(in srgb, var(--text-muted) 5%, transparent) !important;
+}
+
+.csv-comment-cell {
+  line-height: 1.4 !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.csv-comment-cell-nowrap {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  line-height: 1.4 !important;
+}
+
+.ag-cell.csv-comment-cell-nowrap {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.ag-cell.csv-comment-cell-nowrap .ag-cell-wrapper,
+.ag-cell.csv-comment-cell-nowrap .ag-cell-value {
+  width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.csv-comment-editor {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 4px;
+  font: inherit;
+  line-height: 1.4;
+  background: transparent;
 }
 
 /* Cod-seg cell — force full-width chain through AG Grid wrappers */
@@ -148,6 +191,18 @@
   line-height: 1.4;
 }
 
+.csv-tag-chip:hover {
+  text-decoration: underline;
+  filter: brightness(1.1);
+}
+
+.csv-tag-chip-active {
+  text-decoration: underline;
+  filter: brightness(1.3);
+  box-shadow: 0 0 0 2px currentColor;
+  transition: filter 0.15s, box-shadow 0.15s;
+}
+
 .csv-tag-chip-x {
   cursor: pointer;
   font-size: 13px;
@@ -158,6 +213,218 @@
 
 .csv-tag-chip-x:hover {
   opacity: 1;
+}
+
+/* ========================================
+   Code Detail Side Panel
+   ======================================== */
+
+.codemarker-detail-panel {
+  padding: 12px 16px;
+}
+
+.codemarker-detail-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: var(--font-ui-small);
+}
+
+.codemarker-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.codemarker-detail-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.codemarker-detail-title {
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.codemarker-detail-section {
+  margin-bottom: 14px;
+}
+
+.codemarker-detail-section h6 {
+  margin: 0 0 6px 0;
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.codemarker-detail-description {
+  margin: 0;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  line-height: 1.5;
+}
+
+.codemarker-detail-quote {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--interactive-accent);
+  background-color: var(--background-secondary);
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  line-height: 1.5;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.codemarker-detail-quote p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.codemarker-detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.codemarker-detail-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid;
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.codemarker-detail-chip:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-detail-marker-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.codemarker-detail-marker-item {
+  padding: 4px 8px;
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  line-height: 1.4;
+}
+
+.codemarker-detail-marker-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-detail-marker-item + .codemarker-detail-marker-item {
+  margin-top: 2px;
+}
+
+/* ========================================
+   Code Explorer — list mode (in CodeDetailView)
+   ======================================== */
+
+.codemarker-explorer-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.codemarker-explorer-title { font-size: var(--font-ui-medium); font-weight: 600; color: var(--text-normal); }
+.codemarker-explorer-count { font-size: var(--font-ui-smaller); color: var(--text-muted); background: var(--background-modifier-hover); padding: 2px 8px; border-radius: var(--radius-s); }
+
+.codemarker-explorer-list { display: flex; flex-direction: column; gap: 2px; }
+.codemarker-explorer-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-s); cursor: pointer; transition: background-color 0.15s; }
+.codemarker-explorer-row:hover { background-color: var(--background-modifier-hover); }
+
+.codemarker-explorer-row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.codemarker-explorer-row-name { font-size: var(--font-ui-small); color: var(--text-normal); font-weight: 500; }
+.codemarker-explorer-row-desc { font-size: var(--font-ui-smaller); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codemarker-explorer-row-count { font-size: var(--font-ui-smaller); color: var(--text-muted); flex-shrink: 0; }
+
+/* Back button */
+.codemarker-detail-back { display: flex; align-items: center; gap: 4px; font-size: var(--font-ui-smaller); color: var(--text-muted); cursor: pointer; margin-bottom: 8px; padding: 2px 0; }
+.codemarker-detail-back:hover { color: var(--text-normal); }
+.codemarker-detail-back .svg-icon { width: 14px; height: 14px; }
+
+/* Marker file reference in code-focused detail */
+.codemarker-detail-marker-file { display: block; font-size: var(--font-ui-smaller); color: var(--text-muted); margin-bottom: 2px; }
+
+/* ========================================
+   Code Explorer — tree view (CodeExplorerView)
+   ======================================== */
+
+.codemarker-explorer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.codemarker-explorer-toolbar .clickable-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.codemarker-explorer-toolbar .clickable-icon:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-explorer-toolbar-spacer {
+  flex: 1;
+}
+
+.codemarker-explorer-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.codemarker-explorer .tree-item-inner {
+  flex: 1;
+}
+
+.codemarker-explorer .tree-item-flair {
+  margin-left: 8px;
+}
+
+.codemarker-explorer .collapse-icon {
+  transition: transform 0.15s ease;
+  transform: rotate(0deg);
+}
+
+.codemarker-explorer .is-collapsed .collapse-icon {
+  transform: rotate(-90deg);
+}
+
+.codemarker-explorer .tree-item-children {
+  border-left: none;
+}
+
+.codemarker-explorer-footer {
+  padding: 12px 8px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  border-top: 1px solid var(--background-modifier-border);
+  margin-top: 8px;
 }
 
 /* Header info tooltip — appended to body */

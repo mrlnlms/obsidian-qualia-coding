@@ -1,52 +1,13 @@
-import { App, FileView, Modal, Setting, TFile, WorkspaceLeaf, setIcon } from "obsidian";
+import { App, FileView, Modal, Setting, TFile, WorkspaceLeaf, setIcon, SuggestModal } from "obsidian";
 import { AllCommunityModule, ModuleRegistry, createGrid, GridApi, themeQuartz } from "ag-grid-community";
 import * as Papa from "papaparse";
+import type CsvViewerPlugin from "./main";
+import { CodingModel } from "./coding/codingModel";
+import { CsvCodeFormModal } from "./coding/codeFormModal";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 export const CSV_VIEW_TYPE = "csv-viewer";
-
-// ── Test tag pool ────────────────────────────────────────────
-const TEST_TAGS = [
-  { name: "Red tag", bg: "#fdddd5", color: "#9a3412" },
-  { name: "Yellow tag", bg: "#fef3c7", color: "#92400e" },
-  { name: "Green tag", bg: "#d1fae5", color: "#065f46" },
-  { name: "Blue tag", bg: "#dbeafe", color: "#1e40af" },
-  { name: "Purple tag", bg: "#e9d5ff", color: "#6b21a8" },
-];
-
-// State: tags per cell (module-level, non-persistent — test only)
-const cellTags = new Map<string, Set<string>>();
-
-function cellKey(rowIndex: number, field: string): string {
-  return `${rowIndex}:${field}`;
-}
-
-function addNextTag(rowIndex: number, field: string): void {
-  const key = cellKey(rowIndex, field);
-  if (!cellTags.has(key)) cellTags.set(key, new Set());
-  const tags = cellTags.get(key)!;
-  const next = TEST_TAGS.find(t => !tags.has(t.name));
-  if (next) tags.add(next.name);
-}
-
-function removeTag(rowIndex: number, field: string, tagName: string): void {
-  const key = cellKey(rowIndex, field);
-  const tags = cellTags.get(key);
-  if (tags) {
-    tags.delete(tagName);
-    if (tags.size === 0) cellTags.delete(key);
-  }
-}
-
-function getTagsForCell(rowIndex: number, field: string): string[] {
-  const tags = cellTags.get(cellKey(rowIndex, field));
-  return tags ? Array.from(tags) : [];
-}
-
-function getTagDef(name: string) {
-  return TEST_TAGS.find(t => t.name === name);
-}
 
 const obsidianTheme = themeQuartz.withParams({
   backgroundColor: "var(--background-primary)",
@@ -63,12 +24,15 @@ const obsidianTheme = themeQuartz.withParams({
 });
 
 export class CsvView extends FileView {
-  private gridApi: GridApi | null = null;
+  public gridApi: GridApi | null = null;
   private originalHeaders: string[] = [];
   private headerObserver: MutationObserver | null = null;
+  plugin: CsvViewerPlugin;
+  private navHandler: ((evt: any) => void) | null = null;
 
-  constructor(leaf: WorkspaceLeaf) {
+  constructor(leaf: WorkspaceLeaf, plugin: CsvViewerPlugin) {
     super(leaf);
+    this.plugin = plugin;
   }
 
   getViewType(): string {
@@ -100,7 +64,6 @@ export class CsvView extends FileView {
 
     const raw = await this.app.vault.read(file);
 
-    // Parse in background thread to avoid UI freeze on large files
     const parsed = await new Promise<Papa.ParseResult<Record<string, string>>>((resolve) => {
       Papa.parse<Record<string, string>>(raw, {
         header: true,
@@ -110,7 +73,6 @@ export class CsvView extends FileView {
       });
     });
 
-    // Check if file changed while parsing
     if (this.file !== file) return;
 
     contentEl.empty();
@@ -128,7 +90,7 @@ export class CsvView extends FileView {
       return;
     }
 
-    // Info bar — right-aligned
+    // Info bar
     const infoBar = contentEl.createEl("div");
     infoBar.style.display = "flex";
     infoBar.style.alignItems = "center";
@@ -147,16 +109,18 @@ export class CsvView extends FileView {
     gearBtn.style.color = "var(--text-muted)";
     gearBtn.style.display = "flex";
     setIcon(gearBtn, "settings");
-    // Make icon slightly larger than text
     const svg = gearBtn.querySelector("svg");
     if (svg) { svg.style.width = "16px"; svg.style.height = "16px"; }
     gearBtn.addEventListener("click", () => {
       if (this.gridApi) {
-        new ColumnToggleModal(this.app, this.gridApi, this.originalHeaders).open();
+        new ColumnToggleModal(this.app, this.gridApi, this.originalHeaders, this.plugin, this.file!.path).open();
       }
     });
 
     this.originalHeaders = headers;
+
+    // Feed row data cache for side panel text lookup
+    this.plugin.model.setRowData(file.path, parsed.data);
 
     // Grid wrapper
     const wrapper = contentEl.createEl("div");
@@ -170,10 +134,28 @@ export class CsvView extends FileView {
       rowData: parsed.data,
       enableCellTextSelection: true,
       domLayout: "normal",
+      onCellClicked: (event: any) => {
+        console.log('[DIAG-3] onCellClicked fired', event.colDef?.field, event.event?.target?.className);
+        const target = event.event?.target as HTMLElement | undefined;
+        if (!target) return;
+        const actionEl = target.closest('[data-action]') as HTMLElement | null;
+        if (!actionEl) return;
+
+        const action = actionEl.getAttribute('data-action');
+        const markerId = actionEl.getAttribute('data-marker-id');
+        const codeName = actionEl.getAttribute('data-code-name');
+        if (!markerId || !codeName) return;
+
+        if (action === 'open-detail') {
+          this.plugin.revealCodeDetailPanel(markerId, codeName);
+        } else if (action === 'remove-code') {
+          this.plugin.model.removeCodeFromMarker(markerId, codeName);
+          this.gridApi?.refreshCells({ force: true });
+        }
+      },
     });
 
-    // Inject custom header buttons — MutationObserver catches all DOM rebuilds
-    // (scroll, column show/hide, sort, resize, etc.)
+    // Inject custom header buttons
     const headerRoot = wrapper.querySelector(".ag-header");
     if (headerRoot) {
       const inject = () => this.injectHeaderButtons(wrapper);
@@ -181,75 +163,131 @@ export class CsvView extends FileView {
       this.headerObserver = new MutationObserver(inject);
       this.headerObserver.observe(headerRoot, { childList: true, subtree: true });
     }
+
+    // Listen for navigation events from side panels
+    this.navHandler = (evt: any) => {
+      if (!this.gridApi || !this.file) return;
+      if (evt.file !== this.file.path) return;
+      this.gridApi.ensureIndexVisible(evt.row, 'middle');
+      const rowNode = this.gridApi.getDisplayedRowAtIndex(evt.row);
+      if (rowNode) {
+        this.gridApi.flashCells({ rowNodes: [rowNode], flashDuration: 1500 });
+      }
+    };
+    this.app.workspace.on('codemarker-csv:navigate' as any, this.navHandler);
   }
 
   private injectHeaderButtons(wrapper: HTMLElement) {
     const headerCells = wrapper.querySelectorAll<HTMLElement>(".ag-header-cell");
     for (const cell of Array.from(headerCells)) {
-      if (cell.querySelector(".csv-header-btn")) continue;
-
       const colId = cell.getAttribute("col-id");
       if (!colId) continue;
       const isCodSeg = colId.endsWith("_cod-seg");
       const isCodFrow = colId.endsWith("_cod-frow");
-      if (!isCodSeg && !isCodFrow) continue;
+      const isComment = colId.endsWith("_comment");
+      if (!isCodSeg && !isCodFrow && !isComment) continue;
 
       const labelContainer = cell.querySelector(".ag-cell-label-container");
       if (!labelContainer) continue;
       const labelDiv = labelContainer.querySelector(".ag-header-cell-label");
 
-      const btn = document.createElement("span");
-      btn.className = "csv-header-btn ag-header-icon";
-      btn.style.cursor = "pointer";
-      btn.style.display = "inline-flex";
-      btn.style.alignItems = "center";
-      btn.style.opacity = "0.5";
-      btn.style.marginRight = "10px";
-      btn.style.padding = "6px";
-      btn.style.borderRadius = "4px";
-      btn.style.transition = "background-color 0.2s, opacity 0.2s";
-      btn.style.position = "relative";
-      setIcon(btn, isCodSeg ? "info" : "tag");
-      const svg = btn.querySelector("svg");
-      if (svg) { svg.style.width = "14px"; svg.style.height = "14px"; svg.style.strokeWidth = isCodSeg ? "2.5" : "3"; svg.style.color = "var(--text-normal)"; }
+      if (!cell.querySelector(".csv-header-btn")) {
+        if (isCodSeg || isCodFrow) {
+          const btn = this.createHeaderIcon(isCodSeg ? "info" : "tag", isCodSeg ? "2.5" : "3");
+          btn.className = "csv-header-btn ag-header-icon " + btn.className;
 
-      btn.addEventListener("mouseenter", () => { btn.style.opacity = "1"; btn.style.backgroundColor = "var(--ag-row-hover-color, rgba(0,0,0,0.08))"; });
-      btn.addEventListener("mouseleave", () => { btn.style.opacity = "0.5"; btn.style.backgroundColor = "transparent"; });
-
-      if (isCodSeg) {
-        // Tooltip explaining how to add codes — appended to body to escape overflow
-        let tooltip: HTMLElement | null = null;
-        btn.addEventListener("mouseenter", () => {
-          tooltip = document.createElement("div");
-          tooltip.className = "csv-header-tooltip";
-          tooltip.textContent = "Esta coluna exibe os códigos aplicados aos segmentos da coluna de origem. Para adicionar códigos, clique no ícone 🏷 na célula da coluna de origem. Para remover, clique no × do código aqui.";
-          document.body.appendChild(tooltip);
-          const rect = btn.getBoundingClientRect();
-          tooltip.style.left = `${rect.left + rect.width / 2}px`;
-          tooltip.style.top = `${rect.bottom + 6}px`;
-        });
-        btn.addEventListener("mouseleave", () => {
-          if (tooltip) { tooltip.remove(); tooltip = null; }
-        });
-        btn.addEventListener("click", (e) => e.stopPropagation());
-      } else {
-        // cod-frow: add tags to all rows
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (!this.gridApi) return;
-          const rowCount = this.gridApi.getDisplayedRowCount();
-          for (let i = 0; i < rowCount; i++) {
-            addNextTag(i, colId);
+          if (isCodSeg) {
+            let tooltip: HTMLElement | null = null;
+            btn.addEventListener("mouseenter", () => {
+              tooltip = document.createElement("div");
+              tooltip.className = "csv-header-tooltip";
+              tooltip.textContent = "Esta coluna exibe os códigos aplicados aos segmentos da coluna de origem. Para adicionar códigos, clique no ícone 🏷 na célula da coluna de origem. Para remover, clique no × do código aqui.";
+              document.body.appendChild(tooltip);
+              const rect = btn.getBoundingClientRect();
+              tooltip.style.left = `${rect.left + rect.width / 2}px`;
+              tooltip.style.top = `${rect.bottom + 6}px`;
+            });
+            btn.addEventListener("mouseleave", () => {
+              if (tooltip) { tooltip.remove(); tooltip = null; }
+            });
+            btn.addEventListener("click", (e) => e.stopPropagation());
+          } else {
+            // cod-frow header: open code picker to add code to all visible rows
+            btn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              if (!this.gridApi || !this.file) return;
+              const filePath = this.file.path;
+              new CodePickerModal(this.app, this.plugin.model, (codeName) => {
+                if (!this.gridApi) return;
+                const rowCount = this.gridApi.getDisplayedRowCount();
+                for (let i = 0; i < rowCount; i++) {
+                  this.plugin.model.addRowMarker(filePath, i, colId, codeName);
+                }
+                this.gridApi.refreshCells({ force: true });
+              }).open();
+            });
           }
-          this.gridApi.refreshCells({ force: true });
-        });
+
+          labelContainer.insertBefore(btn, labelDiv);
+        }
       }
 
-      labelContainer.insertBefore(btn, labelDiv);
+      if (isComment && !cell.querySelector(".csv-header-wrap-btn")) {
+        const wrapBtn = this.createHeaderIcon("wrap-text", "2.5");
+        wrapBtn.className = "csv-header-wrap-btn ag-header-icon " + wrapBtn.className;
+
+        const col = this.gridApi?.getColumn(colId);
+        const colDef = col ? (col.getColDef() as any) : null;
+        const isWrapped = colDef?.wrapText ?? true;
+        wrapBtn.style.opacity = isWrapped ? "0.8" : "0.3";
+
+        wrapBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!this.gridApi) return;
+          const colDefs = this.gridApi.getColumnDefs();
+          if (!colDefs) return;
+          const def = colDefs.find((c: any) => c.field === colId) as any;
+          if (!def) return;
+          const nowWrapped = def.wrapText ?? true;
+          def.wrapText = !nowWrapped;
+          def.autoHeight = !nowWrapped;
+          def.cellClass = !nowWrapped ? "csv-comment-cell" : "csv-comment-cell-nowrap";
+          this.gridApi.setGridOption("columnDefs", colDefs);
+        });
+
+        labelContainer.insertBefore(wrapBtn, labelDiv);
+      }
     }
   }
 
+  private createHeaderIcon(icon: string, strokeWidth: string): HTMLElement {
+    const btn = document.createElement("span");
+    btn.style.cursor = "pointer";
+    btn.style.display = "inline-flex";
+    btn.style.alignItems = "center";
+    btn.style.opacity = "0.5";
+    btn.style.marginRight = "4px";
+    btn.style.padding = "6px";
+    btn.style.borderRadius = "4px";
+    btn.style.transition = "background-color 0.2s, opacity 0.2s";
+    btn.style.position = "relative";
+    setIcon(btn, icon);
+    const svg = btn.querySelector("svg");
+    if (svg) { svg.style.width = "14px"; svg.style.height = "14px"; svg.style.strokeWidth = strokeWidth; svg.style.color = "var(--text-normal)"; }
+    btn.addEventListener("mouseenter", () => { btn.style.opacity = "1"; btn.style.backgroundColor = "var(--ag-row-hover-color, rgba(0,0,0,0.08))"; });
+    btn.addEventListener("mouseleave", () => {
+      const colWrapped = btn.dataset.wrapped;
+      btn.style.opacity = colWrapped === "false" ? "0.3" : "0.5";
+      btn.style.backgroundColor = "transparent";
+    });
+    return btn;
+  }
+
   async onUnloadFile(): Promise<void> {
+    if (this.navHandler) {
+      this.app.workspace.off('codemarker-csv:navigate' as any, this.navHandler);
+      this.navHandler = null;
+    }
     if (this.headerObserver) {
       this.headerObserver.disconnect();
       this.headerObserver = null;
@@ -258,12 +296,18 @@ export class CsvView extends FileView {
       this.gridApi.destroy();
       this.gridApi = null;
     }
+    if (this.file) {
+      this.plugin.model.clearRowData(this.file.path);
+    }
     this.contentEl.empty();
   }
 }
 
-/** Renderer for source column when cod-seg is active: text + tag button (right-aligned) */
+// ── Cell Renderers (use CodingModel) ─────────────────────────
+
+/** Renderer for source column when cod-seg is active: text + tag button */
 function sourceTagBtnRenderer(params: any) {
+  const plugin: CsvViewerPlugin = params.plugin;
   const wrapper = document.createElement("div");
   wrapper.className = "csv-cod-seg-cell";
 
@@ -281,8 +325,14 @@ function sourceTagBtnRenderer(params: any) {
   const segField: string = params.codSegField;
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
-    addNextTag(params.rowIndex, segField);
-    params.api.refreshCells({ force: true });
+    const rowIdx = params.node?.rowIndex ?? params.rowIndex ?? 0;
+    const filePath = params.filePath;
+    if (!filePath || !plugin) return;
+
+    new CodePickerModal(plugin.app, plugin.model, (codeName) => {
+      plugin.model.addSegmentMarker(filePath, rowIdx, segField, 0, (params.value ?? "").length, codeName);
+      params.api.refreshCells({ force: true });
+    }).open();
   });
 
   wrapper.appendChild(text);
@@ -290,7 +340,7 @@ function sourceTagBtnRenderer(params: any) {
   return wrapper;
 }
 
-// Toggle: show tag button inside cod-seg cells? (set false to hide it)
+// Toggle: show tag button inside cod-seg cells?
 const COD_SEG_CELL_TAG_BTN = false;
 
 // Subtle background for coding columns
@@ -304,6 +354,12 @@ const COD_FROW_STYLE = {
 };
 
 function codCellRenderer(params: any) {
+  const plugin: CsvViewerPlugin = params.plugin;
+  const model: CodingModel | undefined = plugin?.model;
+  const filePath: string = params.filePath ?? '';
+  const field: string = params.colDef.field;
+  const getRow = () => params.node?.rowIndex ?? params.rowIndex ?? 0;
+
   const wrapper = document.createElement("div");
   wrapper.className = "csv-cod-seg-cell";
 
@@ -311,38 +367,40 @@ function codCellRenderer(params: any) {
   text.className = "csv-cod-seg-text";
   text.textContent = params.value ?? "";
 
-  // Tag chips area
-  const field: string = params.colDef.field;
-  const rowIndex: number = params.rowIndex;
+  // Tag chips area — driven by CodingModel
   const tagsArea = document.createElement("span");
   tagsArea.className = "csv-tag-area";
 
-  const tags = getTagsForCell(rowIndex, field);
-  for (const tagName of tags) {
-    const def = getTagDef(tagName);
-    if (!def) continue;
+  if (model && filePath) {
+    const codes = model.getCodesForCell(filePath, getRow(), field);
+    for (const { codeName, markerId, color } of codes) {
+      const chip = document.createElement("span");
+      chip.className = "csv-tag-chip";
+      chip.style.backgroundColor = hexToRgba(color, 0.18);
+      chip.style.color = color;
+      chip.style.cursor = "pointer";
+      chip.textContent = codeName;
+      // Data attributes for event delegation
+      chip.setAttribute('data-marker-id', markerId);
+      chip.setAttribute('data-code-name', codeName);
+      chip.setAttribute('data-action', 'open-detail');
 
-    const chip = document.createElement("span");
-    chip.className = "csv-tag-chip";
-    chip.style.backgroundColor = def.bg;
-    chip.style.color = def.color;
-    chip.textContent = def.name;
-
-    const x = document.createElement("span");
-    x.className = "csv-tag-chip-x";
-    x.textContent = "×";
-    x.addEventListener("click", (e) => {
-      e.stopPropagation();
-      removeTag(rowIndex, field, tagName);
-      params.api.refreshCells({ force: true });
-    });
-    chip.appendChild(x);
-    tagsArea.appendChild(chip);
+      // × button
+      const x = document.createElement("span");
+      x.className = "csv-tag-chip-x";
+      x.textContent = "×";
+      x.setAttribute('data-marker-id', markerId);
+      x.setAttribute('data-code-name', codeName);
+      x.setAttribute('data-action', 'remove-code');
+      chip.appendChild(x);
+      tagsArea.appendChild(chip);
+    }
   }
 
   wrapper.appendChild(text);
   wrapper.appendChild(tagsArea);
 
+  // Tag button — opens code picker
   const showBtn = field.endsWith("_cod-seg") ? COD_SEG_CELL_TAG_BTN : true;
   if (showBtn) {
     const btn = document.createElement("span");
@@ -353,8 +411,17 @@ function codCellRenderer(params: any) {
 
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      addNextTag(rowIndex, field);
-      params.api.refreshCells({ force: true });
+      if (!plugin || !filePath) return;
+
+      const isSeg = field.endsWith("_cod-seg");
+      new CodePickerModal(plugin.app, plugin.model, (codeName) => {
+        if (isSeg) {
+          plugin.model.addSegmentMarker(filePath, getRow(), field, 0, (params.value ?? "").length, codeName);
+        } else {
+          plugin.model.addRowMarker(filePath, getRow(), field, codeName);
+        }
+        params.api.refreshCells({ force: true });
+      }).open();
     });
     wrapper.appendChild(btn);
   }
@@ -362,14 +429,108 @@ function codCellRenderer(params: any) {
   return wrapper;
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// ── Code Picker Modal ───────────────────────────────────────
+
+interface CodePickerItem {
+  name: string;
+  color: string;
+  isNew?: boolean;
+}
+
+class CodePickerModal extends SuggestModal<CodePickerItem> {
+  private model: CodingModel;
+  private onPick: (codeName: string) => void;
+
+  constructor(app: App, model: CodingModel, onPick: (codeName: string) => void) {
+    super(app);
+    this.model = model;
+    this.onPick = onPick;
+    this.setPlaceholder("Type to search or create a code...");
+  }
+
+  getSuggestions(query: string): CodePickerItem[] {
+    const q = query.trim().toLowerCase();
+    let items: CodePickerItem[] = this.model.registry.getAll()
+      .map(d => ({ name: d.name, color: d.color }));
+
+    if (q) {
+      items = items.filter(i => i.name.toLowerCase().includes(q));
+      if (!items.some(i => i.name.toLowerCase() === q)) {
+        items.unshift({ name: query.trim(), color: this.model.registry.peekNextPaletteColor(), isNew: true });
+      }
+    }
+    return items;
+  }
+
+  renderSuggestion(item: CodePickerItem, el: HTMLElement): void {
+    const row = el.createDiv({ cls: 'codemarker-explorer-row' });
+    const swatch = row.createSpan({ cls: 'codemarker-detail-swatch' });
+    swatch.style.backgroundColor = item.color;
+    row.createSpan({ text: item.isNew ? `Create "${item.name}"` : item.name });
+  }
+
+  onChooseSuggestion(item: CodePickerItem): void {
+    if (item.isNew) {
+      new CsvCodeFormModal(this.app, item.name, item.color, (name, color, desc) => {
+        this.model.registry.create(name, color, desc);
+        this.onPick(name);
+      }).open();
+    } else {
+      this.onPick(item.name);
+    }
+  }
+}
+
+// ── Multiline cell editor for comment columns ──
+
+class CommentCellEditor {
+  private textarea!: HTMLTextAreaElement;
+  private params: any;
+
+  init(params: any) {
+    this.params = params;
+    this.textarea = document.createElement("textarea");
+    this.textarea.className = "csv-comment-editor";
+    this.textarea.value = params.value ?? "";
+    this.textarea.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.stopPropagation();
+        const start = this.textarea.selectionStart;
+        const end = this.textarea.selectionEnd;
+        const val = this.textarea.value;
+        this.textarea.value = val.substring(0, start) + "\n" + val.substring(end);
+        this.textarea.selectionStart = this.textarea.selectionEnd = start + 1;
+      }
+    });
+  }
+
+  getGui() { return this.textarea; }
+  afterGuiAttached() { this.textarea.focus(); }
+  getValue() { return this.textarea.value; }
+  isPopup() { return false; }
+}
+
+// ── Column Toggle Modal ─────────────────────────────────────
+
 class ColumnToggleModal extends Modal {
   private gridApi: GridApi;
   private originalHeaders: string[];
+  private plugin: CsvViewerPlugin;
+  private filePath: string;
 
-  constructor(app: import("obsidian").App, gridApi: GridApi, originalHeaders: string[]) {
+  constructor(app: import("obsidian").App, gridApi: GridApi, originalHeaders: string[], plugin: CsvViewerPlugin, filePath: string) {
     super(app);
     this.gridApi = gridApi;
     this.originalHeaders = originalHeaders;
+    this.plugin = plugin;
+    this.filePath = filePath;
   }
 
   onOpen() {
@@ -378,14 +539,13 @@ class ColumnToggleModal extends Modal {
     contentEl.addClass("csv-col-modal");
     this.setTitle("Column settings");
 
-    // Header row
     const headerRow = contentEl.createEl("div", { cls: "csv-col-row csv-col-header" });
     headerRow.createEl("span", { cls: "csv-col-name", text: "Column" });
     headerRow.createEl("span", { cls: "csv-col-toggle-label", text: "Visible" });
     headerRow.createEl("span", { cls: "csv-col-toggle-label", text: "Cod. Segments" });
     headerRow.createEl("span", { cls: "csv-col-toggle-label", text: "Cod. Full Row" });
+    headerRow.createEl("span", { cls: "csv-col-toggle-label", text: "Comment" });
 
-    // Track which coding columns exist
     const existingCols = new Set(
       (this.gridApi.getColumns() ?? []).map(c => c.getColId())
     );
@@ -393,13 +553,11 @@ class ColumnToggleModal extends Modal {
     for (const header of this.originalHeaders) {
       const segField = `${header}_cod-seg`;
       const frowField = `${header}_cod-frow`;
+      const commentField = `${header}_comment`;
 
       const row = contentEl.createEl("div", { cls: "csv-col-row" });
-
-      // Column name
       row.createEl("span", { cls: "csv-col-name", text: header });
 
-      // Visible toggle
       const visCell = row.createEl("span", { cls: "csv-col-toggle-cell" });
       const col = this.gridApi.getColumn(header);
       new Setting(visCell).addToggle((t) =>
@@ -408,21 +566,48 @@ class ColumnToggleModal extends Modal {
         })
       );
 
-      // Coding Segments toggle
+      let commentToggle: any;
+
+      const hasCoding = () => {
+        const cols = new Set((this.gridApi.getColumns() ?? []).map(c => c.getColId()));
+        return cols.has(segField) || cols.has(frowField);
+      };
+
+      const updateCommentState = () => {
+        const enabled = hasCoding();
+        commentToggle?.setDisabled(!enabled);
+        if (!enabled && commentToggle?.getValue()) {
+          commentToggle.setValue(false);
+          this.toggleCodingColumn(commentField, header, "comment", false);
+        }
+      };
+
       const segCell = row.createEl("span", { cls: "csv-col-toggle-cell" });
       new Setting(segCell).addToggle((t) =>
         t.setValue(existingCols.has(segField)).onChange((v) => {
           this.toggleCodingColumn(segField, header, "cod-seg", v);
+          updateCommentState();
         })
       );
 
-      // Coding Full Row toggle
       const frowCell = row.createEl("span", { cls: "csv-col-toggle-cell" });
       new Setting(frowCell).addToggle((t) =>
         t.setValue(existingCols.has(frowField)).onChange((v) => {
           this.toggleCodingColumn(frowField, header, "cod-frow", v);
+          updateCommentState();
         })
       );
+
+      const commentCell = row.createEl("span", { cls: "csv-col-toggle-cell" });
+      const hasAnyCoding = existingCols.has(segField) || existingCols.has(frowField);
+      new Setting(commentCell).addToggle((t) => {
+        commentToggle = t;
+        t.setValue(existingCols.has(commentField))
+          .setDisabled(!hasAnyCoding)
+          .onChange((v) => {
+            this.toggleCodingColumn(commentField, header, "comment", v);
+          });
+      });
     }
   }
 
@@ -430,49 +615,80 @@ class ColumnToggleModal extends Modal {
     const colDefs = this.gridApi.getColumnDefs();
     if (!colDefs) return;
     const isCodSeg = suffix === "cod-seg";
+    const isFrow = suffix === "cod-frow";
+    const isComment = suffix === "comment";
+
+    const filePath = this.filePath;
 
     if (add) {
       const srcIdx = colDefs.findIndex((c: any) => c.field === sourceHeader);
-      const isFrow = suffix === "cod-frow";
 
-      // cod-seg always right after source; cod-frow after any existing coding cols
       let insertIdx = srcIdx + 1;
-      if (isFrow) {
+      if (isFrow || isComment) {
         while (insertIdx < colDefs.length) {
           const f: string = (colDefs[insertIdx] as any).field ?? "";
           if (f.startsWith(sourceHeader + "_cod-")) { insertIdx++; } else { break; }
         }
       }
+      if (isComment) {
+        while (insertIdx < colDefs.length) {
+          const f: string = (colDefs[insertIdx] as any).field ?? "";
+          if (f === sourceHeader + "_comment") { insertIdx++; } else { break; }
+        }
+      }
 
-      const newCol: any = {
-        field,
-        headerName: `${sourceHeader}_${suffix}`,
-        editable: true,
-        cellStyle: isFrow ? COD_FROW_STYLE : COD_SEG_STYLE,
-        headerClass: isFrow ? "csv-coding-header-frow" : "csv-coding-header-seg",
-        sortable: true,
-        filter: true,
-        resizable: true,
-        cellRenderer: codCellRenderer,
-        cellRendererParams: { app: this.app },
-        autoHeight: true,
-        wrapText: true,
-      };
-      colDefs.splice(insertIdx, 0, newCol);
+      if (isComment) {
+        const newCol: any = {
+          field,
+          headerName: `${sourceHeader}_comment`,
+          editable: true,
+          cellEditor: CommentCellEditor,
+          cellStyle: COD_FROW_STYLE,
+          headerClass: "csv-coding-header-comment",
+          cellClass: "csv-comment-cell",
+          sortable: true,
+          filter: true,
+          resizable: true,
+          autoHeight: true,
+          wrapText: true,
+        };
+        colDefs.splice(insertIdx, 0, newCol);
+      } else {
+        const newCol: any = {
+          field,
+          headerName: `${sourceHeader}_${suffix}`,
+          editable: false,
+          cellStyle: isFrow ? COD_FROW_STYLE : COD_SEG_STYLE,
+          headerClass: isFrow ? "csv-coding-header-frow" : "csv-coding-header-seg",
+          sortable: true,
+          filter: true,
+          resizable: true,
+          cellRenderer: (params: any) => {
+            console.log('[DIAG-2] TEST renderer called for', params.colDef?.field);
+            const el = document.createElement('span');
+            el.textContent = '🔴 TEST';
+            el.style.color = 'red';
+            el.style.fontWeight = 'bold';
+            return el;
+          },
+          cellRendererParams: { plugin: this.plugin, filePath },
+          autoHeight: true,
+          wrapText: true,
+        };
+        colDefs.splice(insertIdx, 0, newCol);
+      }
 
-      // Add tag button to source column
       if (isCodSeg) {
         const srcDef = colDefs[srcIdx] as any;
         if (srcDef) {
           srcDef.cellRenderer = sourceTagBtnRenderer;
-          srcDef.cellRendererParams = { codSegField: field };
+          srcDef.cellRendererParams = { codSegField: field, plugin: this.plugin, filePath };
         }
       }
     } else {
       const idx = colDefs.findIndex((c: any) => c.field === field);
       if (idx >= 0) colDefs.splice(idx, 1);
 
-      // Remove tag button from source column
       if (isCodSeg) {
         const srcDef = colDefs.find((c: any) => c.field === sourceHeader) as any;
         if (srcDef) {
@@ -483,77 +699,11 @@ class ColumnToggleModal extends Modal {
     }
 
     this.gridApi.setGridOption("columnDefs", colDefs);
+    console.log('[DIAG-1] Columns after toggle:', this.gridApi.getColumns()?.map(c => c.getColId()));
+    console.log('[DIAG-1] ColDefs with renderer:', colDefs.filter((c: any) => c.cellRenderer).map((c: any) => ({ field: c.field, renderer: c.cellRenderer?.name || 'inline' })));
   }
 
   onClose() {
     this.contentEl.empty();
   }
-}
-
-// ── Tag Modals ──────────────────────────────────────────────
-
-class CodFrowHeaderModal extends Modal {
-  private sourceCol: string;
-
-  constructor(app: App, sourceCol: string) {
-    super(app);
-    this.sourceCol = sourceCol;
-  }
-
-  onOpen() {
-    const { contentEl } = this;
-    this.setTitle(`Tag Full Row — ${this.sourceCol}`);
-    contentEl.createEl("p", { text: `Column: ${this.sourceCol}` });
-    contentEl.createEl("p", { text: "Apply a code to all rows via this column header.", cls: "setting-item-description" });
-  }
-
-  onClose() { this.contentEl.empty(); }
-}
-
-class CodSegCellModal extends Modal {
-  private sourceCol: string;
-  private rowIndex: number;
-  private sourceValue: string;
-
-  constructor(app: App, sourceCol: string, rowIndex: number, sourceValue: string) {
-    super(app);
-    this.sourceCol = sourceCol;
-    this.rowIndex = rowIndex;
-    this.sourceValue = sourceValue;
-  }
-
-  onOpen() {
-    const { contentEl } = this;
-    this.setTitle(`Tag Segment — Row ${this.rowIndex}`);
-    contentEl.createEl("p", { text: `Column: ${this.sourceCol}` });
-    contentEl.createEl("p", { text: `Text: "${this.sourceValue}"`, cls: "setting-item-description" });
-  }
-
-  onClose() { this.contentEl.empty(); }
-}
-
-class CodFrowCellModal extends Modal {
-  private sourceCol: string;
-  private rowIndex: number;
-  private rowData: Record<string, string>;
-
-  constructor(app: App, sourceCol: string, rowIndex: number, rowData: Record<string, string>) {
-    super(app);
-    this.sourceCol = sourceCol;
-    this.rowIndex = rowIndex;
-    this.rowData = rowData;
-  }
-
-  onOpen() {
-    const { contentEl } = this;
-    this.setTitle(`Tag Full Row — Row ${this.rowIndex}`);
-    contentEl.createEl("p", { text: `Column: ${this.sourceCol}` });
-    const list = contentEl.createEl("ul");
-    for (const [key, val] of Object.entries(this.rowData)) {
-      if (key.includes("_cod-")) continue; // skip coding columns
-      list.createEl("li", { text: `${key}: ${val}` });
-    }
-  }
-
-  onClose() { this.contentEl.empty(); }
 }
