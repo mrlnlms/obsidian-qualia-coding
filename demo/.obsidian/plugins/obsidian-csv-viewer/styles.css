@@ -1,0 +1,17 @@
+/* Map Obsidian CSS vars → AG Grid CSS vars (reactive on theme change) */
+.ag-theme-quartz {
+  --ag-background-color: var(--background-primary);
+  --ag-foreground-color: var(--text-normal);
+  --ag-header-background-color: var(--background-secondary);
+  --ag-header-foreground-color: var(--text-normal);
+  --ag-border-color: var(--background-modifier-border);
+  --ag-row-hover-color: var(--background-modifier-hover);
+  --ag-selected-row-background-color: var(--background-modifier-hover);
+  --ag-active-color: var(--interactive-accent);
+  --ag-input-focus-border-color: var(--interactive-accent);
+  --ag-range-selection-border-color: var(--interactive-accent);
+  --ag-odd-row-background-color: var(--background-primary-alt, var(--background-primary));
+  --ag-modal-overlay-background-color: var(--background-primary);
+  --ag-font-family: var(--font-text);
+  --ag-font-size: var(--font-text-size, 14px);
+}

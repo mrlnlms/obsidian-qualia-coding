@@ -67,6 +67,18 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 
 ---
 
+## Engine Plugins
+
+CodeMarker is expanding into a multi-engine architecture. Each engine handles a different file type:
+
+### CSV Viewer (v28.1)
+
+- **AG Grid integration**: Opens `.csv` files as interactive tables with sorting, filtering, and resizing
+- **Native file registration**: The `csv` extension is registered so Obsidian opens CSV files directly in the viewer
+- **Standalone plugin**: Runs as an independent plugin in the demo vault
+
+---
+
 ## Commands
 
 | Command | Description |
@@ -133,6 +145,7 @@ CodeMarker is evolving toward a full qualitative data analysis platform inside O
 | Code registry | Persistent code identity, colors, descriptions | Done |
 | Margin panel | MAXQDA-style colored bars with bidirectional hover | Done |
 | Code Explorer & Detail | Tree view, segment navigation, code detail panel | Done |
+| Engine plugins | CSV, PDF, Image, Audio, Video, Analytics | In progress |
 | Per-code decorations | Overlapping color layers per code | Planned |
 | Projects & workspace | Named projects, global codebook, project-level data | Planned |
 | Power features | Code hierarchy, memos, queries, matrix, export | Planned |
