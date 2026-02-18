@@ -186,16 +186,16 @@ export class CsvView extends FileView {
   private injectHeaderButtons(wrapper: HTMLElement) {
     const headerCells = wrapper.querySelectorAll<HTMLElement>(".ag-header-cell");
     for (const cell of Array.from(headerCells)) {
-      // Skip if already injected
       if (cell.querySelector(".csv-header-btn")) continue;
 
       const colId = cell.getAttribute("col-id");
-      if (!colId || !colId.endsWith("_cod-frow")) continue;
+      if (!colId) continue;
+      const isCodSeg = colId.endsWith("_cod-seg");
+      const isCodFrow = colId.endsWith("_cod-frow");
+      if (!isCodSeg && !isCodFrow) continue;
 
-      // Insert custom button into the label container (before filter, which has higher CSS order)
       const labelContainer = cell.querySelector(".ag-cell-label-container");
       if (!labelContainer) continue;
-
       const labelDiv = labelContainer.querySelector(".ag-header-cell-label");
 
       const btn = document.createElement("span");
@@ -208,23 +208,43 @@ export class CsvView extends FileView {
       btn.style.padding = "6px";
       btn.style.borderRadius = "4px";
       btn.style.transition = "background-color 0.2s, opacity 0.2s";
-      setIcon(btn, "tag");
+      btn.style.position = "relative";
+      setIcon(btn, isCodSeg ? "info" : "tag");
       const svg = btn.querySelector("svg");
-      if (svg) { svg.style.width = "14px"; svg.style.height = "14px"; svg.style.strokeWidth = "3"; svg.style.color = "var(--text-normal)"; }
+      if (svg) { svg.style.width = "14px"; svg.style.height = "14px"; svg.style.strokeWidth = isCodSeg ? "2.5" : "3"; svg.style.color = "var(--text-normal)"; }
 
       btn.addEventListener("mouseenter", () => { btn.style.opacity = "1"; btn.style.backgroundColor = "var(--ag-row-hover-color, rgba(0,0,0,0.08))"; });
       btn.addEventListener("mouseleave", () => { btn.style.opacity = "0.5"; btn.style.backgroundColor = "transparent"; });
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (!this.gridApi) return;
-        const rowCount = this.gridApi.getDisplayedRowCount();
-        for (let i = 0; i < rowCount; i++) {
-          addNextTag(i, colId);
-        }
-        this.gridApi.refreshCells({ force: true });
-      });
 
-      // Insert before labelDiv in DOM → visually between label and filter (row-reverse)
+      if (isCodSeg) {
+        // Tooltip explaining how to add codes — appended to body to escape overflow
+        let tooltip: HTMLElement | null = null;
+        btn.addEventListener("mouseenter", () => {
+          tooltip = document.createElement("div");
+          tooltip.className = "csv-header-tooltip";
+          tooltip.textContent = "Esta coluna exibe os códigos aplicados aos segmentos da coluna de origem. Para adicionar códigos, clique no ícone 🏷 na célula da coluna de origem. Para remover, clique no × do código aqui.";
+          document.body.appendChild(tooltip);
+          const rect = btn.getBoundingClientRect();
+          tooltip.style.left = `${rect.left + rect.width / 2}px`;
+          tooltip.style.top = `${rect.bottom + 6}px`;
+        });
+        btn.addEventListener("mouseleave", () => {
+          if (tooltip) { tooltip.remove(); tooltip = null; }
+        });
+        btn.addEventListener("click", (e) => e.stopPropagation());
+      } else {
+        // cod-frow: add tags to all rows
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!this.gridApi) return;
+          const rowCount = this.gridApi.getDisplayedRowCount();
+          for (let i = 0; i < rowCount; i++) {
+            addNextTag(i, colId);
+          }
+          this.gridApi.refreshCells({ force: true });
+        });
+      }
+
       labelContainer.insertBefore(btn, labelDiv);
     }
   }
@@ -270,12 +290,17 @@ function sourceTagBtnRenderer(params: any) {
   return wrapper;
 }
 
+// Toggle: show tag button inside cod-seg cells? (set false to hide it)
+const COD_SEG_CELL_TAG_BTN = false;
+
 // Subtle background for coding columns
 const COD_SEG_STYLE = {
   backgroundColor: "color-mix(in srgb, var(--interactive-accent) 8%, transparent)",
+  fontStyle: "italic",
+  fontSize: "calc(var(--ag-font-size, 14px) + 1px)",
 };
 const COD_FROW_STYLE = {
-  backgroundColor: "color-mix(in srgb, var(--text-accent) 8%, transparent)",
+  backgroundColor: "color-mix(in srgb, var(--text-muted) 3%, transparent)",
 };
 
 function codCellRenderer(params: any) {
@@ -315,21 +340,25 @@ function codCellRenderer(params: any) {
     tagsArea.appendChild(chip);
   }
 
-  const btn = document.createElement("span");
-  btn.className = "csv-cod-seg-btn";
-  setIcon(btn, "tag");
-  const svg = btn.querySelector("svg");
-  if (svg) { svg.style.width = "14px"; svg.style.height = "14px"; svg.style.strokeWidth = "3"; svg.style.color = "var(--text-normal)"; }
-
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    addNextTag(rowIndex, field);
-    params.api.refreshCells({ force: true });
-  });
-
   wrapper.appendChild(text);
   wrapper.appendChild(tagsArea);
-  wrapper.appendChild(btn);
+
+  const showBtn = field.endsWith("_cod-seg") ? COD_SEG_CELL_TAG_BTN : true;
+  if (showBtn) {
+    const btn = document.createElement("span");
+    btn.className = "csv-cod-seg-btn";
+    setIcon(btn, "tag");
+    const svg = btn.querySelector("svg");
+    if (svg) { svg.style.width = "14px"; svg.style.height = "14px"; svg.style.strokeWidth = "3"; svg.style.color = "var(--text-normal)"; }
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      addNextTag(rowIndex, field);
+      params.api.refreshCells({ force: true });
+    });
+    wrapper.appendChild(btn);
+  }
+
   return wrapper;
 }
 
@@ -403,9 +432,18 @@ class ColumnToggleModal extends Modal {
     const isCodSeg = suffix === "cod-seg";
 
     if (add) {
-      // Find position: right after the source column
-      const idx = colDefs.findIndex((c: any) => c.field === sourceHeader);
+      const srcIdx = colDefs.findIndex((c: any) => c.field === sourceHeader);
       const isFrow = suffix === "cod-frow";
+
+      // cod-seg always right after source; cod-frow after any existing coding cols
+      let insertIdx = srcIdx + 1;
+      if (isFrow) {
+        while (insertIdx < colDefs.length) {
+          const f: string = (colDefs[insertIdx] as any).field ?? "";
+          if (f.startsWith(sourceHeader + "_cod-")) { insertIdx++; } else { break; }
+        }
+      }
+
       const newCol: any = {
         field,
         headerName: `${sourceHeader}_${suffix}`,
@@ -420,11 +458,11 @@ class ColumnToggleModal extends Modal {
         autoHeight: true,
         wrapText: true,
       };
-      colDefs.splice(idx + 1, 0, newCol);
+      colDefs.splice(insertIdx, 0, newCol);
 
       // Add tag button to source column
       if (isCodSeg) {
-        const srcDef = colDefs[idx] as any;
+        const srcDef = colDefs[srcIdx] as any;
         if (srcDef) {
           srcDef.cellRenderer = sourceTagBtnRenderer;
           srcDef.cellRendererParams = { codSegField: field };

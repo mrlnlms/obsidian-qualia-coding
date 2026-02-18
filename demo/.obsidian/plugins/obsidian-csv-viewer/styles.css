@@ -70,10 +70,12 @@
 /* Subtle accent on coding column headers */
 .csv-coding-header-seg {
   background-color: color-mix(in srgb, var(--interactive-accent) 10%, transparent) !important;
+  font-style: italic;
+  font-size: calc(var(--ag-font-size, 14px) + 1px);
 }
 
 .csv-coding-header-frow {
-  background-color: color-mix(in srgb, var(--text-accent) 10%, transparent) !important;
+  background-color: color-mix(in srgb, var(--text-muted) 5%, transparent) !important;
 }
 
 /* Cod-seg cell — force full-width chain through AG Grid wrappers */
@@ -156,4 +158,22 @@
 
 .csv-tag-chip-x:hover {
   opacity: 1;
+}
+
+/* Header info tooltip — appended to body */
+.csv-header-tooltip {
+  position: fixed;
+  transform: translateX(-50%);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 400;
+  white-space: normal;
+  max-width: 280px;
+  z-index: 9999;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
 }

@@ -71,7 +71,7 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 
 CodeMarker is expanding into a multi-engine architecture. Each engine handles a different file type:
 
-### CSV Viewer (v28.3)
+### CSV Viewer (v28.4)
 
 - **AG Grid integration**: Opens `.csv` files as interactive tables with sorting, filtering, and resizing
 - **Info bar**: Displays row and column counts at the bottom of the view
@@ -80,6 +80,10 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Cell tag buttons**: Click cells in coding columns (`cod-seg`, `cod-frow`) to add tags
 - **Tag chips**: Tags display as colored chips inside coding cells
 - **Source column tagging**: Tag button in source column when `cod-seg` is enabled
+- **Column ordering**: cod-seg always inserts right after the source column
+- **Header icons**: Info icon with tooltip on cod-seg header; tag icon on cod-frow header
+- **COD_SEG_CELL_TAG_BTN toggle**: Setting to enable/disable tag button in cod-seg cells
+- **CSS polish**: cod-seg italic styling, cod-frow lighter gray background, improved tooltip text
 - **Async parsing**: CSV files are parsed asynchronously for better performance on large files
 - **Native file registration**: The `csv` extension is registered so Obsidian opens CSV files directly in the viewer
 - **Standalone plugin**: Runs as an independent plugin in the demo vault
