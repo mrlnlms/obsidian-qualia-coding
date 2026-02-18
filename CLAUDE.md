@@ -3,15 +3,15 @@
 > Atualizado automaticamente pelo orquestrador a cada commit.
 
 ## Progresso
-- Ultima versao commitada: v28.1
-- Posicao no commit_sequence: 38/90
+- Ultima versao commitada: v28.2
+- Posicao no commit_sequence: 39/90
 - Phase: 2
 - Era atual: 3 -- Qualia Coding scaffold + CM6 port + menu system (v23-v27, local-plugin)
-- Total de commits: 38
+- Total de commits: 39
 - Plugin ID atual: obsidian-codemarker-v2
 
 ## Proximo
-- Versao: v28.2
+- Versao: v28.3
 - Tipo: TBD
 - Source type: TBD
 - Timestamp: TBD
