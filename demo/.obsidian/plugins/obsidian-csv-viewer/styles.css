@@ -15,3 +15,59 @@
   --ag-font-family: var(--font-text);
   --ag-font-size: var(--font-text-size, 14px);
 }
+
+/* Column settings modal */
+.csv-col-modal .csv-col-row {
+  display: grid;
+  grid-template-columns: 1fr 70px 100px 100px;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.csv-col-modal .csv-col-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+.csv-col-modal .csv-col-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-col-modal .csv-col-toggle-label {
+  text-align: center;
+  font-size: 11px;
+}
+
+.csv-col-modal .csv-col-toggle-cell {
+  display: flex;
+  justify-content: center;
+}
+
+.csv-col-modal .csv-col-toggle-cell .setting-item {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.csv-col-modal .csv-col-toggle-cell .setting-item-info {
+  display: none;
+}
+
+.csv-col-modal .csv-col-toggle-cell .setting-item-control {
+  padding: 0;
+}
+
+/* Subtle accent on coding column headers */
+.csv-coding-header {
+  background-color: color-mix(in srgb, var(--interactive-accent) 10%, transparent) !important;
+}
