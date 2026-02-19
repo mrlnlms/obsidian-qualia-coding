@@ -26,6 +26,7 @@ export class AudioRegionRenderer {
 		for (const marker of markers) {
 			this.renderMarkerRegion(marker);
 		}
+		this.applyLanes(markers);
 	}
 
 	renderMarkerRegion(marker: AudioMarker): void {
@@ -150,5 +151,50 @@ export class AudioRegionRenderer {
 
 	getRegionForMarker(markerId: string): any | undefined {
 		return this.markerToRegion.get(markerId);
+	}
+
+	/**
+	 * Compute overlap lanes and set top/height on each region element so
+	 * overlapping regions stack vertically instead of fully occluding each other.
+	 */
+	private applyLanes(markers: AudioMarker[]): void {
+		if (markers.length <= 1) return;
+
+		// Sort by start time, then by length descending (wider first)
+		const sorted = [...markers].sort((a, b) =>
+			a.from !== b.from ? a.from - b.from : (b.to - b.from) - (a.to - a.from)
+		);
+
+		// Greedy lane assignment: each lane tracks its "end" time
+		const laneEnds: number[] = [];
+		const laneMap = new Map<string, number>(); // markerId → lane index
+
+		for (const m of sorted) {
+			let assigned = -1;
+			for (let i = 0; i < laneEnds.length; i++) {
+				if (laneEnds[i] <= m.from) {
+					assigned = i;
+					laneEnds[i] = m.to;
+					break;
+				}
+			}
+			if (assigned < 0) {
+				assigned = laneEnds.length;
+				laneEnds.push(m.to);
+			}
+			laneMap.set(m.id, assigned);
+		}
+
+		const totalLanes = laneEnds.length;
+		if (totalLanes <= 1) return; // no overlaps
+
+		for (const [mid, lane] of laneMap) {
+			const region = this.markerToRegion.get(mid);
+			const el: HTMLElement | undefined = region?.element;
+			if (!el) continue;
+			const pct = 100 / totalLanes;
+			el.style.top = `${lane * pct}%`;
+			el.style.height = `${pct}%`;
+		}
 	}
 }

@@ -1,6 +1,8 @@
 import WaveSurfer from "wavesurfer.js";
 // @ts-ignore — moduleResolution 'node' can't resolve .esm.js subpath, but esbuild handles it
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
+// @ts-ignore
+import TimelinePlugin from "wavesurfer.js/dist/plugins/timeline.esm.js";
 
 export class WaveformRenderer {
   private ws: WaveSurfer | null = null;
@@ -15,6 +17,11 @@ export class WaveformRenderer {
 
     this.regionsPlugin = RegionsPlugin.create();
 
+    const timelinePlugin = TimelinePlugin.create({
+      height: 20,
+      style: { fontSize: '10px', color: 'var(--text-faint)' },
+    });
+
     this.ws = WaveSurfer.create({
       container,
       url,
@@ -27,7 +34,7 @@ export class WaveformRenderer {
       barRadius: 2,
       normalize: true,
       interact: true,
-      plugins: [this.regionsPlugin],
+      plugins: [this.regionsPlugin, timelinePlugin],
     });
 
     this.ws.on('ready', () => {
@@ -111,6 +118,14 @@ export class WaveformRenderer {
 
   zoom(pxPerSec: number): void {
     this.ws?.zoom(pxPerSec);
+  }
+
+  getScroll(): number {
+    return this.ws?.getScroll() ?? 0;
+  }
+
+  setScroll(pixels: number): void {
+    this.ws?.setScroll(pixels);
   }
 
   seekTo(seconds: number): void {

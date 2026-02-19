@@ -10,6 +10,7 @@ import { AudioSettingTab } from "./views/audioSettingTab";
 
 const AUDIO_VIEW_TYPE = "codemarker-audio-view";
 const AUDIO_EXTENSIONS = new Set(["mp3", "m4a", "wav", "ogg", "flac", "aac"]);
+const AUDIO_EXTENSIONS_ARRAY = ["mp3", "m4a", "wav", "ogg", "flac", "aac"];
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 // ── AudioView ──
@@ -75,6 +76,7 @@ class AudioView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    this.saveScrollPosition();
     this.stopTimeUpdates();
     if (this.changeListener) {
       this.plugin.model.offChange(this.changeListener);
@@ -93,6 +95,7 @@ class AudioView extends ItemView {
 
   async loadAudio(file: TFile): Promise<void> {
     // Cleanup previous
+    this.saveScrollPosition();
     this.stopTimeUpdates();
     if (this.changeListener) {
       this.plugin.model.offChange(this.changeListener);
@@ -223,6 +226,12 @@ class AudioView extends ItemView {
       this.renderer.zoom(zoom);
       if (this.zoomSlider) this.zoomSlider.value = String(zoom);
       if (this.zoomLabel) this.zoomLabel.textContent = `Zoom ${zoom}`;
+
+      // Restore persisted scroll position (defer so zoom layout completes)
+      const scrollPos = savedState?.lastPosition ?? 0;
+      if (scrollPos > 0) {
+        requestAnimationFrame(() => this.renderer.setScroll(scrollPos));
+      }
     });
 
     // Error state
@@ -372,6 +381,17 @@ class AudioView extends ItemView {
       this.timeInterval = null;
     }
   }
+
+  private saveScrollPosition(): void {
+    if (!this.currentFile) return;
+    const scroll = this.renderer.getScroll();
+    const states = this.plugin.model.settings.fileStates;
+    states[this.currentFile.path] = {
+      ...(states[this.currentFile.path] ?? { zoom: this.plugin.model.settings.defaultZoom }),
+      lastPosition: scroll,
+    };
+    this.plugin.model.scheduleSave();
+  }
 }
 
 // ── Plugin ──
@@ -380,7 +400,7 @@ export default class CodeMarkerAudioPlugin extends Plugin {
   model!: AudioCodingModel;
 
   async onload(): Promise<void> {
-    console.log('[obsidian-codemarker-audio] v36.2 loaded — Fase 5 hover, resize, analytics, settings');
+    console.log('[obsidian-codemarker-audio] v36.3 loaded — Timeline ruler + region lanes');
     // Initialize coding model
     this.model = new AudioCodingModel(this);
     await this.model.load();
@@ -389,6 +409,9 @@ export default class CodeMarkerAudioPlugin extends Plugin {
     this.registerView(AUDIO_VIEW_TYPE, (leaf) => new AudioView(leaf, this));
     this.registerView(AUDIO_CODE_EXPLORER_VIEW_TYPE, (leaf) => new AudioCodeExplorerView(leaf, this.model, this));
     this.registerView(AUDIO_CODE_DETAIL_VIEW_TYPE, (leaf) => new AudioCodeDetailView(leaf, this.model, this));
+
+    // Register audio extensions so clicking in file browser opens AudioView
+    this.registerExtensions(AUDIO_EXTENSIONS_ARRAY, AUDIO_VIEW_TYPE);
 
     // Settings tab
     this.addSettingTab(new AudioSettingTab(this.app, this));

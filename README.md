@@ -148,9 +148,13 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Ribbon icon**: Quick access to PDF Code Explorer via the left ribbon
 - **Standalone plugin**: Runs as an independent engine plugin in the demo vault
 
-### CodeMarker Audio (v36.2)
+### CodeMarker Audio (v36.3)
 
 - **Waveform visualization**: Opens audio files (mp3, m4a, wav, ogg, flac, aac) in a custom view with a rendered waveform
+- **Timeline ruler**: Visual time markers along the waveform for precise navigation and orientation
+- **Region lanes**: Coded audio regions displayed as colored lanes below the waveform for clear visual separation
+- **registerExtensions**: Audio file extensions properly registered with Obsidian for native file opening
+- **Scroll persistence**: Timeline scroll position preserved across interactions and playback
 - **Region labels**: Coded audio regions display clickable chip labels on the waveform
 - **Sidebar navigation**: Code Explorer and Code Detail views for browsing and inspecting audio codes
 - **Playback controls**: Play/pause, zoom, volume, and speed adjustment (0.5x to 2x)

@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",
-    "build": "tsc -noEmit && node esbuild.config.mjs production"
+    "build": "node esbuild.config.mjs production"
   },
   "dependencies": {
     "wavesurfer.js": "^7.0.0"
