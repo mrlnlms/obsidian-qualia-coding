@@ -8,6 +8,7 @@ import type { PdfCodingModel } from '../coding/pdfCodingModel';
 import type { PdfMarker } from '../coding/pdfCodingTypes';
 import { renderHighlightsForPage, clearHighlightsForPage, applyHoverToHighlights, type HighlightCallbacks } from './highlightRenderer';
 import { renderMarginPanelForPage, clearMarginPanelForPage, applyHoverToMarginPanel } from './marginPanelRenderer';
+import { attachDragHandles } from './dragHandles';
 
 export interface PageObserverCallbacks {
 	onMarkerClick: (markerId: string, codeName: string) => void;
@@ -137,12 +138,21 @@ export class PdfPageObserver {
 			onHover: (markerId, codeName) => this.model.setHoverState(markerId, codeName),
 		};
 
-		renderHighlightsForPage(
+		const renderInfos = renderHighlightsForPage(
 			pageView,
 			markers,
 			this.model.registry,
 			highlightCallbacks,
 		);
+
+		// Attach drag handles to each rendered marker
+		for (const info of renderInfos) {
+			attachDragHandles(info, pageView, {
+				onRangeUpdate: (markerId, changes) => {
+					this.model.updateMarkerRange(markerId, changes);
+				},
+			});
+		}
 
 		renderMarginPanelForPage(
 			pageView,

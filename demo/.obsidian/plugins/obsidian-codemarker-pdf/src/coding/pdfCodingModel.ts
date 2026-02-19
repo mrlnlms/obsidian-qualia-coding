@@ -130,7 +130,7 @@ export class CodeDefinitionRegistry {
 
 // ── Undo types ──
 interface UndoEntry {
-	type: 'addCode' | 'removeCode' | 'removeAllCodes';
+	type: 'addCode' | 'removeCode' | 'removeAllCodes' | 'resizeMarker';
 	markerId: string;
 	data: PdfMarker;
 }
@@ -352,6 +352,18 @@ export class PdfCodingModel {
 		this.suppressUndo = false;
 	}
 
+	// ── Range update (drag resize) ──
+
+	updateMarkerRange(markerId: string, changes: Partial<Pick<PdfMarker,
+		'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
+		const marker = this.findMarkerById(markerId);
+		if (!marker) return;
+		this.pushUndo({ type: 'resizeMarker', markerId, data: { ...marker, codes: [...marker.codes] } });
+		Object.assign(marker, changes);
+		marker.updatedAt = Date.now();
+		this.notify();
+	}
+
 	// ── Undo ──
 
 	undo(): boolean {
@@ -375,6 +387,18 @@ export class PdfCodingModel {
 					this.markers.push({ ...entry.data });
 				} else {
 					marker.codes = entry.data.codes;
+					marker.updatedAt = Date.now();
+				}
+				break;
+			}
+			case 'resizeMarker': {
+				const marker = this.findMarkerById(entry.markerId);
+				if (marker) {
+					marker.beginIndex = entry.data.beginIndex;
+					marker.beginOffset = entry.data.beginOffset;
+					marker.endIndex = entry.data.endIndex;
+					marker.endOffset = entry.data.endOffset;
+					marker.text = entry.data.text;
 					marker.updatedAt = Date.now();
 				}
 				break;

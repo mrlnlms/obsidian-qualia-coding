@@ -1,6 +1,6 @@
 import { Plugin, WorkspaceLeaf, TFile, Notice } from 'obsidian';
 import { PdfCodingModel } from './coding/pdfCodingModel';
-import { capturePdfSelection, detectCrossPageSelection, type PdfSelectionResult } from './pdf/selectionCapture';
+import { capturePdfSelection, detectCrossPageSelection, captureCrossPageSelection, type PdfSelectionResult } from './pdf/selectionCapture';
 import { getPdfViewerChild } from './pdf/pdfViewerAccess';
 import { PdfPageObserver } from './pdf/pageObserver';
 import { openPdfCodingPopover } from './menu/pdfCodingMenu';
@@ -15,7 +15,7 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 	private observers = new Map<PDFViewerChild, PdfPageObserver>();
 
 	async onload() {
-		console.log('[codemarker-pdf] v35.3 loaded — PDF margin panel MAXQDA + undo/redo');
+		console.log('[codemarker-pdf] v35.4 loaded — Drag handles + text selection');
 		this.model = new PdfCodingModel(this);
 		await this.model.load();
 
@@ -134,12 +134,23 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 					const filePath = child.file?.path;
 					if (!filePath) return;
 
-					// Check for cross-page selection first
+					// Try cross-page selection first
 					if (detectCrossPageSelection()) {
-						new Notice('Selection must be within a single page.');
+						const crossResults = captureCrossPageSelection(filePath, child);
+						if (!crossResults) return;
+
+						openPdfCodingPopover(
+							evt,
+							this.model,
+							crossResults,
+							refreshObserver,
+							undefined,
+							this.app,
+						);
 						return;
 					}
 
+					// Single-page selection
 					const result = capturePdfSelection(filePath);
 					if (!result) return;
 

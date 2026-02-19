@@ -5,14 +5,20 @@
  */
 
 import { setTooltip } from 'obsidian';
-import type { Rect, PDFPageView, TextLayerInfo } from '../pdfTypings';
+import type { Rect, PDFPageView } from '../pdfTypings';
 import type { PdfMarker } from '../coding/pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../coding/pdfCodingModel';
+import type { MergedRect } from './highlightGeometry';
 import { computeMergedHighlightRects } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
 
 const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
 const HIGHLIGHT_CLASS = 'codemarker-pdf-highlight';
+
+// Click detection thresholds
+const CLICK_DISTANCE_THRESHOLD = 5; // px
+const CLICK_TIME_THRESHOLD = 300;   // ms
+const DBLCLICK_INTERVAL = 400;      // ms between two clicks
 
 /**
  * Get or create the highlight overlay layer for a page div.
@@ -69,21 +75,40 @@ export interface HighlightCallbacks {
 	onClick: (markerId: string, codeName: string) => void;
 	onDblClick: (marker: PdfMarker, evt: MouseEvent) => void;
 	onHover?: (markerId: string | null, codeName: string | null) => void;
+	onRangeUpdate?: (markerId: string, changes: {
+		beginIndex?: number; beginOffset?: number;
+		endIndex?: number; endOffset?: number;
+		text?: string;
+	}) => void;
 }
+
+/** Per-marker rendering result (first/last rects + merged geometry for handles). */
+export interface MarkerRenderInfo {
+	marker: PdfMarker;
+	firstRectEl: HTMLElement;
+	lastRectEl: HTMLElement;
+	mergedRects: MergedRect[];
+	color: string;
+}
+
+// Track last click time per layer for double-click detection
+const lastClickMap = new WeakMap<HTMLElement, { time: number; markerId: string }>();
 
 export function renderHighlightsForPage(
 	pageView: PDFPageView,
 	markers: PdfMarker[],
 	registry: CodeDefinitionRegistry,
 	callbacks: HighlightCallbacks,
-): void {
+): MarkerRenderInfo[] {
 	const pageDiv = pageView.div;
 	clearHighlightsForPage(pageDiv);
 
-	if (markers.length === 0) return;
+	const renderInfos: MarkerRenderInfo[] = [];
+
+	if (markers.length === 0) return renderInfos;
 
 	const textLayerInfo = getTextLayerInfo(pageView);
-	if (!textLayerInfo) return;
+	if (!textLayerInfo) return renderInfos;
 
 	const layer = getOrCreateHighlightLayer(pageDiv);
 
@@ -92,7 +117,7 @@ export function renderHighlightsForPage(
 
 		const color = registry.getColorForCodes(marker.codes) ?? '#FFEB3B';
 
-		let mergedRects;
+		let mergedRects: MergedRect[];
 		try {
 			mergedRects = computeMergedHighlightRects(
 				textLayerInfo,
@@ -105,28 +130,25 @@ export function renderHighlightsForPage(
 			continue;
 		}
 
+		if (mergedRects.length === 0) continue;
+
+		let firstRectEl: HTMLElement | null = null;
+		let lastRectEl: HTMLElement | null = null;
+
 		for (const { rect } of mergedRects) {
 			const rectEl = placeRectInPage(rect, pageView, layer, HIGHLIGHT_CLASS);
 			rectEl.dataset.markerId = marker.id;
 			rectEl.style.backgroundColor = color;
 
+			if (!firstRectEl) firstRectEl = rectEl;
+			lastRectEl = rectEl;
+
 			// Tooltip with code names
 			const codeNames = marker.codes.join(', ');
 			setTooltip(rectEl, codeNames);
 
-			// Click → open detail sidebar
-			rectEl.addEventListener('click', (e) => {
-				e.stopPropagation();
-				e.preventDefault();
-				callbacks.onClick(marker.id, marker.codes[0]);
-			});
-
-			// Double-click → open coding popover for editing
-			rectEl.addEventListener('dblclick', (e) => {
-				e.stopPropagation();
-				e.preventDefault();
-				callbacks.onDblClick(marker, e);
-			});
+			// Mousedown-based interaction: differentiates click vs drag-to-select
+			attachMouseInteraction(rectEl, layer, marker, callbacks);
 
 			// Hover → bidirectional highlight ↔ sidebar
 			if (callbacks.onHover) {
@@ -138,7 +160,95 @@ export function renderHighlightsForPage(
 				});
 			}
 		}
+
+		if (firstRectEl && lastRectEl) {
+			renderInfos.push({
+				marker,
+				firstRectEl,
+				lastRectEl,
+				mergedRects,
+				color,
+			});
+		}
 	}
+
+	return renderInfos;
+}
+
+/**
+ * Attach mousedown-based interaction to a highlight rect.
+ * Allows text selection to pass through while detecting clicks/double-clicks.
+ */
+function attachMouseInteraction(
+	rectEl: HTMLElement,
+	layer: HTMLElement,
+	marker: PdfMarker,
+	callbacks: HighlightCallbacks,
+): void {
+	rectEl.addEventListener('mousedown', (e) => {
+		if (e.button !== 0) return; // left button only
+
+		// Don't interfere with handle drags
+		if (document.body.classList.contains('codemarker-pdf-dragging')) return;
+
+		const startX = e.clientX;
+		const startY = e.clientY;
+		const startTime = Date.now();
+
+		// Temporarily disable pointer-events on the layer so the text layer
+		// underneath receives mouse events for text selection
+		layer.style.pointerEvents = 'none';
+
+		// Re-dispatch mousedown to the element underneath (text layer)
+		const underlying = document.elementFromPoint(e.clientX, e.clientY);
+		if (underlying && underlying !== rectEl) {
+			underlying.dispatchEvent(new MouseEvent('mousedown', {
+				bubbles: true,
+				cancelable: true,
+				clientX: e.clientX,
+				clientY: e.clientY,
+				button: e.button,
+			}));
+		}
+
+		const onUp = (upEvt: MouseEvent) => {
+			document.removeEventListener('mouseup', onUp);
+			layer.style.pointerEvents = '';
+
+			const dx = upEvt.clientX - startX;
+			const dy = upEvt.clientY - startY;
+			const dist = Math.sqrt(dx * dx + dy * dy);
+			const elapsed = Date.now() - startTime;
+
+			// Only treat as click if minimal movement and short duration
+			if (dist < CLICK_DISTANCE_THRESHOLD && elapsed < CLICK_TIME_THRESHOLD) {
+				// Check for double-click
+				const lastClick = lastClickMap.get(layer);
+				const now = Date.now();
+
+				if (lastClick && lastClick.markerId === marker.id && (now - lastClick.time) < DBLCLICK_INTERVAL) {
+					// Double-click → open coding popover
+					lastClickMap.delete(layer);
+					callbacks.onDblClick(marker, upEvt);
+				} else {
+					// Single click → open detail sidebar
+					lastClickMap.set(layer, { time: now, markerId: marker.id });
+					// Delay to allow double-click detection
+					setTimeout(() => {
+						const current = lastClickMap.get(layer);
+						if (current && current.markerId === marker.id && current.time === now) {
+							lastClickMap.delete(layer);
+							callbacks.onClick(marker.id, marker.codes[0]);
+						}
+					}, DBLCLICK_INTERVAL);
+				}
+			}
+			// If distance >= threshold: it was a text selection drag — do nothing,
+			// the main.ts mouseup handler will capture the selection
+		};
+
+		document.addEventListener('mouseup', onUp);
+	});
 }
 
 /**

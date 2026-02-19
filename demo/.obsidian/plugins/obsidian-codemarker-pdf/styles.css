@@ -76,6 +76,14 @@
   flex-shrink: 0;
 }
 
+.codemarker-popover-badge {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  padding: 4px 12px;
+  font-style: italic;
+  cursor: default;
+}
+
 /* ========================================
    Code Detail View (sidebar)
    ======================================== */
@@ -386,4 +394,36 @@
 
 .codemarker-pdf-margin-dot.codemarker-pdf-margin-hovered {
   transform: translateY(-50%) scale(1.3);
+}
+
+/* ========================================
+   Drag Handles (resize markers)
+   ======================================== */
+
+.codemarker-pdf-handle {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.codemarker-pdf-handle.codemarker-pdf-handle-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.codemarker-pdf-handle-start svg {
+  cursor: w-resize;
+}
+
+.codemarker-pdf-handle-end svg {
+  cursor: e-resize;
+}
+
+body.codemarker-pdf-dragging {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+body.codemarker-pdf-dragging .codemarker-pdf-handle.codemarker-pdf-handle-visible {
+  opacity: 0.6;
 }

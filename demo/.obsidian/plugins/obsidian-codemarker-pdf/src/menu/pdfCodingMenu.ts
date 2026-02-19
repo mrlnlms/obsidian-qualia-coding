@@ -6,20 +6,23 @@
 import { App, TextComponent, ToggleComponent, setIcon } from 'obsidian';
 import type { PdfCodingModel } from '../coding/pdfCodingModel';
 import type { PdfSelectionResult } from '../pdf/selectionCapture';
+import type { PdfMarker } from '../coding/pdfCodingTypes';
 import { CodeFormModal } from './codeFormModal';
 
 /**
  * Opens a coding popover menu near the mouse event location.
- * Shows input for new code, toggles for existing codes, and action buttons.
+ * Supports single or multiple selection results (cross-page).
  */
 export function openPdfCodingPopover(
 	mouseEvent: MouseEvent,
 	model: PdfCodingModel,
-	selectionResult: PdfSelectionResult,
+	selectionResults: PdfSelectionResult | PdfSelectionResult[],
 	onHighlightRefresh: () => void,
 	savedPos?: { x: number; y: number },
 	app?: App,
 ): void {
+	const results = Array.isArray(selectionResults) ? selectionResults : [selectionResults];
+
 	// Remove any existing popover
 	document.querySelector('.codemarker-popover')?.remove();
 
@@ -41,20 +44,34 @@ export function openPdfCodingPopover(
 
 	const rebuild = () => {
 		close();
-		openPdfCodingPopover(mouseEvent, model, selectionResult, onHighlightRefresh, pos, app);
+		openPdfCodingPopover(mouseEvent, model, results, onHighlightRefresh, pos, app);
 	};
 
-	// Get or create the marker for this selection
-	const getMarker = () =>
-		model.findOrCreateMarker(
-			selectionResult.file,
-			selectionResult.page,
-			selectionResult.beginIndex,
-			selectionResult.beginOffset,
-			selectionResult.endIndex,
-			selectionResult.endOffset,
-			selectionResult.text,
+	// Cross-page badge
+	if (results.length > 1) {
+		const badge = document.createElement('div');
+		badge.className = 'menu-item codemarker-popover-badge';
+		badge.textContent = `Selection spans ${results.length} pages`;
+		container.appendChild(badge);
+	}
+
+	// Get or create markers for all selection results
+	const getMarkers = (): PdfMarker[] =>
+		results.map(r =>
+			model.findOrCreateMarker(r.file, r.page, r.beginIndex, r.beginOffset, r.endIndex, r.endOffset, r.text),
 		);
+
+	// For toggle state, use the first result's existing marker
+	const firstResult = results[0];
+	const existingMarker = model.findExistingMarker(
+		firstResult.file,
+		firstResult.page,
+		firstResult.beginIndex,
+		firstResult.beginOffset,
+		firstResult.endIndex,
+		firstResult.endOffset,
+	);
+	const activeCodes = existingMarker ? existingMarker.codes : [];
 
 	// ── TextComponent input ──
 	const inputWrapper = document.createElement('div');
@@ -75,8 +92,9 @@ export function openPdfCodingPopover(
 			evt.preventDefault();
 			const name = textComponent.inputEl.value.trim();
 			if (name) {
-				const marker = getMarker();
-				model.addCodeToMarker(marker.id, name);
+				for (const m of getMarkers()) {
+					model.addCodeToMarker(m.id, name);
+				}
 				onHighlightRefresh();
 				rebuild();
 			}
@@ -89,16 +107,6 @@ export function openPdfCodingPopover(
 
 	// ── Toggle list for existing codes ──
 	const allCodes = model.getAllCodes();
-	// Check existing marker WITHOUT creating one — avoids phantom markers
-	const existingMarker = model.findExistingMarker(
-		selectionResult.file,
-		selectionResult.page,
-		selectionResult.beginIndex,
-		selectionResult.beginOffset,
-		selectionResult.endIndex,
-		selectionResult.endOffset,
-	);
-	const activeCodes = existingMarker ? existingMarker.codes : [];
 
 	if (allCodes.length > 0) {
 		container.appendChild(createSeparator());
@@ -121,11 +129,12 @@ export function openPdfCodingPopover(
 			evt.stopPropagation();
 		});
 		toggle.onChange((value) => {
-			const m = getMarker();
-			if (value) {
-				model.addCodeToMarker(m.id, codeDef.name);
-			} else {
-				model.removeCodeFromMarker(m.id, codeDef.name, true);
+			for (const m of getMarkers()) {
+				if (value) {
+					model.addCodeToMarker(m.id, codeDef.name);
+				} else {
+					model.removeCodeFromMarker(m.id, codeDef.name, true);
+				}
 			}
 			onHighlightRefresh();
 		});
@@ -151,8 +160,9 @@ export function openPdfCodingPopover(
 		createActionItem('Add New Code', 'plus-circle', () => {
 			const name = textComponent.inputEl.value.trim();
 			if (name) {
-				const m = getMarker();
-				model.addCodeToMarker(m.id, name);
+				for (const m of getMarkers()) {
+					model.addCodeToMarker(m.id, name);
+				}
 				onHighlightRefresh();
 				rebuild();
 			} else {
@@ -167,8 +177,9 @@ export function openPdfCodingPopover(
 				close();
 				new CodeFormModal(app, model.registry, (name, color, description) => {
 					model.registry.create(name, color, description);
-					const m = getMarker();
-					model.addCodeToMarker(m.id, name);
+					for (const m of getMarkers()) {
+						model.addCodeToMarker(m.id, name);
+					}
 					onHighlightRefresh();
 				}).open();
 			}),
@@ -177,8 +188,13 @@ export function openPdfCodingPopover(
 
 	container.appendChild(
 		createActionItem('Remove All Codes', 'trash', () => {
-			if (!existingMarker) return;
-			model.removeAllCodesFromMarker(existingMarker.id);
+			// Collect all existing markers for these results
+			for (const r of results) {
+				const existing = model.findExistingMarker(r.file, r.page, r.beginIndex, r.beginOffset, r.endIndex, r.endOffset);
+				if (existing) {
+					model.removeAllCodesFromMarker(existing.id);
+				}
+			}
 			onHighlightRefresh();
 			rebuild();
 		}),
