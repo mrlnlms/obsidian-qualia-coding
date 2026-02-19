@@ -148,12 +148,16 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Ribbon icon**: Quick access to PDF Code Explorer via the left ribbon
 - **Standalone plugin**: Runs as an independent engine plugin in the demo vault
 
-### CodeMarker Audio (v36.1)
+### CodeMarker Audio (v36.2)
 
 - **Waveform visualization**: Opens audio files (mp3, m4a, wav, ogg, flac, aac) in a custom view with a rendered waveform
 - **Region labels**: Coded audio regions display clickable chip labels on the waveform
 - **Sidebar navigation**: Code Explorer and Code Detail views for browsing and inspecting audio codes
 - **Playback controls**: Play/pause, zoom, volume, and speed adjustment (0.5x to 2x)
+- **Bidirectional hover**: Hover a region in the waveform and the sidebar highlights; hover a sidebar entry and the waveform region highlights back
+- **Region resize**: Drag region edges to adjust marker start/end times directly in the waveform
+- **Analytics seek**: Click a code in the analytics/explorer view to seek audio playback to that region
+- **Settings tab**: Dedicated settings panel for CodeMarker Audio preferences (default zoom, region opacity, waveform colors)
 - **Audio coding model**: Persistence layer for qualitative coding on time-based audio regions
 - **Context menu**: Right-click audio files to open in CodeMarker Audio
 - **State persistence**: Audio view remembers which file was open across sessions

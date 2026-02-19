@@ -6,6 +6,7 @@ import { openAudioCodingPopover } from "./menu/audioCodingMenu";
 import { AudioCodeExplorerView, AUDIO_CODE_EXPLORER_VIEW_TYPE } from "./views/audioCodeExplorerView";
 import { AudioCodeDetailView, AUDIO_CODE_DETAIL_VIEW_TYPE } from "./views/audioCodeDetailView";
 import { formatTime } from "./utils/formatTime";
+import { AudioSettingTab } from "./views/audioSettingTab";
 
 const AUDIO_VIEW_TYPE = "codemarker-audio-view";
 const AUDIO_EXTENSIONS = new Set(["mp3", "m4a", "wav", "ogg", "flac", "aac"]);
@@ -27,6 +28,7 @@ class AudioView extends ItemView {
   private speedBtn: HTMLElement | null = null;
   private speedIndex: number = 2; // index into SPEED_OPTIONS (default 1×)
   private timeInterval: ReturnType<typeof setInterval> | null = null;
+  private changeListener: (() => void) | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: CodeMarkerAudioPlugin) {
     super(leaf);
@@ -74,7 +76,12 @@ class AudioView extends ItemView {
 
   async onClose(): Promise<void> {
     this.stopTimeUpdates();
+    if (this.changeListener) {
+      this.plugin.model.offChange(this.changeListener);
+      this.changeListener = null;
+    }
     if (this.regionRenderer) {
+      this.regionRenderer.unsubscribeFromHover();
       this.regionRenderer.clear();
       this.regionRenderer = null;
     }
@@ -87,6 +94,10 @@ class AudioView extends ItemView {
   async loadAudio(file: TFile): Promise<void> {
     // Cleanup previous
     this.stopTimeUpdates();
+    if (this.changeListener) {
+      this.plugin.model.offChange(this.changeListener);
+      this.changeListener = null;
+    }
     if (this.regionRenderer) {
       this.regionRenderer.clear();
       this.regionRenderer = null;
@@ -185,6 +196,7 @@ class AudioView extends ItemView {
     // Create region renderer
     this.regionRenderer = new AudioRegionRenderer(this.renderer, this.plugin.model);
     this.regionRenderer.setNavigateCallback((mid, cn) => this.plugin.revealAudioCodeDetailPanel(mid, cn));
+    this.regionRenderer.subscribeToHover();
 
     // When ready, restore regions, zoom, and update display
     this.renderer.on("ready", () => {
@@ -196,6 +208,14 @@ class AudioView extends ItemView {
       if (this.regionRenderer && this.currentFile) {
         this.regionRenderer.restoreRegions(this.currentFile.path);
       }
+
+      // Re-render regions when model/settings change
+      this.changeListener = () => {
+        if (this.regionRenderer && this.currentFile) {
+          this.regionRenderer.restoreRegions(this.currentFile.path);
+        }
+      };
+      this.plugin.model.onChange(this.changeListener);
 
       // Restore persisted zoom
       const savedState = this.plugin.model.settings.fileStates[file.path];
@@ -246,6 +266,25 @@ class AudioView extends ItemView {
           this.app,
           (mid, cn) => this.plugin.revealAudioCodeDetailPanel(mid, cn),
         );
+      });
+
+      // Hover on region
+      regionsPlugin.on('region-mouseenter', (region: any) => {
+        const markerId = this.regionRenderer?.getMarkerIdForRegion(region.id);
+        if (!markerId) return;
+        const marker = this.plugin.model.findMarkerById(markerId);
+        this.plugin.model.setHoverState(markerId, marker?.codes[0] ?? null);
+      });
+      regionsPlugin.on('region-mouseleave', () => {
+        this.plugin.model.setHoverState(null, null);
+      });
+
+      // Resize region
+      regionsPlugin.on('region-update-end', (region: any) => {
+        const markerId = this.regionRenderer?.getMarkerIdForRegion(region.id);
+        if (!markerId) return;
+        this.plugin.model.updateMarkerBounds(markerId, region.start, region.end);
+        this.regionRenderer?.refreshRegion(markerId);
       });
 
       // Click on existing region
@@ -341,7 +380,7 @@ export default class CodeMarkerAudioPlugin extends Plugin {
   model!: AudioCodingModel;
 
   async onload(): Promise<void> {
-    console.log('[CodeMarker Audio] v36.1 loaded — Region labels + sidebar nav');
+    console.log('[obsidian-codemarker-audio] v36.2 loaded — Fase 5 hover, resize, analytics, settings');
     // Initialize coding model
     this.model = new AudioCodingModel(this);
     await this.model.load();
@@ -350,6 +389,9 @@ export default class CodeMarkerAudioPlugin extends Plugin {
     this.registerView(AUDIO_VIEW_TYPE, (leaf) => new AudioView(leaf, this));
     this.registerView(AUDIO_CODE_EXPLORER_VIEW_TYPE, (leaf) => new AudioCodeExplorerView(leaf, this.model, this));
     this.registerView(AUDIO_CODE_DETAIL_VIEW_TYPE, (leaf) => new AudioCodeDetailView(leaf, this.model, this));
+
+    // Settings tab
+    this.addSettingTab(new AudioSettingTab(this.app, this));
 
     // Context menu on audio files: "Open in CodeMarker Audio"
     this.registerEvent(
@@ -393,6 +435,15 @@ export default class CodeMarkerAudioPlugin extends Plugin {
         this.openAudio(file);
       }
     });
+
+    // Audio seek from analytics / other plugins
+    this.registerEvent(
+      (this.app.workspace as any).on('codemarker-audio:seek',
+        (payload: { file: string; seekTo: number }) => {
+          this.openAudioAndSeek(payload.file, payload.seekTo);
+        }
+      )
+    );
 
     // File rename tracking
     this.registerEvent(

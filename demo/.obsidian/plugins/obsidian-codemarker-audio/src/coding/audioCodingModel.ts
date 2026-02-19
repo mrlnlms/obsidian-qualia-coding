@@ -60,6 +60,11 @@ export class AudioCodingModel {
 		for (const fn of this.changeListeners) fn();
 	}
 
+	/** Fire change listeners without scheduling a save (used when save is managed separately). */
+	notifyChange(): void {
+		for (const fn of this.changeListeners) fn();
+	}
+
 	// ── Change events ──
 
 	onChange(fn: () => void): void {
@@ -140,6 +145,14 @@ export class AudioCodingModel {
 			result.push(...af.markers);
 		}
 		return result;
+	}
+
+	updateMarkerBounds(markerId: string, from: number, to: number): void {
+		const marker = this.findMarkerById(markerId);
+		if (!marker) return;
+		marker.from = from;
+		marker.to = to;
+		this.notify();
 	}
 
 	removeMarker(markerId: string): void {

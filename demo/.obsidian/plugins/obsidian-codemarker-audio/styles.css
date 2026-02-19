@@ -508,3 +508,12 @@
 .codemarker-audio-memo:focus {
   border-color: var(--interactive-accent);
 }
+
+/* ========================================
+   Region Hover
+   ======================================== */
+
+.codemarker-audio-region-hovered {
+  opacity: 0.75 !important;
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+}

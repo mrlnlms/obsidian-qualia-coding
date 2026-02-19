@@ -134,11 +134,14 @@
       "obsidian-codemarker-v2:Code Selection": false,
       "obsidian-codemarker-csv:Code Selection": false,
       "obsidian-codemarker-csv:CSV Code Explorer": false,
-      "obsidian-codemarker-pdf:PDF Code Explorer": false
+      "obsidian-codemarker-pdf:PDF Code Explorer": false,
+      "obsidian-codemarker-audio:CodeMarker Audio": false
     }
   },
   "active": "f27ba6290a21d137",
   "lastOpenFiles": [
+    "2026-02-19_v36.2-audio-hover-resize-analytics-settings/test-note.md",
+    "2026-02-19_v36.2-audio-hover-resize-analytics-settings",
     "2026-02-19_v36.1-audio-region-labels-sidebar-nav/test-note.md",
     "2026-02-19_v36.1-audio-region-labels-sidebar-nav",
     "Conquerors and The World.mp3",
@@ -157,7 +160,6 @@
     "2026-02-19_v35.4-pdf-drag-handles-text-selection/test-note.md",
     "2026-02-19_v35.4-pdf-drag-handles-text-selection",
     "2026-02-19_v35.3-pdf-margin-panel-undo-redo/test-note.md",
-    "2026-02-19_v35.3-pdf-margin-panel-undo-redo",
     "2026-02-19_v35.2-bidirectional-hover-rename-tracking/test-note.md",
     "2026-02-20_v38.12-analytics-board-fixes-rightclick-dragdrop/test-note.md",
     "2026-02-19_v35.1-initial-pdf-codeformmodal/test-note.md",
@@ -176,7 +178,6 @@
     "Pasted image 20260216114853.png",
     "2026-02-19_v34.4-image-auto-open-settings-tab/test-note.md",
     "2026-02-19_v34.3-image-sidebar-explorer-detail/test-note.md",
-    "2026-02-19_v34.2-image-coding-menu-labels-hover-glow/test-note.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "_historico/qda-data-model.canvas"
   ]

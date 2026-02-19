@@ -9,6 +9,7 @@ export class AudioRegionRenderer {
 	private markerToRegion: Map<string, any> = new Map();
 	private regionToMarker: Map<string, string> = new Map();
 	private onNavigate: ((markerId: string, codeName: string) => void) | null = null;
+	private hoverListener: (() => void) | null = null;
 
 	constructor(renderer: WaveformRenderer, model: AudioCodingModel) {
 		this.renderer = renderer;
@@ -32,8 +33,10 @@ export class AudioRegionRenderer {
 		this.removeRegion(marker.id);
 
 		const baseColor = this.model.registry.getColorForCodes(marker.codes);
-		const fallback = this.renderer.readAccentHex() + '26';
-		const color = baseColor ? baseColor + '40' : fallback;
+		const alpha = Math.round(this.model.settings.regionOpacity * 255).toString(16).padStart(2, '0');
+		const fallbackAlpha = Math.round(this.model.settings.regionOpacity * 0.6 * 255).toString(16).padStart(2, '0');
+		const fallback = this.renderer.readAccentHex() + fallbackAlpha;
+		const color = baseColor ? baseColor + alpha : fallback;
 
 		let content: HTMLElement | undefined;
 		if (this.model.settings.showLabelsOnRegions && marker.codes.length > 0) {
@@ -69,10 +72,12 @@ export class AudioRegionRenderer {
 						nav(mid, codeName);
 					});
 					chip.addEventListener('mouseenter', () => {
+						this.model.setHoverState(mid, codeName);
 						chip.style.color = 'var(--text-accent)';
 						chip.style.textDecoration = 'underline';
 					});
 					chip.addEventListener('mouseleave', () => {
+						this.model.setHoverState(null, null);
 						chip.style.color = '';
 						chip.style.textDecoration = '';
 					});
@@ -117,6 +122,26 @@ export class AudioRegionRenderer {
 		this.renderer.clearRegions();
 		this.markerToRegion.clear();
 		this.regionToMarker.clear();
+	}
+
+	subscribeToHover(): void {
+		this.hoverListener = () => this.applyHoverToRegions(this.model.getHoverMarkerId());
+		this.model.onHoverChange(this.hoverListener);
+	}
+
+	unsubscribeFromHover(): void {
+		if (this.hoverListener) {
+			this.model.offHoverChange(this.hoverListener);
+			this.hoverListener = null;
+		}
+	}
+
+	private applyHoverToRegions(markerId: string | null): void {
+		for (const [mid, region] of this.markerToRegion) {
+			const el: HTMLElement | undefined = region.element;
+			if (!el) continue;
+			el.classList.toggle('codemarker-audio-region-hovered', markerId === mid);
+		}
 	}
 
 	getMarkerIdForRegion(regionId: string): string | undefined {
