@@ -64,11 +64,28 @@ export class TextExtractor {
   }
 
   private extractText(m: UnifiedMarker): string {
+    if (m.source === "audio") {
+      const from = m.meta?.audioFrom ?? 0;
+      const to = m.meta?.audioTo ?? 0;
+      return this.formatAudioTime(from) + " \u2013 " + this.formatAudioTime(to);
+    }
+    if (m.source === "video") {
+      const from = m.meta?.videoFrom ?? 0;
+      const to = m.meta?.videoTo ?? 0;
+      return this.formatAudioTime(from) + " \u2013 " + this.formatAudioTime(to);
+    }
     if (m.source === "image") return "[image region]";
     if (m.source === "pdf") return m.meta?.pdfText ?? "[pdf selection]";
     if (m.source === "csv-row") return this.extractCsvRow(m);
     if (m.source === "csv-segment") return this.extractCsvSegment(m);
     return this.extractMarkdown(m);
+  }
+
+  private formatAudioTime(seconds: number): string {
+    if (!isFinite(seconds) || seconds < 0) return "0:00.0";
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toFixed(1).padStart(4, "0")}`;
   }
 
   private extractMarkdown(m: UnifiedMarker): string {

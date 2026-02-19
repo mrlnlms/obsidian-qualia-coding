@@ -38,7 +38,7 @@ export function calculateFrequency(
       if (!entry) {
         entry = {
           total: 0,
-          bySource: { markdown: 0, "csv-segment": 0, "csv-row": 0, image: 0, pdf: 0 },
+          bySource: { markdown: 0, "csv-segment": 0, "csv-row": 0, image: 0, pdf: 0, audio: 0, video: 0 },
           byFile: {},
         };
         map.set(code, entry);

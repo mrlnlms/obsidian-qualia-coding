@@ -517,6 +517,16 @@
   color: #EF5350;
 }
 
+.codemarker-tr-source-badge.is-audio {
+  background: rgba(171, 71, 188, 0.15);
+  color: #AB47BC;
+}
+
+.codemarker-tr-source-badge.is-video {
+  background: rgba(0, 172, 193, 0.15);
+  color: #00ACC1;
+}
+
 .codemarker-tr-file-link {
   font-size: 12px;
   color: var(--text-accent);

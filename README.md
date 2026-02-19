@@ -118,9 +118,12 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Auto-open images**: When enabled, clicking any image file opens it directly in CodeMarker Image view
 - **Settings tab**: Dedicated settings panel for CodeMarker Image preferences and toggles
 
-### CodeMarker Analytics (v38.4)
+### CodeMarker Analytics (v38.5)
 
-- **Cross-engine analytics**: Consolidates coded data from markdown, CSV, image, and PDF engines into a unified view
+- **Cross-engine analytics**: Consolidates coded data from all six source types into a unified view
+- **Audio source support**: Analytics data reader ingests and consolidates annotations from audio-based codemarker data
+- **Video source support**: Analytics data reader ingests and consolidates annotations from video-based codemarker data
+- **Navigate to source**: Click an audio or video entry in the analytics view to navigate to the source file
 - **Text Retrieval view**: New view mode that retrieves and displays original text segments associated with coded markers
 - **PDF source support**: Analytics data reader can now ingest and consolidate annotations from PDF-based codemarker data
 - **Dashboard landing page**: KPI cards showing total codes, annotations, and documents at a glance
@@ -130,7 +133,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Code Evolution**: Timeline visualization of coding activity over time, with per-file filtering
 - **Six view modes**: Frequency, Co-occurrence Matrix, Network Graph, Document-Code Matrix, Code Evolution, Text Retrieval
 - **Stats engine**: Dedicated statistics module with frequency, co-occurrence, matrix, and evolution calculations
-- **Data reader**: Reads and aggregates coding data from all active engine types (markdown, CSV, image, PDF)
+- **Data reader**: Reads and aggregates coding data from all six engine types (markdown, CSV, image, PDF, audio, video)
 - **Command palette**: "Open CodeMarker Analytics" and "Refresh Analytics Data" commands
 - **Standalone plugin**: Runs as an independent engine plugin in the demo vault
 

@@ -23,7 +23,7 @@ export class AnalyticsView extends ItemView {
   private displayMode: DisplayMode = "absolute";
   private showEdgeLabels = true;
   private minEdgeWeight = 1;
-  private enabledSources = new Set(["markdown", "csv-segment", "csv-row", "image", "pdf"]);
+  private enabledSources = new Set(["markdown", "csv-segment", "csv-row", "image", "pdf", "audio", "video"]);
   private enabledCodes = new Set<string>();
   private minFrequency = 1;
   private codeSearch = "";
@@ -116,7 +116,7 @@ export class AnalyticsView extends ItemView {
   private renderEmptyState(container: HTMLElement): void {
     const empty = container.createDiv({ cls: "codemarker-analytics-empty" });
 
-    if (!this.data || (!this.data.sources.markdown && !this.data.sources.csv && !this.data.sources.image && !this.data.sources.pdf)) {
+    if (!this.data || (!this.data.sources.markdown && !this.data.sources.csv && !this.data.sources.image && !this.data.sources.pdf && !this.data.sources.audio && !this.data.sources.video)) {
       empty.createEl("h3", { text: "No CodeMarker data found" });
       const p = empty.createEl("p");
       p.innerHTML = [
@@ -125,6 +125,8 @@ export class AnalyticsView extends ItemView {
         "&bull; obsidian-codemarker-csv (CSV)",
         "&bull; obsidian-codemarker-image (Image)",
         "&bull; obsidian-codemarker-pdf (PDF)",
+        "&bull; obsidian-codemarker-audio (Audio)",
+        "&bull; obsidian-codemarker-video (Video)",
         "",
         "Then return here to visualize your analysis.",
       ].join("<br>");
@@ -225,6 +227,8 @@ export class AnalyticsView extends ItemView {
       { label: "CSV", keys: ["csv-segment", "csv-row"], active: this.data!.sources.csv },
       { label: "Image", keys: ["image"], active: this.data!.sources.image },
       { label: "PDF", keys: ["pdf"], active: this.data!.sources.pdf },
+      { label: "Audio", keys: ["audio"], active: this.data!.sources.audio },
+      { label: "Video", keys: ["video"], active: this.data!.sources.video },
     ];
 
     for (const src of sources) {
@@ -886,6 +890,7 @@ export class AnalyticsView extends ItemView {
         "csv-row": "#81C784",
         image: "#FFA726",
         pdf: "#EF5350",
+        audio: "#AB47BC",
       };
       datasets = [
         {
@@ -912,6 +917,11 @@ export class AnalyticsView extends ItemView {
           label: "PDF",
           data: results.map((r) => r.bySource.pdf),
           backgroundColor: "#EF5350",
+        },
+        {
+          label: "Audio",
+          data: results.map((r) => r.bySource.audio),
+          backgroundColor: "#AB47BC",
         },
       ].filter((ds) => ds.data.some((v: number) => v > 0));
     } else if (this.groupMode === "file") {
@@ -962,6 +972,7 @@ export class AnalyticsView extends ItemView {
                   if (r.bySource["csv-row"] > 0) parts.push(`CSV-row: ${r.bySource["csv-row"]}`);
                   if (r.bySource.image > 0) parts.push(`Img: ${r.bySource.image}`);
                   if (r.bySource.pdf > 0) parts.push(`PDF: ${r.bySource.pdf}`);
+                  if (r.bySource.audio > 0) parts.push(`Audio: ${r.bySource.audio}`);
                   return parts.join(", ");
                 }
                 return "";
@@ -1976,7 +1987,11 @@ export class AnalyticsView extends ItemView {
     const cardHeader = card.createDiv({ cls: "codemarker-tr-card-header" });
 
     // Source badge
-    const badgeCls = seg.source === "markdown"
+    const badgeCls = seg.source === "audio"
+      ? "is-audio"
+      : seg.source === "video"
+      ? "is-video"
+      : seg.source === "markdown"
       ? "is-markdown"
       : seg.source === "csv-segment"
       ? "is-csv-segment"
@@ -1985,7 +2000,11 @@ export class AnalyticsView extends ItemView {
       : seg.source === "pdf"
       ? "is-pdf"
       : "is-image";
-    const badgeText = seg.source === "markdown"
+    const badgeText = seg.source === "audio"
+      ? "AUD"
+      : seg.source === "video"
+      ? "VID"
+      : seg.source === "markdown"
       ? "MD"
       : seg.source === "csv-segment"
       ? "CSV"
@@ -2027,7 +2046,26 @@ export class AnalyticsView extends ItemView {
     card.addEventListener("click", () => this.navigateToSegment(seg));
   }
 
+  private formatAudioTime(seconds: number): string {
+    if (!isFinite(seconds) || seconds < 0) return "0:00.0";
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toFixed(1).padStart(4, "0")}`;
+  }
+
   private formatLocation(seg: ExtractedSegment): string {
+    if (seg.source === "audio") {
+      const from = seg.meta?.audioFrom;
+      const to = seg.meta?.audioTo;
+      if (from != null && to != null) return this.formatAudioTime(from) + " \u2013 " + this.formatAudioTime(to);
+      return "";
+    }
+    if (seg.source === "video") {
+      const from = seg.meta?.videoFrom;
+      const to = seg.meta?.videoTo;
+      if (from != null && to != null) return this.formatAudioTime(from) + " \u2013 " + this.formatAudioTime(to);
+      return "";
+    }
     if (seg.source === "csv-row") {
       const row = seg.meta?.row;
       const col = seg.meta?.column;
@@ -2059,6 +2097,22 @@ export class AnalyticsView extends ItemView {
 
   private navigateToSegment(seg: ExtractedSegment): void {
     const file = seg.file;
+    if (seg.source === "audio") {
+      const seekTo = seg.meta?.audioFrom ?? 0;
+      (this.plugin.app.workspace as any).trigger('codemarker-audio:seek', {
+        file: seg.file,
+        seekTo,
+      });
+      return;
+    }
+    if (seg.source === "video") {
+      const seekTo = seg.meta?.videoFrom ?? 0;
+      (this.plugin.app.workspace as any).trigger('codemarker-video:seek', {
+        file: seg.file,
+        seekTo,
+      });
+      return;
+    }
     this.plugin.app.workspace.openLinkText(file, "", "tab").then(() => {
       // Try to scroll to line for markdown files
       if (seg.source === "markdown" && seg.fromLine != null) {
@@ -2147,6 +2201,8 @@ export class AnalyticsView extends ItemView {
     if (this.data.sources.csv) activeSources.push("csv");
     if (this.data.sources.image) activeSources.push("image");
     if (this.data.sources.pdf) activeSources.push("pdf");
+    if (this.data.sources.audio) activeSources.push("audio");
+    if (this.data.sources.video) activeSources.push("video");
 
     this.footerEl.textContent = `Last updated: ${time} \u00b7 ${this.data.markers.length} markers \u00b7 ${this.data.codes.length} codes \u00b7 Sources: ${activeSources.join(", ") || "none"}`;
   }
@@ -2181,7 +2237,7 @@ export class AnalyticsView extends ItemView {
 
     if (this.viewMode === "frequency") {
       const results = calculateFrequency(this.data, filters);
-      const rows = [["code", "total", "markdown", "csv_segment", "csv_row", "image"]];
+      const rows = [["code", "total", "markdown", "csv_segment", "csv_row", "image", "pdf", "audio", "video"]];
       for (const r of results) {
         rows.push([
           r.code,
@@ -2190,6 +2246,9 @@ export class AnalyticsView extends ItemView {
           String(r.bySource["csv-segment"]),
           String(r.bySource["csv-row"]),
           String(r.bySource.image),
+          String(r.bySource.pdf),
+          String(r.bySource.audio),
+          String(r.bySource.video),
         ]);
       }
       csvContent = rows.map((r) => r.join(",")).join("\n");

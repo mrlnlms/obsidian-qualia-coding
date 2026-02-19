@@ -25,3 +25,11 @@ export async function readImageData(vault: Vault): Promise<any | null> {
 export async function readPdfData(vault: Vault): Promise<any | null> {
   return readPluginData(vault, "obsidian-codemarker-pdf");
 }
+
+export async function readAudioData(vault: Vault): Promise<any | null> {
+  return readPluginData(vault, "obsidian-codemarker-audio");
+}
+
+export async function readVideoData(vault: Vault): Promise<any | null> {
+  return readPluginData(vault, "obsidian-codemarker-video");
+}

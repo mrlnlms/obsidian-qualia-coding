@@ -9,7 +9,9 @@ export function consolidate(
   markdownData: any | null,
   csvData: any | null,
   imageData: any | null,
-  pdfData: any | null = null
+  pdfData: any | null = null,
+  audioData: any | null = null,
+  videoData: any | null = null
 ): ConsolidatedData {
   const markers: UnifiedMarker[] = [];
   const codeMap = new Map<string, { color: string; description?: string; sources: Set<SourceType> }>();
@@ -143,6 +145,60 @@ export function consolidate(
     }
   }
 
+  // ── Audio ──
+  const hasAudio = Array.isArray(audioData?.files);
+  if (hasAudio) {
+    for (const af of audioData.files) {
+      for (const m of af.markers) {
+        const codes = extractCodes(m.codes);
+        if (codes.length === 0) continue;
+        markers.push({
+          id: m.id ?? "",
+          source: "audio",
+          file: af.path ?? "",
+          codes,
+          meta: {
+            audioFrom: m.from,
+            audioTo: m.to,
+          },
+        });
+      }
+    }
+    const audioDefs = audioData.codeDefinitions?.definitions;
+    if (audioDefs) {
+      for (const def of Object.values(audioDefs) as any[]) {
+        mergeDef(codeMap, def.name, def.color, def.description, "audio");
+      }
+    }
+  }
+
+  // ── Video ──
+  const hasVideo = Array.isArray(videoData?.files);
+  if (hasVideo) {
+    for (const vf of videoData.files) {
+      for (const m of vf.markers) {
+        const codes = extractCodes(m.codes);
+        if (codes.length === 0) continue;
+        markers.push({
+          id: m.id ?? "",
+          source: "video",
+          file: vf.path ?? "",
+          codes,
+          meta: {
+            videoFrom: m.from,
+            videoTo: m.to,
+          },
+        });
+      }
+    }
+    const videoDefs = videoData.codeDefinitions?.definitions;
+    if (videoDefs) {
+      for (const def of Object.values(videoDefs) as any[]) {
+        mergeDef(codeMap, def.name, def.color, def.description, "video");
+      }
+    }
+  }
+
   // Also discover codes that appear in markers but not in definitions
   for (const m of markers) {
     for (const code of m.codes) {
@@ -173,6 +229,8 @@ export function consolidate(
       csv: hasCsv,
       image: hasImg,
       pdf: hasPdf,
+      audio: hasAudio,
+      video: hasVideo,
     },
     lastUpdated: Date.now(),
   };

@@ -1,4 +1,4 @@
-export type SourceType = "markdown" | "csv-segment" | "csv-row" | "image" | "pdf";
+export type SourceType = "markdown" | "csv-segment" | "csv-row" | "image" | "pdf" | "audio" | "video";
 
 export interface UnifiedMarker {
   id: string;
@@ -15,6 +15,10 @@ export interface UnifiedMarker {
     toCh?: number;
     page?: number;
     pdfText?: string;
+    audioFrom?: number;
+    audioTo?: number;
+    videoFrom?: number;
+    videoTo?: number;
   };
 }
 
@@ -33,6 +37,8 @@ export interface ConsolidatedData {
     csv: boolean;
     image: boolean;
     pdf: boolean;
+    audio: boolean;
+    video: boolean;
   };
   lastUpdated: number;
 }
