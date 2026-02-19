@@ -20,6 +20,7 @@ export class PdfCodeExplorerView extends ItemView {
 	private codeNodes: CollapsibleNode[] = [];
 	private fileNodes: CollapsibleNode[] = [];
 	private changeListener: () => void;
+	private hoverListener: ((markerId: string | null, codeName: string | null) => void) | null = null;
 
 	constructor(leaf: WorkspaceLeaf, model: PdfCodingModel) {
 		super(leaf);
@@ -42,12 +43,31 @@ export class PdfCodeExplorerView extends ItemView {
 	async onOpen() {
 		this.contentEl.addClass('codemarker-explorer');
 		this.model.onChange(this.changeListener);
+
+		this.hoverListener = (markerId) => this.applyHoverToItems(markerId);
+		this.model.onHoverChange(this.hoverListener);
+
 		this.render();
 	}
 
 	async onClose() {
 		this.model.offChange(this.changeListener);
+		if (this.hoverListener) {
+			this.model.offHoverChange(this.hoverListener);
+			this.hoverListener = null;
+		}
 		this.contentEl.empty();
+	}
+
+	private applyHoverToItems(markerId: string | null) {
+		const items = Array.from(this.contentEl.querySelectorAll<HTMLElement>('[data-marker-id]'));
+		for (const el of items) {
+			if (markerId && el.dataset.markerId === markerId) {
+				el.addClass('is-hovered');
+			} else {
+				el.removeClass('is-hovered');
+			}
+		}
 	}
 
 	private collapseAllBtn: HTMLElement | null = null;
@@ -197,9 +217,12 @@ export class PdfCodeExplorerView extends ItemView {
 						: label;
 
 					const matchEl = fileChildren.createDiv({ cls: 'search-result-file-match' });
+					matchEl.dataset.markerId = marker.id;
 					matchEl.createSpan({ text: label, cls: 'codemarker-detail-marker-file' });
 					matchEl.createSpan({ text: preview });
 					matchEl.addEventListener('click', () => this.navigateToMarker(marker));
+					matchEl.addEventListener('mouseenter', () => this.model.setHoverState(marker.id, codeName));
+					matchEl.addEventListener('mouseleave', () => this.model.setHoverState(null, null));
 				}
 
 				const fileNode: CollapsibleNode = { treeItem: fileTreeItem, children: fileChildren, collapsed: false };

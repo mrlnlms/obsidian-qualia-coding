@@ -14,6 +14,7 @@ export class PdfCodeDetailView extends ItemView {
 	private markerId: string | null = null;
 	private codeName: string | null = null;
 	private changeListener: () => void;
+	private hoverListener: ((markerId: string | null, codeName: string | null) => void) | null = null;
 
 	constructor(leaf: WorkspaceLeaf, model: PdfCodingModel) {
 		super(leaf);
@@ -58,12 +59,31 @@ export class PdfCodeDetailView extends ItemView {
 	async onOpen() {
 		this.contentEl.addClass('codemarker-detail-panel');
 		this.model.onChange(this.changeListener);
+
+		this.hoverListener = (markerId) => this.applyHoverToItems(markerId);
+		this.model.onHoverChange(this.hoverListener);
+
 		this.refreshCurrentMode();
 	}
 
 	async onClose() {
 		this.model.offChange(this.changeListener);
+		if (this.hoverListener) {
+			this.model.offHoverChange(this.hoverListener);
+			this.hoverListener = null;
+		}
 		this.contentEl.empty();
+	}
+
+	private applyHoverToItems(markerId: string | null) {
+		const items = Array.from(this.contentEl.querySelectorAll<HTMLElement>('[data-marker-id]'));
+		for (const el of items) {
+			if (markerId && el.dataset.markerId === markerId) {
+				el.addClass('is-hovered');
+			} else {
+				el.removeClass('is-hovered');
+			}
+		}
 	}
 
 	private refreshCurrentMode() {
@@ -170,12 +190,15 @@ export class PdfCodeDetailView extends ItemView {
 				: label;
 
 			const li = listEl.createEl('li', { cls: 'codemarker-detail-marker-item' });
+			li.dataset.markerId = marker.id;
 			li.createSpan({ cls: 'codemarker-detail-marker-file', text: this.shortenPath(marker.file) });
 			li.createEl('span', { text: preview });
 
 			li.addEventListener('click', () => {
 				this.navigateToMarker(marker);
 			});
+			li.addEventListener('mouseenter', () => this.model.setHoverState(marker.id, this.codeName));
+			li.addEventListener('mouseleave', () => this.model.setHoverState(null, null));
 		}
 	}
 
@@ -254,6 +277,7 @@ export class PdfCodeDetailView extends ItemView {
 				const preview = this.model.getMarkerText(other);
 				const label = this.model.getMarkerLabel(other);
 				const li = markerList.createEl('li', { cls: 'codemarker-detail-marker-item' });
+				li.dataset.markerId = other.id;
 				li.createSpan({ cls: 'codemarker-detail-marker-file', text: this.shortenPath(other.file) });
 				li.createEl('span', {
 					text: preview ? (preview.length > 60 ? preview.substring(0, 60) + '...' : preview) : label,
@@ -262,6 +286,8 @@ export class PdfCodeDetailView extends ItemView {
 					this.setContext(other.id, this.codeName!);
 					this.navigateToMarker(other);
 				});
+				li.addEventListener('mouseenter', () => this.model.setHoverState(other.id, this.codeName));
+				li.addEventListener('mouseleave', () => this.model.setHoverState(null, null));
 			}
 		}
 	}

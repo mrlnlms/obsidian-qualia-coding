@@ -68,6 +68,7 @@ export function placeRectInPage(
 export interface HighlightCallbacks {
 	onClick: (markerId: string, codeName: string) => void;
 	onDblClick: (marker: PdfMarker, evt: MouseEvent) => void;
+	onHover?: (markerId: string | null, codeName: string | null) => void;
 }
 
 export function renderHighlightsForPage(
@@ -126,6 +127,30 @@ export function renderHighlightsForPage(
 				e.preventDefault();
 				callbacks.onDblClick(marker, e);
 			});
+
+			// Hover → bidirectional highlight ↔ sidebar
+			if (callbacks.onHover) {
+				rectEl.addEventListener('mouseenter', () => {
+					callbacks.onHover!(marker.id, marker.codes[0] ?? null);
+				});
+				rectEl.addEventListener('mouseleave', () => {
+					callbacks.onHover!(null, null);
+				});
+			}
+		}
+	}
+}
+
+/**
+ * Apply or remove hover class on highlights matching a marker ID.
+ */
+export function applyHoverToHighlights(container: HTMLElement, markerId: string | null): void {
+	const highlights = Array.from(container.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_CLASS}`));
+	for (const el of highlights) {
+		if (markerId && el.dataset.markerId === markerId) {
+			el.classList.add('codemarker-pdf-highlight-hovered');
+		} else {
+			el.classList.remove('codemarker-pdf-highlight-hovered');
 		}
 	}
 }

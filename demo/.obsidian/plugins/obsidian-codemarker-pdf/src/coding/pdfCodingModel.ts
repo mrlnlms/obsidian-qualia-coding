@@ -130,12 +130,16 @@ export class CodeDefinitionRegistry {
 
 // ── PdfCodingModel ──
 type ChangeListener = () => void;
+type HoverListener = (markerId: string | null, codeName: string | null) => void;
 
 export class PdfCodingModel {
 	plugin: Plugin;
 	readonly registry: CodeDefinitionRegistry;
 	private markers: PdfMarker[] = [];
 	private listeners: ChangeListener[] = [];
+	private hoverListeners: HoverListener[] = [];
+	private hoverMarkerId: string | null = null;
+	private hoverCodeName: string | null = null;
 	private saveTimeout: number | null = null;
 
 	constructor(plugin: Plugin) {
@@ -218,6 +222,41 @@ export class PdfCodingModel {
 
 	offChange(fn: ChangeListener): void {
 		this.listeners = this.listeners.filter(l => l !== fn);
+	}
+
+	// ── Hover state (bidirectional highlight ↔ sidebar) ──
+
+	setHoverState(markerId: string | null, codeName: string | null): void {
+		if (this.hoverMarkerId === markerId && this.hoverCodeName === codeName) return;
+		this.hoverMarkerId = markerId;
+		this.hoverCodeName = codeName;
+		for (const fn of this.hoverListeners) fn(markerId, codeName);
+	}
+
+	getHoverMarkerId(): string | null { return this.hoverMarkerId; }
+
+	onHoverChange(fn: HoverListener): void {
+		this.hoverListeners.push(fn);
+	}
+
+	offHoverChange(fn: HoverListener): void {
+		this.hoverListeners = this.hoverListeners.filter(l => l !== fn);
+	}
+
+	// ── File rename tracking ──
+
+	migrateFilePath(oldPath: string, newPath: string): void {
+		let changed = false;
+		for (const marker of this.markers) {
+			if (marker.file === oldPath) {
+				marker.file = newPath;
+				changed = true;
+			}
+		}
+		if (changed) {
+			this.scheduleSave();
+			for (const fn of this.listeners) fn();
+		}
 	}
 
 	// ── Marker operations ──

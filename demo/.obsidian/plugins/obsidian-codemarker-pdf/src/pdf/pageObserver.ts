@@ -6,7 +6,7 @@
 import type { PDFViewerChild, PDFPageView } from '../pdfTypings';
 import type { PdfCodingModel } from '../coding/pdfCodingModel';
 import type { PdfMarker } from '../coding/pdfCodingTypes';
-import { renderHighlightsForPage, clearHighlightsForPage, type HighlightCallbacks } from './highlightRenderer';
+import { renderHighlightsForPage, clearHighlightsForPage, applyHoverToHighlights, type HighlightCallbacks } from './highlightRenderer';
 
 export interface PageObserverCallbacks {
 	onMarkerClick: (markerId: string, codeName: string) => void;
@@ -18,6 +18,7 @@ export class PdfPageObserver {
 	private model: PdfCodingModel;
 	private callbacks: PageObserverCallbacks;
 	private changeListener: (() => void) | null = null;
+	private hoverListener: ((markerId: string | null, codeName: string | null) => void) | null = null;
 	private textLayerRenderedHandler: ((data: any) => void) | null = null;
 	private pageRenderedHandler: ((data: any) => void) | null = null;
 	private started = false;
@@ -55,6 +56,12 @@ export class PdfPageObserver {
 		};
 		this.child.pdfViewer.eventBus.on('pagerendered', this.pageRenderedHandler);
 
+		// Listen for hover state changes → apply/remove hover class on highlights
+		this.hoverListener = (markerId) => {
+			applyHoverToHighlights(this.child.containerEl, markerId);
+		};
+		this.model.onHoverChange(this.hoverListener);
+
 		// Render highlights on already-loaded pages
 		this.refreshAll();
 	}
@@ -66,6 +73,11 @@ export class PdfPageObserver {
 		if (this.changeListener) {
 			this.model.offChange(this.changeListener);
 			this.changeListener = null;
+		}
+
+		if (this.hoverListener) {
+			this.model.offHoverChange(this.hoverListener);
+			this.hoverListener = null;
 		}
 
 		if (this.textLayerRenderedHandler) {
@@ -120,6 +132,7 @@ export class PdfPageObserver {
 		const highlightCallbacks: HighlightCallbacks = {
 			onClick: this.callbacks.onMarkerClick,
 			onDblClick: this.callbacks.onMarkerDblClick,
+			onHover: (markerId, codeName) => this.model.setHoverState(markerId, codeName),
 		};
 
 		renderHighlightsForPage(

@@ -15,7 +15,7 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 	private observers = new Map<PDFViewerChild, PdfPageObserver>();
 
 	async onload() {
-		console.log('[codemarker-pdf] v35.1 loaded — Initial PDF + CodeFormModal');
+		console.log('[obsidian-codemarker-pdf] v35.2 loaded — Bidirectional hover + rename tracking');
 		this.model = new PdfCodingModel(this);
 		await this.model.load();
 
@@ -64,6 +64,15 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on('layout-change', () => {
 				this.cleanupOrphanedObservers();
+			})
+		);
+
+		// Track file renames — update marker.file when a PDF is moved/renamed
+		this.registerEvent(
+			this.app.vault.on('rename', (file, oldPath) => {
+				if (file instanceof TFile && file.extension === 'pdf') {
+					this.model.migrateFilePath(oldPath, file.path);
+				}
 			})
 		);
 	}
@@ -188,6 +197,8 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 		}
 
 		if (leaf) {
+			// Always reveal — ensures sidebar opens even if hidden or behind another tab
+			this.app.workspace.revealLeaf(leaf);
 			const view = leaf.view as PdfCodeDetailView;
 			if (view.setContext) {
 				view.setContext(markerId, codeName);

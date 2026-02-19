@@ -22,7 +22,8 @@
   transition: box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
-.codemarker-pdf-highlight:hover {
+.codemarker-pdf-highlight:hover,
+.codemarker-pdf-highlight-hovered {
   opacity: 0.55;
   box-shadow: 0 0 0 2px currentColor;
 }
@@ -184,7 +185,12 @@
   line-height: 1.4;
 }
 
-.codemarker-detail-marker-item:hover {
+.codemarker-detail-marker-item:hover,
+.codemarker-detail-marker-item.is-hovered {
+  background-color: var(--background-modifier-hover);
+}
+
+.search-result-file-match.is-hovered {
   background-color: var(--background-modifier-hover);
 }
 
