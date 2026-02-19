@@ -47,10 +47,12 @@ export class WaveformRenderer {
     this.resizeObserver = new ResizeObserver(() => {
       if (this.resizeTimer) clearTimeout(this.resizeTimer);
       this.resizeTimer = setTimeout(() => {
-        if (this.ws) {
-          const zoom = this.ws.options.minPxPerSec ?? 0;
-          this.ws.zoom(zoom);
-        }
+        try {
+          if (this.ws) {
+            const zoom = this.ws.options.minPxPerSec ?? 0;
+            this.ws.zoom(zoom);
+          }
+        } catch { /* audio not loaded yet */ }
       }, 100);
     });
     this.resizeObserver.observe(container);
@@ -117,7 +119,7 @@ export class WaveformRenderer {
   }
 
   zoom(pxPerSec: number): void {
-    this.ws?.zoom(pxPerSec);
+    try { this.ws?.zoom(pxPerSec); } catch { /* audio not loaded yet */ }
   }
 
   getScroll(): number {

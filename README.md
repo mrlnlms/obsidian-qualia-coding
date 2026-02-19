@@ -148,7 +148,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Ribbon icon**: Quick access to PDF Code Explorer via the left ribbon
 - **Standalone plugin**: Runs as an independent engine plugin in the demo vault
 
-### CodeMarker Audio (v36.3)
+### CodeMarker Audio (v36.4)
 
 - **Waveform visualization**: Opens audio files (mp3, m4a, wav, ogg, flac, aac) in a custom view with a rendered waveform
 - **Timeline ruler**: Visual time markers along the waveform for precise navigation and orientation
@@ -165,6 +165,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Audio coding model**: Persistence layer for qualitative coding on time-based audio regions
 - **Context menu**: Right-click audio files to open in CodeMarker Audio
 - **State persistence**: Audio view remembers which file was open across sessions
+- **Zoom guards**: ResizeObserver try-catch prevents "No audio loaded" race condition errors during rapid zoom or pane resize before audio is ready
 - **Standalone plugin**: Runs as an independent engine plugin in the demo vault
 
 ### CodeMarker Analytics (v38.12)

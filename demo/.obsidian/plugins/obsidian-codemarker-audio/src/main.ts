@@ -10,7 +10,6 @@ import { AudioSettingTab } from "./views/audioSettingTab";
 
 const AUDIO_VIEW_TYPE = "codemarker-audio-view";
 const AUDIO_EXTENSIONS = new Set(["mp3", "m4a", "wav", "ogg", "flac", "aac"]);
-const AUDIO_EXTENSIONS_ARRAY = ["mp3", "m4a", "wav", "ogg", "flac", "aac"];
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 // ── AudioView ──
@@ -400,7 +399,7 @@ export default class CodeMarkerAudioPlugin extends Plugin {
   model!: AudioCodingModel;
 
   async onload(): Promise<void> {
-    console.log('[obsidian-codemarker-audio] v36.3 loaded — Timeline ruler + region lanes');
+    console.log('[codemarker-audio] v36.4 loaded — File interceptor + zoom guards');
     // Initialize coding model
     this.model = new AudioCodingModel(this);
     await this.model.load();
@@ -410,8 +409,20 @@ export default class CodeMarkerAudioPlugin extends Plugin {
     this.registerView(AUDIO_CODE_EXPLORER_VIEW_TYPE, (leaf) => new AudioCodeExplorerView(leaf, this.model, this));
     this.registerView(AUDIO_CODE_DETAIL_VIEW_TYPE, (leaf) => new AudioCodeDetailView(leaf, this.model, this));
 
-    // Register audio extensions so clicking in file browser opens AudioView
-    this.registerExtensions(AUDIO_EXTENSIONS_ARRAY, AUDIO_VIEW_TYPE);
+    // Intercept audio file opens — replace default player with AudioView
+    this.registerEvent(
+      this.app.workspace.on('active-leaf-change', (leaf) => {
+        if (!leaf) return;
+        if (leaf.view.getViewType() === AUDIO_VIEW_TYPE) return;
+        const file = (leaf.view as any)?.file as TFile | undefined;
+        if (!file || !(file instanceof TFile)) return;
+        if (!AUDIO_EXTENSIONS.has(file.extension.toLowerCase())) return;
+        leaf.setViewState({
+          type: AUDIO_VIEW_TYPE,
+          state: { file: file.path },
+        });
+      })
+    );
 
     // Settings tab
     this.addSettingTab(new AudioSettingTab(this.app, this));
