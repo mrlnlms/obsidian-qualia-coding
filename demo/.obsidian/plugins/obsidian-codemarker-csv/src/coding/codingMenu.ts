@@ -197,6 +197,222 @@ export function openCodingPopover(
   }, 10);
 }
 
+/**
+ * Opens a batch coding popover for a cod-frow header button.
+ * Applies/removes codes to ALL visible (filtered) rows at once.
+ */
+export function openBatchCodingPopover(
+  anchorEl: HTMLElement,
+  model: CodingModel,
+  file: string,
+  column: string,
+  gridApi: GridApi,
+  anchorRect?: DOMRect
+): void {
+  // Remove any existing popover
+  document.querySelector(".codemarker-popover")?.remove();
+
+  const container = document.createElement("div");
+  container.className = "menu codemarker-popover";
+  applyThemeColors(container);
+
+  container.addEventListener("mousedown", (e) => {
+    e.stopPropagation();
+  });
+
+  const close = () => {
+    container.remove();
+    document.removeEventListener("mousedown", outsideHandler);
+    document.removeEventListener("keydown", escHandler);
+  };
+
+  const refreshGrid = () => {
+    gridApi.refreshCells({ force: true });
+  };
+
+  const savedRect = anchorRect ?? anchorEl.getBoundingClientRect();
+
+  const rebuild = () => {
+    close();
+    openBatchCodingPopover(anchorEl, model, file, column, gridApi, savedRect);
+  };
+
+  // Collect visible (filtered) row indices
+  const filteredRows: number[] = [];
+  gridApi.forEachNodeAfterFilterAndSort(node => {
+    if (node.rowIndex != null) filteredRows.push(node.rowIndex);
+  });
+
+  // ── Info text ──
+  const infoEl = document.createElement("div");
+  infoEl.className = "menu-item";
+  infoEl.style.fontSize = "11px";
+  infoEl.style.color = "var(--text-muted)";
+  infoEl.style.pointerEvents = "none";
+  infoEl.textContent = `Apply to ${filteredRows.length} visible row${filteredRows.length !== 1 ? "s" : ""}`;
+  container.appendChild(infoEl);
+
+  // ── TextComponent input ──
+  const inputWrapper = document.createElement("div");
+  inputWrapper.className = "menu-item menu-item-textfield";
+
+  const textComponent = new TextComponent(inputWrapper);
+  textComponent.setPlaceholder("New code name...");
+  applyInputTheme(textComponent.inputEl);
+
+  inputWrapper.addEventListener("click", (evt: MouseEvent) => {
+    evt.stopPropagation();
+    textComponent.inputEl.focus();
+  });
+
+  textComponent.inputEl.addEventListener("keydown", (evt: KeyboardEvent) => {
+    if (evt.key === "Enter") {
+      evt.stopPropagation();
+      evt.preventDefault();
+      const name = textComponent.inputEl.value.trim();
+      if (name) {
+        for (const row of filteredRows) {
+          const marker = model.findOrCreateRowMarker(file, row, column);
+          model.addCodeToMarker(marker.id, name);
+        }
+        refreshGrid();
+        rebuild();
+      }
+    } else if (evt.key === "Escape") {
+      close();
+    }
+  });
+
+  container.appendChild(inputWrapper);
+
+  // ── Toggle list for existing codes ──
+  const allCodes = model.getAllCodes();
+
+  if (allCodes.length > 0) {
+    container.appendChild(createSeparator());
+  }
+
+  for (const codeDef of allCodes) {
+    // Calculate cross-row toggle state
+    let count = 0;
+    for (const row of filteredRows) {
+      if (model.getRowMarkersForCell(file, row, column).some(m => m.codes.includes(codeDef.name))) {
+        count++;
+      }
+    }
+    const isAllOn = count === filteredRows.length;
+    const isPartial = count > 0 && !isAllOn;
+
+    const itemEl = document.createElement("div");
+    itemEl.className = "menu-item menu-item-toggle";
+
+    const swatch = document.createElement("span");
+    swatch.className = "codemarker-popover-swatch";
+    swatch.style.backgroundColor = codeDef.color;
+    itemEl.appendChild(swatch);
+
+    const toggle = new ToggleComponent(itemEl);
+    toggle.setValue(isAllOn);
+    toggle.toggleEl.addEventListener("click", (evt) => {
+      evt.stopPropagation();
+    });
+    toggle.onChange((value) => {
+      for (const row of filteredRows) {
+        const m = model.findOrCreateRowMarker(file, row, column);
+        if (value) {
+          model.addCodeToMarker(m.id, codeDef.name);
+        } else {
+          model.removeCodeFromMarker(m.id, codeDef.name, true);
+        }
+      }
+      refreshGrid();
+    });
+
+    const titleEl = document.createElement("span");
+    titleEl.className = "menu-item-title";
+    titleEl.textContent = codeDef.name + (isPartial ? " (partial)" : "");
+    itemEl.appendChild(titleEl);
+
+    itemEl.addEventListener("click", (evt: MouseEvent) => {
+      evt.stopPropagation();
+      const currentValue = toggle.getValue();
+      toggle.setValue(!currentValue);
+    });
+
+    container.appendChild(itemEl);
+  }
+
+  // ── Action buttons ──
+  container.appendChild(createSeparator());
+
+  container.appendChild(
+    createActionItem("Add New Code", "plus-circle", () => {
+      const name = textComponent.inputEl.value.trim();
+      if (name) {
+        for (const row of filteredRows) {
+          const m = model.findOrCreateRowMarker(file, row, column);
+          model.addCodeToMarker(m.id, name);
+        }
+        refreshGrid();
+        rebuild();
+      } else {
+        textComponent.inputEl.focus();
+      }
+    })
+  );
+
+  container.appendChild(
+    createActionItem("Remove All Codes", "trash", () => {
+      for (const row of filteredRows) {
+        const markers = model.getRowMarkersForCell(file, row, column);
+        for (const m of markers) {
+          for (const code of [...m.codes]) {
+            model.removeCodeFromMarker(m.id, code);
+          }
+        }
+      }
+      refreshGrid();
+      rebuild();
+    })
+  );
+
+  // ── Position and show ──
+  document.body.appendChild(container);
+
+  container.style.top = `${savedRect.bottom + 4}px`;
+  container.style.left = `${savedRect.left}px`;
+
+  requestAnimationFrame(() => {
+    const cr = container.getBoundingClientRect();
+    if (cr.right > window.innerWidth) {
+      container.style.left = `${window.innerWidth - cr.width - 8}px`;
+    }
+    if (cr.bottom > window.innerHeight) {
+      container.style.top = `${savedRect.top - cr.height - 4}px`;
+    }
+  });
+
+  setTimeout(() => textComponent.inputEl.focus(), 50);
+
+  // ── Close handlers ──
+  const outsideHandler = (e: MouseEvent) => {
+    if (!container.contains(e.target as Node)) {
+      close();
+    }
+  };
+
+  const escHandler = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      close();
+    }
+  };
+
+  setTimeout(() => {
+    document.addEventListener("mousedown", outsideHandler);
+    document.addEventListener("keydown", escHandler);
+  }, 10);
+}
+
 // ── Helpers ──
 
 function createActionItem(title: string, iconName: string, onClick: () => void): HTMLElement {

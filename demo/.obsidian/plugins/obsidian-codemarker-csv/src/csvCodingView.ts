@@ -4,6 +4,7 @@ import * as Papa from "papaparse";
 import { EditorView, lineNumbers, drawSelection, highlightActiveLine, tooltips } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { codingCellRenderer, sourceTagBtnRenderer } from "./grid/codingCellRenderer";
+import { openBatchCodingPopover } from "./coding/codingMenu";
 import { createMarkerStateField, updateFileMarkersEffect, setFileIdEffect } from "./cm6/markerStateField";
 import { createMarkerViewPlugin } from "./cm6/markerViewPlugin";
 import { createSelectionMenuField } from "./cm6/selectionMenuField";
@@ -238,7 +239,10 @@ export class CsvCodingView extends FileView {
           } else {
             btn.addEventListener("click", (e) => {
               e.stopPropagation();
-              // TODO: Phase 3 — open full-row coding popover
+              const sourceColumn = colId.replace(/_cod-frow$/, "");
+              if (this.gridApi && this.file) {
+                openBatchCodingPopover(btn, this.plugin.csvModel, this.file.path, sourceColumn, this.gridApi);
+              }
             });
           }
 
@@ -380,9 +384,7 @@ export class CsvCodingView extends FileView {
         extensions: [
           EditorView.editable.of(false),
           EditorState.readOnly.of(true),
-          lineNumbers(),
           drawSelection(),
-          highlightActiveLine(),
           // Render tooltips at body level to prevent clipping in the compact panel
           tooltips({ parent: document.body }),
           // Full markdown CM6 extensions
@@ -393,22 +395,17 @@ export class CsvCodingView extends FileView {
           createMarginPanelExtension(mdModel),
           EditorView.theme({
             "&": {
-              backgroundColor: "var(--background-primary)",
+              backgroundColor: "var(--background-secondary)",
               color: "var(--text-normal)",
               height: "100%",
             },
             ".cm-content": {
-              fontFamily: "var(--font-text)",
-              fontSize: "14px",
+              fontFamily: "Georgia, 'Times New Roman', serif",
+              fontSize: "28px",
               padding: "8px 0",
             },
-            ".cm-gutters": {
-              backgroundColor: "var(--background-secondary)",
-              color: "var(--text-muted)",
-              borderRight: "1px solid var(--background-modifier-border)",
-            },
             ".cm-activeLine": {
-              backgroundColor: "var(--background-modifier-hover)",
+              backgroundColor: "transparent",
             },
             ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
               backgroundColor: "rgba(var(--interactive-accent-rgb, 66, 133, 244), 0.25) !important",
@@ -497,9 +494,14 @@ export class CsvCodingView extends FileView {
         const origTop = parseFloat(el.style.top);
         if (isNaN(origTop)) continue;
 
-        el.style.top = `${origTop + contentPaddingTop}px`;
         if (el.classList.contains('codemarker-margin-label')) {
+          // Label top was calculated for LABEL_HEIGHT=16. With a taller lineHeight,
+          // shift up by half the difference to keep text vertically centered on the line.
+          const labelShift = (lineH - ORIGINAL_LABEL_HEIGHT) / 2;
+          el.style.top = `${origTop + contentPaddingTop - labelShift}px`;
           el.style.lineHeight = `${lineH}px`;
+        } else {
+          el.style.top = `${origTop + contentPaddingTop}px`;
         }
       }
     };
@@ -815,7 +817,7 @@ class ColumnToggleModal extends Modal {
           filter: true,
           resizable: true,
           cellRenderer: codingCellRenderer,
-          cellRendererParams: { model: this.model, gridApi: this.gridApi, file: this.filePath, plugin: this.plugin },
+          cellRendererParams: { model: this.model, gridApi: this.gridApi, file: this.filePath, plugin: this.plugin, csvView: this.csvView },
           autoHeight: true,
           wrapText: true,
         };

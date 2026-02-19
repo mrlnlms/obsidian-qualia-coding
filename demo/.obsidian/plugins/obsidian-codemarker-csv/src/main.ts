@@ -34,7 +34,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	csvModel!: CodingModel;
 
 	async onload() {
-		console.log('[obsidian-codemarker-csv] v33.2 loaded — CM6 inline editor + extensions reuse + margin fix');
+		console.log('[obsidian-codemarker-csv] v33.3 loaded — Batch coding via header tag');
 		await this.loadSettings();
 
 		// ═══════════════════════════════════════════

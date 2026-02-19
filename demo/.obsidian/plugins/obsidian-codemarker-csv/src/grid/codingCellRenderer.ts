@@ -16,6 +16,7 @@ export function codingCellRenderer(params: any): HTMLElement {
   const gridApi: GridApi | undefined = params.gridApi;
   const file: string = params.file ?? "";
   const plugin: CsvCodingPlugin | undefined = params.plugin;
+  const csvView: CsvCodingView | undefined = params.csvView;
   const isFrow = field.endsWith("_cod-frow");
   const isSeg = field.endsWith("_cod-seg");
 
@@ -50,7 +51,7 @@ export function codingCellRenderer(params: any): HTMLElement {
       label.textContent = codeName;
       chip.appendChild(label);
 
-      // Click chip → open sidebar with marker details
+      // Click chip → open sidebar with marker details (+ open editor for cod-seg)
       chip.addEventListener("click", (e) => {
         e.stopPropagation();
         if (!plugin || !model) return;
@@ -62,6 +63,13 @@ export function codingCellRenderer(params: any): HTMLElement {
         const marker = markers.find(m => m.codes.includes(codeName));
         if (marker) {
           plugin.revealCsvCodeDetailPanel(marker.id, codeName);
+        }
+
+        // For cod-seg chips, also open the segment editor
+        if (isSeg && csvView) {
+          const rowNode = gridApi?.getDisplayedRowAtIndex(row);
+          const cellText: string = rowNode?.data?.[sourceColumn] ?? "";
+          csvView.openSegmentEditor(file, row, sourceColumn, cellText);
         }
       });
 
