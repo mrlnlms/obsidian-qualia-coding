@@ -128,6 +128,15 @@ export class CodeDefinitionRegistry {
 	}
 }
 
+// ── Undo types ──
+interface UndoEntry {
+	type: 'addCode' | 'removeCode' | 'removeAllCodes';
+	markerId: string;
+	data: PdfMarker;
+}
+
+const MAX_UNDO = 50;
+
 // ── PdfCodingModel ──
 type ChangeListener = () => void;
 type HoverListener = (markerId: string | null, codeName: string | null) => void;
@@ -136,6 +145,8 @@ export class PdfCodingModel {
 	plugin: Plugin;
 	readonly registry: CodeDefinitionRegistry;
 	private markers: PdfMarker[] = [];
+	private undoStack: UndoEntry[] = [];
+	private suppressUndo = false;
 	private listeners: ChangeListener[] = [];
 	private hoverListeners: HoverListener[] = [];
 	private hoverMarkerId: string | null = null;
@@ -304,6 +315,7 @@ export class PdfCodingModel {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 		if (!marker.codes.includes(codeName)) {
+			this.pushUndo({ type: 'addCode', markerId, data: { ...marker, codes: [...marker.codes] } });
 			marker.codes.push(codeName);
 			marker.updatedAt = Date.now();
 			this.notify();
@@ -313,6 +325,9 @@ export class PdfCodingModel {
 	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty = false): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
+
+		this.pushUndo({ type: 'removeCode', markerId, data: { ...marker, codes: [...marker.codes] } });
+
 		marker.codes = marker.codes.filter(c => c !== codeName);
 		marker.updatedAt = Date.now();
 
@@ -320,6 +335,62 @@ export class PdfCodingModel {
 			this.deleteMarker(markerId);
 		}
 		this.notify();
+	}
+
+	/** Remove all codes from a marker as a single undoable operation. */
+	removeAllCodesFromMarker(markerId: string): void {
+		const marker = this.findMarkerById(markerId);
+		if (!marker || marker.codes.length === 0) return;
+
+		this.pushUndo({ type: 'removeAllCodes', markerId, data: { ...marker, codes: [...marker.codes] } });
+
+		// Suppress individual undo entries from removeCodeFromMarker
+		this.suppressUndo = true;
+		for (const code of [...marker.codes]) {
+			this.removeCodeFromMarker(markerId, code);
+		}
+		this.suppressUndo = false;
+	}
+
+	// ── Undo ──
+
+	undo(): boolean {
+		const entry = this.undoStack.pop();
+		if (!entry) return false;
+
+		switch (entry.type) {
+			case 'addCode': {
+				const marker = this.findMarkerById(entry.markerId);
+				if (marker) {
+					marker.codes = entry.data.codes;
+					marker.updatedAt = Date.now();
+				}
+				break;
+			}
+			case 'removeCode':
+			case 'removeAllCodes': {
+				let marker = this.findMarkerById(entry.markerId);
+				if (!marker) {
+					// Marker was deleted — restore it
+					this.markers.push({ ...entry.data });
+				} else {
+					marker.codes = entry.data.codes;
+					marker.updatedAt = Date.now();
+				}
+				break;
+			}
+		}
+
+		this.notify();
+		return true;
+	}
+
+	private pushUndo(entry: UndoEntry): void {
+		if (this.suppressUndo) return;
+		this.undoStack.push(entry);
+		if (this.undoStack.length > MAX_UNDO) {
+			this.undoStack.shift();
+		}
 	}
 
 	// ── Lookup helpers ──

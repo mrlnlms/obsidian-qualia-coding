@@ -185,3 +185,33 @@ function mergeRectangles(...rects: Rect[]): Rect {
 		Math.max(...rects.map(r => r[3])),
 	];
 }
+
+/**
+ * Compute the vertical bounds (as CSS % of page height) for a set of merged rects.
+ * Converts from PDF coordinate space (bottom-left origin) to CSS % (top-left origin).
+ */
+export function getMarkerVerticalBounds(
+	mergedRects: MergedRect[],
+	pageView: { pdfPage: { view: [number, number, number, number] } },
+): { topPct: number; bottomPct: number } | null {
+	if (mergedRects.length === 0) return null;
+
+	const viewBox = pageView.pdfPage.view;
+	const pageY = viewBox[1];
+	const pageHeight = viewBox[3] - viewBox[1];
+
+	// In PDF coords: y increases upward. rect = [left, bottom, right, top].
+	// Find min bottom (lowest point on page) and max top (highest point on page).
+	let minBottom = Infinity;
+	let maxTop = -Infinity;
+	for (const { rect } of mergedRects) {
+		minBottom = Math.min(minBottom, rect[1], rect[3]);
+		maxTop = Math.max(maxTop, rect[1], rect[3]);
+	}
+
+	// Convert to CSS %: mirror Y axis
+	const cssTop = 100 * (viewBox[3] - maxTop + pageY - pageY) / pageHeight;
+	const cssBottom = 100 * (viewBox[3] - minBottom + pageY - pageY) / pageHeight;
+
+	return { topPct: Math.max(0, cssTop), bottomPct: Math.min(100, cssBottom) };
+}

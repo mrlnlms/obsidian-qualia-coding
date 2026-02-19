@@ -178,12 +178,7 @@ export function openPdfCodingPopover(
 	container.appendChild(
 		createActionItem('Remove All Codes', 'trash', () => {
 			if (!existingMarker) return;
-			const marker = model.findMarkerById(existingMarker.id);
-			if (marker) {
-				for (const code of [...marker.codes]) {
-					model.removeCodeFromMarker(marker.id, code);
-				}
-			}
+			model.removeAllCodesFromMarker(existingMarker.id);
 			onHighlightRefresh();
 			rebuild();
 		}),

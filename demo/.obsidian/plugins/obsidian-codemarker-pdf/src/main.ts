@@ -15,7 +15,7 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 	private observers = new Map<PDFViewerChild, PdfPageObserver>();
 
 	async onload() {
-		console.log('[obsidian-codemarker-pdf] v35.2 loaded — Bidirectional hover + rename tracking');
+		console.log('[codemarker-pdf] v35.3 loaded — PDF margin panel MAXQDA + undo/redo');
 		this.model = new PdfCodingModel(this);
 		await this.model.load();
 
@@ -34,6 +34,16 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 			id: 'open-pdf-code-detail',
 			name: 'Open PDF Code Detail',
 			callback: () => this.revealPdfCodeExplorer(),
+		});
+
+		this.addCommand({
+			id: 'undo-pdf-coding',
+			name: 'Undo last coding action',
+			callback: () => {
+				if (!this.model.undo()) {
+					new Notice('Nothing to undo.');
+				}
+			},
 		});
 
 		// Ribbon icon

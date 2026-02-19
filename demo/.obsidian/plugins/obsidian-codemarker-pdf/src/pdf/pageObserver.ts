@@ -7,6 +7,7 @@ import type { PDFViewerChild, PDFPageView } from '../pdfTypings';
 import type { PdfCodingModel } from '../coding/pdfCodingModel';
 import type { PdfMarker } from '../coding/pdfCodingTypes';
 import { renderHighlightsForPage, clearHighlightsForPage, applyHoverToHighlights, type HighlightCallbacks } from './highlightRenderer';
+import { renderMarginPanelForPage, clearMarginPanelForPage, applyHoverToMarginPanel } from './marginPanelRenderer';
 
 export interface PageObserverCallbacks {
 	onMarkerClick: (markerId: string, codeName: string) => void;
@@ -56,9 +57,10 @@ export class PdfPageObserver {
 		};
 		this.child.pdfViewer.eventBus.on('pagerendered', this.pageRenderedHandler);
 
-		// Listen for hover state changes → apply/remove hover class on highlights
+		// Listen for hover state changes → apply/remove hover class on highlights + margin panel
 		this.hoverListener = (markerId) => {
 			applyHoverToHighlights(this.child.containerEl, markerId);
+			applyHoverToMarginPanel(this.child.containerEl, markerId);
 		};
 		this.model.onHoverChange(this.hoverListener);
 
@@ -141,6 +143,16 @@ export class PdfPageObserver {
 			this.model.registry,
 			highlightCallbacks,
 		);
+
+		renderMarginPanelForPage(
+			pageView,
+			markers,
+			this.model.registry,
+			{
+				onLabelClick: this.callbacks.onMarkerClick,
+				onHover: (markerId, codeName) => this.model.setHoverState(markerId, codeName),
+			},
+		);
 	}
 
 	private clearAll(): void {
@@ -149,6 +161,7 @@ export class PdfPageObserver {
 			const pageView = this.getPageView(i);
 			if (pageView) {
 				clearHighlightsForPage(pageView.div);
+				clearMarginPanelForPage(pageView.div);
 			}
 		}
 	}
