@@ -3,16 +3,16 @@
 > Atualizado automaticamente pelo orquestrador a cada commit.
 
 ## Progresso
-- Ultima versao commitada: v36.6
-- Posicao no commit_sequence: 76/90
+- Ultima versao commitada: v37
+- Posicao no commit_sequence: 77/90
 - Phase: 2
 - Era atual: 3 -- Qualia Coding scaffold + CM6 port + menu system (v23-v27, local-plugin)
-- Total de commits: 75
+- Total de commits: 76
 - Plugin ID atual: obsidian-codemarker-v2
 
 ## Proximo
-- Versao: v37
-- Tipo: Add engine Video
+- Versao: v30
+- Tipo: Add docs — Analytics ViewModes
 - Source type: local-plugin
 - Timestamp: TBD
 
@@ -21,4 +21,4 @@
 
 ## Ambiente
 - npm run dev: precisa iniciar
-- Engines no demo: [CSV Viewer, CodeMarker CSV, CodeMarker Image, CodeMarker Analytics, CodeMarker PDF, CodeMarker Audio]
+- Engines no demo: [CSV Viewer, CodeMarker CSV, CodeMarker Image, CodeMarker Analytics, CodeMarker PDF, CodeMarker Audio, CodeMarker Video]
