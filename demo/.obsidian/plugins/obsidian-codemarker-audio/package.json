@@ -1,0 +1,18 @@
+{
+  "name": "obsidian-codemarker-audio",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs --watch",
+    "build": "tsc -noEmit && node esbuild.config.mjs production"
+  },
+  "dependencies": {
+    "wavesurfer.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.21.0",
+    "obsidian": "latest",
+    "typescript": "^5.4.0"
+  }
+}

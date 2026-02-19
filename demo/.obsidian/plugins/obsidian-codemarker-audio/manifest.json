@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-codemarker-audio",
+  "name": "CodeMarker Audio",
+  "version": "0.1.0",
+  "minAppVersion": "0.15.0",
+  "description": "Qualitative coding on audio files with waveform visualization",
+  "author": "m4rlon",
+  "isDesktopOnly": false
+}
