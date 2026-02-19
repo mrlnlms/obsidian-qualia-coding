@@ -17,7 +17,7 @@ export default class CodeMarkerImagePlugin extends Plugin {
   model!: ImageCodingModel;
 
   async onload(): Promise<void> {
-    console.log('[CodeMarker Image] v34.1 loaded — Scaffold + toolbar + tools + model');
+    console.log('[CodeMarker Image] v34.2 loaded — Coding menu + region labels + hover glow');
     this.model = new ImageCodingModel(this);
     await this.model.load();
 

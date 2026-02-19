@@ -9,6 +9,9 @@ import { RegionDrawingState, setupRegionDrawing } from "./canvas/regionDrawing";
 import { setupZoomPanControls, ZoomPanCleanup } from "./controls/zoomPanControls";
 import { createToolbar, ToolbarState } from "./toolbar/toolbar";
 import { RegionManager } from "./coding/regionManager";
+import { CodingMenu } from "./menu/codingMenu";
+import { RegionLabels } from "./labels/regionLabels";
+import { RegionHighlightState, setupRegionHighlight } from "./highlight/regionHighlight";
 
 export const IMAGE_CODING_VIEW_TYPE = "image-coding-view";
 
@@ -19,6 +22,9 @@ export class ImageCodingView extends ItemView {
   private toolbarState: ToolbarState | null = null;
   private drawingState: RegionDrawingState | null = null;
   private regionManager: RegionManager | null = null;
+  private codingMenu: CodingMenu | null = null;
+  private regionLabels: RegionLabels | null = null;
+  private regionHighlight: RegionHighlightState | null = null;
   private currentFile: TFile | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: CodeMarkerImagePlugin) {
@@ -73,40 +79,85 @@ export class ImageCodingView extends ItemView {
 
     try {
       this.fabricState = await setupFabricCanvas(container, imageUrl);
+      const canvas = this.fabricState.canvas;
 
-      // Region manager — bridge canvas shapes ↔ model
+      // Region manager
       this.regionManager = new RegionManager(this.fabricState, this.plugin.model);
-
-      // Restore persisted markers
       this.regionManager.restoreMarkers(file.path);
 
-      // Region drawing — pass regionManager so new shapes get registered
+      // Labels
+      this.regionLabels = new RegionLabels(canvas, this.plugin.model, this.regionManager);
+      this.regionLabels.rebuildAll(file.path);
+
+      // Hover highlight
+      this.regionHighlight = setupRegionHighlight(this.fabricState, this.regionManager);
+
+      // Coding menu
+      this.codingMenu = new CodingMenu(container, this.plugin.model, {
+        onCodesChanged: (markerId) => {
+          this.regionManager?.refreshStyle(markerId);
+          this.regionLabels?.updateLabel(markerId);
+        },
+        onRegionDeleted: (markerId) => {
+          const shape = this.regionManager?.getShapeForMarker(markerId);
+          if (shape) {
+            this.regionLabels?.removeLabel(markerId);
+            this.regionManager?.deleteShape(shape);
+            canvas.discardActiveObject();
+          }
+        },
+      });
+
+      // Region drawing
       this.drawingState = setupRegionDrawing(this.fabricState, {
         onShapeCreated: (shape) => {
-          this.regionManager?.registerShape(shape, file.path);
+          const marker = this.regionManager?.registerShape(shape, file.path);
+          if (marker) {
+            // Auto-open coding menu near the shape
+            this.openMenuForMarker(marker.id);
+          }
         },
         onShapeDeleted: (shape) => {
+          const markerId = this.regionManager?.getMarkerIdForShape(shape);
+          if (markerId) this.regionLabels?.removeLabel(markerId);
           this.regionManager?.deleteShape(shape);
         },
         onShapeModified: (shape) => {
           this.regionManager?.syncShapeToModel(shape);
+          const markerId = this.regionManager?.getMarkerIdForShape(shape);
+          if (markerId) this.regionLabels?.refreshForMarker(markerId);
         },
+      });
+
+      // Selection → open coding menu
+      canvas.on("selection:created", (opt: any) => {
+        this.onSelectionChange(opt);
+      });
+      canvas.on("selection:updated", (opt: any) => {
+        this.onSelectionChange(opt);
+      });
+      canvas.on("selection:cleared", () => {
+        this.codingMenu?.close();
       });
 
       // Toolbar
       this.toolbarState = createToolbar(contentEl, this.fabricState, {
         onDelete: () => {
-          const active = this.fabricState?.canvas.getActiveObjects();
-          if (active && active.length > 0) {
-            active.forEach((obj) => this.regionManager?.deleteShape(obj));
-            this.fabricState?.canvas.discardActiveObject();
+          const active = canvas.getActiveObjects();
+          if (active.length > 0) {
+            active.forEach((obj) => {
+              const mid = this.regionManager?.getMarkerIdForShape(obj);
+              if (mid) this.regionLabels?.removeLabel(mid);
+              this.regionManager?.deleteShape(obj);
+            });
+            canvas.discardActiveObject();
           }
         },
       });
       contentEl.insertBefore(this.toolbarState.el, container);
 
-      // Wire toolbar mode → drawing state
       this.toolbarState.onModeChange = (mode) => {
+        this.codingMenu?.close();
         this.drawingState?.setMode(mode);
       };
 
@@ -120,7 +171,40 @@ export class ImageCodingView extends ItemView {
     }
   }
 
+  private onSelectionChange(opt: any): void {
+    const selected = opt.selected;
+    if (!selected || selected.length !== 1) {
+      this.codingMenu?.close();
+      return;
+    }
+    const shape = selected[0];
+    const markerId = this.regionManager?.getMarkerIdForShape(shape);
+    if (markerId) {
+      this.openMenuForMarker(markerId);
+    }
+  }
+
+  private openMenuForMarker(markerId: string): void {
+    if (!this.regionManager || !this.fabricState) return;
+
+    const shape = this.regionManager.getShapeForMarker(markerId);
+    if (!shape) return;
+
+    // Get shape center in screen coords (relative to container)
+    const bound = shape.getBoundingRect();
+    const x = bound.left + bound.width / 2;
+    const y = bound.top + bound.height + 8;
+
+    this.codingMenu?.open(markerId, x, y);
+  }
+
   private cleanup(): void {
+    this.codingMenu?.destroy();
+    this.codingMenu = null;
+    this.regionHighlight?.destroy();
+    this.regionHighlight = null;
+    this.regionLabels?.destroy();
+    this.regionLabels = null;
     this.drawingState?.destroy();
     this.drawingState = null;
     this.regionManager?.clear();
