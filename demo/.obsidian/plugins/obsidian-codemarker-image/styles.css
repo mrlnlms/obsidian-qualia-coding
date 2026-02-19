@@ -240,6 +240,322 @@
   height: 14px;
 }
 
+/* ── Explorer Tree ── */
+.codemarker-image-explorer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.codemarker-explorer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.codemarker-explorer-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.codemarker-explorer-empty {
+  padding: 16px;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 13px;
+}
+
+.codemarker-tree-item {
+  user-select: none;
+}
+
+.codemarker-tree-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.codemarker-tree-header:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-tree-chevron {
+  flex-shrink: 0;
+  display: flex;
+  color: var(--text-muted);
+}
+
+.codemarker-tree-chevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.codemarker-tree-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.codemarker-tree-file-icon {
+  display: flex;
+  color: var(--text-muted);
+}
+
+.codemarker-tree-file-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.codemarker-tree-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-normal);
+}
+
+.codemarker-tree-count {
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.codemarker-tree-children {
+  padding-left: 16px;
+}
+
+.codemarker-tree-marker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.codemarker-tree-marker:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-tree-shape {
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.codemarker-tree-codes-preview {
+  color: var(--text-faint);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Detail View ── */
+.codemarker-detail-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.codemarker-detail-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px 8px;
+  cursor: pointer;
+  color: var(--text-accent);
+  font-size: 13px;
+}
+
+.codemarker-detail-back:hover {
+  text-decoration: underline;
+}
+
+.codemarker-detail-back svg {
+  width: 14px;
+  height: 14px;
+}
+
+.codemarker-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 8px;
+}
+
+.codemarker-detail-header h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.codemarker-detail-empty {
+  padding: 16px;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 13px;
+}
+
+.codemarker-detail-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.codemarker-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.codemarker-detail-row:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-detail-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.codemarker-detail-swatch-lg {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.codemarker-detail-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.codemarker-detail-name {
+  font-size: 13px;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codemarker-detail-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codemarker-detail-count {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.codemarker-detail-file-label {
+  padding: 6px 12px 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.codemarker-detail-marker-row {
+  padding-left: 20px;
+}
+
+.codemarker-detail-shape {
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.codemarker-detail-codes-preview {
+  font-size: 12px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codemarker-detail-file-ref {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.codemarker-detail-section {
+  padding: 8px 12px 4px;
+}
+
+.codemarker-detail-section h5 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.codemarker-detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.codemarker-detail-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background-color: var(--background-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.codemarker-detail-chip:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-detail-chip-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.codemarker-detail-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  cursor: pointer;
+  font-size: 13px;
+  justify-content: center;
+}
+
+.codemarker-detail-nav-btn:hover {
+  opacity: 0.9;
+}
+
+.codemarker-detail-nav-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* ── Error state ── */
 .codemarker-image-error {
   padding: 20px;

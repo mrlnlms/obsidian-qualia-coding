@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",
-    "build": "node esbuild.config.mjs production"
+    "build": "tsc -noEmit && node esbuild.config.mjs production"
   },
   "dependencies": {
     "fabric": "^6.6.1"

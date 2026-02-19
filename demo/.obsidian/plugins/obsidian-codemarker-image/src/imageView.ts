@@ -198,6 +198,13 @@ export class ImageCodingView extends ItemView {
     this.codingMenu?.open(markerId, x, y);
   }
 
+  /** Public: highlight a region from external navigation (sidebar click) */
+  highlightRegion(markerId: string): void {
+    this.regionHighlight?.highlightMarker(markerId);
+    // Also open the coding menu
+    this.openMenuForMarker(markerId);
+  }
+
   private cleanup(): void {
     this.codingMenu?.destroy();
     this.codingMenu = null;
