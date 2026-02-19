@@ -15,7 +15,7 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 	private observers = new Map<PDFViewerChild, PdfPageObserver>();
 
 	async onload() {
-		console.log('[codemarker-pdf] v35.4 loaded — Drag handles + text selection');
+		console.log('[codemarker-pdf] v35.5 loaded — Popover replaces sidebar + hover trigger');
 		this.model = new PdfCodingModel(this);
 		await this.model.load();
 
@@ -114,8 +114,8 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 				onMarkerClick: (markerId, codeName) => {
 					this.revealPdfCodeDetailPanel(markerId, codeName);
 				},
-				onMarkerDblClick: (marker: PdfMarker, evt: MouseEvent) => {
-					this.openPopoverForMarker(marker, evt, refreshObserver);
+				onMarkerHoverPopover: (marker: PdfMarker, anchorEl: HTMLElement) => {
+					this.openPopoverForMarkerAtElement(marker, anchorEl, refreshObserver);
 				},
 			});
 			observer.start();
@@ -168,8 +168,8 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 		});
 	}
 
-	/** Open coding popover for an existing marker (double-click on highlight). */
-	private openPopoverForMarker(marker: PdfMarker, evt: MouseEvent, onRefresh: () => void) {
+	/** Open coding popover for an existing marker (hover on highlight). */
+	private openPopoverForMarkerAtElement(marker: PdfMarker, anchorEl: HTMLElement, onRefresh: () => void) {
 		const selectionResult: PdfSelectionResult = {
 			file: marker.file,
 			page: marker.page,
@@ -179,7 +179,10 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 			endOffset: marker.endOffset,
 			text: marker.text,
 		};
-		openPdfCodingPopover(evt, this.model, selectionResult, onRefresh, undefined, this.app);
+		// Position popover relative to the anchor element (highlight rect)
+		const rect = anchorEl.getBoundingClientRect();
+		const pos = { x: rect.left, y: rect.bottom };
+		openPdfCodingPopover(null, this.model, selectionResult, onRefresh, pos, this.app);
 	}
 
 	private cleanupOrphanedObservers() {

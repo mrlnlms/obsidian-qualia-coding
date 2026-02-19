@@ -15,10 +15,9 @@ import { getTextLayerInfo } from './pdfViewerAccess';
 const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
 const HIGHLIGHT_CLASS = 'codemarker-pdf-highlight';
 
-// Click detection thresholds
-const CLICK_DISTANCE_THRESHOLD = 5; // px
-const CLICK_TIME_THRESHOLD = 300;   // ms
-const DBLCLICK_INTERVAL = 400;      // ms between two clicks
+// Hover popover timing
+const HOVER_OPEN_DELAY = 400;  // ms before opening popover on hover
+const HOVER_CLOSE_DELAY = 300; // ms grace period before closing
 
 /**
  * Get or create the highlight overlay layer for a page div.
@@ -73,7 +72,7 @@ export function placeRectInPage(
  */
 export interface HighlightCallbacks {
 	onClick: (markerId: string, codeName: string) => void;
-	onDblClick: (marker: PdfMarker, evt: MouseEvent) => void;
+	onMarkerHoverPopover: (marker: PdfMarker, rect: HTMLElement) => void;
 	onHover?: (markerId: string | null, codeName: string | null) => void;
 	onRangeUpdate?: (markerId: string, changes: {
 		beginIndex?: number; beginOffset?: number;
@@ -91,8 +90,30 @@ export interface MarkerRenderInfo {
 	color: string;
 }
 
-// Track last click time per layer for double-click detection
-const lastClickMap = new WeakMap<HTMLElement, { time: number; markerId: string }>();
+// Global hover state for popover open/close coordination
+let hoverOpenTimer: ReturnType<typeof setTimeout> | null = null;
+let hoverCloseTimer: ReturnType<typeof setTimeout> | null = null;
+let currentHoverMarkerId: string | null = null;
+
+/** Cancel any pending hover popover open. */
+export function cancelHoverPopover(): void {
+	if (hoverOpenTimer) { clearTimeout(hoverOpenTimer); hoverOpenTimer = null; }
+}
+
+/** Start the hover close grace period. If not cancelled, closes the popover. */
+export function startHoverCloseTimer(closePopover: () => void): void {
+	if (hoverCloseTimer) clearTimeout(hoverCloseTimer);
+	hoverCloseTimer = setTimeout(() => {
+		closePopover();
+		currentHoverMarkerId = null;
+		hoverCloseTimer = null;
+	}, HOVER_CLOSE_DELAY);
+}
+
+/** Cancel the hover close grace period (mouse re-entered popover or highlight). */
+export function cancelHoverCloseTimer(): void {
+	if (hoverCloseTimer) { clearTimeout(hoverCloseTimer); hoverCloseTimer = null; }
+}
 
 export function renderHighlightsForPage(
 	pageView: PDFPageView,
@@ -147,8 +168,11 @@ export function renderHighlightsForPage(
 			const codeNames = marker.codes.join(', ');
 			setTooltip(rectEl, codeNames);
 
-			// Mousedown-based interaction: differentiates click vs drag-to-select
-			attachMouseInteraction(rectEl, layer, marker, callbacks);
+			// Mousedown passthrough for text selection
+			attachMousePassthrough(rectEl, layer);
+
+			// Hover → open coding popover after delay
+			attachHoverPopover(rectEl, marker, callbacks);
 
 			// Hover → bidirectional highlight ↔ sidebar
 			if (callbacks.onHover) {
@@ -176,30 +200,17 @@ export function renderHighlightsForPage(
 }
 
 /**
- * Attach mousedown-based interaction to a highlight rect.
- * Allows text selection to pass through while detecting clicks/double-clicks.
+ * Attach mousedown passthrough so text selection works through highlights.
  */
-function attachMouseInteraction(
-	rectEl: HTMLElement,
-	layer: HTMLElement,
-	marker: PdfMarker,
-	callbacks: HighlightCallbacks,
-): void {
+function attachMousePassthrough(rectEl: HTMLElement, layer: HTMLElement): void {
 	rectEl.addEventListener('mousedown', (e) => {
-		if (e.button !== 0) return; // left button only
-
-		// Don't interfere with handle drags
+		if (e.button !== 0) return;
 		if (document.body.classList.contains('codemarker-pdf-dragging')) return;
 
-		const startX = e.clientX;
-		const startY = e.clientY;
-		const startTime = Date.now();
-
-		// Temporarily disable pointer-events on the layer so the text layer
-		// underneath receives mouse events for text selection
+		// Disable pointer-events on the layer so text layer receives mouse events
 		layer.style.pointerEvents = 'none';
 
-		// Re-dispatch mousedown to the element underneath (text layer)
+		// Re-dispatch to the element underneath
 		const underlying = document.elementFromPoint(e.clientX, e.clientY);
 		if (underlying && underlying !== rectEl) {
 			underlying.dispatchEvent(new MouseEvent('mousedown', {
@@ -211,43 +222,58 @@ function attachMouseInteraction(
 			}));
 		}
 
-		const onUp = (upEvt: MouseEvent) => {
+		const onUp = () => {
 			document.removeEventListener('mouseup', onUp);
 			layer.style.pointerEvents = '';
-
-			const dx = upEvt.clientX - startX;
-			const dy = upEvt.clientY - startY;
-			const dist = Math.sqrt(dx * dx + dy * dy);
-			const elapsed = Date.now() - startTime;
-
-			// Only treat as click if minimal movement and short duration
-			if (dist < CLICK_DISTANCE_THRESHOLD && elapsed < CLICK_TIME_THRESHOLD) {
-				// Check for double-click
-				const lastClick = lastClickMap.get(layer);
-				const now = Date.now();
-
-				if (lastClick && lastClick.markerId === marker.id && (now - lastClick.time) < DBLCLICK_INTERVAL) {
-					// Double-click → open coding popover
-					lastClickMap.delete(layer);
-					callbacks.onDblClick(marker, upEvt);
-				} else {
-					// Single click → open detail sidebar
-					lastClickMap.set(layer, { time: now, markerId: marker.id });
-					// Delay to allow double-click detection
-					setTimeout(() => {
-						const current = lastClickMap.get(layer);
-						if (current && current.markerId === marker.id && current.time === now) {
-							lastClickMap.delete(layer);
-							callbacks.onClick(marker.id, marker.codes[0]);
-						}
-					}, DBLCLICK_INTERVAL);
-				}
-			}
-			// If distance >= threshold: it was a text selection drag — do nothing,
-			// the main.ts mouseup handler will capture the selection
 		};
-
 		document.addEventListener('mouseup', onUp);
+	});
+}
+
+/**
+ * Attach hover-to-popover behavior on a highlight rect.
+ * Opens coding popover after a delay; cancels on mouseleave.
+ */
+function attachHoverPopover(
+	rectEl: HTMLElement,
+	marker: PdfMarker,
+	callbacks: HighlightCallbacks,
+): void {
+	rectEl.addEventListener('mouseenter', () => {
+		// Don't open popover during drag
+		if (document.body.classList.contains('codemarker-pdf-dragging')) return;
+
+		// If popover is already open for this marker, just cancel close timer
+		if (currentHoverMarkerId === marker.id) {
+			cancelHoverCloseTimer();
+			return;
+		}
+
+		// Cancel any pending open for a different marker
+		cancelHoverPopover();
+
+		hoverOpenTimer = setTimeout(() => {
+			hoverOpenTimer = null;
+			currentHoverMarkerId = marker.id;
+			callbacks.onMarkerHoverPopover(marker, rectEl);
+		}, HOVER_OPEN_DELAY);
+	});
+
+	rectEl.addEventListener('mouseleave', () => {
+		// Cancel pending open if mouse left before delay
+		cancelHoverPopover();
+
+		// If popover is open for this marker, start close grace period
+		if (currentHoverMarkerId === marker.id) {
+			const popover = document.querySelector('.codemarker-popover') as HTMLElement | null;
+			if (popover) {
+				startHoverCloseTimer(() => {
+					popover.remove();
+				});
+			} else {
+				currentHoverMarkerId = null;
+			}
+		}
 	});
 }
 

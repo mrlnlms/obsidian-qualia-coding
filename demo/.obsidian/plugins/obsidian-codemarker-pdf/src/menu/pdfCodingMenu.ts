@@ -8,13 +8,14 @@ import type { PdfCodingModel } from '../coding/pdfCodingModel';
 import type { PdfSelectionResult } from '../pdf/selectionCapture';
 import type { PdfMarker } from '../coding/pdfCodingTypes';
 import { CodeFormModal } from './codeFormModal';
+import { cancelHoverCloseTimer, startHoverCloseTimer } from '../pdf/highlightRenderer';
 
 /**
  * Opens a coding popover menu near the mouse event location.
  * Supports single or multiple selection results (cross-page).
  */
 export function openPdfCodingPopover(
-	mouseEvent: MouseEvent,
+	mouseEvent: MouseEvent | null,
 	model: PdfCodingModel,
 	selectionResults: PdfSelectionResult | PdfSelectionResult[],
 	onHighlightRefresh: () => void,
@@ -40,7 +41,15 @@ export function openPdfCodingPopover(
 		document.removeEventListener('keydown', escHandler);
 	};
 
-	const pos = savedPos ?? { x: mouseEvent.clientX, y: mouseEvent.clientY };
+	// Hover-aware: keep popover open while mouse is over it
+	container.addEventListener('mouseenter', () => {
+		cancelHoverCloseTimer();
+	});
+	container.addEventListener('mouseleave', () => {
+		startHoverCloseTimer(close);
+	});
+
+	const pos = savedPos ?? (mouseEvent ? { x: mouseEvent.clientX, y: mouseEvent.clientY } : { x: 0, y: 0 });
 
 	const rebuild = () => {
 		close();
