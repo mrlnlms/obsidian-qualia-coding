@@ -272,12 +272,21 @@ export class AudioCodeDetailView extends ItemView {
 			text: `${formatTime(marker.from)} – ${formatTime(marker.to)}  (${duration.toFixed(1)}s)`,
 		});
 
-		// Memo
-		if (marker.memo) {
-			const memoSection = container.createDiv({ cls: 'codemarker-detail-section' });
-			memoSection.createEl('h6', { text: 'Memo' });
-			memoSection.createEl('p', { text: marker.memo, cls: 'codemarker-detail-description' });
-		}
+		// Memo (editable)
+		const memoSection = container.createDiv({ cls: 'codemarker-detail-section' });
+		memoSection.createEl('h6', { text: 'Memo' });
+		const memoArea = memoSection.createEl('textarea', {
+			cls: 'codemarker-audio-memo',
+			attr: { placeholder: 'Add a memo...', rows: '3' },
+		});
+		memoArea.value = marker.memo ?? '';
+		memoArea.addEventListener('input', () => {
+			marker.memo = memoArea.value || undefined;
+			this.model.notify();
+		});
+		// Prevent re-render from stealing focus while typing
+		memoArea.addEventListener('focus', () => { this.model.offChange(this.changeListener); });
+		memoArea.addEventListener('blur', () => { this.model.onChange(this.changeListener); });
 
 		// Location info
 		if (filePath) {

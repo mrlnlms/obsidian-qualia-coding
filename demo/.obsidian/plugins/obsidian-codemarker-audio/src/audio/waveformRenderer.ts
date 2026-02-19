@@ -3,6 +3,8 @@ import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 // @ts-ignore
 import TimelinePlugin from "wavesurfer.js/dist/plugins/timeline.esm.js";
+// @ts-ignore
+import MinimapPlugin from "wavesurfer.js/dist/plugins/minimap.esm.js";
 
 export class WaveformRenderer {
   private ws: WaveSurfer | null = null;
@@ -22,6 +24,14 @@ export class WaveformRenderer {
       style: { fontSize: '10px', color: 'var(--text-faint)' },
     });
 
+    const minimapPlugin = MinimapPlugin.create({
+      height: 24,
+      waveColor: colors.wave,
+      progressColor: colors.progress,
+      insertPosition: 'beforebegin',
+      overlayColor: 'rgba(100, 100, 100, 0.15)',
+    });
+
     this.ws = WaveSurfer.create({
       container,
       url,
@@ -34,7 +44,9 @@ export class WaveformRenderer {
       barRadius: 2,
       normalize: true,
       interact: true,
-      plugins: [this.regionsPlugin, timelinePlugin],
+      autoScroll: true,
+      autoCenter: true,
+      plugins: [this.regionsPlugin, timelinePlugin, minimapPlugin],
     });
 
     this.ws.on('ready', () => {
@@ -128,6 +140,10 @@ export class WaveformRenderer {
 
   setScroll(pixels: number): void {
     this.ws?.setScroll(pixels);
+  }
+
+  setScrollTime(seconds: number): void {
+    this.ws?.setScrollTime(seconds);
   }
 
   seekTo(seconds: number): void {

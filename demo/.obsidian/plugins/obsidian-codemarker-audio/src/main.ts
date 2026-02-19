@@ -295,6 +295,13 @@ class AudioView extends ItemView {
         this.regionRenderer?.refreshRegion(markerId);
       });
 
+      // Double-click on region: play just that segment
+      regionsPlugin.on('region-double-clicked', (region: any, e: MouseEvent) => {
+        e.stopPropagation();
+        region.play();
+        this.updatePlayIcon();
+      });
+
       // Click on existing region
       regionsPlugin.on('region-clicked', (region: any, e: MouseEvent) => {
         const markerId = this.regionRenderer?.getMarkerIdForRegion(region.id);
@@ -399,7 +406,7 @@ export default class CodeMarkerAudioPlugin extends Plugin {
   model!: AudioCodingModel;
 
   async onload(): Promise<void> {
-    console.log('[codemarker-audio] v36.4 loaded — File interceptor + zoom guards');
+    console.log('[obsidian-codemarker-audio] v36.5 loaded — Play region + minimap + auto-scroll');
     // Initialize coding model
     this.model = new AudioCodingModel(this);
     await this.model.load();
@@ -514,8 +521,9 @@ export default class CodeMarkerAudioPlugin extends Plugin {
       const state = view.getState();
       if (state.file === filePath) {
         this.app.workspace.revealLeaf(leaf);
-        // View already has the file loaded — just seek
+        // View already has the file loaded — seek and scroll
         (view as any).renderer?.seekTo(seekTo);
+        (view as any).renderer?.setScrollTime(seekTo);
         return;
       }
     }
@@ -535,6 +543,7 @@ export default class CodeMarkerAudioPlugin extends Plugin {
     const view = leaf.view as AudioView;
     (view as any).renderer?.on("ready", () => {
       (view as any).renderer?.seekTo(seekTo);
+      (view as any).renderer?.setScrollTime(seekTo);
     });
   }
 
