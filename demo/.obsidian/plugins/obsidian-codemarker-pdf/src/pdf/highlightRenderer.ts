@@ -15,9 +15,9 @@ import { getTextLayerInfo } from './pdfViewerAccess';
 const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
 const HIGHLIGHT_CLASS = 'codemarker-pdf-highlight';
 
-// Hover popover timing
-const HOVER_OPEN_DELAY = 400;  // ms before opening popover on hover
-const HOVER_CLOSE_DELAY = 300; // ms grace period before closing
+// Hover popover timing (exported for shared use by drawLayer)
+export const HOVER_OPEN_DELAY = 400;  // ms before opening popover on hover
+export const HOVER_CLOSE_DELAY = 300; // ms grace period before closing
 
 /**
  * Get or create the highlight overlay layer for a page div.

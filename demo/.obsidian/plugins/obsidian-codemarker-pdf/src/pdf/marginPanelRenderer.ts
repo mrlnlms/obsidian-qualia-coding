@@ -5,11 +5,12 @@
  */
 
 import type { PDFPageView } from '../pdfTypings';
-import type { PdfMarker } from '../coding/pdfCodingTypes';
+import type { PdfMarker, PdfShapeMarker } from '../coding/pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../coding/pdfCodingModel';
 import { computeMergedHighlightRects } from './highlightGeometry';
 import { getMarkerVerticalBounds } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
+import { getShapeVerticalBounds } from './drawLayer';
 
 // ── Constants ──
 const LINE_WIDTH = 2;
@@ -58,49 +59,74 @@ export function renderMarginPanelForPage(
 	markers: PdfMarker[],
 	registry: CodeDefinitionRegistry,
 	callbacks: MarginPanelCallbacks,
+	shapes?: PdfShapeMarker[],
 ): void {
 	const pageDiv = pageView.div;
 	clearMarginPanelForPage(pageDiv);
 
-	if (markers.length === 0) return;
-
-	const textLayerInfo = getTextLayerInfo(pageView);
-	if (!textLayerInfo) return;
+	if (markers.length === 0 && (!shapes || shapes.length === 0)) return;
 
 	// Build bar entries: one per code per marker
 	const bars: BarEntry[] = [];
 
-	for (const marker of markers) {
-		if (marker.codes.length === 0) continue;
+	// Text markers
+	const textLayerInfo = getTextLayerInfo(pageView);
+	if (textLayerInfo) {
+		for (const marker of markers) {
+			if (marker.codes.length === 0) continue;
 
-		let mergedRects;
-		try {
-			mergedRects = computeMergedHighlightRects(
-				textLayerInfo,
-				marker.beginIndex,
-				marker.beginOffset,
-				marker.endIndex,
-				marker.endOffset,
-			);
-		} catch {
-			continue;
+			let mergedRects;
+			try {
+				mergedRects = computeMergedHighlightRects(
+					textLayerInfo,
+					marker.beginIndex,
+					marker.beginOffset,
+					marker.endIndex,
+					marker.endOffset,
+				);
+			} catch {
+				continue;
+			}
+
+			const bounds = getMarkerVerticalBounds(mergedRects, pageView);
+			if (!bounds) continue;
+
+			for (const codeName of marker.codes) {
+				const def = registry.getByName(codeName);
+				const color = def?.color ?? '#FFEB3B';
+				bars.push({
+					markerId: marker.id,
+					codeName,
+					color,
+					topPct: bounds.topPct,
+					bottomPct: bounds.bottomPct,
+					span: bounds.bottomPct - bounds.topPct,
+					column: 0,
+				});
+			}
 		}
+	}
 
-		const bounds = getMarkerVerticalBounds(mergedRects, pageView);
-		if (!bounds) continue;
+	// Shape markers
+	if (shapes) {
+		for (const shape of shapes) {
+			if (shape.codes.length === 0) continue;
 
-		for (const codeName of marker.codes) {
-			const def = registry.getByName(codeName);
-			const color = def?.color ?? '#FFEB3B';
-			bars.push({
-				markerId: marker.id,
-				codeName,
-				color,
-				topPct: bounds.topPct,
-				bottomPct: bounds.bottomPct,
-				span: bounds.bottomPct - bounds.topPct,
-				column: 0,
-			});
+			const bounds = getShapeVerticalBounds(shape.coords);
+
+			for (const codeName of shape.codes) {
+				const def = registry.getByName(codeName);
+				const color = def?.color ?? '#FFEB3B';
+				bars.push({
+					markerId: shape.id,
+					codeName,
+					color,
+					topPct: bounds.topPct,
+					bottomPct: bounds.bottomPct,
+					span: bounds.bottomPct - bounds.topPct,
+					column: 0,
+				});
+			}
 		}
 	}
 

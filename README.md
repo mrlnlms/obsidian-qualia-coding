@@ -118,7 +118,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Auto-open images**: When enabled, clicking any image file opens it directly in CodeMarker Image view
 - **Settings tab**: Dedicated settings panel for CodeMarker Image preferences and toggles
 
-### CodeMarker PDF (v35.8)
+### CodeMarker PDF (v35.9)
 
 - **PDF selection capture**: Select text in any PDF file to create qualitative codes on passages
 - **Cross-page detection**: Detects selections that span multiple PDF pages
@@ -140,6 +140,9 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Handle transitions**: Smooth visual transitions when moving between intersection zones and single-marker zones — handles update position and style without flicker
 - **Null guards**: Defensive checks throughout the PDF pipeline prevent crashes on edge cases (null pages, missing selections, unloaded views)
 - **Thumbnail rendering**: PDF page thumbnails for preview cards and navigation
+- **Drawing annotations**: Rect, ellipse, and polygon shape tools for drawing annotations directly on PDF pages — visual markup beyond text selection
+- **Shape hover popover**: Hovering over a drawn shape shows a popover with annotation details
+- **Drawing interaction fix**: Fixed interaction conflicts between drawing tools and existing PDF highlight/selection features
 - **PDF Code Explorer sidebar**: Tree-style panel showing all coded PDF passages organized by code
 - **PDF Code Detail sidebar**: Panel showing details of a selected PDF code marker
 - **Ribbon icon**: Quick access to PDF Code Explorer via the left ribbon

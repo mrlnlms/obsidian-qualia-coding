@@ -1,5 +1,5 @@
 import type { Plugin } from 'obsidian';
-import type { PdfMarker, PdfCodingData } from './pdfCodingTypes';
+import type { PdfMarker, PdfShapeMarker, NormalizedShapeCoords, PdfCodingData } from './pdfCodingTypes';
 import { loadSharedRegistry, saveSharedRegistry, type RegistryData } from './sharedRegistry';
 
 // ── Color Palette (12 categorical colors, light/dark safe) ──
@@ -145,6 +145,7 @@ export class PdfCodingModel {
 	plugin: Plugin;
 	readonly registry: CodeDefinitionRegistry;
 	private markers: PdfMarker[] = [];
+	private shapes: PdfShapeMarker[] = [];
 	private undoStack: UndoEntry[] = [];
 	private suppressUndo = false;
 	private listeners: ChangeListener[] = [];
@@ -165,6 +166,7 @@ export class PdfCodingModel {
 		if (!raw) return;
 		const data = raw as Partial<PdfCodingData>;
 		if (data.markers) this.markers = data.markers;
+		if (data.shapes) this.shapes = data.shapes;
 		if (data.registry) {
 			const loaded = CodeDefinitionRegistry.fromJSON(data.registry);
 			Object.assign(this.registry, loaded);
@@ -172,12 +174,13 @@ export class PdfCodingModel {
 
 		await this.syncSharedRegistry();
 
-		console.log(`[CodeMarker PDF] Loaded: ${this.markers.length} markers, ${this.registry.getAll().length} codes`);
+		console.log(`[CodeMarker PDF] Loaded: ${this.markers.length} markers, ${this.shapes.length} shapes, ${this.registry.getAll().length} codes`);
 	}
 
 	async save(): Promise<void> {
 		const existing = (await this.plugin.loadData()) ?? {};
 		existing.markers = this.markers;
+		existing.shapes = this.shapes;
 		existing.registry = this.registry.toJSON();
 		await this.plugin.saveData(existing);
 
@@ -261,6 +264,12 @@ export class PdfCodingModel {
 		for (const marker of this.markers) {
 			if (marker.file === oldPath) {
 				marker.file = newPath;
+				changed = true;
+			}
+		}
+		for (const shape of this.shapes) {
+			if (shape.file === oldPath) {
+				shape.file = newPath;
 				changed = true;
 			}
 		}
@@ -437,6 +446,90 @@ export class PdfCodingModel {
 
 	getMarkerLabel(marker: PdfMarker): string {
 		return `Page ${marker.page}`;
+	}
+
+	// ── Shape operations ──
+
+	createShape(file: string, page: number, coords: NormalizedShapeCoords): PdfShapeMarker {
+		const shape: PdfShapeMarker = {
+			id: this.generateId(),
+			file,
+			page,
+			shape: coords.type,
+			coords,
+			codes: [],
+			createdAt: Date.now(),
+			updatedAt: Date.now(),
+		};
+		this.shapes.push(shape);
+		this.notify();
+		return shape;
+	}
+
+	updateShapeCoords(shapeId: string, coords: NormalizedShapeCoords): void {
+		const shape = this.findShapeById(shapeId);
+		if (!shape) return;
+		shape.coords = coords;
+		shape.shape = coords.type;
+		shape.updatedAt = Date.now();
+		this.notify();
+	}
+
+	deleteShape(shapeId: string): void {
+		this.shapes = this.shapes.filter(s => s.id !== shapeId);
+		this.notify();
+	}
+
+	getShapesForPage(file: string, page: number): PdfShapeMarker[] {
+		return this.shapes.filter(s => s.file === file && s.page === page);
+	}
+
+	getShapesForFile(file: string): PdfShapeMarker[] {
+		return this.shapes.filter(s => s.file === file);
+	}
+
+	getAllShapes(): PdfShapeMarker[] {
+		return [...this.shapes];
+	}
+
+	findShapeById(id: string): PdfShapeMarker | undefined {
+		return this.shapes.find(s => s.id === id);
+	}
+
+	addCodeToShape(shapeId: string, codeName: string): void {
+		this.registry.create(codeName);
+		const shape = this.findShapeById(shapeId);
+		if (!shape) return;
+		if (!shape.codes.includes(codeName)) {
+			shape.codes.push(codeName);
+			shape.updatedAt = Date.now();
+			this.notify();
+		}
+	}
+
+	removeCodeFromShape(shapeId: string, codeName: string, keepIfEmpty = false): void {
+		const shape = this.findShapeById(shapeId);
+		if (!shape) return;
+		shape.codes = shape.codes.filter(c => c !== codeName);
+		shape.updatedAt = Date.now();
+		if (shape.codes.length === 0 && !keepIfEmpty) {
+			this.deleteShape(shapeId);
+			return;
+		}
+		this.notify();
+	}
+
+	removeAllCodesFromShape(shapeId: string): void {
+		const shape = this.findShapeById(shapeId);
+		if (!shape || shape.codes.length === 0) return;
+		shape.codes = [];
+		shape.updatedAt = Date.now();
+		this.deleteShape(shapeId);
+	}
+
+	getShapeLabel(shape: PdfShapeMarker): string {
+		const shapeNames: Record<string, string> = { rect: 'Rectangle', ellipse: 'Ellipse', polygon: 'Polygon' };
+		return `${shapeNames[shape.shape] || shape.shape} — Page ${shape.page}`;
 	}
 
 	// ── Private ──

@@ -12,11 +12,15 @@ import type { PdfCodingModel } from '../coding/pdfCodingModel';
 import type { PdfMarker } from '../coding/pdfCodingTypes';
 import { renderHighlightsForPage, clearHighlightsForPage, applyHoverToHighlights, type HighlightCallbacks } from './highlightRenderer';
 import { renderMarginPanelForPage, clearMarginPanelForPage, applyHoverToMarginPanel } from './marginPanelRenderer';
+import { renderDrawLayerForPage, clearDrawLayerForPage, applyHoverToDrawLayer, type DrawLayerCallbacks } from './drawLayer';
 import { attachDragHandles } from './dragHandles';
 
 export interface PageObserverCallbacks {
 	onMarkerClick: (markerId: string, codeName: string) => void;
 	onMarkerHoverPopover: (marker: PdfMarker, anchorEl: HTMLElement) => void;
+	onShapeClick: (shapeId: string, codeName: string) => void;
+	onShapeDoubleClick: (shape: import('../coding/pdfCodingTypes').PdfShapeMarker, anchorEl: SVGElement) => void;
+	onShapeHoverPopover: (shape: import('../coding/pdfCodingTypes').PdfShapeMarker, anchorEl: SVGElement) => void;
 }
 
 export class PdfPageObserver {
@@ -68,10 +72,11 @@ export class PdfPageObserver {
 		};
 		this.child.pdfViewer.eventBus.on('pagerendered', this.pageRenderedHandler);
 
-		// Listen for hover state changes → apply/remove hover class on highlights + margin panel
+		// Listen for hover state changes → apply/remove hover class on highlights + margin panel + draw layer
 		this.hoverListener = (markerId) => {
 			applyHoverToHighlights(this.child.containerEl, markerId);
 			applyHoverToMarginPanel(this.child.containerEl, markerId);
+			applyHoverToDrawLayer(this.child.containerEl, markerId);
 			// Panels live in the overlay after being moved — apply hover there too
 			if (this.labelOverlay) {
 				applyHoverToMarginPanel(this.labelOverlay, markerId);
@@ -172,6 +177,16 @@ export class PdfPageObserver {
 			});
 		}
 
+		// Render drawn shapes (SVG overlay)
+		const shapes = this.model.getShapesForPage(filePath, pageNumber);
+		const drawCallbacks: DrawLayerCallbacks = {
+			onClick: this.callbacks.onShapeClick,
+			onDoubleClick: this.callbacks.onShapeDoubleClick,
+			onHover: (shapeId, codeName) => this.model.setHoverState(shapeId, codeName),
+			onShapeHoverPopover: this.callbacks.onShapeHoverPopover,
+		};
+		renderDrawLayerForPage(pageView, shapes, this.model.registry, drawCallbacks);
+
 		// Clear stale overlay panel for this page before re-rendering
 		if (this.labelScroller) {
 			const stale = this.labelScroller.querySelector(`[data-page-number="${pageNumber}"]`);
@@ -186,6 +201,7 @@ export class PdfPageObserver {
 				onLabelClick: this.callbacks.onMarkerClick,
 				onHover: (markerId, codeName) => this.model.setHoverState(markerId, codeName),
 			},
+			shapes,
 		);
 
 		// Tag the panel with page number so we can track it in the overlay
@@ -209,6 +225,7 @@ export class PdfPageObserver {
 			const pageView = this.getPageView(i);
 			if (pageView) {
 				clearHighlightsForPage(pageView.div);
+				clearDrawLayerForPage(pageView.div);
 				clearMarginPanelForPage(pageView.div);
 			}
 		}

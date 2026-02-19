@@ -5,9 +5,20 @@
 
 import { ItemView, WorkspaceLeaf, TFile, setIcon } from 'obsidian';
 import { PdfCodingModel } from '../coding/pdfCodingModel';
-import type { PdfMarker } from '../coding/pdfCodingTypes';
+import type { PdfMarker, PdfShapeMarker } from '../coding/pdfCodingTypes';
 
 export const PDF_CODE_EXPLORER_VIEW_TYPE = 'codemarker-pdf-explorer';
+
+/** Unified entry for display — either a text marker or a drawn shape. */
+interface ExplorerEntry {
+	id: string;
+	file: string;
+	page: number;
+	codes: string[];
+	label: string;    // e.g. "Page 3"
+	preview: string;  // text or shape description
+	isShape: boolean;
+}
 
 interface CollapsibleNode {
 	treeItem: HTMLElement;
@@ -173,7 +184,7 @@ export class PdfCodeExplorerView extends ItemView {
 		for (const [codeName, fileMap] of codeIndex) {
 			const def = this.model.registry.getByName(codeName);
 			const color = def?.color ?? '#888';
-			const totalMarkers = Array.from(fileMap.values()).reduce((s, arr) => s + arr.length, 0);
+			const totalEntries = Array.from(fileMap.values()).reduce((s, arr) => s + arr.length, 0);
 
 			// Code group (level 1)
 			const codeTreeItem = resultsEl.createDiv({ cls: 'tree-item search-result' });
@@ -185,7 +196,7 @@ export class PdfCodeExplorerView extends ItemView {
 			swatch.style.backgroundColor = color;
 
 			codeSelf.createSpan({ cls: 'tree-item-inner', text: codeName });
-			codeSelf.createSpan({ cls: 'tree-item-flair', text: String(totalMarkers) });
+			codeSelf.createSpan({ cls: 'tree-item-flair', text: String(totalEntries) });
 
 			const codeChildren = codeTreeItem.createDiv({ cls: 'tree-item-children' });
 
@@ -197,7 +208,7 @@ export class PdfCodeExplorerView extends ItemView {
 			});
 
 			// File groups (level 2)
-			for (const [fileId, markers] of fileMap) {
+			for (const [fileId, entries] of fileMap) {
 				const fileName = this.shortenPath(fileId);
 
 				const fileTreeItem = codeChildren.createDiv({ cls: 'tree-item search-result' });
@@ -205,23 +216,21 @@ export class PdfCodeExplorerView extends ItemView {
 
 				fileSelf.createDiv({ cls: 'tree-item-icon collapse-icon' }, (el) => setIcon(el, 'right-triangle'));
 				fileSelf.createSpan({ cls: 'tree-item-inner', text: fileName });
-				fileSelf.createSpan({ cls: 'tree-item-flair', text: String(markers.length) });
+				fileSelf.createSpan({ cls: 'tree-item-flair', text: String(entries.length) });
 
 				const fileChildren = fileTreeItem.createDiv({ cls: 'search-result-file-matches' });
 
-				for (const marker of markers) {
-					const text = this.model.getMarkerText(marker);
-					const label = this.model.getMarkerLabel(marker);
-					const preview = text
-						? (text.length > 50 ? text.substring(0, 50) + '...' : text)
-						: label;
+				for (const entry of entries) {
+					const preview = entry.preview.length > 50
+						? entry.preview.substring(0, 50) + '...'
+						: entry.preview;
 
 					const matchEl = fileChildren.createDiv({ cls: 'search-result-file-match' });
-					matchEl.dataset.markerId = marker.id;
-					matchEl.createSpan({ text: label, cls: 'codemarker-detail-marker-file' });
+					matchEl.dataset.markerId = entry.id;
+					matchEl.createSpan({ text: entry.label, cls: 'codemarker-detail-marker-file' });
 					matchEl.createSpan({ text: preview });
-					matchEl.addEventListener('click', () => this.navigateToMarker(marker));
-					matchEl.addEventListener('mouseenter', () => this.model.setHoverState(marker.id, codeName));
+					matchEl.addEventListener('click', () => this.navigateToEntry(entry));
+					matchEl.addEventListener('mouseenter', () => this.model.setHoverState(entry.id, codeName));
 					matchEl.addEventListener('mouseleave', () => this.model.setHoverState(null, null));
 				}
 
@@ -239,24 +248,49 @@ export class PdfCodeExplorerView extends ItemView {
 		footer.textContent = `${codeIndex.size} codes \u00b7 ${totalSegments} segments`;
 	}
 
-	private buildCodeIndex(): Map<string, Map<string, PdfMarker[]>> {
-		const index = new Map<string, Map<string, PdfMarker[]>>();
+	private buildCodeIndex(): Map<string, Map<string, ExplorerEntry[]>> {
+		const index = new Map<string, Map<string, ExplorerEntry[]>>();
 		const allCodes = this.model.registry.getAll();
 
 		for (const code of allCodes) {
 			index.set(code.name, new Map());
 		}
 
+		// Text markers
 		for (const marker of this.model.getAllMarkers()) {
+			const entry: ExplorerEntry = {
+				id: marker.id,
+				file: marker.file,
+				page: marker.page,
+				codes: marker.codes,
+				label: this.model.getMarkerLabel(marker),
+				preview: this.model.getMarkerText(marker) || this.model.getMarkerLabel(marker),
+				isShape: false,
+			};
 			for (const codeName of marker.codes) {
-				if (!index.has(codeName)) {
-					index.set(codeName, new Map());
-				}
+				if (!index.has(codeName)) index.set(codeName, new Map());
 				const fileMap = index.get(codeName)!;
-				if (!fileMap.has(marker.file)) {
-					fileMap.set(marker.file, []);
-				}
-				fileMap.get(marker.file)!.push(marker);
+				if (!fileMap.has(marker.file)) fileMap.set(marker.file, []);
+				fileMap.get(marker.file)!.push(entry);
+			}
+		}
+
+		// Drawn shapes
+		for (const shape of this.model.getAllShapes()) {
+			const entry: ExplorerEntry = {
+				id: shape.id,
+				file: shape.file,
+				page: shape.page,
+				codes: shape.codes,
+				label: this.model.getShapeLabel(shape),
+				preview: this.model.getShapeLabel(shape),
+				isShape: true,
+			};
+			for (const codeName of shape.codes) {
+				if (!index.has(codeName)) index.set(codeName, new Map());
+				const fileMap = index.get(codeName)!;
+				if (!fileMap.has(shape.file)) fileMap.set(shape.file, []);
+				fileMap.get(shape.file)!.push(entry);
 			}
 		}
 
@@ -268,11 +302,11 @@ export class PdfCodeExplorerView extends ItemView {
 		return (parts[parts.length - 1] ?? fileId).replace('.pdf', '');
 	}
 
-	private async navigateToMarker(marker: PdfMarker) {
-		const file = this.app.vault.getAbstractFileByPath(marker.file);
+	private async navigateToEntry(entry: ExplorerEntry) {
+		const file = this.app.vault.getAbstractFileByPath(entry.file);
 		if (file instanceof TFile) {
 			const leaf = this.app.workspace.getLeaf(false);
-			await leaf.openFile(file, { eState: { subpath: `#page=${marker.page}` } });
+			await leaf.openFile(file, { eState: { subpath: `#page=${entry.page}` } });
 		}
 	}
 }

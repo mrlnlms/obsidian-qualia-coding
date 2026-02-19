@@ -6,7 +6,7 @@
 import { App, TextComponent, ToggleComponent, setIcon } from 'obsidian';
 import type { PdfCodingModel } from '../coding/pdfCodingModel';
 import type { PdfSelectionResult } from '../pdf/selectionCapture';
-import type { PdfMarker } from '../coding/pdfCodingTypes';
+import type { PdfMarker, PdfShapeMarker } from '../coding/pdfCodingTypes';
 import { CodeFormModal } from './codeFormModal';
 import { cancelHoverCloseTimer, startHoverCloseTimer } from '../pdf/highlightRenderer';
 
@@ -242,6 +242,185 @@ export function openPdfCodingPopover(
 		}
 	};
 
+	setTimeout(() => {
+		document.addEventListener('mousedown', outsideHandler);
+		document.addEventListener('keydown', escHandler);
+	}, 10);
+}
+
+/**
+ * Opens a coding popover for a drawn shape (rect/ellipse/polygon).
+ * Similar to text selection popover but operates on PdfShapeMarker.
+ */
+export function openShapeCodingPopover(
+	pos: { x: number; y: number },
+	model: PdfCodingModel,
+	shapeId: string,
+	onRefresh: () => void,
+	app?: App,
+): void {
+	const shape = model.findShapeById(shapeId);
+	if (!shape) return;
+
+	// Remove any existing popover
+	document.querySelector('.codemarker-popover')?.remove();
+
+	const container = document.createElement('div');
+	container.className = 'menu codemarker-popover';
+	applyThemeColors(container);
+
+	container.addEventListener('mousedown', (e) => e.stopPropagation());
+
+	const close = () => {
+		container.remove();
+		document.removeEventListener('mousedown', outsideHandler);
+		document.removeEventListener('keydown', escHandler);
+	};
+
+	const rebuild = () => {
+		close();
+		openShapeCodingPopover(pos, model, shapeId, onRefresh, app);
+	};
+
+	// Shape type badge
+	const shapeNames: Record<string, string> = { rect: 'Rectangle', ellipse: 'Ellipse', polygon: 'Polygon' };
+	const badge = document.createElement('div');
+	badge.className = 'menu-item codemarker-popover-badge';
+	badge.textContent = shapeNames[shape.shape] || shape.shape;
+	container.appendChild(badge);
+
+	// ── TextComponent input ──
+	const inputWrapper = document.createElement('div');
+	inputWrapper.className = 'menu-item menu-item-textfield';
+
+	const textComponent = new TextComponent(inputWrapper);
+	textComponent.setPlaceholder('New code name...');
+	applyInputTheme(textComponent.inputEl);
+
+	inputWrapper.addEventListener('click', (evt: MouseEvent) => {
+		evt.stopPropagation();
+		textComponent.inputEl.focus();
+	});
+
+	textComponent.inputEl.addEventListener('keydown', (evt: KeyboardEvent) => {
+		if (evt.key === 'Enter') {
+			evt.stopPropagation();
+			evt.preventDefault();
+			const name = textComponent.inputEl.value.trim();
+			if (name) {
+				model.addCodeToShape(shapeId, name);
+				onRefresh();
+				rebuild();
+			}
+		} else if (evt.key === 'Escape') {
+			close();
+		}
+	});
+
+	container.appendChild(inputWrapper);
+
+	// ── Toggle list ──
+	const allCodes = model.getAllCodes();
+	if (allCodes.length > 0) {
+		container.appendChild(createSeparator());
+	}
+
+	for (const codeDef of allCodes) {
+		const isActive = shape.codes.includes(codeDef.name);
+
+		const itemEl = document.createElement('div');
+		itemEl.className = 'menu-item menu-item-toggle';
+
+		const swatch = document.createElement('span');
+		swatch.className = 'codemarker-popover-swatch';
+		swatch.style.backgroundColor = codeDef.color;
+		itemEl.appendChild(swatch);
+
+		const toggle = new ToggleComponent(itemEl);
+		toggle.setValue(isActive);
+		toggle.toggleEl.addEventListener('click', (evt) => evt.stopPropagation());
+		toggle.onChange((value) => {
+			if (value) {
+				model.addCodeToShape(shapeId, codeDef.name);
+			} else {
+				model.removeCodeFromShape(shapeId, codeDef.name, true);
+			}
+			onRefresh();
+		});
+
+		const titleEl = document.createElement('span');
+		titleEl.className = 'menu-item-title';
+		titleEl.textContent = codeDef.name;
+		itemEl.appendChild(titleEl);
+
+		itemEl.addEventListener('click', (evt: MouseEvent) => {
+			evt.stopPropagation();
+			toggle.setValue(!toggle.getValue());
+		});
+
+		container.appendChild(itemEl);
+	}
+
+	// ── Action buttons ──
+	container.appendChild(createSeparator());
+
+	container.appendChild(
+		createActionItem('Add New Code', 'plus-circle', () => {
+			const name = textComponent.inputEl.value.trim();
+			if (name) {
+				model.addCodeToShape(shapeId, name);
+				onRefresh();
+				rebuild();
+			} else {
+				textComponent.inputEl.focus();
+			}
+		}),
+	);
+
+	if (app) {
+		container.appendChild(
+			createActionItem('New Code...', 'palette', () => {
+				close();
+				new CodeFormModal(app, model.registry, (name, color, description) => {
+					model.registry.create(name, color, description);
+					model.addCodeToShape(shapeId, name);
+					onRefresh();
+				}).open();
+			}),
+		);
+	}
+
+	container.appendChild(
+		createActionItem('Remove All Codes', 'trash', () => {
+			model.removeAllCodesFromShape(shapeId);
+			onRefresh();
+			close();
+		}),
+	);
+
+	// ── Position and show ──
+	document.body.appendChild(container);
+	container.style.top = `${pos.y + 4}px`;
+	container.style.left = `${pos.x}px`;
+
+	requestAnimationFrame(() => {
+		const cr = container.getBoundingClientRect();
+		if (cr.right > window.innerWidth) {
+			container.style.left = `${window.innerWidth - cr.width - 8}px`;
+		}
+		if (cr.bottom > window.innerHeight) {
+			container.style.top = `${pos.y - cr.height - 4}px`;
+		}
+	});
+
+	setTimeout(() => textComponent.inputEl.focus(), 50);
+
+	const outsideHandler = (e: MouseEvent) => {
+		if (!container.contains(e.target as Node)) close();
+	};
+	const escHandler = (e: KeyboardEvent) => {
+		if (e.key === 'Escape') close();
+	};
 	setTimeout(() => {
 		document.addEventListener('mousedown', outsideHandler);
 		document.addEventListener('keydown', escHandler);

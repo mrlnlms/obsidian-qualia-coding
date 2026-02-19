@@ -5,7 +5,7 @@
 
 import { ItemView, WorkspaceLeaf, TFile, setIcon } from 'obsidian';
 import { PdfCodingModel } from '../coding/pdfCodingModel';
-import type { PdfMarker } from '../coding/pdfCodingTypes';
+import type { PdfMarker, PdfShapeMarker } from '../coding/pdfCodingTypes';
 
 export const PDF_CODE_DETAIL_VIEW_TYPE = 'codemarker-pdf-detail';
 
@@ -143,6 +143,11 @@ export class PdfCodeDetailView extends ItemView {
 				counts.set(code, (counts.get(code) ?? 0) + 1);
 			}
 		}
+		for (const shape of this.model.getAllShapes()) {
+			for (const code of shape.codes) {
+				counts.set(code, (counts.get(code) ?? 0) + 1);
+			}
+		}
 		return counts;
 	}
 
@@ -172,16 +177,20 @@ export class PdfCodeDetailView extends ItemView {
 
 		const allMarkers = this.model.getAllMarkers()
 			.filter(m => m.codes.includes(this.codeName!));
+		const allShapes = this.model.getAllShapes()
+			.filter(s => s.codes.includes(this.codeName!));
 
-		if (allMarkers.length === 0) {
+		const totalCount = allMarkers.length + allShapes.length;
+		if (totalCount === 0) {
 			container.createEl('p', { text: 'No segments yet.', cls: 'codemarker-detail-empty' });
 			return;
 		}
 
 		const segSection = container.createDiv({ cls: 'codemarker-detail-section' });
-		segSection.createEl('h6', { text: `Segments (${allMarkers.length})` });
+		segSection.createEl('h6', { text: `Segments (${totalCount})` });
 
 		const listEl = segSection.createEl('ul', { cls: 'codemarker-detail-marker-list' });
+
 		for (const marker of allMarkers) {
 			const text = this.model.getMarkerText(marker);
 			const label = this.model.getMarkerLabel(marker);
@@ -200,6 +209,21 @@ export class PdfCodeDetailView extends ItemView {
 			li.addEventListener('mouseenter', () => this.model.setHoverState(marker.id, this.codeName));
 			li.addEventListener('mouseleave', () => this.model.setHoverState(null, null));
 		}
+
+		for (const shape of allShapes) {
+			const label = this.model.getShapeLabel(shape);
+
+			const li = listEl.createEl('li', { cls: 'codemarker-detail-marker-item' });
+			li.dataset.markerId = shape.id;
+			li.createSpan({ cls: 'codemarker-detail-marker-file', text: this.shortenPath(shape.file) });
+			li.createEl('span', { text: label });
+
+			li.addEventListener('click', () => {
+				this.navigateToShape(shape);
+			});
+			li.addEventListener('mouseenter', () => this.model.setHoverState(shape.id, this.codeName));
+			li.addEventListener('mouseleave', () => this.model.setHoverState(null, null));
+		}
 	}
 
 	// ─── Marker-Focused Detail ──────────────────────────────
@@ -212,8 +236,11 @@ export class PdfCodeDetailView extends ItemView {
 
 		this.renderBackButton(container);
 
+		// Try text marker first, then shape
 		const marker = this.model.findMarkerById(this.markerId);
-		if (!marker) {
+		const shape = !marker ? this.model.findShapeById(this.markerId) : null;
+
+		if (!marker && !shape) {
 			container.createEl('p', { text: 'Marker not found.', cls: 'codemarker-detail-empty' });
 			return;
 		}
@@ -232,47 +259,60 @@ export class PdfCodeDetailView extends ItemView {
 			descSection.createEl('p', { text: def.description, cls: 'codemarker-detail-description' });
 		}
 
-		const text = this.model.getMarkerText(marker);
-		if (text) {
-			const textSection = container.createDiv({ cls: 'codemarker-detail-section' });
-			textSection.createEl('h6', { text: 'Text Segment' });
-			const blockquote = textSection.createEl('blockquote', { cls: 'codemarker-detail-quote' });
-			blockquote.createEl('p', { text });
-		}
+		if (marker) {
+			// Text marker detail
+			const text = this.model.getMarkerText(marker);
+			if (text) {
+				const textSection = container.createDiv({ cls: 'codemarker-detail-section' });
+				textSection.createEl('h6', { text: 'Text Segment' });
+				const blockquote = textSection.createEl('blockquote', { cls: 'codemarker-detail-quote' });
+				blockquote.createEl('p', { text });
+			}
 
-		// Location info
-		const locSection = container.createDiv({ cls: 'codemarker-detail-section' });
-		locSection.createEl('h6', { text: 'Location' });
-		locSection.createEl('p', {
-			text: this.model.getMarkerLabel(marker) + ' \u00b7 ' + this.shortenPath(marker.file),
-			cls: 'codemarker-detail-description',
-		});
+			const locSection = container.createDiv({ cls: 'codemarker-detail-section' });
+			locSection.createEl('h6', { text: 'Location' });
+			locSection.createEl('p', {
+				text: this.model.getMarkerLabel(marker) + ' \u00b7 ' + this.shortenPath(marker.file),
+				cls: 'codemarker-detail-description',
+			});
 
-		// Other codes on this marker
-		const otherCodes = marker.codes.filter(c => c !== this.codeName);
-		if (otherCodes.length > 0) {
-			const codesSection = container.createDiv({ cls: 'codemarker-detail-section' });
-			codesSection.createEl('h6', { text: 'Other Codes' });
-			const chipList = codesSection.createDiv({ cls: 'codemarker-detail-chips' });
-			for (const code of otherCodes) {
-				const codeDef = this.model.registry.getByName(code);
-				const codeColor = codeDef?.color ?? '#888';
-				const chip = chipList.createEl('span', { text: code, cls: 'codemarker-detail-chip' });
-				chip.style.borderColor = codeColor;
-				chip.style.color = codeColor;
-				chip.addEventListener('click', () => {
-					this.setContext(this.markerId!, code);
-				});
+			const otherCodes = marker.codes.filter(c => c !== this.codeName);
+			if (otherCodes.length > 0) {
+				this.renderOtherCodes(container, otherCodes);
+			}
+		} else if (shape) {
+			// Shape detail
+			const shapeSection = container.createDiv({ cls: 'codemarker-detail-section' });
+			shapeSection.createEl('h6', { text: 'Shape' });
+			shapeSection.createEl('p', {
+				text: this.model.getShapeLabel(shape),
+				cls: 'codemarker-detail-description',
+			});
+
+			const locSection = container.createDiv({ cls: 'codemarker-detail-section' });
+			locSection.createEl('h6', { text: 'Location' });
+			locSection.createEl('p', {
+				text: `Page ${shape.page} \u00b7 ${this.shortenPath(shape.file)}`,
+				cls: 'codemarker-detail-description',
+			});
+
+			const otherCodes = shape.codes.filter(c => c !== this.codeName);
+			if (otherCodes.length > 0) {
+				this.renderOtherCodes(container, otherCodes);
 			}
 		}
 
-		// Other markers with same code
+		// Other markers + shapes with same code
 		const otherMarkers = this.model.getAllMarkers()
-			.filter(m => m.id !== marker.id && m.codes.includes(this.codeName!));
-		if (otherMarkers.length > 0) {
+			.filter(m => m.id !== this.markerId && m.codes.includes(this.codeName!));
+		const otherShapes = this.model.getAllShapes()
+			.filter(s => s.id !== this.markerId && s.codes.includes(this.codeName!));
+
+		if (otherMarkers.length + otherShapes.length > 0) {
 			const markersSection = container.createDiv({ cls: 'codemarker-detail-section' });
-			markersSection.createEl('h6', { text: 'Other Markers' });
+			markersSection.createEl('h6', { text: `Other Segments (${otherMarkers.length + otherShapes.length})` });
 			const markerList = markersSection.createEl('ul', { cls: 'codemarker-detail-marker-list' });
+
 			for (const other of otherMarkers) {
 				const preview = this.model.getMarkerText(other);
 				const label = this.model.getMarkerLabel(other);
@@ -285,6 +325,20 @@ export class PdfCodeDetailView extends ItemView {
 				li.addEventListener('click', () => {
 					this.setContext(other.id, this.codeName!);
 					this.navigateToMarker(other);
+				});
+				li.addEventListener('mouseenter', () => this.model.setHoverState(other.id, this.codeName));
+				li.addEventListener('mouseleave', () => this.model.setHoverState(null, null));
+			}
+
+			for (const other of otherShapes) {
+				const label = this.model.getShapeLabel(other);
+				const li = markerList.createEl('li', { cls: 'codemarker-detail-marker-item' });
+				li.dataset.markerId = other.id;
+				li.createSpan({ cls: 'codemarker-detail-marker-file', text: this.shortenPath(other.file) });
+				li.createEl('span', { text: label });
+				li.addEventListener('click', () => {
+					this.setContext(other.id, this.codeName!);
+					this.navigateToShape(other);
 				});
 				li.addEventListener('mouseenter', () => this.model.setHoverState(other.id, this.codeName));
 				li.addEventListener('mouseleave', () => this.model.setHoverState(null, null));
@@ -309,11 +363,35 @@ export class PdfCodeDetailView extends ItemView {
 		return (parts[parts.length - 1] ?? fileId).replace('.pdf', '');
 	}
 
+	private renderOtherCodes(container: HTMLElement, otherCodes: string[]) {
+		const codesSection = container.createDiv({ cls: 'codemarker-detail-section' });
+		codesSection.createEl('h6', { text: 'Other Codes' });
+		const chipList = codesSection.createDiv({ cls: 'codemarker-detail-chips' });
+		for (const code of otherCodes) {
+			const codeDef = this.model.registry.getByName(code);
+			const codeColor = codeDef?.color ?? '#888';
+			const chip = chipList.createEl('span', { text: code, cls: 'codemarker-detail-chip' });
+			chip.style.borderColor = codeColor;
+			chip.style.color = codeColor;
+			chip.addEventListener('click', () => {
+				this.setContext(this.markerId!, code);
+			});
+		}
+	}
+
 	private async navigateToMarker(marker: PdfMarker) {
 		const file = this.app.vault.getAbstractFileByPath(marker.file);
 		if (file instanceof TFile) {
 			const leaf = this.app.workspace.getLeaf(false);
 			await leaf.openFile(file, { eState: { subpath: `#page=${marker.page}` } });
+		}
+	}
+
+	private async navigateToShape(shape: PdfShapeMarker) {
+		const file = this.app.vault.getAbstractFileByPath(shape.file);
+		if (file instanceof TFile) {
+			const leaf = this.app.workspace.getLeaf(false);
+			await leaf.openFile(file, { eState: { subpath: `#page=${shape.page}` } });
 		}
 	}
 }
