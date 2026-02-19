@@ -11,10 +11,12 @@
             "id": "64081ffeb3fe17f9",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
-              "icon": "lucide-file",
-              "title": "New tab"
+              "type": "image",
+              "state": {
+                "file": "Pasted image 20260216114853.png"
+              },
+              "icon": "lucide-image",
+              "title": "Pasted image 20260216114853"
             }
           }
         ]
@@ -99,27 +101,17 @@
             }
           },
           {
-            "id": "5bf1d1709ead8406",
+            "id": "fe08c960f92f7da8",
             "type": "leaf",
             "state": {
               "type": "codemarker-detail",
               "state": {},
               "icon": "tag",
-              "title": "Code Detail"
-            }
-          },
-          {
-            "id": "83f11c5abe998457",
-            "type": "leaf",
-            "state": {
-              "type": "codemarker-explorer",
-              "state": {},
-              "icon": "tags",
-              "title": "Code Explorer"
+              "title": "marlon"
             }
           }
         ],
-        "currentTab": 2
+        "currentTab": 1
       }
     ],
     "direction": "horizontal",
@@ -131,16 +123,22 @@
       "canvas:Create new canvas": false,
       "command-palette:Open command palette": false,
       "bases:Create new base": false,
-      "obsidian-codemarker-v2:Code Selection": false
+      "obsidian-codemarker-v2:Code Selection": false,
+      "obsidian-codemarker-csv:Code Selection": false,
+      "obsidian-codemarker-csv:CSV Code Explorer": false
     }
   },
   "active": "64081ffeb3fe17f9",
   "lastOpenFiles": [
+    "Daily Count Jan 26.csv",
+    "2026-02-19_v34.1-image-scaffold-toolbar-tools-model/test-note.md",
+    "2026-02-19_v34.1-image-scaffold-toolbar-tools-model",
+    "original-88d78341487bd94fac95ae37737a6b42-1024x683.jpg",
+    "Pasted image 20260216114853.png",
     "2026-02-19_v33.3-csv-batch-coding-header-tag/test-note.md",
     "2026-02-19_v33.3-csv-batch-coding-header-tag",
     "2026-02-19_v33.2-csv-cm6-inline-editor/test-note.md",
     "2026-02-19_v33.2-csv-cm6-inline-editor",
-    "Daily Count Jan 26.csv",
     "2026-02-19_v33.1-codemarker-csv-unified-sidebar/test-note.md",
     "2026-02-19_v33.1-codemarker-csv-unified-sidebar",
     "2026-02-18_v28.5-comment-column-clickable-chips/test-note.md",
@@ -154,7 +152,6 @@
     "2026-02-18_v28.2-info-bar-column-toggle-header-tag",
     "2026-02-16_v27.9-code-detail-side-panel/test-note.md",
     "2026-02-18_v28.1-csv-viewer-ag-grid/test-note.md",
-    "2026-02-18_v28.1-csv-viewer-ag-grid",
     "2026-02-16_v27.10-fix-stacked-label-clicks/test-note.md",
     "Sample 1.md",
     "2026-02-16_v27.8-fix-hover-flickering-click-handler/test-note.md",
@@ -170,8 +167,6 @@
     "2026-02-10_v24-port-cm6-engine/test-note.md",
     "2026-02-10_v23-scaffold-from-sample-plugin/test-note.md",
     "2025-05-25_v22-quase-final-falta-intersecoes/test-note.md",
-    "2025-05-25_v21-versao-atual/test-note.md",
-    "2025-05-25_v20-multi-arquivo-css-melhor/test-note.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "_historico/qda-data-model.canvas"
   ]

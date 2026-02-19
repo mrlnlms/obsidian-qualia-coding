@@ -1,0 +1,81 @@
+.codemarker-image-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--background-secondary);
+}
+
+/* ── Canvas container ── */
+.codemarker-canvas-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+}
+
+.codemarker-canvas-container canvas {
+  display: block;
+}
+
+/* ── Toolbar ── */
+.codemarker-image-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background-color: var(--background-primary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.codemarker-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.codemarker-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background-color 0.1s, color 0.1s;
+}
+
+.codemarker-toolbar-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.codemarker-toolbar-btn.is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.codemarker-toolbar-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.codemarker-toolbar-separator {
+  width: 1px;
+  height: 20px;
+  background-color: var(--background-modifier-border);
+  margin: 0 4px;
+}
+
+/* ── Error state ── */
+.codemarker-image-error {
+  padding: 20px;
+  color: var(--text-error);
+  text-align: center;
+}
