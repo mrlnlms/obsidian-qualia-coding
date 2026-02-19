@@ -1,6 +1,6 @@
 import { Plugin } from "obsidian";
 import { ANALYTICS_VIEW_TYPE, AnalyticsView } from "./views/analyticsView";
-import { readMarkdownData, readCsvData, readImageData } from "./data/dataReader";
+import { readMarkdownData, readCsvData, readImageData, readPdfData } from "./data/dataReader";
 import { consolidate } from "./data/dataConsolidator";
 import type { ConsolidatedData } from "./data/dataTypes";
 
@@ -8,7 +8,7 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
   data: ConsolidatedData | null = null;
 
   async onload(): Promise<void> {
-    console.log('[codemarker-analytics] v38.3 loaded — Dashboard KPIs + thumbnails');
+    console.log('[obsidian-codemarker-analytics] v38.4 loaded — Text Retrieval + PDF source');
     this.registerView(
       ANALYTICS_VIEW_TYPE,
       (leaf) => new AnalyticsView(leaf, this)
@@ -39,12 +39,13 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
   }
 
   async loadConsolidatedData(): Promise<ConsolidatedData> {
-    const [md, csv, img] = await Promise.all([
+    const [md, csv, img, pdf] = await Promise.all([
       readMarkdownData(this.app.vault),
       readCsvData(this.app.vault),
       readImageData(this.app.vault),
+      readPdfData(this.app.vault),
     ]);
-    this.data = consolidate(md, csv, img);
+    this.data = consolidate(md, csv, img, pdf);
     return this.data;
   }
 

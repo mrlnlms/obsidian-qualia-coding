@@ -8,7 +8,8 @@ import type {
 export function consolidate(
   markdownData: any | null,
   csvData: any | null,
-  imageData: any | null
+  imageData: any | null,
+  pdfData: any | null = null
 ): ConsolidatedData {
   const markers: UnifiedMarker[] = [];
   const codeMap = new Map<string, { color: string; description?: string; sources: Set<SourceType> }>();
@@ -25,6 +26,8 @@ export function consolidate(
         const meta: any = {};
         if (m.range?.from?.line != null) meta.fromLine = m.range.from.line;
         if (m.range?.to?.line != null) meta.toLine = m.range.to.line;
+        if (m.range?.from?.ch != null) meta.fromCh = m.range.from.ch;
+        if (m.range?.to?.ch != null) meta.toCh = m.range.to.ch;
         markers.push({
           id: m.id ?? "",
           source: "markdown",
@@ -55,7 +58,11 @@ export function consolidate(
           source: "csv-segment",
           file: m.file ?? "",
           codes,
-          meta: { row: m.row, column: m.column, fromLine: m.row, toLine: m.row },
+          meta: {
+            row: m.row, column: m.column, fromLine: m.row, toLine: m.row,
+            ...(m.from != null ? { fromCh: m.from } : {}),
+            ...(m.to != null ? { toCh: m.to } : {}),
+          },
         });
       }
     }
@@ -109,6 +116,33 @@ export function consolidate(
     }
   }
 
+  // ── PDF ──
+  const hasPdf = Array.isArray(pdfData?.markers);
+  if (hasPdf) {
+    for (const m of pdfData.markers) {
+      const codes = extractCodes(m.codes);
+      if (codes.length === 0) continue;
+      markers.push({
+        id: m.id ?? "",
+        source: "pdf",
+        file: m.file ?? "",
+        codes,
+        meta: {
+          page: m.page,
+          fromLine: m.page,
+          toLine: m.page,
+          pdfText: m.text ?? "",
+        },
+      });
+    }
+    const pdfDefs = pdfData.registry?.definitions;
+    if (pdfDefs) {
+      for (const def of Object.values(pdfDefs) as any[]) {
+        mergeDef(codeMap, def.name, def.color, def.description, "pdf");
+      }
+    }
+  }
+
   // Also discover codes that appear in markers but not in definitions
   for (const m of markers) {
     for (const code of m.codes) {
@@ -138,6 +172,7 @@ export function consolidate(
       markdown: hasMd,
       csv: hasCsv,
       image: hasImg,
+      pdf: hasPdf,
     },
     lastUpdated: Date.now(),
   };

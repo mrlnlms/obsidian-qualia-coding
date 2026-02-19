@@ -312,3 +312,261 @@
   height: 180px;
   display: block;
 }
+
+/* ── Text Retrieval ── */
+.codemarker-tr-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.codemarker-tr-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.codemarker-tr-search {
+  flex: 1;
+  min-width: 120px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 5px 10px;
+  color: var(--text-normal);
+  font-size: 13px;
+  outline: none;
+}
+
+.codemarker-tr-search:focus {
+  border-color: var(--interactive-accent);
+}
+
+.codemarker-tr-group-toggle {
+  display: flex;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.codemarker-tr-group-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: var(--background-primary);
+  transition: background-color 0.1s, color 0.1s;
+}
+
+.codemarker-tr-group-btn:not(:last-child) {
+  border-right: 1px solid var(--background-modifier-border);
+}
+
+.codemarker-tr-group-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.codemarker-tr-group-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.codemarker-tr-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.codemarker-tr-loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Sections (groups) */
+.codemarker-tr-section {
+  margin-bottom: 8px;
+}
+
+.codemarker-tr-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.codemarker-tr-section-header:hover {
+  background: var(--background-modifier-hover);
+}
+
+.codemarker-tr-chevron {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+
+.codemarker-tr-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.codemarker-tr-chevron svg {
+  width: 16px;
+  height: 16px;
+}
+
+.codemarker-tr-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.codemarker-tr-file-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+.codemarker-tr-file-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.codemarker-tr-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.codemarker-tr-section-count {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-left: auto;
+}
+
+.codemarker-tr-section-body {
+  padding-left: 22px;
+}
+
+/* Cards */
+.codemarker-tr-card {
+  margin: 4px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+
+.codemarker-tr-card:hover {
+  border-color: var(--interactive-accent);
+}
+
+.codemarker-tr-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.codemarker-tr-source-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.codemarker-tr-source-badge.is-markdown {
+  background: rgba(66, 165, 245, 0.15);
+  color: #42A5F5;
+}
+
+.codemarker-tr-source-badge.is-csv-segment {
+  background: rgba(102, 187, 106, 0.15);
+  color: #66BB6A;
+}
+
+.codemarker-tr-source-badge.is-csv-row {
+  background: rgba(129, 199, 132, 0.15);
+  color: #81C784;
+}
+
+.codemarker-tr-source-badge.is-image {
+  background: rgba(255, 167, 38, 0.15);
+  color: #FFA726;
+}
+
+.codemarker-tr-source-badge.is-pdf {
+  background: rgba(239, 83, 80, 0.15);
+  color: #EF5350;
+}
+
+.codemarker-tr-file-link {
+  font-size: 12px;
+  color: var(--text-accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.codemarker-tr-file-link:hover {
+  text-decoration: underline;
+}
+
+.codemarker-tr-location {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.codemarker-tr-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 4px 0;
+  max-height: 120px;
+  overflow: hidden;
+}
+
+.codemarker-tr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.codemarker-tr-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.codemarker-tr-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

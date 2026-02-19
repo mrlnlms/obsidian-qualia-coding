@@ -21,3 +21,7 @@ export async function readCsvData(vault: Vault): Promise<any | null> {
 export async function readImageData(vault: Vault): Promise<any | null> {
   return readPluginData(vault, "obsidian-codemarker-image");
 }
+
+export async function readPdfData(vault: Vault): Promise<any | null> {
+  return readPluginData(vault, "obsidian-codemarker-pdf");
+}

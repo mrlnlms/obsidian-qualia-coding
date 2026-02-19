@@ -2,10 +2,11 @@ import { ItemView, WorkspaceLeaf, setIcon, Notice } from "obsidian";
 import type CodeMarkerAnalyticsPlugin from "../main";
 import type { ConsolidatedData, FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult } from "../data/dataTypes";
 import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution } from "../data/statsEngine";
+import { TextExtractor, type ExtractedSegment } from "../data/textExtractor";
 
 export const ANALYTICS_VIEW_TYPE = "codemarker-analytics";
 
-export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution";
+export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
 export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
@@ -22,12 +23,18 @@ export class AnalyticsView extends ItemView {
   private displayMode: DisplayMode = "absolute";
   private showEdgeLabels = true;
   private minEdgeWeight = 1;
-  private enabledSources = new Set(["markdown", "csv-segment", "csv-row", "image"]);
+  private enabledSources = new Set(["markdown", "csv-segment", "csv-row", "image", "pdf"]);
   private enabledCodes = new Set<string>();
   private minFrequency = 1;
   private codeSearch = "";
   private matrixSortMode: MatrixSortMode = "alpha";
   private evolutionFile = "";  // "" = all files
+
+  // Text Retrieval state
+  private trSearch = "";
+  private trGroupBy: "code" | "file" = "code";
+  private trSegments: ExtractedSegment[] = [];
+  private trCollapsed = new Set<string>();
 
   // DOM refs
   private chartContainer: HTMLElement | null = null;
@@ -109,7 +116,7 @@ export class AnalyticsView extends ItemView {
   private renderEmptyState(container: HTMLElement): void {
     const empty = container.createDiv({ cls: "codemarker-analytics-empty" });
 
-    if (!this.data || (!this.data.sources.markdown && !this.data.sources.csv && !this.data.sources.image)) {
+    if (!this.data || (!this.data.sources.markdown && !this.data.sources.csv && !this.data.sources.image && !this.data.sources.pdf)) {
       empty.createEl("h3", { text: "No CodeMarker data found" });
       const p = empty.createEl("p");
       p.innerHTML = [
@@ -117,6 +124,7 @@ export class AnalyticsView extends ItemView {
         "&bull; obsidian-codemarker-v2 (Markdown)",
         "&bull; obsidian-codemarker-csv (CSV)",
         "&bull; obsidian-codemarker-image (Image)",
+        "&bull; obsidian-codemarker-pdf (PDF)",
         "",
         "Then return here to visualize your analysis.",
       ].join("<br>");
@@ -171,7 +179,7 @@ export class AnalyticsView extends ItemView {
     if (!this.configPanelEl || !this.data) return;
     this.configPanelEl.empty();
 
-    if (this.viewMode === "dashboard") {
+    if (this.viewMode === "dashboard" || this.viewMode === "text-retrieval") {
       this.configPanelEl.style.display = "none";
       return;
     }
@@ -216,6 +224,7 @@ export class AnalyticsView extends ItemView {
       { label: "Markdown", keys: ["markdown"], active: this.data!.sources.markdown },
       { label: "CSV", keys: ["csv-segment", "csv-row"], active: this.data!.sources.csv },
       { label: "Image", keys: ["image"], active: this.data!.sources.image },
+      { label: "PDF", keys: ["pdf"], active: this.data!.sources.pdf },
     ];
 
     for (const src of sources) {
@@ -260,6 +269,7 @@ export class AnalyticsView extends ItemView {
       ["graph", "Network Graph"],
       ["doc-matrix", "Document-Code Matrix"],
       ["evolution", "Code Evolution"],
+      ["text-retrieval", "Text Retrieval"],
     ] as const) {
       const row = section.createDiv({ cls: "codemarker-config-row" });
       const radio = row.createEl("input", { type: "radio" });
@@ -501,6 +511,8 @@ export class AnalyticsView extends ItemView {
       this.renderDocCodeMatrix(filters);
     } else if (this.viewMode === "evolution") {
       this.renderEvolutionChart(filters);
+    } else if (this.viewMode === "text-retrieval") {
+      this.renderTextRetrieval(filters);
     } else {
       this.renderNetworkGraph(filters);
     }
@@ -527,6 +539,7 @@ export class AnalyticsView extends ItemView {
       this.data.sources.markdown,
       this.data.sources.csv,
       this.data.sources.image,
+      this.data.sources.pdf,
     ].filter(Boolean).length;
     const mostUsedCode = freq.length > 0 ? freq[0].code : "—";
     const avgCodesPerMarker = filtered.length > 0
@@ -872,6 +885,7 @@ export class AnalyticsView extends ItemView {
         "csv-segment": "#66BB6A",
         "csv-row": "#81C784",
         image: "#FFA726",
+        pdf: "#EF5350",
       };
       datasets = [
         {
@@ -893,6 +907,11 @@ export class AnalyticsView extends ItemView {
           label: "Image",
           data: results.map((r) => r.bySource.image),
           backgroundColor: "#FFA726",
+        },
+        {
+          label: "PDF",
+          data: results.map((r) => r.bySource.pdf),
+          backgroundColor: "#EF5350",
         },
       ].filter((ds) => ds.data.some((v: number) => v > 0));
     } else if (this.groupMode === "file") {
@@ -942,6 +961,7 @@ export class AnalyticsView extends ItemView {
                   if (r.bySource["csv-segment"] > 0) parts.push(`CSV-seg: ${r.bySource["csv-segment"]}`);
                   if (r.bySource["csv-row"] > 0) parts.push(`CSV-row: ${r.bySource["csv-row"]}`);
                   if (r.bySource.image > 0) parts.push(`Img: ${r.bySource.image}`);
+                  if (r.bySource.pdf > 0) parts.push(`PDF: ${r.bySource.pdf}`);
                   return parts.join(", ");
                 }
                 return "";
@@ -1730,6 +1750,336 @@ export class AnalyticsView extends ItemView {
     });
   }
 
+  // ─── Text Retrieval ───
+
+  private renderTextRetrieval(filters: FilterConfig): void {
+    if (!this.chartContainer || !this.data) return;
+
+    const container = this.chartContainer.createDiv({ cls: "codemarker-tr-wrapper" });
+
+    // Toolbar
+    const toolbar = container.createDiv({ cls: "codemarker-tr-toolbar" });
+
+    const searchInput = toolbar.createEl("input", {
+      cls: "codemarker-tr-search",
+      attr: { type: "text", placeholder: "Search codes or text..." },
+    });
+    searchInput.value = this.trSearch;
+    searchInput.addEventListener("input", () => {
+      this.trSearch = searchInput.value;
+      this.renderSegments(contentEl, this.trSegments);
+    });
+
+    const groupToggle = toolbar.createDiv({ cls: "codemarker-tr-group-toggle" });
+    for (const [value, label] of [["code", "By Code"], ["file", "By File"]] as const) {
+      const btn = groupToggle.createDiv({
+        cls: "codemarker-tr-group-btn" + (this.trGroupBy === value ? " is-active" : ""),
+        text: label,
+      });
+      btn.addEventListener("click", () => {
+        this.trGroupBy = value;
+        this.trCollapsed.clear();
+        this.renderSegments(contentEl, this.trSegments);
+        // Update active state
+        groupToggle.querySelectorAll(".codemarker-tr-group-btn").forEach((el) => el.removeClass("is-active"));
+        btn.addClass("is-active");
+      });
+    }
+
+    const contentEl = container.createDiv({ cls: "codemarker-tr-content" });
+
+    // Filter markers per current filters
+    const filtered = this.data.markers.filter((m) =>
+      filters.sources.includes(m.source) &&
+      m.codes.some((c) => !filters.excludeCodes.includes(c))
+    );
+
+    if (filtered.length === 0) {
+      contentEl.createDiv({
+        cls: "codemarker-analytics-empty",
+        text: "No markers match current filters.",
+      });
+      return;
+    }
+
+    // Show loading
+    const loadingEl = contentEl.createDiv({ cls: "codemarker-tr-loading", text: "Extracting text..." });
+
+    this.loadAndRenderSegments(filtered, contentEl, loadingEl);
+  }
+
+  private async loadAndRenderSegments(
+    markers: import("../data/dataTypes").UnifiedMarker[],
+    container: HTMLElement,
+    loadingEl: HTMLElement
+  ): Promise<void> {
+    const extractor = new TextExtractor(this.plugin.app.vault);
+    this.trSegments = await extractor.extractBatch(markers);
+    loadingEl.remove();
+    this.renderSegments(container, this.trSegments);
+  }
+
+  private renderSegments(container: HTMLElement, segments: ExtractedSegment[]): void {
+    // Clear previous content but keep toolbar (toolbar is sibling in wrapper)
+    container.empty();
+
+    if (segments.length === 0) {
+      container.createDiv({
+        cls: "codemarker-analytics-empty",
+        text: "No segments to display.",
+      });
+      return;
+    }
+
+    // Apply search filter
+    const query = this.trSearch.toLowerCase();
+    const filtered = query
+      ? segments.filter((s) =>
+          s.codes.some((c) => c.toLowerCase().includes(query)) ||
+          s.text.toLowerCase().includes(query) ||
+          s.file.toLowerCase().includes(query)
+        )
+      : segments;
+
+    if (filtered.length === 0) {
+      container.createDiv({
+        cls: "codemarker-analytics-empty",
+        text: "No results match your search.",
+      });
+      return;
+    }
+
+    // Code color map
+    const codeColorMap = new Map<string, string>();
+    if (this.data) {
+      for (const c of this.data.codes) codeColorMap.set(c.name, c.color);
+    }
+
+    if (this.trGroupBy === "code") {
+      // Group by code
+      const byCode = new Map<string, ExtractedSegment[]>();
+      for (const seg of filtered) {
+        for (const code of seg.codes) {
+          const list = byCode.get(code) || [];
+          list.push(seg);
+          byCode.set(code, list);
+        }
+      }
+      const sortedCodes = Array.from(byCode.keys()).sort();
+      for (const code of sortedCodes) {
+        this.renderCodeGroup(container, code, byCode.get(code)!, codeColorMap);
+      }
+    } else {
+      // Group by file
+      const byFile = new Map<string, ExtractedSegment[]>();
+      for (const seg of filtered) {
+        const list = byFile.get(seg.file) || [];
+        list.push(seg);
+        byFile.set(seg.file, list);
+      }
+      const sortedFiles = Array.from(byFile.keys()).sort();
+      for (const file of sortedFiles) {
+        this.renderFileGroup(container, file, byFile.get(file)!, codeColorMap);
+      }
+    }
+  }
+
+  private renderCodeGroup(
+    container: HTMLElement,
+    code: string,
+    segments: ExtractedSegment[],
+    codeColorMap: Map<string, string>
+  ): void {
+    const section = container.createDiv({ cls: "codemarker-tr-section" });
+    const header = section.createDiv({ cls: "codemarker-tr-section-header" });
+    const isCollapsed = this.trCollapsed.has("code:" + code);
+
+    const chevron = header.createDiv({ cls: "codemarker-tr-chevron" + (isCollapsed ? " is-collapsed" : "") });
+    setIcon(chevron, "chevron-down");
+
+    const swatch = header.createDiv({ cls: "codemarker-tr-swatch" });
+    swatch.style.backgroundColor = codeColorMap.get(code) ?? "#6200EE";
+
+    header.createDiv({ cls: "codemarker-tr-section-title", text: code });
+    header.createDiv({ cls: "codemarker-tr-section-count", text: `(${segments.length})` });
+
+    const body = section.createDiv({ cls: "codemarker-tr-section-body" });
+    if (isCollapsed) body.style.display = "none";
+
+    header.addEventListener("click", () => {
+      const key = "code:" + code;
+      if (this.trCollapsed.has(key)) {
+        this.trCollapsed.delete(key);
+        body.style.display = "";
+        chevron.removeClass("is-collapsed");
+      } else {
+        this.trCollapsed.add(key);
+        body.style.display = "none";
+        chevron.addClass("is-collapsed");
+      }
+    });
+
+    for (const seg of segments) {
+      this.renderSegmentCard(body, seg, codeColorMap);
+    }
+  }
+
+  private renderFileGroup(
+    container: HTMLElement,
+    file: string,
+    segments: ExtractedSegment[],
+    codeColorMap: Map<string, string>
+  ): void {
+    const section = container.createDiv({ cls: "codemarker-tr-section" });
+    const header = section.createDiv({ cls: "codemarker-tr-section-header" });
+    const isCollapsed = this.trCollapsed.has("file:" + file);
+
+    const chevron = header.createDiv({ cls: "codemarker-tr-chevron" + (isCollapsed ? " is-collapsed" : "") });
+    setIcon(chevron, "chevron-down");
+
+    const iconEl = header.createDiv({ cls: "codemarker-tr-file-icon" });
+    setIcon(iconEl, "file-text");
+
+    const basename = file.split("/").pop() ?? file;
+    header.createDiv({ cls: "codemarker-tr-section-title", text: basename });
+    header.createDiv({ cls: "codemarker-tr-section-count", text: `(${segments.length})` });
+
+    const body = section.createDiv({ cls: "codemarker-tr-section-body" });
+    if (isCollapsed) body.style.display = "none";
+
+    header.addEventListener("click", () => {
+      const key = "file:" + file;
+      if (this.trCollapsed.has(key)) {
+        this.trCollapsed.delete(key);
+        body.style.display = "";
+        chevron.removeClass("is-collapsed");
+      } else {
+        this.trCollapsed.add(key);
+        body.style.display = "none";
+        chevron.addClass("is-collapsed");
+      }
+    });
+
+    for (const seg of segments) {
+      this.renderSegmentCard(body, seg, codeColorMap);
+    }
+  }
+
+  private renderSegmentCard(
+    container: HTMLElement,
+    seg: ExtractedSegment,
+    codeColorMap: Map<string, string>
+  ): void {
+    const card = container.createDiv({ cls: "codemarker-tr-card" });
+
+    // Header row: source badge + file link + location
+    const cardHeader = card.createDiv({ cls: "codemarker-tr-card-header" });
+
+    // Source badge
+    const badgeCls = seg.source === "markdown"
+      ? "is-markdown"
+      : seg.source === "csv-segment"
+      ? "is-csv-segment"
+      : seg.source === "csv-row"
+      ? "is-csv-row"
+      : seg.source === "pdf"
+      ? "is-pdf"
+      : "is-image";
+    const badgeText = seg.source === "markdown"
+      ? "MD"
+      : seg.source === "csv-segment"
+      ? "CSV"
+      : seg.source === "csv-row"
+      ? "ROW"
+      : seg.source === "pdf"
+      ? "PDF"
+      : "IMG";
+    cardHeader.createDiv({ cls: `codemarker-tr-source-badge ${badgeCls}`, text: badgeText });
+
+    // File link
+    const basename = seg.file.split("/").pop() ?? seg.file;
+    const fileLink = cardHeader.createDiv({ cls: "codemarker-tr-file-link", text: basename });
+    fileLink.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.navigateToSegment(seg);
+    });
+
+    // Location
+    const loc = this.formatLocation(seg);
+    if (loc) {
+      cardHeader.createDiv({ cls: "codemarker-tr-location", text: loc });
+    }
+
+    // Text content
+    const text = seg.text.length > 500 ? seg.text.slice(0, 497) + "..." : seg.text;
+    card.createDiv({ cls: "codemarker-tr-text", text: text || "[empty]" });
+
+    // Code chips
+    const chips = card.createDiv({ cls: "codemarker-tr-chips" });
+    for (const code of seg.codes) {
+      const chip = chips.createDiv({ cls: "codemarker-tr-chip" });
+      const dot = chip.createDiv({ cls: "codemarker-tr-chip-dot" });
+      dot.style.backgroundColor = codeColorMap.get(code) ?? "#6200EE";
+      chip.createSpan({ text: code });
+    }
+
+    // Click card to navigate
+    card.addEventListener("click", () => this.navigateToSegment(seg));
+  }
+
+  private formatLocation(seg: ExtractedSegment): string {
+    if (seg.source === "csv-row") {
+      const row = seg.meta?.row;
+      const col = seg.meta?.column;
+      if (row != null && col) return `Row ${row}:${col}`;
+      if (row != null) return `Row ${row}`;
+      return "";
+    }
+    if (seg.source === "csv-segment") {
+      const row = seg.meta?.row;
+      const col = seg.meta?.column;
+      if (row != null && col) return `Row ${row}:${col}`;
+      return "";
+    }
+    if (seg.source === "image") {
+      return seg.meta?.regionType ?? "region";
+    }
+    if (seg.source === "pdf") {
+      const page = seg.meta?.page;
+      return page != null ? `Page ${page + 1}` : "";
+    }
+    // Markdown
+    const from = seg.fromLine;
+    const to = seg.toLine;
+    if (from != null && to != null) {
+      return from === to ? `L${from + 1}` : `L${from + 1}\u2013${to + 1}`;
+    }
+    return "";
+  }
+
+  private navigateToSegment(seg: ExtractedSegment): void {
+    const file = seg.file;
+    this.plugin.app.workspace.openLinkText(file, "", "tab").then(() => {
+      // Try to scroll to line for markdown files
+      if (seg.source === "markdown" && seg.fromLine != null) {
+        setTimeout(() => {
+          const leaf = this.plugin.app.workspace.getLeaf();
+          const view = leaf?.view;
+          if (view && "editor" in view) {
+            const editor = (view as any).editor;
+            if (editor?.setCursor) {
+              editor.setCursor({ line: seg.fromLine ?? 0, ch: seg.fromCh ?? 0 });
+              editor.scrollIntoView(
+                { from: { line: seg.fromLine ?? 0, ch: 0 }, to: { line: seg.toLine ?? seg.fromLine ?? 0, ch: 0 } },
+                true
+              );
+            }
+          }
+        }, 200);
+      }
+    });
+  }
+
   private computeDisplayMatrix(result: CooccurrenceResult): number[][] {
     const n = result.codes.length;
     const m: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
@@ -1796,13 +2146,14 @@ export class AnalyticsView extends ItemView {
     if (this.data.sources.markdown) activeSources.push("markdown");
     if (this.data.sources.csv) activeSources.push("csv");
     if (this.data.sources.image) activeSources.push("image");
+    if (this.data.sources.pdf) activeSources.push("pdf");
 
     this.footerEl.textContent = `Last updated: ${time} \u00b7 ${this.data.markers.length} markers \u00b7 ${this.data.codes.length} codes \u00b7 Sources: ${activeSources.join(", ") || "none"}`;
   }
 
   private exportPNG(): void {
-    if (this.viewMode === "dashboard") {
-      new Notice("Switch to a specific view to export PNG");
+    if (this.viewMode === "dashboard" || this.viewMode === "text-retrieval") {
+      new Notice("Export PNG is not available for this view");
       return;
     }
     const canvas = this.chartContainer?.querySelector("canvas");
@@ -1817,8 +2168,8 @@ export class AnalyticsView extends ItemView {
   }
 
   private exportCSV(): void {
-    if (this.viewMode === "dashboard") {
-      new Notice("Switch to a specific view to export CSV");
+    if (this.viewMode === "dashboard" || this.viewMode === "text-retrieval") {
+      new Notice("Export CSV is not available for this view");
       return;
     }
     if (!this.data) return;
