@@ -22,8 +22,8 @@ const DOT_SIZE = 7;
 const TICK_LENGTH = 4;
 const COLUMN_WIDTH = 10;
 const LABEL_HEIGHT = 16;
-const MIN_LABEL_SPACE = 20;
-const MAX_LABEL_SPACE = 120;
+const MIN_LABEL_SPACE = 200;
+const MAX_LABEL_SPACE = 200;
 const LABEL_FONT = '500 11px sans-serif';
 
 interface ResolvedBracket {
@@ -281,8 +281,19 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 
 				const markers = model.getMarkersForFile(this.fileId);
 				if (markers.length === 0) {
-					this.panel.style.width = '0';
+					// Keep minimum panel space for consistent layout
+					const minWidth = MIN_LABEL_SPACE;
+					const gap = 20;
+					this.panel.style.width = `${minWidth}px`;
 					this.view.contentDOM.style.paddingLeft = '';
+					const naturalLeft = this.view.contentDOM.offsetLeft;
+					const neededSpace = minWidth + gap;
+					if (naturalLeft < neededSpace) {
+						this.view.contentDOM.style.paddingLeft = `${neededSpace - naturalLeft}px`;
+						this.panel.style.left = '0px';
+					} else {
+						this.panel.style.left = `${naturalLeft - minWidth - gap}px`;
+					}
 					return;
 				}
 
@@ -363,7 +374,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				for (const label of labels) {
 					const textWidth = ctx.measureText(label.codeName).width;
 					const barsRight = (label.maxColAtY + 1) * COLUMN_WIDTH;
-					const needed = textWidth + barsRight + 4; // 4px padding
+					const needed = textWidth + barsRight + 40; // generous safety margin for font rendering
 					neededLabelSpace = Math.max(neededLabelSpace, needed);
 				}
 
@@ -566,7 +577,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				el.style.right = `${labelRightPx}px`;
 				el.style.left = 'auto';
 				el.style.width = 'auto';
-				el.style.maxWidth = `${leftmostBarEdge - 14}px`;
+				el.style.maxWidth = `${leftmostBarEdge - 4}px`;
 				el.style.color = label.color;
 				el.style.fontSize = '11px';
 				el.style.lineHeight = `${LABEL_HEIGHT}px`;

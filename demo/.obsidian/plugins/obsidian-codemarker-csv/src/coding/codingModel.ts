@@ -361,6 +361,18 @@ export class CodingModel {
     this.notify();
   }
 
+  /** Delete all segment markers for a specific cell */
+  deleteSegmentMarkersForCell(file: string, row: number, column: string): void {
+    this.segmentMarkers = this.segmentMarkers.filter(
+      m => !(m.file === file && m.row === row && m.column === column)
+    );
+  }
+
+  /** Public notify + save (used by sync-back from segment editor) */
+  notifyAndSave(): void {
+    this.notify();
+  }
+
   // ── Private ──
 
   private deleteMarker(id: string): void {

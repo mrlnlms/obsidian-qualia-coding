@@ -1,7 +1,17 @@
 import { FileView, Modal, Setting, TFile, WorkspaceLeaf, setIcon } from "obsidian";
 import { AllCommunityModule, ModuleRegistry, createGrid, GridApi, themeQuartz } from "ag-grid-community";
 import * as Papa from "papaparse";
+import { EditorView, lineNumbers, drawSelection, highlightActiveLine, tooltips } from "@codemirror/view";
+import { EditorState } from "@codemirror/state";
 import { codingCellRenderer, sourceTagBtnRenderer } from "./grid/codingCellRenderer";
+import { createMarkerStateField, updateFileMarkersEffect, setFileIdEffect } from "./cm6/markerStateField";
+import { createMarkerViewPlugin } from "./cm6/markerViewPlugin";
+import { createSelectionMenuField } from "./cm6/selectionMenuField";
+import { createHoverMenuExtension } from "./cm6/hoverMenuExtension";
+import { createMarginPanelExtension } from "./cm6/marginPanelExtension";
+import { registerStandaloneEditor, unregisterStandaloneEditor } from "./cm6/utils/viewLookupUtils";
+import type { Marker } from "./models/codeMarkerModel";
+import type { SegmentMarker } from "./coding/codingTypes";
 import type CsvCodingPlugin from "./main";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -67,6 +77,13 @@ export class CsvCodingView extends FileView {
   private gridApi: GridApi | null = null;
   private originalHeaders: string[] = [];
   private headerObserver: MutationObserver | null = null;
+  private gridWrapper: HTMLElement | null = null;
+
+  // Segment editor state
+  private editorPanel: HTMLElement | null = null;
+  private editorView: EditorView | null = null;
+  private editorContext: { file: string; row: number; column: string } | null = null;
+  private labelObserver: MutationObserver | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: CsvCodingPlugin) {
     super(leaf);
@@ -136,7 +153,7 @@ export class CsvCodingView extends FileView {
     if (svg) { svg.style.width = "16px"; svg.style.height = "16px"; }
     gearBtn.addEventListener("click", () => {
       if (this.gridApi) {
-        new ColumnToggleModal(this.app, this.gridApi, this.originalHeaders, this.plugin, this.file?.path ?? "").open();
+        new ColumnToggleModal(this.app, this.gridApi, this.originalHeaders, this.plugin, this.file?.path ?? "", this).open();
       }
     });
 
@@ -146,6 +163,7 @@ export class CsvCodingView extends FileView {
     const wrapper = contentEl.createEl("div");
     wrapper.style.height = "calc(100% - 40px)";
     wrapper.style.width = "100%";
+    this.gridWrapper = wrapper;
 
     // Populate rowDataCache for sidebar views
     this.plugin.csvModel.rowDataCache.set(file.path, parsed.data);
@@ -280,7 +298,355 @@ export class CsvCodingView extends FileView {
     return btn;
   }
 
+  // ─── Segment Editor (CM6 split panel) ────────────────────
+
+  openSegmentEditor(file: string, row: number, column: string, cellText: string) {
+    // Toggle: if same context is already open, close it
+    if (
+      this.editorContext &&
+      this.editorContext.file === file &&
+      this.editorContext.row === row &&
+      this.editorContext.column === column
+    ) {
+      this.closeSegmentEditor();
+      return;
+    }
+
+    // Close any existing editor first
+    this.closeSegmentEditor();
+
+    this.editorContext = { file, row, column };
+
+    // Virtual fileId unique to this cell — never collides with real markdown paths
+    const virtualFileId = `csv:${file}:${row}:${column}`;
+
+    // Adjust grid height
+    if (this.gridWrapper) {
+      this.gridWrapper.style.height = "calc(60% - 40px)";
+    }
+
+    // Create editor panel
+    this.editorPanel = this.contentEl.createEl("div");
+    this.editorPanel.className = "csv-segment-editor-panel";
+    this.editorPanel.style.height = "40%";
+    this.editorPanel.style.borderTop = "2px solid var(--background-modifier-border)";
+    this.editorPanel.style.display = "flex";
+    this.editorPanel.style.flexDirection = "column";
+
+    // Header bar
+    const header = this.editorPanel.createEl("div");
+    header.className = "csv-segment-editor-header";
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.justifyContent = "space-between";
+    header.style.padding = "4px 12px";
+    header.style.fontSize = "12px";
+    header.style.color = "var(--text-muted)";
+    header.style.backgroundColor = "var(--background-secondary)";
+    header.style.flexShrink = "0";
+
+    header.createSpan({ text: `Row ${row + 1} · ${column}` });
+
+    const closeBtn = header.createSpan();
+    closeBtn.style.cursor = "pointer";
+    closeBtn.style.display = "flex";
+    setIcon(closeBtn, "x");
+    const svg = closeBtn.querySelector("svg");
+    if (svg) { svg.style.width = "16px"; svg.style.height = "16px"; }
+    closeBtn.addEventListener("click", () => this.closeSegmentEditor());
+
+    // CM6 editor container
+    const editorContainer = this.editorPanel.createEl("div");
+    editorContainer.style.flex = "1";
+    editorContainer.style.overflow = "auto";
+
+    const mdModel = this.plugin.model;
+
+    // Sync code definitions from CSV registry → markdown registry
+    // so that colors and code names resolve correctly in CM6 extensions
+    for (const def of this.plugin.csvModel.registry.getAll()) {
+      if (!mdModel.registry.getByName(def.name)) {
+        mdModel.registry.importDefinition(def as any);
+      }
+    }
+
+    // Convert existing CSV segment markers → CodeMarkerModel markers
+    const segmentMarkers = this.plugin.csvModel.getSegmentMarkersForCell(file, row, column);
+    this.populateMarkersFromSegments(virtualFileId, segmentMarkers, cellText);
+
+    this.editorView = new EditorView({
+      state: EditorState.create({
+        doc: cellText,
+        extensions: [
+          EditorView.editable.of(false),
+          EditorState.readOnly.of(true),
+          lineNumbers(),
+          drawSelection(),
+          highlightActiveLine(),
+          // Render tooltips at body level to prevent clipping in the compact panel
+          tooltips({ parent: document.body }),
+          // Full markdown CM6 extensions
+          createMarkerStateField(mdModel),
+          createMarkerViewPlugin(mdModel),
+          createSelectionMenuField(mdModel),
+          createHoverMenuExtension(mdModel),
+          createMarginPanelExtension(mdModel),
+          EditorView.theme({
+            "&": {
+              backgroundColor: "var(--background-primary)",
+              color: "var(--text-normal)",
+              height: "100%",
+            },
+            ".cm-content": {
+              fontFamily: "var(--font-text)",
+              fontSize: "14px",
+              padding: "8px 0",
+            },
+            ".cm-gutters": {
+              backgroundColor: "var(--background-secondary)",
+              color: "var(--text-muted)",
+              borderRight: "1px solid var(--background-modifier-border)",
+            },
+            ".cm-activeLine": {
+              backgroundColor: "var(--background-modifier-hover)",
+            },
+            ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
+              backgroundColor: "rgba(var(--interactive-accent-rgb, 66, 133, 244), 0.25) !important",
+            },
+          }),
+        ],
+      }),
+      parent: editorContainer,
+    });
+
+    // Register this standalone editor so the lookup utils find it
+    registerStandaloneEditor(this.editorView, virtualFileId);
+    mdModel.registerStandaloneEditor(virtualFileId, this.editorView);
+
+    // Send file ID + trigger initial marker render
+    this.editorView.dispatch({
+      effects: [
+        setFileIdEffect.of({ fileId: virtualFileId }),
+        updateFileMarkersEffect.of({ fileId: virtualFileId }),
+      ]
+    });
+
+    // Align margin panel labels with editor line height.
+    // The margin panel uses LABEL_HEIGHT=16px, but this editor may have taller lines.
+    // We observe the panel for DOM changes and patch label lineHeight to match.
+    this.alignMarginLabels();
+
+    // Suppress hover/handles for 500ms after creation — prevents the mouse
+    // position at creation time from triggering unwanted hover menus
+    this.editorView.dom.style.pointerEvents = 'none';
+    const ev = this.editorView;
+    setTimeout(() => {
+      if (ev.dom) ev.dom.style.pointerEvents = '';
+    }, 500);
+
+    // Notify grid to resize
+    if (this.gridApi) {
+      setTimeout(() => this.gridApi?.setGridOption("domLayout", "normal"), 50);
+    }
+  }
+
+  /**
+   * Observe the margin panel and patch label lineHeight to match editor lines.
+   * This only affects this standalone editor — the markdown editor is untouched.
+   */
+  private alignMarginLabels() {
+    if (!this.editorView) return;
+
+    const panel = this.editorView.scrollDOM.querySelector('.codemarker-margin-panel');
+    console.log('[CSV alignMarginLabels] panel found:', !!panel);
+    if (!panel) return;
+
+    const ORIGINAL_LABEL_HEIGHT = 16;
+    const editorView = this.editorView;
+
+    const patchLabels = () => {
+      if (!editorView?.dom) return;
+
+      const lineH = editorView.defaultLineHeight;
+      const contentPaddingTop = parseFloat(getComputedStyle(editorView.contentDOM).paddingTop) || 0;
+      const firstBlock = editorView.lineBlockAt(0);
+
+      const labels = panel.querySelectorAll<HTMLElement>('.codemarker-margin-label');
+      console.log('[CSV patchLabels]', {
+        lineH,
+        contentPaddingTop,
+        firstBlockTop: firstBlock?.top,
+        contentOffsetTop: editorView.contentDOM.offsetTop,
+        labels: labels.length,
+      });
+
+      if (labels.length === 0) return;
+
+      // The margin panel calculates label positions using lineBlockAt().top + contentDOM.offsetTop.
+      // If .cm-content has padding-top, the visual line position is shifted down by that padding,
+      // but lineBlockAt() does NOT include it — so labels end up above the actual text.
+      // Also adjust for line height difference (LABEL_HEIGHT=16 vs actual).
+      const heightShift = (lineH - ORIGINAL_LABEL_HEIGHT) / 2;
+      const totalShift = heightShift + contentPaddingTop;
+
+      if (Math.abs(contentPaddingTop) < 0.5 && Math.abs(heightShift) < 0.5) return;
+
+      // Shift ALL positioned elements (bars, ticks, dots, labels) by contentPaddingTop
+      const allPositioned = panel.querySelectorAll<HTMLElement>('[style*="top"]');
+      for (const el of Array.from(allPositioned)) {
+        const origTop = parseFloat(el.style.top);
+        if (isNaN(origTop)) continue;
+
+        el.style.top = `${origTop + contentPaddingTop}px`;
+        if (el.classList.contains('codemarker-margin-label')) {
+          el.style.lineHeight = `${lineH}px`;
+        }
+      }
+    };
+
+    // Patch after initial render + each panel DOM rebuild
+    this.labelObserver = new MutationObserver(() => {
+      console.log('[CSV] MutationObserver fired');
+      requestAnimationFrame(patchLabels);
+    });
+    this.labelObserver.observe(panel, { childList: true });
+  }
+
+  /**
+   * Convert CSV SegmentMarkers (char offsets) → CodeMarkerModel Markers (line/ch)
+   * and store under the virtualFileId.
+   */
+  private populateMarkersFromSegments(virtualFileId: string, segments: SegmentMarker[], cellText: string) {
+    const mdModel = this.plugin.model;
+
+    // Clear any stale markers from previous sessions (prevents duplication)
+    mdModel.clearMarkersForFile(virtualFileId);
+
+    // Build a line index for offset → {line, ch} conversion
+    const lines = cellText.split('\n');
+    const lineStarts: number[] = [0];
+    for (let i = 0; i < lines.length - 1; i++) {
+      lineStarts.push(lineStarts[i]! + lines[i]!.length + 1); // +1 for '\n'
+    }
+
+    const offsetToPos = (offset: number): { line: number; ch: number } => {
+      for (let i = lineStarts.length - 1; i >= 0; i--) {
+        if (offset >= lineStarts[i]!) {
+          return { line: i, ch: offset - lineStarts[i]! };
+        }
+      }
+      return { line: 0, ch: 0 };
+    };
+
+    for (const seg of segments) {
+      if (seg.codes.length === 0) continue;
+      const marker: Marker = {
+        id: seg.id,
+        fileId: virtualFileId,
+        range: {
+          from: offsetToPos(seg.from),
+          to: offsetToPos(seg.to),
+        },
+        color: this.plugin.csvModel.registry.getColorForCodes(seg.codes) ?? this.plugin.settings.defaultColor,
+        codes: [...seg.codes],
+        createdAt: seg.createdAt,
+        updatedAt: seg.updatedAt,
+      };
+      mdModel.addMarkerDirect(virtualFileId, marker);
+    }
+  }
+
+  closeSegmentEditor() {
+    if (this.labelObserver) {
+      this.labelObserver.disconnect();
+      this.labelObserver = null;
+    }
+    if (this.editorView && this.editorContext) {
+      const { file, row, column } = this.editorContext;
+      const virtualFileId = `csv:${file}:${row}:${column}`;
+
+      // Sync markers back from CodeMarkerModel → CodingModel
+      this.syncMarkersBackToCsvModel(virtualFileId, file, row, column);
+
+      // Unregister standalone editor
+      const mdModel = this.plugin.model;
+      unregisterStandaloneEditor(this.editorView);
+      mdModel.unregisterStandaloneEditor(virtualFileId);
+      mdModel.clearMarkersForFile(virtualFileId);
+
+      this.editorView.destroy();
+      this.editorView = null;
+    } else if (this.editorView) {
+      this.editorView.destroy();
+      this.editorView = null;
+    }
+    if (this.editorPanel) {
+      this.editorPanel.remove();
+      this.editorPanel = null;
+    }
+    this.editorContext = null;
+
+    // Restore grid height
+    if (this.gridWrapper) {
+      this.gridWrapper.style.height = "calc(100% - 40px)";
+    }
+    if (this.gridApi) {
+      setTimeout(() => this.gridApi?.setGridOption("domLayout", "normal"), 50);
+    }
+
+    // Refresh grid to show updated coding columns
+    if (this.gridApi) {
+      setTimeout(() => this.gridApi?.refreshCells({ force: true }), 100);
+    }
+  }
+
+  /**
+   * Sync markers from CodeMarkerModel (line/ch) back to CodingModel (char offsets).
+   */
+  private syncMarkersBackToCsvModel(virtualFileId: string, file: string, row: number, column: string) {
+    const mdModel = this.plugin.model;
+    const csvModel = this.plugin.csvModel;
+    const mdMarkers = mdModel.getMarkersForFile(virtualFileId);
+
+    if (!this.editorView) return;
+    const doc = this.editorView.state.doc;
+
+    // Delete all existing segments for this cell (will be re-created from mdMarkers)
+    csvModel.deleteSegmentMarkersForCell(file, row, column);
+
+    // Convert CodeMarkerModel markers back to SegmentMarkers
+    for (const marker of mdMarkers) {
+      if (marker.codes.length === 0) continue;
+      try {
+        const fromOffset = doc.line(marker.range.from.line + 1).from + marker.range.from.ch;
+        const toOffset = doc.line(marker.range.to.line + 1).from + marker.range.to.ch;
+
+        const snapshot = { file, row, column, from: fromOffset, to: toOffset, text: '' };
+        const segMarker = csvModel.findOrCreateSegmentMarker(snapshot);
+        // Set codes directly
+        segMarker.codes = [...marker.codes];
+        segMarker.updatedAt = marker.updatedAt;
+      } catch (e) {
+        console.warn('[CodeMarker CSV] Error syncing marker back:', e);
+      }
+    }
+
+    csvModel.notifyAndSave();
+  }
+
+  /** Refresh CM6 decorations (called after coding changes) */
+  refreshSegmentEditor() {
+    if (this.editorView && this.editorContext) {
+      const { file, row, column } = this.editorContext;
+      const virtualFileId = `csv:${file}:${row}:${column}`;
+      this.editorView.dispatch({
+        effects: updateFileMarkersEffect.of({ fileId: virtualFileId }),
+      });
+    }
+  }
+
   async onUnloadFile(): Promise<void> {
+    this.closeSegmentEditor();
     // Clear rowDataCache for this file
     if (this.file) {
       this.plugin.csvModel.rowDataCache.delete(this.file.path);
@@ -304,14 +670,16 @@ class ColumnToggleModal extends Modal {
   private model: import("./coding/codingModel").CodingModel;
   private filePath: string;
   private plugin: CsvCodingPlugin;
+  private csvView: CsvCodingView;
 
-  constructor(app: import("obsidian").App, gridApi: GridApi, originalHeaders: string[], plugin: CsvCodingPlugin, filePath: string) {
+  constructor(app: import("obsidian").App, gridApi: GridApi, originalHeaders: string[], plugin: CsvCodingPlugin, filePath: string, csvView: CsvCodingView) {
     super(app);
     this.gridApi = gridApi;
     this.originalHeaders = originalHeaders;
     this.model = plugin.csvModel;
     this.filePath = filePath;
     this.plugin = plugin;
+    this.csvView = csvView;
   }
 
   onOpen() {
@@ -458,7 +826,7 @@ class ColumnToggleModal extends Modal {
         const srcDef = colDefs[srcIdx] as any;
         if (srcDef) {
           srcDef.cellRenderer = sourceTagBtnRenderer;
-          srcDef.cellRendererParams = { codSegField: field, model: this.model, gridApi: this.gridApi, file: this.filePath, plugin: this.plugin };
+          srcDef.cellRendererParams = { codSegField: field, model: this.model, gridApi: this.gridApi, file: this.filePath, plugin: this.plugin, csvView: this.csvView };
         }
       }
     } else {

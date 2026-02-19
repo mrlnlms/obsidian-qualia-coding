@@ -261,3 +261,4 @@ function applyInputTheme(input: HTMLInputElement) {
   input.style.color = s.getPropertyValue("--text-normal").trim();
   input.style.borderColor = s.getPropertyValue("--background-modifier-border").trim();
 }
+

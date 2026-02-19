@@ -2,6 +2,7 @@ import { setIcon } from "obsidian";
 import type { CodingModel } from "../coding/codingModel";
 import type { GridApi } from "ag-grid-community";
 import type CsvCodingPlugin from "../main";
+import type { CsvCodingView } from "../csvCodingView";
 import { openCodingPopover } from "../coding/codingMenu";
 
 /** Cell renderer for cod-seg and cod-frow columns — tag chips + action button */
@@ -128,14 +129,13 @@ export function sourceTagBtnRenderer(params: any): HTMLElement {
     e.stopPropagation();
     const segField: string = params.codSegField;
     const row = params.node?.rowIndex ?? params.rowIndex ?? 0;
-    const model: CodingModel | undefined = params.model;
-    const gridApi: GridApi | undefined = params.gridApi;
     const file: string = params.file ?? "";
+    const csvView: CsvCodingView | undefined = params.csvView;
+    const cellText: string = params.value ?? "";
 
-    if (model && gridApi) {
-      // Extract source column from segField (e.g. "colA_cod-seg" → "colA")
+    if (csvView) {
       const sourceColumn = segField.replace(/_cod-seg$/, "");
-      openCodingPopover(btn, model, file, row, sourceColumn, gridApi);
+      csvView.openSegmentEditor(file, row, sourceColumn, cellText);
     }
   });
 

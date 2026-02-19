@@ -1,4 +1,5 @@
 import { Editor, MarkdownView } from 'obsidian';
+import { EditorView } from '@codemirror/view';
 import CodeMarkerPlugin from '../main';
 import { CodeMarkerSettings } from './settings';
 import { CodeItem, SelectionSnapshot } from '../menu/menuTypes';
@@ -353,11 +354,28 @@ export class CodeMarkerModel {
 		}
 	}
 
+	/**
+	 * Add a pre-built marker directly (no save triggered).
+	 * Used for populating standalone editor markers from CSV segment data.
+	 */
+	addMarkerDirect(fileId: string, marker: Marker): void {
+		this.addMarkerToFile(fileId, marker);
+	}
+
+	/**
+	 * Remove all markers for a file (no save triggered).
+	 * Used for cleanup when closing standalone editors.
+	 */
+	clearMarkersForFile(fileId: string): void {
+		this.markers.delete(fileId);
+	}
+
 	async saveMarkers() {
 		const data = (await this.plugin.loadData()) || {};
 		const markersObj: Record<string, Marker[]> = {};
 
 		this.markers.forEach((markers, fileId) => {
+			if (fileId.startsWith('csv:')) return; // virtual fileIds are transient, don't persist
 			markersObj[fileId] = markers;
 		});
 
@@ -415,6 +433,29 @@ export class CodeMarkerModel {
 				}
 			}
 		}
+
+		// Also dispatch to standalone registered editors (CSV segment editors)
+		if (this.standaloneEditors.has(fileId) && this.plugin.updateFileMarkersEffect) {
+			const editorView = this.standaloneEditors.get(fileId)!;
+			try {
+				editorView.dispatch({
+					effects: this.plugin.updateFileMarkersEffect.of({ fileId })
+				});
+			} catch {
+				// Editor may have been destroyed
+			}
+		}
+	}
+
+	// ── Standalone Editor tracking (for CSV segment editors) ──
+	private standaloneEditors = new Map<string, EditorView>();
+
+	registerStandaloneEditor(fileId: string, editorView: EditorView): void {
+		this.standaloneEditors.set(fileId, editorView);
+	}
+
+	unregisterStandaloneEditor(fileId: string): void {
+		this.standaloneEditors.delete(fileId);
 	}
 
 	getMarkerById(markerId: string): Marker | null {

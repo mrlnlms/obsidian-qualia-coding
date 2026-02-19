@@ -90,12 +90,15 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Row index fix**: Correct row index tracking after sorting/filtering operations
 - **Standalone plugin**: Runs as an independent plugin in the demo vault
 
-### CodeMarker CSV (v33.1)
+### CodeMarker CSV (v33.2)
 
 - **Full CodeMarker integration**: CSV engine now shares the full CM6 coding stack from codemarker-v2 (markers, codes, hover menu, margin panel)
 - **Unified Code Detail sidebar**: Single detail view replaces scattered leaves for a consistent code inspection experience
 - **Reveal on click**: Clicking a code marker in the CSV view always reveals the unified detail sidebar
 - **Legacy leaf cleanup**: Old detail leaves are cleaned up automatically on plugin load
+- **CM6 inline editor**: Edit code annotations directly within the CSV segment editor using a full CM6 editor instance
+- **Extensions reuse**: The inline editor reuses the complete CM6 extensions stack from the markdown editor (syntax highlighting, keymaps, etc.)
+- **Margin panel fix**: Corrected alignment of the margin panel in the CSV segment editor
 
 ---
 
