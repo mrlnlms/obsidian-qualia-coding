@@ -1,11 +1,11 @@
-import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, setIcon, Notice } from "obsidian";
 import type CodeMarkerAnalyticsPlugin from "../main";
 import type { ConsolidatedData, FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult } from "../data/dataTypes";
 import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution } from "../data/statsEngine";
 
 export const ANALYTICS_VIEW_TYPE = "codemarker-analytics";
 
-export type ViewMode = "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution";
+export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
 export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
@@ -16,7 +16,7 @@ export class AnalyticsView extends ItemView {
   private data: ConsolidatedData | null = null;
 
   // Config state
-  private viewMode: ViewMode = "frequency";
+  private viewMode: ViewMode = "dashboard";
   private sortMode: SortMode = "freq-desc";
   private groupMode: GroupMode = "none";
   private displayMode: DisplayMode = "absolute";
@@ -171,6 +171,12 @@ export class AnalyticsView extends ItemView {
     if (!this.configPanelEl || !this.data) return;
     this.configPanelEl.empty();
 
+    if (this.viewMode === "dashboard") {
+      this.configPanelEl.style.display = "none";
+      return;
+    }
+    this.configPanelEl.style.display = "";
+
     // ── Sources ──
     this.renderSourcesSection();
     // ── View mode ──
@@ -248,6 +254,7 @@ export class AnalyticsView extends ItemView {
     section.createDiv({ cls: "codemarker-config-section-title", text: "View" });
 
     for (const [value, label] of [
+      ["dashboard", "Dashboard"],
       ["frequency", "Frequency Bars"],
       ["cooccurrence", "Co-occurrence Matrix"],
       ["graph", "Network Graph"],
@@ -484,7 +491,9 @@ export class AnalyticsView extends ItemView {
 
     const filters = this.buildFilterConfig();
 
-    if (this.viewMode === "frequency") {
+    if (this.viewMode === "dashboard") {
+      this.renderDashboard(filters);
+    } else if (this.viewMode === "frequency") {
       this.renderFrequencyChart(filters);
     } else if (this.viewMode === "cooccurrence") {
       this.renderCooccurrenceMatrix(filters);
@@ -497,6 +506,312 @@ export class AnalyticsView extends ItemView {
     }
 
     this.updateFooter();
+  }
+
+  // ─── Dashboard ───
+
+  private renderDashboard(filters: FilterConfig): void {
+    if (!this.chartContainer || !this.data) return;
+
+    const dashboard = this.chartContainer.createDiv({ cls: "codemarker-dashboard" });
+
+    // ── KPIs ──
+    const filtered = this.data.markers.filter((m) => filters.sources.includes(m.source));
+    const freq = calculateFrequency(this.data, filters);
+    freq.sort((a, b) => b.total - a.total);
+
+    const totalMarkers = filtered.length;
+    const totalCodes = this.data.codes.length;
+    const totalFiles = new Set(filtered.map((m) => m.file)).size;
+    const activeSources = [
+      this.data.sources.markdown,
+      this.data.sources.csv,
+      this.data.sources.image,
+    ].filter(Boolean).length;
+    const mostUsedCode = freq.length > 0 ? freq[0].code : "—";
+    const avgCodesPerMarker = filtered.length > 0
+      ? (filtered.reduce((s, m) => s + m.codes.length, 0) / filtered.length).toFixed(1)
+      : "0";
+
+    const kpiGrid = dashboard.createDiv({ cls: "codemarker-kpi-grid" });
+    const kpis: Array<{ value: string; label: string }> = [
+      { value: String(totalMarkers), label: "Total Markers" },
+      { value: String(totalCodes), label: "Total Codes" },
+      { value: String(totalFiles), label: "Total Files" },
+      { value: String(activeSources), label: "Active Sources" },
+      { value: mostUsedCode, label: "Most Used Code" },
+      { value: avgCodesPerMarker, label: "Avg Codes/Marker" },
+    ];
+
+    for (const kpi of kpis) {
+      const card = kpiGrid.createDiv({ cls: "codemarker-kpi-card" });
+      card.createDiv({ cls: "codemarker-kpi-value", text: kpi.value });
+      card.createDiv({ cls: "codemarker-kpi-label", text: kpi.label });
+    }
+
+    // ── Thumbnails ──
+    const thumbGrid = dashboard.createDiv({ cls: "codemarker-thumbnail-grid" });
+
+    const thumbnails: Array<{ mode: ViewMode; title: string; render: (canvas: HTMLCanvasElement) => void }> = [
+      {
+        mode: "frequency",
+        title: "Frequency Bars",
+        render: (c) => this.renderMiniFrequency(c, freq),
+      },
+      {
+        mode: "cooccurrence",
+        title: "Co-occurrence Matrix",
+        render: (c) => {
+          const cooc = calculateCooccurrence(this.data!, filters);
+          this.renderMiniCooccurrence(c, cooc);
+        },
+      },
+      {
+        mode: "graph",
+        title: "Network Graph",
+        render: (c) => {
+          const cooc = calculateCooccurrence(this.data!, filters);
+          this.renderMiniNetwork(c, cooc, freq);
+        },
+      },
+      {
+        mode: "doc-matrix",
+        title: "Document-Code Matrix",
+        render: (c) => {
+          const dm = calculateDocumentCodeMatrix(this.data!, filters);
+          this.renderMiniDocMatrix(c, dm);
+        },
+      },
+      {
+        mode: "evolution",
+        title: "Code Evolution",
+        render: (c) => {
+          const evo = calculateEvolution(this.data!, filters);
+          this.renderMiniEvolution(c, evo);
+        },
+      },
+    ];
+
+    for (const thumb of thumbnails) {
+      const card = thumbGrid.createDiv({ cls: "codemarker-thumbnail-card" });
+      card.createDiv({ cls: "codemarker-thumbnail-title", text: thumb.title });
+      const canvas = card.createEl("canvas", { cls: "codemarker-thumbnail-canvas" });
+      canvas.width = 280;
+      canvas.height = 180;
+
+      try {
+        thumb.render(canvas);
+      } catch {
+        // If rendering fails, leave blank
+      }
+
+      card.addEventListener("click", () => {
+        this.viewMode = thumb.mode;
+        this.renderConfigPanel();
+        this.scheduleUpdate();
+      });
+    }
+  }
+
+  private renderMiniFrequency(canvas: HTMLCanvasElement, freq: import("../data/dataTypes").FrequencyResult[]): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || freq.length === 0) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const top8 = freq.slice(0, 8);
+    const maxVal = top8[0]?.total ?? 1;
+    const barHeight = Math.min(18, (H - 20) / top8.length - 2);
+    const leftPad = 80;
+    const rightPad = 10;
+    const barAreaW = W - leftPad - rightPad;
+
+    const isDark = document.body.classList.contains("theme-dark");
+    const textColor = isDark ? "#b0b0b0" : "#444";
+
+    for (let i = 0; i < top8.length; i++) {
+      const r = top8[i];
+      const y = 10 + i * (barHeight + 4);
+      const barW = Math.max(2, (r.total / maxVal) * barAreaW);
+
+      // Label
+      ctx.fillStyle = textColor;
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      const label = r.code.length > 10 ? r.code.slice(0, 9) + "\u2026" : r.code;
+      ctx.fillText(label, leftPad - 6, y + barHeight / 2);
+
+      // Bar
+      ctx.fillStyle = r.color;
+      ctx.fillRect(leftPad, y, barW, barHeight);
+    }
+  }
+
+  private renderMiniCooccurrence(canvas: HTMLCanvasElement, cooc: CooccurrenceResult): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || cooc.codes.length < 2) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const n = cooc.codes.length;
+    const pad = 10;
+    const cellSize = Math.min((W - 2 * pad) / n, (H - 2 * pad) / n);
+    const offsetX = (W - n * cellSize) / 2;
+    const offsetY = (H - n * cellSize) / 2;
+    const isDark = document.body.classList.contains("theme-dark");
+
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const x = offsetX + j * cellSize;
+        const y = offsetY + i * cellSize;
+        ctx.fillStyle = this.heatmapColor(cooc.matrix[i][j], cooc.maxValue, isDark);
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+  }
+
+  private renderMiniNetwork(canvas: HTMLCanvasElement, cooc: CooccurrenceResult, freq: import("../data/dataTypes").FrequencyResult[]): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || cooc.codes.length < 2) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const n = cooc.codes.length;
+    const freqMap = new Map(freq.map((f) => [f.code, f.total]));
+    const maxFreq = Math.max(...cooc.codes.map((c) => freqMap.get(c) ?? 1));
+
+    // Build edges
+    interface MiniEdge { i: number; j: number; weight: number; }
+    const edges: MiniEdge[] = [];
+    let maxWeight = 0;
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const w = cooc.matrix[i][j];
+        if (w > 0) {
+          edges.push({ i, j, weight: w });
+          if (w > maxWeight) maxWeight = w;
+        }
+      }
+    }
+
+    // Positions — circle init then 50 iterations of force
+    const nodes = cooc.codes.map((code, i) => {
+      const angle = (2 * Math.PI * i) / n;
+      const spread = Math.min(W, H) * 0.3;
+      const f = freqMap.get(code) ?? 1;
+      const radius = 4 + (f / maxFreq) * 10;
+      return { x: W / 2 + Math.cos(angle) * spread, y: H / 2 + Math.sin(angle) * spread, vx: 0, vy: 0, radius };
+    });
+
+    for (let iter = 0; iter < 50; iter++) {
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const dx = nodes[i].x - nodes[j].x;
+          const dy = nodes[i].y - nodes[j].y;
+          const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+          const force = 3000 / (dist * dist);
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          nodes[i].vx += fx; nodes[i].vy += fy;
+          nodes[j].vx -= fx; nodes[j].vy -= fy;
+        }
+      }
+      for (const edge of edges) {
+        const ni = nodes[edge.i]; const nj = nodes[edge.j];
+        const dx = nj.x - ni.x; const dy = nj.y - ni.y;
+        const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+        const force = dist * 0.008 * (maxWeight > 0 ? edge.weight / maxWeight : 1);
+        ni.vx += (dx / dist) * force; ni.vy += (dy / dist) * force;
+        nj.vx -= (dx / dist) * force; nj.vy -= (dy / dist) * force;
+      }
+      for (const node of nodes) {
+        node.vx += (W / 2 - node.x) * 0.01;
+        node.vy += (H / 2 - node.y) * 0.01;
+        node.vx *= 0.85; node.vy *= 0.85;
+        node.x += node.vx; node.y += node.vy;
+        node.x = Math.max(node.radius + 2, Math.min(W - node.radius - 2, node.x));
+        node.y = Math.max(node.radius + 2, Math.min(H - node.radius - 2, node.y));
+      }
+    }
+
+    const isDark = document.body.classList.contains("theme-dark");
+
+    // Draw edges
+    for (const edge of edges) {
+      const ni = nodes[edge.i]; const nj = nodes[edge.j];
+      const opacity = maxWeight > 0 ? 0.15 + (edge.weight / maxWeight) * 0.4 : 0.3;
+      ctx.beginPath(); ctx.moveTo(ni.x, ni.y); ctx.lineTo(nj.x, nj.y);
+      ctx.strokeStyle = isDark ? `rgba(180,180,200,${opacity})` : `rgba(80,80,100,${opacity})`;
+      ctx.lineWidth = 1 + (maxWeight > 0 ? (edge.weight / maxWeight) * 2 : 0);
+      ctx.stroke();
+    }
+
+    // Draw nodes
+    for (let i = 0; i < n; i++) {
+      const node = nodes[i];
+      ctx.beginPath(); ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+      ctx.fillStyle = cooc.colors[i]; ctx.fill();
+      ctx.strokeStyle = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)";
+      ctx.lineWidth = 1; ctx.stroke();
+    }
+  }
+
+  private renderMiniDocMatrix(canvas: HTMLCanvasElement, dm: DocCodeMatrixResult): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || dm.files.length === 0 || dm.codes.length === 0) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const nFiles = dm.files.length;
+    const nCodes = dm.codes.length;
+    const pad = 10;
+    const cellW = Math.min((W - 2 * pad) / nCodes, 20);
+    const cellH = Math.min((H - 2 * pad) / nFiles, 20);
+    const offsetX = (W - nCodes * cellW) / 2;
+    const offsetY = (H - nFiles * cellH) / 2;
+    const isDark = document.body.classList.contains("theme-dark");
+
+    for (let fi = 0; fi < nFiles; fi++) {
+      for (let ci = 0; ci < nCodes; ci++) {
+        const x = offsetX + ci * cellW;
+        const y = offsetY + fi * cellH;
+        ctx.fillStyle = this.heatmapColor(dm.matrix[fi][ci], dm.maxValue, isDark);
+        ctx.fillRect(x, y, cellW, cellH);
+      }
+    }
+  }
+
+  private renderMiniEvolution(canvas: HTMLCanvasElement, evo: EvolutionResult): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || evo.codes.length === 0 || evo.points.length === 0) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const nCodes = evo.codes.length;
+    const codeIndex = new Map(evo.codes.map((c, i) => [c, i]));
+    const pad = 10;
+    const laneHeight = Math.min(20, (H - 2 * pad) / nCodes);
+    const plotTop = (H - nCodes * laneHeight) / 2;
+    const isDark = document.body.classList.contains("theme-dark");
+
+    // Lane separators
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+    ctx.lineWidth = 0.5;
+    for (let i = 1; i < nCodes; i++) {
+      const y = plotTop + i * laneHeight;
+      ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
+    }
+
+    // Draw points
+    for (const p of evo.points) {
+      const ci = codeIndex.get(p.code);
+      if (ci == null) continue;
+      const x = pad + p.position * (W - 2 * pad);
+      const y = plotTop + ci * laneHeight + laneHeight / 2;
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = p.color; ctx.fill();
+    }
   }
 
   private renderFrequencyChart(filters: FilterConfig): void {
@@ -1486,6 +1801,10 @@ export class AnalyticsView extends ItemView {
   }
 
   private exportPNG(): void {
+    if (this.viewMode === "dashboard") {
+      new Notice("Switch to a specific view to export PNG");
+      return;
+    }
     const canvas = this.chartContainer?.querySelector("canvas");
     if (!canvas) return;
 
@@ -1498,6 +1817,10 @@ export class AnalyticsView extends ItemView {
   }
 
   private exportCSV(): void {
+    if (this.viewMode === "dashboard") {
+      new Notice("Switch to a specific view to export CSV");
+      return;
+    }
     if (!this.data) return;
     const filters = this.buildFilterConfig();
 
