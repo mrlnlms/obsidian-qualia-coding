@@ -9,6 +9,8 @@ export interface UnifiedMarker {
     row?: number;
     column?: string;
     regionType?: string;
+    fromLine?: number;
+    toLine?: number;
   };
 }
 
@@ -50,4 +52,27 @@ export interface CooccurrenceResult {
   colors: string[];
   matrix: number[][];
   maxValue: number;
+}
+
+export interface DocCodeMatrixResult {
+  files: string[];
+  codes: string[];
+  colors: string[];
+  matrix: number[][];
+  maxValue: number;
+}
+
+export interface EvolutionResult {
+  codes: string[];
+  colors: string[];
+  points: Array<{
+    code: string;
+    color: string;
+    file: string;
+    position: number;
+    fromLine: number;
+    toLine: number;
+    markerId: string;
+  }>;
+  files: string[];
 }

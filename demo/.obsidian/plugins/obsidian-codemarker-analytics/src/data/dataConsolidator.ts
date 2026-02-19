@@ -22,11 +22,15 @@ export function consolidate(
       for (const m of fileMarkers) {
         const codes = extractCodes(m.codes);
         if (codes.length === 0) continue;
+        const meta: any = {};
+        if (m.range?.from?.line != null) meta.fromLine = m.range.from.line;
+        if (m.range?.to?.line != null) meta.toLine = m.range.to.line;
         markers.push({
           id: m.id ?? "",
           source: "markdown",
           file: m.fileId ?? fileId,
           codes,
+          ...(meta.fromLine != null ? { meta } : {}),
         });
       }
     }
@@ -51,7 +55,7 @@ export function consolidate(
           source: "csv-segment",
           file: m.file ?? "",
           codes,
-          meta: { row: m.row, column: m.column },
+          meta: { row: m.row, column: m.column, fromLine: m.row, toLine: m.row },
         });
       }
     }
@@ -65,7 +69,7 @@ export function consolidate(
           source: "csv-row",
           file: m.file ?? "",
           codes,
-          meta: { row: m.row, column: m.column },
+          meta: { row: m.row, column: m.column, fromLine: m.row, toLine: m.row },
         });
       }
     }
@@ -84,12 +88,17 @@ export function consolidate(
     for (const m of imageData.markers) {
       const codes = extractCodes(m.codes);
       if (codes.length === 0) continue;
+      const imgMeta: any = { regionType: m.shape };
+      if (m.coords?.y != null) {
+        imgMeta.fromLine = m.coords.y;
+        imgMeta.toLine = m.coords.y + (m.coords.height ?? 0);
+      }
       markers.push({
         id: m.id ?? "",
         source: "image",
         file: m.file ?? "",
         codes,
-        meta: { regionType: m.shape },
+        meta: imgMeta,
       });
     }
     const imgDefs = imageData.registry?.definitions;

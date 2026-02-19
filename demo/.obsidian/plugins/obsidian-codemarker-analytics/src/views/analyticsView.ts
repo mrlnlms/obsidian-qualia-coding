@@ -1,12 +1,13 @@
 import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
 import type CodeMarkerAnalyticsPlugin from "../main";
-import type { ConsolidatedData, FilterConfig, CooccurrenceResult } from "../data/dataTypes";
-import { calculateFrequency, calculateCooccurrence } from "../data/statsEngine";
+import type { ConsolidatedData, FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult } from "../data/dataTypes";
+import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution } from "../data/statsEngine";
 
 export const ANALYTICS_VIEW_TYPE = "codemarker-analytics";
 
-export type ViewMode = "frequency" | "cooccurrence" | "graph";
+export type ViewMode = "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
+export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
 export type DisplayMode = "absolute" | "percentage" | "presence";
 
@@ -25,6 +26,8 @@ export class AnalyticsView extends ItemView {
   private enabledCodes = new Set<string>();
   private minFrequency = 1;
   private codeSearch = "";
+  private matrixSortMode: MatrixSortMode = "alpha";
+  private evolutionFile = "";  // "" = all files
 
   // DOM refs
   private chartContainer: HTMLElement | null = null;
@@ -185,6 +188,14 @@ export class AnalyticsView extends ItemView {
     if (this.viewMode === "graph") {
       this.renderGraphOptionsSection();
     }
+    // ── Doc-matrix sort ──
+    if (this.viewMode === "doc-matrix") {
+      this.renderMatrixSortSection();
+    }
+    // ── Evolution file selector ──
+    if (this.viewMode === "evolution") {
+      this.renderEvolutionFileSection();
+    }
     // ── Codes ──
     this.renderCodesSection();
     // ── Min frequency ──
@@ -240,6 +251,8 @@ export class AnalyticsView extends ItemView {
       ["frequency", "Frequency Bars"],
       ["cooccurrence", "Co-occurrence Matrix"],
       ["graph", "Network Graph"],
+      ["doc-matrix", "Document-Code Matrix"],
+      ["evolution", "Code Evolution"],
     ] as const) {
       const row = section.createDiv({ cls: "codemarker-config-row" });
       const radio = row.createEl("input", { type: "radio" });
@@ -475,6 +488,10 @@ export class AnalyticsView extends ItemView {
       this.renderFrequencyChart(filters);
     } else if (this.viewMode === "cooccurrence") {
       this.renderCooccurrenceMatrix(filters);
+    } else if (this.viewMode === "doc-matrix") {
+      this.renderDocCodeMatrix(filters);
+    } else if (this.viewMode === "evolution") {
+      this.renderEvolutionChart(filters);
     } else {
       this.renderNetworkGraph(filters);
     }
@@ -1060,6 +1077,344 @@ export class AnalyticsView extends ItemView {
     });
   }
 
+  // ─── Document-Code Matrix ───
+
+  private renderMatrixSortSection(): void {
+    const section = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    section.createDiv({ cls: "codemarker-config-section-title", text: "Sort files" });
+
+    for (const [value, label] of [
+      ["alpha", "Alphabetical"],
+      ["total", "By total markers"],
+    ] as const) {
+      const row = section.createDiv({ cls: "codemarker-config-row" });
+      const radio = row.createEl("input", { type: "radio" });
+      radio.name = "matrixSortMode";
+      radio.value = value;
+      radio.checked = this.matrixSortMode === value;
+      row.createSpan({ text: label });
+
+      radio.addEventListener("change", () => {
+        this.matrixSortMode = value;
+        this.scheduleUpdate();
+      });
+      row.addEventListener("click", (e) => {
+        if (e.target !== radio) {
+          radio.checked = true;
+          radio.dispatchEvent(new Event("change"));
+        }
+      });
+    }
+  }
+
+  private renderDocCodeMatrix(filters: FilterConfig): void {
+    if (!this.chartContainer || !this.data) return;
+
+    const result = calculateDocumentCodeMatrix(this.data, filters);
+
+    if (result.files.length === 0 || result.codes.length === 0) {
+      this.chartContainer.createDiv({
+        cls: "codemarker-analytics-empty",
+        text: "No data matches current filters.",
+      });
+      return;
+    }
+
+    // Sort files
+    let fileOrder = result.files.map((f, i) => i);
+    if (this.matrixSortMode === "total") {
+      const fileTotals = result.files.map((_, fi) =>
+        result.matrix[fi].reduce((a, b) => a + b, 0)
+      );
+      fileOrder.sort((a, b) => fileTotals[b] - fileTotals[a]);
+    }
+
+    const nFiles = result.files.length;
+    const nCodes = result.codes.length;
+    const cellSize = nFiles > 20 || nCodes > 20
+      ? Math.max(30, Math.floor(500 / Math.max(nFiles, nCodes)))
+      : 50;
+    const labelSpaceLeft = 150;
+    const labelSpaceTop = 120;
+
+    const wrapper = this.chartContainer.createDiv();
+    wrapper.style.position = "relative";
+    wrapper.style.overflow = "auto";
+
+    const canvas = wrapper.createEl("canvas");
+    const totalW = labelSpaceLeft + nCodes * cellSize;
+    const totalH = labelSpaceTop + nFiles * cellSize;
+    canvas.width = totalW;
+    canvas.height = totalH;
+    canvas.style.width = `${totalW}px`;
+    canvas.style.height = `${totalH}px`;
+
+    const ctx = canvas.getContext("2d")!;
+    const isDark = document.body.classList.contains("theme-dark");
+    const styles = getComputedStyle(document.body);
+    const textColor = styles.getPropertyValue("--text-normal").trim() || (isDark ? "#dcddde" : "#1a1a1a");
+
+    // Draw cells
+    for (let fi = 0; fi < nFiles; fi++) {
+      const fileIdx = fileOrder[fi];
+      for (let ci = 0; ci < nCodes; ci++) {
+        const x = labelSpaceLeft + ci * cellSize;
+        const y = labelSpaceTop + fi * cellSize;
+        const val = result.matrix[fileIdx][ci];
+
+        ctx.fillStyle = this.heatmapColor(val, result.maxValue, isDark);
+        ctx.fillRect(x, y, cellSize, cellSize);
+
+        // Cell border
+        ctx.strokeStyle = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x, y, cellSize, cellSize);
+
+        // Value text
+        if (val > 0) {
+          const textBright = this.isLightColor(this.heatmapColor(val, result.maxValue, isDark));
+          ctx.fillStyle = textBright ? "#1a1a1a" : "#f0f0f0";
+          ctx.font = `${Math.min(12, cellSize * 0.3)}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(val), x + cellSize / 2, y + cellSize / 2);
+        }
+      }
+    }
+
+    // Left labels (file basenames)
+    ctx.fillStyle = textColor;
+    ctx.font = `${Math.min(12, cellSize * 0.3)}px sans-serif`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let fi = 0; fi < nFiles; fi++) {
+      const fileIdx = fileOrder[fi];
+      const y = labelSpaceTop + fi * cellSize + cellSize / 2;
+      const basename = result.files[fileIdx].split("/").pop() ?? result.files[fileIdx];
+      const label = basename.length > 20 ? basename.slice(0, 19) + "\u2026" : basename;
+      ctx.fillText(label, labelSpaceLeft - 6, y);
+    }
+
+    // Top labels (codes, rotated)
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    for (let ci = 0; ci < nCodes; ci++) {
+      const x = labelSpaceLeft + ci * cellSize + cellSize / 2;
+      ctx.save();
+      ctx.translate(x, labelSpaceTop - 6);
+      ctx.rotate(-Math.PI / 4);
+      const label = result.codes[ci].length > 15
+        ? result.codes[ci].slice(0, 14) + "\u2026"
+        : result.codes[ci];
+      ctx.fillStyle = result.colors[ci];
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // Tooltip
+    const tooltip = wrapper.createDiv({ cls: "codemarker-heatmap-tooltip" });
+    tooltip.style.display = "none";
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const col = Math.floor((mx - labelSpaceLeft) / cellSize);
+      const row = Math.floor((my - labelSpaceTop) / cellSize);
+
+      if (col >= 0 && col < nCodes && row >= 0 && row < nFiles) {
+        const fileIdx = fileOrder[row];
+        const val = result.matrix[fileIdx][col];
+        const basename = result.files[fileIdx].split("/").pop() ?? result.files[fileIdx];
+        tooltip.textContent = `${basename} \u00d7 ${result.codes[col]}: ${val} marker${val !== 1 ? "s" : ""}`;
+        tooltip.style.display = "";
+        tooltip.style.left = `${mx + 12}px`;
+        tooltip.style.top = `${my + 12}px`;
+      } else {
+        tooltip.style.display = "none";
+      }
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+      tooltip.style.display = "none";
+    });
+  }
+
+  // ─── Code Evolution ───
+
+  private renderEvolutionFileSection(): void {
+    if (!this.data) return;
+    const section = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    section.createDiv({ cls: "codemarker-config-section-title", text: "File" });
+
+    const filters = this.buildFilterConfig();
+    const evoResult = calculateEvolution(this.data, filters);
+
+    const select = section.createEl("select", { cls: "codemarker-config-select" });
+    const allOpt = select.createEl("option", { text: "All files", value: "" });
+    if (this.evolutionFile === "") allOpt.selected = true;
+
+    for (const f of evoResult.files) {
+      const basename = f.split("/").pop() ?? f;
+      const opt = select.createEl("option", { text: basename, value: f });
+      if (this.evolutionFile === f) opt.selected = true;
+    }
+
+    select.addEventListener("change", () => {
+      this.evolutionFile = select.value;
+      this.scheduleUpdate();
+    });
+  }
+
+  private renderEvolutionChart(filters: FilterConfig): void {
+    if (!this.chartContainer || !this.data) return;
+
+    const result = calculateEvolution(this.data, filters);
+
+    // Filter by selected file
+    const points = this.evolutionFile
+      ? result.points.filter((p) => p.file === this.evolutionFile)
+      : result.points;
+
+    if (points.length === 0) {
+      this.chartContainer.createDiv({
+        cls: "codemarker-analytics-empty",
+        text: "No positional data available for current filters.",
+      });
+      return;
+    }
+
+    const codes = result.codes;
+    const nCodes = codes.length;
+    const codeIndex = new Map(codes.map((c, i) => [c, i]));
+
+    // Canvas setup
+    const wrapper = this.chartContainer.createDiv();
+    wrapper.style.position = "relative";
+    wrapper.style.overflow = "auto";
+
+    const laneHeight = 40;
+    const paddingLeft = 140;
+    const paddingRight = 30;
+    const paddingTop = 40;
+    const paddingBottom = 40;
+    const chartWidth = Math.max(600, (this.chartContainer.getBoundingClientRect().width || 700) - 32);
+    const chartHeight = paddingTop + nCodes * laneHeight + paddingBottom;
+
+    const canvas = wrapper.createEl("canvas");
+    canvas.width = chartWidth;
+    canvas.height = chartHeight;
+    canvas.style.width = `${chartWidth}px`;
+    canvas.style.height = `${chartHeight}px`;
+
+    const ctx = canvas.getContext("2d")!;
+    const isDark = document.body.classList.contains("theme-dark");
+    const styles = getComputedStyle(document.body);
+    const textColor = styles.getPropertyValue("--text-normal").trim() || (isDark ? "#dcddde" : "#1a1a1a");
+    const gridColor = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
+    const laneLineColor = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
+
+    const plotLeft = paddingLeft;
+    const plotRight = chartWidth - paddingRight;
+    const plotWidth = plotRight - plotLeft;
+
+    // Draw vertical grid lines at 0%, 25%, 50%, 75%, 100%
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    ctx.font = "10px sans-serif";
+    ctx.fillStyle = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (let pct = 0; pct <= 100; pct += 25) {
+      const x = plotLeft + (pct / 100) * plotWidth;
+      ctx.beginPath();
+      ctx.moveTo(x, paddingTop);
+      ctx.lineTo(x, paddingTop + nCodes * laneHeight);
+      ctx.stroke();
+      ctx.fillText(`${pct}%`, x, paddingTop + nCodes * laneHeight + 6);
+    }
+
+    // Draw lane separators and code labels
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < nCodes; i++) {
+      const y = paddingTop + i * laneHeight;
+
+      // Lane separator
+      if (i > 0) {
+        ctx.strokeStyle = laneLineColor;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(plotLeft, y);
+        ctx.lineTo(plotRight, y);
+        ctx.stroke();
+      }
+
+      // Code label
+      const label = codes[i].length > 18 ? codes[i].slice(0, 17) + "\u2026" : codes[i];
+      ctx.fillStyle = result.colors[i];
+      ctx.font = "12px sans-serif";
+      ctx.fillText(label, paddingLeft - 8, y + laneHeight / 2);
+    }
+
+    // Draw points
+    const drawnPoints: Array<{ x: number; y: number; point: typeof points[0] }> = [];
+    for (const p of points) {
+      const ci = codeIndex.get(p.code);
+      if (ci == null) continue;
+      const x = plotLeft + p.position * plotWidth;
+      const y = paddingTop + ci * laneHeight + laneHeight / 2;
+      const radius = 6;
+
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      ctx.strokeStyle = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.15)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      drawnPoints.push({ x, y, point: p });
+    }
+
+    // Tooltip
+    const tooltip = wrapper.createDiv({ cls: "codemarker-heatmap-tooltip" });
+    tooltip.style.display = "none";
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      for (const dp of drawnPoints) {
+        const dx = mx - dp.x;
+        const dy = my - dp.y;
+        if (dx * dx + dy * dy <= 64) { // 8px radius hit area
+          const p = dp.point;
+          const basename = p.file.split("/").pop() ?? p.file;
+          const lineInfo = p.fromLine === p.toLine
+            ? `line ${p.fromLine}`
+            : `lines ${p.fromLine}-${p.toLine}`;
+          tooltip.textContent = `${p.code} @ ${lineInfo} in ${basename}`;
+          tooltip.style.display = "";
+          tooltip.style.left = `${mx + 12}px`;
+          tooltip.style.top = `${my + 12}px`;
+          canvas.style.cursor = "pointer";
+          return;
+        }
+      }
+      tooltip.style.display = "none";
+      canvas.style.cursor = "default";
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+      tooltip.style.display = "none";
+      canvas.style.cursor = "default";
+    });
+  }
+
   private computeDisplayMatrix(result: CooccurrenceResult): number[][] {
     const n = result.codes.length;
     const m: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
@@ -1177,6 +1532,25 @@ export class AnalyticsView extends ItemView {
       }
       csvContent = rows.map((r) => r.join(",")).join("\n");
       filename = `codemarker-graph-${date}.csv`;
+    } else if (this.viewMode === "doc-matrix") {
+      const result = calculateDocumentCodeMatrix(this.data, filters);
+      const rows: string[][] = [["file", ...result.codes]];
+      for (let fi = 0; fi < result.files.length; fi++) {
+        rows.push([result.files[fi], ...result.matrix[fi].map(String)]);
+      }
+      csvContent = rows.map((r) => r.join(",")).join("\n");
+      filename = `codemarker-doc-matrix-${date}.csv`;
+    } else if (this.viewMode === "evolution") {
+      const result = calculateEvolution(this.data, filters);
+      const pts = this.evolutionFile
+        ? result.points.filter((p) => p.file === this.evolutionFile)
+        : result.points;
+      const rows: string[][] = [["file", "code", "position", "fromLine", "toLine"]];
+      for (const p of pts) {
+        rows.push([p.file, p.code, p.position.toFixed(4), String(p.fromLine), String(p.toLine)]);
+      }
+      csvContent = rows.map((r) => r.join(",")).join("\n");
+      filename = `codemarker-evolution-${date}.csv`;
     } else {
       const result = calculateCooccurrence(this.data, filters);
       const rows: string[][] = [["", ...result.codes]];

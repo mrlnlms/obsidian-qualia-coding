@@ -157,6 +157,22 @@
   border-color: var(--interactive-accent);
 }
 
+.codemarker-config-select {
+  width: 100%;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text-normal);
+  font-size: 12px;
+  outline: none;
+  margin-top: 4px;
+}
+
+.codemarker-config-select:focus {
+  border-color: var(--interactive-accent);
+}
+
 .codemarker-config-codes-list {
   max-height: 300px;
   overflow-y: auto;

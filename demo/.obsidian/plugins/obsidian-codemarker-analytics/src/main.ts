@@ -8,7 +8,7 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
   data: ConsolidatedData | null = null;
 
   async onload(): Promise<void> {
-    console.log('[codemarker-analytics] v38.1 loaded — Scaffold + Network Graph');
+    console.log('[codemarker-analytics] v38.2 loaded — Matrix + Code Evolution');
     this.registerView(
       ANALYTICS_VIEW_TYPE,
       (leaf) => new AnalyticsView(leaf, this)

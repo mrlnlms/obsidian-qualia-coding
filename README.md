@@ -118,10 +118,14 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Auto-open images**: When enabled, clicking any image file opens it directly in CodeMarker Image view
 - **Settings tab**: Dedicated settings panel for CodeMarker Image preferences and toggles
 
-### CodeMarker Analytics (v38.1)
+### CodeMarker Analytics (v38.2)
 
 - **Cross-engine analytics**: Consolidates coded data from markdown, CSV, and image engines into a unified view
 - **Network graph**: Visualizes relationships between codes as an interactive network graph
+- **Document-Code Matrix**: Tabular view showing code frequency per document, with alphabetical and total-based sorting
+- **Code Evolution**: Timeline visualization of coding activity over time, with per-file filtering
+- **Five view modes**: Frequency, Co-occurrence Matrix, Network Graph, Document-Code Matrix, Code Evolution
+- **Stats engine**: Dedicated statistics module with frequency, co-occurrence, matrix, and evolution calculations
 - **Data reader**: Reads and aggregates coding data from all active engine types
 - **Command palette**: "Open CodeMarker Analytics" and "Refresh Analytics Data" commands
 - **Standalone plugin**: Runs as an independent engine plugin in the demo vault
