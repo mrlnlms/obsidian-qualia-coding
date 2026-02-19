@@ -9,6 +9,7 @@ import {
   IMAGE_CODE_DETAIL_VIEW_TYPE,
   ImageCodeDetailView,
 } from "./views/imageCodeDetailView";
+import { ImageSettingTab } from "./views/imageSettingTab";
 
 const IMAGE_EXTENSIONS = new Set([
   "png", "jpg", "jpeg", "gif", "bmp", "webp", "avif", "svg",
@@ -18,7 +19,7 @@ export default class CodeMarkerImagePlugin extends Plugin {
   model!: ImageCodingModel;
 
   async onload(): Promise<void> {
-    console.log('[codemarker-image] v34.3 loaded — Sidebar views Explorer + Detail');
+    console.log('[codemarker-image] v34.4 loaded — Auto-open images + settings tab');
     this.model = new ImageCodingModel(this);
     await this.model.load();
 
@@ -78,12 +79,31 @@ export default class CodeMarkerImagePlugin extends Plugin {
       callback: () => this.activateDetailPanel(),
     });
 
+    // Auto-open images in CodeMarker Image view
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        if (!leaf) return;
+        if (!this.model.settings.autoOpenImages) return;
+        if (leaf.view.getViewType() === IMAGE_CODING_VIEW_TYPE) return;
+        const file = (leaf.view as any)?.file as TFile | undefined;
+        if (!file || !(file instanceof TFile)) return;
+        if (!IMAGE_EXTENSIONS.has(file.extension.toLowerCase())) return;
+        leaf.setViewState({
+          type: IMAGE_CODING_VIEW_TYPE,
+          state: { file: file.path },
+        });
+      })
+    );
+
     // Navigation event: sidebar → canvas
     this.registerEvent(
       (this.app.workspace as any).on("codemarker-image:navigate", (data: any) => {
         this.handleNavigation(data.file, data.markerId);
       })
     );
+
+    // Settings tab
+    this.addSettingTab(new ImageSettingTab(this.app, this));
   }
 
   async openImageCoding(file: TFile): Promise<void> {

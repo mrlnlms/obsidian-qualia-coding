@@ -36,6 +36,15 @@ export interface NormalizedPolygon {
 	points: Array<{ x: number; y: number }>;  // each 0..1
 }
 
+/** Plugin settings */
+export interface ImageSettings {
+	autoOpenImages: boolean;
+}
+
+export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
+	autoOpenImages: true,
+};
+
 /** Persisted in data.json */
 export interface ImageCodingData {
 	markers: ImageMarker[];
@@ -43,4 +52,5 @@ export interface ImageCodingData {
 		definitions: Record<string, import('./codeDefinitionRegistry').CodeDefinition>;
 		nextPaletteIndex: number;
 	};
+	settings: ImageSettings;
 }

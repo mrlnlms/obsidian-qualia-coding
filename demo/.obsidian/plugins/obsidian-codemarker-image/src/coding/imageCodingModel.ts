@@ -7,13 +7,15 @@ import type { Plugin } from 'obsidian';
 import { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import type { CodeDefinition } from './codeDefinitionRegistry';
 import { loadSharedRegistry, saveSharedRegistry } from './sharedRegistry';
-import type { ImageMarker, ImageCodingData, RegionShape, NormalizedCoords } from './imageCodingTypes';
+import type { ImageMarker, ImageCodingData, RegionShape, NormalizedCoords, ImageSettings } from './imageCodingTypes';
+import { DEFAULT_IMAGE_SETTINGS } from './imageCodingTypes';
 
 export type ChangeListener = () => void;
 
 export class ImageCodingModel {
 	plugin: Plugin;
 	readonly registry: CodeDefinitionRegistry;
+	settings: ImageSettings = { ...DEFAULT_IMAGE_SETTINGS };
 	private markers: ImageMarker[] = [];
 	private listeners: ChangeListener[] = [];
 	private saveTimeout: number | null = null;
@@ -34,6 +36,9 @@ export class ImageCodingModel {
 		if (data?.registry) {
 			(this as any).registry = CodeDefinitionRegistry.fromJSON(data.registry);
 		}
+		if (data?.settings) {
+			this.settings = { ...DEFAULT_IMAGE_SETTINGS, ...data.settings };
+		}
 
 		await this.syncSharedRegistry();
 	}
@@ -44,6 +49,7 @@ export class ImageCodingModel {
 			...existing,
 			markers: this.markers,
 			registry: this.registry.toJSON(),
+			settings: this.settings,
 		};
 		await this.plugin.saveData(data);
 		await this.syncSharedRegistry();

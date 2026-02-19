@@ -102,7 +102,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Batch coding via header tag**: Click the cod-frow column header tag button to apply/remove codes to all visible (filtered) rows at once, with cross-row toggle state (all/none/partial)
 - **Cod-seg chip opens editor**: Clicking a cod-seg tag chip now opens the segment editor alongside the sidebar
 
-### CodeMarker Image (v34.3)
+### CodeMarker Image (v34.4)
 
 - **Fabric.js canvas**: Opens image files in a custom view with a Fabric.js-powered canvas for annotation
 - **Toolbar UI**: Zoom, pan, and drawing tool controls
@@ -115,6 +115,8 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Hover glow**: Hovering over a coded region highlights it with a glow effect for easy identification
 - **Code Explorer sidebar**: Tree-style panel showing all coded image regions organized by code/tag
 - **Code Detail sidebar**: Panel showing details of a selected code marker (label, comment, coordinates)
+- **Auto-open images**: When enabled, clicking any image file opens it directly in CodeMarker Image view
+- **Settings tab**: Dedicated settings panel for CodeMarker Image preferences and toggles
 
 ---
 
