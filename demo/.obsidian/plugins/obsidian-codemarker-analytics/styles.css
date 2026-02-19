@@ -1,0 +1,233 @@
+/* ── Analytics View Layout ── */
+.codemarker-analytics-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.codemarker-analytics-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background-color: var(--background-primary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.codemarker-analytics-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: background-color 0.1s, color 0.1s;
+}
+
+.codemarker-analytics-toolbar-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.codemarker-analytics-toolbar-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.codemarker-analytics-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Config Panel ── */
+.codemarker-config-panel {
+  width: 250px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  border-right: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  padding: 0;
+}
+
+.codemarker-config-section {
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.codemarker-config-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.codemarker-config-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 13px;
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.codemarker-config-row:hover {
+  color: var(--text-accent);
+}
+
+.codemarker-config-row input[type="checkbox"],
+.codemarker-config-row input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.codemarker-config-row.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.codemarker-config-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.codemarker-config-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.codemarker-config-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.codemarker-config-action {
+  font-size: 11px;
+  color: var(--text-accent);
+  cursor: pointer;
+}
+
+.codemarker-config-action:hover {
+  text-decoration: underline;
+}
+
+.codemarker-config-search {
+  width: 100%;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text-normal);
+  font-size: 12px;
+  outline: none;
+  margin-bottom: 6px;
+}
+
+.codemarker-config-search:focus {
+  border-color: var(--interactive-accent);
+}
+
+.codemarker-config-number {
+  width: 60px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text-normal);
+  font-size: 12px;
+  outline: none;
+}
+
+.codemarker-config-number:focus {
+  border-color: var(--interactive-accent);
+}
+
+.codemarker-config-codes-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ── Chart Area ── */
+.codemarker-chart-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.codemarker-chart-container {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+.codemarker-chart-container canvas {
+  display: block;
+}
+
+/* ── Footer ── */
+.codemarker-analytics-footer {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-faint);
+  border-top: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+/* ── Empty state ── */
+.codemarker-analytics-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 40px;
+}
+
+.codemarker-analytics-empty h3 {
+  margin: 0;
+  color: var(--text-normal);
+}
+
+.codemarker-analytics-empty p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ── Heatmap tooltip ── */
+.codemarker-heatmap-tooltip {
+  position: absolute;
+  z-index: 100;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-normal);
+  pointer-events: none;
+  white-space: nowrap;
+}

@@ -3,5 +3,6 @@
   "hot-reload",
   "obsidian-codemarker",
   "obsidian-codemarker-csv",
-  "obsidian-codemarker-image"
+  "obsidian-codemarker-image",
+  "obsidian-codemarker-analytics"
 ]

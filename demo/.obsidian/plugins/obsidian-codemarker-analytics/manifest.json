@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-codemarker-analytics",
+  "name": "CodeMarker Analytics",
+  "version": "0.1.0",
+  "minAppVersion": "0.15.0",
+  "description": "Consolidated analytics and visualizations for CodeMarker coding data",
+  "author": "m4rlon",
+  "isDesktopOnly": false
+}
