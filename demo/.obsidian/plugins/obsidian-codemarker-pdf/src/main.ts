@@ -15,7 +15,7 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 	private observers = new Map<PDFViewerChild, PdfPageObserver>();
 
 	async onload() {
-		console.log('[codemarker-pdf] v35.5 loaded — Popover replaces sidebar + hover trigger');
+		console.log('[codemarker-pdf] v35.6 loaded — Pointer-events fix + smart layering');
 		this.model = new PdfCodingModel(this);
 		await this.model.load();
 

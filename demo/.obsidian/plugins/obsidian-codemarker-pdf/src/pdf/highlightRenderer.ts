@@ -167,22 +167,6 @@ export function renderHighlightsForPage(
 			// Tooltip with code names
 			const codeNames = marker.codes.join(', ');
 			setTooltip(rectEl, codeNames);
-
-			// Mousedown passthrough for text selection
-			attachMousePassthrough(rectEl, layer);
-
-			// Hover → open coding popover after delay
-			attachHoverPopover(rectEl, marker, callbacks);
-
-			// Hover → bidirectional highlight ↔ sidebar
-			if (callbacks.onHover) {
-				rectEl.addEventListener('mouseenter', () => {
-					callbacks.onHover!(marker.id, marker.codes[0] ?? null);
-				});
-				rectEl.addEventListener('mouseleave', () => {
-					callbacks.onHover!(null, null);
-				});
-			}
 		}
 
 		if (firstRectEl && lastRectEl) {
@@ -196,85 +180,180 @@ export function renderHighlightsForPage(
 		}
 	}
 
+	// Attach centralized hover tracking on the page div
+	attachLayerHoverTracking(pageDiv, renderInfos, callbacks);
+
 	return renderInfos;
 }
 
 /**
- * Attach mousedown passthrough so text selection works through highlights.
+ * Centralized hover tracking on the page div.
+ * Since highlight rects are pointer-events: none, we listen on the page div
+ * and use geometric hit-testing to detect which marker (if any) is under the cursor.
+ * This allows text selection to work normally through highlights.
  */
-function attachMousePassthrough(rectEl: HTMLElement, layer: HTMLElement): void {
-	rectEl.addEventListener('mousedown', (e) => {
-		if (e.button !== 0) return;
+function attachLayerHoverTracking(
+	pageDiv: HTMLElement,
+	renderInfos: MarkerRenderInfo[],
+	callbacks: HighlightCallbacks,
+): void {
+	if (renderInfos.length === 0) return;
+
+	// Build a flat list of all rects with their marker info for hit-testing
+	const hitTargets: { rectEl: HTMLElement; marker: PdfMarker }[] = [];
+	for (const info of renderInfos) {
+		const layer = info.firstRectEl.parentElement;
+		if (!layer) continue;
+		const rects = layer.querySelectorAll<HTMLElement>(
+			`.${HIGHLIGHT_CLASS}[data-marker-id="${info.marker.id}"]`,
+		);
+		for (const rectEl of Array.from(rects)) {
+			hitTargets.push({ rectEl, marker: info.marker });
+		}
+	}
+
+	let currentMarkerId: string | null = null;
+
+	const onMouseMove = (e: MouseEvent) => {
+		// Skip during drag operations
 		if (document.body.classList.contains('codemarker-pdf-dragging')) return;
 
-		// Disable pointer-events on the layer so text layer receives mouse events
-		layer.style.pointerEvents = 'none';
+		// Hit-test: collect ALL markers under cursor, then pick the smallest
+		const hits: { rectEl: HTMLElement; marker: PdfMarker }[] = [];
+		const seenMarkers = new Set<string>();
 
-		// Re-dispatch to the element underneath
-		const underlying = document.elementFromPoint(e.clientX, e.clientY);
-		if (underlying && underlying !== rectEl) {
-			underlying.dispatchEvent(new MouseEvent('mousedown', {
-				bubbles: true,
-				cancelable: true,
-				clientX: e.clientX,
-				clientY: e.clientY,
-				button: e.button,
-			}));
+		for (const { rectEl, marker } of hitTargets) {
+			const r = rectEl.getBoundingClientRect();
+			if (e.clientX >= r.left && e.clientX <= r.right &&
+				e.clientY >= r.top && e.clientY <= r.bottom) {
+				if (!seenMarkers.has(marker.id)) {
+					seenMarkers.add(marker.id);
+					hits.push({ rectEl, marker });
+				}
+			}
 		}
 
-		const onUp = () => {
-			document.removeEventListener('mouseup', onUp);
-			layer.style.pointerEvents = '';
-		};
-		document.addEventListener('mouseup', onUp);
-	});
+		let hitMarker: PdfMarker | null = null;
+		let hitRect: HTMLElement | null = null;
+
+		if (hits.length === 1) {
+			hitMarker = hits[0].marker;
+			hitRect = hits[0].rectEl;
+		} else if (hits.length > 1) {
+			// Smart layering: smallest (most specific) marker wins
+			// Same logic as CM6 findSmallestMarkerAtPos()
+			hits.sort((a, b) => {
+				const am = a.marker, bm = b.marker;
+				const aContainsB = markerContains(am, bm);
+				const bContainsA = markerContains(bm, am);
+
+				if (aContainsB) return 1;  // B is nested inside A → B wins
+				if (bContainsA) return -1; // A is nested inside B → A wins
+				// Partial intersection: higher beginIndex wins (later start = "on top")
+				if (am.beginIndex !== bm.beginIndex) return bm.beginIndex - am.beginIndex;
+				return bm.beginOffset - am.beginOffset;
+			});
+			hitMarker = hits[0].marker;
+			hitRect = hits[0].rectEl;
+		}
+
+		const hitId = hitMarker?.id ?? null;
+
+		if (hitId === currentMarkerId) return; // No change
+
+		// Leaving previous marker
+		if (currentMarkerId !== null) {
+			cancelHoverPopover();
+
+			// Dispatch onHover(null)
+			callbacks.onHover?.(null, null);
+
+			// Show/hide handles
+			showHandlesForMarker(pageDiv, null);
+
+			// Start close timer if popover is open for this marker
+			if (currentHoverMarkerId === currentMarkerId) {
+				const popover = document.querySelector('.codemarker-popover') as HTMLElement | null;
+				if (popover) {
+					startHoverCloseTimer(() => { popover.remove(); });
+				} else {
+					currentHoverMarkerId = null;
+				}
+			}
+		}
+
+		currentMarkerId = hitId;
+
+		// Entering new marker
+		if (hitMarker && hitRect) {
+			// Dispatch onHover
+			callbacks.onHover?.(hitMarker.id, hitMarker.codes[0] ?? null);
+
+			// Show handles for this marker
+			showHandlesForMarker(pageDiv, hitMarker.id);
+
+			// If popover already open for this marker, just cancel close
+			if (currentHoverMarkerId === hitMarker.id) {
+				cancelHoverCloseTimer();
+			} else {
+				// Start open timer for popover
+				cancelHoverPopover();
+				const marker = hitMarker;
+				const anchorEl = hitRect;
+				hoverOpenTimer = setTimeout(() => {
+					hoverOpenTimer = null;
+					currentHoverMarkerId = marker.id;
+					callbacks.onMarkerHoverPopover(marker, anchorEl);
+				}, HOVER_OPEN_DELAY);
+			}
+		}
+	};
+
+	const onMouseLeave = () => {
+		if (currentMarkerId !== null) {
+			cancelHoverPopover();
+			callbacks.onHover?.(null, null);
+			showHandlesForMarker(pageDiv, null);
+
+			if (currentHoverMarkerId === currentMarkerId) {
+				const popover = document.querySelector('.codemarker-popover') as HTMLElement | null;
+				if (popover) {
+					startHoverCloseTimer(() => { popover.remove(); });
+				} else {
+					currentHoverMarkerId = null;
+				}
+			}
+			currentMarkerId = null;
+		}
+	};
+
+	// Clean up previous listeners if any (stored on the page div)
+	const prev = (pageDiv as any).__codemarkerHoverCleanup;
+	if (prev) prev();
+
+	pageDiv.addEventListener('mousemove', onMouseMove);
+	pageDiv.addEventListener('mouseleave', onMouseLeave);
+
+	(pageDiv as any).__codemarkerHoverCleanup = () => {
+		pageDiv.removeEventListener('mousemove', onMouseMove);
+		pageDiv.removeEventListener('mouseleave', onMouseLeave);
+	};
 }
 
 /**
- * Attach hover-to-popover behavior on a highlight rect.
- * Opens coding popover after a delay; cancels on mouseleave.
+ * Show drag handles for a specific marker, hide all others.
  */
-function attachHoverPopover(
-	rectEl: HTMLElement,
-	marker: PdfMarker,
-	callbacks: HighlightCallbacks,
-): void {
-	rectEl.addEventListener('mouseenter', () => {
-		// Don't open popover during drag
-		if (document.body.classList.contains('codemarker-pdf-dragging')) return;
-
-		// If popover is already open for this marker, just cancel close timer
-		if (currentHoverMarkerId === marker.id) {
-			cancelHoverCloseTimer();
-			return;
-		}
-
-		// Cancel any pending open for a different marker
-		cancelHoverPopover();
-
-		hoverOpenTimer = setTimeout(() => {
-			hoverOpenTimer = null;
-			currentHoverMarkerId = marker.id;
-			callbacks.onMarkerHoverPopover(marker, rectEl);
-		}, HOVER_OPEN_DELAY);
-	});
-
-	rectEl.addEventListener('mouseleave', () => {
-		// Cancel pending open if mouse left before delay
-		cancelHoverPopover();
-
-		// If popover is open for this marker, start close grace period
-		if (currentHoverMarkerId === marker.id) {
-			const popover = document.querySelector('.codemarker-popover') as HTMLElement | null;
-			if (popover) {
-				startHoverCloseTimer(() => {
-					popover.remove();
-				});
-			} else {
-				currentHoverMarkerId = null;
+export function showHandlesForMarker(container: HTMLElement, markerId: string | null): void {
+	const handles = Array.from(container.querySelectorAll<HTMLElement>('.codemarker-pdf-handle'));
+	for (const h of handles) {
+		if (markerId && h.dataset.markerId === markerId) {
+			h.classList.add('codemarker-pdf-handle-visible');
+		} else {
+			if (!document.body.classList.contains('codemarker-pdf-dragging')) {
+				h.classList.remove('codemarker-pdf-handle-visible');
 			}
 		}
-	});
+	}
 }
 
 /**
@@ -297,6 +376,20 @@ export function applyHoverToHighlights(container: HTMLElement, markerId: string 
 export function clearHighlightsForPage(pageDiv: HTMLElement): void {
 	const layer = pageDiv.querySelector(`.${HIGHLIGHT_LAYER_CLASS}`);
 	if (layer) layer.remove();
+}
+
+/**
+ * Check if marker A fully contains marker B (A starts before/at B and ends after/at B).
+ * Used for smart layering: nested (smaller) markers get priority over containers.
+ */
+function markerContains(a: PdfMarker, b: PdfMarker): boolean {
+	const aStartsBefore =
+		a.beginIndex < b.beginIndex ||
+		(a.beginIndex === b.beginIndex && a.beginOffset <= b.beginOffset);
+	const aEndsAfter =
+		a.endIndex > b.endIndex ||
+		(a.endIndex === b.endIndex && a.endOffset >= b.endOffset);
+	return aStartsBefore && aEndsAfter;
 }
 
 /**

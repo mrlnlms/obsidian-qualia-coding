@@ -14,10 +14,9 @@
 
 .codemarker-pdf-highlight {
   position: absolute;
-  pointer-events: auto;
+  pointer-events: none;
   mix-blend-mode: multiply;
   border-radius: 2px;
-  cursor: pointer;
   opacity: 0.35;
   transition: box-shadow 0.15s ease, opacity 0.15s ease;
 }

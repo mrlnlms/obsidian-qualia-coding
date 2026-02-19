@@ -55,26 +55,16 @@ export function attachDragHandles(
 	positionHandle(endHandle, lastRectEl, 'end');
 	layer.appendChild(endHandle);
 
-	// Show handles on highlight hover
-	const allRects = layer.querySelectorAll<HTMLElement>(`[data-marker-id="${marker.id}"].codemarker-pdf-highlight`);
-	const showHandles = () => {
+	// Handle visibility is controlled centrally by showHandlesForMarker()
+	// in highlightRenderer.ts (via hover tracking on the page div).
+	// Handles themselves keep pointer-events: auto for drag interaction.
+	// Keep handles visible while hovering over the handle itself (during drag setup).
+	const keepVisible = () => {
 		startHandle.classList.add('codemarker-pdf-handle-visible');
 		endHandle.classList.add('codemarker-pdf-handle-visible');
 	};
-	const hideHandles = () => {
-		if (document.body.classList.contains('codemarker-pdf-dragging')) return;
-		startHandle.classList.remove('codemarker-pdf-handle-visible');
-		endHandle.classList.remove('codemarker-pdf-handle-visible');
-	};
-
-	for (const rect of Array.from(allRects)) {
-		rect.addEventListener('mouseenter', showHandles);
-		rect.addEventListener('mouseleave', hideHandles);
-	}
-	startHandle.addEventListener('mouseenter', showHandles);
-	startHandle.addEventListener('mouseleave', hideHandles);
-	endHandle.addEventListener('mouseenter', showHandles);
-	endHandle.addEventListener('mouseleave', hideHandles);
+	startHandle.addEventListener('mouseenter', keepVisible);
+	endHandle.addEventListener('mouseenter', keepVisible);
 
 	// Drag interactions
 	setupDrag(startHandle, 'start', marker, pageView, callbacks);
