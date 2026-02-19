@@ -330,6 +330,24 @@
 }
 
 /* ========================================
+   Margin Panel — Label Overlay
+   (Lives outside scroll container so labels aren't clipped)
+   ======================================== */
+
+.codemarker-pdf-label-overlay {
+  position: absolute;
+  left: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.codemarker-pdf-label-scroller {
+  position: relative;
+  pointer-events: auto;
+}
+
+/* ========================================
    Margin Panel (MAXQDA-style bracket bars)
    ======================================== */
 

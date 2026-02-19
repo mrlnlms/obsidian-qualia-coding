@@ -118,7 +118,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Auto-open images**: When enabled, clicking any image file opens it directly in CodeMarker Image view
 - **Settings tab**: Dedicated settings panel for CodeMarker Image preferences and toggles
 
-### CodeMarker PDF (v35.7)
+### CodeMarker PDF (v35.8)
 
 - **PDF selection capture**: Select text in any PDF file to create qualitative codes on passages
 - **Cross-page detection**: Detects selections that span multiple PDF pages
@@ -127,6 +127,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Bidirectional hover**: Hover a highlight in the PDF and the corresponding sidebar entry highlights; hover a sidebar entry and the PDF highlight glows back
 - **File rename tracking**: When a PDF file is renamed, all associated markers update their file references automatically
 - **Margin panel (MAXQDA-style)**: Colored vertical bars in the left margin of the PDF view, mirroring the markdown engine's margin panel — each code gets a distinct bar with clickable labels
+- **Margin overlay**: Dedicated overlay layer for margin annotations — marks render in page margins with proper z-ordering
 - **Undo/Redo**: Full undo and redo support for PDF coding operations — revert or re-apply marker additions, edits, and deletions
 - **Drag handles**: Drag handles on PDF highlights allow resizing marker boundaries directly in the viewer
 - **Text selection over highlights**: Select text that overlaps with existing highlights without interference — selection flows naturally across coded passages
@@ -137,6 +138,8 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Smart layering**: When multiple markers overlap, the smallest marker is rendered on top so it remains clickable — prevents large markers from hiding small nested ones
 - **Intersection handles**: When markers overlap in intersection zones, dedicated handles appear at the intersection boundaries — allowing precise resizing of each marker independently within shared regions
 - **Handle transitions**: Smooth visual transitions when moving between intersection zones and single-marker zones — handles update position and style without flicker
+- **Null guards**: Defensive checks throughout the PDF pipeline prevent crashes on edge cases (null pages, missing selections, unloaded views)
+- **Thumbnail rendering**: PDF page thumbnails for preview cards and navigation
 - **PDF Code Explorer sidebar**: Tree-style panel showing all coded PDF passages organized by code
 - **PDF Code Detail sidebar**: Panel showing details of a selected PDF code marker
 - **Ribbon icon**: Quick access to PDF Code Explorer via the left ribbon

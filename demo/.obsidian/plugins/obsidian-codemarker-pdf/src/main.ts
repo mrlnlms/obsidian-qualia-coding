@@ -15,7 +15,7 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 	private observers = new Map<PDFViewerChild, PdfPageObserver>();
 
 	async onload() {
-		console.log('[codemarker-pdf] v35.7 loaded — Intersection handles + transitions');
+		console.log('[obsidian-codemarker-pdf] v35.8 loaded — Margin overlay + null guards + thumbnail');
 		this.model = new PdfCodingModel(this);
 		await this.model.load();
 
