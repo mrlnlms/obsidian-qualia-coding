@@ -27,6 +27,7 @@ export class AudioRegionRenderer {
 			this.renderMarkerRegion(marker);
 		}
 		this.applyLanes(markers);
+		this.renderMinimapMarkers(markers);
 	}
 
 	renderMarkerRegion(marker: AudioMarker): void {
@@ -151,6 +152,33 @@ export class AudioRegionRenderer {
 
 	getRegionForMarker(markerId: string): any | undefined {
 		return this.markerToRegion.get(markerId);
+	}
+
+	/**
+	 * Render colored bars on the minimap overlay to show where markers are.
+	 */
+	private renderMinimapMarkers(markers: AudioMarker[]): void {
+		const overlay = this.renderer.getMinimapOverlay();
+		if (!overlay) return;
+		overlay.empty();
+
+		const duration = this.renderer.getDuration();
+		if (duration <= 0 || markers.length === 0) return;
+
+		for (const marker of markers) {
+			const baseColor = this.model.registry.getColorForCodes(marker.codes);
+			const color = baseColor ?? this.renderer.readAccentHex();
+			const left = (marker.from / duration) * 100;
+			const width = ((marker.to - marker.from) / duration) * 100;
+
+			const bar = document.createElement('div');
+			bar.className = 'codemarker-audio-minimap-marker';
+			bar.style.left = `${left}%`;
+			bar.style.width = `${Math.max(width, 0.3)}%`; // min width for visibility
+			bar.style.backgroundColor = color;
+			bar.title = marker.codes.join(', ') + ' · ' + formatTime(marker.from) + ' – ' + formatTime(marker.to);
+			overlay.appendChild(bar);
+		}
 	}
 
 	/**

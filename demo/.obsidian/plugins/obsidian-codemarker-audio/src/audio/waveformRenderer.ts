@@ -11,6 +11,8 @@ export class WaveformRenderer {
   private regionsPlugin: RegionsPlugin | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private minimapOverlay: HTMLElement | null = null;
+  private timelineContainer: HTMLElement | null = null;
 
   create(container: HTMLElement, url: string): void {
     this.destroy();
@@ -21,14 +23,24 @@ export class WaveformRenderer {
 
     const timelinePlugin = TimelinePlugin.create({
       height: 20,
+      container: this.timelineContainer ?? undefined,
       style: { fontSize: '10px', color: 'var(--text-faint)' },
     });
+
+    // Minimap: wrapper with markers overlay
+    const minimapWrapper = document.createElement('div');
+    minimapWrapper.className = 'codemarker-audio-minimap-wrapper';
+    container.prepend(minimapWrapper);
+
+    this.minimapOverlay = document.createElement('div');
+    this.minimapOverlay.className = 'codemarker-audio-minimap-overlay';
+    minimapWrapper.appendChild(this.minimapOverlay);
 
     const minimapPlugin = MinimapPlugin.create({
       height: 24,
       waveColor: colors.wave,
       progressColor: colors.progress,
-      insertPosition: 'beforebegin',
+      container: minimapWrapper,
       overlayColor: 'rgba(100, 100, 100, 0.15)',
     });
 
@@ -81,6 +93,15 @@ export class WaveformRenderer {
       this.ws = null;
     }
     this.regionsPlugin = null;
+    this.minimapOverlay = null;
+  }
+
+  getMinimapOverlay(): HTMLElement | null {
+    return this.minimapOverlay;
+  }
+
+  setTimelineContainer(el: HTMLElement): void {
+    this.timelineContainer = el;
   }
 
   // ── Regions API ──

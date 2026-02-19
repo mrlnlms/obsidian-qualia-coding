@@ -119,6 +119,10 @@ class AudioView extends ItemView {
     // Loading indicator
     const loadingEl = this.waveformEl.createDiv({ cls: "codemarker-audio-loading", text: "Loading audio..." });
 
+    // Timeline ruler (between waveform and transport)
+    const timelineEl = contentEl.createDiv({ cls: "codemarker-audio-timeline" });
+    this.renderer.setTimelineContainer(timelineEl);
+
     // Transport bar
     const transport = contentEl.createDiv({ cls: "codemarker-audio-transport" });
 
@@ -406,7 +410,7 @@ export default class CodeMarkerAudioPlugin extends Plugin {
   model!: AudioCodingModel;
 
   async onload(): Promise<void> {
-    console.log('[obsidian-codemarker-audio] v36.5 loaded — Play region + minimap + auto-scroll');
+    console.log('[codemarker-audio] v36.6 loaded — Colored bars minimap + ruler positioning fixes');
     // Initialize coding model
     this.model = new AudioCodingModel(this);
     await this.model.load();
