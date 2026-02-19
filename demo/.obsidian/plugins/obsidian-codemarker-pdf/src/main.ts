@@ -15,7 +15,7 @@ export default class CodeMarkerPdfPlugin extends Plugin {
 	private observers = new Map<PDFViewerChild, PdfPageObserver>();
 
 	async onload() {
-		console.log('[codemarker-pdf] v35.6 loaded — Pointer-events fix + smart layering');
+		console.log('[codemarker-pdf] v35.7 loaded — Intersection handles + transitions');
 		this.model = new PdfCodingModel(this);
 		await this.model.load();
 

@@ -213,6 +213,7 @@ function attachLayerHoverTracking(
 	}
 
 	let currentMarkerId: string | null = null;
+	let currentHitCount = 0; // Track how many markers are under cursor
 
 	const onMouseMove = (e: MouseEvent) => {
 		// Skip during drag operations
@@ -235,13 +236,18 @@ function attachLayerHoverTracking(
 
 		let hitMarker: PdfMarker | null = null;
 		let hitRect: HTMLElement | null = null;
+		let isPartialIntersection = false;
 
 		if (hits.length === 1) {
 			hitMarker = hits[0].marker;
 			hitRect = hits[0].rectEl;
 		} else if (hits.length > 1) {
+			// Check if this is a partial intersection (no containment) vs nesting
+			isPartialIntersection = !hits.some((a, i) =>
+				hits.some((b, j) => i !== j && markerContains(a.marker, b.marker)),
+			);
+
 			// Smart layering: smallest (most specific) marker wins
-			// Same logic as CM6 findSmallestMarkerAtPos()
 			hits.sort((a, b) => {
 				const am = a.marker, bm = b.marker;
 				const aContainsB = markerContains(am, bm);
@@ -249,7 +255,6 @@ function attachLayerHoverTracking(
 
 				if (aContainsB) return 1;  // B is nested inside A → B wins
 				if (bContainsA) return -1; // A is nested inside B → A wins
-				// Partial intersection: higher beginIndex wins (later start = "on top")
 				if (am.beginIndex !== bm.beginIndex) return bm.beginIndex - am.beginIndex;
 				return bm.beginOffset - am.beginOffset;
 			});
@@ -259,19 +264,15 @@ function attachLayerHoverTracking(
 
 		const hitId = hitMarker?.id ?? null;
 
-		if (hitId === currentMarkerId) return; // No change
+		// No change if same marker AND same hit count (intersection state unchanged)
+		if (hitId === currentMarkerId && hits.length === currentHitCount) return;
 
-		// Leaving previous marker
+		// Leaving previous marker (or intersection state changed)
 		if (currentMarkerId !== null) {
 			cancelHoverPopover();
-
-			// Dispatch onHover(null)
 			callbacks.onHover?.(null, null);
-
-			// Show/hide handles
 			showHandlesForMarker(pageDiv, null);
 
-			// Start close timer if popover is open for this marker
 			if (currentHoverMarkerId === currentMarkerId) {
 				const popover = document.querySelector('.codemarker-popover') as HTMLElement | null;
 				if (popover) {
@@ -283,28 +284,33 @@ function attachLayerHoverTracking(
 		}
 
 		currentMarkerId = hitId;
+		currentHitCount = hits.length;
 
-		// Entering new marker
+		// Entering new marker (or intersection state changed)
 		if (hitMarker && hitRect) {
-			// Dispatch onHover
 			callbacks.onHover?.(hitMarker.id, hitMarker.codes[0] ?? null);
 
-			// Show handles for this marker
-			showHandlesForMarker(pageDiv, hitMarker.id);
-
-			// If popover already open for this marker, just cancel close
-			if (currentHoverMarkerId === hitMarker.id) {
-				cancelHoverCloseTimer();
+			// Show handles — all overlapping markers in intersection areas, single marker otherwise
+			if (hits.length > 1) {
+				showHandlesForMarker(pageDiv, seenMarkers);
 			} else {
-				// Start open timer for popover
-				cancelHoverPopover();
-				const marker = hitMarker;
-				const anchorEl = hitRect;
-				hoverOpenTimer = setTimeout(() => {
-					hoverOpenTimer = null;
-					currentHoverMarkerId = marker.id;
-					callbacks.onMarkerHoverPopover(marker, anchorEl);
-				}, HOVER_OPEN_DELAY);
+				showHandlesForMarker(pageDiv, hitMarker.id);
+			}
+
+			// Popover: suppress in partial intersection areas (only show handles there)
+			if (!isPartialIntersection) {
+				if (currentHoverMarkerId === hitMarker.id) {
+					cancelHoverCloseTimer();
+				} else {
+					cancelHoverPopover();
+					const marker = hitMarker;
+					const anchorEl = hitRect;
+					hoverOpenTimer = setTimeout(() => {
+						hoverOpenTimer = null;
+						currentHoverMarkerId = marker.id;
+						callbacks.onMarkerHoverPopover(marker, anchorEl);
+					}, HOVER_OPEN_DELAY);
+				}
 			}
 		}
 	};
@@ -341,12 +347,16 @@ function attachLayerHoverTracking(
 }
 
 /**
- * Show drag handles for a specific marker, hide all others.
+ * Show drag handles for one or more markers, hide all others.
+ * Accepts a single marker ID, a Set of IDs (for intersection areas), or null to hide all.
  */
-export function showHandlesForMarker(container: HTMLElement, markerId: string | null): void {
+export function showHandlesForMarker(container: HTMLElement, markerIds: string | Set<string> | null): void {
+	const idSet = markerIds instanceof Set ? markerIds
+		: markerIds ? new Set([markerIds])
+		: null;
 	const handles = Array.from(container.querySelectorAll<HTMLElement>('.codemarker-pdf-handle'));
 	for (const h of handles) {
-		if (markerId && h.dataset.markerId === markerId) {
+		if (idSet && h.dataset.markerId && idSet.has(h.dataset.markerId)) {
 			h.classList.add('codemarker-pdf-handle-visible');
 		} else {
 			if (!document.body.classList.contains('codemarker-pdf-dragging')) {
