@@ -1,0 +1,317 @@
+/* ========================================
+   CodeMarker PDF — Highlight Layer
+   ======================================== */
+
+.codemarker-pdf-highlight-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3; /* Above text layer (z-index 2), below annotation layer */
+}
+
+.codemarker-pdf-highlight {
+  position: absolute;
+  pointer-events: auto;
+  mix-blend-mode: multiply;
+  border-radius: 2px;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.codemarker-pdf-highlight:hover {
+  opacity: 0.55;
+  box-shadow: 0 0 0 2px currentColor;
+}
+
+/* ========================================
+   Coding Popover (shared with CSV plugin)
+   ======================================== */
+
+.codemarker-popover {
+  position: fixed;
+  z-index: 9999;
+  min-width: 220px;
+  max-width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  padding: 4px 0;
+}
+
+.codemarker-popover .menu-item-textfield {
+  padding: 4px 8px;
+}
+
+.codemarker-popover .menu-item-textfield input {
+  width: 100%;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.codemarker-popover .menu-item-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.codemarker-popover .menu-item-toggle:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-popover-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ========================================
+   Code Detail View (sidebar)
+   ======================================== */
+
+.codemarker-detail-panel {
+  padding: 12px 16px;
+}
+
+.codemarker-detail-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: var(--font-ui-small);
+}
+
+.codemarker-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.codemarker-detail-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.codemarker-detail-title {
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.codemarker-detail-section {
+  margin-bottom: 14px;
+}
+
+.codemarker-detail-section h6 {
+  margin: 0 0 6px 0;
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.codemarker-detail-description {
+  margin: 0;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  line-height: 1.5;
+}
+
+.codemarker-detail-quote {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--interactive-accent);
+  background-color: var(--background-secondary);
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  line-height: 1.5;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.codemarker-detail-quote p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.codemarker-detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.codemarker-detail-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid;
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.codemarker-detail-chip:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-detail-marker-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.codemarker-detail-marker-item {
+  padding: 4px 8px;
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  line-height: 1.4;
+}
+
+.codemarker-detail-marker-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-detail-marker-item + .codemarker-detail-marker-item {
+  margin-top: 2px;
+}
+
+/* Back button */
+.codemarker-detail-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: 8px;
+  padding: 2px 0;
+}
+
+.codemarker-detail-back:hover {
+  color: var(--text-normal);
+}
+
+.codemarker-detail-back .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Marker file reference */
+.codemarker-detail-marker-file {
+  display: block;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+/* ========================================
+   Code Explorer — tree view
+   ======================================== */
+
+/* Code list mode */
+.codemarker-explorer-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.codemarker-explorer-title { font-size: var(--font-ui-medium); font-weight: 600; color: var(--text-normal); }
+.codemarker-explorer-count { font-size: var(--font-ui-smaller); color: var(--text-muted); background: var(--background-modifier-hover); padding: 2px 8px; border-radius: var(--radius-s); }
+
+.codemarker-explorer-list { display: flex; flex-direction: column; gap: 2px; }
+.codemarker-explorer-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-s); cursor: pointer; transition: background-color 0.15s; }
+.codemarker-explorer-row:hover { background-color: var(--background-modifier-hover); }
+
+.codemarker-explorer-row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.codemarker-explorer-row-name { font-size: var(--font-ui-small); color: var(--text-normal); font-weight: 500; }
+.codemarker-explorer-row-desc { font-size: var(--font-ui-smaller); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codemarker-explorer-row-count { font-size: var(--font-ui-smaller); color: var(--text-muted); flex-shrink: 0; }
+
+.codemarker-explorer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.codemarker-explorer-toolbar .clickable-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.codemarker-explorer-toolbar .clickable-icon:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+
+.codemarker-explorer-toolbar-spacer {
+  flex: 1;
+}
+
+.codemarker-explorer-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.codemarker-explorer .tree-item-inner {
+  flex: 1;
+}
+
+.codemarker-explorer .tree-item-flair {
+  margin-left: 8px;
+}
+
+.codemarker-explorer .collapse-icon {
+  transition: transform 0.15s ease;
+  transform: rotate(0deg);
+}
+
+.codemarker-explorer .is-collapsed .collapse-icon {
+  transform: rotate(-90deg);
+}
+
+.codemarker-explorer .tree-item-children {
+  border-left: none;
+}
+
+.codemarker-explorer-footer {
+  padding: 12px 8px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  border-top: 1px solid var(--background-modifier-border);
+  margin-top: 8px;
+}
+
+/* ========================================
+   Code Form Modal
+   ======================================== */
+
+.codemarker-code-form .cm-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}

@@ -118,6 +118,17 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Auto-open images**: When enabled, clicking any image file opens it directly in CodeMarker Image view
 - **Settings tab**: Dedicated settings panel for CodeMarker Image preferences and toggles
 
+### CodeMarker PDF (v35.1)
+
+- **PDF selection capture**: Select text in any PDF file to create qualitative codes on passages
+- **Cross-page detection**: Detects selections that span multiple PDF pages
+- **CodeFormModal**: Modal interface for creating and editing code annotations on PDF highlights
+- **Double-click edit**: Double-click an existing marker to edit it via CodeFormModal
+- **PDF Code Explorer sidebar**: Tree-style panel showing all coded PDF passages organized by code
+- **PDF Code Detail sidebar**: Panel showing details of a selected PDF code marker
+- **Ribbon icon**: Quick access to PDF Code Explorer via the left ribbon
+- **Standalone plugin**: Runs as an independent engine plugin in the demo vault
+
 ### CodeMarker Analytics (v38.12)
 
 - **Cross-engine analytics**: Consolidates coded data from all six source types into a unified view
