@@ -174,6 +174,19 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Zoom guards**: ResizeObserver try-catch prevents "No audio loaded" race condition errors during rapid zoom or pane resize before audio is ready
 - **Standalone plugin**: Runs as an independent engine plugin in the demo vault
 
+### CodeMarker Video (v37)
+
+- **Video player with waveform**: Opens video files (mp4, webm, ogv) in a custom view with waveform visualization via wavesurfer.js
+- **Fork of Audio engine**: Reuses the proven audio engine architecture adapted for video playback
+- **Qualitative coding on timeline**: Create coded regions on the video timeline for annotation
+- **Region lanes**: Coded video regions displayed as colored lanes below the waveform
+- **Code Explorer sidebar**: Tree-style panel showing all coded video regions organized by code
+- **Code Detail sidebar**: Panel showing details of a selected video code marker
+- **Playback controls**: Play/pause, zoom, volume, and speed adjustment (0.5x to 2x)
+- **State persistence**: Video view remembers which file was open across sessions
+- **Settings tab**: Dedicated settings panel for CodeMarker Video preferences
+- **Standalone plugin**: Runs as an independent engine plugin in the demo vault
+
 ### CodeMarker Analytics (v38.12)
 
 - **Cross-engine analytics**: Consolidates coded data from all six source types into a unified view
