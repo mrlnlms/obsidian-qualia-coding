@@ -1,16 +1,17 @@
 import { ItemView, WorkspaceLeaf, setIcon, Notice } from "obsidian";
 import type CodeMarkerAnalyticsPlugin from "../main";
-import type { ConsolidatedData, FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult, TemporalResult, LagResult } from "../data/dataTypes";
-import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution, calculateTemporal, calculateTextStats, calculateLagSequential } from "../data/statsEngine";
+import type { ConsolidatedData, FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult, TemporalResult, LagResult, PolarCoordResult, ChiSquareResult } from "../data/dataTypes";
+import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution, calculateTemporal, calculateTextStats, calculateLagSequential, calculatePolarCoordinates, calculateChiSquare } from "../data/statsEngine";
 import { TextExtractor, type ExtractedSegment } from "../data/textExtractor";
 import { calculateWordFrequencies, type WordFrequencyResult, type StopWordsLang } from "../data/wordFrequency";
 import { calculateMCA, type MCAResult } from "../data/mcaEngine";
 import { calculateMDS, type MDSResult, type MDSMode } from "../data/mdsEngine";
 import { hierarchicalCluster, buildDendrogram, cutDendrogram, calculateSilhouette, type DendrogramNode } from "../data/clusterEngine";
+import { buildDecisionTree, type DecisionTreeNode, type DecisionTreeResult } from "../data/decisionTreeEngine";
 
 export const ANALYTICS_VIEW_TYPE = "codemarker-analytics";
 
-export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential";
+export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
 export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
@@ -58,6 +59,18 @@ export class AnalyticsView extends ItemView {
 
   // Text Stats state
   private tsSort: { col: string; asc: boolean } = { col: "totalWords", asc: false };
+
+  // Polar Coordinates state
+  private polarFocalCode = "";
+  private polarMaxLag = 5;
+
+  // Chi-Square state
+  private chiGroupBy: "source" | "file" = "source";
+  private chiSort: { col: string; asc: boolean } = { col: "pValue", asc: true };
+
+  // Decision Tree state
+  private dtOutcomeCode = "";
+  private dtMaxDepth = 4;
 
   // Text Retrieval state
   private trSearch = "";
@@ -262,6 +275,18 @@ export class AnalyticsView extends ItemView {
     if (this.viewMode === "lag-sequential") {
       this.renderLagOptionsSection();
     }
+    // ── Polar Coordinates options ──
+    if (this.viewMode === "polar-coords") {
+      this.renderPolarOptionsSection();
+    }
+    // ── Chi-Square options ──
+    if (this.viewMode === "chi-square") {
+      this.renderChiSquareOptionsSection();
+    }
+    // ── Decision Tree options ──
+    if (this.viewMode === "decision-tree") {
+      this.renderDecisionTreeOptionsSection();
+    }
     // ── Codes ──
     this.renderCodesSection();
     // ── Min frequency ──
@@ -331,6 +356,9 @@ export class AnalyticsView extends ItemView {
       ["text-stats", "Text Statistics"],
       ["dendrogram", "Dendrogram"],
       ["lag-sequential", "Lag Sequential"],
+      ["polar-coords", "Polar Coordinates"],
+      ["chi-square", "Chi-Square Tests"],
+      ["decision-tree", "Decision Tree"],
     ] as const) {
       const row = section.createDiv({ cls: "codemarker-config-row" });
       const radio = row.createEl("input", { type: "radio" });
@@ -619,6 +647,12 @@ export class AnalyticsView extends ItemView {
       this.renderDendrogramView(filters);
     } else if (this.viewMode === "lag-sequential") {
       this.renderLagSequential(filters);
+    } else if (this.viewMode === "polar-coords") {
+      this.renderPolarCoordinates(filters);
+    } else if (this.viewMode === "chi-square") {
+      this.renderChiSquareView(filters);
+    } else if (this.viewMode === "decision-tree") {
+      this.renderDecisionTreeView(filters);
     } else {
       this.renderNetworkGraph(filters);
     }
@@ -749,6 +783,21 @@ export class AnalyticsView extends ItemView {
           const lag = calculateLagSequential(this.data!, filters, 1);
           this.renderMiniLag(c, lag);
         },
+      },
+      {
+        mode: "polar-coords",
+        title: "Polar Coordinates",
+        render: (c) => this.renderMiniPolar(c, filters),
+      },
+      {
+        mode: "chi-square",
+        title: "Chi-Square Tests",
+        render: (c) => this.renderMiniChiSquare(c, filters),
+      },
+      {
+        mode: "decision-tree",
+        title: "Decision Tree",
+        render: (c) => this.renderMiniDecisionTree(c, filters),
       },
     ];
 
@@ -4270,6 +4319,749 @@ export class AnalyticsView extends ItemView {
     URL.revokeObjectURL(link.href);
   }
 
+  // ─── Polar Coordinate Analysis ───
+
+  private renderPolarOptionsSection(): void {
+    if (!this.data) return;
+    const section = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    section.createDiv({ cls: "codemarker-config-section-title", text: "Polar Coordinates" });
+
+    // Focal code dropdown
+    const focalLabel = section.createDiv({ cls: "codemarker-config-sublabel", text: "Focal Code" });
+    const select = section.createEl("select", { cls: "codemarker-config-select" });
+    const codes = this.data.codes.map((c) => c.name).sort();
+    if (!this.polarFocalCode && codes.length > 0) this.polarFocalCode = codes[0];
+    for (const code of codes) {
+      const opt = select.createEl("option", { text: code, value: code });
+      if (code === this.polarFocalCode) opt.selected = true;
+    }
+    select.addEventListener("change", () => {
+      this.polarFocalCode = select.value;
+      this.scheduleUpdate();
+    });
+
+    // Max lag slider
+    section.createDiv({ cls: "codemarker-config-sublabel", text: `Max Lag: ${this.polarMaxLag}` });
+    const slider = section.createEl("input");
+    slider.type = "range";
+    slider.min = "1";
+    slider.max = "5";
+    slider.value = String(this.polarMaxLag);
+    slider.style.width = "100%";
+    slider.addEventListener("input", () => {
+      this.polarMaxLag = Number(slider.value);
+      const label = section.querySelector(".codemarker-config-sublabel:last-of-type");
+      if (label) label.textContent = `Max Lag: ${this.polarMaxLag}`;
+    });
+    slider.addEventListener("change", () => {
+      this.polarMaxLag = Number(slider.value);
+      this.scheduleUpdate();
+    });
+  }
+
+  private renderPolarCoordinates(filters: FilterConfig): void {
+    if (!this.data || !this.chartContainer) return;
+    const container = this.chartContainer;
+
+    // Ensure focal code is set
+    const codes = this.data.codes.map((c) => c.name).sort();
+    if (!this.polarFocalCode && codes.length > 0) this.polarFocalCode = codes[0];
+
+    const result = calculatePolarCoordinates(this.data, filters, this.polarFocalCode, this.polarMaxLag);
+    if (result.vectors.length === 0) {
+      container.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
+        text: "Not enough data for polar coordinate analysis. Need at least 2 codes with transitions.",
+      });
+      return;
+    }
+
+    const title = container.createDiv();
+    title.style.cssText = "font-size:14px;font-weight:600;margin-bottom:8px;";
+    title.textContent = `Polar Coordinates — Focal: ${result.focalCode} (max lag: ${result.maxLag})`;
+
+    const canvas = container.createEl("canvas");
+    const rect = container.getBoundingClientRect();
+    const size = Math.min(rect.width - 32, rect.height - 60, 600);
+    canvas.width = size;
+    canvas.height = size;
+    canvas.style.display = "block";
+    canvas.style.margin = "0 auto";
+
+    const ctx = canvas.getContext("2d")!;
+    const isDark = document.body.classList.contains("theme-dark");
+    const textColor = isDark ? "#ddd" : "#333";
+    const gridColor = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)";
+    const cx = size / 2;
+    const cy = size / 2;
+
+    // Find max extent
+    let maxExtent = 3;
+    for (const v of result.vectors) {
+      const ext = Math.max(Math.abs(v.zProspective), Math.abs(v.zRetrospective));
+      if (ext > maxExtent) maxExtent = ext;
+    }
+    maxExtent = Math.ceil(maxExtent) + 0.5;
+    const margin = 50;
+    const plotR = (size / 2) - margin;
+    const scale = plotR / maxExtent;
+
+    // Background
+    ctx.fillStyle = isDark ? "#1e1e1e" : "#fafafa";
+    ctx.fillRect(0, 0, size, size);
+
+    // Grid circles
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 0.5;
+    for (let r = 1; r <= Math.ceil(maxExtent); r++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * scale, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Axes
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(margin, cy);
+    ctx.lineTo(size - margin, cy);
+    ctx.moveTo(cx, margin);
+    ctx.lineTo(cx, size - margin);
+    ctx.stroke();
+
+    // Significance circle (r = 1.96)
+    ctx.strokeStyle = isDark ? "rgba(255,100,100,0.4)" : "rgba(200,0,0,0.3)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 1.96 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Quadrant labels
+    ctx.font = "11px sans-serif";
+    ctx.fillStyle = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)";
+    ctx.textAlign = "center";
+    ctx.fillText("Q I: Mutual Activation", cx + plotR / 2, margin + 14);
+    ctx.fillText("Q II: Retro. Activation", cx - plotR / 2, margin + 14);
+    ctx.fillText("Q III: Mutual Inhibition", cx - plotR / 2, size - margin - 6);
+    ctx.fillText("Q IV: Prosp. Activation", cx + plotR / 2, size - margin - 6);
+
+    // Axis labels
+    ctx.fillStyle = textColor;
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("z Prospective →", size - margin - 40, cy + 16);
+    ctx.save();
+    ctx.translate(margin - 12, cy);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("z Retrospective →", 0, 0);
+    ctx.restore();
+
+    // Plot vectors
+    for (const v of result.vectors) {
+      const px = cx + v.zProspective * scale;
+      const py = cy - v.zRetrospective * scale; // Y inverted
+
+      // Line from center
+      ctx.strokeStyle = v.significant ? v.color : (isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)");
+      ctx.lineWidth = v.significant ? 1.5 : 0.8;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+
+      // Dot
+      ctx.beginPath();
+      ctx.arc(px, py, v.significant ? 5 : 3, 0, Math.PI * 2);
+      ctx.fillStyle = v.color;
+      ctx.globalAlpha = v.significant ? 1 : 0.4;
+      ctx.fill();
+      if (v.significant) {
+        ctx.strokeStyle = isDark ? "#fff" : "#000";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      // Label (significant only)
+      if (v.significant) {
+        ctx.font = "10px sans-serif";
+        ctx.fillStyle = textColor;
+        ctx.textAlign = "left";
+        ctx.fillText(v.code, px + 7, py + 3);
+      }
+    }
+
+    // Tooltip
+    const tooltip = container.createDiv({ cls: "codemarker-heatmap-tooltip" });
+    tooltip.style.display = "none";
+    canvas.addEventListener("mousemove", (e) => {
+      const br = canvas.getBoundingClientRect();
+      const mx = e.clientX - br.left;
+      const my = e.clientY - br.top;
+      let found = false;
+      for (const v of result.vectors) {
+        const px = cx + v.zProspective * scale;
+        const py = cy - v.zRetrospective * scale;
+        const dist = Math.sqrt((mx - px) ** 2 + (my - py) ** 2);
+        if (dist < 8) {
+          tooltip.style.display = "block";
+          tooltip.style.left = `${e.clientX - container.getBoundingClientRect().left + 12}px`;
+          tooltip.style.top = `${e.clientY - container.getBoundingClientRect().top + 12}px`;
+          tooltip.textContent = `${result.focalCode} → ${v.code}: z_p=${v.zProspective}, z_r=${v.zRetrospective}, r=${v.radius}, θ=${v.angle}° (Q${v.quadrant}) ${v.significant ? "★" : "n.s."}`;
+          found = true;
+          break;
+        }
+      }
+      if (!found) tooltip.style.display = "none";
+    });
+    canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+  }
+
+  private renderMiniPolar(canvas: HTMLCanvasElement, filters: FilterConfig): void {
+    if (!this.data) return;
+    const codes = this.data.codes.map((c) => c.name).sort();
+    const focal = codes[0] ?? "";
+    if (!focal) return;
+    const result = calculatePolarCoordinates(this.data, filters, focal, 5);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const ctx = canvas.getContext("2d")!;
+    const isDark = document.body.classList.contains("theme-dark");
+    ctx.fillStyle = isDark ? "#1e1e1e" : "#fafafa";
+    ctx.fillRect(0, 0, W, H);
+
+    const cx = W / 2;
+    const cy = H / 2;
+    let maxExtent = 3;
+    for (const v of result.vectors) {
+      const ext = Math.max(Math.abs(v.zProspective), Math.abs(v.zRetrospective));
+      if (ext > maxExtent) maxExtent = ext;
+    }
+    maxExtent = Math.ceil(maxExtent) + 0.5;
+    const plotR = Math.min(W, H) / 2 - 20;
+    const scale = plotR / maxExtent;
+
+    // Axes
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)";
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(20, cy); ctx.lineTo(W - 20, cy);
+    ctx.moveTo(cx, 20); ctx.lineTo(cx, H - 20);
+    ctx.stroke();
+
+    // Significance circle
+    ctx.strokeStyle = isDark ? "rgba(255,100,100,0.3)" : "rgba(200,0,0,0.2)";
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 1.96 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Vectors
+    for (const v of result.vectors) {
+      const px = cx + v.zProspective * scale;
+      const py = cy - v.zRetrospective * scale;
+      ctx.beginPath();
+      ctx.arc(px, py, v.significant ? 3 : 2, 0, Math.PI * 2);
+      ctx.fillStyle = v.color;
+      ctx.globalAlpha = v.significant ? 0.9 : 0.3;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  private exportPolarCSV(date: string): void {
+    if (!this.data) return;
+    const filters = this.buildFilterConfig();
+    const codes = this.data.codes.map((c) => c.name).sort();
+    if (!this.polarFocalCode && codes.length > 0) this.polarFocalCode = codes[0];
+    const result = calculatePolarCoordinates(this.data, filters, this.polarFocalCode, this.polarMaxLag);
+
+    const rows: string[][] = [["focal", "conditioned", "z_prospective", "z_retrospective", "radius", "angle", "quadrant", "significant"]];
+    for (const v of result.vectors) {
+      rows.push([result.focalCode, v.code, String(v.zProspective), String(v.zRetrospective), String(v.radius), String(v.angle), String(v.quadrant), v.significant ? "yes" : "no"]);
+    }
+    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.download = `codemarker-polar-coords-${date}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  // ─── Chi-Square Independence Tests ───
+
+  private renderChiSquareOptionsSection(): void {
+    const section = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    section.createDiv({ cls: "codemarker-config-section-title", text: "Chi-Square" });
+
+    section.createDiv({ cls: "codemarker-config-sublabel", text: "Group by" });
+    for (const [val, label] of [["source", "Source Type"], ["file", "File"]] as const) {
+      const row = section.createDiv({ cls: "codemarker-config-row" });
+      const radio = row.createEl("input", { type: "radio" });
+      radio.name = "chiGroupBy";
+      radio.value = val;
+      radio.checked = this.chiGroupBy === val;
+      row.createSpan({ text: label });
+      radio.addEventListener("change", () => {
+        this.chiGroupBy = val;
+        this.scheduleUpdate();
+      });
+    }
+  }
+
+  private renderChiSquareView(filters: FilterConfig): void {
+    if (!this.data || !this.chartContainer) return;
+    const container = this.chartContainer;
+    const result = calculateChiSquare(this.data, filters, this.chiGroupBy);
+
+    if (result.entries.length === 0) {
+      container.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
+        text: "Not enough data for chi-square tests. Need at least 2 categories and codes with sufficient frequency.",
+      });
+      return;
+    }
+
+    const wrapper = container.createDiv({ cls: "codemarker-ts-wrapper" });
+
+    // Summary
+    const summary = wrapper.createDiv({ cls: "codemarker-ts-summary" });
+    const sigCount = result.entries.filter((e) => e.significant).length;
+    for (const [val, label] of [
+      [String(result.entries.length), "Codes Tested"],
+      [String(sigCount), "Significant (p<0.05)"],
+      [String(result.categories.length), "Categories"],
+      [result.groupBy === "source" ? "Source" : "File", "Group By"],
+    ]) {
+      const card = summary.createDiv({ cls: "codemarker-ts-summary-card" });
+      card.createDiv({ cls: "codemarker-ts-summary-value", text: val });
+      card.createDiv({ cls: "codemarker-ts-summary-label", text: label });
+    }
+
+    // Sort entries
+    const entries = [...result.entries];
+    const col = this.chiSort.col;
+    const asc = this.chiSort.asc;
+    entries.sort((a, b) => {
+      let va: number | string, vb: number | string;
+      if (col === "code") { va = a.code; vb = b.code; }
+      else if (col === "chiSquare") { va = a.chiSquare; vb = b.chiSquare; }
+      else if (col === "df") { va = a.df; vb = b.df; }
+      else if (col === "pValue") { va = a.pValue; vb = b.pValue; }
+      else if (col === "cramersV") { va = a.cramersV; vb = b.cramersV; }
+      else { va = a.pValue; vb = b.pValue; }
+      if (typeof va === "string") return asc ? va.localeCompare(vb as string) : (vb as string).localeCompare(va);
+      return asc ? (va as number) - (vb as number) : (vb as number) - (va as number);
+    });
+
+    const tableWrap = wrapper.createDiv({ cls: "codemarker-ts-table-wrap" });
+    const table = tableWrap.createEl("table", { cls: "codemarker-ts-table" });
+
+    // Header
+    const thead = table.createEl("thead");
+    const hrow = thead.createEl("tr");
+    const columns = [
+      { key: "code", label: "Code" },
+      { key: "chiSquare", label: "χ²" },
+      { key: "df", label: "df" },
+      { key: "pValue", label: "p-value" },
+      { key: "cramersV", label: "Cramér's V" },
+      { key: "sig", label: "Sig." },
+    ];
+    for (const { key, label } of columns) {
+      const th = hrow.createEl("th");
+      th.textContent = label;
+      if (key !== "sig") {
+        const arrow = this.chiSort.col === key ? (this.chiSort.asc ? " ▲" : " ▼") : "";
+        th.createSpan({ cls: "sort-arrow", text: arrow });
+        th.addEventListener("click", () => {
+          if (this.chiSort.col === key) this.chiSort.asc = !this.chiSort.asc;
+          else { this.chiSort.col = key; this.chiSort.asc = key === "code"; }
+          this.scheduleUpdate();
+        });
+      }
+    }
+
+    // Body
+    const tbody = table.createEl("tbody");
+    const maxV = Math.max(...entries.map((e) => e.cramersV), 0.001);
+
+    for (const entry of entries) {
+      const row = tbody.createEl("tr");
+
+      // Code
+      const codeCell = row.createEl("td");
+      const codeWrap = codeCell.createDiv({ cls: "codemarker-ts-code-cell" });
+      const swatch = codeWrap.createDiv({ cls: "codemarker-ts-swatch" });
+      swatch.style.backgroundColor = entry.color;
+      codeWrap.createSpan({ text: entry.code });
+
+      // χ²
+      const chiCell = row.createEl("td", { cls: "codemarker-ts-num" });
+      chiCell.textContent = entry.chiSquare.toFixed(3);
+
+      // df
+      const dfCell = row.createEl("td", { cls: "codemarker-ts-num" });
+      dfCell.textContent = String(entry.df);
+
+      // p-value
+      const pCell = row.createEl("td", { cls: "codemarker-ts-num" });
+      const pStr = entry.pValue < 0.001 ? "<0.001" : entry.pValue.toFixed(4);
+      pCell.textContent = pStr;
+      if (entry.significant) {
+        pCell.style.fontWeight = "600";
+        pCell.style.color = "var(--text-accent)";
+      }
+
+      // Cramér's V with bar
+      const vCell = row.createEl("td");
+      const vWrap = vCell.createDiv({ cls: "codemarker-ts-ttr-cell" });
+      const vBar = vWrap.createDiv({ cls: "codemarker-ts-ttr-bar" });
+      const vFill = vBar.createDiv({ cls: "codemarker-ts-ttr-fill" });
+      vFill.style.width = `${(entry.cramersV / maxV) * 100}%`;
+      // Color gradient: low = blue-ish, high = purple
+      const hue = 260 - entry.cramersV * 60;
+      vFill.style.backgroundColor = `hsl(${hue}, 60%, 55%)`;
+      vWrap.createDiv({ cls: "codemarker-ts-ttr-val", text: entry.cramersV.toFixed(3) });
+
+      // Significance
+      const sigCell = row.createEl("td", { cls: "codemarker-ts-num" });
+      if (entry.pValue < 0.001) sigCell.textContent = "***";
+      else if (entry.pValue < 0.01) sigCell.textContent = "**";
+      else if (entry.pValue < 0.05) sigCell.textContent = "*";
+      else sigCell.textContent = "n.s.";
+      if (entry.significant) sigCell.style.fontWeight = "600";
+    }
+  }
+
+  private renderMiniChiSquare(canvas: HTMLCanvasElement, filters: FilterConfig): void {
+    if (!this.data) return;
+    const result = calculateChiSquare(this.data, filters, "source");
+    const W = canvas.width;
+    const H = canvas.height;
+    const ctx = canvas.getContext("2d")!;
+    const isDark = document.body.classList.contains("theme-dark");
+    ctx.fillStyle = isDark ? "#1e1e1e" : "#fafafa";
+    ctx.fillRect(0, 0, W, H);
+
+    // Top 5 codes by Cramér's V
+    const top = result.entries.slice(0, 5).sort((a, b) => b.cramersV - a.cramersV);
+    if (top.length === 0) return;
+
+    const maxV = Math.max(...top.map((e) => e.cramersV), 0.01);
+    const barH = Math.min(24, (H - 40) / top.length);
+    const barAreaW = W - 40;
+    const startY = (H - top.length * barH) / 2;
+
+    for (let i = 0; i < top.length; i++) {
+      const e = top[i];
+      const y = startY + i * barH;
+      const w = (e.cramersV / maxV) * barAreaW;
+      ctx.fillStyle = e.color;
+      ctx.globalAlpha = e.significant ? 0.8 : 0.3;
+      ctx.fillRect(20, y + 2, w, barH - 4);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  private exportChiSquareCSV(date: string): void {
+    if (!this.data) return;
+    const filters = this.buildFilterConfig();
+    const result = calculateChiSquare(this.data, filters, this.chiGroupBy);
+
+    const rows: string[][] = [["code", "chi_square", "df", "p_value", "cramers_v", "significant"]];
+    for (const e of result.entries) {
+      rows.push([e.code, String(e.chiSquare), String(e.df), String(e.pValue), String(e.cramersV), e.significant ? "yes" : "no"]);
+    }
+    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.download = `codemarker-chi-square-${date}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  // ─── Decision Tree (CHAID) ───
+
+  private renderDecisionTreeOptionsSection(): void {
+    if (!this.data) return;
+    const section = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    section.createDiv({ cls: "codemarker-config-section-title", text: "Decision Tree" });
+
+    // Outcome code dropdown
+    section.createDiv({ cls: "codemarker-config-sublabel", text: "Outcome Code" });
+    const select = section.createEl("select", { cls: "codemarker-config-select" });
+    const codes = this.data.codes.map((c) => c.name).sort();
+    if (!this.dtOutcomeCode && codes.length > 0) this.dtOutcomeCode = codes[0];
+    for (const code of codes) {
+      const opt = select.createEl("option", { text: code, value: code });
+      if (code === this.dtOutcomeCode) opt.selected = true;
+    }
+    select.addEventListener("change", () => {
+      this.dtOutcomeCode = select.value;
+      this.scheduleUpdate();
+    });
+
+    // Max depth slider
+    const depthLabel = section.createDiv({ cls: "codemarker-config-sublabel", text: `Max Depth: ${this.dtMaxDepth}` });
+    const slider = section.createEl("input");
+    slider.type = "range";
+    slider.min = "1";
+    slider.max = "6";
+    slider.value = String(this.dtMaxDepth);
+    slider.style.width = "100%";
+    slider.addEventListener("input", () => {
+      this.dtMaxDepth = Number(slider.value);
+      depthLabel.textContent = `Max Depth: ${this.dtMaxDepth}`;
+    });
+    slider.addEventListener("change", () => {
+      this.dtMaxDepth = Number(slider.value);
+      this.scheduleUpdate();
+    });
+  }
+
+  private renderDecisionTreeView(filters: FilterConfig): void {
+    if (!this.data || !this.chartContainer) return;
+    const container = this.chartContainer;
+
+    const codes = this.data.codes.map((c) => c.name).sort();
+    if (!this.dtOutcomeCode && codes.length > 0) this.dtOutcomeCode = codes[0];
+
+    const result = buildDecisionTree(this.data, filters, this.dtOutcomeCode, this.dtMaxDepth, 2);
+
+    if (result.totalMarkers === 0 || result.predictors.length === 0) {
+      container.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
+        text: "Not enough data to build a decision tree. Need at least 2 codes with sufficient frequency.",
+      });
+      return;
+    }
+
+    // Wrapper
+    const wrapper = container.createDiv({ cls: "codemarker-dt-wrapper" });
+
+    // Title bar with metrics
+    const header = wrapper.createDiv({ cls: "codemarker-dt-header" });
+    header.createEl("strong", { text: `Decision Tree — Outcome: ${result.outcomeCode}` });
+
+    const metricsBar = wrapper.createDiv({ cls: "codemarker-dt-metrics" });
+    for (const [val, label] of [
+      [`${(result.accuracy * 100).toFixed(1)}%`, "Accuracy"],
+      [`${(result.aPriori * 100).toFixed(1)}%`, "A Priori"],
+      [result.tau.toFixed(3), "Klecka's τ"],
+      [String(result.totalMarkers), "Markers"],
+      [String(result.predictors.length), "Predictors"],
+    ]) {
+      const card = metricsBar.createDiv({ cls: "codemarker-dt-metric-card" });
+      card.createDiv({ cls: "codemarker-dt-metric-val", text: val });
+      card.createDiv({ cls: "codemarker-dt-metric-label", text: label });
+    }
+
+    // Tree container (scrollable)
+    const treeContainer = wrapper.createDiv({ cls: "codemarker-dt-tree" });
+    this.renderTreeNode(treeContainer, result.root, result, 0);
+
+    // Error analysis section
+    if (result.errorLeaves.length > 0) {
+      const errorSection = wrapper.createDiv({ cls: "codemarker-dt-error-section" });
+      errorSection.createEl("strong", { text: `Error Analysis (${result.errorLeaves.reduce((s, e) => s + e.errors, 0)} misclassified markers)` });
+
+      for (const leaf of result.errorLeaves) {
+        const row = errorSection.createDiv({ cls: "codemarker-dt-error-row" });
+        row.createSpan({ text: `Node #${leaf.nodeId}: ${leaf.errors} errors` });
+        row.createSpan({ cls: "codemarker-dt-error-path", text: leaf.path });
+
+        const btn = row.createEl("button", { cls: "codemarker-dt-error-btn", text: "View in Text Retrieval" });
+        btn.addEventListener("click", () => {
+          // Switch to text-retrieval mode (user can inspect the markers)
+          this.viewMode = "text-retrieval";
+          this.scheduleUpdate();
+          new Notice(`Switched to Text Retrieval. ${leaf.errors} misclassified markers from node #${leaf.nodeId}.`);
+        });
+      }
+    }
+  }
+
+  private renderTreeNode(
+    parent: HTMLElement,
+    node: DecisionTreeNode,
+    result: DecisionTreeResult,
+    childIndex: number,
+  ): void {
+    const nodeEl = parent.createDiv({ cls: "codemarker-dt-node" });
+
+    // Edge label (for non-root)
+    if (node.depth > 0) {
+      const edgeLabel = nodeEl.createDiv({ cls: "codemarker-dt-edge-label" });
+      edgeLabel.textContent = childIndex === 0 ? "Absent" : "Present";
+    }
+
+    const card = nodeEl.createDiv({ cls: "codemarker-dt-card" });
+
+    const isLeaf = node.children.length === 0;
+    if (isLeaf) card.classList.add("is-leaf");
+
+    // Prediction badge
+    const predBadge = card.createDiv({ cls: "codemarker-dt-pred-badge" });
+    predBadge.textContent = node.prediction === 1 ? "✓ Present" : "✗ Absent";
+    predBadge.classList.add(node.prediction === 1 ? "is-positive" : "is-negative");
+
+    // Stats
+    const stats = card.createDiv({ cls: "codemarker-dt-card-stats" });
+    stats.createSpan({ text: `n = ${node.n}` });
+    stats.createSpan({ cls: "codemarker-dt-stat-sep", text: "·" });
+    stats.createSpan({ text: `${(node.accuracy * 100).toFixed(1)}%` });
+    stats.createSpan({ cls: "codemarker-dt-stat-sep", text: "·" });
+    stats.createSpan({ text: `${node.correct} ✓` });
+    stats.createSpan({ cls: "codemarker-dt-stat-sep", text: "·" });
+    stats.createSpan({ text: `${node.errors} ✗` });
+
+    // Distribution bar
+    const distBar = card.createDiv({ cls: "codemarker-dt-dist-bar" });
+    const posPct = node.n > 0 ? (node.nPositive / node.n) * 100 : 0;
+    const posSegment = distBar.createDiv({ cls: "codemarker-dt-dist-pos" });
+    posSegment.style.width = `${posPct}%`;
+    posSegment.style.backgroundColor = result.outcomeColor;
+
+    // Split info
+    if (node.split) {
+      const splitInfo = card.createDiv({ cls: "codemarker-dt-split-info" });
+      const swatch = splitInfo.createSpan({ cls: "codemarker-dt-split-swatch" });
+      swatch.style.backgroundColor = node.split.predictorColor;
+      splitInfo.createSpan({ text: node.split.predictor });
+      splitInfo.createSpan({ cls: "codemarker-dt-split-chi", text: `χ²=${node.split.chiSquare}, p=${node.split.pValue < 0.001 ? "<.001" : node.split.pValue.toFixed(3)}` });
+    }
+
+    // Children
+    if (node.children.length > 0) {
+      const childrenContainer = nodeEl.createDiv({ cls: "codemarker-dt-children" });
+      for (let i = 0; i < node.children.length; i++) {
+        this.renderTreeNode(childrenContainer, node.children[i], result, i);
+      }
+    }
+  }
+
+  private renderMiniDecisionTree(canvas: HTMLCanvasElement, filters: FilterConfig): void {
+    if (!this.data) return;
+    const codes = this.data.codes.map((c) => c.name).sort();
+    const outcome = codes[0] ?? "";
+    if (!outcome) return;
+    const result = buildDecisionTree(this.data, filters, outcome, 3, 2);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const ctx = canvas.getContext("2d")!;
+    const isDark = document.body.classList.contains("theme-dark");
+    ctx.fillStyle = isDark ? "#1e1e1e" : "#fafafa";
+    ctx.fillRect(0, 0, W, H);
+
+    // Draw mini tree structure
+    const nodePositions = new Map<number, { x: number; y: number }>();
+
+    function layoutNode(node: DecisionTreeNode, x: number, y: number, width: number): void {
+      nodePositions.set(node.id, { x, y });
+      if (node.children.length > 0) {
+        const childWidth = width / node.children.length;
+        for (let i = 0; i < node.children.length; i++) {
+          const cx = x - width / 2 + childWidth * (i + 0.5);
+          layoutNode(node.children[i], cx, y + 40, childWidth);
+        }
+      }
+    }
+
+    layoutNode(result.root, W / 2, 25, W - 40);
+
+    // Draw edges
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)";
+    ctx.lineWidth = 1;
+    function drawEdges(node: DecisionTreeNode): void {
+      const pos = nodePositions.get(node.id)!;
+      for (const child of node.children) {
+        const cPos = nodePositions.get(child.id)!;
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y + 8);
+        ctx.lineTo(cPos.x, cPos.y - 8);
+        ctx.stroke();
+        drawEdges(child);
+      }
+    }
+    drawEdges(result.root);
+
+    // Draw nodes
+    for (const [id, pos] of nodePositions) {
+      // Find node for color
+      let isLeaf = false;
+      let prediction = 0;
+      function findNode(n: DecisionTreeNode): DecisionTreeNode | null {
+        if (n.id === id) return n;
+        for (const c of n.children) { const r = findNode(c); if (r) return r; }
+        return null;
+      }
+      const node = findNode(result.root);
+      if (node) {
+        isLeaf = node.children.length === 0;
+        prediction = node.prediction;
+      }
+
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, isLeaf ? 6 : 5, 0, Math.PI * 2);
+      ctx.fillStyle = prediction === 1 ? result.outcomeColor : (isDark ? "#555" : "#ccc");
+      ctx.fill();
+      if (isLeaf) {
+        ctx.strokeStyle = isDark ? "#fff" : "#333";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
+    // Accuracy label
+    ctx.font = "11px sans-serif";
+    ctx.fillStyle = isDark ? "#aaa" : "#666";
+    ctx.textAlign = "center";
+    ctx.fillText(`Acc: ${(result.accuracy * 100).toFixed(0)}%, τ=${result.tau.toFixed(2)}`, W / 2, H - 10);
+  }
+
+  private exportDecisionTreeCSV(date: string): void {
+    if (!this.data) return;
+    const filters = this.buildFilterConfig();
+    const codes = this.data.codes.map((c) => c.name).sort();
+    if (!this.dtOutcomeCode && codes.length > 0) this.dtOutcomeCode = codes[0];
+    const result = buildDecisionTree(this.data, filters, this.dtOutcomeCode, this.dtMaxDepth, 2);
+
+    const rows: string[][] = [["node_id", "depth", "n", "n_positive", "n_negative", "prediction", "accuracy", "correct", "errors", "split_predictor", "split_chi_square", "split_p_value", "is_leaf"]];
+
+    function collectNodes(node: DecisionTreeNode): void {
+      rows.push([
+        String(node.id),
+        String(node.depth),
+        String(node.n),
+        String(node.nPositive),
+        String(node.nNegative),
+        node.prediction === 1 ? "present" : "absent",
+        String(node.accuracy),
+        String(node.correct),
+        String(node.errors),
+        node.split?.predictor ?? "",
+        node.split ? String(node.split.chiSquare) : "",
+        node.split ? String(node.split.pValue) : "",
+        node.children.length === 0 ? "yes" : "no",
+      ]);
+      for (const child of node.children) collectNodes(child);
+    }
+    collectNodes(result.root);
+
+    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.download = `codemarker-decision-tree-${date}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
   private updateFooter(): void {
     if (!this.footerEl || !this.data) return;
     const ts = new Date(this.data.lastUpdated);
@@ -4339,6 +5131,18 @@ export class AnalyticsView extends ItemView {
     }
     if (this.viewMode === "lag-sequential") {
       this.exportLagCSV(date);
+      return;
+    }
+    if (this.viewMode === "polar-coords") {
+      this.exportPolarCSV(date);
+      return;
+    }
+    if (this.viewMode === "chi-square") {
+      this.exportChiSquareCSV(date);
+      return;
+    }
+    if (this.viewMode === "decision-tree") {
+      this.exportDecisionTreeCSV(date);
       return;
     }
 

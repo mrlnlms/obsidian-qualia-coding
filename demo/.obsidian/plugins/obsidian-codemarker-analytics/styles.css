@@ -728,3 +728,204 @@
   min-width: 36px;
   text-align: right;
 }
+
+/* ── Decision Tree ── */
+
+.codemarker-dt-wrapper {
+  padding: 16px;
+}
+
+.codemarker-dt-header {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.codemarker-dt-metrics {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.codemarker-dt-metric-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  text-align: center;
+  min-width: 80px;
+}
+
+.codemarker-dt-metric-val {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-normal);
+}
+
+.codemarker-dt-metric-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.codemarker-dt-tree {
+  overflow-x: auto;
+  padding: 8px 0;
+}
+
+.codemarker-dt-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.codemarker-dt-edge-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--background-secondary);
+}
+
+.codemarker-dt-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--background-primary);
+  min-width: 160px;
+  max-width: 220px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.codemarker-dt-card.is-leaf {
+  border-style: dashed;
+  background: var(--background-secondary);
+}
+
+.codemarker-dt-pred-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.codemarker-dt-pred-badge.is-positive {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4CAF50;
+}
+
+.codemarker-dt-pred-badge.is-negative {
+  background: rgba(244, 67, 54, 0.15);
+  color: #F44336;
+}
+
+.codemarker-dt-card-stats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.codemarker-dt-stat-sep {
+  opacity: 0.4;
+}
+
+.codemarker-dt-dist-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(244, 67, 54, 0.25);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.codemarker-dt-dist-pos {
+  height: 100%;
+  border-radius: 3px;
+  background: #4CAF50;
+  transition: width 0.2s;
+}
+
+.codemarker-dt-split-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-top: 6px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.codemarker-dt-split-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.codemarker-dt-split-chi {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.codemarker-dt-children {
+  display: flex;
+  gap: 24px;
+  margin-top: 8px;
+  padding-top: 8px;
+  position: relative;
+}
+
+.codemarker-dt-children::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 8px;
+  background: var(--background-modifier-border);
+}
+
+.codemarker-dt-error-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.codemarker-dt-error-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+.codemarker-dt-error-path {
+  flex: 1;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codemarker-dt-error-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  white-space: nowrap;
+}
+
+.codemarker-dt-error-btn:hover {
+  opacity: 0.85;
+}

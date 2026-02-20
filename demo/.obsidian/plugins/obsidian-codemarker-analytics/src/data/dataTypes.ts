@@ -120,6 +120,42 @@ export interface LagResult {
   totalTransitions: number;
 }
 
+export interface PolarVector {
+  code: string;
+  color: string;
+  zProspective: number;
+  zRetrospective: number;
+  radius: number;
+  angle: number;
+  quadrant: 1 | 2 | 3 | 4;
+  significant: boolean;
+}
+
+export interface PolarCoordResult {
+  focalCode: string;
+  focalColor: string;
+  vectors: PolarVector[];
+  maxLag: number;
+}
+
+export interface ChiSquareEntry {
+  code: string;
+  color: string;
+  chiSquare: number;
+  df: number;
+  pValue: number;
+  cramersV: number;
+  significant: boolean;
+  observed: number[][];
+  expected: number[][];
+}
+
+export interface ChiSquareResult {
+  groupBy: "source" | "file";
+  categories: string[];
+  entries: ChiSquareEntry[];
+}
+
 export interface TemporalResult {
   codes: string[];
   colors: string[];
