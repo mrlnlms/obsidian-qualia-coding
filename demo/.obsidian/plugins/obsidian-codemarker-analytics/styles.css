@@ -929,3 +929,21 @@
 .codemarker-dt-error-btn:hover {
   opacity: 0.85;
 }
+
+/* ── Code Overlap ── */
+
+.codemarker-overlap-notice {
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: rgba(255, 167, 38, 0.08);
+  border: 1px solid rgba(255, 167, 38, 0.2);
+  border-radius: 4px;
+}
+
+.codemarker-overlap-meta {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-bottom: 12px;
+}

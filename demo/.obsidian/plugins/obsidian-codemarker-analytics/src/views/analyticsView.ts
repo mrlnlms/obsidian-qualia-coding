@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, setIcon, Notice } from "obsidian";
 import type CodeMarkerAnalyticsPlugin from "../main";
-import type { ConsolidatedData, FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult, TemporalResult, LagResult, PolarCoordResult, ChiSquareResult } from "../data/dataTypes";
-import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution, calculateTemporal, calculateTextStats, calculateLagSequential, calculatePolarCoordinates, calculateChiSquare } from "../data/statsEngine";
+import type { ConsolidatedData, FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult, TemporalResult, LagResult, PolarCoordResult, ChiSquareResult, SourceComparisonResult, OverlapResult, SourceType } from "../data/dataTypes";
+import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution, calculateTemporal, calculateTextStats, calculateLagSequential, calculatePolarCoordinates, calculateChiSquare, calculateSourceComparison, calculateOverlap } from "../data/statsEngine";
 import { TextExtractor, type ExtractedSegment } from "../data/textExtractor";
 import { calculateWordFrequencies, type WordFrequencyResult, type StopWordsLang } from "../data/wordFrequency";
 import { calculateMCA, type MCAResult } from "../data/mcaEngine";
@@ -11,7 +11,7 @@ import { buildDecisionTree, type DecisionTreeNode, type DecisionTreeResult } fro
 
 export const ANALYTICS_VIEW_TYPE = "codemarker-analytics";
 
-export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree";
+export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
 export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
@@ -71,6 +71,11 @@ export class AnalyticsView extends ItemView {
   // Decision Tree state
   private dtOutcomeCode = "";
   private dtMaxDepth = 4;
+
+  // Source Comparison state
+  private srcCompSubView: "chart" | "table" = "chart";
+  private srcCompDisplayMode: "count" | "percent-code" | "percent-source" = "count";
+  private srcCompSort: { col: string; asc: boolean } = { col: "total", asc: false };
 
   // Text Retrieval state
   private trSearch = "";
@@ -287,6 +292,15 @@ export class AnalyticsView extends ItemView {
     if (this.viewMode === "decision-tree") {
       this.renderDecisionTreeOptionsSection();
     }
+    // ── Source Comparison options ──
+    if (this.viewMode === "source-comparison") {
+      this.renderSourceComparisonOptionsSection();
+    }
+    // ── Code Overlap options (reuses co-occurrence display/sort) ──
+    if (this.viewMode === "code-overlap") {
+      this.renderDisplaySection();
+      this.renderCooccSortSection();
+    }
     // ── Codes ──
     this.renderCodesSection();
     // ── Min frequency ──
@@ -359,6 +373,8 @@ export class AnalyticsView extends ItemView {
       ["polar-coords", "Polar Coordinates"],
       ["chi-square", "Chi-Square Tests"],
       ["decision-tree", "Decision Tree"],
+      ["source-comparison", "Source Comparison"],
+      ["code-overlap", "Code Overlap"],
     ] as const) {
       const row = section.createDiv({ cls: "codemarker-config-row" });
       const radio = row.createEl("input", { type: "radio" });
@@ -653,6 +669,10 @@ export class AnalyticsView extends ItemView {
       this.renderChiSquareView(filters);
     } else if (this.viewMode === "decision-tree") {
       this.renderDecisionTreeView(filters);
+    } else if (this.viewMode === "source-comparison") {
+      this.renderSourceComparison(filters);
+    } else if (this.viewMode === "code-overlap") {
+      this.renderOverlapMatrix(filters);
     } else {
       this.renderNetworkGraph(filters);
     }
@@ -798,6 +818,19 @@ export class AnalyticsView extends ItemView {
         mode: "decision-tree",
         title: "Decision Tree",
         render: (c) => this.renderMiniDecisionTree(c, filters),
+      },
+      {
+        mode: "source-comparison",
+        title: "Source Comparison",
+        render: (c) => this.renderMiniSourceComparison(c, freq),
+      },
+      {
+        mode: "code-overlap",
+        title: "Code Overlap",
+        render: (c) => {
+          const overlap = calculateOverlap(this.data!, filters);
+          this.renderMiniMatrix(c, overlap.codes, overlap.colors, overlap.matrix, overlap.maxValue);
+        },
       },
     ];
 
@@ -5062,6 +5095,531 @@ export class AnalyticsView extends ItemView {
     URL.revokeObjectURL(link.href);
   }
 
+  // ─── Source Comparison ───
+
+  private renderSourceComparisonOptionsSection(): void {
+    const section = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    section.createDiv({ cls: "codemarker-config-section-title", text: "Sub-view" });
+
+    for (const [value, label] of [["chart", "Chart"], ["table", "Table"]] as const) {
+      const row = section.createDiv({ cls: "codemarker-config-row" });
+      const radio = row.createEl("input", { type: "radio" });
+      radio.name = "srcCompSubView";
+      radio.value = value;
+      radio.checked = this.srcCompSubView === value;
+      row.createSpan({ text: label });
+      radio.addEventListener("change", () => {
+        this.srcCompSubView = value;
+        this.scheduleUpdate();
+      });
+      row.addEventListener("click", (e) => {
+        if (e.target !== radio) { radio.checked = true; radio.dispatchEvent(new Event("change")); }
+      });
+    }
+
+    const modeSection = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    modeSection.createDiv({ cls: "codemarker-config-section-title", text: "Display" });
+
+    for (const [value, label] of [["count", "Count"], ["percent-code", "% of Code"], ["percent-source", "% of Source"]] as const) {
+      const row = modeSection.createDiv({ cls: "codemarker-config-row" });
+      const radio = row.createEl("input", { type: "radio" });
+      radio.name = "srcCompDisplayMode";
+      radio.value = value;
+      radio.checked = this.srcCompDisplayMode === value;
+      row.createSpan({ text: label });
+      radio.addEventListener("change", () => {
+        this.srcCompDisplayMode = value;
+        this.scheduleUpdate();
+      });
+      row.addEventListener("click", (e) => {
+        if (e.target !== radio) { radio.checked = true; radio.dispatchEvent(new Event("change")); }
+      });
+    }
+  }
+
+  private renderSourceComparison(filters: FilterConfig): void {
+    if (!this.chartContainer || !this.data) return;
+    const result = calculateSourceComparison(this.data, filters);
+
+    if (result.entries.length === 0) {
+      this.chartContainer.createDiv({
+        cls: "codemarker-analytics-empty",
+        text: "No coded data found for source comparison.",
+      });
+      return;
+    }
+
+    if (this.srcCompSubView === "chart") {
+      this.renderSourceComparisonChart(result, this.chartContainer);
+    } else {
+      this.renderSourceComparisonTable(result, this.chartContainer);
+    }
+  }
+
+  private readonly SOURCE_COLORS: Record<string, string> = {
+    markdown: "#42A5F5",
+    "csv-segment": "#66BB6A",
+    "csv-row": "#81C784",
+    image: "#FFA726",
+    pdf: "#EF5350",
+    audio: "#AB47BC",
+    video: "#7E57C2",
+  };
+
+  private renderSourceComparisonChart(result: SourceComparisonResult, container: HTMLElement): void {
+    const entries = result.entries;
+    const sources = result.activeSources;
+    const n = entries.length;
+    const barGroupHeight = 22;
+    const barH = Math.max(4, Math.floor((barGroupHeight - 2) / sources.length));
+    const rowHeight = barGroupHeight + 8;
+    const labelSpace = 120;
+    const rightPad = 60;
+    const topPad = 30;
+
+    const wrapper = container.createDiv();
+    wrapper.style.position = "relative";
+    wrapper.style.overflow = "auto";
+
+    const totalW = Math.max(600, (container.getBoundingClientRect().width || 600) - 32);
+    const totalH = topPad + n * rowHeight + 20;
+
+    const canvas = wrapper.createEl("canvas");
+    canvas.width = totalW;
+    canvas.height = totalH;
+    canvas.style.width = `${totalW}px`;
+    canvas.style.height = `${totalH}px`;
+
+    const ctx = canvas.getContext("2d")!;
+    const isDark = document.body.classList.contains("theme-dark");
+    const styles = getComputedStyle(document.body);
+    const textColor = styles.getPropertyValue("--text-normal").trim() || (isDark ? "#dcddde" : "#1a1a1a");
+
+    // Find max value for bar scaling
+    let maxVal = 1;
+    for (const e of entries) {
+      for (const s of sources) {
+        let val: number;
+        if (this.srcCompDisplayMode === "percent-code") val = e.bySourcePctOfCode[s];
+        else if (this.srcCompDisplayMode === "percent-source") val = e.bySourcePctOfSrc[s];
+        else val = e.bySource[s];
+        if (val > maxVal) maxVal = val;
+      }
+    }
+
+    const barAreaW = totalW - labelSpace - rightPad;
+
+    // Legend
+    ctx.font = "10px sans-serif";
+    ctx.textBaseline = "middle";
+    let legendX = labelSpace;
+    for (const s of sources) {
+      ctx.fillStyle = this.SOURCE_COLORS[s] ?? "#888";
+      ctx.fillRect(legendX, 6, 10, 10);
+      ctx.fillStyle = textColor;
+      const label = s === "csv-segment" ? "CSV-Seg" : s === "csv-row" ? "CSV-Row" : s.charAt(0).toUpperCase() + s.slice(1);
+      ctx.textAlign = "left";
+      ctx.fillText(label, legendX + 14, 12);
+      legendX += ctx.measureText(label).width + 28;
+    }
+
+    // Bars
+    for (let i = 0; i < n; i++) {
+      const e = entries[i];
+      const baseY = topPad + i * rowHeight;
+
+      // Code label
+      ctx.fillStyle = textColor;
+      ctx.font = "11px sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      const label = e.code.length > 14 ? e.code.slice(0, 13) + "\u2026" : e.code;
+      ctx.fillText(label, labelSpace - 8, baseY + barGroupHeight / 2);
+
+      // Swatch
+      ctx.fillStyle = e.color;
+      ctx.fillRect(labelSpace - 6 - ctx.measureText(label).width - 14, baseY + barGroupHeight / 2 - 5, 10, 10);
+
+      for (let si = 0; si < sources.length; si++) {
+        const s = sources[si];
+        let val: number;
+        if (this.srcCompDisplayMode === "percent-code") val = e.bySourcePctOfCode[s];
+        else if (this.srcCompDisplayMode === "percent-source") val = e.bySourcePctOfSrc[s];
+        else val = e.bySource[s];
+
+        const barW = Math.max(0, (val / maxVal) * barAreaW);
+        const y = baseY + si * barH;
+
+        ctx.fillStyle = this.SOURCE_COLORS[s] ?? "#888";
+        ctx.fillRect(labelSpace, y, barW, barH - 1);
+
+        // Value label
+        if (val > 0) {
+          ctx.fillStyle = textColor;
+          ctx.font = "9px sans-serif";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          const suffix = this.srcCompDisplayMode !== "count" ? "%" : "";
+          ctx.fillText(`${val}${suffix}`, labelSpace + barW + 4, y + barH / 2);
+        }
+      }
+    }
+  }
+
+  private renderSourceComparisonTable(result: SourceComparisonResult, container: HTMLElement): void {
+    const wrapper = container.createDiv({ cls: "codemarker-ts-wrapper" });
+    const tableWrap = wrapper.createDiv({ cls: "codemarker-ts-table-wrap" });
+    const table = tableWrap.createEl("table", { cls: "codemarker-ts-table" });
+
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+
+    const columns = [
+      { key: "code", label: "Code" },
+      { key: "total", label: "Total" },
+      ...result.activeSources.map((s) => ({
+        key: s,
+        label: s === "csv-segment" ? "CSV-Seg" : s === "csv-row" ? "CSV-Row" : s.charAt(0).toUpperCase() + s.slice(1),
+      })),
+    ];
+
+    for (const col of columns) {
+      const th = headerRow.createEl("th");
+      th.textContent = col.label;
+      if (col.key !== "code") th.addClass("codemarker-ts-num");
+      const arrow = this.srcCompSort.col === col.key ? (this.srcCompSort.asc ? " \u25b2" : " \u25bc") : "";
+      if (arrow) {
+        const span = th.createSpan({ cls: "sort-arrow", text: arrow });
+      }
+      th.addEventListener("click", () => {
+        if (this.srcCompSort.col === col.key) {
+          this.srcCompSort.asc = !this.srcCompSort.asc;
+        } else {
+          this.srcCompSort = { col: col.key, asc: col.key === "code" };
+        }
+        this.scheduleUpdate();
+      });
+    }
+
+    // Sort entries
+    const entries = [...result.entries];
+    entries.sort((a, b) => {
+      const col = this.srcCompSort.col;
+      const asc = this.srcCompSort.asc ? 1 : -1;
+      if (col === "code") return a.code.localeCompare(b.code) * asc;
+      if (col === "total") return (a.total - b.total) * asc;
+      const sKey = col as SourceType;
+      const aVal = this.srcCompDisplayMode === "percent-code" ? a.bySourcePctOfCode[sKey]
+        : this.srcCompDisplayMode === "percent-source" ? a.bySourcePctOfSrc[sKey]
+        : a.bySource[sKey];
+      const bVal = this.srcCompDisplayMode === "percent-code" ? b.bySourcePctOfCode[sKey]
+        : this.srcCompDisplayMode === "percent-source" ? b.bySourcePctOfSrc[sKey]
+        : b.bySource[sKey];
+      return ((aVal ?? 0) - (bVal ?? 0)) * asc;
+    });
+
+    const tbody = table.createEl("tbody");
+    for (const e of entries) {
+      const tr = tbody.createEl("tr");
+      // Code cell
+      const codeCell = tr.createEl("td");
+      const codeCellInner = codeCell.createDiv({ cls: "codemarker-ts-code-cell" });
+      const swatch = codeCellInner.createSpan({ cls: "codemarker-ts-swatch" });
+      swatch.style.backgroundColor = e.color;
+      codeCellInner.createSpan({ text: e.code });
+
+      // Total
+      tr.createEl("td", { cls: "codemarker-ts-num", text: String(e.total) });
+
+      // Per source
+      for (const s of result.activeSources) {
+        let val: number;
+        if (this.srcCompDisplayMode === "percent-code") val = e.bySourcePctOfCode[s];
+        else if (this.srcCompDisplayMode === "percent-source") val = e.bySourcePctOfSrc[s];
+        else val = e.bySource[s];
+        const suffix = this.srcCompDisplayMode !== "count" ? "%" : "";
+        const td = tr.createEl("td", { cls: "codemarker-ts-num", text: `${val}${suffix}` });
+        // Heat bar
+        if (val > 0 && this.srcCompDisplayMode === "count") {
+          const maxSrc = result.sourceTotals[s] || 1;
+          const pct = Math.min(100, (e.bySource[s] / maxSrc) * 100);
+          td.style.background = `linear-gradient(90deg, ${this.SOURCE_COLORS[s] ?? "#888"}22 ${pct}%, transparent ${pct}%)`;
+        }
+      }
+    }
+  }
+
+  private renderMiniSourceComparison(canvas: HTMLCanvasElement, freq: import("../data/dataTypes").FrequencyResult[]): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || freq.length === 0) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const top8 = freq.slice(0, 8);
+    const barHeight = Math.min(16, (H - 10) / top8.length - 2);
+    const leftPad = 60;
+    const rightPad = 10;
+    const barAreaW = W - leftPad - rightPad;
+    const isDark = document.body.classList.contains("theme-dark");
+    const textColor = isDark ? "#b0b0b0" : "#444";
+
+    for (let i = 0; i < top8.length; i++) {
+      const r = top8[i];
+      const y = 5 + i * (barHeight + 3);
+      let offset = 0;
+
+      // Label
+      ctx.fillStyle = textColor;
+      ctx.font = "9px sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      const label = r.code.length > 8 ? r.code.slice(0, 7) + "\u2026" : r.code;
+      ctx.fillText(label, leftPad - 4, y + barHeight / 2);
+
+      // Stacked bar
+      const total = r.total || 1;
+      for (const s of ["markdown", "csv-segment", "csv-row", "image", "pdf", "audio", "video"] as const) {
+        const val = r.bySource[s];
+        if (val <= 0) continue;
+        const barW = (val / total) * barAreaW;
+        ctx.fillStyle = this.SOURCE_COLORS[s] ?? "#888";
+        ctx.fillRect(leftPad + offset, y, barW, barHeight);
+        offset += barW;
+      }
+    }
+  }
+
+  private exportSourceComparisonCSV(date: string): void {
+    if (!this.data) return;
+    const filters = this.buildFilterConfig();
+    const result = calculateSourceComparison(this.data, filters);
+    const allSources: SourceType[] = ["markdown", "csv-segment", "csv-row", "image", "pdf", "audio", "video"];
+    const header = ["code", "total", ...allSources.map((s) => `${s}_count`), ...allSources.map((s) => `${s}_pct_of_code`), ...allSources.map((s) => `${s}_pct_of_source`)];
+    const rows = [header];
+    for (const e of result.entries) {
+      rows.push([
+        e.code,
+        String(e.total),
+        ...allSources.map((s) => String(e.bySource[s])),
+        ...allSources.map((s) => String(e.bySourcePctOfCode[s])),
+        ...allSources.map((s) => String(e.bySourcePctOfSrc[s])),
+      ]);
+    }
+    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.download = `codemarker-source-comparison-${date}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  // ─── Code Overlap ───
+
+  private renderOverlapMatrix(filters: FilterConfig): void {
+    if (!this.chartContainer || !this.data) return;
+
+    const result = calculateOverlap(this.data, filters);
+
+    if (result.codes.length < 2) {
+      this.chartContainer.createDiv({
+        cls: "codemarker-analytics-empty",
+        text: "Need at least 2 codes with positional data for overlap analysis.",
+      });
+      return;
+    }
+
+    // Skipped sources notice
+    if (result.skippedSources.length > 0) {
+      const notice = this.chartContainer.createDiv({ cls: "codemarker-overlap-notice" });
+      notice.textContent = `Skipped sources (no positional data): ${result.skippedSources.join(", ")}`;
+    }
+
+    // Meta info
+    const meta = this.chartContainer.createDiv({ cls: "codemarker-overlap-meta" });
+    const fileCount = new Set(this.data.markers.filter((m) => filters.sources.includes(m.source as any)).map((m) => m.file)).size;
+    meta.textContent = `${result.totalPairsChecked} marker pairs checked across ${fileCount} files`;
+
+    // Reorder using co-occurrence sort logic (same interface)
+    const asCooc: CooccurrenceResult = {
+      codes: [...result.codes],
+      colors: [...result.colors],
+      matrix: result.matrix.map((r) => [...r]),
+      maxValue: result.maxValue,
+    };
+    this.reorderCooccurrence(asCooc);
+
+    const n = asCooc.codes.length;
+    const cellSize = n > 25 ? 35 : n > 15 ? Math.max(35, Math.floor(500 / n)) : 60;
+    const labelSpace = 120;
+
+    const wrapper = this.chartContainer.createDiv();
+    wrapper.style.position = "relative";
+    wrapper.style.overflow = "auto";
+
+    const canvas = wrapper.createEl("canvas");
+    const totalW = labelSpace + n * cellSize;
+    const totalH = labelSpace + n * cellSize;
+    canvas.width = totalW;
+    canvas.height = totalH;
+    canvas.style.width = `${totalW}px`;
+    canvas.style.height = `${totalH}px`;
+
+    const ctx = canvas.getContext("2d")!;
+    const isDark = document.body.classList.contains("theme-dark");
+    const styles = getComputedStyle(document.body);
+    const textColor = styles.getPropertyValue("--text-normal").trim() || (isDark ? "#dcddde" : "#1a1a1a");
+
+    const displayMatrix = this.computeDisplayMatrix(asCooc);
+    const isNormalized = this.displayMode === "jaccard" || this.displayMode === "dice";
+
+    // Draw cells
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const x = labelSpace + j * cellSize;
+        const y = labelSpace + i * cellSize;
+        const rawVal = asCooc.matrix[i][j];
+        const dispVal = displayMatrix[i][j];
+
+        const heatVal = isNormalized ? dispVal : rawVal;
+        const heatMax = isNormalized ? 1 : asCooc.maxValue;
+        ctx.fillStyle = this.heatmapColor(heatVal, heatMax, isDark);
+        ctx.fillRect(x, y, cellSize, cellSize);
+
+        if (i === j) {
+          ctx.strokeStyle = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+        }
+
+        ctx.strokeStyle = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x, y, cellSize, cellSize);
+
+        let textVal: string;
+        if (isNormalized) {
+          textVal = dispVal.toFixed(2);
+        } else if (this.displayMode === "percentage" && i !== j) {
+          textVal = `${dispVal.toFixed(0)}%`;
+        } else {
+          textVal = `${dispVal}`;
+        }
+        const textBright = this.isLightColor(this.heatmapColor(heatVal, heatMax, isDark));
+        ctx.fillStyle = textBright ? "#1a1a1a" : "#f0f0f0";
+        ctx.font = `${Math.min(12, cellSize * 0.3)}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(textVal, x + cellSize / 2, y + cellSize / 2);
+      }
+    }
+
+    // Left labels
+    ctx.fillStyle = textColor;
+    ctx.font = `${Math.min(12, cellSize * 0.3)}px sans-serif`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < n; i++) {
+      const y = labelSpace + i * cellSize + cellSize / 2;
+      const label = asCooc.codes[i].length > 15
+        ? asCooc.codes[i].slice(0, 14) + "\u2026"
+        : asCooc.codes[i];
+      ctx.fillText(label, labelSpace - 6, y);
+    }
+
+    // Top labels (rotated)
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    for (let j = 0; j < n; j++) {
+      const x = labelSpace + j * cellSize + cellSize / 2;
+      ctx.save();
+      ctx.translate(x, labelSpace - 6);
+      ctx.rotate(-Math.PI / 4);
+      const label = asCooc.codes[j].length > 15
+        ? asCooc.codes[j].slice(0, 14) + "\u2026"
+        : asCooc.codes[j];
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // Tooltip
+    const tooltip = wrapper.createDiv({ cls: "codemarker-heatmap-tooltip" });
+    tooltip.style.display = "none";
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const col = Math.floor((mx - labelSpace) / cellSize);
+      const row = Math.floor((my - labelSpace) / cellSize);
+
+      if (col >= 0 && col < n && row >= 0 && row < n) {
+        const val = asCooc.matrix[row][col];
+        const dispVal = displayMatrix[row][col];
+        const suffix = this.displayMode === "percentage" && row !== col ? "%" : "";
+        let dispText: string;
+        if (row === col) {
+          dispText = `${asCooc.codes[row]}: ${val} markers`;
+        } else if (isNormalized) {
+          dispText = `${asCooc.codes[row]} \u2229 ${asCooc.codes[col]}: ${dispVal.toFixed(2)} overlap`;
+        } else {
+          dispText = `${asCooc.codes[row]} \u2229 ${asCooc.codes[col]}: ${dispVal}${suffix} overlaps`;
+        }
+        tooltip.textContent = dispText;
+        tooltip.style.display = "";
+        tooltip.style.left = `${mx + 12}px`;
+        tooltip.style.top = `${my + 12}px`;
+      } else {
+        tooltip.style.display = "none";
+      }
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+      tooltip.style.display = "none";
+    });
+  }
+
+  private renderMiniMatrix(canvas: HTMLCanvasElement, codes: string[], colors: string[], matrix: number[][], maxValue: number): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || codes.length < 2) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const n = codes.length;
+    const pad = 10;
+    const cellSize = Math.min((W - 2 * pad) / n, (H - 2 * pad) / n);
+    const offsetX = (W - n * cellSize) / 2;
+    const offsetY = (H - n * cellSize) / 2;
+    const isDark = document.body.classList.contains("theme-dark");
+
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const x = offsetX + j * cellSize;
+        const y = offsetY + i * cellSize;
+        ctx.fillStyle = this.heatmapColor(matrix[i][j], maxValue, isDark);
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+  }
+
+  private exportOverlapCSV(date: string): void {
+    if (!this.data) return;
+    const filters = this.buildFilterConfig();
+    const result = calculateOverlap(this.data, filters);
+    const rows: string[][] = [["", ...result.codes]];
+    for (let i = 0; i < result.codes.length; i++) {
+      rows.push([result.codes[i], ...result.matrix[i].map(String)]);
+    }
+    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.download = `codemarker-code-overlap-${date}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
   private updateFooter(): void {
     if (!this.footerEl || !this.data) return;
     const ts = new Date(this.data.lastUpdated);
@@ -5143,6 +5701,14 @@ export class AnalyticsView extends ItemView {
     }
     if (this.viewMode === "decision-tree") {
       this.exportDecisionTreeCSV(date);
+      return;
+    }
+    if (this.viewMode === "source-comparison") {
+      this.exportSourceComparisonCSV(date);
+      return;
+    }
+    if (this.viewMode === "code-overlap") {
+      this.exportOverlapCSV(date);
       return;
     }
 

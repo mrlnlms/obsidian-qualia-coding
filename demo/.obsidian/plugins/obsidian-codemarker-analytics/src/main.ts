@@ -8,7 +8,7 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
   data: ConsolidatedData | null = null;
 
   async onload(): Promise<void> {
-    console.log('[codemarker-analytics] v38.8 loaded — Polar + Chi-squared + Decision Tree');
+    console.log('[codemarker-analytics] v38.9 loaded — Source Comparison + Code Overlap');
     this.registerView(
       ANALYTICS_VIEW_TYPE,
       (leaf) => new AnalyticsView(leaf, this)

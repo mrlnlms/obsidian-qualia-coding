@@ -156,6 +156,32 @@ export interface ChiSquareResult {
   entries: ChiSquareEntry[];
 }
 
+export interface SourceComparisonEntry {
+  code: string;
+  color: string;
+  total: number;
+  bySource: Record<SourceType, number>;
+  bySourcePctOfCode: Record<SourceType, number>;
+  bySourcePctOfSrc: Record<SourceType, number>;
+}
+
+export interface SourceComparisonResult {
+  codes: string[];
+  colors: string[];
+  activeSources: SourceType[];
+  sourceTotals: Record<SourceType, number>;
+  entries: SourceComparisonEntry[];
+}
+
+export interface OverlapResult {
+  codes: string[];
+  colors: string[];
+  matrix: number[][];
+  maxValue: number;
+  totalPairsChecked: number;
+  skippedSources: SourceType[];
+}
+
 export interface TemporalResult {
   codes: string[];
   colors: string[];

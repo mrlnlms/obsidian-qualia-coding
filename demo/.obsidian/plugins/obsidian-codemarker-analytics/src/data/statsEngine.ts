@@ -13,6 +13,9 @@ import type {
   ChiSquareResult,
   ChiSquareEntry,
   SourceType,
+  SourceComparisonResult,
+  SourceComparisonEntry,
+  OverlapResult,
   UnifiedMarker,
 } from "./dataTypes";
 import type { ExtractedSegment } from "./textExtractor";
@@ -730,4 +733,216 @@ export function calculateChiSquare(
   entries.sort((a, b) => a.pValue - b.pValue);
 
   return { groupBy, categories, entries };
+}
+
+// ── Source Comparison ──
+
+export function calculateSourceComparison(
+  data: ConsolidatedData,
+  filters: FilterConfig,
+): SourceComparisonResult {
+  const markers = applyFilters(data, filters);
+  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+
+  const allSources: SourceType[] = ["markdown", "csv-segment", "csv-row", "image", "pdf", "audio", "video"];
+  const emptyBySource = (): Record<SourceType, number> =>
+    ({ markdown: 0, "csv-segment": 0, "csv-row": 0, image: 0, pdf: 0, audio: 0, video: 0 });
+
+  const map = new Map<string, { total: number; bySource: Record<SourceType, number> }>();
+  const sourceTotals = emptyBySource();
+
+  for (const m of markers) {
+    sourceTotals[m.source]++;
+    for (const code of m.codes) {
+      if (filters.excludeCodes.includes(code)) continue;
+      if (filters.codes.length > 0 && !filters.codes.includes(code)) continue;
+      let entry = map.get(code);
+      if (!entry) {
+        entry = { total: 0, bySource: emptyBySource() };
+        map.set(code, entry);
+      }
+      entry.total++;
+      entry.bySource[m.source]++;
+    }
+  }
+
+  const activeSources = allSources.filter((s) => sourceTotals[s] > 0);
+  const entries: SourceComparisonEntry[] = [];
+  const codes: string[] = [];
+  const colors: string[] = [];
+
+  for (const [code, entry] of map) {
+    if (entry.total < filters.minFrequency) continue;
+    const pctOfCode = emptyBySource();
+    const pctOfSrc = emptyBySource();
+    for (const s of allSources) {
+      pctOfCode[s] = entry.total > 0 ? Math.round((entry.bySource[s] / entry.total) * 1000) / 10 : 0;
+      pctOfSrc[s] = sourceTotals[s] > 0 ? Math.round((entry.bySource[s] / sourceTotals[s]) * 1000) / 10 : 0;
+    }
+    codes.push(code);
+    colors.push(codeColors.get(code) ?? "#6200EE");
+    entries.push({
+      code,
+      color: codeColors.get(code) ?? "#6200EE",
+      total: entry.total,
+      bySource: entry.bySource,
+      bySourcePctOfCode: pctOfCode,
+      bySourcePctOfSrc: pctOfSrc,
+    });
+  }
+
+  entries.sort((a, b) => b.total - a.total);
+
+  return { codes, colors, activeSources, sourceTotals, entries };
+}
+
+// ── Code Overlap (Spatial) ──
+
+function markerHasPosition(m: UnifiedMarker): boolean {
+  if (m.source === "image") return false;
+  if (m.meta?.fromLine != null) return true;
+  if (m.meta?.page != null) return true;
+  if (m.meta?.row != null) return true;
+  if (m.meta?.audioFrom != null) return true;
+  if (m.meta?.videoFrom != null) return true;
+  return false;
+}
+
+function markerToRange(m: UnifiedMarker): { start: number; end: number } | null {
+  if (m.source === "markdown" || m.source === "csv-segment") {
+    const fromLine = m.meta?.fromLine;
+    const toLine = m.meta?.toLine;
+    if (fromLine == null) return null;
+    const fromCh = m.meta?.fromCh ?? 0;
+    const toCh = m.meta?.toCh ?? 9999;
+    return { start: fromLine * 10000 + fromCh, end: (toLine ?? fromLine) * 10000 + toCh };
+  }
+  if (m.source === "pdf") {
+    const page = m.meta?.page;
+    if (page == null) return null;
+    return { start: page, end: page };
+  }
+  if (m.source === "csv-row") {
+    const row = m.meta?.row;
+    if (row == null) return null;
+    return { start: row, end: row };
+  }
+  if (m.source === "audio") {
+    const from = m.meta?.audioFrom;
+    const to = m.meta?.audioTo;
+    if (from == null || to == null) return null;
+    return { start: from, end: to };
+  }
+  if (m.source === "video") {
+    const from = m.meta?.videoFrom;
+    const to = m.meta?.videoTo;
+    if (from == null || to == null) return null;
+    return { start: from, end: to };
+  }
+  return null;
+}
+
+function rangesOverlap(a: { start: number; end: number }, b: { start: number; end: number }): boolean {
+  return a.start < b.end && b.start < a.end;
+}
+
+export function calculateOverlap(
+  data: ConsolidatedData,
+  filters: FilterConfig,
+): OverlapResult {
+  const markers = applyFilters(data, filters);
+  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+
+  // Collect valid codes
+  const codeFreq = new Map<string, number>();
+  for (const m of markers) {
+    for (const code of m.codes) {
+      if (filters.excludeCodes.includes(code)) continue;
+      if (filters.codes.length > 0 && !filters.codes.includes(code)) continue;
+      codeFreq.set(code, (codeFreq.get(code) ?? 0) + 1);
+    }
+  }
+
+  const codes: string[] = [];
+  const colors: string[] = [];
+  for (const [code, count] of codeFreq) {
+    if (count < filters.minFrequency) continue;
+    codes.push(code);
+    colors.push(codeColors.get(code) ?? "#6200EE");
+  }
+  codes.sort((a, b) => a.localeCompare(b));
+  const sortedColors = codes.map((c) => codeColors.get(c) ?? "#6200EE");
+
+  const n = codes.length;
+  const codeIndex = new Map(codes.map((c, i) => [c, i]));
+  const matrix: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
+
+  // Track skipped sources
+  const skippedSet = new Set<SourceType>();
+  let totalPairsChecked = 0;
+
+  // Group markers by file
+  const byFile = new Map<string, UnifiedMarker[]>();
+  for (const m of markers) {
+    if (!markerHasPosition(m)) {
+      if (m.source === "image") skippedSet.add("image");
+      continue;
+    }
+    let list = byFile.get(m.file);
+    if (!list) { list = []; byFile.set(m.file, list); }
+    list.push(m);
+  }
+
+  for (const [, fileMarkers] of byFile) {
+    // Precompute ranges
+    const ranges: ({ start: number; end: number } | null)[] = fileMarkers.map(markerToRange);
+
+    for (let a = 0; a < fileMarkers.length; a++) {
+      const rA = ranges[a];
+      if (!rA) continue;
+      // Diagonal: count code frequencies
+      for (const cA of fileMarkers[a].codes) {
+        const iA = codeIndex.get(cA);
+        if (iA != null) matrix[iA][iA]++;
+      }
+
+      for (let b = a + 1; b < fileMarkers.length; b++) {
+        const rB = ranges[b];
+        if (!rB) continue;
+        totalPairsChecked++;
+
+        if (rangesOverlap(rA, rB)) {
+          const codesA = fileMarkers[a].codes.filter((c) => codeIndex.has(c));
+          const codesB = fileMarkers[b].codes.filter((c) => codeIndex.has(c));
+          for (const cA of codesA) {
+            for (const cB of codesB) {
+              if (cA === cB) continue;
+              const iA = codeIndex.get(cA)!;
+              const iB = codeIndex.get(cB)!;
+              matrix[iA][iB]++;
+              matrix[iB][iA]++;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Deduplicate symmetric counts (we counted both directions)
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const avg = Math.round(matrix[i][j] / 2);
+      matrix[i][j] = avg;
+      matrix[j][i] = avg;
+    }
+  }
+
+  let maxValue = 0;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (matrix[i][j] > maxValue) maxValue = matrix[i][j];
+    }
+  }
+
+  return { codes, colors: sortedColors, matrix, maxValue, totalPairsChecked, skippedSources: Array.from(skippedSet) };
 }
