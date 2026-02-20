@@ -295,7 +295,7 @@ CodeMarker is evolving toward a full qualitative data analysis platform inside O
 | Projects & workspace | Named projects, global codebook, project-level data | Planned |
 | Power features | Code hierarchy, memos, queries, matrix, export | Planned |
 
-See `ARCHITECTURE.md` for the full architectural study (updated in v29 with multi-engine roadmap).
+See `ARCHITECTURE.md` for the full architectural study (updated in v29 with multi-engine roadmap). Internal documentation (CLAUDE.md) was updated in v30 to reflect Analytics ViewModes growing from 11 to 17.
 
 ---
 
