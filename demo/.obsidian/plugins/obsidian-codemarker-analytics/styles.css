@@ -580,3 +580,21 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+/* ── Word Cloud & ACM ── */
+
+.codemarker-config-sublabel {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+  padding: 2px 0;
+}
+
+.codemarker-wc-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-muted);
+  font-size: 13px;
+}

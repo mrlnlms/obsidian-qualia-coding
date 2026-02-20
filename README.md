@@ -118,7 +118,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Auto-open images**: When enabled, clicking any image file opens it directly in CodeMarker Image view
 - **Settings tab**: Dedicated settings panel for CodeMarker Image preferences and toggles
 
-### CodeMarker Analytics (v38.5)
+### CodeMarker Analytics (v38.6)
 
 - **Cross-engine analytics**: Consolidates coded data from all six source types into a unified view
 - **Audio source support**: Analytics data reader ingests and consolidates annotations from audio-based codemarker data
@@ -131,8 +131,11 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Network graph**: Visualizes relationships between codes as an interactive network graph
 - **Document-Code Matrix**: Tabular view showing code frequency per document, with alphabetical and total-based sorting
 - **Code Evolution**: Timeline visualization of coding activity over time, with per-file filtering
-- **Six view modes**: Frequency, Co-occurrence Matrix, Network Graph, Document-Code Matrix, Code Evolution, Text Retrieval
-- **Stats engine**: Dedicated statistics module with frequency, co-occurrence, matrix, and evolution calculations
+- **Word Cloud**: Visual representation of code frequency as differently-sized text labels
+- **MCA (Multiple Correspondence Analysis)**: 2D scatter plot mapping codes and documents by co-occurrence patterns
+- **MDS (Multidimensional Scaling)**: Proximity map positioning codes by similarity — frequently co-occurring codes cluster together
+- **Nine view modes**: Frequency, Co-occurrence Matrix, Network Graph, Document-Code Matrix, Code Evolution, Text Retrieval, Word Cloud, MCA, MDS
+- **Stats engine**: Dedicated statistics module with frequency, co-occurrence, matrix, evolution, MCA, and MDS calculations
 - **Data reader**: Reads and aggregates coding data from all six engine types (markdown, CSV, image, PDF, audio, video)
 - **Command palette**: "Open CodeMarker Analytics" and "Refresh Analytics Data" commands
 - **Standalone plugin**: Runs as an independent engine plugin in the demo vault

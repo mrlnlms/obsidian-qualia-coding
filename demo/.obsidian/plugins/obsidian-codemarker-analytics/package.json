@@ -7,7 +7,9 @@
     "build": "tsc -noEmit && node esbuild.config.mjs production"
   },
   "dependencies": {
-    "chart.js": "^4.4.0"
+    "chart.js": "^4.4.0",
+    "chartjs-chart-wordcloud": "^4.4.5",
+    "svd-js": "^1.1.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
