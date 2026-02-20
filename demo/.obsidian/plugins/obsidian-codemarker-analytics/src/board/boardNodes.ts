@@ -1,4 +1,4 @@
-import { Canvas, Rect, Textbox, Group, Shadow, type FabricObject } from "fabric";
+import { Canvas, Rect, Textbox, Group, Shadow, FabricImage, type FabricObject } from "fabric";
 
 export interface StickyNoteData {
   id: string;
@@ -104,4 +104,623 @@ export function enableStickyEditing(canvas: Canvas, group: Group): void {
   canvas.setActiveObject(textbox);
   textbox.enterEditing();
   canvas.requestRenderAll();
+}
+
+// ── Snapshot Nodes (chart images) ──
+
+export interface SnapshotNodeData {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  title: string;
+  dataUrl: string; // PNG data URL
+  viewMode: string; // which analytics view generated this
+  createdAt: number;
+}
+
+let snapshotIdCounter = 0;
+
+export function nextSnapshotId(): string {
+  return `snap-${Date.now()}-${snapshotIdCounter++}`;
+}
+
+export async function createSnapshotNode(canvas: Canvas, data: SnapshotNodeData): Promise<Group> {
+  const titleBarH = 24;
+  const padding = 4;
+  const totalH = data.height + titleBarH + padding * 2;
+  const totalW = data.width + padding * 2;
+
+  const isDark = document.body.classList.contains("theme-dark");
+
+  // Background card
+  const bg = new Rect({
+    width: totalW,
+    height: totalH,
+    fill: isDark ? "#2a2a2e" : "#ffffff",
+    rx: 6,
+    ry: 6,
+    shadow: new Shadow({ color: "rgba(0,0,0,0.2)", blur: 8, offsetX: 2, offsetY: 2 }),
+    stroke: isDark ? "#444" : "#ddd",
+    strokeWidth: 1,
+  });
+
+  // Title bar
+  const title = new Textbox(data.title, {
+    width: totalW - 12,
+    fontSize: 11,
+    fontFamily: "sans-serif",
+    fontWeight: "bold",
+    fill: isDark ? "#ccc" : "#444",
+    left: 6,
+    top: 4,
+    editable: false,
+    splitByGrapheme: false,
+  });
+
+  // Chart image
+  const objects: FabricObject[] = [bg, title];
+
+  try {
+    const img = await FabricImage.fromURL(data.dataUrl);
+    const scaleX = data.width / (img.width ?? data.width);
+    const scaleY = data.height / (img.height ?? data.height);
+    img.set({
+      left: padding,
+      top: titleBarH,
+      scaleX,
+      scaleY,
+      selectable: false,
+      evented: false,
+    });
+    objects.push(img);
+  } catch {
+    // If image fails, show placeholder text
+    const placeholder = new Textbox("(chart image)", {
+      width: data.width,
+      fontSize: 12,
+      fill: isDark ? "#666" : "#aaa",
+      left: padding,
+      top: titleBarH + data.height / 2 - 8,
+      editable: false,
+      textAlign: "center",
+    });
+    objects.push(placeholder);
+  }
+
+  const group = new Group(objects, {
+    left: data.x,
+    top: data.y,
+  });
+
+  (group as any).boardType = "snapshot";
+  (group as any).boardId = data.id;
+  (group as any).boardTitle = data.title;
+  (group as any).boardDataUrl = data.dataUrl;
+  (group as any).boardViewMode = data.viewMode;
+  (group as any).boardCreatedAt = data.createdAt;
+  (group as any).boardWidth = data.width;
+  (group as any).boardHeight = data.height;
+
+  canvas.add(group);
+  canvas.requestRenderAll();
+  return group;
+}
+
+export function getSnapshotData(group: Group): SnapshotNodeData | null {
+  if ((group as any).boardType !== "snapshot") return null;
+  return {
+    id: (group as any).boardId,
+    x: group.left ?? 0,
+    y: group.top ?? 0,
+    width: (group as any).boardWidth ?? 280,
+    height: (group as any).boardHeight ?? 180,
+    title: (group as any).boardTitle ?? "",
+    dataUrl: (group as any).boardDataUrl ?? "",
+    viewMode: (group as any).boardViewMode ?? "",
+    createdAt: (group as any).boardCreatedAt ?? 0,
+  };
+}
+
+export function isSnapshotNode(obj: FabricObject): obj is Group {
+  return (obj as any).boardType === "snapshot";
+}
+
+// ── Excerpt Nodes (text retrieval excerpts) ──
+
+export interface ExcerptNodeData {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  text: string;           // excerpt content
+  file: string;           // source file path
+  source: string;         // SourceType
+  location: string;       // formatted location string
+  codes: string[];        // code names
+  codeColors: string[];   // matching colors for codes
+  createdAt: number;
+}
+
+let excerptIdCounter = 0;
+
+export function nextExcerptId(): string {
+  return `excerpt-${Date.now()}-${excerptIdCounter++}`;
+}
+
+export function createExcerptNode(canvas: Canvas, data: ExcerptNodeData): Group {
+  const isDark = document.body.classList.contains("theme-dark");
+  const nodeW = data.width;
+  const padding = 8;
+  const headerH = 20;
+  const chipsH = data.codes.length > 0 ? 22 : 0;
+
+  // Truncate text for display
+  const displayText = data.text.length > 300 ? data.text.slice(0, 297) + "..." : data.text;
+
+  // Measure approximate text height (14px font, ~60 chars per line at 240px width)
+  const charsPerLine = Math.max(1, Math.floor((nodeW - padding * 2) / 7.5));
+  const lines = Math.ceil(displayText.length / charsPerLine);
+  const textH = Math.max(30, Math.min(lines * 18, 120));
+
+  const totalH = headerH + textH + chipsH + padding * 2 + 4;
+
+  // Source badge colors
+  const sourceColors: Record<string, string> = {
+    markdown: "#42A5F5",
+    "csv-segment": "#66BB6A",
+    "csv-row": "#81C784",
+    image: "#FFA726",
+    pdf: "#EF5350",
+    audio: "#AB47BC",
+    video: "#00ACC1",
+  };
+  const badgeLabels: Record<string, string> = {
+    markdown: "MD",
+    "csv-segment": "CSV",
+    "csv-row": "ROW",
+    image: "IMG",
+    pdf: "PDF",
+    audio: "AUD",
+    video: "VID",
+  };
+
+  // Background card — left border colored by first code
+  const borderColor = data.codeColors.length > 0 ? data.codeColors[0] : (isDark ? "#666" : "#ccc");
+
+  const bg = new Rect({
+    width: nodeW,
+    height: totalH,
+    fill: isDark ? "#1e1e22" : "#fafafa",
+    rx: 6,
+    ry: 6,
+    shadow: new Shadow({ color: "rgba(0,0,0,0.15)", blur: 6, offsetX: 1, offsetY: 2 }),
+    stroke: borderColor,
+    strokeWidth: 2,
+  });
+
+  // Left accent bar
+  const accentBar = new Rect({
+    width: 4,
+    height: totalH - 12,
+    fill: borderColor,
+    rx: 2,
+    ry: 2,
+    left: 2,
+    top: 6,
+  });
+
+  // Header: source badge + file basename + location
+  const basename = data.file.split("/").pop() ?? data.file;
+  const badgeLabel = badgeLabels[data.source] ?? data.source.toUpperCase();
+  const headerText = `${badgeLabel}  ${basename}${data.location ? "  " + data.location : ""}`;
+
+  const header = new Textbox(headerText, {
+    width: nodeW - padding * 2 - 8,
+    fontSize: 10,
+    fontFamily: "sans-serif",
+    fontWeight: "bold",
+    fill: sourceColors[data.source] ?? (isDark ? "#aaa" : "#666"),
+    left: padding + 8,
+    top: padding,
+    editable: false,
+    splitByGrapheme: false,
+  });
+
+  // Text content
+  const textbox = new Textbox(displayText || "[empty]", {
+    width: nodeW - padding * 2 - 8,
+    fontSize: 12,
+    fontFamily: "sans-serif",
+    fill: isDark ? "#ddd" : "#333",
+    left: padding + 8,
+    top: headerH + padding,
+    editable: false,
+    splitByGrapheme: false,
+  });
+
+  const objects: FabricObject[] = [bg, accentBar, header, textbox];
+
+  // Code chips row
+  if (data.codes.length > 0) {
+    let chipX = padding + 8;
+    const chipY = headerH + textH + padding + 2;
+    for (let i = 0; i < Math.min(data.codes.length, 4); i++) {
+      const chipColor = data.codeColors[i] ?? "#6200EE";
+      const chipDot = new Rect({
+        width: 8,
+        height: 8,
+        fill: chipColor,
+        rx: 4,
+        ry: 4,
+        left: chipX,
+        top: chipY + 4,
+      });
+      objects.push(chipDot);
+
+      const chipLabel = new Textbox(data.codes[i], {
+        width: 80,
+        fontSize: 9,
+        fontFamily: "sans-serif",
+        fill: isDark ? "#bbb" : "#555",
+        left: chipX + 11,
+        top: chipY + 1,
+        editable: false,
+        splitByGrapheme: false,
+      });
+      objects.push(chipLabel);
+
+      chipX += 11 + Math.min(data.codes[i].length * 5.5 + 8, 80);
+    }
+    if (data.codes.length > 4) {
+      const moreLabel = new Textbox(`+${data.codes.length - 4}`, {
+        width: 30,
+        fontSize: 9,
+        fontFamily: "sans-serif",
+        fill: isDark ? "#888" : "#999",
+        left: chipX,
+        top: chipY + 1,
+        editable: false,
+      });
+      objects.push(moreLabel);
+    }
+  }
+
+  const group = new Group(objects, {
+    left: data.x,
+    top: data.y,
+  });
+
+  (group as any).boardType = "excerpt";
+  (group as any).boardId = data.id;
+  (group as any).boardText = data.text;
+  (group as any).boardFile = data.file;
+  (group as any).boardSource = data.source;
+  (group as any).boardLocation = data.location;
+  (group as any).boardCodes = data.codes;
+  (group as any).boardCodeColors = data.codeColors;
+  (group as any).boardCreatedAt = data.createdAt;
+  (group as any).boardWidth = data.width;
+
+  canvas.add(group);
+  canvas.requestRenderAll();
+  return group;
+}
+
+export function getExcerptData(group: Group): ExcerptNodeData | null {
+  if ((group as any).boardType !== "excerpt") return null;
+  return {
+    id: (group as any).boardId,
+    x: group.left ?? 0,
+    y: group.top ?? 0,
+    width: (group as any).boardWidth ?? 260,
+    text: (group as any).boardText ?? "",
+    file: (group as any).boardFile ?? "",
+    source: (group as any).boardSource ?? "markdown",
+    location: (group as any).boardLocation ?? "",
+    codes: (group as any).boardCodes ?? [],
+    codeColors: (group as any).boardCodeColors ?? [],
+    createdAt: (group as any).boardCreatedAt ?? 0,
+  };
+}
+
+export function isExcerptNode(obj: FabricObject): obj is Group {
+  return (obj as any).boardType === "excerpt";
+}
+
+// ── Code Card Nodes (code definitions) ──
+
+export interface CodeCardNodeData {
+  id: string;
+  x: number;
+  y: number;
+  codeName: string;
+  color: string;          // hex code color
+  description: string;    // code description (may be empty)
+  markerCount: number;    // total markers with this code
+  sources: string[];      // source types that have this code
+  createdAt: number;
+}
+
+let codeCardIdCounter = 0;
+
+export function nextCodeCardId(): string {
+  return `codeCard-${Date.now()}-${codeCardIdCounter++}`;
+}
+
+export function createCodeCardNode(canvas: Canvas, data: CodeCardNodeData): Group {
+  const isDark = document.body.classList.contains("theme-dark");
+  const nodeW = 200;
+  const padding = 10;
+  const swatchSize = 24;
+
+  // Source badge labels
+  const badgeLabels: Record<string, string> = {
+    markdown: "MD", "csv-segment": "CSV", "csv-row": "ROW",
+    image: "IMG", pdf: "PDF", audio: "AUD", video: "VID",
+  };
+  const sourceColors: Record<string, string> = {
+    markdown: "#42A5F5", "csv-segment": "#66BB6A", "csv-row": "#81C784",
+    image: "#FFA726", pdf: "#EF5350", audio: "#AB47BC", video: "#00ACC1",
+  };
+
+  // Measure heights
+  const nameH = 20;
+  const descH = data.description ? 16 : 0;
+  const countH = 16;
+  const badgesH = data.sources.length > 0 ? 20 : 0;
+  const totalH = padding + swatchSize + 6 + nameH + (descH > 0 ? descH + 2 : 0) + countH + (badgesH > 0 ? badgesH + 4 : 0) + padding;
+
+  // Background card
+  const bg = new Rect({
+    width: nodeW,
+    height: totalH,
+    fill: isDark ? "#1e1e22" : "#ffffff",
+    rx: 8,
+    ry: 8,
+    shadow: new Shadow({ color: "rgba(0,0,0,0.18)", blur: 8, offsetX: 1, offsetY: 2 }),
+    stroke: data.color,
+    strokeWidth: 2,
+  });
+
+  // Color swatch (circle)
+  const swatch = new Rect({
+    width: swatchSize,
+    height: swatchSize,
+    fill: data.color,
+    rx: swatchSize / 2,
+    ry: swatchSize / 2,
+    left: nodeW / 2 - swatchSize / 2,
+    top: padding,
+  });
+
+  let yPos = padding + swatchSize + 6;
+
+  // Code name
+  const nameText = new Textbox(data.codeName, {
+    width: nodeW - padding * 2,
+    fontSize: 14,
+    fontFamily: "sans-serif",
+    fontWeight: "bold",
+    fill: isDark ? "#eee" : "#222",
+    left: padding,
+    top: yPos,
+    editable: false,
+    textAlign: "center",
+    splitByGrapheme: false,
+  });
+  yPos += nameH;
+
+  const objects: FabricObject[] = [bg, swatch, nameText];
+
+  // Description (if present)
+  if (data.description) {
+    const descText = new Textbox(data.description, {
+      width: nodeW - padding * 2,
+      fontSize: 10,
+      fontFamily: "sans-serif",
+      fill: isDark ? "#999" : "#777",
+      left: padding,
+      top: yPos + 2,
+      editable: false,
+      textAlign: "center",
+      splitByGrapheme: false,
+    });
+    objects.push(descText);
+    yPos += descH + 2;
+  }
+
+  // Marker count
+  const countText = new Textbox(`${data.markerCount} marker${data.markerCount !== 1 ? "s" : ""}`, {
+    width: nodeW - padding * 2,
+    fontSize: 11,
+    fontFamily: "sans-serif",
+    fill: isDark ? "#aaa" : "#666",
+    left: padding,
+    top: yPos,
+    editable: false,
+    textAlign: "center",
+    splitByGrapheme: false,
+  });
+  objects.push(countText);
+  yPos += countH;
+
+  // Source badges row
+  if (data.sources.length > 0) {
+    yPos += 4;
+    const totalBadgeW = data.sources.length * 30 + (data.sources.length - 1) * 4;
+    let bx = (nodeW - totalBadgeW) / 2;
+    for (const src of data.sources) {
+      const badgeBg = new Rect({
+        width: 28,
+        height: 14,
+        fill: sourceColors[src] ?? "#888",
+        rx: 3,
+        ry: 3,
+        left: bx,
+        top: yPos,
+      });
+      objects.push(badgeBg);
+
+      const badgeLabel = new Textbox(badgeLabels[src] ?? src.slice(0, 3).toUpperCase(), {
+        width: 28,
+        fontSize: 8,
+        fontFamily: "sans-serif",
+        fontWeight: "bold",
+        fill: "#fff",
+        left: bx,
+        top: yPos + 1,
+        editable: false,
+        textAlign: "center",
+      });
+      objects.push(badgeLabel);
+
+      bx += 32;
+    }
+  }
+
+  const group = new Group(objects, {
+    left: data.x,
+    top: data.y,
+  });
+
+  (group as any).boardType = "codeCard";
+  (group as any).boardId = data.id;
+  (group as any).boardCodeName = data.codeName;
+  (group as any).boardColor = data.color;
+  (group as any).boardDescription = data.description;
+  (group as any).boardMarkerCount = data.markerCount;
+  (group as any).boardSources = data.sources;
+  (group as any).boardCreatedAt = data.createdAt;
+
+  canvas.add(group);
+  canvas.requestRenderAll();
+  return group;
+}
+
+export function getCodeCardData(group: Group): CodeCardNodeData | null {
+  if ((group as any).boardType !== "codeCard") return null;
+  return {
+    id: (group as any).boardId,
+    x: group.left ?? 0,
+    y: group.top ?? 0,
+    codeName: (group as any).boardCodeName ?? "",
+    color: (group as any).boardColor ?? "#6200EE",
+    description: (group as any).boardDescription ?? "",
+    markerCount: (group as any).boardMarkerCount ?? 0,
+    sources: (group as any).boardSources ?? [],
+    createdAt: (group as any).boardCreatedAt ?? 0,
+  };
+}
+
+export function isCodeCardNode(obj: FabricObject): obj is Group {
+  return (obj as any).boardType === "codeCard";
+}
+
+// ── KPI Card Nodes ──
+
+export interface KpiCardNodeData {
+  id: string;
+  x: number;
+  y: number;
+  value: string;
+  label: string;
+  accent: string;   // accent color
+  createdAt: number;
+}
+
+let kpiCardIdCounter = 0;
+
+export function nextKpiCardId(): string {
+  return `kpi-${Date.now()}-${kpiCardIdCounter++}`;
+}
+
+export function createKpiCardNode(canvas: Canvas, data: KpiCardNodeData): Group {
+  const isDark = document.body.classList.contains("theme-dark");
+  const nodeW = 140;
+  const nodeH = 72;
+
+  // Background
+  const bg = new Rect({
+    width: nodeW,
+    height: nodeH,
+    fill: isDark ? "#1e1e22" : "#ffffff",
+    rx: 8,
+    ry: 8,
+    shadow: new Shadow({ color: "rgba(0,0,0,0.15)", blur: 6, offsetX: 1, offsetY: 2 }),
+    stroke: data.accent,
+    strokeWidth: 2,
+  });
+
+  // Top accent bar
+  const accentBar = new Rect({
+    width: nodeW - 16,
+    height: 3,
+    fill: data.accent,
+    rx: 1.5,
+    ry: 1.5,
+    left: 8,
+    top: 6,
+  });
+
+  // Big value
+  const valueText = new Textbox(data.value, {
+    width: nodeW - 16,
+    fontSize: 22,
+    fontFamily: "sans-serif",
+    fontWeight: "bold",
+    fill: isDark ? "#eee" : "#222",
+    left: 8,
+    top: 14,
+    editable: false,
+    textAlign: "center",
+    splitByGrapheme: false,
+  });
+
+  // Label
+  const labelText = new Textbox(data.label, {
+    width: nodeW - 16,
+    fontSize: 10,
+    fontFamily: "sans-serif",
+    fill: isDark ? "#999" : "#777",
+    left: 8,
+    top: 46,
+    editable: false,
+    textAlign: "center",
+    splitByGrapheme: false,
+  });
+
+  const group = new Group([bg, accentBar, valueText, labelText], {
+    left: data.x,
+    top: data.y,
+  });
+
+  (group as any).boardType = "kpiCard";
+  (group as any).boardId = data.id;
+  (group as any).boardValue = data.value;
+  (group as any).boardLabel = data.label;
+  (group as any).boardAccent = data.accent;
+  (group as any).boardCreatedAt = data.createdAt;
+
+  canvas.add(group);
+  canvas.requestRenderAll();
+  return group;
+}
+
+export function getKpiCardData(group: Group): KpiCardNodeData | null {
+  if ((group as any).boardType !== "kpiCard") return null;
+  return {
+    id: (group as any).boardId,
+    x: group.left ?? 0,
+    y: group.top ?? 0,
+    value: (group as any).boardValue ?? "",
+    label: (group as any).boardLabel ?? "",
+    accent: (group as any).boardAccent ?? "#6200EE",
+    createdAt: (group as any).boardCreatedAt ?? 0,
+  };
+}
+
+export function isKpiCardNode(obj: FabricObject): obj is Group {
+  return (obj as any).boardType === "kpiCard";
 }

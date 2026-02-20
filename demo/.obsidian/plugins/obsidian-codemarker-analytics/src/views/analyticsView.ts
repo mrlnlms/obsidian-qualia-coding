@@ -222,6 +222,11 @@ export class AnalyticsView extends ItemView {
     setIcon(csvBtn, "file-spreadsheet");
     csvBtn.createSpan({ text: "Export CSV" });
     csvBtn.addEventListener("click", () => this.exportCSV());
+
+    const boardBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
+    setIcon(boardBtn, "layout-dashboard");
+    boardBtn.createSpan({ text: "Add to Board" });
+    boardBtn.addEventListener("click", () => this.addToBoard());
   }
 
   private renderConfigPanel(): void {
@@ -707,19 +712,27 @@ export class AnalyticsView extends ItemView {
       : "0";
 
     const kpiGrid = dashboard.createDiv({ cls: "codemarker-kpi-grid" });
-    const kpis: Array<{ value: string; label: string }> = [
-      { value: String(totalMarkers), label: "Total Markers" },
-      { value: String(totalCodes), label: "Total Codes" },
-      { value: String(totalFiles), label: "Total Files" },
-      { value: String(activeSources), label: "Active Sources" },
-      { value: mostUsedCode, label: "Most Used Code" },
-      { value: avgCodesPerMarker, label: "Avg Codes/Marker" },
+    const kpis: Array<{ value: string; label: string; accent: string }> = [
+      { value: String(totalMarkers), label: "Total Markers", accent: "#42A5F5" },
+      { value: String(totalCodes), label: "Total Codes", accent: "#6200EE" },
+      { value: String(totalFiles), label: "Total Files", accent: "#66BB6A" },
+      { value: String(activeSources), label: "Active Sources", accent: "#FFA726" },
+      { value: mostUsedCode, label: "Most Used Code", accent: "#EF5350" },
+      { value: avgCodesPerMarker, label: "Avg Codes/Marker", accent: "#AB47BC" },
     ];
 
     for (const kpi of kpis) {
       const card = kpiGrid.createDiv({ cls: "codemarker-kpi-card" });
       card.createDiv({ cls: "codemarker-kpi-value", text: kpi.value });
       card.createDiv({ cls: "codemarker-kpi-label", text: kpi.label });
+
+      const boardBtn = card.createDiv({ cls: "codemarker-kpi-board-btn", attr: { "aria-label": "Add to Research Board" } });
+      setIcon(boardBtn, "layout-dashboard");
+      boardBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.plugin.addKpiCardToBoard(kpi.value, kpi.label, kpi.accent);
+        new Notice(`Added "${kpi.label}" to Research Board`);
+      });
     }
 
     // ── Thumbnails ──
@@ -1220,6 +1233,51 @@ export class AnalyticsView extends ItemView {
         },
       },
     });
+
+    // Code list table with "Add to Board" buttons
+    this.renderFrequencyCodeList(results);
+  }
+
+  private renderFrequencyCodeList(results: import("../data/dataTypes").FrequencyResult[]): void {
+    if (!this.chartContainer || !this.data) return;
+
+    const table = this.chartContainer.createDiv({ cls: "codemarker-freq-code-list" });
+    const header = table.createDiv({ cls: "codemarker-freq-code-list-header" });
+    header.createSpan({ text: "Code" });
+    header.createSpan({ text: "Count" });
+    header.createSpan({ text: "" }); // action column
+
+    // Build a lookup for descriptions from consolidated data
+    const codeDescMap = new Map<string, string>();
+    const codeSourcesMap = new Map<string, string[]>();
+    if (this.data) {
+      for (const c of this.data.codes) {
+        codeDescMap.set(c.name, c.description ?? "");
+        codeSourcesMap.set(c.name, c.sources);
+      }
+    }
+
+    for (const r of results) {
+      const row = table.createDiv({ cls: "codemarker-freq-code-list-row" });
+
+      const nameCell = row.createDiv({ cls: "codemarker-freq-code-list-name" });
+      const swatch = nameCell.createDiv({ cls: "codemarker-freq-code-list-swatch" });
+      swatch.style.backgroundColor = r.color;
+      nameCell.createSpan({ text: r.code });
+
+      row.createDiv({ cls: "codemarker-freq-code-list-count", text: String(r.total) });
+
+      const actionCell = row.createDiv({ cls: "codemarker-freq-code-list-action" });
+      const boardBtn = actionCell.createDiv({ cls: "codemarker-tr-board-btn", attr: { "aria-label": "Add to Research Board" } });
+      setIcon(boardBtn, "layout-dashboard");
+      boardBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const desc = codeDescMap.get(r.code) ?? "";
+        const sources = codeSourcesMap.get(r.code) ?? [];
+        this.plugin.addCodeCardToBoard(r.code, r.color, desc, r.total, sources);
+        new Notice(`Added "${r.code}" to Research Board`);
+      });
+    }
   }
 
   /**
@@ -2336,14 +2394,28 @@ export class AnalyticsView extends ItemView {
     const text = seg.text.length > 500 ? seg.text.slice(0, 497) + "..." : seg.text;
     card.createDiv({ cls: "codemarker-tr-text", text: text || "[empty]" });
 
+    // Footer row: code chips + add-to-board button
+    const footer = card.createDiv({ cls: "codemarker-tr-card-footer" });
+
     // Code chips
-    const chips = card.createDiv({ cls: "codemarker-tr-chips" });
+    const chips = footer.createDiv({ cls: "codemarker-tr-chips" });
     for (const code of seg.codes) {
       const chip = chips.createDiv({ cls: "codemarker-tr-chip" });
       const dot = chip.createDiv({ cls: "codemarker-tr-chip-dot" });
       dot.style.backgroundColor = codeColorMap.get(code) ?? "#6200EE";
       chip.createSpan({ text: code });
     }
+
+    // Add to Board button
+    const boardBtn = footer.createDiv({ cls: "codemarker-tr-board-btn", attr: { "aria-label": "Add to Research Board" } });
+    setIcon(boardBtn, "layout-dashboard");
+    boardBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const loc = this.formatLocation(seg);
+      const colors = seg.codes.map((c) => codeColorMap.get(c) ?? "#6200EE");
+      this.plugin.addExcerptToBoard(seg.text, seg.file, seg.source, loc, seg.codes, colors);
+      new Notice("Added excerpt to Research Board");
+    });
 
     // Click card to navigate
     card.addEventListener("click", () => this.navigateToSegment(seg));
@@ -5649,6 +5721,45 @@ export class AnalyticsView extends ItemView {
     link.download = `codemarker-${type}-${date}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
+  }
+
+  private async addToBoard(): Promise<void> {
+    if (this.viewMode === "dashboard" || this.viewMode === "text-retrieval") {
+      new Notice("Add to Board is not available for this view.");
+      return;
+    }
+    const canvas = this.chartContainer?.querySelector("canvas");
+    if (!canvas) {
+      new Notice("No chart to add to board.");
+      return;
+    }
+
+    const dataUrl = canvas.toDataURL("image/png");
+
+    // Build a human-friendly title from the view mode
+    const titles: Record<string, string> = {
+      frequency: "Frequency Bars",
+      cooccurrence: "Co-occurrence Matrix",
+      graph: "Network Graph",
+      "doc-matrix": "Document-Code Matrix",
+      evolution: "Code Evolution",
+      "word-cloud": "Word Cloud",
+      acm: "MCA Biplot",
+      mds: "MDS Map",
+      temporal: "Temporal Analysis",
+      "text-stats": "Text Statistics",
+      dendrogram: "Dendrogram",
+      "lag-sequential": "Lag Sequential",
+      "polar-coords": "Polar Coordinates",
+      "chi-square": "Chi-Square Tests",
+      "decision-tree": "Decision Tree",
+      "source-comparison": "Source Comparison",
+      "code-overlap": "Code Overlap",
+    };
+    const title = titles[this.viewMode] ?? this.viewMode;
+
+    await this.plugin.addChartToBoard(title, dataUrl, this.viewMode);
+    new Notice(`Added "${title}" to Research Board`);
   }
 
   private exportCSV(): void {

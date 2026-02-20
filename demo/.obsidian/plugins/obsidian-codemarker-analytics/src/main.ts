@@ -9,7 +9,7 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
   data: ConsolidatedData | null = null;
 
   async onload(): Promise<void> {
-    console.log('[CodeMarker Analytics] v38.10 loaded — Research Board base canvas');
+    console.log('[obsidian-codemarker-analytics] v38.11 loaded — Research Board all node types');
     this.registerView(
       ANALYTICS_VIEW_TYPE,
       (leaf) => new AnalyticsView(leaf, this)
@@ -80,6 +80,48 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
     const leaves = this.app.workspace.getLeavesOfType(ANALYTICS_VIEW_TYPE);
     for (const leaf of leaves) {
       (leaf.view as AnalyticsView).onDataRefreshed();
+    }
+  }
+
+  async addChartToBoard(title: string, dataUrl: string, viewMode: string): Promise<void> {
+    // Ensure board is open
+    await this.activateBoard();
+    // Small delay to ensure board view is mounted
+    await new Promise((r) => setTimeout(r, 100));
+    const leaves = this.app.workspace.getLeavesOfType(BOARD_VIEW_TYPE);
+    if (leaves.length > 0) {
+      const boardView = leaves[0].view as BoardView;
+      await boardView.addSnapshot(title, dataUrl, viewMode);
+    }
+  }
+
+  async addKpiCardToBoard(value: string, label: string, accent: string): Promise<void> {
+    await this.activateBoard();
+    await new Promise((r) => setTimeout(r, 100));
+    const leaves = this.app.workspace.getLeavesOfType(BOARD_VIEW_TYPE);
+    if (leaves.length > 0) {
+      const boardView = leaves[0].view as BoardView;
+      boardView.addKpiCard(value, label, accent);
+    }
+  }
+
+  async addCodeCardToBoard(codeName: string, color: string, description: string, markerCount: number, sources: string[]): Promise<void> {
+    await this.activateBoard();
+    await new Promise((r) => setTimeout(r, 100));
+    const leaves = this.app.workspace.getLeavesOfType(BOARD_VIEW_TYPE);
+    if (leaves.length > 0) {
+      const boardView = leaves[0].view as BoardView;
+      boardView.addCodeCard(codeName, color, description, markerCount, sources);
+    }
+  }
+
+  async addExcerptToBoard(text: string, file: string, source: string, location: string, codes: string[], codeColors: string[]): Promise<void> {
+    await this.activateBoard();
+    await new Promise((r) => setTimeout(r, 100));
+    const leaves = this.app.workspace.getLeavesOfType(BOARD_VIEW_TYPE);
+    if (leaves.length > 0) {
+      const boardView = leaves[0].view as BoardView;
+      boardView.addExcerpt(text, file, source, location, codes, codeColors);
     }
   }
 

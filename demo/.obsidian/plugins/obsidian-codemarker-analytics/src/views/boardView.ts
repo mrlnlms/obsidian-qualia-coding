@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, Menu, Notice } from "obsidian";
 import type CodeMarkerAnalyticsPlugin from "../main";
 import { setupBoardCanvas, teardownBoardCanvas, zoomBy, fitContent, type BoardCanvasState } from "../board/boardCanvas";
-import { createStickyNote, nextNoteId, isStickyNote, setStickyColor, enableStickyEditing, STICKY_COLORS, DEFAULT_STICKY_COLOR, type StickyNoteData } from "../board/boardNodes";
+import { createStickyNote, nextNoteId, isStickyNote, isSnapshotNode, isExcerptNode, isCodeCardNode, isKpiCardNode, setStickyColor, enableStickyEditing, createSnapshotNode, nextSnapshotId, createExcerptNode, nextExcerptId, createCodeCardNode, nextCodeCardId, createKpiCardNode, nextKpiCardId, STICKY_COLORS, DEFAULT_STICKY_COLOR, type StickyNoteData, type SnapshotNodeData, type ExcerptNodeData, type CodeCardNodeData, type KpiCardNodeData } from "../board/boardNodes";
 import { createArrow, nextArrowId, updateArrowForNodes, isArrow, type ArrowData } from "../board/boardArrows";
 import { enableDrawingMode, disableDrawingMode, tagNewPaths } from "../board/boardDrawing";
 import { createBoardToolbar, type BoardTool } from "../board/boardToolbar";
@@ -153,7 +153,7 @@ export class BoardView extends ItemView {
         });
         this.scheduleSave();
       } else if (this.currentTool === "arrow" && opt.target) {
-        if (isStickyNote(opt.target)) {
+        if (isStickyNote(opt.target) || isSnapshotNode(opt.target) || isExcerptNode(opt.target) || isCodeCardNode(opt.target) || isKpiCardNode(opt.target)) {
           if (!this.arrowSourceObj) {
             // First click — select source
             this.arrowSourceObj = opt.target;
@@ -200,28 +200,36 @@ export class BoardView extends ItemView {
       this.scheduleSave();
     });
 
-    // Right-click context menu on sticky notes
+    // Right-click context menu on nodes
     canvas.on("mouse:down", (opt) => {
       const e = opt.e as MouseEvent;
       if (e.button !== 2) return;
-      if (!opt.target || !isStickyNote(opt.target)) return;
+      if (!opt.target) return;
+      const isSticky = isStickyNote(opt.target);
+      const isSnapshot = isSnapshotNode(opt.target);
+      const isExcerpt = isExcerptNode(opt.target);
+      const isCodeCard = isCodeCardNode(opt.target);
+      const isKpi = isKpiCardNode(opt.target);
+      if (!isSticky && !isSnapshot && !isExcerpt && !isCodeCard && !isKpi) return;
 
       e.preventDefault();
       e.stopPropagation();
       const target = opt.target;
 
       const menu = new Menu();
-      // Color submenu
-      for (const [key, hex] of Object.entries(STICKY_COLORS)) {
-        menu.addItem((item) => {
-          item.setTitle(key.charAt(0).toUpperCase() + key.slice(1));
-          item.onClick(() => {
-            setStickyColor(target, key);
-            this.scheduleSave();
+      // Color submenu (sticky notes only)
+      if (isSticky) {
+        for (const [key, hex] of Object.entries(STICKY_COLORS)) {
+          menu.addItem((item) => {
+            item.setTitle(key.charAt(0).toUpperCase() + key.slice(1));
+            item.onClick(() => {
+              setStickyColor(target as any, key);
+              this.scheduleSave();
+            });
           });
-        });
+        }
+        menu.addSeparator();
       }
-      menu.addSeparator();
       menu.addItem((item) => {
         item.setTitle("Delete");
         item.setIcon("trash-2");
@@ -234,6 +242,124 @@ export class BoardView extends ItemView {
 
       menu.showAtPosition({ x: e.pageX, y: e.pageY });
     });
+  }
+
+  /** Public: add a chart snapshot from Analytics view */
+  async addSnapshot(title: string, dataUrl: string, viewMode: string): Promise<void> {
+    if (!this.canvasState) return;
+    const canvas = this.canvasState.canvas;
+
+    // Place new snapshot in a visible area — center of current viewport
+    const vt = canvas.viewportTransform!;
+    const zoom = canvas.getZoom();
+    const cw = this.canvasState.container.clientWidth;
+    const ch = this.canvasState.container.clientHeight;
+    const x = (-vt[4] + cw / 2 - 140) / zoom;
+    const y = (-vt[5] + ch / 2 - 100) / zoom;
+
+    await createSnapshotNode(canvas, {
+      id: nextSnapshotId(),
+      x,
+      y,
+      width: 280,
+      height: 180,
+      title,
+      dataUrl,
+      viewMode,
+      createdAt: Date.now(),
+    });
+
+    // Switch to select tool so user can move the new node
+    this.setTool("select");
+    if (this.toolbarApi) this.toolbarApi.setActiveTool("select");
+    this.scheduleSave();
+  }
+
+  /** Public: add a KPI card */
+  addKpiCard(value: string, label: string, accent: string): void {
+    if (!this.canvasState) return;
+    const canvas = this.canvasState.canvas;
+
+    const vt = canvas.viewportTransform!;
+    const zoom = canvas.getZoom();
+    const cw = this.canvasState.container.clientWidth;
+    const ch = this.canvasState.container.clientHeight;
+    const x = (-vt[4] + cw / 2 - 70) / zoom;
+    const y = (-vt[5] + ch / 2 - 36) / zoom;
+
+    createKpiCardNode(canvas, {
+      id: nextKpiCardId(),
+      x,
+      y,
+      value,
+      label,
+      accent,
+      createdAt: Date.now(),
+    });
+
+    this.setTool("select");
+    if (this.toolbarApi) this.toolbarApi.setActiveTool("select");
+    this.scheduleSave();
+  }
+
+  /** Public: add a code definition card */
+  addCodeCard(codeName: string, color: string, description: string, markerCount: number, sources: string[]): void {
+    if (!this.canvasState) return;
+    const canvas = this.canvasState.canvas;
+
+    const vt = canvas.viewportTransform!;
+    const zoom = canvas.getZoom();
+    const cw = this.canvasState.container.clientWidth;
+    const ch = this.canvasState.container.clientHeight;
+    const x = (-vt[4] + cw / 2 - 100) / zoom;
+    const y = (-vt[5] + ch / 2 - 60) / zoom;
+
+    createCodeCardNode(canvas, {
+      id: nextCodeCardId(),
+      x,
+      y,
+      codeName,
+      color,
+      description,
+      markerCount,
+      sources,
+      createdAt: Date.now(),
+    });
+
+    this.setTool("select");
+    if (this.toolbarApi) this.toolbarApi.setActiveTool("select");
+    this.scheduleSave();
+  }
+
+  /** Public: add a text excerpt from Text Retrieval view */
+  addExcerpt(text: string, file: string, source: string, location: string, codes: string[], codeColors: string[]): void {
+    if (!this.canvasState) return;
+    const canvas = this.canvasState.canvas;
+
+    const vt = canvas.viewportTransform!;
+    const zoom = canvas.getZoom();
+    const cw = this.canvasState.container.clientWidth;
+    const ch = this.canvasState.container.clientHeight;
+    const x = (-vt[4] + cw / 2 - 130) / zoom;
+    const y = (-vt[5] + ch / 2 - 80) / zoom;
+
+    createExcerptNode(canvas, {
+      id: nextExcerptId(),
+      x,
+      y,
+      width: 260,
+      text,
+      file,
+      source,
+      location,
+      codes,
+      codeColors,
+      createdAt: Date.now(),
+    });
+
+    this.setTool("select");
+    if (this.toolbarApi) this.toolbarApi.setActiveTool("select");
+    this.scheduleSave();
   }
 
   private scheduleSave(): void {
@@ -266,7 +392,7 @@ export class BoardView extends ItemView {
 
       const canvas = this.canvasState.canvas;
 
-      deserializeBoard(
+      await deserializeBoard(
         canvas,
         data,
         (nodeData: StickyNoteData) => {
@@ -280,6 +406,18 @@ export class BoardView extends ItemView {
           if (fromObj && toObj) {
             createArrow(canvas, fromObj, toObj, arrowData);
           }
+        },
+        async (snapData: SnapshotNodeData) => {
+          await createSnapshotNode(canvas, snapData);
+        },
+        (excData: ExcerptNodeData) => {
+          createExcerptNode(canvas, excData);
+        },
+        (ccData: CodeCardNodeData) => {
+          createCodeCardNode(canvas, ccData);
+        },
+        (kpiData: KpiCardNodeData) => {
+          createKpiCardNode(canvas, kpiData);
         },
       );
     } catch {
