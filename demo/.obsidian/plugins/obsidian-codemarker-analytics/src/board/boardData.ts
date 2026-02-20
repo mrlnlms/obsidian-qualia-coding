@@ -2,8 +2,8 @@ import { Canvas, Path } from "fabric";
 import type { StickyNoteData, SnapshotNodeData, ExcerptNodeData, CodeCardNodeData, KpiCardNodeData } from "./boardNodes";
 import type { ArrowData } from "./boardArrows";
 import type { FreePathData } from "./boardDrawing";
-import { getStickyData, isStickyNote, getSnapshotData, isSnapshotNode, getExcerptData, isExcerptNode, getCodeCardData, isCodeCardNode, getKpiCardData, isKpiCardNode } from "./boardNodes";
-import { getArrowData, isArrow } from "./boardArrows";
+import { getStickyData, isStickyNote, getSnapshotData, isSnapshotNode, getExcerptData, isExcerptNode, getCodeCardData, isCodeCardNode, getKpiCardData, isKpiCardNode, getClusterFrameData, isClusterFrame, type ClusterFrameData } from "./boardNodes";
+import { getArrowData, isArrowLine, isArrow } from "./boardArrows";
 import { getPathData, isFreePath } from "./boardDrawing";
 
 export interface BoardFileData {
@@ -13,6 +13,7 @@ export interface BoardFileData {
   excerpts: ExcerptNodeData[];
   codeCards: CodeCardNodeData[];
   kpiCards: KpiCardNodeData[];
+  clusterFrames: ClusterFrameData[];
   arrows: ArrowData[];
   paths: FreePathData[];
   viewport: { zoom: number; panX: number; panY: number };
@@ -26,6 +27,7 @@ export function emptyBoardData(): BoardFileData {
     excerpts: [],
     codeCards: [],
     kpiCards: [],
+    clusterFrames: [],
     arrows: [],
     paths: [],
     viewport: { zoom: 1, panX: 0, panY: 0 },
@@ -38,6 +40,7 @@ export function serializeBoard(canvas: Canvas): BoardFileData {
   const excerpts: ExcerptNodeData[] = [];
   const codeCards: CodeCardNodeData[] = [];
   const kpiCards: KpiCardNodeData[] = [];
+  const clusterFrames: ClusterFrameData[] = [];
   const arrows: ArrowData[] = [];
   const paths: FreePathData[] = [];
 
@@ -57,9 +60,14 @@ export function serializeBoard(canvas: Canvas): BoardFileData {
     } else if (isKpiCardNode(obj)) {
       const d = getKpiCardData(obj);
       if (d) kpiCards.push(d);
-    } else if (isArrow(obj)) {
+    } else if (isClusterFrame(obj)) {
+      const d = getClusterFrameData(obj);
+      if (d) clusterFrames.push(d);
+    } else if (isArrowLine(obj)) {
       const d = getArrowData(obj);
       if (d) arrows.push(d);
+    } else if (isArrow(obj)) {
+      // arrow-head — skip, reconstructed from arrow-line data
     } else if (isFreePath(obj)) {
       const d = getPathData(obj);
       if (d) paths.push(d);
@@ -74,6 +82,7 @@ export function serializeBoard(canvas: Canvas): BoardFileData {
     excerpts,
     codeCards,
     kpiCards,
+    clusterFrames,
     arrows,
     paths,
     viewport: {
@@ -93,6 +102,7 @@ export async function deserializeBoard(
   createExcerptFn?: (data: ExcerptNodeData) => void,
   createCodeCardFn?: (data: CodeCardNodeData) => void,
   createKpiCardFn?: (data: KpiCardNodeData) => void,
+  createClusterFrameFn?: (data: ClusterFrameData) => void,
 ): Promise<void> {
   // Clear canvas
   canvas.clear();
@@ -130,6 +140,13 @@ export async function deserializeBoard(
     }
   }
 
+  // Restore cluster frames (behind cards)
+  if (data.clusterFrames && createClusterFrameFn) {
+    for (const cf of data.clusterFrames) {
+      createClusterFrameFn(cf);
+    }
+  }
+
   // Restore arrows (need nodes to exist first)
   for (const arrow of data.arrows) {
     createArrowFn(arrow);
@@ -153,13 +170,16 @@ export async function deserializeBoard(
     }
   }
 
-  // Restore viewport
+  // Restore viewport — use setViewportTransform to trigger coord recalculation
   if (data.viewport) {
-    canvas.setZoom(data.viewport.zoom);
-    const vt = canvas.viewportTransform!;
-    vt[4] = data.viewport.panX;
-    vt[5] = data.viewport.panY;
+    const vt: [number, number, number, number, number, number] = [
+      data.viewport.zoom, 0, 0, data.viewport.zoom,
+      data.viewport.panX, data.viewport.panY,
+    ];
+    canvas.setViewportTransform(vt);
   }
 
+  // Force recalculate all object coordinates for hit-testing
+  canvas.forEachObject((o) => o.setCoords());
   canvas.requestRenderAll();
 }

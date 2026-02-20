@@ -4,7 +4,7 @@ export type BoardTool = "select" | "note" | "arrow" | "draw";
 
 export interface BoardToolbarCallbacks {
   onToolChange: (tool: BoardTool) => void;
-  onAction: (action: "delete" | "zoom-in" | "zoom-out" | "fit" | "save") => void;
+  onAction: (action: string) => void;
 }
 
 export function createBoardToolbar(
@@ -46,8 +46,9 @@ export function createBoardToolbar(
   toolbar.createDiv({ cls: "codemarker-board-toolbar-sep" });
 
   // Action buttons
-  const actions: Array<{ action: "delete" | "zoom-in" | "zoom-out" | "fit" | "save"; icon: string; label: string }> = [
+  const actions: Array<{ action: string; icon: string; label: string }> = [
     { action: "delete", icon: "trash-2", label: "Delete" },
+    { action: "cluster", icon: "boxes", label: "Auto-group" },
     { action: "zoom-in", icon: "zoom-in", label: "Zoom In" },
     { action: "zoom-out", icon: "zoom-out", label: "Zoom Out" },
     { action: "fit", icon: "maximize-2", label: "Fit" },

@@ -118,7 +118,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Auto-open images**: When enabled, clicking any image file opens it directly in CodeMarker Image view
 - **Settings tab**: Dedicated settings panel for CodeMarker Image preferences and toggles
 
-### CodeMarker Analytics (v38.11)
+### CodeMarker Analytics (v38.12)
 
 - **Cross-engine analytics**: Consolidates coded data from all six source types into a unified view
 - **Audio source support**: Analytics data reader ingests and consolidates annotations from audio-based codemarker data
@@ -144,6 +144,9 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Source Comparison**: Compares coding patterns across source types — grouped bar chart and table showing how codes distribute across markdown, CSV, image, PDF, audio, and video sources
 - **Code Overlap**: Spatial overlap analysis between codes — identifies which codes co-occur on the same passages or regions
 - **Research Board**: Infinite canvas powered by Fabric.js for spatial arrangement of coded data — supports all node types: chart snapshots, text excerpts, code definition cards, and KPI cards
+- **Board fixes**: Node rendering and layout bug fixes for the Research Board
+- **Right-click context menu**: Right-click on board nodes to access actions via context menu
+- **Drag & drop codes**: Drag codes onto the board with automatic cluster grouping visual
 - **Eighteen view modes + Board**: Frequency, Co-occurrence Matrix, Network Graph, Document-Code Matrix, Code Evolution, Text Retrieval, Word Cloud, MCA, MDS, Jaccard, Text Statistics, Dendrogram, Lag Sequential, Polar, Chi-squared, Decision Tree, Source Comparison, Code Overlap
 - **Stats engine**: Dedicated statistics module with frequency, co-occurrence, matrix, evolution, MCA, MDS, Jaccard, text stats, clustering, lag sequential, polar, chi-squared, decision tree, source comparison, and overlap calculations
 - **Data reader**: Reads and aggregates coding data from all six engine types (markdown, CSV, image, PDF, audio, video)

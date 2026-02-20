@@ -9,7 +9,7 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
   data: ConsolidatedData | null = null;
 
   async onload(): Promise<void> {
-    console.log('[obsidian-codemarker-analytics] v38.11 loaded — Research Board all node types');
+    console.log('[codemarker-analytics] v38.12 loaded — Board fixes + right-click + drag & drop');
     this.registerView(
       ANALYTICS_VIEW_TYPE,
       (leaf) => new AnalyticsView(leaf, this)

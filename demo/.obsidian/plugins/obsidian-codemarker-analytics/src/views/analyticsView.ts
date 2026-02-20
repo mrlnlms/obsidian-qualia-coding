@@ -1260,6 +1260,20 @@ export class AnalyticsView extends ItemView {
     for (const r of results) {
       const row = table.createDiv({ cls: "codemarker-freq-code-list-row" });
 
+      // Drag & drop to board
+      row.draggable = true;
+      row.addEventListener("dragstart", (e) => {
+        const desc = codeDescMap.get(r.code) ?? "";
+        const sources = codeSourcesMap.get(r.code) ?? [];
+        const payload = JSON.stringify({ type: "codemarker-code-card", codeName: r.code, color: r.color, description: desc, markerCount: r.total, sources });
+        e.dataTransfer!.setData("text/plain", payload);
+        e.dataTransfer!.effectAllowed = "copy";
+        row.addClass("codemarker-freq-row-dragging");
+      });
+      row.addEventListener("dragend", () => {
+        row.removeClass("codemarker-freq-row-dragging");
+      });
+
       const nameCell = row.createDiv({ cls: "codemarker-freq-code-list-name" });
       const swatch = nameCell.createDiv({ cls: "codemarker-freq-code-list-swatch" });
       swatch.style.backgroundColor = r.color;

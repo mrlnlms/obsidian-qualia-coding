@@ -19,6 +19,9 @@ export function setupBoardCanvas(container: HTMLElement): BoardCanvasState {
     selection: true,
     backgroundColor: "transparent",
     preserveObjectStacking: true,
+    fireRightClick: true,
+    fireMiddleClick: true,
+    stopContextMenu: true,
   });
 
   const state: BoardCanvasState = {
@@ -80,6 +83,8 @@ export function setupBoardCanvas(container: HTMLElement): BoardCanvasState {
   canvas.on("mouse:up", () => {
     if (isPanning) {
       isPanning = false;
+      // Recalculate object coords after pan so hit-testing works
+      canvas.forEachObject((o) => o.setCoords());
       if (!spaceHeld) {
         canvas.defaultCursor = "default";
         canvas.selection = true;
@@ -176,10 +181,7 @@ export function fitContent(state: BoardCanvasState): void {
   const objects = canvas.getObjects();
   if (objects.length === 0) {
     // Reset to center
-    const vt = canvas.viewportTransform!;
-    vt[4] = 0;
-    vt[5] = 0;
-    canvas.setZoom(1);
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     canvas.requestRenderAll();
     return;
   }
@@ -206,10 +208,13 @@ export function fitContent(state: BoardCanvasState): void {
     2,
   );
 
-  canvas.setZoom(zoom);
-  const vt = canvas.viewportTransform!;
-  vt[4] = -(minX * zoom) + (cw - contentW * zoom) / 2;
-  vt[5] = -(minY * zoom) + (ch - contentH * zoom) / 2;
+  const newVt: [number, number, number, number, number, number] = [
+    zoom, 0, 0, zoom,
+    -(minX * zoom) + (cw - contentW * zoom) / 2,
+    -(minY * zoom) + (ch - contentH * zoom) / 2,
+  ];
+  canvas.setViewportTransform(newVt);
+  canvas.forEachObject((o) => o.setCoords());
   canvas.requestRenderAll();
 }
 

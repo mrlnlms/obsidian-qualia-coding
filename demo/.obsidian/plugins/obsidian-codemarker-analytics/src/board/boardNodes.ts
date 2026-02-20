@@ -54,8 +54,8 @@ export function createStickyNote(canvas: Canvas, data: StickyNoteData): Group {
   const group = new Group([rect, textbox], {
     left: data.x,
     top: data.y,
-    subTargetCheck: true,
-    interactive: true,
+    subTargetCheck: false,
+    interactive: false,
   });
 
   // Store metadata
@@ -100,10 +100,24 @@ export function isStickyNote(obj: FabricObject): obj is Group {
 export function enableStickyEditing(canvas: Canvas, group: Group): void {
   const textbox = group.getObjects().find((o) => o instanceof Textbox) as Textbox | undefined;
   if (!textbox) return;
-  // Enter editing on textbox within group
+
+  // Temporarily enable interactive mode for text editing
+  group.subTargetCheck = true;
+  group.interactive = true;
+
   canvas.setActiveObject(textbox);
   textbox.enterEditing();
   canvas.requestRenderAll();
+
+  // When editing ends, restore non-interactive mode
+  const onDeselect = () => {
+    textbox.exitEditing();
+    group.subTargetCheck = false;
+    group.interactive = false;
+    canvas.requestRenderAll();
+    canvas.off("selection:cleared", onDeselect);
+  };
+  canvas.on("selection:cleared", onDeselect);
 }
 
 // ── Snapshot Nodes (chart images) ──
@@ -723,4 +737,88 @@ export function getKpiCardData(group: Group): KpiCardNodeData | null {
 
 export function isKpiCardNode(obj: FabricObject): obj is Group {
   return (obj as any).boardType === "kpiCard";
+}
+
+// ── Cluster Frame Nodes (visual grouping) ──
+
+export interface ClusterFrameData {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string;
+  color: string;       // translucent fill color
+  codeNames: string[];  // codes contained in this cluster
+}
+
+let clusterFrameIdCounter = 0;
+
+export function nextClusterFrameId(): string {
+  return `cluster-${Date.now()}-${clusterFrameIdCounter++}`;
+}
+
+export function createClusterFrame(canvas: Canvas, data: ClusterFrameData): Group {
+  const isDark = document.body.classList.contains("theme-dark");
+
+  const bg = new Rect({
+    width: data.width,
+    height: data.height,
+    fill: data.color,
+    rx: 12,
+    ry: 12,
+    stroke: data.color.replace(/[\d.]+\)$/, "0.5)"),
+    strokeWidth: 2,
+    strokeDashArray: [6, 4],
+  });
+
+  const label = new Textbox(data.label, {
+    width: data.width - 16,
+    fontSize: 11,
+    fontFamily: "sans-serif",
+    fontWeight: "bold",
+    fill: isDark ? "#bbb" : "#555",
+    left: 8,
+    top: 6,
+    editable: false,
+    splitByGrapheme: false,
+  });
+
+  const group = new Group([bg, label], {
+    left: data.x,
+    top: data.y,
+    subTargetCheck: false,
+    interactive: false,
+  });
+
+  (group as any).boardType = "cluster-frame";
+  (group as any).boardId = data.id;
+  (group as any).boardLabel = data.label;
+  (group as any).boardColor = data.color;
+  (group as any).boardCodeNames = data.codeNames;
+  (group as any).boardWidth = data.width;
+  (group as any).boardHeight = data.height;
+
+  canvas.add(group);
+  canvas.sendObjectToBack(group);
+  canvas.requestRenderAll();
+  return group;
+}
+
+export function getClusterFrameData(group: Group): ClusterFrameData | null {
+  if ((group as any).boardType !== "cluster-frame") return null;
+  return {
+    id: (group as any).boardId,
+    x: group.left ?? 0,
+    y: group.top ?? 0,
+    width: (group as any).boardWidth ?? 200,
+    height: (group as any).boardHeight ?? 200,
+    label: (group as any).boardLabel ?? "",
+    color: (group as any).boardColor ?? "rgba(100,100,100,0.1)",
+    codeNames: (group as any).boardCodeNames ?? [],
+  };
+}
+
+export function isClusterFrame(obj: FabricObject): obj is Group {
+  return (obj as any).boardType === "cluster-frame";
 }

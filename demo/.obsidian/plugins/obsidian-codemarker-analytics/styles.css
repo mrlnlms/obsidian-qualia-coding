@@ -1120,3 +1120,17 @@
 .codemarker-board-canvas-container canvas {
   display: block;
 }
+
+/* ── Drag & Drop ── */
+
+.codemarker-freq-code-list-row {
+  cursor: grab;
+}
+
+.codemarker-freq-code-list-row:active {
+  cursor: grabbing;
+}
+
+.codemarker-freq-row-dragging {
+  opacity: 0.5;
+}

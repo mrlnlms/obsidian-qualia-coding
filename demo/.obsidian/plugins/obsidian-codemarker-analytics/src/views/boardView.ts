@@ -1,11 +1,12 @@
 import { ItemView, WorkspaceLeaf, Menu, Notice } from "obsidian";
 import type CodeMarkerAnalyticsPlugin from "../main";
 import { setupBoardCanvas, teardownBoardCanvas, zoomBy, fitContent, type BoardCanvasState } from "../board/boardCanvas";
-import { createStickyNote, nextNoteId, isStickyNote, isSnapshotNode, isExcerptNode, isCodeCardNode, isKpiCardNode, setStickyColor, enableStickyEditing, createSnapshotNode, nextSnapshotId, createExcerptNode, nextExcerptId, createCodeCardNode, nextCodeCardId, createKpiCardNode, nextKpiCardId, STICKY_COLORS, DEFAULT_STICKY_COLOR, type StickyNoteData, type SnapshotNodeData, type ExcerptNodeData, type CodeCardNodeData, type KpiCardNodeData } from "../board/boardNodes";
-import { createArrow, nextArrowId, updateArrowForNodes, isArrow, type ArrowData } from "../board/boardArrows";
+import { createStickyNote, nextNoteId, isStickyNote, isSnapshotNode, isExcerptNode, isCodeCardNode, isKpiCardNode, isClusterFrame, setStickyColor, enableStickyEditing, createSnapshotNode, nextSnapshotId, createExcerptNode, nextExcerptId, createCodeCardNode, nextCodeCardId, createKpiCardNode, nextKpiCardId, createClusterFrame, nextClusterFrameId, STICKY_COLORS, DEFAULT_STICKY_COLOR, type StickyNoteData, type SnapshotNodeData, type ExcerptNodeData, type CodeCardNodeData, type KpiCardNodeData, type ClusterFrameData } from "../board/boardNodes";
+import { createArrow, nextArrowId, updateArrowForNodes, removeArrowById, isArrow, type ArrowData } from "../board/boardArrows";
 import { enableDrawingMode, disableDrawingMode, tagNewPaths } from "../board/boardDrawing";
 import { createBoardToolbar, type BoardTool } from "../board/boardToolbar";
 import { serializeBoard, deserializeBoard, emptyBoardData, type BoardFileData } from "../board/boardData";
+import { clusterCodeCards } from "../board/boardClusters";
 
 export const BOARD_VIEW_TYPE = "codemarker-board";
 const BOARD_FILE = ".obsidian/plugins/obsidian-codemarker-analytics/board.json";
@@ -54,8 +55,24 @@ export class BoardView extends ItemView {
     // Small delay to let container get layout dimensions
     await new Promise((r) => setTimeout(r, 50));
 
+    // Prevent Obsidian from intercepting right-click on canvas
+    canvasContainer.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
     this.canvasState = setupBoardCanvas(canvasContainer);
     this.setupCanvasEvents();
+
+    // Drag & drop from Frequency code list
+    canvasContainer.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    });
+    canvasContainer.addEventListener("drop", (e) => {
+      e.preventDefault();
+      this.handleDrop(e);
+    });
 
     // Load saved board
     await this.loadBoard();
@@ -81,18 +98,19 @@ export class BoardView extends ItemView {
       disableDrawingMode(canvas);
     }
 
+    // All tools: keep objects selectable and evented so they're always detectable.
+    // Tool behavior is controlled in the mouse:down handler.
+    canvas.forEachObject((o) => { o.selectable = true; o.evented = true; });
+
     if (tool === "select") {
       canvas.selection = true;
       canvas.defaultCursor = "default";
-      canvas.forEachObject((o) => { o.selectable = true; });
     } else if (tool === "note") {
       canvas.selection = false;
       canvas.defaultCursor = "crosshair";
-      canvas.forEachObject((o) => { o.selectable = false; });
     } else if (tool === "arrow") {
       canvas.selection = false;
       canvas.defaultCursor = "crosshair";
-      canvas.forEachObject((o) => { o.selectable = false; });
     } else if (tool === "draw") {
       canvas.selection = false;
       const isDark = document.body.classList.contains("theme-dark");
@@ -107,7 +125,12 @@ export class BoardView extends ItemView {
     if (action === "delete") {
       const active = canvas.getActiveObjects();
       for (const obj of active) {
-        canvas.remove(obj);
+        // If it's an arrow part, remove both line + head
+        if (isArrow(obj)) {
+          removeArrowById(canvas, (obj as any).boardId);
+        } else {
+          canvas.remove(obj);
+        }
       }
       canvas.discardActiveObject();
       canvas.requestRenderAll();
@@ -118,6 +141,8 @@ export class BoardView extends ItemView {
       zoomBy(this.canvasState, 0.77);
     } else if (action === "fit") {
       fitContent(this.canvasState);
+    } else if (action === "cluster") {
+      this.autoGroupCards();
     } else if (action === "save") {
       this.saveBoard();
       new Notice("Board saved");
@@ -134,44 +159,50 @@ export class BoardView extends ItemView {
       // Ignore middle-click (panning) and right-click
       if (e.button !== 0) return;
 
-      if (this.currentTool === "note" && !opt.target) {
-        // Create sticky note at click position
-        const pointer = canvas.getViewportPoint(e);
-        const vt = canvas.viewportTransform!;
-        const zoom = canvas.getZoom();
-        const x = (pointer.x - vt[4]) / zoom;
-        const y = (pointer.y - vt[5]) / zoom;
+      if (this.currentTool === "note") {
+        if (!opt.target) {
+          // Create sticky note at click position on empty space
+          const pointer = canvas.getScenePoint(e);
+          createStickyNote(canvas, {
+            id: nextNoteId(),
+            x: pointer.x - 90,
+            y: pointer.y - 60,
+            width: 180,
+            height: 120,
+            text: "",
+            color: DEFAULT_STICKY_COLOR,
+          });
+          this.scheduleSave();
+        }
+        // If clicked on existing object, just ignore (don't move it)
+        canvas.discardActiveObject();
+      } else if (this.currentTool === "arrow") {
+        // Prevent object dragging in arrow mode
+        canvas.discardActiveObject();
 
-        createStickyNote(canvas, {
-          id: nextNoteId(),
-          x,
-          y,
-          width: 180,
-          height: 120,
-          text: "",
-          color: DEFAULT_STICKY_COLOR,
-        });
-        this.scheduleSave();
-      } else if (this.currentTool === "arrow" && opt.target) {
-        if (isStickyNote(opt.target) || isSnapshotNode(opt.target) || isExcerptNode(opt.target) || isCodeCardNode(opt.target) || isKpiCardNode(opt.target)) {
-          if (!this.arrowSourceObj) {
-            // First click — select source
-            this.arrowSourceObj = opt.target;
-            opt.target.set("opacity", 0.7);
-            canvas.requestRenderAll();
-          } else if (this.arrowSourceObj !== opt.target) {
-            // Second click — create arrow
-            this.arrowSourceObj.set("opacity", 1);
-            createArrow(canvas, this.arrowSourceObj, opt.target, {
-              id: nextArrowId(),
-              fromNodeId: (this.arrowSourceObj as any).boardId,
-              toNodeId: (opt.target as any).boardId,
-              color: "#888",
-              label: "",
-            });
-            this.arrowSourceObj = null;
-            canvas.requestRenderAll();
-            this.scheduleSave();
+        if (opt.target) {
+          const t = opt.target;
+          const isNode = isStickyNote(t) || isSnapshotNode(t) || isExcerptNode(t) || isCodeCardNode(t) || isKpiCardNode(t);
+          if (isNode) {
+            if (!this.arrowSourceObj) {
+              // First click — select source
+              this.arrowSourceObj = t;
+              t.set("opacity", 0.7);
+              canvas.requestRenderAll();
+            } else if (this.arrowSourceObj !== t) {
+              // Second click — create arrow
+              this.arrowSourceObj.set("opacity", 1);
+              createArrow(canvas, this.arrowSourceObj, t, {
+                id: nextArrowId(),
+                fromNodeId: (this.arrowSourceObj as any).boardId,
+                toNodeId: (t as any).boardId,
+                color: "#888",
+                label: "",
+              });
+              this.arrowSourceObj = null;
+              canvas.requestRenderAll();
+              this.scheduleSave();
+            }
           }
         }
       }
@@ -210,7 +241,9 @@ export class BoardView extends ItemView {
       const isExcerpt = isExcerptNode(opt.target);
       const isCodeCard = isCodeCardNode(opt.target);
       const isKpi = isKpiCardNode(opt.target);
-      if (!isSticky && !isSnapshot && !isExcerpt && !isCodeCard && !isKpi) return;
+      const isCluster = isClusterFrame(opt.target);
+      const isArrowObj = isArrow(opt.target);
+      if (!isSticky && !isSnapshot && !isExcerpt && !isCodeCard && !isKpi && !isCluster && !isArrowObj) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -234,7 +267,11 @@ export class BoardView extends ItemView {
         item.setTitle("Delete");
         item.setIcon("trash-2");
         item.onClick(() => {
-          canvas.remove(target);
+          if (isArrowObj) {
+            removeArrowById(canvas, (target as any).boardId);
+          } else {
+            canvas.remove(target);
+          }
           canvas.requestRenderAll();
           this.scheduleSave();
         });
@@ -362,6 +399,125 @@ export class BoardView extends ItemView {
     this.scheduleSave();
   }
 
+  private async autoGroupCards(): Promise<void> {
+    if (!this.canvasState) return;
+    const canvas = this.canvasState.canvas;
+
+    // Collect all code card nodes
+    const codeCards = canvas.getObjects().filter(isCodeCardNode);
+    if (codeCards.length < 2) {
+      new Notice("Need at least 2 code cards on the board to auto-group");
+      return;
+    }
+
+    // Load data if needed
+    let data = this.plugin.data;
+    if (!data) {
+      data = await this.plugin.loadConsolidatedData();
+    }
+
+    const codeNames = codeCards.map((o) => (o as any).boardCodeName as string);
+    const codeColors = codeCards.map((o) => (o as any).boardColor as string);
+
+    const result = clusterCodeCards(codeNames, codeColors, data);
+
+    // Remove existing cluster frames
+    const oldFrames = canvas.getObjects().filter(isClusterFrame);
+    for (const f of oldFrames) {
+      canvas.remove(f);
+    }
+
+    // Layout: arrange cards in clusters, create frames
+    const cardW = 200;
+    const cardH = 140;
+    const padding = 24;
+    const gap = 16;
+    const cols = 2;
+    const clusterGap = 50;
+
+    let frameX = 50; // starting X position
+
+    for (const cluster of result.clusters) {
+      const n = cluster.codeNames.length;
+      const rows = Math.ceil(n / cols);
+      const actualCols = Math.min(n, cols);
+      const frameW = actualCols * (cardW + gap) - gap + padding * 2;
+      const frameH = rows * (cardH + gap) - gap + padding * 2 + 24; // 24 for label
+
+      // Create frame
+      createClusterFrame(canvas, {
+        id: nextClusterFrameId(),
+        x: frameX,
+        y: 50,
+        width: frameW,
+        height: frameH,
+        label: `Cluster ${cluster.id + 1} (${n} codes)`,
+        color: cluster.color,
+        codeNames: cluster.codeNames,
+      });
+
+      // Move cards into grid inside frame
+      let idx = 0;
+      for (const codeName of cluster.codeNames) {
+        const card = codeCards.find((o) => (o as any).boardCodeName === codeName);
+        if (card) {
+          const col = idx % cols;
+          const row = Math.floor(idx / cols);
+          card.set({
+            left: frameX + padding + col * (cardW + gap),
+            top: 50 + padding + 24 + row * (cardH + gap),
+          });
+          card.setCoords();
+          idx++;
+        }
+      }
+
+      frameX += frameW + clusterGap;
+    }
+
+    // Update arrow positions
+    updateArrowForNodes(canvas);
+    canvas.requestRenderAll();
+    this.scheduleSave();
+    new Notice(`Grouped into ${result.clusters.length} cluster${result.clusters.length !== 1 ? "s" : ""}`);
+  }
+
+  private handleDrop(e: DragEvent): void {
+    if (!this.canvasState || !e.dataTransfer) return;
+    const raw = e.dataTransfer.getData("text/plain");
+    if (!raw) return;
+    try {
+      const payload = JSON.parse(raw);
+      if (payload.type !== "codemarker-code-card") return;
+      const canvas = this.canvasState.canvas;
+      const vt = canvas.viewportTransform!;
+      const zoom = canvas.getZoom();
+      // Convert DOM coords to canvas coords
+      const rect = this.canvasState.container.getBoundingClientRect();
+      const x = (e.clientX - rect.left - vt[4]) / zoom;
+      const y = (e.clientY - rect.top - vt[5]) / zoom;
+
+      createCodeCardNode(canvas, {
+        id: nextCodeCardId(),
+        x: x - 100,
+        y: y - 60,
+        codeName: payload.codeName,
+        color: payload.color,
+        description: payload.description ?? "",
+        markerCount: payload.markerCount ?? 0,
+        sources: payload.sources ?? [],
+        createdAt: Date.now(),
+      });
+
+      this.setTool("select");
+      if (this.toolbarApi) this.toolbarApi.setActiveTool("select");
+      this.scheduleSave();
+      new Notice(`Added "${payload.codeName}" to board`);
+    } catch {
+      // Not a valid code card drop — ignore
+    }
+  }
+
   private scheduleSave(): void {
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => this.saveBoard(), 2000);
@@ -418,6 +574,9 @@ export class BoardView extends ItemView {
         },
         (kpiData: KpiCardNodeData) => {
           createKpiCardNode(canvas, kpiData);
+        },
+        (cfData: ClusterFrameData) => {
+          createClusterFrame(canvas, cfData);
         },
       );
     } catch {
