@@ -30,12 +30,13 @@ export function consolidate(
         if (m.range?.to?.line != null) meta.toLine = m.range.to.line;
         if (m.range?.from?.ch != null) meta.fromCh = m.range.from.ch;
         if (m.range?.to?.ch != null) meta.toCh = m.range.to.ch;
+        if (m.createdAt != null) meta.createdAt = m.createdAt;
         markers.push({
           id: m.id ?? "",
           source: "markdown",
           file: m.fileId ?? fileId,
           codes,
-          ...(meta.fromLine != null ? { meta } : {}),
+          ...(Object.keys(meta).length > 0 ? { meta } : {}),
         });
       }
     }
@@ -64,6 +65,7 @@ export function consolidate(
             row: m.row, column: m.column, fromLine: m.row, toLine: m.row,
             ...(m.from != null ? { fromCh: m.from } : {}),
             ...(m.to != null ? { toCh: m.to } : {}),
+            ...(m.createdAt != null ? { createdAt: m.createdAt } : {}),
           },
         });
       }
@@ -78,7 +80,7 @@ export function consolidate(
           source: "csv-row",
           file: m.file ?? "",
           codes,
-          meta: { row: m.row, column: m.column, fromLine: m.row, toLine: m.row },
+          meta: { row: m.row, column: m.column, fromLine: m.row, toLine: m.row, ...(m.createdAt != null ? { createdAt: m.createdAt } : {}) },
         });
       }
     }
@@ -102,6 +104,7 @@ export function consolidate(
         imgMeta.fromLine = m.coords.y;
         imgMeta.toLine = m.coords.y + (m.coords.height ?? 0);
       }
+      if (m.createdAt != null) imgMeta.createdAt = m.createdAt;
       markers.push({
         id: m.id ?? "",
         source: "image",
@@ -134,6 +137,7 @@ export function consolidate(
           fromLine: m.page,
           toLine: m.page,
           pdfText: m.text ?? "",
+          ...(m.createdAt != null ? { createdAt: m.createdAt } : {}),
         },
       });
     }
@@ -160,6 +164,7 @@ export function consolidate(
           meta: {
             audioFrom: m.from,
             audioTo: m.to,
+            ...(m.createdAt != null ? { createdAt: m.createdAt } : {}),
           },
         });
       }
@@ -187,6 +192,7 @@ export function consolidate(
           meta: {
             videoFrom: m.from,
             videoTo: m.to,
+            ...(m.createdAt != null ? { createdAt: m.createdAt } : {}),
           },
         });
       }

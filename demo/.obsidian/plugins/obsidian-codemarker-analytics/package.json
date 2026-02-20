@@ -4,11 +4,13 @@
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",
-    "build": "tsc -noEmit && node esbuild.config.mjs production"
+    "build": "node esbuild.config.mjs production"
   },
   "dependencies": {
     "chart.js": "^4.4.0",
+    "chartjs-adapter-date-fns": "^3.0.0",
     "chartjs-chart-wordcloud": "^4.4.5",
+    "date-fns": "^4.1.0",
     "svd-js": "^1.1.1"
   },
   "devDependencies": {

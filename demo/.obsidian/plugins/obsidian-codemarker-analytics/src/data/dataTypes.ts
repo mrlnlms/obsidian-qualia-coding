@@ -19,6 +19,7 @@ export interface UnifiedMarker {
     audioTo?: number;
     videoFrom?: number;
     videoTo?: number;
+    createdAt?: number;
   };
 }
 
@@ -86,4 +87,46 @@ export interface EvolutionResult {
     markerId: string;
   }>;
   files: string[];
+}
+
+export interface TextStatsCodeEntry {
+  code: string;
+  color: string;
+  segmentCount: number;
+  totalWords: number;
+  uniqueWords: number;
+  avgWordsPerSegment: number;
+  ttr: number;
+  avgCharsPerSegment: number;
+}
+
+export interface TextStatsResult {
+  codes: TextStatsCodeEntry[];
+  global: {
+    totalSegments: number;
+    totalWords: number;
+    uniqueWords: number;
+    ttr: number;
+  };
+}
+
+export interface LagResult {
+  codes: string[];
+  colors: string[];
+  lag: number;
+  transitions: number[][];
+  expected: number[][];
+  zScores: number[][];
+  totalTransitions: number;
+}
+
+export interface TemporalResult {
+  codes: string[];
+  colors: string[];
+  series: Array<{
+    code: string;
+    color: string;
+    points: Array<{ date: number; count: number }>;
+  }>;
+  dateRange: [number, number];
 }

@@ -118,7 +118,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Auto-open images**: When enabled, clicking any image file opens it directly in CodeMarker Image view
 - **Settings tab**: Dedicated settings panel for CodeMarker Image preferences and toggles
 
-### CodeMarker Analytics (v38.6)
+### CodeMarker Analytics (v38.7)
 
 - **Cross-engine analytics**: Consolidates coded data from all six source types into a unified view
 - **Audio source support**: Analytics data reader ingests and consolidates annotations from audio-based codemarker data
@@ -134,8 +134,12 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Word Cloud**: Visual representation of code frequency as differently-sized text labels
 - **MCA (Multiple Correspondence Analysis)**: 2D scatter plot mapping codes and documents by co-occurrence patterns
 - **MDS (Multidimensional Scaling)**: Proximity map positioning codes by similarity — frequently co-occurring codes cluster together
-- **Nine view modes**: Frequency, Co-occurrence Matrix, Network Graph, Document-Code Matrix, Code Evolution, Text Retrieval, Word Cloud, MCA, MDS
-- **Stats engine**: Dedicated statistics module with frequency, co-occurrence, matrix, evolution, MCA, and MDS calculations
+- **Jaccard Similarity**: Pairwise code co-occurrence matrix using the Jaccard index to measure overlap between codes
+- **Text Statistics**: Word count, sentence count, and readability metrics per code and per document
+- **Dendrogram + Silhouette**: Hierarchical clustering visualization with silhouette quality measure
+- **Lag Sequential Analysis**: Temporal pattern detection in code application sequences — reveals which codes tend to follow others
+- **Thirteen view modes**: Frequency, Co-occurrence Matrix, Network Graph, Document-Code Matrix, Code Evolution, Text Retrieval, Word Cloud, MCA, MDS, Jaccard, Text Statistics, Dendrogram, Lag Sequential
+- **Stats engine**: Dedicated statistics module with frequency, co-occurrence, matrix, evolution, MCA, MDS, Jaccard, text stats, clustering, and lag sequential calculations
 - **Data reader**: Reads and aggregates coding data from all six engine types (markdown, CSV, image, PDF, audio, video)
 - **Command palette**: "Open CodeMarker Analytics" and "Refresh Analytics Data" commands
 - **Standalone plugin**: Runs as an independent engine plugin in the demo vault

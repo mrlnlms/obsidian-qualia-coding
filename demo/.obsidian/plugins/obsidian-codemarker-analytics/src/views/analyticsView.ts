@@ -1,19 +1,21 @@
 import { ItemView, WorkspaceLeaf, setIcon, Notice } from "obsidian";
 import type CodeMarkerAnalyticsPlugin from "../main";
-import type { ConsolidatedData, FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult } from "../data/dataTypes";
-import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution } from "../data/statsEngine";
+import type { ConsolidatedData, FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult, TemporalResult, LagResult } from "../data/dataTypes";
+import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution, calculateTemporal, calculateTextStats, calculateLagSequential } from "../data/statsEngine";
 import { TextExtractor, type ExtractedSegment } from "../data/textExtractor";
 import { calculateWordFrequencies, type WordFrequencyResult, type StopWordsLang } from "../data/wordFrequency";
 import { calculateMCA, type MCAResult } from "../data/mcaEngine";
 import { calculateMDS, type MDSResult, type MDSMode } from "../data/mdsEngine";
+import { hierarchicalCluster, buildDendrogram, cutDendrogram, calculateSilhouette, type DendrogramNode } from "../data/clusterEngine";
 
 export const ANALYTICS_VIEW_TYPE = "codemarker-analytics";
 
-export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds";
+export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
 export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
-export type DisplayMode = "absolute" | "percentage" | "presence";
+export type DisplayMode = "absolute" | "percentage" | "jaccard" | "dice" | "presence";
+export type CooccSortMode = "alpha" | "frequency" | "cluster";
 
 export class AnalyticsView extends ItemView {
   private plugin: CodeMarkerAnalyticsPlugin;
@@ -31,6 +33,7 @@ export class AnalyticsView extends ItemView {
   private minFrequency = 1;
   private codeSearch = "";
   private matrixSortMode: MatrixSortMode = "alpha";
+  private cooccSortMode: CooccSortMode = "alpha";
   private evolutionFile = "";  // "" = all files
 
   // Word Cloud state
@@ -45,6 +48,16 @@ export class AnalyticsView extends ItemView {
   // MDS state
   private mdsMode: MDSMode = "codes";
   private mdsShowLabels = true;
+
+  // Dendrogram state
+  private dendrogramMode: "codes" | "files" = "codes";
+  private dendrogramCutDistance = 0.5;
+
+  // Lag Sequential state
+  private lagValue = 1;
+
+  // Text Stats state
+  private tsSort: { col: string; asc: boolean } = { col: "totalWords", asc: false };
 
   // Text Retrieval state
   private trSearch = "";
@@ -212,9 +225,10 @@ export class AnalyticsView extends ItemView {
       this.renderSortSection();
       this.renderGroupSection();
     }
-    // ── Display (matrix only) ──
+    // ── Display + Sort (co-occurrence) ──
     if (this.viewMode === "cooccurrence") {
       this.renderDisplaySection();
+      this.renderCooccSortSection();
     }
     // ── Graph options ──
     if (this.viewMode === "graph") {
@@ -239,6 +253,14 @@ export class AnalyticsView extends ItemView {
     // ── MDS options ──
     if (this.viewMode === "mds") {
       this.renderMDSOptionsSection();
+    }
+    // ── Dendrogram options ──
+    if (this.viewMode === "dendrogram") {
+      this.renderDendrogramOptionsSection();
+    }
+    // ── Lag Sequential options ──
+    if (this.viewMode === "lag-sequential") {
+      this.renderLagOptionsSection();
     }
     // ── Codes ──
     this.renderCodesSection();
@@ -305,6 +327,10 @@ export class AnalyticsView extends ItemView {
       ["word-cloud", "Word Cloud"],
       ["acm", "MCA Biplot"],
       ["mds", "MDS Map"],
+      ["temporal", "Temporal Analysis"],
+      ["text-stats", "Text Statistics"],
+      ["dendrogram", "Dendrogram"],
+      ["lag-sequential", "Lag Sequential"],
     ] as const) {
       const row = section.createDiv({ cls: "codemarker-config-row" });
       const radio = row.createEl("input", { type: "radio" });
@@ -392,6 +418,8 @@ export class AnalyticsView extends ItemView {
     for (const [value, label] of [
       ["absolute", "Absolute Count"],
       ["percentage", "Percentage"],
+      ["jaccard", "Jaccard Index"],
+      ["dice", "Dice Coefficient"],
       ["presence", "Presence (0/1)"],
     ] as const) {
       const row = section.createDiv({ cls: "codemarker-config-row" });
@@ -403,6 +431,35 @@ export class AnalyticsView extends ItemView {
 
       radio.addEventListener("change", () => {
         this.displayMode = value;
+        this.scheduleUpdate();
+      });
+      row.addEventListener("click", (e) => {
+        if (e.target !== radio) {
+          radio.checked = true;
+          radio.dispatchEvent(new Event("change"));
+        }
+      });
+    }
+  }
+
+  private renderCooccSortSection(): void {
+    const section = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    section.createDiv({ cls: "codemarker-config-section-title", text: "Sort" });
+
+    for (const [value, label] of [
+      ["alpha", "Alphabetical"],
+      ["frequency", "By Frequency"],
+      ["cluster", "Cluster (Hierarchical)"],
+    ] as const) {
+      const row = section.createDiv({ cls: "codemarker-config-row" });
+      const radio = row.createEl("input", { type: "radio" });
+      radio.name = "cooccSortMode";
+      radio.value = value;
+      radio.checked = this.cooccSortMode === value;
+      row.createSpan({ text: label });
+
+      radio.addEventListener("change", () => {
+        this.cooccSortMode = value;
         this.scheduleUpdate();
       });
       row.addEventListener("click", (e) => {
@@ -554,6 +611,14 @@ export class AnalyticsView extends ItemView {
       this.renderACMBiplot(filters);
     } else if (this.viewMode === "mds") {
       this.renderMDSMap(filters);
+    } else if (this.viewMode === "temporal") {
+      this.renderTemporalChart(filters);
+    } else if (this.viewMode === "text-stats") {
+      this.renderTextStats(filters);
+    } else if (this.viewMode === "dendrogram") {
+      this.renderDendrogramView(filters);
+    } else if (this.viewMode === "lag-sequential") {
+      this.renderLagSequential(filters);
     } else {
       this.renderNetworkGraph(filters);
     }
@@ -658,6 +723,32 @@ export class AnalyticsView extends ItemView {
         mode: "mds",
         title: "MDS Map",
         render: (c) => this.renderMiniMDS(c, freq),
+      },
+      {
+        mode: "temporal",
+        title: "Temporal Analysis",
+        render: (c) => {
+          const temporal = calculateTemporal(this.data!, filters);
+          this.renderMiniTemporal(c, temporal);
+        },
+      },
+      {
+        mode: "text-stats",
+        title: "Text Statistics",
+        render: (c) => this.renderMiniTextStats(c, freq),
+      },
+      {
+        mode: "dendrogram",
+        title: "Dendrogram",
+        render: (c) => this.renderMiniDendrogram(c, filters),
+      },
+      {
+        mode: "lag-sequential",
+        title: "Lag Sequential",
+        render: (c) => {
+          const lag = calculateLagSequential(this.data!, filters, 1);
+          this.renderMiniLag(c, lag);
+        },
       },
     ];
 
@@ -1049,6 +1140,67 @@ export class AnalyticsView extends ItemView {
     });
   }
 
+  /**
+   * Reorder co-occurrence matrix in place based on cooccSortMode.
+   */
+  private reorderCooccurrence(result: CooccurrenceResult): void {
+    const n = result.codes.length;
+    if (n < 2 || this.cooccSortMode === "alpha") return; // already alpha-sorted
+
+    let order: number[];
+
+    if (this.cooccSortMode === "frequency") {
+      // Sort by diagonal (frequency) descending
+      const indices = Array.from({ length: n }, (_, i) => i);
+      indices.sort((a, b) => result.matrix[b][b] - result.matrix[a][a]);
+      order = indices;
+    } else {
+      // Cluster: build Jaccard distance matrix from co-occurrence, then hierarchical cluster
+      const distMatrix: number[][] = [];
+      for (let i = 0; i < n; i++) {
+        const row: number[] = [];
+        for (let j = 0; j < n; j++) {
+          if (i === j) {
+            row.push(0);
+          } else {
+            const freqI = result.matrix[i][i];
+            const freqJ = result.matrix[j][j];
+            const coij = result.matrix[i][j];
+            const union = freqI + freqJ - coij;
+            row.push(union > 0 ? 1 - coij / union : 1);
+          }
+        }
+        distMatrix.push(row);
+      }
+      const clusterResult = hierarchicalCluster(distMatrix);
+      order = clusterResult.indices;
+    }
+
+    // Apply reordering
+    const newCodes = order.map((i) => result.codes[i]);
+    const newColors = order.map((i) => result.colors[i]);
+    const newMatrix: number[][] = [];
+    for (const i of order) {
+      const row: number[] = [];
+      for (const j of order) {
+        row.push(result.matrix[i][j]);
+      }
+      newMatrix.push(row);
+    }
+
+    result.codes = newCodes;
+    result.colors = newColors;
+    result.matrix = newMatrix;
+    // Recompute maxValue
+    let maxValue = 0;
+    for (const row of newMatrix) {
+      for (const v of row) {
+        if (v > maxValue) maxValue = v;
+      }
+    }
+    result.maxValue = maxValue;
+  }
+
   private renderCooccurrenceMatrix(filters: FilterConfig): void {
     if (!this.chartContainer || !this.data) return;
 
@@ -1061,6 +1213,9 @@ export class AnalyticsView extends ItemView {
       });
       return;
     }
+
+    // Apply sort reordering
+    this.reorderCooccurrence(result);
 
     const n = result.codes.length;
     const cellSize = n > 25 ? 35 : n > 15 ? Math.max(35, Math.floor(500 / n)) : 60;
@@ -1086,6 +1241,7 @@ export class AnalyticsView extends ItemView {
 
     // Prepare display values
     const displayMatrix = this.computeDisplayMatrix(result);
+    const isNormalized = this.displayMode === "jaccard" || this.displayMode === "dice";
 
     // Draw cells
     for (let i = 0; i < n; i++) {
@@ -1095,8 +1251,10 @@ export class AnalyticsView extends ItemView {
         const rawVal = result.matrix[i][j];
         const dispVal = displayMatrix[i][j];
 
-        // Cell background
-        ctx.fillStyle = this.heatmapColor(rawVal, result.maxValue, isDark);
+        // Cell background — for Jaccard/Dice use display value (0-1) for coloring
+        const heatVal = isNormalized ? dispVal : rawVal;
+        const heatMax = isNormalized ? 1 : result.maxValue;
+        ctx.fillStyle = this.heatmapColor(heatVal, heatMax, isDark);
         ctx.fillRect(x, y, cellSize, cellSize);
 
         // Diagonal highlight
@@ -1112,10 +1270,15 @@ export class AnalyticsView extends ItemView {
         ctx.strokeRect(x, y, cellSize, cellSize);
 
         // Value text
-        const textVal = this.displayMode === "percentage" && i !== j
-          ? `${dispVal.toFixed(0)}%`
-          : `${dispVal}`;
-        const textBright = this.isLightColor(this.heatmapColor(rawVal, result.maxValue, isDark));
+        let textVal: string;
+        if (isNormalized) {
+          textVal = dispVal.toFixed(2);
+        } else if (this.displayMode === "percentage" && i !== j) {
+          textVal = `${dispVal.toFixed(0)}%`;
+        } else {
+          textVal = `${dispVal}`;
+        }
+        const textBright = this.isLightColor(this.heatmapColor(heatVal, heatMax, isDark));
         ctx.fillStyle = textBright ? "#1a1a1a" : "#f0f0f0";
         ctx.font = `${Math.min(12, cellSize * 0.3)}px sans-serif`;
         ctx.textAlign = "center";
@@ -1169,9 +1332,15 @@ export class AnalyticsView extends ItemView {
         const val = result.matrix[row][col];
         const dispVal = displayMatrix[row][col];
         const suffix = this.displayMode === "percentage" && row !== col ? "%" : "";
-        const text = row === col
-          ? `${result.codes[row]}: ${val} total`
-          : `${result.codes[row]} \u00d7 ${result.codes[col]}: ${dispVal}${suffix}`;
+        let dispText: string;
+        if (row === col) {
+          dispText = `${result.codes[row]}: ${val} total`;
+        } else if (isNormalized) {
+          dispText = `${result.codes[row]} \u00d7 ${result.codes[col]}: ${dispVal.toFixed(2)}`;
+        } else {
+          dispText = `${result.codes[row]} \u00d7 ${result.codes[col]}: ${dispVal}${suffix}`;
+        }
+        const text = dispText;
         tooltip.textContent = text;
         tooltip.style.display = "";
         tooltip.style.left = `${mx + 12}px`;
@@ -2197,10 +2366,24 @@ export class AnalyticsView extends ItemView {
           m[i][j] = raw;
         } else if (this.displayMode === "presence") {
           m[i][j] = raw > 0 ? 1 : 0;
+        } else if (this.displayMode === "jaccard") {
+          if (i === j) {
+            m[i][j] = raw > 0 ? 1 : 0;
+          } else {
+            const union = result.matrix[i][i] + result.matrix[j][j] - raw;
+            m[i][j] = union > 0 ? Math.round((raw / union) * 100) / 100 : 0;
+          }
+        } else if (this.displayMode === "dice") {
+          if (i === j) {
+            m[i][j] = raw > 0 ? 1 : 0;
+          } else {
+            const sum = result.matrix[i][i] + result.matrix[j][j];
+            m[i][j] = sum > 0 ? Math.round((2 * raw / sum) * 100) / 100 : 0;
+          }
         } else {
           // percentage
           if (i === j) {
-            m[i][j] = raw; // diagonal stays as count
+            m[i][j] = raw;
           } else {
             const minFreq = Math.min(result.matrix[i][i], result.matrix[j][j]);
             m[i][j] = minFreq > 0 ? Math.round((raw / minFreq) * 100) : 0;
@@ -3085,6 +3268,1008 @@ export class AnalyticsView extends ItemView {
     });
   }
 
+  // ─── Temporal Analysis ───
+
+  private async renderTemporalChart(filters: FilterConfig): Promise<void> {
+    if (!this.chartContainer || !this.data) return;
+
+    const result = calculateTemporal(this.data, filters);
+
+    if (result.series.length === 0) {
+      this.chartContainer.createDiv({
+        cls: "codemarker-analytics-empty",
+        text: "No temporal data available. Markers need a createdAt timestamp.",
+      });
+      return;
+    }
+
+    const { Chart, registerables } = await import("chart.js");
+    Chart.register(...registerables);
+    await import("chartjs-adapter-date-fns");
+
+    const wrapper = this.chartContainer.createDiv();
+    wrapper.style.height = "500px";
+    wrapper.style.position = "relative";
+    const canvas = wrapper.createEl("canvas");
+
+    const styles = getComputedStyle(document.body);
+    const textColor = styles.getPropertyValue("--text-normal").trim() || "#dcddde";
+    const gridColor = styles.getPropertyValue("--background-modifier-border").trim() || "#333";
+
+    const datasets = result.series.map((s) => ({
+      label: s.code,
+      data: s.points.map((p) => ({ x: p.date, y: p.count })),
+      borderColor: s.color,
+      backgroundColor: s.color + "33",
+      borderWidth: 2,
+      pointRadius: 2,
+      pointHoverRadius: 5,
+      fill: false,
+      tension: 0.2,
+    }));
+
+    new Chart(canvas, {
+      type: "line",
+      data: { datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            type: "time",
+            time: {
+              unit: "day",
+              displayFormats: { day: "MMM d", week: "MMM d", month: "MMM yyyy" },
+              tooltipFormat: "PPp",
+            },
+            title: { display: true, text: "Date", color: textColor },
+            grid: { color: gridColor },
+            ticks: { color: textColor, maxRotation: 45 },
+          },
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: "Cumulative Count", color: textColor },
+            grid: { color: gridColor },
+            ticks: {
+              color: textColor,
+              stepSize: 1,
+              callback: (value: any) => Number.isInteger(value) ? value : "",
+            },
+          },
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: "top",
+            labels: { color: textColor, boxWidth: 12, padding: 10, font: { size: 11 } },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx: any) => {
+                const date = new Date(ctx.parsed.x);
+                return `${ctx.dataset.label}: ${ctx.parsed.y} (${date.toLocaleDateString()})`;
+              },
+            },
+          },
+          title: {
+            display: true,
+            text: "Coding Evolution Over Time",
+            color: textColor,
+            font: { size: 13 },
+          },
+        },
+      },
+    });
+  }
+
+  private renderMiniTemporal(canvas: HTMLCanvasElement, temporal: TemporalResult): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || temporal.series.length === 0) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const pad = 12;
+    const isDark = document.body.classList.contains("theme-dark");
+
+    const [minDate, maxDate] = temporal.dateRange;
+    const dateRange = maxDate - minDate || 1;
+    let maxCount = 0;
+    for (const s of temporal.series) {
+      for (const p of s.points) {
+        if (p.count > maxCount) maxCount = p.count;
+      }
+    }
+    if (maxCount === 0) maxCount = 1;
+
+    // Grid
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad + ((H - 2 * pad) * i) / 4;
+      ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
+    }
+
+    // Lines
+    for (const s of temporal.series) {
+      if (s.points.length < 2) continue;
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < s.points.length; i++) {
+        const x = pad + ((s.points[i].date - minDate) / dateRange) * (W - 2 * pad);
+        const y = H - pad - (s.points[i].count / maxCount) * (H - 2 * pad);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  private exportTemporalCSV(date: string): void {
+    if (!this.data) return;
+    const filters = this.buildFilterConfig();
+    const result = calculateTemporal(this.data, filters);
+    if (result.series.length === 0) {
+      new Notice("No temporal data to export.");
+      return;
+    }
+
+    const rows: string[][] = [["code", "date", "cumulative_count"]];
+    for (const s of result.series) {
+      for (const p of s.points) {
+        rows.push([`"${s.code}"`, new Date(p.date).toISOString(), String(p.count)]);
+      }
+    }
+    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.download = `codemarker-temporal-${date}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  // ─── Text Statistics ───
+
+  private renderTextStats(filters: FilterConfig): void {
+    if (!this.chartContainer || !this.data) return;
+
+    const filtered = this.data.markers.filter((m) =>
+      filters.sources.includes(m.source) &&
+      m.codes.some((c) => !filters.excludeCodes.includes(c))
+    );
+
+    if (filtered.length === 0) {
+      this.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "No data matches current filters." });
+      return;
+    }
+
+    const loadingEl = this.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "Extracting text..." });
+    this.loadAndRenderTextStats(filtered, loadingEl);
+  }
+
+  private async loadAndRenderTextStats(
+    markers: import("../data/dataTypes").UnifiedMarker[],
+    loadingEl: HTMLElement,
+  ): Promise<void> {
+    if (!this.chartContainer || !this.data) return;
+
+    const extractor = new TextExtractor(this.plugin.app.vault);
+    const segments = await extractor.extractBatch(markers);
+    loadingEl.remove();
+
+    const codeColors = new Map(this.data.codes.map((c) => [c.name, c.color]));
+    const result = calculateTextStats(segments, codeColors);
+
+    if (result.codes.length === 0) {
+      this.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "No text data available." });
+      return;
+    }
+
+    const wrapper = this.chartContainer.createDiv({ cls: "codemarker-ts-wrapper" });
+
+    // Global summary
+    const summary = wrapper.createDiv({ cls: "codemarker-ts-summary" });
+    summary.innerHTML = `<strong>${result.global.totalSegments}</strong> segments · <strong>${result.global.totalWords}</strong> words · <strong>${result.global.uniqueWords}</strong> unique · TTR: <strong>${result.global.ttr.toFixed(3)}</strong>`;
+
+    // Table
+    const table = wrapper.createEl("table", { cls: "codemarker-ts-table" });
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+
+    const columns: Array<{ key: string; label: string; numeric: boolean }> = [
+      { key: "code", label: "Code", numeric: false },
+      { key: "segmentCount", label: "Segments", numeric: true },
+      { key: "totalWords", label: "Words", numeric: true },
+      { key: "uniqueWords", label: "Unique", numeric: true },
+      { key: "ttr", label: "TTR", numeric: true },
+      { key: "avgWordsPerSegment", label: "Avg Words", numeric: true },
+      { key: "avgCharsPerSegment", label: "Avg Chars", numeric: true },
+    ];
+
+    for (const col of columns) {
+      const th = headerRow.createEl("th", { text: col.label, cls: "codemarker-ts-th" });
+      const arrow = this.tsSort.col === col.key ? (this.tsSort.asc ? " ▲" : " ▼") : "";
+      th.textContent = col.label + arrow;
+      th.style.cursor = "pointer";
+      th.addEventListener("click", () => {
+        if (this.tsSort.col === col.key) {
+          this.tsSort.asc = !this.tsSort.asc;
+        } else {
+          this.tsSort = { col: col.key, asc: col.numeric ? false : true };
+        }
+        this.scheduleUpdate();
+      });
+    }
+
+    // Sort
+    const sortKey = this.tsSort.col as keyof typeof result.codes[0];
+    const sorted = [...result.codes].sort((a, b) => {
+      const va = a[sortKey];
+      const vb = b[sortKey];
+      if (typeof va === "string" && typeof vb === "string") {
+        return this.tsSort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      const na = va as number;
+      const nb = vb as number;
+      return this.tsSort.asc ? na - nb : nb - na;
+    });
+
+    const maxTTR = Math.max(...result.codes.map((c) => c.ttr), 0.001);
+
+    const tbody = table.createEl("tbody");
+    for (const entry of sorted) {
+      const tr = tbody.createEl("tr");
+
+      // Code cell with swatch
+      const tdCode = tr.createEl("td");
+      const swatch = tdCode.createSpan({ cls: "codemarker-config-swatch" });
+      swatch.style.backgroundColor = entry.color;
+      swatch.style.display = "inline-block";
+      swatch.style.marginRight = "6px";
+      tdCode.createSpan({ text: entry.code });
+
+      tr.createEl("td", { text: String(entry.segmentCount), cls: "codemarker-ts-num" });
+      tr.createEl("td", { text: String(entry.totalWords), cls: "codemarker-ts-num" });
+      tr.createEl("td", { text: String(entry.uniqueWords), cls: "codemarker-ts-num" });
+
+      // TTR cell with bar
+      const tdTTR = tr.createEl("td", { cls: "codemarker-ts-num" });
+      const barWrap = tdTTR.createDiv({ cls: "codemarker-ts-ttr-bar" });
+      const bar = barWrap.createDiv({ cls: "codemarker-ts-ttr-fill" });
+      bar.style.width = `${(entry.ttr / maxTTR) * 100}%`;
+      bar.style.backgroundColor = entry.ttr > 0.7 ? "#4CAF50" : entry.ttr > 0.4 ? "#FFC107" : "#F44336";
+      tdTTR.createSpan({ text: entry.ttr.toFixed(3), cls: "codemarker-ts-ttr-val" });
+
+      tr.createEl("td", { text: String(entry.avgWordsPerSegment), cls: "codemarker-ts-num" });
+      tr.createEl("td", { text: String(entry.avgCharsPerSegment), cls: "codemarker-ts-num" });
+    }
+  }
+
+  private renderMiniTextStats(canvas: HTMLCanvasElement, freq: import("../data/dataTypes").FrequencyResult[]): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || freq.length === 0) return;
+    const W = canvas.width;
+    const H = canvas.height;
+    const pad = 12;
+    const isDark = document.body.classList.contains("theme-dark");
+    const top5 = freq.slice(0, 5);
+    const maxVal = Math.max(...top5.map((f) => f.total), 1);
+    const barH = Math.min(20, (H - 2 * pad) / top5.length - 4);
+
+    for (let i = 0; i < top5.length; i++) {
+      const y = pad + i * (barH + 4);
+      const w = (top5[i].total / maxVal) * (W - 2 * pad - 60);
+      ctx.fillStyle = top5[i].color;
+      ctx.fillRect(pad + 50, y, w, barH);
+      ctx.fillStyle = isDark ? "#ccc" : "#333";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      const label = top5[i].code.length > 6 ? top5[i].code.slice(0, 5) + "\u2026" : top5[i].code;
+      ctx.fillText(label, pad + 46, y + barH / 2);
+    }
+  }
+
+  private exportTextStatsCSV(date: string): void {
+    if (!this.data) return;
+
+    const filtered = this.data.markers.filter((m) => this.enabledSources.has(m.source) && m.codes.some((c) => this.enabledCodes.has(c)));
+    const loadAndExport = async () => {
+      const extractor = new TextExtractor(this.plugin.app.vault);
+      const segments = await extractor.extractBatch(filtered);
+      const codeColors = new Map(this.data!.codes.map((c) => [c.name, c.color]));
+      const result = calculateTextStats(segments, codeColors);
+
+      const rows: string[][] = [["code", "segments", "total_words", "unique_words", "ttr", "avg_words_per_segment", "avg_chars_per_segment"]];
+      for (const e of result.codes) {
+        rows.push([`"${e.code}"`, String(e.segmentCount), String(e.totalWords), String(e.uniqueWords), String(e.ttr), String(e.avgWordsPerSegment), String(e.avgCharsPerSegment)]);
+      }
+      const csvContent = rows.map((r) => r.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const link = document.createElement("a");
+      link.download = `codemarker-text-stats-${date}.csv`;
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      URL.revokeObjectURL(link.href);
+    };
+    loadAndExport();
+  }
+
+  // ─── Dendrogram + Silhouette ───
+
+  private renderDendrogramOptionsSection(): void {
+    const section = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    section.createDiv({ cls: "codemarker-config-section-title", text: "Mode" });
+
+    for (const [value, label] of [["codes", "Codes"], ["files", "Files"]] as const) {
+      const row = section.createDiv({ cls: "codemarker-config-row" });
+      const radio = row.createEl("input", { type: "radio" });
+      radio.name = "dendrogramMode";
+      radio.value = value;
+      radio.checked = this.dendrogramMode === value;
+      row.createSpan({ text: label });
+      radio.addEventListener("change", () => { this.dendrogramMode = value; this.scheduleUpdate(); });
+      row.addEventListener("click", (e) => { if (e.target !== radio) { radio.checked = true; radio.dispatchEvent(new Event("change")); } });
+    }
+
+    // Cut distance slider
+    const cutSection = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    cutSection.createDiv({ cls: "codemarker-config-section-title", text: `Cut Distance: ${this.dendrogramCutDistance.toFixed(2)}` });
+    const slider = cutSection.createEl("input", { type: "range" });
+    slider.min = "0.01";
+    slider.max = "1.0";
+    slider.step = "0.01";
+    slider.value = String(this.dendrogramCutDistance);
+    slider.style.width = "100%";
+    slider.addEventListener("input", () => {
+      this.dendrogramCutDistance = parseFloat(slider.value);
+      cutSection.querySelector(".codemarker-config-section-title")!.textContent = `Cut Distance: ${this.dendrogramCutDistance.toFixed(2)}`;
+      this.scheduleUpdate();
+    });
+  }
+
+  private renderDendrogramView(filters: FilterConfig): void {
+    if (!this.chartContainer || !this.data) return;
+
+    const result = calculateCooccurrence(this.data, filters);
+    if (result.codes.length < 3) {
+      this.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "Need at least 3 codes/files for dendrogram." });
+      return;
+    }
+
+    // Build Jaccard distance matrix from co-occurrence
+    const n = result.codes.length;
+    const distMatrix: number[][] = [];
+    for (let i = 0; i < n; i++) {
+      const row: number[] = [];
+      for (let j = 0; j < n; j++) {
+        if (i === j) { row.push(0); continue; }
+        const freqI = result.matrix[i][i];
+        const freqJ = result.matrix[j][j];
+        const coij = result.matrix[i][j];
+        const union = freqI + freqJ - coij;
+        row.push(union > 0 ? 1 - coij / union : 1);
+      }
+      distMatrix.push(row);
+    }
+
+    const root = buildDendrogram(distMatrix, result.codes, result.colors);
+    if (!root) return;
+
+    const assignments = cutDendrogram(root, this.dendrogramCutDistance);
+    const silhouette = calculateSilhouette(distMatrix, assignments, result.codes, result.colors);
+
+    // Determine cluster colors
+    const nClusters = new Set(assignments).size;
+    const clusterColors: string[] = [];
+    for (let i = 0; i < nClusters; i++) {
+      const hue = (i * 137.5) % 360;
+      clusterColors.push(`hsl(${hue}, 65%, 55%)`);
+    }
+
+    this.renderDendrogramCanvas(root, assignments, clusterColors, silhouette);
+  }
+
+  private renderDendrogramCanvas(
+    root: DendrogramNode,
+    assignments: number[],
+    clusterColors: string[],
+    silhouette: import("../data/clusterEngine").SilhouetteResult,
+  ): void {
+    if (!this.chartContainer) return;
+
+    const wrapper = this.chartContainer.createDiv();
+    wrapper.style.position = "relative";
+    wrapper.style.overflow = "auto";
+
+    // Collect leaves in tree order
+    const leaves: DendrogramNode[] = [];
+    function collectLeaves(node: DendrogramNode): void {
+      if (!node.left && !node.right) { leaves.push(node); return; }
+      if (node.left) collectLeaves(node.left);
+      if (node.right) collectLeaves(node.right);
+    }
+    collectLeaves(root);
+
+    const nLeaves = leaves.length;
+    const isDark = document.body.classList.contains("theme-dark");
+    const styles = getComputedStyle(document.body);
+    const textColor = styles.getPropertyValue("--text-normal").trim() || (isDark ? "#dcddde" : "#1a1a1a");
+
+    // Layout constants
+    const labelWidth = 130;
+    const treeWidth = 300;
+    const silWidth = 200;
+    const padTop = 30;
+    const padBottom = 30;
+    const rowHeight = 22;
+    const chartWidth = labelWidth + treeWidth + 40 + silWidth + 40;
+    const chartHeight = padTop + nLeaves * rowHeight + padBottom + 50;
+
+    const canvas = wrapper.createEl("canvas");
+    canvas.width = chartWidth;
+    canvas.height = chartHeight;
+    canvas.style.width = `${chartWidth}px`;
+    canvas.style.height = `${chartHeight}px`;
+
+    const ctx = canvas.getContext("2d")!;
+    const maxDist = root.distance || 1;
+
+    // Map leaf to y position (in tree order)
+    const leafY = new Map<number, number>();
+    for (let i = 0; i < nLeaves; i++) {
+      leafY.set(leaves[i].id, padTop + i * rowHeight + rowHeight / 2);
+    }
+
+    // Draw labels
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < nLeaves; i++) {
+      const leaf = leaves[i];
+      const y = leafY.get(leaf.id)!;
+      const clusterIdx = assignments[leaf.leafIndices[0]];
+      ctx.fillStyle = clusterColors[clusterIdx] ?? textColor;
+
+      // Swatch
+      ctx.fillRect(labelWidth - 18, y - 5, 10, 10);
+      ctx.fillStyle = textColor;
+      const label = (leaf.label ?? "").length > 16 ? (leaf.label ?? "").slice(0, 15) + "\u2026" : (leaf.label ?? "");
+      ctx.fillText(label, labelWidth - 22, y);
+    }
+
+    // Draw dendrogram tree (recursive)
+    const treeLeft = labelWidth + 10;
+    const treeRight = labelWidth + treeWidth;
+
+    function distToX(d: number): number {
+      return treeLeft + (d / maxDist) * (treeRight - treeLeft);
+    }
+
+    function getNodeY(node: DendrogramNode): number {
+      if (!node.left && !node.right) return leafY.get(node.id) ?? 0;
+      const ly = node.left ? getNodeY(node.left) : 0;
+      const ry = node.right ? getNodeY(node.right) : 0;
+      return (ly + ry) / 2;
+    }
+
+    function drawNode(node: DendrogramNode): void {
+      if (!node.left || !node.right) return;
+
+      const x = distToX(node.distance);
+      const ly = getNodeY(node.left);
+      const ry = getNodeY(node.right);
+      const lx = node.left.left ? distToX(node.left.distance) : treeLeft;
+      const rx = node.right.left ? distToX(node.right.distance) : treeLeft;
+
+      ctx.strokeStyle = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
+      ctx.lineWidth = 1.5;
+
+      // Vertical line connecting children
+      ctx.beginPath();
+      ctx.moveTo(x, ly);
+      ctx.lineTo(x, ry);
+      ctx.stroke();
+
+      // Horizontal lines to children
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(x, ly);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.lineTo(x, ry);
+      ctx.stroke();
+
+      drawNode(node.left);
+      drawNode(node.right);
+    }
+
+    drawNode(root);
+
+    // Draw cut line
+    const cutX = distToX(this.dendrogramCutDistance);
+    ctx.strokeStyle = "#F44336";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(cutX, padTop - 10);
+    ctx.lineTo(cutX, padTop + nLeaves * rowHeight + 10);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Distance axis
+    ctx.font = "10px sans-serif";
+    ctx.fillStyle = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    const axisY = padTop + nLeaves * rowHeight + 15;
+    for (let d = 0; d <= 1; d += 0.25) {
+      const x = distToX(d * maxDist);
+      ctx.fillText((d * maxDist).toFixed(2), x, axisY);
+    }
+
+    // ── Silhouette plot ──
+    const silLeft = treeRight + 40;
+    const silRight = silLeft + silWidth;
+
+    // Title
+    ctx.font = "11px sans-serif";
+    ctx.fillStyle = textColor;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    const quality = silhouette.avgScore > 0.5 ? "good" : silhouette.avgScore > 0.25 ? "fair" : "weak";
+    ctx.fillText(`Silhouette (avg: ${silhouette.avgScore.toFixed(3)} — ${quality})`, silLeft, padTop - 8);
+
+    // Zero line
+    const zeroX = silLeft + silWidth / 2;
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(zeroX, padTop);
+    ctx.lineTo(zeroX, padTop + nLeaves * rowHeight);
+    ctx.stroke();
+
+    // Avg line
+    const avgX = zeroX + (silhouette.avgScore * silWidth) / 2;
+    ctx.strokeStyle = "#F44336";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(avgX, padTop);
+    ctx.lineTo(avgX, padTop + nLeaves * rowHeight);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Map silhouette scores to leaf order
+    const scoreByIndex = new Map(silhouette.scores.map((s) => [s.index, s]));
+    for (let i = 0; i < nLeaves; i++) {
+      const leaf = leaves[i];
+      const origIdx = leaf.leafIndices[0];
+      const entry = scoreByIndex.get(origIdx);
+      if (!entry) continue;
+
+      const y = leafY.get(leaf.id)!;
+      const barW = (entry.score * silWidth) / 2;
+      const clusterIdx = assignments[origIdx];
+
+      ctx.fillStyle = clusterColors[clusterIdx] ?? "#6200EE";
+      if (barW >= 0) {
+        ctx.fillRect(zeroX, y - rowHeight / 2 + 2, barW, rowHeight - 4);
+      } else {
+        ctx.fillRect(zeroX + barW, y - rowHeight / 2 + 2, -barW, rowHeight - 4);
+      }
+    }
+
+    // Silhouette axis labels
+    ctx.font = "9px sans-serif";
+    ctx.fillStyle = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (const v of [-1, -0.5, 0, 0.5, 1]) {
+      const x = zeroX + (v * silWidth) / 2;
+      ctx.fillText(v.toFixed(1), x, axisY);
+    }
+
+    // Tooltip
+    const tooltip = wrapper.createDiv({ cls: "codemarker-heatmap-tooltip" });
+    tooltip.style.display = "none";
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const my = e.clientY - rect.top;
+      for (let i = 0; i < nLeaves; i++) {
+        const y = leafY.get(leaves[i].id)!;
+        if (Math.abs(my - y) < rowHeight / 2) {
+          const origIdx = leaves[i].leafIndices[0];
+          const entry = scoreByIndex.get(origIdx);
+          if (entry) {
+            tooltip.textContent = `${entry.name}: silhouette = ${entry.score.toFixed(3)}, cluster ${entry.cluster}`;
+            tooltip.style.display = "";
+            tooltip.style.left = `${e.clientX - rect.left + 12}px`;
+            tooltip.style.top = `${my + 12}px`;
+            return;
+          }
+        }
+      }
+      tooltip.style.display = "none";
+    });
+    canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+  }
+
+  private renderMiniDendrogram(canvas: HTMLCanvasElement, filters: FilterConfig): void {
+    if (!this.data) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const result = calculateCooccurrence(this.data, filters);
+    if (result.codes.length < 3) return;
+
+    const n = result.codes.length;
+    const distMatrix: number[][] = [];
+    for (let i = 0; i < n; i++) {
+      const row: number[] = [];
+      for (let j = 0; j < n; j++) {
+        if (i === j) { row.push(0); continue; }
+        const freqI = result.matrix[i][i];
+        const freqJ = result.matrix[j][j];
+        const coij = result.matrix[i][j];
+        const union = freqI + freqJ - coij;
+        row.push(union > 0 ? 1 - coij / union : 1);
+      }
+      distMatrix.push(row);
+    }
+
+    const root = buildDendrogram(distMatrix, result.codes, result.colors);
+    if (!root) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const pad = 8;
+    const isDark = document.body.classList.contains("theme-dark");
+
+    const leaves: DendrogramNode[] = [];
+    function collect(node: DendrogramNode): void {
+      if (!node.left && !node.right) { leaves.push(node); return; }
+      if (node.left) collect(node.left);
+      if (node.right) collect(node.right);
+    }
+    collect(root);
+
+    const nLeaves = leaves.length;
+    const maxDist = root.distance || 1;
+    const leafYMap = new Map<number, number>();
+    for (let i = 0; i < nLeaves; i++) {
+      leafYMap.set(leaves[i].id, pad + (i / (nLeaves - 1 || 1)) * (H - 2 * pad));
+    }
+
+    function distToX(d: number): number { return pad + (d / maxDist) * (W - 2 * pad); }
+    function getNodeY(node: DendrogramNode): number {
+      if (!node.left && !node.right) return leafYMap.get(node.id) ?? 0;
+      return ((node.left ? getNodeY(node.left) : 0) + (node.right ? getNodeY(node.right) : 0)) / 2;
+    }
+
+    function drawNode(node: DendrogramNode): void {
+      if (!node.left || !node.right) return;
+      const x = distToX(node.distance);
+      const ly = getNodeY(node.left);
+      const ry = getNodeY(node.right);
+      const lx = node.left.left ? distToX(node.left.distance) : pad;
+      const rx = node.right.left ? distToX(node.right.distance) : pad;
+
+      ctx!.strokeStyle = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)";
+      ctx!.lineWidth = 1;
+      ctx!.beginPath(); ctx!.moveTo(x, ly); ctx!.lineTo(x, ry); ctx!.stroke();
+      ctx!.beginPath(); ctx!.moveTo(lx, ly); ctx!.lineTo(x, ly); ctx!.stroke();
+      ctx!.beginPath(); ctx!.moveTo(rx, ry); ctx!.lineTo(x, ry); ctx!.stroke();
+      drawNode(node.left);
+      drawNode(node.right);
+    }
+
+    drawNode(root);
+  }
+
+  private exportDendrogramCSV(date: string): void {
+    if (!this.data) return;
+    const filters = this.buildFilterConfig();
+    const result = calculateCooccurrence(this.data, filters);
+    if (result.codes.length < 3) { new Notice("Insufficient data."); return; }
+
+    const n = result.codes.length;
+    const distMatrix: number[][] = [];
+    for (let i = 0; i < n; i++) {
+      const row: number[] = [];
+      for (let j = 0; j < n; j++) {
+        if (i === j) { row.push(0); continue; }
+        const freqI = result.matrix[i][i]; const freqJ = result.matrix[j][j]; const coij = result.matrix[i][j];
+        const union = freqI + freqJ - coij;
+        row.push(union > 0 ? 1 - coij / union : 1);
+      }
+      distMatrix.push(row);
+    }
+
+    const root = buildDendrogram(distMatrix, result.codes, result.colors);
+    if (!root) return;
+    const assignments = cutDendrogram(root, this.dendrogramCutDistance);
+    const sil = calculateSilhouette(distMatrix, assignments, result.codes, result.colors);
+
+    const rows: string[][] = [["name", "cluster", "silhouette_score"]];
+    for (const s of sil.scores) {
+      rows.push([`"${s.name}"`, String(s.cluster), String(s.score)]);
+    }
+    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.download = `codemarker-dendrogram-${date}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  // ─── Lag Sequential Analysis ───
+
+  private renderLagOptionsSection(): void {
+    const section = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+    section.createDiv({ cls: "codemarker-config-section-title", text: `Lag: ${this.lagValue}` });
+    const slider = section.createEl("input", { type: "range" });
+    slider.min = "1";
+    slider.max = "5";
+    slider.step = "1";
+    slider.value = String(this.lagValue);
+    slider.style.width = "100%";
+    slider.addEventListener("input", () => {
+      this.lagValue = parseInt(slider.value, 10);
+      section.querySelector(".codemarker-config-section-title")!.textContent = `Lag: ${this.lagValue}`;
+      this.scheduleUpdate();
+    });
+  }
+
+  private renderLagSequential(filters: FilterConfig): void {
+    if (!this.chartContainer || !this.data) return;
+
+    const result = calculateLagSequential(this.data, filters, this.lagValue);
+
+    if (result.codes.length < 2 || result.totalTransitions === 0) {
+      this.chartContainer.createDiv({
+        cls: "codemarker-analytics-empty",
+        text: "Not enough sequential data for lag analysis. Need markers with positional info in the same files.",
+      });
+      return;
+    }
+
+    const n = result.codes.length;
+    const cellSize = n > 25 ? 35 : n > 15 ? Math.max(35, Math.floor(500 / n)) : 60;
+    const labelSpace = 120;
+
+    const wrapper = this.chartContainer.createDiv();
+    wrapper.style.position = "relative";
+    wrapper.style.overflow = "auto";
+
+    // Title
+    const title = wrapper.createDiv();
+    title.style.padding = "8px 0";
+    title.style.fontSize = "13px";
+    title.style.fontWeight = "bold";
+    title.textContent = `Lag Sequential Analysis (lag = ${result.lag}, ${result.totalTransitions} transitions)`;
+
+    const canvas = wrapper.createEl("canvas");
+    const totalW = labelSpace + n * cellSize;
+    const totalH = labelSpace + n * cellSize;
+    canvas.width = totalW;
+    canvas.height = totalH;
+    canvas.style.width = `${totalW}px`;
+    canvas.style.height = `${totalH}px`;
+
+    const ctx = canvas.getContext("2d")!;
+    const isDark = document.body.classList.contains("theme-dark");
+    const styles2 = getComputedStyle(document.body);
+    const textColor = styles2.getPropertyValue("--text-normal").trim() || (isDark ? "#dcddde" : "#1a1a1a");
+
+    // Find max |z| for scaling
+    let maxZ = 0;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const absZ = Math.abs(result.zScores[i][j]);
+        if (absZ > maxZ) maxZ = absZ;
+      }
+    }
+    if (maxZ === 0) maxZ = 1;
+
+    // Draw cells with divergent color scale
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const x = labelSpace + j * cellSize;
+        const y = labelSpace + i * cellSize;
+        const z = result.zScores[i][j];
+
+        // Divergent: blue (negative) → white → red (positive)
+        ctx.fillStyle = this.divergentColor(z, maxZ, isDark);
+        ctx.fillRect(x, y, cellSize, cellSize);
+
+        // Significance border
+        if (Math.abs(z) > 1.96) {
+          ctx.strokeStyle = isDark ? "#fff" : "#000";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+        }
+
+        // Cell border
+        ctx.strokeStyle = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x, y, cellSize, cellSize);
+
+        // Z-score text
+        const zText = z.toFixed(1);
+        const bgBright = this.isDivergentLight(z, maxZ, isDark);
+        ctx.fillStyle = bgBright ? "#1a1a1a" : "#f0f0f0";
+        ctx.font = `${Math.min(11, cellSize * 0.28)}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(zText, x + cellSize / 2, y + cellSize / 2);
+
+        // Significance asterisk
+        if (Math.abs(z) > 1.96) {
+          ctx.fillText("*", x + cellSize / 2 + ctx.measureText(zText).width / 2 + 3, y + cellSize / 2 - 4);
+        }
+      }
+    }
+
+    // Row labels (Given code)
+    ctx.fillStyle = textColor;
+    ctx.font = `${Math.min(12, cellSize * 0.3)}px sans-serif`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < n; i++) {
+      const y = labelSpace + i * cellSize + cellSize / 2;
+      const label = result.codes[i].length > 15 ? result.codes[i].slice(0, 14) + "\u2026" : result.codes[i];
+      ctx.fillText(label, labelSpace - 6, y);
+    }
+
+    // Column labels (Target code, rotated)
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    for (let j = 0; j < n; j++) {
+      const x = labelSpace + j * cellSize + cellSize / 2;
+      ctx.save();
+      ctx.translate(x, labelSpace - 6);
+      ctx.rotate(-Math.PI / 4);
+      const label = result.codes[j].length > 15 ? result.codes[j].slice(0, 14) + "\u2026" : result.codes[j];
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // Axis labels
+    ctx.font = "11px sans-serif";
+    ctx.fillStyle = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText("Target (t + lag)", labelSpace + (n * cellSize) / 2, labelSpace + n * cellSize + 8);
+    ctx.save();
+    ctx.translate(12, labelSpace + (n * cellSize) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center";
+    ctx.fillText("Given (t)", 0, 0);
+    ctx.restore();
+
+    // Tooltip
+    const tooltip = wrapper.createDiv({ cls: "codemarker-heatmap-tooltip" });
+    tooltip.style.display = "none";
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const col = Math.floor((mx - labelSpace) / cellSize);
+      const row = Math.floor((my - labelSpace) / cellSize);
+
+      if (row >= 0 && row < n && col >= 0 && col < n) {
+        const z = result.zScores[row][col];
+        const obs = result.transitions[row][col];
+        const exp = result.expected[row][col];
+        const sig = Math.abs(z) > 1.96 ? "p < .05" : "n.s.";
+        tooltip.textContent = `${result.codes[row]} → ${result.codes[col]}: obs=${obs}, exp=${exp.toFixed(1)}, z=${z.toFixed(2)} (${sig})`;
+        tooltip.style.display = "";
+        tooltip.style.left = `${mx + 12}px`;
+        tooltip.style.top = `${my + 12}px`;
+      } else {
+        tooltip.style.display = "none";
+      }
+    });
+
+    canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+  }
+
+  private divergentColor(z: number, maxZ: number, isDark: boolean): string {
+    const intensity = Math.min(Math.abs(z) / Math.max(maxZ, 3), 1);
+    if (z > 0) {
+      // Red (activation)
+      if (isDark) {
+        const r = Math.round(42 + intensity * (229 - 42));
+        const g = Math.round(42 + intensity * (57 - 42));
+        const b = Math.round(42 + intensity * (53 - 42));
+        return `rgb(${r},${g},${b})`;
+      } else {
+        const r = Math.round(255 - intensity * (255 - 229));
+        const g = Math.round(255 - intensity * (255 - 57));
+        const b = Math.round(255 - intensity * (255 - 53));
+        return `rgb(${r},${g},${b})`;
+      }
+    } else {
+      // Blue (inhibition)
+      if (isDark) {
+        const r = Math.round(42 + intensity * (33 - 42));
+        const g = Math.round(42 + intensity * (150 - 42));
+        const b = Math.round(42 + intensity * (243 - 42));
+        return `rgb(${r},${g},${b})`;
+      } else {
+        const r = Math.round(255 - intensity * (255 - 33));
+        const g = Math.round(255 - intensity * (255 - 150));
+        const b = Math.round(255 - intensity * (255 - 243));
+        return `rgb(${r},${g},${b})`;
+      }
+    }
+  }
+
+  private isDivergentLight(z: number, maxZ: number, isDark: boolean): boolean {
+    const intensity = Math.min(Math.abs(z) / Math.max(maxZ, 3), 1);
+    if (isDark) return intensity < 0.3;
+    return intensity < 0.5;
+  }
+
+  private renderMiniLag(canvas: HTMLCanvasElement, lag: LagResult): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || lag.codes.length < 2) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const n = lag.codes.length;
+    const pad = 10;
+    const cellSize = Math.min((W - 2 * pad) / n, (H - 2 * pad) / n);
+    const offsetX = (W - n * cellSize) / 2;
+    const offsetY = (H - n * cellSize) / 2;
+    const isDark = document.body.classList.contains("theme-dark");
+    let maxZ = 0;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const a = Math.abs(lag.zScores[i][j]); if (a > maxZ) maxZ = a; }
+
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const x = offsetX + j * cellSize;
+        const y = offsetY + i * cellSize;
+        ctx.fillStyle = this.divergentColor(lag.zScores[i][j], maxZ, isDark);
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+  }
+
+  private exportLagCSV(date: string): void {
+    if (!this.data) return;
+    const filters = this.buildFilterConfig();
+    const result = calculateLagSequential(this.data, filters, this.lagValue);
+
+    const rows: string[][] = [["source_code", "target_code", "observed", "expected", "z_score", "significant"]];
+    for (let i = 0; i < result.codes.length; i++) {
+      for (let j = 0; j < result.codes.length; j++) {
+        rows.push([
+          `"${result.codes[i]}"`,
+          `"${result.codes[j]}"`,
+          String(result.transitions[i][j]),
+          String(result.expected[i][j]),
+          String(result.zScores[i][j]),
+          Math.abs(result.zScores[i][j]) > 1.96 ? "yes" : "no",
+        ]);
+      }
+    }
+    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.download = `codemarker-lag-sequential-${date}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
   private updateFooter(): void {
     if (!this.footerEl || !this.data) return;
     const ts = new Date(this.data.lastUpdated);
@@ -3138,6 +4323,22 @@ export class AnalyticsView extends ItemView {
     }
     if (this.viewMode === "mds") {
       this.exportMDSCSV(date);
+      return;
+    }
+    if (this.viewMode === "temporal") {
+      this.exportTemporalCSV(date);
+      return;
+    }
+    if (this.viewMode === "text-stats") {
+      this.exportTextStatsCSV(date);
+      return;
+    }
+    if (this.viewMode === "dendrogram") {
+      this.exportDendrogramCSV(date);
+      return;
+    }
+    if (this.viewMode === "lag-sequential") {
+      this.exportLagCSV(date);
       return;
     }
 

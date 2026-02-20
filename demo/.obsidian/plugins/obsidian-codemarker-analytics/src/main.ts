@@ -8,7 +8,7 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
   data: ConsolidatedData | null = null;
 
   async onload(): Promise<void> {
-    console.log('[codemarker-analytics] v38.6 loaded — Word Cloud + MCA + MDS');
+    console.log('[codemarker-analytics] v38.7 loaded — Jaccard + Text Stats + Dendro + Lag Seq');
     this.registerView(
       ANALYTICS_VIEW_TYPE,
       (leaf) => new AnalyticsView(leaf, this)
