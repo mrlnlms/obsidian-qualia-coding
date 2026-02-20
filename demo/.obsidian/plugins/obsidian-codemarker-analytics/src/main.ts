@@ -1,5 +1,6 @@
 import { Plugin } from "obsidian";
 import { ANALYTICS_VIEW_TYPE, AnalyticsView } from "./views/analyticsView";
+import { BOARD_VIEW_TYPE, BoardView } from "./views/boardView";
 import { readMarkdownData, readCsvData, readImageData, readPdfData, readAudioData, readVideoData } from "./data/dataReader";
 import { consolidate } from "./data/dataConsolidator";
 import type { ConsolidatedData } from "./data/dataTypes";
@@ -8,10 +9,15 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
   data: ConsolidatedData | null = null;
 
   async onload(): Promise<void> {
-    console.log('[codemarker-analytics] v38.9 loaded — Source Comparison + Code Overlap');
+    console.log('[CodeMarker Analytics] v38.10 loaded — Research Board base canvas');
     this.registerView(
       ANALYTICS_VIEW_TYPE,
       (leaf) => new AnalyticsView(leaf, this)
+    );
+
+    this.registerView(
+      BOARD_VIEW_TYPE,
+      (leaf) => new BoardView(leaf, this)
     );
 
     this.addCommand({
@@ -25,6 +31,12 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
       name: "Refresh Analytics Data",
       callback: () => this.refreshData(),
     });
+
+    this.addCommand({
+      id: "open-board",
+      name: "Open Research Board",
+      callback: () => this.activateBoard(),
+    });
   }
 
   async activateView(): Promise<void> {
@@ -35,6 +47,17 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
     }
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.setViewState({ type: ANALYTICS_VIEW_TYPE });
+    this.app.workspace.revealLeaf(leaf);
+  }
+
+  async activateBoard(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(BOARD_VIEW_TYPE);
+    if (existing.length > 0) {
+      this.app.workspace.revealLeaf(existing[0]);
+      return;
+    }
+    const leaf = this.app.workspace.getLeaf("tab");
+    await leaf.setViewState({ type: BOARD_VIEW_TYPE });
     this.app.workspace.revealLeaf(leaf);
   }
 
@@ -62,5 +85,6 @@ export default class CodeMarkerAnalyticsPlugin extends Plugin {
 
   onunload(): void {
     this.app.workspace.detachLeavesOfType(ANALYTICS_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(BOARD_VIEW_TYPE);
   }
 }

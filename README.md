@@ -118,7 +118,7 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Auto-open images**: When enabled, clicking any image file opens it directly in CodeMarker Image view
 - **Settings tab**: Dedicated settings panel for CodeMarker Image preferences and toggles
 
-### CodeMarker Analytics (v38.9)
+### CodeMarker Analytics (v38.10)
 
 - **Cross-engine analytics**: Consolidates coded data from all six source types into a unified view
 - **Audio source support**: Analytics data reader ingests and consolidates annotations from audio-based codemarker data
@@ -143,10 +143,11 @@ CodeMarker is expanding into a multi-engine architecture. Each engine handles a 
 - **Decision Tree**: Classification tree identifying which features predict code application, with minNodeSize of 2
 - **Source Comparison**: Compares coding patterns across source types — grouped bar chart and table showing how codes distribute across markdown, CSV, image, PDF, audio, and video sources
 - **Code Overlap**: Spatial overlap analysis between codes — identifies which codes co-occur on the same passages or regions
-- **Eighteen view modes**: Frequency, Co-occurrence Matrix, Network Graph, Document-Code Matrix, Code Evolution, Text Retrieval, Word Cloud, MCA, MDS, Jaccard, Text Statistics, Dendrogram, Lag Sequential, Polar, Chi-squared, Decision Tree, Source Comparison, Code Overlap
+- **Research Board**: Infinite canvas powered by Fabric.js for spatial arrangement of coded data — base canvas with pan, zoom, and node rendering (Phase 1)
+- **Eighteen view modes + Board**: Frequency, Co-occurrence Matrix, Network Graph, Document-Code Matrix, Code Evolution, Text Retrieval, Word Cloud, MCA, MDS, Jaccard, Text Statistics, Dendrogram, Lag Sequential, Polar, Chi-squared, Decision Tree, Source Comparison, Code Overlap
 - **Stats engine**: Dedicated statistics module with frequency, co-occurrence, matrix, evolution, MCA, MDS, Jaccard, text stats, clustering, lag sequential, polar, chi-squared, decision tree, source comparison, and overlap calculations
 - **Data reader**: Reads and aggregates coding data from all six engine types (markdown, CSV, image, PDF, audio, video)
-- **Command palette**: "Open CodeMarker Analytics" and "Refresh Analytics Data" commands
+- **Command palette**: "Open CodeMarker Analytics", "Refresh Analytics Data", and "Open Research Board" commands
 - **Standalone plugin**: Runs as an independent engine plugin in the demo vault
 
 ---
