@@ -1,7 +1,18 @@
 import { EditorView } from "@codemirror/view";
+import { Text } from "@codemirror/state";
 import { App, MarkdownView } from "obsidian";
 import { CodeMarkerModel } from "../../models/codeMarkerModel";
 import { getViewForFile } from "./viewLookupUtils";
+
+/**
+ * Convert a CM6 offset to an Obsidian-style {line, ch} position.
+ * Pure function — uses only CM6 doc API (no Editor wrapper needed).
+ */
+export function cm6OffsetToPos(doc: Text, offset: number): { line: number; ch: number } {
+	const clamped = Math.max(0, Math.min(offset, doc.length));
+	const lineObj = doc.lineAt(clamped);
+	return { line: lineObj.number - 1, ch: clamped - lineObj.from };
+}
 
 export interface MarkerHitResult {
 	markerId: string | null;   // winner for menu — null if partial overlap

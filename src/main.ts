@@ -22,7 +22,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[obsidian-codemarker-v2] v31.5 loaded — Label click reveals sidebar');
+		console.log('[CodeMarker v2] v31.6 loaded — CM6 sync + line number gutter fix');
 		await this.loadSettings();
 
 		// Initialize data model
@@ -312,6 +312,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	}
 
 	onunload() {
+		this.model.flushPendingSave();
 		this.app.workspace.detachLeavesOfType(UNIFIED_DETAIL_VIEW_TYPE);
 		this.app.workspace.detachLeavesOfType(CODE_EXPLORER_VIEW_TYPE);
 		console.log('CodeMarker v2: Unloaded');

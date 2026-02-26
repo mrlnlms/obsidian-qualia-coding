@@ -392,6 +392,12 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 						this.identifyAndSendFileId(update.view);
 					}, 0);
 				}
+
+				// When text changes, schedule a debounced save of synced positions
+				if (update.docChanged && this.fileId) {
+					model.markDirtyForSave();
+				}
+
 				// Schedule handle overlay render via requestMeasure (layout reads are safe there)
 				this.scheduleHandleOverlayRender(update.view);
 			}

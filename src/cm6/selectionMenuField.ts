@@ -46,7 +46,7 @@ export const createSelectionMenuField = (model: CodeMarkerModel): Extension => {
 						tooltip: {
 							pos: data.pos,
 							end: data.end,
-							above: true,
+							above: !data.snapshot.hoverMarkerId,
 							create(view: EditorView) {
 								const settings = model.getSettings();
 								const isApproachC = settings.menuMode === 'cm6-native-tooltip';

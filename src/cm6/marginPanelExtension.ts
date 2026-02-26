@@ -182,7 +182,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			}
 
 			private scheduleUpdate() {
-				if (this.rafId !== null) return;
+				if (this.rafId !== null) cancelAnimationFrame(this.rafId);
 				this.rafId = requestAnimationFrame(() => {
 					this.rafId = null;
 					this.renderBrackets();
@@ -220,7 +220,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					needsRender = true;
 				}
 
-				if (update.docChanged) {
+				if (update.docChanged || update.geometryChanged) {
 					needsRender = true;
 				}
 
@@ -294,6 +294,8 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				if (markers.length === 0) {
 					this.panel.style.width = '0';
 					this.view.contentDOM.style.paddingLeft = '';
+					const g = this.view.dom.querySelector('.cm-gutters') as HTMLElement | null;
+					if (g) g.style.marginLeft = '';
 					return;
 				}
 
@@ -373,6 +375,8 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				if (brackets.length === 0) {
 					this.panel.style.width = '0';
 					this.view.contentDOM.style.paddingLeft = '';
+					const g = this.view.dom.querySelector('.cm-gutters') as HTMLElement | null;
+					if (g) g.style.marginLeft = '';
 					return;
 				}
 
@@ -414,9 +418,12 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 
 				const neededSpace = panelWidth + gap;
 
-				// Reset padding to detect natural space (from RLL or wide margins)
+				// Reset adjustments to detect natural space (from RLL or wide margins)
 				this.view.contentDOM.style.paddingLeft = '';
+				const gutterEl = this.view.dom.querySelector('.cm-gutters') as HTMLElement | null;
+				if (gutterEl) gutterEl.style.marginLeft = '';
 				const naturalLeft = this.view.contentDOM.offsetLeft;
+				const gutterWidth = gutterEl ? gutterEl.offsetWidth : 0;
 
 				let effectivePanelWidth = panelWidth;
 
@@ -425,8 +432,12 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					const extraSpace = naturalLeft - neededSpace;
 					effectivePanelWidth = panelWidth + extraSpace;
 					this.panel.style.left = `${naturalLeft - effectivePanelWidth - gap}px`;
+				} else if (gutterEl && gutterWidth > 0) {
+					// Line numbers present — push gutter right (content follows in flex layout)
+					gutterEl.style.marginLeft = `${neededSpace - (naturalLeft - gutterWidth)}px`;
+					this.panel.style.left = '0px';
 				} else {
-					// Not enough space — force padding (discount natural offset), panel at start
+					// No line numbers — push content right
 					this.view.contentDOM.style.paddingLeft = `${neededSpace - naturalLeft}px`;
 					this.panel.style.left = '0px';
 				}
@@ -647,6 +658,8 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				if (this.resizeObserver) this.resizeObserver.disconnect();
 				if (this.mutationObserver) this.mutationObserver.disconnect();
 				this.view.contentDOM.style.paddingLeft = '';
+				const g = this.view.dom.querySelector('.cm-gutters') as HTMLElement | null;
+				if (g) g.style.marginLeft = '';
 				this.panel.remove();
 			}
 		}

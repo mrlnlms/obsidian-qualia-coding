@@ -24,6 +24,8 @@ export class CodeMarkerModel {
 	private codeDescriptions: Record<string, string> = {};
 	registry: CodeDefinitionRegistry = new CodeDefinitionRegistry();
 	plugin: CodeMarkerPlugin;
+	private _saveDirty = false;
+	private _saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 	constructor(plugin: CodeMarkerPlugin) {
 		this.plugin = plugin;
@@ -350,6 +352,36 @@ export class CodeMarkerModel {
 
 		// Sync to shared registry
 		await saveSharedRegistry(this.plugin.app.vault, registryData);
+	}
+
+	/**
+	 * Mark that marker positions have changed in-memory and need saving.
+	 * Debounces to 2s to avoid writing data.json on every keystroke.
+	 */
+	markDirtyForSave() {
+		this._saveDirty = true;
+		if (this._saveTimer) clearTimeout(this._saveTimer);
+		this._saveTimer = setTimeout(() => {
+			this._saveTimer = null;
+			if (this._saveDirty) {
+				this._saveDirty = false;
+				this.saveMarkers();
+			}
+		}, 2000);
+	}
+
+	/**
+	 * Flush any pending debounced save immediately (e.g. on plugin unload).
+	 */
+	flushPendingSave() {
+		if (this._saveTimer) {
+			clearTimeout(this._saveTimer);
+			this._saveTimer = null;
+		}
+		if (this._saveDirty) {
+			this._saveDirty = false;
+			this.saveMarkers();
+		}
 	}
 
 	posToOffset(pos: {line: number, ch: number}, fileId?: string): number | null {

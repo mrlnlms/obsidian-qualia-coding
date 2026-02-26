@@ -128,6 +128,18 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 
 				const text = this.view.state.sliceDoc(startOffset, endOffset);
 
+				// Anchor tooltip near the mouse position (clamped to marker range)
+				let anchorPos = startOffset;
+				if (this.lastMousePos) {
+					const mouseOffset = this.view.posAtCoords({
+						x: this.lastMousePos.x,
+						y: this.lastMousePos.y
+					});
+					if (mouseOffset !== null && mouseOffset >= startOffset && mouseOffset <= endOffset) {
+						anchorPos = mouseOffset;
+					}
+				}
+
 				const snapshot: SelectionSnapshot = {
 					from: startOffset,
 					to: endOffset,
@@ -139,7 +151,7 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 				this.view.dispatch({
 					effects: [
 						showCodingMenuEffect.of({
-							pos: startOffset,
+							pos: anchorPos,
 							end: endOffset,
 							snapshot
 						}),

@@ -1,9 +1,10 @@
-import { StateField, EditorState, StateEffect } from "@codemirror/state";
+import { StateField, EditorState, StateEffect, Text } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 
 import { CodeMarkerModel } from "../models/codeMarkerModel";
 import { getViewForFile } from "./utils/viewLookupUtils";
+import { cm6OffsetToPos } from "./utils/markerPositionUtils";
 
 // Effects for CM6 state communication
 export const setFileIdEffect = StateEffect.define<{fileId: string}>();
@@ -49,6 +50,11 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 			let hoveredMarkerIds = state.hoveredMarkerIds;
 			let fileId = state.fileId;
 			let needsRebuild = false;
+
+			// Sync mapped decoration positions back to model (prevents snap-back)
+			if (tr.docChanged && fileId) {
+				syncDecorationsToModel(decorations, tr.state.doc, model, fileId);
+			}
 
 			for (const effect of tr.effects) {
 				if (effect.is(setFileIdEffect)) {
@@ -126,6 +132,58 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 		]
 	});
 };
+
+/**
+ * Sync CM6 decoration positions back to the model after document changes.
+ * CM6 decorations are mapped through ChangeSet automatically, but the model
+ * still holds the old {line, ch} positions. This function reads the current
+ * decoration offsets and updates the model in-memory (no disk save).
+ */
+function syncDecorationsToModel(
+	decorations: DecorationSet,
+	doc: Text,
+	model: CodeMarkerModel,
+	fileId: string
+) {
+	// Collect decoration ranges grouped by marker ID.
+	// CM6 splits marks at formatting boundaries, so one marker may have
+	// multiple decoration spans — we need min(from) and max(to).
+	const ranges = new Map<string, { from: number; to: number }>();
+
+	decorations.between(0, doc.length, (from, to, deco) => {
+		const markerId = deco.spec?.attributes?.['data-marker-id'];
+		if (!markerId) return;
+
+		const existing = ranges.get(markerId);
+		if (existing) {
+			existing.from = Math.min(existing.from, from);
+			existing.to = Math.max(existing.to, to);
+		} else {
+			ranges.set(markerId, { from, to });
+		}
+	});
+
+	// Update model markers in-memory
+	const markers = model.getMarkersForFile(fileId);
+	for (const marker of markers) {
+		const range = ranges.get(marker.id);
+		if (!range) continue;
+
+		const newFrom = cm6OffsetToPos(doc, range.from);
+		const newTo = cm6OffsetToPos(doc, range.to);
+
+		// Only update if position actually changed (avoid churn)
+		if (
+			newFrom.line !== marker.range.from.line ||
+			newFrom.ch !== marker.range.from.ch ||
+			newTo.line !== marker.range.to.line ||
+			newTo.ch !== marker.range.to.ch
+		) {
+			marker.range.from = newFrom;
+			marker.range.to = newTo;
+		}
+	}
+}
 
 function getViewForFileFromModel(fileId: string, model: CodeMarkerModel) {
 	return getViewForFile(fileId, model.plugin.app);
