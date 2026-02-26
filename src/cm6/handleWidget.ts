@@ -122,7 +122,8 @@ export class HandleWidget extends WidgetType {
 		private color: string,
 		private settings: CodeMarkerSettings,
 		private isHovered: boolean = false,
-		private zIndex: number = 9999
+		private zIndex: number = 9999,
+		private docOffset: number = 0
 	) {
 		super();
 	}
@@ -235,6 +236,32 @@ export class HandleWidget extends WidgetType {
 			this.zIndex === widget.zIndex;
 	}
 
+	updateDOM(dom: HTMLElement, view: EditorView): boolean {
+		const svg = dom.querySelector('.codemarker-handle-svg');
+		if (!svg) return false;
+		if (this.settings.showHandlesOnHover) {
+			svg.classList.toggle('codemarker-handle-visible', this.isHovered);
+			svg.classList.toggle('codemarker-handle-hidden', !this.isHovered);
+		} else {
+			svg.classList.remove('codemarker-handle-hidden', 'codemarker-handle-visible');
+		}
+		// Reposition (coordinates may have shifted)
+		try {
+			const coords = view.coordsAtPos(this.docOffset);
+			if (coords) {
+				const domInfo = view.domAtPos(this.docOffset);
+				const node = domInfo.node;
+				const lineEl = (node instanceof HTMLElement ? node : node.parentElement)?.closest('.cm-line') as HTMLElement | null;
+				if (lineEl) {
+					const lineRect = lineEl.getBoundingClientRect();
+					dom.style.left = `${coords.left - lineRect.left}px`;
+					dom.style.top = `${coords.top - lineRect.top}px`;
+				}
+			}
+		} catch { /* keep current position */ }
+		return true;
+	}
+
 	toDOM(view: EditorView): HTMLElement {
 		this.setupResizeHandling(view);
 
@@ -243,13 +270,27 @@ export class HandleWidget extends WidgetType {
 		handle.setAttribute('data-marker-id', this.marker.id);
 		handle.setAttribute('data-handle-type', this.type);
 
-		handle.style.position = 'relative';
-		handle.style.display = 'inline-block';
+		handle.style.position = 'absolute';
 		handle.style.width = '0px';
 		handle.style.height = '0px';
 		handle.style.overflow = 'visible';
 		handle.style.zIndex = this.zIndex.toString();
 		handle.style.pointerEvents = 'none';
+
+		// Position handle at the exact text coordinate, relative to .cm-line
+		try {
+			const coords = view.coordsAtPos(this.docOffset);
+			if (coords) {
+				const domInfo = view.domAtPos(this.docOffset);
+				const node = domInfo.node;
+				const lineEl = (node instanceof HTMLElement ? node : node.parentElement)?.closest('.cm-line') as HTMLElement | null;
+				if (lineEl) {
+					const lineRect = lineEl.getBoundingClientRect();
+					handle.style.left = `${coords.left - lineRect.left}px`;
+					handle.style.top = `${coords.top - lineRect.top}px`;
+				}
+			}
+		} catch { /* fallback: handle stays at 0,0 of .cm-line */ }
 
 		let displayColor = this.color;
 		if (this.color.startsWith('#')) {
@@ -272,7 +313,7 @@ export class HandleWidget extends WidgetType {
 		svg.setAttribute("height", `${lineHeight * 2}px`);
 		svg.style.position = "absolute";
 		svg.style.left = `-${ballSize/2}px`;
-		svg.style.top = `-${lineHeight}px`;
+		svg.style.top = `-${lineHeight * 0.15}px`;
 		svg.style.transformOrigin = "center";
 		svg.style.overflow = "visible";
 		svg.style.pointerEvents = "auto";

@@ -1,7 +1,7 @@
 import { StateField, EditorState, StateEffect } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
-import { HandleWidget } from "./handleWidget";
+
 import { CodeMarkerModel } from "../models/codeMarkerModel";
 import { getViewForFile } from "./utils/viewLookupUtils";
 
@@ -233,26 +233,8 @@ function buildDecorationsForFile(
 
 			allDecorations.push({ from, to, decoration: highlightDecoration });
 
-			// Handle visibility logic — show handles for single winner OR any multi-hovered marker
-			const isHovered = marker.id === hoveredMarkerId || hoveredMarkerIds.includes(marker.id);
-			const shouldShowHandles = !settings.showHandlesOnHover || isHovered;
-
-			if (shouldShowHandles) {
-				const zIndex = 10000 + markerIndex;
-				const startHandle = Decoration.widget({
-					widget: new HandleWidget(marker, 'start', handleColor, settings, isHovered, zIndex),
-					side: -1,
-					block: false
-				});
-				allDecorations.push({ from, to: from, decoration: startHandle });
-
-				const endHandle = Decoration.widget({
-					widget: new HandleWidget(marker, 'end', handleColor, settings, isHovered, zIndex),
-					side: 1,
-					block: false
-				});
-				allDecorations.push({ from: to, to: to, decoration: endHandle });
-			}
+			// NOTE: Handles are rendered via overlay in markerViewPlugin.ts (not as Decoration.widget)
+			// This avoids inline DOM insertion that causes text reflow / word-break artifacts
 
 		} catch (e) {
 			console.warn(`CodeMarker: Error building decorations for marker ${marker.id}`, e);

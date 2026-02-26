@@ -16,9 +16,11 @@
 
 .codemarker-handles-container {
 	position: relative !important;
-	display: inline-block !important;
+	display: inline !important;
 	width: 0 !important;
 	height: 0 !important;
+	line-height: 0 !important;
+	font-size: 0 !important;
 	overflow: visible !important;
 	pointer-events: none !important;
 	background: none !important;

@@ -22,7 +22,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v31.3 loaded — Dynamic label expansion RLL');
+		console.log('[CodeMarker v2] v31.4 loaded — Move handles to overlay (word-wrap fix)');
 		await this.loadSettings();
 
 		// Initialize data model

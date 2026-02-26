@@ -9,6 +9,7 @@ import {
 	updateDragEffect,
 	endDragEffect
 } from "./markerStateField";
+import { Marker } from "../models/codeMarkerModel";
 
 // Custom event dispatched when user makes a text selection (for menu trigger)
 export const SELECTION_EVENT = 'codemarker-selection-made';
@@ -36,11 +37,272 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 
 			// Local hover state
 			hoveredMarkerId: string | null = null;
+			hoveredMarkerIds: string[] = [];
 			isInPartialOverlap = false;
+			_hoverClearTimeout: ReturnType<typeof setTimeout> | null = null;
+
+			// Handle overlay — renders handles outside text flow to avoid word-break reflow
+			handleOverlay: HTMLDivElement | null = null;
 
 			constructor(view: EditorView) {
 				this.instanceId = Math.random().toString(36).substr(2, 9);
 				this.identifyAndSendFileId(view);
+				this.createHandleOverlay(view);
+			}
+
+			private createHandleOverlay(view: EditorView) {
+				this.handleOverlay = document.createElement('div');
+				this.handleOverlay.className = 'codemarker-handle-overlay';
+				this.handleOverlay.style.position = 'absolute';
+				this.handleOverlay.style.top = '0';
+				this.handleOverlay.style.left = '0';
+				this.handleOverlay.style.width = '100%';
+				this.handleOverlay.style.height = '0';
+				this.handleOverlay.style.overflow = 'visible';
+				this.handleOverlay.style.pointerEvents = 'none';
+				this.handleOverlay.style.zIndex = '10000';
+				view.scrollDOM.style.position = 'relative';
+				view.scrollDOM.appendChild(this.handleOverlay);
+
+				// Handle drag initiation from overlay SVGs
+				const onMouseDown = (event: MouseEvent) => {
+					const target = event.target as Element;
+					if (!target.closest('.codemarker-handle-svg')) return;
+
+					const markerId = target.getAttribute('data-marker-id') ||
+						target.closest('[data-marker-id]')?.getAttribute('data-marker-id');
+					const handleType = target.getAttribute('data-handle-type') ||
+						target.closest('[data-handle-type]')?.getAttribute('data-handle-type');
+
+					if (markerId && handleType && (handleType === 'start' || handleType === 'end')) {
+						event.preventDefault();
+						event.stopPropagation();
+
+						this.dragging = { markerId, type: handleType as 'start' | 'end' };
+
+						document.body.classList.add('codemarker-dragging');
+						document.body.classList.add(handleType === 'start' ? 'codemarker-dragging-start' : 'codemarker-dragging-end');
+
+						view.dispatch({
+							effects: startDragEffect.of({ markerId, type: handleType as 'start' | 'end' })
+						});
+
+						// Document-level mouseup to ensure drag always ends,
+						// even if mouse is released outside the editor
+						const onDocMouseUp = () => {
+							document.removeEventListener('mouseup', onDocMouseUp, true);
+							if (this.dragging) {
+								const endMarkerId = this.dragging.markerId;
+								this.dragging = null;
+								document.body.classList.remove('codemarker-dragging', 'codemarker-dragging-start', 'codemarker-dragging-end');
+								view.dispatch({
+									effects: endDragEffect.of({ markerId: endMarkerId })
+								});
+							}
+						};
+						document.addEventListener('mouseup', onDocMouseUp, true);
+					}
+				};
+				this.handleOverlay.addEventListener('mousedown', onMouseDown);
+				this.cleanup.push(() => this.handleOverlay?.removeEventListener('mousedown', onMouseDown));
+
+				// Hover maintenance on overlay — CM6 eventHandlers are on
+				// contentDOM, so mouse events on overlay SVGs (sibling of
+				// contentDOM inside scrollDOM) never reach them. This listener
+				// keeps hover alive when the mouse is on a handle.
+				const onOverlayMouseMove = (event: MouseEvent) => {
+					const target = event.target as Element;
+					const handleSvg = target.closest?.('.codemarker-handle-svg');
+					if (!handleSvg) return;
+
+					const handleMarkerId = handleSvg.getAttribute('data-marker-id');
+					if (!handleMarkerId) return;
+
+					// Cancel any pending debounce clear
+					if (this._hoverClearTimeout) {
+						clearTimeout(this._hoverClearTimeout);
+						this._hoverClearTimeout = null;
+					}
+
+					// Only dispatch if marker changed
+					if (handleMarkerId !== this.hoveredMarkerId) {
+						this.hoveredMarkerId = handleMarkerId;
+						this.hoveredMarkerIds = [handleMarkerId];
+						this.isInPartialOverlap = false;
+						view.dispatch({
+							effects: setHoverEffect.of({ markerId: handleMarkerId })
+						});
+					}
+				};
+				this.handleOverlay.addEventListener('mousemove', onOverlayMouseMove);
+				this.cleanup.push(() => this.handleOverlay?.removeEventListener('mousemove', onOverlayMouseMove));
+			}
+
+			scheduleHandleOverlayRender(view: EditorView) {
+				if (!this.handleOverlay || !this.fileId) return;
+
+				// Don't clear innerHTML here — requestMeasure.write already
+				// does it in the same frame. Clearing prematurely destroys
+				// visible handles and causes flash/flicker when approaching.
+				// Handle SVGs keep pointer-events:auto so they stay interactive;
+				// the mousemove handler explicitly checks for handle targets.
+
+				const fileId = this.fileId;
+				const hoveredMarkerId = this.hoveredMarkerId;
+				const hoveredMarkerIds = [...this.hoveredMarkerIds];
+
+				view.requestMeasure({
+					key: 'codemarker-handle-overlay',
+					read: (view) => {
+						// Layout reads (coordsAtPos) are safe inside requestMeasure.read
+						const settings = model.getSettings();
+						const markers = model.getMarkersForFile(fileId);
+						if (!markers || markers.length === 0) return null;
+
+						const targetView = this.getViewForFileLocal(fileId);
+						if (!targetView?.editor) return null;
+
+						const scrollRect = view.scrollDOM.getBoundingClientRect();
+						const computedStyle = window.getComputedStyle(view.dom);
+						const fontSize = parseFloat(computedStyle.fontSize);
+						const lineHeight = parseFloat(computedStyle.lineHeight) || fontSize * 1.2;
+
+						const handles: Array<{
+							x: number, y: number, type: 'start' | 'end',
+							markerId: string, color: string, isHovered: boolean,
+							shouldShow: boolean, index: number,
+							fontSize: number, lineHeight: number
+						}> = [];
+
+						for (let i = 0; i < markers.length; i++) {
+							const m = markers[i];
+							if (!m) continue;
+							const isHovered = m.id === hoveredMarkerId || hoveredMarkerIds.includes(m.id);
+							const shouldShow = !settings.showHandlesOnHover || isHovered;
+
+							let handleColor = '#999';
+							if (m.codes && m.codes.length > 0) {
+								const def = model.registry.getByName(m.codes[0]!);
+								if (def) handleColor = def.color;
+							}
+
+							try {
+								// @ts-ignore
+								const fromOffset = targetView.editor.posToOffset(m.range.from);
+								// @ts-ignore
+								const toOffset = targetView.editor.posToOffset(m.range.to);
+
+								const fromCoords = view.coordsAtPos(fromOffset);
+								const toCoords = view.coordsAtPos(toOffset);
+
+								if (fromCoords) {
+									handles.push({
+										x: fromCoords.left - scrollRect.left + view.scrollDOM.scrollLeft,
+										y: fromCoords.top - scrollRect.top + view.scrollDOM.scrollTop,
+										type: 'start', markerId: m.id, color: handleColor,
+										isHovered, shouldShow, index: i,
+										fontSize, lineHeight
+									});
+								}
+								if (toCoords) {
+									handles.push({
+										x: toCoords.left - scrollRect.left + view.scrollDOM.scrollLeft,
+										y: toCoords.top - scrollRect.top + view.scrollDOM.scrollTop,
+										type: 'end', markerId: m.id, color: handleColor,
+										isHovered, shouldShow, index: i,
+										fontSize, lineHeight
+									});
+								}
+							} catch { /* skip marker */ }
+						}
+
+						return { handles, showHandlesOnHover: settings.showHandlesOnHover };
+					},
+					write: (result, view) => {
+						if (!this.handleOverlay) return;
+						this.handleOverlay.innerHTML = '';
+						if (!result || result.handles.length === 0) return;
+
+						for (const h of result.handles) {
+							this.renderOneHandle(h);
+						}
+					}
+				});
+			}
+
+			private renderOneHandle(h: {
+				x: number, y: number, type: 'start' | 'end',
+				markerId: string, color: string, isHovered: boolean,
+				shouldShow: boolean, index: number,
+				fontSize: number, lineHeight: number
+			}) {
+				const { x, y, type, markerId, color, isHovered, shouldShow, index, fontSize, lineHeight } = h;
+
+				const ballSize = fontSize * 0.75;
+				const barWidth = fontSize * 0.125;
+				const barLength = lineHeight * 1.1;
+				const zIndex = 10000 + index;
+
+				let displayColor = color;
+				if (color.startsWith('#')) {
+					const r = parseInt(color.slice(1, 3), 16);
+					const g = parseInt(color.slice(3, 5), 16);
+					const b = parseInt(color.slice(5, 7), 16);
+					displayColor = `rgb(${r}, ${g}, ${b})`;
+				}
+
+				const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+				svg.setAttribute("width", `${ballSize}px`);
+				svg.setAttribute("height", `${lineHeight * 2}px`);
+				svg.style.position = 'absolute';
+				svg.style.left = `${x - ballSize / 2}px`;
+				svg.style.top = `${y - lineHeight * 0.15}px`;
+				svg.style.overflow = 'visible';
+				svg.style.pointerEvents = shouldShow ? 'auto' : 'none';
+				svg.style.zIndex = zIndex.toString();
+				svg.style.transformOrigin = 'center';
+				svg.classList.add('codemarker-handle-svg');
+				svg.setAttribute('data-marker-id', markerId);
+				svg.setAttribute('data-handle-type', type);
+
+				if (!shouldShow) {
+					svg.classList.add('codemarker-handle-hidden');
+				} else if (isHovered) {
+					svg.classList.add('codemarker-handle-visible');
+				}
+
+				svg.style.cursor = type === 'start' ? 'w-resize' : 'e-resize';
+
+				const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+				const groupY = type === 'start' ? lineHeight * 0.1 : lineHeight * 0.3;
+				group.setAttribute("transform", `translate(${ballSize / 2}, ${groupY})`);
+
+				const line = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+				line.setAttribute("x", `${-barWidth / 2}`);
+				line.setAttribute("y", "0");
+				line.setAttribute("width", `${barWidth}`);
+				line.setAttribute("height", `${barLength}`);
+				line.setAttribute("rx", `${barWidth / 2}`);
+				line.setAttribute("fill", displayColor);
+				line.classList.add("codemarker-line");
+				line.setAttribute('data-marker-id', markerId);
+				line.setAttribute('data-handle-type', type);
+
+				const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+				circle.setAttribute("cx", "0");
+				circle.setAttribute("cy", type === 'start' ? "0" : `${barLength}`);
+				circle.setAttribute("r", `${ballSize / 2}`);
+				circle.setAttribute("fill", displayColor);
+				circle.setAttribute("stroke", "white");
+				circle.setAttribute("stroke-width", `${barWidth * 0.75}`);
+				circle.classList.add("codemarker-circle");
+				circle.setAttribute('data-marker-id', markerId);
+				circle.setAttribute('data-handle-type', type);
+
+				group.appendChild(line);
+				group.appendChild(circle);
+				svg.appendChild(group);
+				this.handleOverlay!.appendChild(svg);
 			}
 
 			private identifyAndSendFileId(view: EditorView, retryCount = 0) {
@@ -130,13 +392,22 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 						this.identifyAndSendFileId(update.view);
 					}, 0);
 				}
+				// Schedule handle overlay render via requestMeasure (layout reads are safe there)
+				this.scheduleHandleOverlayRender(update.view);
 			}
 
 			destroy() {
+				if (this._hoverClearTimeout) {
+					clearTimeout(this._hoverClearTimeout);
+					this._hoverClearTimeout = null;
+				}
 				this.cleanup.forEach(cleanupFn => cleanupFn());
 				this.dragging = null;
 				this.hoveredMarkerId = null;
+				this.hoveredMarkerIds = [];
 				this.fileIdSent = false;
+				this.handleOverlay?.remove();
+				this.handleOverlay = null;
 				document.body.classList.remove('codemarker-dragging', 'codemarker-dragging-start', 'codemarker-dragging-end');
 			}
 		},
@@ -212,7 +483,40 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 					// Hover logic — use DOM element for precise hit-testing
 					// (highlight spans only cover actual text, respecting word-wrap)
 					const hoverTarget = (event.target as HTMLElement)?.closest?.('.codemarker-highlight');
-					const targetMarkerId = hoverTarget?.getAttribute('data-marker-id') ?? null;
+					let targetMarkerId = hoverTarget?.getAttribute('data-marker-id') ?? null;
+
+					// NOTE: Handle SVG hover is managed by a separate listener
+					// on the overlay div (createHandleOverlay), because CM6
+					// eventHandlers are on contentDOM — overlay events never
+					// reach here.
+
+					// If not on a highlight but hover is active,
+					// debounce the clear — CM6 splits highlights at formatting
+					// boundaries so the mouse briefly sees null between sub-spans
+					// of the same marker. 30ms bridges that gap.
+					if (!targetMarkerId && (this.hoveredMarkerId || this.hoveredMarkerIds.length > 0)) {
+						if (!this._hoverClearTimeout) {
+							this._hoverClearTimeout = setTimeout(() => {
+								this._hoverClearTimeout = null;
+								this.hoveredMarkerId = null;
+								this.hoveredMarkerIds = [];
+								this.isInPartialOverlap = false;
+								try {
+									view.dispatch({
+										effects: setHoverEffect.of({ markerId: null })
+									});
+								} catch { /* view may be destroyed */ }
+							}, 30);
+						}
+						return false;
+					}
+
+					// Mouse is on a highlight (or no hover active) — cancel any
+					// pending clear since we re-entered a marker span
+					if (this._hoverClearTimeout) {
+						clearTimeout(this._hoverClearTimeout);
+						this._hoverClearTimeout = null;
+					}
 
 					if (targetMarkerId && this.fileId) {
 						const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
@@ -222,6 +526,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 								// Partial overlap — hover visual on all, no winner for menu
 								if (!this.isInPartialOverlap || this.hoveredMarkerId !== null) {
 									this.hoveredMarkerId = null;
+									this.hoveredMarkerIds = hit.hoveredIds;
 									this.isInPartialOverlap = true;
 									view.dispatch({
 										effects: setHoverEffect.of({ markerId: null, hoveredIds: hit.hoveredIds })
@@ -231,6 +536,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 								this.isInPartialOverlap = false;
 								if (hit.markerId !== this.hoveredMarkerId) {
 									this.hoveredMarkerId = hit.markerId;
+									this.hoveredMarkerIds = hit.markerId ? [hit.markerId] : [];
 									view.dispatch({
 										effects: setHoverEffect.of({ markerId: hit.markerId })
 									});
@@ -238,8 +544,8 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 							}
 						}
 					} else if (targetMarkerId !== this.hoveredMarkerId || this.isInPartialOverlap) {
-						// No marker or no fileId — standard dispatch
 						this.hoveredMarkerId = targetMarkerId;
+						this.hoveredMarkerIds = targetMarkerId ? [targetMarkerId] : [];
 						this.isInPartialOverlap = false;
 						view.dispatch({
 							effects: setHoverEffect.of({ markerId: targetMarkerId })
@@ -296,6 +602,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 				mouseleave(event: MouseEvent, view: EditorView) {
 					if (this.hoveredMarkerId || this.isInPartialOverlap) {
 						this.hoveredMarkerId = null;
+						this.hoveredMarkerIds = [];
 						this.isInPartialOverlap = false;
 						view.dispatch({
 							effects: setHoverEffect.of({ markerId: null })
