@@ -159,6 +159,27 @@ export class CodeDefinitionRegistry {
 		return registry;
 	}
 
+	// --- Import / Sync ---
+
+	/**
+	 * Import an external CodeDefinition (e.g. from shared registry).
+	 * Skips if a definition with the same name already exists.
+	 */
+	importDefinition(def: CodeDefinition): void {
+		if (this.nameIndex.has(def.name)) return;
+		this.definitions.set(def.id, { ...def });
+		this.nameIndex.set(def.name, def.id);
+	}
+
+	/**
+	 * Set nextPaletteIndex to the max of current and given value.
+	 */
+	syncPaletteIndex(externalIndex: number): void {
+		if (externalIndex > this.nextPaletteIndex) {
+			this.nextPaletteIndex = externalIndex;
+		}
+	}
+
 	// --- Internal ---
 
 	private generateId(): string {

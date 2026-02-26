@@ -58,3 +58,4 @@ export function findSmallestMarkerAtPos(
 
 	return found[0]!.id;
 }
+

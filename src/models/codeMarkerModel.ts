@@ -4,6 +4,7 @@ import { CodeMarkerSettings } from './settings';
 import { CodeItem, SelectionSnapshot } from '../menu/menuTypes';
 import { getViewForFile as getViewForFileLookup } from '../cm6/utils/viewLookupUtils';
 import { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+import { loadSharedRegistry, saveSharedRegistry, mergeRegistries } from './sharedRegistry';
 
 export interface Marker {
 	id: string;
@@ -70,6 +71,15 @@ export class CodeMarkerModel {
 				this.migrateCodeDefinitions();
 			}
 		}
+
+		// Merge with shared registry
+		const vault = this.plugin.app.vault;
+		const shared = await loadSharedRegistry(vault);
+		if (shared) {
+			mergeRegistries(this.registry, shared);
+		}
+		// Always write back to shared (first-time migration or merge result)
+		await saveSharedRegistry(vault, this.registry.toJSON());
 	}
 
 	/**
@@ -337,6 +347,9 @@ export class CodeMarkerModel {
 		data.nextPaletteIndex = registryData.nextPaletteIndex;
 
 		await this.plugin.saveData(data);
+
+		// Sync to shared registry
+		await saveSharedRegistry(this.plugin.app.vault, registryData);
 	}
 
 	posToOffset(pos: {line: number, ch: number}, fileId?: string): number | null {
@@ -387,6 +400,18 @@ export class CodeMarkerModel {
 			if (marker) return marker;
 		}
 		return null;
+	}
+
+	getAllMarkers(): Marker[] {
+		const all: Marker[] = [];
+		for (const [, markers] of this.markers.entries()) {
+			all.push(...markers);
+		}
+		return all;
+	}
+
+	getAllFileIds(): string[] {
+		return Array.from(this.markers.keys());
 	}
 
 	getMarkersForFile(fileId: string): Marker[] {

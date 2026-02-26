@@ -130,7 +130,7 @@ function buildDecorationsForFile(
 	state: EditorState,
 	model: CodeMarkerModel,
 	fileId: string,
-	hoveredMarkerId: string | null = null
+	hoveredMarkerId: string | null = null,
 ): DecorationSet {
 	const builder = new RangeSetBuilder<Decoration>();
 

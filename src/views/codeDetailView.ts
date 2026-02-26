@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, MarkdownView } from 'obsidian';
+import { ItemView, WorkspaceLeaf, MarkdownView, setIcon } from 'obsidian';
 import { EditorView } from '@codemirror/view';
 import { CodeMarkerModel, Marker } from '../models/codeMarkerModel';
 
@@ -19,17 +19,34 @@ export class CodeDetailView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return this.codeName ?? 'Code Detail';
+		if (this.codeName) return this.codeName;
+		return 'Code Explorer';
 	}
 
 	getIcon(): string {
 		return 'tag';
 	}
 
+	/** Navigate to the list of all codes */
+	showList() {
+		this.markerId = null;
+		this.codeName = null;
+		(this.leaf as any).updateHeader?.();
+		this.renderList();
+	}
+
+	/** Navigate to a code-focused detail (all markers for a code) */
+	showCodeDetail(codeName: string) {
+		this.markerId = null;
+		this.codeName = codeName;
+		(this.leaf as any).updateHeader?.();
+		this.renderCodeDetail();
+	}
+
+	/** Set context to a specific marker + code (marker-focused detail) */
 	setContext(markerId: string, codeName: string) {
 		this.markerId = markerId;
 		this.codeName = codeName;
-		// Update leaf header title
 		(this.leaf as any).updateHeader?.();
 		this.render();
 	}
@@ -38,11 +55,10 @@ export class CodeDetailView extends ItemView {
 		this.contentEl.addClass('codemarker-detail-panel');
 		if (this.markerId && this.codeName) {
 			this.render();
+		} else if (this.codeName) {
+			this.renderCodeDetail();
 		} else {
-			this.contentEl.createEl('p', {
-				text: 'Click a code label in the margin to view details.',
-				cls: 'codemarker-detail-empty',
-			});
+			this.renderList();
 		}
 	}
 
@@ -50,11 +66,129 @@ export class CodeDetailView extends ItemView {
 		this.contentEl.empty();
 	}
 
+	// ─── List Mode ───────────────────────────────────────────
+
+	private renderList() {
+		const container = this.contentEl;
+		container.empty();
+
+		const codes = this.model.registry.getAll();
+		const counts = this.countSegmentsPerCode();
+
+		// Header
+		const header = container.createDiv({ cls: 'codemarker-explorer-header' });
+		header.createSpan({ text: 'All Codes', cls: 'codemarker-explorer-title' });
+		header.createSpan({ text: `${codes.length}`, cls: 'codemarker-explorer-count' });
+
+		if (codes.length === 0) {
+			container.createEl('p', { text: 'No codes yet.', cls: 'codemarker-detail-empty' });
+			return;
+		}
+
+		// List
+		const list = container.createDiv({ cls: 'codemarker-explorer-list' });
+		for (const def of codes) {
+			const count = counts.get(def.name) ?? 0;
+			const row = list.createDiv({ cls: 'codemarker-explorer-row' });
+
+			const swatch = row.createSpan({ cls: 'codemarker-detail-swatch' });
+			swatch.style.backgroundColor = def.color;
+
+			const info = row.createDiv({ cls: 'codemarker-explorer-row-info' });
+			info.createSpan({ text: def.name, cls: 'codemarker-explorer-row-name' });
+			if (def.description) {
+				info.createSpan({ text: def.description, cls: 'codemarker-explorer-row-desc' });
+			}
+
+			row.createSpan({ text: `${count}`, cls: 'codemarker-explorer-row-count' });
+
+			row.addEventListener('click', () => {
+				this.showCodeDetail(def.name);
+			});
+		}
+	}
+
+	private countSegmentsPerCode(): Map<string, number> {
+		const counts = new Map<string, number>();
+		for (const marker of this.model.getAllMarkers()) {
+			for (const code of marker.codes) {
+				counts.set(code, (counts.get(code) ?? 0) + 1);
+			}
+		}
+		return counts;
+	}
+
+	// ─── Code-Focused Detail ─────────────────────────────────
+
+	private renderCodeDetail() {
+		const container = this.contentEl;
+		container.empty();
+
+		if (!this.codeName) return;
+
+		// Back button
+		this.renderBackButton(container);
+
+		const def = this.model.registry.getByName(this.codeName);
+		const color = def?.color ?? '#888';
+
+		// Header: swatch + code name
+		const header = container.createDiv({ cls: 'codemarker-detail-header' });
+		const swatch = header.createSpan({ cls: 'codemarker-detail-swatch' });
+		swatch.style.backgroundColor = color;
+		header.createSpan({ text: this.codeName, cls: 'codemarker-detail-title' });
+
+		// Description
+		if (def?.description) {
+			const descSection = container.createDiv({ cls: 'codemarker-detail-section' });
+			descSection.createEl('h6', { text: 'Description' });
+			descSection.createEl('p', { text: def.description, cls: 'codemarker-detail-description' });
+		}
+
+		// All markers with this code (across all files)
+		const allMarkers = this.model.getAllMarkers()
+			.filter(m => m.codes.includes(this.codeName!));
+
+		if (allMarkers.length === 0) {
+			container.createEl('p', { text: 'No segments yet.', cls: 'codemarker-detail-empty' });
+			return;
+		}
+
+		const segSection = container.createDiv({ cls: 'codemarker-detail-section' });
+		segSection.createEl('h6', { text: `Segments (${allMarkers.length})` });
+
+		const list = segSection.createEl('ul', { cls: 'codemarker-detail-marker-list' });
+		for (const marker of allMarkers) {
+			const text = this.getMarkerText(marker);
+			const preview = text
+				? (text.length > 60 ? text.substring(0, 60) + '...' : text)
+				: `Line ${marker.range.from.line + 1}`;
+
+			const li = list.createEl('li', { cls: 'codemarker-detail-marker-item' });
+
+			// File reference
+			const fileRef = li.createSpan({ cls: 'codemarker-detail-marker-file' });
+			fileRef.textContent = this.shortenPath(marker.fileId);
+
+			// Text preview
+			li.createEl('span', { text: preview });
+
+			li.addEventListener('click', () => {
+				this.scrollToMarker(marker);
+			});
+		}
+	}
+
+	// ─── Marker-Focused Detail (existing behavior) ──────────
+
 	private render() {
 		const container = this.contentEl;
 		container.empty();
 
 		if (!this.markerId || !this.codeName) return;
+
+		// Back button
+		this.renderBackButton(container);
 
 		const marker = this.model.getMarkerById(this.markerId);
 		if (!marker) {
@@ -93,11 +227,11 @@ export class CodeDetailView extends ItemView {
 		if (otherCodes.length > 0) {
 			const codesSection = container.createDiv({ cls: 'codemarker-detail-section' });
 			codesSection.createEl('h6', { text: 'Other Codes' });
-			const list = codesSection.createDiv({ cls: 'codemarker-detail-chips' });
+			const chipList = codesSection.createDiv({ cls: 'codemarker-detail-chips' });
 			for (const code of otherCodes) {
 				const codeDef = this.model.registry.getByName(code);
 				const codeColor = codeDef?.color ?? marker.color;
-				const chip = list.createEl('span', { text: code, cls: 'codemarker-detail-chip' });
+				const chip = chipList.createEl('span', { text: code, cls: 'codemarker-detail-chip' });
 				chip.style.borderColor = codeColor;
 				chip.style.color = codeColor;
 				chip.addEventListener('click', () => {
@@ -111,10 +245,10 @@ export class CodeDetailView extends ItemView {
 		if (otherMarkers.length > 0) {
 			const markersSection = container.createDiv({ cls: 'codemarker-detail-section' });
 			markersSection.createEl('h6', { text: 'Other Markers' });
-			const list = markersSection.createEl('ul', { cls: 'codemarker-detail-marker-list' });
+			const markerList = markersSection.createEl('ul', { cls: 'codemarker-detail-marker-list' });
 			for (const other of otherMarkers) {
 				const preview = this.getMarkerText(other);
-				const li = list.createEl('li', { cls: 'codemarker-detail-marker-item' });
+				const li = markerList.createEl('li', { cls: 'codemarker-detail-marker-item' });
 				li.createEl('span', {
 					text: preview ? (preview.length > 60 ? preview.substring(0, 60) + '...' : preview) : `Line ${other.range.from.line + 1}`,
 				});
@@ -124,6 +258,23 @@ export class CodeDetailView extends ItemView {
 				});
 			}
 		}
+	}
+
+	// ─── Shared Helpers ─────────────────────────────────────
+
+	private renderBackButton(container: HTMLElement) {
+		const back = container.createDiv({ cls: 'codemarker-detail-back' });
+		const icon = back.createSpan();
+		setIcon(icon, 'arrow-left');
+		back.createSpan({ text: 'All Codes' });
+		back.addEventListener('click', () => {
+			this.showList();
+		});
+	}
+
+	private shortenPath(fileId: string): string {
+		const parts = fileId.split('/');
+		return (parts[parts.length - 1] ?? fileId).replace('.md', '');
 	}
 
 	private getMarkerText(marker: Marker): string | null {
@@ -156,8 +307,9 @@ export class CodeDetailView extends ItemView {
 					effects: EditorView.scrollIntoView(offset, { y: 'center' }),
 				});
 			}
+			view.editor.setCursor(marker.range.from);
+			this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
 		} catch {
-			// fallback: use Obsidian editor setCursor
 			view.editor.setCursor(marker.range.from);
 		}
 	}

@@ -208,10 +208,11 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 						return true;
 					}
 
-					// Hover logic
-					const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-					if (pos !== null) {
-						const markerId = this.getMarkerAtPos(view, pos);
+					// Hover logic — use DOM element for precise hit-testing
+					// (highlight spans only cover actual text, respecting word-wrap)
+					const hoverTarget = (event.target as HTMLElement)?.closest?.('.codemarker-highlight');
+					const markerId = hoverTarget?.getAttribute('data-marker-id') ?? null;
+					{
 
 						if (markerId !== this.hoveredMarkerId) {
 							this.hoveredMarkerId = markerId;

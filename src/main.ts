@@ -11,7 +11,8 @@ import { createHoverMenuExtension } from './cm6/hoverMenuExtension';
 import { createMarginPanelExtension } from './cm6/marginPanelExtension';
 import { CodeFormModal } from './menu/codeFormModal';
 import { addCodeWithDetailsAction } from './menu/menuActions';
-import { CodeDetailView, CODE_DETAIL_VIEW_TYPE } from './views/codeDetailView';
+import { UnifiedCodeDetailView, UNIFIED_DETAIL_VIEW_TYPE } from './views/unifiedCodeDetailView';
+import { CodeExplorerView, CODE_EXPLORER_VIEW_TYPE } from './views/codeExplorerView';
 
 export default class CodeMarkerPlugin extends Plugin {
 	settings: CodeMarkerSettings;
@@ -21,7 +22,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v27.10 loaded — Fix stacked label clicks');
+		console.log('[CodeMarker v2] v31.1 loaded — Visual regression testing + margin fixes');
 		await this.loadSettings();
 
 		// Initialize data model
@@ -40,8 +41,17 @@ export default class CodeMarkerPlugin extends Plugin {
 			createMarginPanelExtension(this.model)
 		]);
 
-		// Register Code Detail view
-		this.registerView(CODE_DETAIL_VIEW_TYPE, (leaf) => new CodeDetailView(leaf, this.model));
+		// Register views
+		this.registerView(UNIFIED_DETAIL_VIEW_TYPE, (leaf) => {
+			const view = new UnifiedCodeDetailView(leaf, this.model);
+			// Resolve CSV model at runtime if the CSV plugin is loaded
+			const csvPlugin = (this.app as any).plugins?.plugins?.['obsidian-csv-viewer'];
+			if (csvPlugin?.model) {
+				view.setCsvModel(csvPlugin.model);
+			}
+			return view;
+		});
+		this.registerView(CODE_EXPLORER_VIEW_TYPE, (leaf) => new CodeExplorerView(leaf, this.model));
 
 		// Settings tab
 		this.addSettingTab(new CodeMarkerSettingTab(this.app, this));
@@ -284,6 +294,12 @@ export default class CodeMarkerPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'open-code-explorer',
+			name: 'Open Code Explorer',
+			callback: () => this.activateCodeExplorer()
+		});
+
+		this.addCommand({
 			id: 'reset-code-markers',
 			name: 'Reset all markers',
 			callback: () => {
@@ -296,21 +312,52 @@ export default class CodeMarkerPlugin extends Plugin {
 	}
 
 	onunload() {
-		this.app.workspace.detachLeavesOfType(CODE_DETAIL_VIEW_TYPE);
+		this.app.workspace.detachLeavesOfType(UNIFIED_DETAIL_VIEW_TYPE);
+		this.app.workspace.detachLeavesOfType(CODE_EXPLORER_VIEW_TYPE);
 		console.log('CodeMarker v2: Unloaded');
 	}
 
-	async revealCodeDetailPanel(markerId: string, codeName: string): Promise<void> {
-		const leaves = this.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
+	async activateCodeExplorer() {
+		const leaves = this.app.workspace.getLeavesOfType(CODE_EXPLORER_VIEW_TYPE);
 		const existing = leaves[0];
 		if (existing) {
-			const view = existing.view as CodeDetailView;
+			this.app.workspace.revealLeaf(existing);
+			return;
+		}
+		const leaf = this.app.workspace.getRightLeaf(false);
+		if (leaf) {
+			await leaf.setViewState({ type: CODE_EXPLORER_VIEW_TYPE, active: true });
+			this.app.workspace.revealLeaf(leaf);
+		}
+	}
+
+	async revealCodeExplorer(): Promise<void> {
+		const leaves = this.app.workspace.getLeavesOfType(UNIFIED_DETAIL_VIEW_TYPE);
+		const existing = leaves[0];
+		if (existing) {
+			const view = existing.view as UnifiedCodeDetailView;
+			view.showList();
+			this.app.workspace.revealLeaf(existing);
+		} else {
+			const leaf = this.app.workspace.getRightLeaf(false);
+			if (leaf) {
+				await leaf.setViewState({ type: UNIFIED_DETAIL_VIEW_TYPE, active: true });
+				this.app.workspace.revealLeaf(leaf);
+			}
+		}
+	}
+
+	async revealCodeDetailPanel(markerId: string, codeName: string): Promise<void> {
+		const leaves = this.app.workspace.getLeavesOfType(UNIFIED_DETAIL_VIEW_TYPE);
+		const existing = leaves[0];
+		if (existing) {
+			const view = existing.view as UnifiedCodeDetailView;
 			view.setContext(markerId, codeName);
 		} else {
 			const leaf = this.app.workspace.getRightLeaf(false);
 			if (leaf) {
-				await leaf.setViewState({ type: CODE_DETAIL_VIEW_TYPE, active: true });
-				const view = leaf.view as CodeDetailView;
+				await leaf.setViewState({ type: UNIFIED_DETAIL_VIEW_TYPE, active: true });
+				const view = leaf.view as UnifiedCodeDetailView;
 				view.setContext(markerId, codeName);
 				this.app.workspace.revealLeaf(leaf);
 			}

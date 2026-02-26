@@ -93,9 +93,8 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 
 				// Re-verify: is the mouse still over this marker?
 				if (this.lastMousePos) {
-					const pos = this.view.posAtCoords(this.lastMousePos);
-					if (pos === null) return;
-					const currentMarkerId = this.getMarkerAtPos(pos);
+					const el = document.elementFromPoint(this.lastMousePos.x, this.lastMousePos.y);
+					const currentMarkerId = el?.closest('.codemarker-highlight')?.getAttribute('data-marker-id') ?? null;
 					if (currentMarkerId !== markerId) return;
 				}
 
@@ -219,15 +218,21 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 						return false;
 					}
 
-					const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-					if (pos === null) {
-						// Mouse is outside text area — treat as leaving
-						this.cancelAll();
-						if (this.isMenuOpen) this.startCloseTimer();
-						return false;
-					}
+					// Detect marker via DOM element — the highlight span only covers
+					// actual text, so hover naturally respects word-wrap boundaries.
+					const target = event.target as HTMLElement;
+					const highlightEl = target?.closest?.('.codemarker-highlight');
+					const markerId = highlightEl?.getAttribute('data-marker-id') ?? null;
 
-					const markerId = this.getMarkerAtPos(pos);
+					if (!markerId) {
+						// Also check if mouse is outside text area entirely
+						const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+						if (pos === null) {
+							this.cancelAll();
+							if (this.isMenuOpen) this.startCloseTimer();
+							return false;
+						}
+					}
 
 					if (markerId) {
 						// Mouse is on a marker

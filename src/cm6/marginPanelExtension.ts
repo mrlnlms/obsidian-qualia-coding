@@ -296,22 +296,50 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				for (const marker of markers) {
 					if (marker.codes.length === 0) continue;
 
+					// Use Obsidian's posToOffset for correct visual-line positioning.
+					// posToOffset handles multi-byte/emoji chars and returns the exact
+					// CM6 offset that lineBlockAt needs for wrapped-line accuracy.
+					// Safety clamp: if ch exceeds line length (text edited after marker
+					// creation), posToOffset overflows into the next line — detect this
+					// and pull back to the end of the intended line.
 					let startOffset: number, endOffset: number;
 					try {
-						// @ts-ignore
+						// @ts-ignore – posToOffset exists on Obsidian Editor
 						startOffset = targetView.editor.posToOffset(marker.range.from);
 						// @ts-ignore
 						endOffset = targetView.editor.posToOffset(marker.range.to);
+
+						// Clamp overflows: if offset landed past the intended line, pull back
+						const doc = this.view.state.doc;
+						const fromLineObj = doc.line(Math.min(marker.range.from.line + 1, doc.lines));
+						const toLineObj = doc.line(Math.min(marker.range.to.line + 1, doc.lines));
+						if (startOffset > fromLineObj.to) startOffset = fromLineObj.to;
+						if (endOffset > toLineObj.to) endOffset = toLineObj.to;
 					} catch {
 						continue;
 					}
 
 					let topPx: number, bottomPx: number;
 					try {
-						const startBlock = this.view.lineBlockAt(startOffset);
-						const endBlock = this.view.lineBlockAt(endOffset);
-						topPx = startBlock.top;
-						bottomPx = endBlock.bottom;
+						// Use coordsAtPos for visual-line precision within wrapped paragraphs.
+						// lineBlockAt returns the ENTIRE logical line block, so for wrapped
+						// paragraphs the bar would span all visual lines instead of only the
+						// ones containing the marker text.
+						const startCoords = this.view.coordsAtPos(startOffset);
+						const endCoords = this.view.coordsAtPos(endOffset);
+
+						if (startCoords && endCoords) {
+							const scrollRect = this.view.scrollDOM.getBoundingClientRect();
+							const scrollTop = this.view.scrollDOM.scrollTop;
+							topPx = startCoords.top - scrollRect.top + scrollTop - contentTop;
+							bottomPx = endCoords.bottom - scrollRect.top + scrollTop - contentTop;
+						} else {
+							// Fallback for off-screen positions where coordsAtPos returns null
+							const startBlock = this.view.lineBlockAt(startOffset);
+							const endBlock = this.view.lineBlockAt(endOffset);
+							topPx = startBlock.top;
+							bottomPx = endBlock.bottom;
+						}
 					} catch {
 						continue;
 					}
@@ -566,7 +594,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				el.style.right = `${labelRightPx}px`;
 				el.style.left = 'auto';
 				el.style.width = 'auto';
-				el.style.maxWidth = `${leftmostBarEdge - 14}px`;
+				el.style.maxWidth = `${leftmostBarEdge - 4}px`;
 				el.style.color = label.color;
 				el.style.fontSize = '11px';
 				el.style.lineHeight = `${LABEL_HEIGHT}px`;
