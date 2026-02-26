@@ -22,7 +22,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v31.4 loaded — Move handles to overlay (word-wrap fix)');
+		console.log('[obsidian-codemarker-v2] v31.5 loaded — Label click reveals sidebar');
 		await this.loadSettings();
 
 		// Initialize data model
@@ -353,6 +353,7 @@ export default class CodeMarkerPlugin extends Plugin {
 		if (existing) {
 			const view = existing.view as UnifiedCodeDetailView;
 			view.setContext(markerId, codeName);
+			this.app.workspace.revealLeaf(existing);
 		} else {
 			const leaf = this.app.workspace.getRightLeaf(false);
 			if (leaf) {

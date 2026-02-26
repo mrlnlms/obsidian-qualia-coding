@@ -22,7 +22,7 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 - **Multi-code markers**: A single text passage can carry multiple codes simultaneously
 - **Toggle codes**: Quick on/off toggles for each code in the floating menu
 - **Smart overlap**: When markers overlap, the plugin intelligently resolves which one to interact with (smallest marker wins for nested, rightmost start wins for partial overlap)
-- **Drag-resize handles**: Adjust marker boundaries directly in the editor by dragging overlay-positioned handles that appear on hover — no text reflow or layout shifts
+- **Drag-resize handles**: Adjust marker boundaries directly in the editor by dragging handles that appear on hover
 
 ### Code Management
 
@@ -36,7 +36,7 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 - **Colored bars**: Each coded passage is represented by a colored vertical bar in the left margin, one per code
 - **Labels**: Code names appear centered on their bars with smart collision avoidance
 - **Bidirectional hover**: Hover a bar in the margin and the corresponding text highlights; hover coded text and the margin bars highlight back
-- **Clickable labels**: Click a code label in the margin to open its detail panel
+- **Clickable labels**: Click a code label in the margin to always reveal and focus the Code Detail sidebar, even if it was hidden or collapsed
 
 ### Code Explorer
 
