@@ -22,7 +22,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v31.1 loaded — Visual regression testing + margin fixes');
+		console.log('[CodeMarker v2] v31.2 loaded — Multi-marker hover partial overlap');
 		await this.loadSettings();
 
 		// Initialize data model

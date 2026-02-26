@@ -55,6 +55,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			fileId: string | null = null;
 			view: EditorView;
 			private hoveredMarkerId: string | null = null;
+			private hoveredMarkerIds: string[] = [];
 			private hoveredCodeName: string | null = null;
 			private hoveredElementType: 'bar' | 'label' | 'dot' | 'tick' | null = null;
 			private scrollHandler: () => void;
@@ -107,8 +108,9 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					}
 				};
 				this.panelLeaveHandler = () => {
-					if (this.hoveredMarkerId) {
+					if (this.hoveredMarkerId || this.hoveredMarkerIds.length > 0) {
 						this.hoveredMarkerId = null;
+						this.hoveredMarkerIds = [];
 						this.hoveredCodeName = null;
 						this.hoveredElementType = null;
 						this.applyHoverClasses();
@@ -198,8 +200,10 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 						// Text-side hover → update panel classes (no re-render)
 						if (effect.is(setHoverEffect)) {
 							const newId = effect.value.markerId;
-							if (newId !== this.hoveredMarkerId) {
+							const newIds = effect.value.hoveredIds ?? (newId ? [newId] : []);
+							if (newId !== this.hoveredMarkerId || newIds.length !== this.hoveredMarkerIds.length) {
 								this.hoveredMarkerId = newId;
+								this.hoveredMarkerIds = newIds;
 								this.hoveredCodeName = null; // text hover → all codes
 								this.hoveredElementType = null;
 								this.applyHoverClasses();
@@ -251,8 +255,14 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					const cname = el.getAttribute('data-code-name') || '';
 					const isLabel = el.classList.contains('codemarker-margin-label');
 
+					// Check if this marker is in the multi-hover list (partial overlap)
+					const isMultiHovered = this.hoveredMarkerIds.length > 1 && this.hoveredMarkerIds.includes(mid);
+
 					let shouldHover = false;
-					if (this.hoveredMarkerId === mid) {
+					if (isMultiHovered) {
+						// Partial overlap: all elements of all hovered markers get hover visual
+						shouldHover = true;
+					} else if (this.hoveredMarkerId === mid) {
 						if (isLabel) {
 							if (this.hoveredElementType === 'label') {
 								// Hover on label → only that label

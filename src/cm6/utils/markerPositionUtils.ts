@@ -3,16 +3,76 @@ import { App, MarkdownView } from "obsidian";
 import { CodeMarkerModel } from "../../models/codeMarkerModel";
 import { getViewForFile } from "./viewLookupUtils";
 
+export interface MarkerHitResult {
+	markerId: string | null;   // winner for menu — null if partial overlap
+	hoveredIds: string[];      // all IDs that should have hover visual
+	isPartialOverlap: boolean; // true → suppress menu
+}
+
 /**
- * Find the smallest (most specific) marker at a given position.
+ * Classify markers at a given position: detect nesting vs partial overlap.
  */
-export function findSmallestMarkerAtPos(
+export function classifyMarkersAtPos(
 	pos: number,
 	fileId: string,
 	model: CodeMarkerModel,
 	view: EditorView,
 	app: App
-): string | null {
+): MarkerHitResult {
+	const found = collectMarkersAtPos(pos, fileId, model, view, app);
+
+	if (found.length === 0) {
+		return { markerId: null, hoveredIds: [], isPartialOverlap: false };
+	}
+
+	if (found.length === 1) {
+		return { markerId: found[0]!.id, hoveredIds: [found[0]!.id], isPartialOverlap: false };
+	}
+
+	// Check all pairs for partial overlap
+	let hasPartial = false;
+	for (let i = 0; i < found.length && !hasPartial; i++) {
+		for (let j = i + 1; j < found.length; j++) {
+			const a = found[i]!, b = found[j]!;
+			const aContainsB = a.from <= b.from && a.to >= b.to;
+			const bContainsA = b.from <= a.from && b.to >= a.to;
+			if (!aContainsB && !bContainsA) {
+				hasPartial = true;
+				break;
+			}
+		}
+	}
+
+	if (hasPartial) {
+		return {
+			markerId: null,
+			hoveredIds: found.map(f => f.id),
+			isPartialOverlap: true,
+		};
+	}
+
+	// All nested — smallest wins (same sort as before)
+	found.sort((a, b) => {
+		const aContainsB = a.from <= b.from && a.to >= b.to;
+		const bContainsA = b.from <= a.from && b.to >= a.to;
+		if (aContainsB) return 1;
+		if (bContainsA) return -1;
+		return b.from - a.from;
+	});
+
+	return { markerId: found[0]!.id, hoveredIds: [found[0]!.id], isPartialOverlap: false };
+}
+
+/**
+ * Collect all markers whose offset range contains `pos`.
+ */
+function collectMarkersAtPos(
+	pos: number,
+	fileId: string,
+	model: CodeMarkerModel,
+	view: EditorView,
+	app: App
+): Array<{ id: string; from: number; to: number; size: number }> {
 	const markers = model.getMarkersForFile(fileId);
 	const found: Array<{ id: string; from: number; to: number; size: number }> = [];
 
@@ -42,20 +102,20 @@ export function findSmallestMarkerAtPos(
 		}
 	}
 
-	if (found.length === 0) return null;
+	return found;
+}
 
-	// Smart priority: nesting vs partial intersection
-	found.sort((a, b) => {
-		const aContainsB = a.from <= b.from && a.to >= b.to;
-		const bContainsA = b.from <= a.from && b.to >= a.to;
-
-		if (aContainsB) return 1;  // B is nested inside A → B wins (comes first)
-		if (bContainsA) return -1; // A is nested inside B → A wins (comes first)
-
-		// Partial intersection: higher `from` wins (starts further in doc = "on top")
-		return b.from - a.from;
-	});
-
-	return found[0]!.id;
+/**
+ * Find the smallest (most specific) marker at a given position.
+ * Wrapper around classifyMarkersAtPos for backward compatibility.
+ */
+export function findSmallestMarkerAtPos(
+	pos: number,
+	fileId: string,
+	model: CodeMarkerModel,
+	view: EditorView,
+	app: App
+): string | null {
+	return classifyMarkersAtPos(pos, fileId, model, view, app).markerId;
 }
 

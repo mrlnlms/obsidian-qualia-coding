@@ -1,7 +1,7 @@
 import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/view";
 import { CodeMarkerModel } from "../models/codeMarkerModel";
 import { findFileIdForEditorView, getViewForFile } from "./utils/viewLookupUtils";
-import { findSmallestMarkerAtPos } from "./utils/markerPositionUtils";
+import { findSmallestMarkerAtPos, classifyMarkersAtPos } from "./utils/markerPositionUtils";
 import {
 	setFileIdEffect,
 	setHoverEffect,
@@ -36,6 +36,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 
 			// Local hover state
 			hoveredMarkerId: string | null = null;
+			isInPartialOverlap = false;
 
 			constructor(view: EditorView) {
 				this.instanceId = Math.random().toString(36).substr(2, 9);
@@ -211,15 +212,38 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 					// Hover logic — use DOM element for precise hit-testing
 					// (highlight spans only cover actual text, respecting word-wrap)
 					const hoverTarget = (event.target as HTMLElement)?.closest?.('.codemarker-highlight');
-					const markerId = hoverTarget?.getAttribute('data-marker-id') ?? null;
-					{
+					const targetMarkerId = hoverTarget?.getAttribute('data-marker-id') ?? null;
 
-						if (markerId !== this.hoveredMarkerId) {
-							this.hoveredMarkerId = markerId;
-							view.dispatch({
-								effects: setHoverEffect.of({ markerId })
-							});
+					if (targetMarkerId && this.fileId) {
+						const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+						if (pos !== null) {
+							const hit = classifyMarkersAtPos(pos, this.fileId, model, view, model.plugin.app);
+							if (hit.isPartialOverlap) {
+								// Partial overlap — hover visual on all, no winner for menu
+								if (!this.isInPartialOverlap || this.hoveredMarkerId !== null) {
+									this.hoveredMarkerId = null;
+									this.isInPartialOverlap = true;
+									view.dispatch({
+										effects: setHoverEffect.of({ markerId: null, hoveredIds: hit.hoveredIds })
+									});
+								}
+							} else {
+								this.isInPartialOverlap = false;
+								if (hit.markerId !== this.hoveredMarkerId) {
+									this.hoveredMarkerId = hit.markerId;
+									view.dispatch({
+										effects: setHoverEffect.of({ markerId: hit.markerId })
+									});
+								}
+							}
 						}
+					} else if (targetMarkerId !== this.hoveredMarkerId || this.isInPartialOverlap) {
+						// No marker or no fileId — standard dispatch
+						this.hoveredMarkerId = targetMarkerId;
+						this.isInPartialOverlap = false;
+						view.dispatch({
+							effects: setHoverEffect.of({ markerId: targetMarkerId })
+						});
 					}
 
 					return false;
@@ -270,8 +294,9 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 
 				// MOUSELEAVE: Clear hover
 				mouseleave(event: MouseEvent, view: EditorView) {
-					if (this.hoveredMarkerId) {
+					if (this.hoveredMarkerId || this.isInPartialOverlap) {
 						this.hoveredMarkerId = null;
+						this.isInPartialOverlap = false;
 						view.dispatch({
 							effects: setHoverEffect.of({ markerId: null })
 						});

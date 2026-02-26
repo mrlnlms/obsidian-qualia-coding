@@ -7,7 +7,7 @@ import { getViewForFile } from "./utils/viewLookupUtils";
 
 // Effects for CM6 state communication
 export const setFileIdEffect = StateEffect.define<{fileId: string}>();
-export const setHoverEffect = StateEffect.define<{markerId: string | null}>();
+export const setHoverEffect = StateEffect.define<{markerId: string | null, hoveredIds?: string[]}>();
 export const startDragEffect = StateEffect.define<{markerId: string, type: 'start' | 'end'}>();
 export const updateDragEffect = StateEffect.define<{markerId: string, pos: number, type: 'start' | 'end'}>();
 export const endDragEffect = StateEffect.define<{markerId: string}>();
@@ -21,6 +21,7 @@ interface MarkerFieldState {
 	decorations: DecorationSet;
 	selectionPreview: DecorationSet;
 	hoveredMarkerId: string | null;
+	hoveredMarkerIds: string[];
 	fileId: string | null;
 	instanceId: string;
 }
@@ -34,6 +35,7 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 				decorations: Decoration.none,
 				selectionPreview: Decoration.none,
 				hoveredMarkerId: null,
+				hoveredMarkerIds: [],
 				fileId: null,
 				instanceId
 			};
@@ -44,6 +46,7 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 			let decorations = state.decorations.map(tr.changes);
 			let selectionPreview = state.selectionPreview.map(tr.changes);
 			let hoveredMarkerId = state.hoveredMarkerId;
+			let hoveredMarkerIds = state.hoveredMarkerIds;
 			let fileId = state.fileId;
 			let needsRebuild = false;
 
@@ -56,7 +59,7 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 					}
 				}
 				else if (effect.is(setHoverEffect)) {
-					const { markerId } = effect.value;
+					const { markerId, hoveredIds } = effect.value;
 
 					// Validate marker belongs to this file
 					if (markerId) {
@@ -66,8 +69,18 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 						}
 					}
 
-					if (markerId !== hoveredMarkerId) {
+					// Validate hoveredIds belong to this file
+					const validatedIds = (hoveredIds ?? (markerId ? [markerId] : [])).filter(id => {
+						const m = model.getMarkerById(id);
+						return m && m.fileId === fileId;
+					});
+
+					const idsChanged = validatedIds.length !== hoveredMarkerIds.length ||
+						validatedIds.some((id, i) => id !== hoveredMarkerIds[i]);
+
+					if (markerId !== hoveredMarkerId || idsChanged) {
 						hoveredMarkerId = markerId;
+						hoveredMarkerIds = validatedIds;
 						needsRebuild = true;
 					}
 				}
@@ -93,7 +106,7 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 			}
 
 			if (needsRebuild && fileId) {
-				decorations = buildDecorationsForFile(tr.state, model, fileId, hoveredMarkerId);
+				decorations = buildDecorationsForFile(tr.state, model, fileId, hoveredMarkerId, hoveredMarkerIds);
 			}
 
 			return {
@@ -101,6 +114,7 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 				decorations,
 				selectionPreview,
 				hoveredMarkerId,
+				hoveredMarkerIds,
 				instanceId: state.instanceId
 			};
 		},
@@ -131,6 +145,7 @@ function buildDecorationsForFile(
 	model: CodeMarkerModel,
 	fileId: string,
 	hoveredMarkerId: string | null = null,
+	hoveredMarkerIds: string[] = [],
 ): DecorationSet {
 	const builder = new RangeSetBuilder<Decoration>();
 
@@ -218,8 +233,8 @@ function buildDecorationsForFile(
 
 			allDecorations.push({ from, to, decoration: highlightDecoration });
 
-			// Handle visibility logic
-			const isHovered = marker.id === hoveredMarkerId;
+			// Handle visibility logic — show handles for single winner OR any multi-hovered marker
+			const isHovered = marker.id === hoveredMarkerId || hoveredMarkerIds.includes(marker.id);
 			const shouldShowHandles = !settings.showHandlesOnHover || isHovered;
 
 			if (shouldShowHandles) {

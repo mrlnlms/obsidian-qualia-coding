@@ -14,24 +14,6 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 
 ---
 
-## Current State (v31.1)
-
-Visual regression testing infrastructure and margin panel precision fixes.
-
-### Recent Changes
-- **Visual regression testing**: Diagnostic margin bar analysis for catching visual regressions in the margin panel
-- **posToOffset clamping**: Prevents bar height overflow when marker positions exceed document bounds
-- **Visual-line precision**: Margin bars now align to visual lines rather than raw character offsets
-- **Label truncation**: Long code names in margin labels truncate with ellipsis instead of overflowing
-- **DOM-based hover**: Margin panel hover switched from state-driven to DOM-based for better responsiveness
-
-### Known Limitations
-- Per-code decorations (overlapping color layers) not yet implemented
-- No project/workspace system
-- No code hierarchy or advanced queries
-
----
-
 ## Features
 
 ### Text Coding
@@ -55,9 +37,6 @@ Visual regression testing infrastructure and margin panel precision fixes.
 - **Labels**: Code names appear centered on their bars with smart collision avoidance
 - **Bidirectional hover**: Hover a bar in the margin and the corresponding text highlights; hover coded text and the margin bars highlight back
 - **Clickable labels**: Click a code label in the margin to open its detail panel
-- **Visual-line precision**: Bars align to visual editor lines for accurate positioning
-- **Label truncation**: Long code names are truncated with ellipsis
-- **DOM-based hover**: Responsive hover interaction without state-field overhead
 
 ### Code Explorer
 
@@ -78,6 +57,8 @@ Visual regression testing infrastructure and margin panel precision fixes.
 ### Hover Menu
 
 - **Hover to inspect**: Hover over any coded text to see which codes are applied
+- **Multi-marker hover**: When markers partially overlap, hovering the shared region shows all markers — not just the topmost one
+- **Menu suppression**: The selection menu is suppressed while the hover tooltip is active, avoiding UI conflicts
 - **Edit in place**: Toggle codes on/off directly from the hover menu
 - **Smart timing**: 350ms delay to open (avoids accidental activation), 200ms delay to close (avoids flickering when moving between text and menu)
 
