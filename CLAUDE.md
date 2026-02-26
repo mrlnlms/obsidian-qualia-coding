@@ -4,7 +4,7 @@
 
 ## Progresso
 - Ultima versao commitada: v31
-- Posicao no commit_sequence: 79/90
+- Posicao no commit_sequence: 80/90
 - Phase: 2
 - Era atual: 3 -- Qualia Coding scaffold + CM6 port + menu system (v23-v27, local-plugin)
 - Total de commits: 78

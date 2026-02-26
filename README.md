@@ -35,6 +35,7 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 
 - **Colored bars**: Each coded passage is represented by a colored vertical bar in the left margin, one per code
 - **Labels**: Code names appear centered on their bars with smart collision avoidance
+- **Dynamic label expansion (RLL)**: Long labels expand dynamically using Right-to-Left Layout positioning, showing full code names on interaction without overlapping other elements
 - **Bidirectional hover**: Hover a bar in the margin and the corresponding text highlights; hover coded text and the margin bars highlight back
 - **Clickable labels**: Click a code label in the margin to open its detail panel
 
@@ -57,8 +58,6 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 ### Hover Menu
 
 - **Hover to inspect**: Hover over any coded text to see which codes are applied
-- **Multi-marker hover**: When markers partially overlap, hovering the shared region shows all markers — not just the topmost one
-- **Menu suppression**: The selection menu is suppressed while the hover tooltip is active, avoiding UI conflicts
 - **Edit in place**: Toggle codes on/off directly from the hover menu
 - **Smart timing**: 350ms delay to open (avoids accidental activation), 200ms delay to close (avoids flickering when moving between text and menu)
 

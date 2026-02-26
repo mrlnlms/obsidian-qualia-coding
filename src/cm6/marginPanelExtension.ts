@@ -7,7 +7,7 @@ import { updateFileMarkersEffect, setHoverEffect } from "./markerStateField";
  * Margin Panel Extension — MAXQDA-style coded segments alongside text.
  *
  * Rule 1 — Column allocation:
- *   Bars sorted by span (largest first). Each bar goes to the rightmost
+ *   Bars sorted by span (largestconst PANEL_LEFT_MARGIN = 12 first). Each bar goes to the rightmost
  *   (closest to text) column that's free at its vertical range.
  *   Larger bars get inner columns, smaller bars get outer columns.
  *
@@ -22,9 +22,10 @@ const DOT_SIZE = 7;
 const TICK_LENGTH = 4;
 const COLUMN_WIDTH = 10;
 const LABEL_HEIGHT = 16;
-const MIN_LABEL_SPACE = 20;
-const MAX_LABEL_SPACE = 120;
+const MIN_LABEL_SPACE = 80;
+const MAX_LABEL_SPACE = 200;
 const LABEL_FONT = '500 11px sans-serif';
+const PANEL_LEFT_MARGIN = 20;
 
 interface ResolvedBracket {
 	marker: Marker;
@@ -401,16 +402,15 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				for (const label of labels) {
 					const textWidth = ctx.measureText(label.codeName).width;
 					const barsRight = (label.maxColAtY + 1) * COLUMN_WIDTH;
-					const needed = textWidth + barsRight + 4; // 4px padding
+					const needed = textWidth + barsRight + PANEL_LEFT_MARGIN;
 					neededLabelSpace = Math.max(neededLabelSpace, needed);
 				}
 
 				const maxColumn = Math.max(...brackets.map(b => b.column));
 				const linesWidth = (maxColumn + 1) * COLUMN_WIDTH;
 				const labelSpace = Math.min(neededLabelSpace - linesWidth, MAX_LABEL_SPACE);
-				const panelWidth = linesWidth + Math.max(labelSpace, MIN_LABEL_SPACE);
+				const panelWidth = linesWidth + Math.max(labelSpace, MIN_LABEL_SPACE) + PANEL_LEFT_MARGIN;
 				const gap = 20;
-				this.panel.style.width = `${panelWidth}px`;
 
 				const neededSpace = panelWidth + gap;
 
@@ -418,14 +418,20 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				this.view.contentDOM.style.paddingLeft = '';
 				const naturalLeft = this.view.contentDOM.offsetLeft;
 
+				let effectivePanelWidth = panelWidth;
+
 				if (naturalLeft >= neededSpace) {
-					// Enough natural space — position panel without forcing padding
-					this.panel.style.left = `${naturalLeft - panelWidth - gap}px`;
+					// Enough natural space — expand panel to use all extra space for labels
+					const extraSpace = naturalLeft - neededSpace;
+					effectivePanelWidth = panelWidth + extraSpace;
+					this.panel.style.left = `${naturalLeft - effectivePanelWidth - gap}px`;
 				} else {
 					// Not enough space — force padding (discount natural offset), panel at start
 					this.view.contentDOM.style.paddingLeft = `${neededSpace - naturalLeft}px`;
 					this.panel.style.left = '0px';
 				}
+
+				this.panel.style.width = `${effectivePanelWidth}px`;
 
 				const scrollTop = this.view.scrollDOM.scrollTop;
 				const viewportHeight = this.view.scrollDOM.clientHeight;
@@ -435,7 +441,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				// Render bars
 				for (const bracket of brackets) {
 					if (bracket.bottom < viewTop || bracket.top > viewBottom) continue;
-					this.renderBar(bracket, panelWidth);
+					this.renderBar(bracket, effectivePanelWidth);
 				}
 
 				// Render labels + connectors
@@ -443,7 +449,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					const labelBottom = label.actualY + LABEL_HEIGHT;
 					if (labelBottom < viewTop && label.segmentBottom < viewTop) continue;
 					if (label.actualY > viewBottom) continue;
-					this.renderLabel(label, panelWidth);
+					this.renderLabel(label, effectivePanelWidth);
 				}
 
 				// Re-apply hover classes after DOM rebuild
@@ -604,7 +610,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				el.style.right = `${labelRightPx}px`;
 				el.style.left = 'auto';
 				el.style.width = 'auto';
-				el.style.maxWidth = `${leftmostBarEdge - 4}px`;
+				el.style.maxWidth = `${leftmostBarEdge - PANEL_LEFT_MARGIN}px`;
 				el.style.color = label.color;
 				el.style.fontSize = '11px';
 				el.style.lineHeight = `${LABEL_HEIGHT}px`;
