@@ -37,7 +37,6 @@ CodeMarker brings this workflow directly into Obsidian, so your research notes, 
 - **Labels**: Code names appear centered on their bars with smart collision avoidance
 - **Bidirectional hover**: Hover a bar in the margin and the corresponding text highlights; hover coded text and the margin bars highlight back
 - **Clickable labels**: Click a code label in the margin to open its detail panel
-- **Gutter-aware layout**: The margin panel correctly respects line number gutters, avoiding overlap when line numbers are enabled
 
 ### Code Explorer
 

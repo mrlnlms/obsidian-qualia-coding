@@ -21,8 +21,6 @@ export const setSelectionPreviewEffect = StateEffect.define<{from: number, to: n
 interface MarkerFieldState {
 	decorations: DecorationSet;
 	selectionPreview: DecorationSet;
-	hoveredMarkerId: string | null;
-	hoveredMarkerIds: string[];
 	fileId: string | null;
 	instanceId: string;
 }
@@ -35,8 +33,6 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 			return {
 				decorations: Decoration.none,
 				selectionPreview: Decoration.none,
-				hoveredMarkerId: null,
-				hoveredMarkerIds: [],
 				fileId: null,
 				instanceId
 			};
@@ -46,8 +42,6 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 			// Map decorations through document changes (CM6 standard)
 			let decorations = state.decorations.map(tr.changes);
 			let selectionPreview = state.selectionPreview.map(tr.changes);
-			let hoveredMarkerId = state.hoveredMarkerId;
-			let hoveredMarkerIds = state.hoveredMarkerIds;
 			let fileId = state.fileId;
 			let needsRebuild = false;
 
@@ -64,32 +58,10 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 						needsRebuild = true;
 					}
 				}
-				else if (effect.is(setHoverEffect)) {
-					const { markerId, hoveredIds } = effect.value;
-
-					// Validate marker belongs to this file
-					if (markerId) {
-						const marker = model.getMarkerById(markerId);
-						if (!marker || marker.fileId !== fileId) {
-							continue;
-						}
-					}
-
-					// Validate hoveredIds belong to this file
-					const validatedIds = (hoveredIds ?? (markerId ? [markerId] : [])).filter(id => {
-						const m = model.getMarkerById(id);
-						return m && m.fileId === fileId;
-					});
-
-					const idsChanged = validatedIds.length !== hoveredMarkerIds.length ||
-						validatedIds.some((id, i) => id !== hoveredMarkerIds[i]);
-
-					if (markerId !== hoveredMarkerId || idsChanged) {
-						hoveredMarkerId = markerId;
-						hoveredMarkerIds = validatedIds;
-						needsRebuild = true;
-					}
-				}
+				// NOTE: setHoverEffect is intentionally NOT handled here.
+				// Hover state is managed by ViewPlugins (markerViewPlugin + marginPanelExtension)
+				// which read the effect directly in their update() methods.
+				// No decoration rebuild needed for hover changes.
 				else if (effect.is(updateFileMarkersEffect)) {
 					const { fileId: effectFileId } = effect.value;
 					if (effectFileId === fileId) {
@@ -112,15 +84,13 @@ export const createMarkerStateField = (model: CodeMarkerModel) => {
 			}
 
 			if (needsRebuild && fileId) {
-				decorations = buildDecorationsForFile(tr.state, model, fileId, hoveredMarkerId, hoveredMarkerIds);
+				decorations = buildDecorationsForFile(tr.state, model, fileId);
 			}
 
 			return {
 				fileId,
 				decorations,
 				selectionPreview,
-				hoveredMarkerId,
-				hoveredMarkerIds,
 				instanceId: state.instanceId
 			};
 		},
@@ -202,8 +172,6 @@ function buildDecorationsForFile(
 	state: EditorState,
 	model: CodeMarkerModel,
 	fileId: string,
-	hoveredMarkerId: string | null = null,
-	hoveredMarkerIds: string[] = [],
 ): DecorationSet {
 	const builder = new RangeSetBuilder<Decoration>();
 

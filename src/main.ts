@@ -22,7 +22,7 @@ export default class CodeMarkerPlugin extends Plugin {
 	private ribbonIconEl: HTMLElement | null = null;
 
 	async onload() {
-		console.log('[CodeMarker v2] v31.6 loaded — CM6 sync + line number gutter fix');
+		console.log('[CodeMarker v2] v32 loaded — Dead code removal + hover sync fix + dead state perf');
 		await this.loadSettings();
 
 		// Initialize data model

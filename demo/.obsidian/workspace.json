@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2026-02-20_v38.12-analytics-board-fixes-rightclick-dragdrop/test-note.md",
+                "file": "2026-02-26_v31.6-cm6-sync-line-number-gutter-fix/test-note.md",
                 "mode": "source",
                 "source": false,
                 "backlinks": false
@@ -104,27 +104,17 @@
             }
           },
           {
-            "id": "fe08c960f92f7da8",
+            "id": "82a765da54effcba",
             "type": "leaf",
             "state": {
               "type": "codemarker-detail",
               "state": {},
               "icon": "tag",
-              "title": "marlon"
-            }
-          },
-          {
-            "id": "c80ec1815ecc5336",
-            "type": "leaf",
-            "state": {
-              "type": "codemarker-pdf-detail",
-              "state": {},
-              "icon": "tag",
-              "title": "mm"
+              "title": "Code Detail"
             }
           }
         ],
-        "currentTab": 2
+        "currentTab": 1
       }
     ],
     "direction": "horizontal",
@@ -144,8 +134,11 @@
       "obsidian-codemarker-video:CodeMarker Video": false
     }
   },
-  "active": "f27ba6290a21d137",
+  "active": "82a765da54effcba",
   "lastOpenFiles": [
+    "2026-02-27_v32-dead-code-removal-hover-sync-fix/test-note.md",
+    "2026-02-27_v32-dead-code-removal-hover-sync-fix",
+    "2026-02-20_v38.12-analytics-board-fixes-rightclick-dragdrop/test-note.md",
     "2026-02-26_v31.6-cm6-sync-line-number-gutter-fix/test-note.md",
     "2026-02-26_v31.6-cm6-sync-line-number-gutter-fix",
     "2026-02-26_v31.5-label-click-reveals-sidebar/test-note.md",
@@ -164,7 +157,6 @@
     "2026-02-19_v37-video-engine",
     "let.mp4",
     "2026-02-19_v36.6-audio-colored-bars-minimap-ruler-fixes/test-note.md",
-    "2026-02-19_v36.6-audio-colored-bars-minimap-ruler-fixes",
     "2026-02-19_v36.5-audio-play-region-minimap-autoscroll/test-note.md",
     "2026-02-19_v36.4-audio-file-interceptor-zoom-guards/test-note.md",
     "2026-02-19_v36.3-audio-timeline-ruler-region-lanes/test-note.md",
@@ -179,9 +171,7 @@
     "2026-02-19_v35.4-pdf-drag-handles-text-selection/test-note.md",
     "2026-02-19_v35.3-pdf-margin-panel-undo-redo/test-note.md",
     "2026-02-19_v35.2-bidirectional-hover-rename-tracking/test-note.md",
-    "2026-02-20_v38.12-analytics-board-fixes-rightclick-dragdrop/test-note.md",
     "2026-02-19_v35.1-initial-pdf-codeformmodal/test-note.md",
-    "2026-02-19_v38.2-analytics-matrix-code-evolution/test-note.md",
     "original-88d78341487bd94fac95ae37737a6b42-1024x683.jpg",
     "Pasted image 20260216114853.png",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",

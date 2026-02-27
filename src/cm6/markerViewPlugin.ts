@@ -398,6 +398,19 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 					model.markDirtyForSave();
 				}
 
+				// Sync hover state from external dispatchers (margin panel, etc.)
+				// so overlay handles render for the correct marker.
+				for (const tr of update.transactions) {
+					for (const effect of tr.effects) {
+						if (effect.is(setHoverEffect)) {
+							const { markerId, hoveredIds } = effect.value;
+							this.hoveredMarkerId = markerId;
+							this.hoveredMarkerIds = hoveredIds ?? (markerId ? [markerId] : []);
+							this.isInPartialOverlap = (hoveredIds?.length ?? 0) > 1 && markerId === null;
+						}
+					}
+				}
+
 				// Schedule handle overlay render via requestMeasure (layout reads are safe there)
 				this.scheduleHandleOverlayRender(update.view);
 			}
@@ -419,45 +432,9 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 		},
 		{
 			eventHandlers: {
-				// MOUSEDOWN: Detect handle drag start
-				mousedown(event: MouseEvent, view: EditorView) {
-					const target = event.target as HTMLElement;
-
-					if (target.tagName === 'svg' ||
-						target.tagName === 'rect' ||
-						target.tagName === 'circle' ||
-						target.classList.contains('codemarker-circle') ||
-						target.classList.contains('codemarker-line') ||
-						target.classList.contains('codemarker-handle-svg')) {
-
-						const markerId = target.getAttribute('data-marker-id') ||
-							target.closest('[data-marker-id]')?.getAttribute('data-marker-id');
-						const handleType = target.getAttribute('data-handle-type') ||
-							target.closest('[data-handle-type]')?.getAttribute('data-handle-type');
-
-						if (markerId && handleType && (handleType === 'start' || handleType === 'end')) {
-							event.preventDefault();
-							event.stopPropagation();
-
-							this.dragging = { markerId, type: handleType as 'start' | 'end' };
-
-							document.body.classList.add('codemarker-dragging');
-							if (handleType === 'start') {
-								document.body.classList.add('codemarker-dragging-start');
-							} else {
-								document.body.classList.add('codemarker-dragging-end');
-							}
-
-							view.dispatch({
-								effects: startDragEffect.of({ markerId, type: handleType as 'start' | 'end' })
-							});
-
-							return true;
-						}
-					}
-
-					return false;
-				},
+				// NOTE: mousedown for handle drag is on the overlay div
+				// (createHandleOverlay), because SVGs live outside contentDOM.
+				// CM6 eventHandlers only see contentDOM events.
 
 				// MOUSEMOVE: Drag + Hover
 				mousemove(event: MouseEvent, view: EditorView) {
