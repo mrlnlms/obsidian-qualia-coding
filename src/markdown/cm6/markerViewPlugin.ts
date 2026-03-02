@@ -496,10 +496,13 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 					model.markDirtyForSave();
 				}
 
-				// Sync hover state from external dispatchers (margin panel, etc.)
-				// so overlay handles render for the correct marker.
+				// Sync fileId, hover state from external dispatchers (margin panel, rename, etc.)
 				for (const tr of update.transactions) {
 					for (const effect of tr.effects) {
+						if (effect.is(setFileIdEffect)) {
+							this.fileId = effect.value.fileId;
+							this.fileIdSent = true;
+						}
 						if (effect.is(setHoverEffect)) {
 							const { markerId, hoveredIds } = effect.value;
 							this.hoveredMarkerId = markerId;

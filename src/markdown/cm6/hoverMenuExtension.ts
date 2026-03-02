@@ -1,6 +1,7 @@
 import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/view";
 import { CodeMarkerModel } from "../models/codeMarkerModel";
 import { showCodingMenuEffect } from "./selectionMenuField";
+import { setFileIdEffect } from "./markerStateField";
 import { SelectionSnapshot } from "../menu/menuTypes";
 import { findFileIdForEditorView, getViewForFile } from "./utils/viewLookupUtils";
 import { findSmallestMarkerAtPos, classifyMarkersAtPos } from "./utils/markerPositionUtils";
@@ -192,6 +193,14 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 
 			update(update: ViewUpdate) {
 				if (!this.fileId) this.identifyFile();
+
+				for (const tr of update.transactions) {
+					for (const effect of tr.effects) {
+						if (effect.is(setFileIdEffect)) {
+							this.fileId = effect.value.fileId;
+						}
+					}
+				}
 
 				// Detect external tooltip close (e.g. modal's onClose, command palette)
 				// and reset hover state so future hovers aren't blocked.

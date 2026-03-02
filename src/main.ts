@@ -34,7 +34,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	markdownModel: any; // Set by markdown engine
 
 	async onload() {
-		console.log('[Qualia Coding] v41 loaded — Fix hover/handles + feat Parquet CSV engine');
+		console.log('[Qualia Coding] v42 loaded — Color blending PDF + fixes');
 		this.dataManager = new DataManager(this);
 		await this.dataManager.load();
 

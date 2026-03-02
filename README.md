@@ -11,9 +11,9 @@ Built for researchers, UX professionals, and anyone doing qualitative analysis w
 | Format | What you can do |
 |---|---|
 | **Markdown** | Highlight text spans in the editor, MAXQDA-style margin panel, drag handles for resizing |
-| **PDF** | Highlight text selections (including cross-page), draw rectangles, polygons, and freehand shapes |
+| **PDF** | Highlight text selections (including cross-page) with per-code color blending, draw rectangles, polygons, and freehand shapes |
 | **Image** | Draw rectangular and polygonal regions on any image format (PNG, JPG, SVG, WebP, etc.) |
-| **CSV / Parquet** | Code individual cell text or entire rows in a spreadsheet grid. Parquet files rendered via hyparquet |
+| **CSV** | Code individual cell text or entire rows in a spreadsheet grid |
 | **Audio** | Create time-bounded regions on a waveform (MP3, WAV, OGG, FLAC, etc.) |
 | **Video** | Same as audio, with synchronized video playback (MP4, WebM) |
 

@@ -143,7 +143,7 @@ export class UnifiedCodeExplorerView extends BaseCodeExplorerView {
 	shortenPath(fileId: string): string {
 		const parts = fileId.split('/');
 		const name = parts[parts.length - 1] ?? fileId;
-		return name.replace(/\.(md|pdf|csv|png|jpg|jpeg|gif|bmp|webp|avif|svg|mp3|m4a|wav|ogg|flac|aac|wma|aiff|opus|webm|mp4|ogv)$/i, '');
+		return name.replace(/\.(md|pdf|csv|parquet|png|jpg|jpeg|gif|bmp|webp|avif|svg|mp3|m4a|wav|ogg|flac|aac|wma|aiff|opus|webm|mp4|ogv)$/i, '');
 	}
 }
 

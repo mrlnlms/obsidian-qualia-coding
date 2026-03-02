@@ -547,8 +547,6 @@ body.codemarker-pdf-drawing .codemarker-pdf-draw-layer {
    Code Detail View (sidebar)
    ======================================== */
 
-.codemarker-detail-marker-item:hover,
-
 /* Back button */
 
 /* Segment inline metadata (file ref + reveal link) */
@@ -2184,8 +2182,6 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 /* ========================================
    Code Detail View (sidebar)
    ======================================== */
-
-.codemarker-detail-marker-item:hover,
 
 /* ========================================
    Code Explorer — tree view

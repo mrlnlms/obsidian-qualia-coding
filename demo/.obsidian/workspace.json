@@ -112,9 +112,19 @@
               "icon": "tags",
               "title": "Code Explorer"
             }
+          },
+          {
+            "id": "4e2fc8944f153c46",
+            "type": "leaf",
+            "state": {
+              "type": "qualia-code-detail",
+              "state": {},
+              "icon": "tag",
+              "title": "Code Detail"
+            }
           }
         ],
-        "currentTab": 1
+        "currentTab": 2
       }
     ],
     "direction": "horizontal",
@@ -129,7 +139,7 @@
       "bases:Create new base": false
     }
   },
-  "active": "785e0f5faa67464a",
+  "active": "4e2fc8944f153c46",
   "lastOpenFiles": [
     "2026-03-02_v41-fix-hover-handles-parquet-csv/test-note.md",
     "2026-03-02_v40-fix-margin-panel-rename/test-note.md",

@@ -14,6 +14,18 @@ import { getTextLayerInfo } from './pdfViewerAccess';
 
 const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
 const HIGHLIGHT_CLASS = 'codemarker-pdf-highlight';
+const BASE_OPACITY = 0.35;
+
+/** Resolve per-code colors for a marker. Returns array of hex colors. */
+function resolveCodeColors(marker: PdfMarker, registry: CodeDefinitionRegistry): string[] {
+	if (marker.colorOverride) return [marker.colorOverride];
+	const colors: string[] = [];
+	for (const codeName of marker.codes) {
+		const def = registry.getByName(codeName);
+		if (def) colors.push(def.color);
+	}
+	return colors.length > 0 ? colors : ['#FFEB3B'];
+}
 
 // Hover popover timing (exported for shared use by drawLayer)
 export const HOVER_OPEN_DELAY = 400;  // ms before opening popover on hover
@@ -136,7 +148,8 @@ export function renderHighlightsForPage(
 	for (const marker of markers) {
 		if (marker.codes.length === 0) continue;
 
-		const color = marker.colorOverride ?? registry.getColorForCodes(marker.codes) ?? '#FFEB3B';
+		const codeColors = resolveCodeColors(marker, registry);
+		const perCodeOpacity = codeColors.length > 1 ? BASE_OPACITY / codeColors.length : undefined;
 
 		let mergedRects: MergedRect[];
 		try {
@@ -157,16 +170,25 @@ export function renderHighlightsForPage(
 		let lastRectEl: HTMLElement | null = null;
 
 		for (const { rect } of mergedRects) {
-			const rectEl = placeRectInPage(rect, pageView, layer, HIGHLIGHT_CLASS);
-			rectEl.dataset.markerId = marker.id;
-			rectEl.style.backgroundColor = color;
+			let lastLayerEl: HTMLElement | null = null;
+			for (const color of codeColors) {
+				const rectEl = placeRectInPage(rect, pageView, layer, HIGHLIGHT_CLASS);
+				rectEl.dataset.markerId = marker.id;
+				rectEl.style.backgroundColor = color;
+				if (perCodeOpacity !== undefined) {
+					rectEl.style.opacity = String(perCodeOpacity);
+				}
+				lastLayerEl = rectEl;
+			}
 
-			if (!firstRectEl) firstRectEl = rectEl;
-			lastRectEl = rectEl;
+			if (!firstRectEl) firstRectEl = lastLayerEl;
+			lastRectEl = lastLayerEl;
 
-			// Tooltip with code names
-			const codeNames = marker.codes.join(', ');
-			setTooltip(rectEl, codeNames);
+			// Tooltip with code names on the topmost layer
+			if (lastLayerEl) {
+				const codeNames = marker.codes.join(', ');
+				setTooltip(lastLayerEl, codeNames);
+			}
 		}
 
 		if (firstRectEl && lastRectEl) {
@@ -175,7 +197,7 @@ export function renderHighlightsForPage(
 				firstRectEl,
 				lastRectEl,
 				mergedRects,
-				color,
+				color: codeColors[0]!,
 			});
 		}
 	}
@@ -370,12 +392,24 @@ export function showHandlesForMarker(container: HTMLElement, markerIds: string |
  * Apply or remove hover class on highlights matching a marker ID.
  */
 export function applyHoverToHighlights(container: HTMLElement, markerId: string | null): void {
+	const HOVER_OPACITY = 0.55;
 	const highlights = Array.from(container.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_CLASS}`));
 	for (const el of highlights) {
 		if (markerId && el.dataset.markerId === markerId) {
 			el.classList.add('codemarker-pdf-highlight-hovered');
+			// Multi-code layers have inline opacity — scale up for hover
+			if (el.style.opacity) {
+				el.dataset.baseOpacity = el.style.opacity;
+				const base = parseFloat(el.style.opacity);
+				el.style.opacity = String(base * (HOVER_OPACITY / BASE_OPACITY));
+			}
 		} else {
 			el.classList.remove('codemarker-pdf-highlight-hovered');
+			// Restore base opacity for multi-code layers
+			if (el.dataset.baseOpacity) {
+				el.style.opacity = el.dataset.baseOpacity;
+				delete el.dataset.baseOpacity;
+			}
 		}
 	}
 }
@@ -401,7 +435,8 @@ export function updateHighlightRectsForMarker(
 	const textLayerInfo = getTextLayerInfo(pageView);
 	if (!textLayerInfo) return;
 
-	const color = marker.colorOverride ?? registry.getColorForCodes(marker.codes) ?? '#FFEB3B';
+	const codeColors = resolveCodeColors(marker, registry);
+	const perCodeOpacity = codeColors.length > 1 ? BASE_OPACITY / codeColors.length : undefined;
 
 	let mergedRects: MergedRect[];
 	try {
@@ -418,11 +453,18 @@ export function updateHighlightRectsForMarker(
 	let lastRectEl: HTMLElement | null = null;
 
 	for (const { rect } of mergedRects) {
-		const rectEl = placeRectInPage(rect, pageView, layer, HIGHLIGHT_CLASS);
-		rectEl.dataset.markerId = marker.id;
-		rectEl.style.backgroundColor = color;
-		if (!firstRectEl) firstRectEl = rectEl;
-		lastRectEl = rectEl;
+		let lastLayerEl: HTMLElement | null = null;
+		for (const color of codeColors) {
+			const rectEl = placeRectInPage(rect, pageView, layer, HIGHLIGHT_CLASS);
+			rectEl.dataset.markerId = marker.id;
+			rectEl.style.backgroundColor = color;
+			if (perCodeOpacity !== undefined) {
+				rectEl.style.opacity = String(perCodeOpacity);
+			}
+			lastLayerEl = rectEl;
+		}
+		if (!firstRectEl) firstRectEl = lastLayerEl;
+		lastRectEl = lastLayerEl;
 	}
 
 	// Reposition existing handles to match new rects
