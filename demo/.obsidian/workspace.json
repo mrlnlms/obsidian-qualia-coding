@@ -104,13 +104,13 @@
             }
           },
           {
-            "id": "82a765da54effcba",
+            "id": "977c4ced7ff77432",
             "type": "leaf",
             "state": {
-              "type": "codemarker-detail",
+              "type": "qualia-code-explorer",
               "state": {},
-              "icon": "tag",
-              "title": "Code Detail"
+              "icon": "tags",
+              "title": "Code Explorer"
             }
           }
         ],
@@ -126,16 +126,13 @@
       "canvas:Create new canvas": false,
       "command-palette:Open command palette": false,
       "bases:Create new base": false,
-      "obsidian-codemarker-v2:Code Selection": false,
-      "obsidian-codemarker-csv:Code Selection": false,
-      "obsidian-codemarker-csv:CSV Code Explorer": false,
-      "obsidian-codemarker-pdf:PDF Code Explorer": false,
-      "obsidian-codemarker-audio:CodeMarker Audio": false,
-      "obsidian-codemarker-video:CodeMarker Video": false
+      "qualia-coding:Code Selection": false
     }
   },
-  "active": "82a765da54effcba",
+  "active": "977c4ced7ff77432",
   "lastOpenFiles": [
+    "2026-03-02_v39-qualia-consolidation/test-note.md",
+    "2026-03-02_v39-qualia-consolidation",
     "2026-02-27_v32-dead-code-removal-hover-sync-fix/test-note.md",
     "2026-02-27_v32-dead-code-removal-hover-sync-fix",
     "2026-02-20_v38.12-analytics-board-fixes-rightclick-dragdrop/test-note.md",
@@ -155,7 +152,6 @@
     "2026-02-20_v30-analytics-viewmodes-docs",
     "2026-02-19_v37-video-engine/test-note.md",
     "2026-02-19_v37-video-engine",
-    "let.mp4",
     "2026-02-19_v36.6-audio-colored-bars-minimap-ruler-fixes/test-note.md",
     "2026-02-19_v36.5-audio-play-region-minimap-autoscroll/test-note.md",
     "2026-02-19_v36.4-audio-file-interceptor-zoom-guards/test-note.md",
@@ -171,7 +167,6 @@
     "2026-02-19_v35.4-pdf-drag-handles-text-selection/test-note.md",
     "2026-02-19_v35.3-pdf-margin-panel-undo-redo/test-note.md",
     "2026-02-19_v35.2-bidirectional-hover-rename-tracking/test-note.md",
-    "2026-02-19_v35.1-initial-pdf-codeformmodal/test-note.md",
     "original-88d78341487bd94fac95ae37737a6b42-1024x683.jpg",
     "Pasted image 20260216114853.png",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",

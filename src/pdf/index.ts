@@ -1,0 +1,296 @@
+import { TFile, Notice } from 'obsidian';
+import type QualiaCodingPlugin from '../main';
+import type { EngineCleanup } from '../core/types';
+import { registerFileRename } from '../core/fileInterceptor';
+import { PdfCodingModel } from './pdfCodingModel';
+import { capturePdfSelection, detectCrossPageSelection, captureCrossPageSelection, type PdfSelectionResult } from './selectionCapture';
+import { PdfPageObserver } from './pageObserver';
+import { DrawInteraction } from './drawInteraction';
+import { DrawToolbar } from './drawToolbar';
+import { openPdfCodingPopover, openShapeCodingPopover } from './pdfCodingMenu';
+import { renderSelectionPreview } from './highlightRenderer';
+import type { PDFViewerChild } from './pdfTypings';
+import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
+
+export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineCleanup {
+	// Use shared registry from plugin (single instance for all engines)
+	const registry = plugin.sharedRegistry;
+
+	// Create model
+	const model = new PdfCodingModel(plugin.dataManager, registry);
+	model.load();
+
+	// Expose model on plugin for cross-engine access
+	(plugin as any).pdfModel = model;
+
+	// State tracking
+	const instrumentedViewers = new WeakSet<PDFViewerChild>();
+	const observers = new Map<PDFViewerChild, PdfPageObserver>();
+	const drawInteractions = new Map<PDFViewerChild, DrawInteraction>();
+	const drawToolbars = new Map<PDFViewerChild, DrawToolbar>();
+
+	// ── Helper functions ──
+
+	function openPopoverForMarkerAtElement(marker: PdfMarker, anchorEl: HTMLElement, onRefresh: () => void) {
+		const selectionResult: PdfSelectionResult = {
+			file: marker.file,
+			page: marker.page,
+			beginIndex: marker.beginIndex,
+			beginOffset: marker.beginOffset,
+			endIndex: marker.endIndex,
+			endOffset: marker.endOffset,
+			text: marker.text,
+		};
+		const rect = anchorEl.getBoundingClientRect();
+		const pos = { x: rect.left, y: rect.bottom };
+		openPdfCodingPopover(null, model, selectionResult, onRefresh, pos, plugin.app, marker.id);
+	}
+
+	function cleanupOrphanedObservers() {
+		for (const [child, observer] of observers) {
+			if (child.unloaded) {
+				observer.stop();
+				observers.delete(child);
+
+				const interaction = drawInteractions.get(child);
+				if (interaction) {
+					interaction.stop();
+					drawInteractions.delete(child);
+				}
+
+				const toolbar = drawToolbars.get(child);
+				if (toolbar) {
+					toolbar.unmount();
+					drawToolbars.delete(child);
+				}
+			}
+		}
+	}
+
+	function instrumentPdfView(view: any) {
+		const component = view.viewer as any;
+		if (!component) return;
+
+		component.then((child: PDFViewerChild) => {
+			if (instrumentedViewers.has(child)) return;
+			instrumentedViewers.add(child);
+
+			const refreshObserver = () => {
+				const obs = observers.get(child);
+				if (obs) obs.refreshAll();
+			};
+
+			// Create page observer for highlights + shapes
+			const observer = new PdfPageObserver(child, model, {
+				onMarkerClick: (markerId, codeName) => {
+					document.dispatchEvent(new CustomEvent('codemarker:label-click', {
+					detail: { markerId, codeName },
+				}));
+				},
+				onMarkerHoverPopover: (marker: PdfMarker, anchorEl: HTMLElement) => {
+					openPopoverForMarkerAtElement(marker, anchorEl, refreshObserver);
+				},
+				onShapeClick: (shapeId, codeName) => {
+					document.dispatchEvent(new CustomEvent('codemarker:label-click', {
+						detail: { markerId: shapeId, codeName },
+					}));
+				},
+				onShapeDoubleClick: (shape: PdfShapeMarker, anchorEl: SVGElement) => {
+					const rect = anchorEl.getBoundingClientRect();
+					openShapeCodingPopover(
+						{ x: rect.left, y: rect.bottom },
+						model,
+						shape.id,
+						refreshObserver,
+						plugin.app,
+					);
+				},
+				onShapeHoverPopover: (shape: PdfShapeMarker, anchorEl: SVGElement) => {
+					const rect = anchorEl.getBoundingClientRect();
+					openShapeCodingPopover(
+						{ x: rect.left, y: rect.bottom },
+						model,
+						shape.id,
+						refreshObserver,
+						plugin.app,
+					);
+				},
+			});
+			observer.start();
+			observers.set(child, observer);
+
+			// Track last mouse position for popover placement after shape creation
+			let lastMousePos = { x: 0, y: 0 };
+			const trackMouse = (e: MouseEvent) => { lastMousePos = { x: e.clientX, y: e.clientY }; };
+			child.containerEl.addEventListener('mousemove', trackMouse);
+			child.containerEl.addEventListener('mouseup', trackMouse);
+
+			// Create draw interaction and toolbar
+			const drawInteraction = new DrawInteraction(child, model, {
+				onShapeCreated: (file, page, coords) => {
+					const shape = model.createShape(file, page, coords);
+					const shapeEls = child.containerEl.querySelectorAll(`[data-shape-id="${shape.id}"]`);
+					const anchorEl = shapeEls[0] as SVGElement | undefined;
+					const pos = anchorEl
+						? { x: anchorEl.getBoundingClientRect().left, y: anchorEl.getBoundingClientRect().bottom }
+						: lastMousePos;
+
+					openShapeCodingPopover(
+						pos,
+						model,
+						shape.id,
+						refreshObserver,
+						plugin.app,
+					);
+				},
+				onShapeSelected: (_shapeId) => {
+					// Could update sidebar, for now just visual
+				},
+				onShapeMoved: (shapeId, coords) => {
+					model.updateShapeCoords(shapeId, coords);
+				},
+			});
+			drawInteraction.start();
+			drawInteractions.set(child, drawInteraction);
+
+			const toolbar = new DrawToolbar(drawInteraction);
+			toolbar.mount(child.containerEl);
+			drawToolbars.set(child, toolbar);
+
+			// Listen for mouseup to capture text selection
+			const container = child.containerEl;
+			const mouseupHandler = (evt: MouseEvent) => {
+				if (child.unloaded) {
+					container.removeEventListener('mouseup', mouseupHandler);
+					return;
+				}
+				const di = drawInteractions.get(child);
+				if (di && di.getMode() !== 'select') return;
+
+				setTimeout(() => {
+					const filePath = child.file?.path;
+					if (!filePath) return;
+
+					if (detectCrossPageSelection()) {
+						const crossResults = captureCrossPageSelection(filePath, child);
+						if (!crossResults) return;
+
+						// Render selection preview on each page before popover steals focus
+						const cleanups: (() => void)[] = [];
+						for (const r of crossResults) {
+							try {
+								const pv = child.getPage(r.page);
+								if (pv) {
+									const cleanup = renderSelectionPreview(pv, r.beginIndex, r.beginOffset, r.endIndex, r.endOffset);
+									if (cleanup) cleanups.push(cleanup);
+								}
+							} catch { /* skip */ }
+						}
+
+						openPdfCodingPopover(
+							evt,
+							model,
+							crossResults,
+							refreshObserver,
+							undefined,
+							plugin.app,
+							undefined,
+							() => cleanups.forEach(fn => fn()),
+						);
+						return;
+					}
+
+					const result = capturePdfSelection(filePath);
+					if (!result) return;
+
+					// Render selection preview before popover steals focus
+					let previewCleanup: (() => void) | null = null;
+					try {
+						const pv = child.getPage(result.page);
+						if (pv) {
+							previewCleanup = renderSelectionPreview(pv, result.beginIndex, result.beginOffset, result.endIndex, result.endOffset);
+						}
+					} catch { /* skip */ }
+
+					openPdfCodingPopover(
+						evt,
+						model,
+						result,
+						refreshObserver,
+						undefined,
+						plugin.app,
+						undefined,
+						previewCleanup ?? undefined,
+					);
+				}, 50);
+			};
+			container.addEventListener('mouseup', mouseupHandler);
+		});
+	}
+
+	// ── Commands ──
+	// Nav arrow events (codemarker:label-click, codemarker:code-click) are handled
+	// by the unified listeners in markdown/index.ts — no duplicate handlers needed.
+
+	plugin.addCommand({
+		id: 'undo-pdf-coding',
+		name: 'Undo last PDF coding action',
+		callback: () => {
+			if (!model.undo()) {
+				new Notice('Nothing to undo.');
+			}
+		},
+	});
+
+	// ── Listen for PDF views ──
+
+	plugin.registerEvent(
+		plugin.app.workspace.on('active-leaf-change', (leaf) => {
+			if (!leaf) return;
+			const view = leaf.view as any;
+			if (view?.getViewType?.() === 'pdf' && view.viewer) {
+				instrumentPdfView(view);
+			}
+		})
+	);
+
+	// Instrument already-open PDF views
+	plugin.app.workspace.iterateAllLeaves((leaf) => {
+		const view = leaf.view as any;
+		if (view?.getViewType?.() === 'pdf' && view.viewer) {
+			instrumentPdfView(view);
+		}
+	});
+
+	// Clean up observers when leaves close
+	plugin.registerEvent(
+		plugin.app.workspace.on('layout-change', () => {
+			cleanupOrphanedObservers();
+		})
+	);
+
+	// File rename tracking (centralized)
+	registerFileRename({
+		extensions: new Set(['pdf']),
+		onRename: (oldPath, newPath) => model.migrateFilePath(oldPath, newPath),
+	});
+
+	// ── Return cleanup function ──
+
+	return () => {
+		for (const [, observer] of observers) {
+			observer.stop();
+		}
+		observers.clear();
+
+		for (const [, interaction] of drawInteractions) {
+			interaction.stop();
+		}
+		drawInteractions.clear();
+
+		for (const [, toolbar] of drawToolbars) {
+			toolbar.unmount();
+		}
+		drawToolbars.clear();
+	};
+}

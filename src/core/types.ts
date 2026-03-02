@@ -1,0 +1,119 @@
+import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+import type { CodeMarkerSettings } from '../markdown/models/settings';
+
+// ─── Base interfaces for sidebar views (all engines) ─────────────
+
+export interface BaseMarker {
+	id: string;
+	fileId: string;
+	codes: string[];
+	colorOverride?: string;
+	memo?: string;
+	createdAt: number;
+	updatedAt: number;
+}
+
+export interface SidebarModelInterface {
+	registry: CodeDefinitionRegistry;
+	onChange(fn: () => void): void;
+	offChange(fn: () => void): void;
+	getAllMarkers(): BaseMarker[];
+	getMarkerById(id: string): BaseMarker | null;
+	getAllFileIds(): string[];
+	getMarkersForFile(fileId: string): BaseMarker[];
+
+	saveMarkers(): void;
+
+	/** Update mutable fields (memo, colorOverride) on a marker by ID. */
+	updateMarkerFields(markerId: string, fields: { memo?: string | undefined; colorOverride?: string | undefined }): void;
+
+	/** Force CM6 decoration rebuild for a file (e.g. after color change). */
+	updateDecorations(fileId: string): void;
+
+	/** Delete a single marker/segment by ID. */
+	removeMarker(markerId: string): boolean;
+
+	/** Delete a code definition and remove it from all markers. */
+	deleteCode(codeName: string): void;
+
+	/** Optional: whether clicking a segment auto-navigates to the document. */
+	getAutoRevealOnSegmentClick?(): boolean;
+
+	// Hover state (bidirectional: sidebar ↔ main view)
+	setHoverState(markerId: string | null, codeName: string | null, hoveredIds?: string[]): void;
+	getHoverMarkerId(): string | null;
+	getHoverMarkerIds(): string[];
+	onHoverChange(fn: () => void): void;
+	offHoverChange(fn: () => void): void;
+}
+
+// ─── Code definition ─────────────────────────────────────────────
+
+export interface CodeDefinition {
+	id: string;
+	name: string;
+	color: string;
+	description?: string;
+	paletteIndex: number;
+	createdAt: number;
+	updatedAt: number;
+}
+
+export type EngineCleanup = () => void | Promise<void>;
+
+export interface QualiaData {
+	registry: {
+		definitions: Record<string, CodeDefinition>;
+		nextPaletteIndex: number;
+	};
+	markdown: { markers: Record<string, any[]>; settings: CodeMarkerSettings };
+	csv: { segmentMarkers: any[]; rowMarkers: any[] };
+	image: { markers: any[]; settings: { autoOpenImages: boolean } };
+	pdf: { markers: any[]; shapes: any[] };
+	audio: {
+		files: any[];
+		settings: {
+			defaultZoom: number;
+			regionOpacity: number;
+			showLabelsOnRegions: boolean;
+			fileStates: Record<string, any>;
+		};
+	};
+	video: {
+		files: any[];
+		settings: {
+			defaultZoom: number;
+			regionOpacity: number;
+			showLabelsOnRegions: boolean;
+			videoFit: string;
+			fileStates: Record<string, any>;
+		};
+	};
+}
+
+export function createDefaultData(): QualiaData {
+	return {
+		registry: { definitions: {}, nextPaletteIndex: 0 },
+		markdown: { markers: {}, settings: {
+			defaultColor: '#6200EE',
+			markerOpacity: 0.4,
+			showHandlesOnHover: true,
+			handleSize: 12,
+			showMenuOnSelection: true,
+			showMenuOnRightClick: true,
+			showRibbonButton: true,
+			autoRevealOnSegmentClick: true,
+		} },
+		csv: { segmentMarkers: [], rowMarkers: [] },
+		image: { markers: [], settings: { autoOpenImages: true } },
+		pdf: { markers: [], shapes: [] },
+		audio: {
+			files: [],
+			settings: { defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, fileStates: {} },
+		},
+		video: {
+			files: [],
+			settings: { defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, videoFit: 'contain', fileStates: {} },
+		},
+	};
+}

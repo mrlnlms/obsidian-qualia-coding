@@ -1,146 +1,116 @@
-# CodeMarker v2
+# Qualia Coding
 
-Qualitative text coding plugin for [Obsidian](https://obsidian.md), inspired by professional QDA tools like MAXQDA and ATLAS.ti.
+Qualitative data analysis inside Obsidian. Code text, PDFs, images, spreadsheets, audio, and video — all from one plugin, with unified sidebar and cross-format analytics.
 
-Select any text, assign codes, and build a structured analysis — all without leaving your notes. Your markdown files stay clean; all annotations live in the plugin's data layer.
-
----
-
-## What is Qualitative Coding?
-
-Qualitative coding is the process of labeling passages of text with descriptive tags ("codes") to identify themes, patterns, and categories in your data. It's widely used in academic research, UX research, journalism, and content analysis.
-
-CodeMarker brings this workflow directly into Obsidian, so your research notes, interview transcripts, and field notes can be coded in the same place where you write and think.
-
----
+Built for researchers, UX professionals, and anyone doing qualitative analysis who wants to keep everything in one place.
 
 ## Features
 
-### Text Coding
+### 6 annotation engines
 
-- **Select & code**: Select any text and assign one or more codes to it
-- **Multi-code markers**: A single text passage can carry multiple codes simultaneously
-- **Toggle codes**: Quick on/off toggles for each code in the floating menu
-- **Smart overlap**: When markers overlap, the plugin intelligently resolves which one to interact with (smallest marker wins for nested, rightmost start wins for partial overlap)
-- **Drag-resize handles**: Adjust marker boundaries directly in the editor by dragging handles that appear on hover
+| Format | What you can do |
+|---|---|
+| **Markdown** | Highlight text spans in the editor, MAXQDA-style margin panel, drag handles for resizing |
+| **PDF** | Highlight text selections (including cross-page), draw rectangles, polygons, and freehand shapes |
+| **Image** | Draw rectangular and polygonal regions on any image format (PNG, JPG, SVG, WebP, etc.) |
+| **CSV** | Code individual cell text or entire rows in a spreadsheet grid |
+| **Audio** | Create time-bounded regions on a waveform (MP3, WAV, OGG, FLAC, etc.) |
+| **Video** | Same as audio, with synchronized video playback (MP4, WebM) |
 
-### Code Management
+### Unified code system
 
-- **Code definitions**: Each code has a persistent identity with a name, color, and optional description
-- **Auto color palette**: 12 visually distinct colors are assigned automatically as you create codes
-- **Create codes inline**: Add new codes directly from the coding menu without interrupting your flow
-- **Custom colors**: Override the auto palette with any color via the color picker
+- One set of codes shared across all formats
+- Create, rename, and color-code your codes from any engine
+- Codes assigned to a PDF marker show up alongside markdown highlights in the same sidebar
 
-### Margin Panel (MAXQDA-style)
+### Sidebar views
 
-- **Colored bars**: Each coded passage is represented by a colored vertical bar in the left margin, one per code
-- **Labels**: Code names appear centered on their bars with smart collision avoidance
-- **Bidirectional hover**: Hover a bar in the margin and the corresponding text highlights; hover coded text and the margin bars highlight back
-- **Clickable labels**: Click a code label in the margin to open its detail panel
+- **Code Explorer** — tree view of all codes across all files and formats, with search and filter
+- **Code Detail** — three display modes: list, code-focused, and marker-focused, with memo editing and color overrides
 
-### Code Explorer
+### 19 analytics views
 
-- **Tree view**: Browse all codes in a collapsible tree organized by Code > File > Segment
-- **Segment counts**: See how many coded passages each code has, broken down by file
-- **Click to navigate**: Click any segment to scroll the editor to that exact position
-- **Toolbar controls**: Expand/collapse all codes or all files independently with dedicated buttons
+| Category | Views |
+|---|---|
+| **Descriptive** | Dashboard, Frequency, Co-occurrence matrix |
+| **Visual** | Force-directed graph, Word cloud |
+| **Exploratory** | Document-code matrix, Source comparison, Code overlap |
+| **Multivariate** | MCA biplot, MDS scatter (2D/3D), Dendrogram |
+| **Sequential** | Evolution over time, Lag sequential analysis, Polar coordinates |
+| **Inferential** | Chi-square independence test, Decision tree |
+| **Retrieval** | Full-text search with code filtering, Text statistics |
 
-### Code Detail Panel
+### Research Board
 
-- **Three navigation modes**:
-  - **List mode** — overview of all codes with color swatch, description, and segment count
-  - **Code-focused detail** — all segments for a specific code across all files, with text preview
-  - **Marker-focused detail** — details of a specific marker: text segment, other codes on the same passage, other markers with the same code
-- **Back navigation** — breadcrumb-style "All Codes" button to return to the list
-- **Cross-reference**: Click chips showing other codes on a marker to switch context; click other markers to navigate to them
+A freeform canvas for synthesizing findings:
 
-### Hover Menu
-
-- **Hover to inspect**: Hover over any coded text to see which codes are applied
-- **Edit in place**: Toggle codes on/off directly from the hover menu
-- **Smart timing**: 350ms delay to open (avoids accidental activation), 200ms delay to close (avoids flickering when moving between text and menu)
-
-### Theme Support
-
-- **Full dark/light mode**: The floating menu renders correctly in both Obsidian themes, using native Obsidian components (toggles, inputs, buttons) that respect the active theme
-- **Native look**: The UI matches Obsidian's design language — no foreign-looking panels
-
----
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| **Create marker from selection** | Creates a new marker from the current text selection |
-| **Open coding menu** | Opens the coding menu for the current selection or marker |
-| **Open Code Explorer** | Opens the Code Explorer sidebar panel |
-| **Reset all markers** | Removes all markers from the vault (use with caution) |
-
----
-
-## Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Default color | Fallback color for markers | `#6200EE` |
-| Marker opacity | Background opacity of highlights | `0.4` |
-| Show handles on hover | Display drag-resize handles when hovering markers | On |
-| Handle size | Size of the resize handles in pixels | `12` |
-| Show menu on selection | Automatically open coding menu when text is selected | On |
-| Show menu on right-click | Open coding menu via right-click context | On |
-| Show ribbon button | Display a CodeMarker icon in the left ribbon | On |
-
----
-
-## How It Works
-
-### Your Files Stay Clean
-
-CodeMarker does **not** modify your markdown files. All annotations (markers, codes, positions) are stored in the plugin's own data file (`.obsidian/plugins/obsidian-codemarker-v2/data.json`). Your notes remain pure markdown, fully portable and readable by any other tool.
-
-### Built on CodeMirror 6
-
-The plugin uses Obsidian's underlying editor engine (CodeMirror 6) for all visual elements: text highlights, resize handles, hover tooltips, and the margin panel. This means smooth integration with Obsidian's editor — no iframes, no foreign DOM, no performance hacks.
-
----
+- Sticky notes with color selection
+- Code cards with statistics
+- Excerpt nodes pulled from any marker
+- KPI cards for custom metrics
+- Arrow connections between nodes
+- Freehand drawing
+- Cluster frames for grouping
 
 ## Installation
 
+### From Community Plugins
+
+1. Open **Settings → Community plugins → Browse**
+2. Search for **Qualia Coding**
+3. Click **Install**, then **Enable**
+
 ### Manual
 
-1. Download the latest release (`main.js`, `manifest.json`, `styles.css`)
-2. Create `.obsidian/plugins/obsidian-codemarker-v2/` in your vault
-3. Place the files inside
-4. Enable the plugin in Obsidian Settings > Community Plugins
+1. Download `main.js`, `manifest.json`, and `styles.css` from the latest release
+2. Create a folder `your-vault/.obsidian/plugins/qualia-coding/`
+3. Place the three files inside
+4. Enable the plugin in **Settings → Community plugins**
 
-### From Source
+## Usage
 
-```bash
-cd your-vault/.obsidian/plugins/obsidian-codemarker-v2
-npm install
-npm run build
-```
+### Coding text
 
----
+1. Select text in any Markdown file
+2. A menu appears — type a code name or pick an existing one
+3. Toggle codes on/off, add a memo
 
-## Roadmap
+### Coding other formats
 
-CodeMarker is evolving toward a full qualitative data analysis platform inside Obsidian:
+- Open a PDF, image, CSV, audio, or video file
+- The plugin automatically opens it in the coding view
+- Select regions (text, shapes, time ranges, rows) and assign codes the same way
 
-| Phase | What | Status |
-|-------|------|--------|
-| Hover tooltip | Inspect & edit codes on hover | Done |
-| Code registry | Persistent code identity, colors, descriptions | Done |
-| Margin panel | MAXQDA-style colored bars with bidirectional hover | Done |
-| Code Explorer & Detail | Tree view, segment navigation, code detail panel | Done |
-| Per-code decorations | Overlapping color layers per code | Planned |
-| Projects & workspace | Named projects, global codebook, project-level data | Planned |
-| Power features | Code hierarchy, memos, queries, matrix, export | Planned |
+### Exploring codes
 
-See `ARCHITECTURE.md` for the full architectural study.
+- Open the **Code Explorer** from the sidebar to see all codes across all files
+- Click a code to see its detail view with all associated segments
+- Use the search bar to filter
 
----
+### Analytics
+
+- Open the command palette and run **Qualia Coding: Open Analytics**
+- Choose from 19 visualization modes
+- All engines feed into the same analytics — cross-format analysis works out of the box
+
+### Research Board
+
+- Open the command palette and run **Qualia Coding: Open Research Board**
+- Use the toolbar to add sticky notes, code cards, and arrows
+- Drag excerpts from the sidebar onto the board
+
+## Settings
+
+| Setting | Description |
+|---|---|
+| Default color | Initial highlight color for new codes |
+| Marker opacity | Transparency of highlights (0–1) |
+| Show handles on hover | Display drag handles on marker edges |
+| Show menu on selection | Automatically show coding menu when text is selected |
+| Show menu on right-click | Show coding menu on right-click |
+| Show ribbon button | Display the Qualia Coding icon in the ribbon |
+| Auto-reveal on segment click | Scroll to marker when clicked in sidebar |
 
 ## License
 
-MIT
+[MIT](LICENSE)
