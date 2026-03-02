@@ -1,6 +1,8 @@
-import { FileView, Modal, Setting, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
+import { FileView, Modal, Setting, TFile, Vault, WorkspaceLeaf, setIcon } from 'obsidian';
 import { AllCommunityModule, ModuleRegistry, createGrid, GridApi, themeQuartz } from 'ag-grid-community';
 import * as Papa from 'papaparse';
+import { parquetReadObjects } from 'hyparquet';
+import { compressors } from 'hyparquet-compressors';
 import { EditorView, drawSelection, tooltips } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { codingCellRenderer, sourceTagBtnRenderer } from './codingCellRenderer';
@@ -17,6 +19,33 @@ import type QualiaCodingPlugin from '../main';
 import type { CsvCodingModel } from './codingModel';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
+
+interface TabularData {
+	headers: string[];
+	rows: Record<string, any>[];
+}
+
+async function parseTabularFile(file: TFile, vault: Vault): Promise<TabularData> {
+	if (file.extension === 'parquet') {
+		const buffer = await vault.adapter.readBinary(file.path);
+		const rows = await parquetReadObjects({ file: buffer, compressors }) as Record<string, any>[];
+		const headers = rows.length > 0 ? Object.keys(rows[0]!) : [];
+		return { headers, rows };
+	}
+	const raw = await vault.read(file);
+	const parsed = await new Promise<Papa.ParseResult<Record<string, string>>>((resolve) => {
+		Papa.parse<Record<string, string>>(raw, {
+			header: true,
+			skipEmptyLines: true,
+			worker: true,
+			complete: resolve,
+		});
+	});
+	if (parsed.errors.length > 0 && parsed.data.length === 0) {
+		throw new Error(parsed.errors[0]!.message);
+	}
+	return { headers: parsed.meta.fields ?? [], rows: parsed.data };
+}
 
 export const CSV_CODING_VIEW_TYPE = 'qualia-csv';
 
@@ -95,40 +124,33 @@ export class CsvCodingView extends FileView {
 	getViewType(): string { return CSV_CODING_VIEW_TYPE; }
 	getDisplayText(): string { return this.file?.name ?? 'Qualia CSV'; }
 	getIcon(): string { return 'table'; }
-	canAcceptExtension(extension: string): boolean { return extension === 'csv'; }
+	canAcceptExtension(extension: string): boolean { return extension === 'csv' || extension === 'parquet'; }
 
 	async onLoadFile(file: TFile): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
 
 		const loading = contentEl.createEl('p');
-		loading.textContent = 'Loading CSV...';
+		loading.textContent = file.extension === 'parquet' ? 'Loading Parquet...' : 'Loading CSV...';
 		loading.style.margin = '8px 12px';
 		loading.style.fontSize = '12px';
 		loading.style.color = 'var(--text-muted)';
 
-		const raw = await this.app.vault.read(file);
-
-		const parsed = await new Promise<Papa.ParseResult<Record<string, string>>>((resolve) => {
-			Papa.parse<Record<string, string>>(raw, {
-				header: true,
-				skipEmptyLines: true,
-				worker: true,
-				complete: resolve,
-			});
-		});
+		let result: TabularData;
+		try {
+			result = await parseTabularFile(file, this.app.vault);
+		} catch (e) {
+			contentEl.empty();
+			contentEl.createEl('p', { text: `Error: ${(e as Error).message}` });
+			return;
+		}
 
 		if (this.file !== file) return;
 		contentEl.empty();
 
-		if (parsed.errors.length > 0 && parsed.data.length === 0) {
-			contentEl.createEl('p', { text: `Error parsing CSV: ${parsed.errors[0]!.message}` });
-			return;
-		}
-
-		const headers = parsed.meta.fields;
-		if (!headers || headers.length === 0) {
-			contentEl.createEl('p', { text: 'No columns found in CSV file.' });
+		const { headers, rows } = result;
+		if (headers.length === 0) {
+			contentEl.createEl('p', { text: 'No columns found.' });
 			return;
 		}
 
@@ -143,7 +165,7 @@ export class CsvCodingView extends FileView {
 		infoBar.style.color = 'var(--text-muted)';
 		infoBar.style.borderBottom = 'none';
 
-		infoBar.createEl('span', { text: `${parsed.data.length.toLocaleString()} rows \u00d7 ${headers.length} columns` });
+		infoBar.createEl('span', { text: `${rows.length.toLocaleString()} rows \u00d7 ${headers.length} columns` });
 
 		const gearBtn = infoBar.createEl('span');
 		gearBtn.style.cursor = 'pointer';
@@ -167,13 +189,13 @@ export class CsvCodingView extends FileView {
 		this.gridWrapper = wrapper;
 
 		// Populate rowDataCache for sidebar views
-		this.csvModel.rowDataCache.set(file.path, parsed.data);
+		this.csvModel.rowDataCache.set(file.path, rows);
 
 		this.gridApi = createGrid(wrapper, {
 			theme: obsidianTheme,
 			columnDefs: headers.map((h: string) => ({ field: h, headerName: h })),
 			defaultColDef: { sortable: true, filter: true, resizable: true },
-			rowData: parsed.data,
+			rowData: rows,
 			enableCellTextSelection: true,
 			domLayout: 'normal',
 		});

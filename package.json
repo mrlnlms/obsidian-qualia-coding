@@ -9,20 +9,22 @@
   },
   "dependencies": {
     "ag-grid-community": "^33.0.0",
-    "papaparse": "^5.4.1",
-    "fabric": "^6.9.1",
-    "wavesurfer.js": "^7.0.0",
     "chart.js": "^4.4.0",
     "chartjs-adapter-date-fns": "^3.0.0",
     "chartjs-chart-wordcloud": "^4.4.5",
     "date-fns": "^4.1.0",
-    "svd-js": "^1.1.1"
+    "fabric": "^6.9.1",
+    "hyparquet": "^1.25.1",
+    "hyparquet-compressors": "^1.1.1",
+    "papaparse": "^5.4.1",
+    "svd-js": "^1.1.1",
+    "wavesurfer.js": "^7.0.0"
   },
   "devDependencies": {
-    "obsidian": "latest",
-    "typescript": "^5.0.0",
-    "esbuild": "^0.19.0",
     "@types/node": "^20.0.0",
-    "@types/papaparse": "^5.3.14"
+    "@types/papaparse": "^5.3.14",
+    "esbuild": "^0.19.0",
+    "obsidian": "latest",
+    "typescript": "^5.0.0"
   }
 }

@@ -23,16 +23,17 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 		new CsvCodingView(leaf, plugin, model),
 	);
 
-	// Register .csv extension
-	plugin.registerExtensions(['csv'], CSV_CODING_VIEW_TYPE);
+	// Register .csv and .parquet extensions
+	plugin.registerExtensions(['csv', 'parquet'], CSV_CODING_VIEW_TYPE);
 
 	// Command: open CSV in coding view
 	plugin.addCommand({
 		id: 'open-csv-coding',
-		name: 'Open CSV in coding view',
+		name: 'Open tabular file in coding view',
 		checkCallback: (checking) => {
 			const file = plugin.app.workspace.getActiveFile();
-			if (!file || file.extension.toLowerCase() !== 'csv') return false;
+			const ext = file?.extension.toLowerCase();
+			if (!file || (ext !== 'csv' && ext !== 'parquet')) return false;
 			if (!checking) {
 				openCsvCodingView(plugin, file);
 			}
@@ -43,9 +44,10 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	// File menu: "Open in CSV Coding"
 	const fileMenuRef = plugin.app.workspace.on('file-menu', (menu, file) => {
 		if (!(file instanceof TFile)) return;
-		if (file.extension.toLowerCase() !== 'csv') return;
+		const ext = file.extension.toLowerCase();
+		if (ext !== 'csv' && ext !== 'parquet') return;
 		menu.addItem((item) => {
-			item.setTitle('Open in CSV Coding')
+			item.setTitle('Open in Tabular Coding')
 				.setIcon('table')
 				.onClick(() => openCsvCodingView(plugin, file));
 		});
@@ -79,7 +81,7 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 
 	// File rename tracking (centralized)
 	registerFileRename({
-		extensions: new Set(['csv']),
+		extensions: new Set(['csv', 'parquet']),
 		onRename: (oldPath, newPath) => model.migrateFilePath(oldPath, newPath),
 	});
 

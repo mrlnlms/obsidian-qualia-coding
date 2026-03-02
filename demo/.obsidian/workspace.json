@@ -13,9 +13,10 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
+                "file": "2026-03-02_v41-fix-hover-handles-parquet-csv/test-note.md",
                 "mode": "source",
-                "source": false
+                "source": false,
+                "backlinks": false
               },
               "icon": "lucide-file",
               "title": "test-note"
@@ -103,76 +104,13 @@
             }
           },
           {
-            "id": "977c4ced7ff77432",
+            "id": "785e0f5faa67464a",
             "type": "leaf",
             "state": {
               "type": "qualia-code-explorer",
               "state": {},
-              "icon": "lucide-ghost",
-              "title": "qualia-code-explorer"
-            }
-          },
-          {
-            "id": "dddf08a04ab6afd2",
-            "type": "leaf",
-            "state": {
-              "type": "backlink",
-              "state": {
-                "file": "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
-                "collapseAll": false,
-                "extraContext": false,
-                "sortOrder": "alphabetical",
-                "showSearch": false,
-                "searchQuery": "",
-                "backlinkCollapsed": false,
-                "unlinkedCollapsed": true
-              },
-              "icon": "links-coming-in",
-              "title": "Backlinks for test-note"
-            }
-          },
-          {
-            "id": "564777f79e5f7983",
-            "type": "leaf",
-            "state": {
-              "type": "outgoing-link",
-              "state": {
-                "file": "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
-                "linksCollapsed": false,
-                "unlinkedCollapsed": true
-              },
-              "icon": "links-going-out",
-              "title": "Outgoing links from test-note"
-            }
-          },
-          {
-            "id": "67d2174a7dc42905",
-            "type": "leaf",
-            "state": {
-              "type": "tag",
-              "state": {
-                "sortOrder": "frequency",
-                "useHierarchy": true,
-                "showSearch": false,
-                "searchQuery": ""
-              },
-              "icon": "lucide-tags",
-              "title": "Tags"
-            }
-          },
-          {
-            "id": "473adaca4becd09d",
-            "type": "leaf",
-            "state": {
-              "type": "outline",
-              "state": {
-                "file": "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
-                "followCursor": false,
-                "showSearch": false,
-                "searchQuery": ""
-              },
-              "icon": "lucide-list",
-              "title": "Outline of test-note"
+              "icon": "tags",
+              "title": "Code Explorer"
             }
           }
         ],
@@ -184,17 +122,18 @@
   },
   "left-ribbon": {
     "hiddenItems": {
-      "graph:Open graph view": false,
-      "daily-notes:Open today's daily note": false,
-      "templates:Insert template": false,
+      "qualia-coding:Code Selection": false,
       "switcher:Open quick switcher": false,
       "canvas:Create new canvas": false,
       "command-palette:Open command palette": false,
       "bases:Create new base": false
     }
   },
-  "active": "f27ba6290a21d137",
+  "active": "785e0f5faa67464a",
   "lastOpenFiles": [
+    "2026-03-02_v41-fix-hover-handles-parquet-csv/test-note.md",
+    "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
+    "2026-03-02_v41-fix-hover-handles-parquet-csv",
     "original-88d78341487bd94fac95ae37737a6b42-1024x683.jpg",
     "let.mp4",
     "items.csv",
@@ -210,7 +149,6 @@
     "2026-02-27_v32-dead-code-removal-hover-sync-fix/test-note.md",
     "2026-02-27_v32-dead-code-removal-hover-sync-fix",
     "2026-02-26_v31.6-cm6-sync-line-number-gutter-fix/test-note.md",
-    "2026-02-26_v31.6-cm6-sync-line-number-gutter-fix",
     "2026-02-26_v31.5-label-click-reveals-sidebar/test-note.md",
     "2026-02-26_v31.4-overlay-handles-wordwrap-fix/test-note.md",
     "2026-02-26_v31.3-dynamic-label-expansion-rll/test-note.md",
@@ -231,7 +169,6 @@
     "2026-02-19_v38.1-analytics-scaffold-network-graph/test-note.md",
     "2026-02-19_v37-video-engine/test-note.md",
     "2026-02-19_v36.6-audio-colored-bars-minimap-ruler-fixes/test-note.md",
-    "2026-02-19_v36.5-audio-play-region-minimap-autoscroll/test-note.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "_historico/qda-data-model.canvas"
   ]
