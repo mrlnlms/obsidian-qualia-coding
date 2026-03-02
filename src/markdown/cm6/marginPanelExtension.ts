@@ -1,7 +1,7 @@
 import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/view";
 import { CodeMarkerModel, Marker } from "../models/codeMarkerModel";
 import { findFileIdForEditorView, getViewForFile } from "./utils/viewLookupUtils";
-import { updateFileMarkersEffect, setHoverEffect } from "./markerStateField";
+import { updateFileMarkersEffect, setHoverEffect, setFileIdEffect } from "./markerStateField";
 
 /**
  * Margin Panel Extension — MAXQDA-style coded segments alongside text.
@@ -198,6 +198,10 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				let needsRender = false;
 				for (const tr of update.transactions) {
 					for (const effect of tr.effects) {
+						if (effect.is(setFileIdEffect)) {
+							this.fileId = effect.value.fileId;
+							needsRender = true;
+						}
 						if (effect.is(updateFileMarkersEffect) && effect.value.fileId === this.fileId) {
 							needsRender = true;
 						}

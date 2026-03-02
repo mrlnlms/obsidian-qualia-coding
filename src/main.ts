@@ -34,7 +34,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	markdownModel: any; // Set by markdown engine
 
 	async onload() {
-		console.log('[Qualia Coding] v39 loaded — 7 engines consolidados em 1 plugin');
+		console.log('[qualia-coding] v40 loaded — Fix: margin panel apos rename de arquivo');
 		this.dataManager = new DataManager(this);
 		await this.dataManager.load();
 

@@ -13,10 +13,9 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2026-02-26_v31.6-cm6-sync-line-number-gutter-fix/test-note.md",
+                "file": "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
                 "mode": "source",
-                "source": false,
-                "backlinks": false
+                "source": false
               },
               "icon": "lucide-file",
               "title": "test-note"
@@ -109,8 +108,71 @@
             "state": {
               "type": "qualia-code-explorer",
               "state": {},
-              "icon": "tags",
-              "title": "Code Explorer"
+              "icon": "lucide-ghost",
+              "title": "qualia-code-explorer"
+            }
+          },
+          {
+            "id": "dddf08a04ab6afd2",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for test-note"
+            }
+          },
+          {
+            "id": "564777f79e5f7983",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from test-note"
+            }
+          },
+          {
+            "id": "67d2174a7dc42905",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "473adaca4becd09d",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of test-note"
             }
           }
         ],
@@ -122,53 +184,54 @@
   },
   "left-ribbon": {
     "hiddenItems": {
+      "graph:Open graph view": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
       "switcher:Open quick switcher": false,
       "canvas:Create new canvas": false,
       "command-palette:Open command palette": false,
-      "bases:Create new base": false,
-      "qualia-coding:Code Selection": false
+      "bases:Create new base": false
     }
   },
-  "active": "977c4ced7ff77432",
+  "active": "f27ba6290a21d137",
   "lastOpenFiles": [
+    "original-88d78341487bd94fac95ae37737a6b42-1024x683.jpg",
+    "let.mp4",
+    "items.csv",
+    "community-plugins.json",
+    "User Research Study.pdf",
+    "Sample 1.md",
+    "Pasted image 20260216114853.png",
+    "Daily Count Jan 26.csv",
+    "Conquerors and The World.mp3",
+    "Claude.pdf",
     "2026-03-02_v39-qualia-consolidation/test-note.md",
     "2026-03-02_v39-qualia-consolidation",
     "2026-02-27_v32-dead-code-removal-hover-sync-fix/test-note.md",
     "2026-02-27_v32-dead-code-removal-hover-sync-fix",
-    "2026-02-20_v38.12-analytics-board-fixes-rightclick-dragdrop/test-note.md",
     "2026-02-26_v31.6-cm6-sync-line-number-gutter-fix/test-note.md",
     "2026-02-26_v31.6-cm6-sync-line-number-gutter-fix",
     "2026-02-26_v31.5-label-click-reveals-sidebar/test-note.md",
-    "2026-02-26_v31.5-label-click-reveals-sidebar",
     "2026-02-26_v31.4-overlay-handles-wordwrap-fix/test-note.md",
-    "2026-02-26_v31.4-overlay-handles-wordwrap-fix",
     "2026-02-26_v31.3-dynamic-label-expansion-rll/test-note.md",
-    "2026-02-26_v31.3-dynamic-label-expansion-rll",
     "2026-02-26_v31.2-multi-marker-hover-partial-overlap/test-note.md",
-    "2026-02-26_v31.2-multi-marker-hover-partial-overlap",
     "2026-02-26_v31.1-visual-regression-margin-fixes/test-note.md",
-    "2026-02-26_v31.1-visual-regression-margin-fixes",
+    "2026-02-20_v38.9-analytics-source-comparison-code-overlap/test-note.md",
+    "2026-02-20_v38.8-analytics-polar-chi-squared-decision-tree/test-note.md",
+    "2026-02-20_v38.12-analytics-board-fixes-rightclick-dragdrop/test-note.md",
+    "2026-02-20_v38.11-analytics-research-board-all-nodes/test-note.md",
+    "2026-02-20_v38.10-analytics-research-board-canvas/test-note.md",
     "2026-02-20_v30-analytics-viewmodes-docs/test-note.md",
-    "2026-02-20_v30-analytics-viewmodes-docs",
+    "2026-02-19_v38.7-analytics-jaccard-textstats-dendro-lagseq/test-note.md",
+    "2026-02-19_v38.6-analytics-wordcloud-mca-mds/test-note.md",
+    "2026-02-19_v38.5-analytics-audio-video-source/test-note.md",
+    "2026-02-19_v38.4-analytics-text-retrieval-pdf-source/test-note.md",
+    "2026-02-19_v38.3-analytics-dashboard-kpis/test-note.md",
+    "2026-02-19_v38.2-analytics-matrix-code-evolution/test-note.md",
+    "2026-02-19_v38.1-analytics-scaffold-network-graph/test-note.md",
     "2026-02-19_v37-video-engine/test-note.md",
-    "2026-02-19_v37-video-engine",
     "2026-02-19_v36.6-audio-colored-bars-minimap-ruler-fixes/test-note.md",
     "2026-02-19_v36.5-audio-play-region-minimap-autoscroll/test-note.md",
-    "2026-02-19_v36.4-audio-file-interceptor-zoom-guards/test-note.md",
-    "2026-02-19_v36.3-audio-timeline-ruler-region-lanes/test-note.md",
-    "2026-02-19_v36.2-audio-hover-resize-analytics-settings/test-note.md",
-    "2026-02-19_v36.1-audio-region-labels-sidebar-nav/test-note.md",
-    "2026-02-19_v29-architecture-roadmap-update/test-note.md",
-    "2026-02-19_v35.9-drawing-annotations-fix-interaction/test-note.md",
-    "2026-02-19_v35.8-margin-overlay-null-guards-thumbnail/test-note.md",
-    "2026-02-19_v35.7-intersection-handles-transitions/test-note.md",
-    "2026-02-19_v35.6-pointer-events-smart-layering/test-note.md",
-    "2026-02-19_v35.5-popover-replaces-sidebar/test-note.md",
-    "2026-02-19_v35.4-pdf-drag-handles-text-selection/test-note.md",
-    "2026-02-19_v35.3-pdf-margin-panel-undo-redo/test-note.md",
-    "2026-02-19_v35.2-bidirectional-hover-rename-tracking/test-note.md",
-    "original-88d78341487bd94fac95ae37737a6b42-1024x683.jpg",
-    "Pasted image 20260216114853.png",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "_historico/qda-data-model.canvas"
   ]

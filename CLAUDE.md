@@ -3,15 +3,15 @@
 > Atualizado automaticamente pelo orquestrador a cada commit.
 
 ## Progresso
-- Ultima versao commitada: v32
-- Posicao no commit_sequence: 85/90
+- Ultima versao commitada: v39
+- Posicao no commit_sequence: 86/90
 - Phase: 2
-- Era atual: 3 -- Qualia Coding scaffold + CM6 port + menu system (v23-v27, local-plugin)
-- Total de commits: 83
-- Plugin ID atual: obsidian-codemarker-v2
+- Era atual: 4 -- Consolidation (7 engines → 1 plugin)
+- Total de commits: 84
+- Plugin ID atual: qualia-coding
 
 ## Proximo
-- Versao: v33
+- Versao: v40
 - Tipo: TBD
 - Source type: TBD
 - Timestamp: TBD
@@ -21,4 +21,4 @@
 
 ## Ambiente
 - npm run dev: precisa iniciar
-- Engines no demo: [CSV Viewer, CodeMarker CSV, CodeMarker Image, CodeMarker Analytics, CodeMarker PDF, CodeMarker Audio, CodeMarker Video]
+- Engines no demo: [Qualia Coding (monolítico — markdown, PDF, CSV, image, audio, video, analytics)]
