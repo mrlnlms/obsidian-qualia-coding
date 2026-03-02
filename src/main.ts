@@ -34,7 +34,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	markdownModel: any; // Set by markdown engine
 
 	async onload() {
-		console.log('[Qualia Coding] v42 loaded — Color blending PDF + fixes');
+		console.log('[Qualia Coding] v43 loaded — Per-file state image + backlog update');
 		this.dataManager = new DataManager(this);
 		await this.dataManager.load();
 

@@ -36,6 +36,20 @@ export class ImageCodingModel {
 		return this.dataManager.section('image').settings;
 	}
 
+	// ─── Per-file view state (zoom/pan) ───
+
+	getFileViewState(fileId: string): { zoom: number; panX: number; panY: number } | undefined {
+		const states = this.settings.fileStates;
+		if (!states) return undefined;
+		return states[fileId];
+	}
+
+	saveFileViewState(fileId: string, zoom: number, panX: number, panY: number): void {
+		if (!this.settings.fileStates) this.settings.fileStates = {};
+		this.settings.fileStates[fileId] = { zoom, panX, panY };
+		this.dataManager.markDirty();
+	}
+
 	// ─── Listeners ───
 
 	onChange(fn: ChangeListener): void {

@@ -68,7 +68,7 @@ export interface QualiaData {
 	};
 	markdown: { markers: Record<string, any[]>; settings: CodeMarkerSettings };
 	csv: { segmentMarkers: any[]; rowMarkers: any[] };
-	image: { markers: any[]; settings: { autoOpenImages: boolean } };
+	image: { markers: any[]; settings: { autoOpenImages: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> } };
 	pdf: { markers: any[]; shapes: any[] };
 	audio: {
 		files: any[];
@@ -105,7 +105,7 @@ export function createDefaultData(): QualiaData {
 			autoRevealOnSegmentClick: true,
 		} },
 		csv: { segmentMarkers: [], rowMarkers: [] },
-		image: { markers: [], settings: { autoOpenImages: true } },
+		image: { markers: [], settings: { autoOpenImages: true, fileStates: {} } },
 		pdf: { markers: [], shapes: [] },
 		audio: {
 			files: [],

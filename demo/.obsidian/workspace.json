@@ -139,8 +139,10 @@
       "bases:Create new base": false
     }
   },
-  "active": "4e2fc8944f153c46",
+  "active": "f27ba6290a21d137",
   "lastOpenFiles": [
+    "2026-03-02_v43-per-file-state-image/test-note.md",
+    "2026-03-02_v43-per-file-state-image",
     "2026-03-02_v41-fix-hover-handles-parquet-csv/test-note.md",
     "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
     "2026-03-02_v41-fix-hover-handles-parquet-csv",
@@ -157,7 +159,6 @@
     "2026-03-02_v39-qualia-consolidation/test-note.md",
     "2026-03-02_v39-qualia-consolidation",
     "2026-02-27_v32-dead-code-removal-hover-sync-fix/test-note.md",
-    "2026-02-27_v32-dead-code-removal-hover-sync-fix",
     "2026-02-26_v31.6-cm6-sync-line-number-gutter-fix/test-note.md",
     "2026-02-26_v31.5-label-click-reveals-sidebar/test-note.md",
     "2026-02-26_v31.4-overlay-handles-wordwrap-fix/test-note.md",
@@ -178,7 +179,6 @@
     "2026-02-19_v38.2-analytics-matrix-code-evolution/test-note.md",
     "2026-02-19_v38.1-analytics-scaffold-network-graph/test-note.md",
     "2026-02-19_v37-video-engine/test-note.md",
-    "2026-02-19_v36.6-audio-colored-bars-minimap-ruler-fixes/test-note.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "_historico/qda-data-model.canvas"
   ]

@@ -15,12 +15,16 @@ Features planejadas consolidadas dos 7 plugins.
 - [x] ~~Audio/Video: menus `applyThemeColors()`~~ — não é bug: `createPopover()` em `baseCodingMenu.ts` já chama `applyThemeColors()` automaticamente
 - [x] ~~Image: CSS classes custom `codemarker-tree-*`~~ — não era bug: classes existiam no CSS mas nunca eram usadas por nenhum TypeScript. Removidas como dead code
 - [x] ~~Audio/Video: `updatedAt` ausente~~ — adicionado ao `MediaMarker` e `AudioMarker`, setado em criação + todas mutações (addCode, removeCode, updateBounds, setMemo), migration no constructor dos models
+- [x] ~~File interceptor: abas duplicadas~~ — `fileInterceptor.ts` agora verifica leaf existente antes de criar nova. `leaf.detach()` + `setActiveLeaf(existing)`
+- [x] ~~Markdown: margin panel, hover menu e handles quebravam após rename~~ — 3 extensions CM6 não escutavam `setFileIdEffect`. fileId cached ficava stale após rename
+- [x] ~~PDF: per-code color blending~~ — markers com N códigos renderizam N layers sobrepostos com `opacity/N`, hover escala proporcionalmente
+- [x] ~~Sidebar: flicker no hover dos segments~~ — CSS corrompido: vírgulas órfãs combinavam `.codemarker-detail-marker-item:hover` com seletores não-relacionados
 
 ---
 
 ## Curto prazo
 
-- [ ] CSV: suporte Parquet (hyparquet ~9KB, zero deps, pure JS)
+- [x] ~~CSV: suporte Parquet~~ — implementado: `hyparquet` + `parseTabularFile()` abstrai CSV/Parquet. `registerExtensions(['csv', 'parquet'])`, read-only via `readBinary()`
 - [x] ~~Markdown: search/filter no Code Explorer~~ — já implementado: `SearchComponent` em `baseCodeExplorerView.ts`, funciona pra todos os engines
 - [x] ~~Markdown: extrair `getMarkerAtPos`~~ — não faz sentido: só o markdown usa (CM6). Cada engine tem lookup próprio (PDF.js, Fabric.js, AG Grid, WaveSurfer)
 - [x] ~~Sidebar unificada cross-engine~~ — já implementado: `UnifiedModelAdapter` mergea 6 engines, um código mostra markers de todas as fontes
@@ -36,7 +40,7 @@ Features planejadas consolidadas dos 7 plugins.
 - [x] ~~Analytics: code overlap analysis~~ — já implementado: `calculateOverlap()` em statsEngine + view `code-overlap`
 - [ ] Analytics: code groups/hierarchies nas visualizações — dendrogram existe mas é só visualização, não persiste no model
 - [ ] Analytics: metadata × code crosstabs (CSV demographics)
-- [ ] Image: per-file state persistence (zoom, pan) como Audio/Video — sem `fileStates` no image settings
+- [x] ~~Image: per-file state persistence (zoom, pan)~~ — implementado: `fileStates` no settings, salva zoom/panX/panY via callbacks em zoomPanControls + toolbar, restaura em `loadImage()`
 - [x] ~~Image: memo field nos markers~~ — já implementado: `memo?: string` no `ImageMarker`
 - [x] ~~Image: file rename tracking~~ — já implementado: `migrateFilePath()` no ImageCodingModel + handler no index.ts
 - [x] ~~File rename tracking~~ — centralizado em `fileInterceptor.ts` com `registerFileRename()`. Todos os 6 engines registrados. CSV e Markdown agora têm `migrateFilePath()`

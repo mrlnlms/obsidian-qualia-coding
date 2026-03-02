@@ -9,7 +9,11 @@ export interface ZoomPanCleanup {
   destroy(): void;
 }
 
-export function setupZoomPanControls(state: FabricCanvasState): ZoomPanCleanup {
+export interface ZoomPanCallbacks {
+  onViewChanged?: () => void;
+}
+
+export function setupZoomPanControls(state: FabricCanvasState, callbacks?: ZoomPanCallbacks): ZoomPanCleanup {
   const { canvas, container } = state;
   let isPanning = false;
   let lastPanX = 0;
@@ -30,6 +34,7 @@ export function setupZoomPanControls(state: FabricCanvasState): ZoomPanCleanup {
     const point = new Point(e.clientX - rect.left, e.clientY - rect.top);
     canvas.zoomToPoint(point, newZoom);
     canvas.requestRenderAll();
+    callbacks?.onViewChanged?.();
   };
 
   // --- Space+drag / middle-mouse pan ---
@@ -79,6 +84,7 @@ export function setupZoomPanControls(state: FabricCanvasState): ZoomPanCleanup {
     if ((e.button === 0 && !spaceDown) || e.button === 1 || e.button === 0) {
       isPanning = false;
       container.style.cursor = spaceDown ? "grab" : "";
+      callbacks?.onViewChanged?.();
     }
   };
 

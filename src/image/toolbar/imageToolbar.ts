@@ -20,6 +20,7 @@ interface ToolButton {
 
 export interface ToolbarCallbacks {
   onDelete?: () => void;
+  onViewChanged?: () => void;
 }
 
 export function createToolbar(
@@ -127,7 +128,7 @@ export function createToolbar(
     attr: { "aria-label": "Fit to view", title: "Fit to view (0)" },
   });
   setIcon(fitBtn, "maximize");
-  fitBtn.addEventListener("click", () => fitToContainer(fabricState));
+  fitBtn.addEventListener("click", () => { fitToContainer(fabricState); callbacks.onViewChanged?.(); });
 
   // --- Keyboard shortcuts ---
   const onKeyDown = (e: KeyboardEvent) => {
@@ -154,12 +155,15 @@ export function createToolbar(
       case "=":
       case "+":
         zoomBy(fabricState, 1.25);
+        callbacks.onViewChanged?.();
         break;
       case "-":
         zoomBy(fabricState, 0.8);
+        callbacks.onViewChanged?.();
         break;
       case "0":
         fitToContainer(fabricState);
+        callbacks.onViewChanged?.();
         break;
     }
   };

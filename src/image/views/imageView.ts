@@ -132,6 +132,13 @@ export class ImageCodingView extends ItemView {
 			canvas.on('selection:cleared', () => this.codingMenu?.close());
 
 			// Toolbar
+			const saveView = () => {
+				if (this.currentFile && this.fabricState) {
+					const c = this.fabricState.canvas;
+					const vt = c.viewportTransform!;
+					this.model.saveFileViewState(this.currentFile.path, c.getZoom(), vt[4], vt[5]);
+				}
+			};
 			this.toolbarState = createToolbar(contentEl, this.fabricState, {
 				onDelete: () => {
 					const active = canvas.getActiveObjects();
@@ -144,6 +151,7 @@ export class ImageCodingView extends ItemView {
 						canvas.discardActiveObject();
 					}
 				},
+				onViewChanged: saveView,
 			});
 			contentEl.insertBefore(this.toolbarState.el, container);
 
@@ -152,8 +160,21 @@ export class ImageCodingView extends ItemView {
 				this.drawingState?.setMode(mode);
 			};
 
-			// Zoom/pan controls
-			this.zoomPanCleanup = setupZoomPanControls(this.fabricState);
+			// Zoom/pan controls (with per-file state persistence)
+			this.zoomPanCleanup = setupZoomPanControls(this.fabricState, {
+				onViewChanged: saveView,
+			});
+
+			// Restore saved view state (zoom/pan) if available
+			const savedView = this.model.getFileViewState(file.path);
+			if (savedView) {
+				const c = this.fabricState.canvas;
+				c.setZoom(savedView.zoom);
+				const vt = c.viewportTransform!;
+				vt[4] = savedView.panX;
+				vt[5] = savedView.panY;
+				c.requestRenderAll();
+			}
 		} catch (e) {
 			container.createDiv({
 				cls: 'codemarker-image-error',
