@@ -12,8 +12,8 @@ Built for researchers, UX professionals, and anyone doing qualitative analysis w
 |---|---|
 | **Markdown** | Highlight text spans in the editor, MAXQDA-style margin panel, drag handles for resizing |
 | **PDF** | Highlight text selections (including cross-page), draw rectangles, polygons, and freehand shapes |
-| **Image** | Draw rectangular and polygonal regions on any image format (PNG, JPG, SVG, WebP, etc.), per-file zoom/pan state persistence |
-| **CSV** | Code individual cell text or entire rows in a spreadsheet grid |
+| **Image** | Draw rectangular and polygonal regions on any image format (PNG, JPG, SVG, WebP, etc.) |
+| **CSV / Parquet** | Code individual cell text or entire rows in a spreadsheet grid (Parquet read-only) |
 | **Audio** | Create time-bounded regions on a waveform (MP3, WAV, OGG, FLAC, etc.) |
 | **Video** | Same as audio, with synchronized video playback (MP4, WebM) |
 
@@ -110,6 +110,18 @@ A freeform canvas for synthesizing findings:
 | Show menu on right-click | Show coding menu on right-click |
 | Show ribbon button | Display the Qualia Coding icon in the ribbon |
 | Auto-reveal on segment click | Scroll to marker when clicked in sidebar |
+
+## Documentation
+
+| Doc | Question it answers |
+|-----|---------------------|
+| [`CLAUDE.md`](CLAUDE.md) | How does the code work right now? (AI context) |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Why is it built this way? |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | What's planned but not yet built? |
+| [`docs/TECHNICAL-PATTERNS.md`](docs/TECHNICAL-PATTERNS.md) | How do I fix this weird bug? |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | How do I contribute, port, or test? |
+| [`docs/HISTORY.md`](docs/HISTORY.md) | How did we get here? |
+| [`docs/PREHISTORY.md`](docs/PREHISTORY.md) | Where did the idea come from? |
 
 ## License
 

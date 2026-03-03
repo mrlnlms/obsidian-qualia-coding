@@ -11,15 +11,10 @@
             "id": "f27ba6290a21d137",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "2026-03-02_v41-fix-hover-handles-parquet-csv/test-note.md",
-                "mode": "source",
-                "source": false,
-                "backlinks": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "test-note"
+              "title": "New tab"
             }
           }
         ]
@@ -141,11 +136,8 @@
   },
   "active": "f27ba6290a21d137",
   "lastOpenFiles": [
-    "2026-03-02_v43-per-file-state-image/test-note.md",
-    "2026-03-02_v43-per-file-state-image",
-    "2026-03-02_v41-fix-hover-handles-parquet-csv/test-note.md",
-    "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
-    "2026-03-02_v41-fix-hover-handles-parquet-csv",
+    "2026-03-03_v44-docs-consolidados/test-note.md",
+    "2026-03-03_v44-docs-consolidados",
     "original-88d78341487bd94fac95ae37737a6b42-1024x683.jpg",
     "let.mp4",
     "items.csv",
@@ -156,8 +148,13 @@
     "Daily Count Jan 26.csv",
     "Conquerors and The World.mp3",
     "Claude.pdf",
+    "2026-03-02_v43-per-file-state-image/test-note.md",
+    "2026-03-02_v43-per-file-state-image",
+    "2026-03-02_v42-color-blending-pdf-fixes/test-note.md",
+    "2026-03-02_v42-color-blending-pdf-fixes",
+    "2026-03-02_v41-fix-hover-handles-parquet-csv/test-note.md",
+    "2026-03-02_v40-fix-margin-panel-rename/test-note.md",
     "2026-03-02_v39-qualia-consolidation/test-note.md",
-    "2026-03-02_v39-qualia-consolidation",
     "2026-02-27_v32-dead-code-removal-hover-sync-fix/test-note.md",
     "2026-02-26_v31.6-cm6-sync-line-number-gutter-fix/test-note.md",
     "2026-02-26_v31.5-label-click-reveals-sidebar/test-note.md",
@@ -177,8 +174,6 @@
     "2026-02-19_v38.4-analytics-text-retrieval-pdf-source/test-note.md",
     "2026-02-19_v38.3-analytics-dashboard-kpis/test-note.md",
     "2026-02-19_v38.2-analytics-matrix-code-evolution/test-note.md",
-    "2026-02-19_v38.1-analytics-scaffold-network-graph/test-note.md",
-    "2026-02-19_v37-video-engine/test-note.md",
     "2024-06-19_v1-primeiro-qda/_historico/qda-data-model.canvas",
     "_historico/qda-data-model.canvas"
   ]
