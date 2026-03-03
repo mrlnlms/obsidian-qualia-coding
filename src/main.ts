@@ -34,7 +34,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	markdownModel: any; // Set by markdown engine
 
 	async onload() {
-		console.log('[Qualia Coding] v44 loaded — Docs consolidados (ARCHITECTURE, HISTORY, PREHISTORY, ROADMAP, DEVELOPMENT, TECHNICAL-PATTERNS)');
+		console.log('[Qualia Coding] v45 loaded — Cache refresh + market research + strategy docs (final)');
 		this.dataManager = new DataManager(this);
 		await this.dataManager.load();
 

@@ -278,6 +278,32 @@ interface QDAProject {
 
 ---
 
+## Gaps Identificados na Pesquisa de Mercado
+
+> Ver `docs/research/MARKET-RESEARCH.md` para análise completa de concorrentes, preços, e benchmark de mixed methods.
+
+### Gaps estratégicos (fundamentados em benchmark)
+
+| Gap | Por que importa | Items do roadmap relacionados |
+|-----|----------------|-------------------------------|
+| **Case/Document Variables** | Sem metadata por documento, não dá pra cruzar codes × demographics — o workflow core de mixed methods "joint display". Todos os concorrentes (NVivo, ATLAS.ti, MAXQDA, Dedoose) têm isso. | #19 Case Variables, #9 Code × Metadata |
+| **REFI-QDA (QDPX) Export/Import** | Padrão XML de interoperabilidade entre CAQDAS tools. Crítico para credibilidade acadêmica e portabilidade. NVivo, ATLAS.ti, MAXQDA, Dedoose, Quirkos, Taguette suportam. | #16 Export |
+| **Export CSV/Excel** | Pesquisadores esperam exportar code frequencies, co-occurrence, Doc-Code Matrix pra rodar stats próprias. Todos os concorrentes exportam pra Excel/SPSS. | #16 Export |
+| **Intercoder Reliability** | Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de rigor. NVivo, ATLAS.ti, MAXQDA, Dedoose, QualCoder oferecem. | Novo item (não listado) |
+
+### Diferenciais confirmados pela pesquisa
+
+| Diferencial | Status | Concorrência |
+|------------|--------|-------------|
+| **5 analytics views exclusivas** (MCA, MDS, LSA, Polar, CHAID) | Implementado | Zero concorrentes oferecem built-in |
+| **Parquet support** | Implementado | Único no mercado CAQDAS |
+| **Dentro do Obsidian** (vault = dados, zero lock-in) | Implementado | Só o Quadro (muito mais limitado) |
+| **7 formatos + unified analytics** grátis | Implementado | Concorrentes cobram $130-1,005/ano |
+| **Research Board** (canvas freeform) | Implementado | Zero concorrentes têm equivalent |
+| **Margin bars MAXQDA-style** em open source | Implementado | MAXQDA cobra EUR 600+/3 anos |
+
+---
+
 ## Riscos
 
 | Risco | Impacto | Mitigação |
@@ -296,7 +322,7 @@ interface QDAProject {
 
 ## Fontes
 
-Este roadmap consolida:
+Este roadmap consolida (arquivos originais já arquivados):
 - `memory/hierarchy-plan.md` — plano de Code Hierarchy
 - `docs/csv/TODO.md` — Parquet + features Saldaña
 - `docs/analytics/ROADMAP.md` — Analytics enhancements
@@ -304,3 +330,4 @@ Este roadmap consolida:
 - `docs/markdown/ARCHITECTURE.md` — Phases 3-5 (per-code decorations, projects, power features)
 - `docs/markdown/POC-RESIZE-HANDLE.md` — Resize handle POC
 - `docs/markdown/COMPONENTS.md` — FuzzySuggestModal opportunity
+- `docs/research/MARKET-RESEARCH.md` — pesquisa de mercado e benchmark mixed methods (março 2026)
