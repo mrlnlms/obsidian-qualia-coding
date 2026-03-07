@@ -2,3 +2,6 @@ node_modules/
 data.json
 .hotreload
 .obsidian-cache/
+CLAUDE.md
+docs/pm/
+.claude/
