@@ -3,5 +3,6 @@ data.json
 .hotreload
 .obsidian-cache/
 CLAUDE.md
-docs/pm/
+docs/pm/cache/
+docs/pm/claudecode-sessions/
 .claude/
