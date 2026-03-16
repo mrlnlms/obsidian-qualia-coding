@@ -15,6 +15,28 @@ export interface MediaMarker {
 	updatedAt: number;
 }
 
+/** A file containing time-based markers (used by both Audio and Video). */
+export interface MediaFile<M extends MediaMarker = MediaMarker> {
+	path: string;
+	markers: M[];
+}
+
+/** Shared settings for time-based media engines. */
+export interface BaseMediaSettings {
+	defaultZoom: number;
+	regionOpacity: number;
+	showLabelsOnRegions: boolean;
+	fileStates: Record<string, { zoom: number; lastPosition: number }>;
+}
+
+/** Default values for BaseMediaSettings fields. */
+export const DEFAULT_MEDIA_SETTINGS: BaseMediaSettings = {
+	defaultZoom: 50,
+	regionOpacity: 0.4,
+	showLabelsOnRegions: true,
+	fileStates: {},
+};
+
 /** Minimal model interface consumed by MediaRegionRenderer. */
 export interface MediaCodingModelLike {
 	registry: CodeDefinitionRegistry;

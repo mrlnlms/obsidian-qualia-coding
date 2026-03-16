@@ -1,28 +1,12 @@
-export interface AudioMarker {
-	id: string;
-	from: number;
-	to: number;
-	codes: string[];
-	memo?: string;
-	createdAt: number;
-	updatedAt: number;
-}
+import type { MediaMarker, MediaFile, BaseMediaSettings } from '../media/mediaTypes';
+import { DEFAULT_MEDIA_SETTINGS } from '../media/mediaTypes';
 
-export interface AudioFile {
-	path: string;
-	markers: AudioMarker[];
-}
+export interface AudioMarker extends MediaMarker {}
 
-export interface AudioSettings {
-	defaultZoom: number;
-	regionOpacity: number;
-	showLabelsOnRegions: boolean;
-	fileStates: Record<string, { zoom: number; lastPosition: number }>;
-}
+export interface AudioFile extends MediaFile<AudioMarker> {}
+
+export interface AudioSettings extends BaseMediaSettings {}
 
 export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
-	defaultZoom: 50,
-	regionOpacity: 0.4,
-	showLabelsOnRegions: true,
-	fileStates: {},
+	...DEFAULT_MEDIA_SETTINGS,
 };
