@@ -1,12 +1,12 @@
 /**
- * MediaSidebarAdapter — generic base class for Audio and Video sidebar adapters.
- * Subclasses only need to call super() with their model and mediaType.
+ * MediaSidebarAdapter — shared base for Audio and Video sidebar adapters.
+ * Extends BaseSidebarAdapter with media-specific logic (markerToBase, CRUD).
  */
 
-import type { BaseMarker, SidebarModelInterface } from '../core/types';
-import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { BaseMarker } from '../core/types';
 import type { MediaMarker } from './mediaTypes';
 import type { MediaCodingModel } from './mediaCodingModel';
+import { BaseSidebarAdapter } from '../core/baseSidebarAdapter';
 
 export interface MediaBaseMarker extends BaseMarker {
 	startTime: number;
@@ -19,17 +19,12 @@ export interface MediaBaseMarker extends BaseMarker {
 export class MediaSidebarAdapter<
 	M extends MediaMarker,
 	BM extends MediaBaseMarker,
-> implements SidebarModelInterface {
-	readonly registry: CodeDefinitionRegistry;
-	protected model: MediaCodingModel<M, any, any>;
+> extends BaseSidebarAdapter {
+	protected declare readonly model: MediaCodingModel<M, any, any>;
 	private mediaType: string;
 
-	private changeListeners = new Map<() => void, () => void>();
-	private hoverListeners = new Map<() => void, () => void>();
-
 	constructor(model: MediaCodingModel<M, any, any>, mediaType: string) {
-		this.model = model;
-		this.registry = model.registry;
+		super(model);
 		this.mediaType = mediaType;
 	}
 
@@ -98,46 +93,5 @@ export class MediaSidebarAdapter<
 		const def = this.registry.getByName(codeName);
 		if (def) this.registry.delete(def.id);
 		this.saveMarkers();
-	}
-
-	// ── Hover state ──
-
-	setHoverState(markerId: string | null, codeName: string | null): void {
-		this.model.setHoverState(markerId, codeName);
-	}
-
-	getHoverMarkerId(): string | null {
-		return this.model.getHoverMarkerId();
-	}
-
-	getHoverMarkerIds(): string[] {
-		const id = this.model.getHoverMarkerId();
-		return id ? [id] : [];
-	}
-
-	onChange(fn: () => void): void {
-		this.changeListeners.set(fn, fn);
-		this.model.onChange(fn);
-	}
-
-	offChange(fn: () => void): void {
-		const wrapped = this.changeListeners.get(fn);
-		if (wrapped) {
-			this.model.offChange(wrapped);
-			this.changeListeners.delete(fn);
-		}
-	}
-
-	onHoverChange(fn: () => void): void {
-		this.hoverListeners.set(fn, fn);
-		this.model.onHoverChange(fn);
-	}
-
-	offHoverChange(fn: () => void): void {
-		const wrapped = this.hoverListeners.get(fn);
-		if (wrapped) {
-			this.model.offHoverChange(wrapped);
-			this.hoverListeners.delete(fn);
-		}
 	}
 }

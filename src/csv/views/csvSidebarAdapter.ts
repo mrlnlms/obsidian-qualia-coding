@@ -1,12 +1,11 @@
 /**
- * CsvSidebarAdapter — wraps CsvCodingModel into the SidebarModelInterface
- * expected by unified sidebar views.
+ * CsvSidebarAdapter — wraps CsvCodingModel into the SidebarModelInterface.
  */
 
-import type { BaseMarker, SidebarModelInterface } from '../../core/types';
-import type { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
+import type { BaseMarker } from '../../core/types';
 import type { CsvCodingModel } from '../codingModel';
 import type { CsvMarker } from '../codingTypes';
+import { BaseSidebarAdapter } from '../../core/baseSidebarAdapter';
 
 export interface CsvBaseMarker extends BaseMarker {
 	rowIndex: number;
@@ -31,16 +30,11 @@ function markerToBase(m: CsvMarker, model: CsvCodingModel): CsvBaseMarker {
 	};
 }
 
-export class CsvSidebarAdapter implements SidebarModelInterface {
-	readonly registry: CodeDefinitionRegistry;
-	private model: CsvCodingModel;
-
-	private changeListeners = new Map<() => void, () => void>();
-	private hoverListeners = new Map<() => void, (markerId: string | null, codeName: string | null) => void>();
+export class CsvSidebarAdapter extends BaseSidebarAdapter {
+	protected declare readonly model: CsvCodingModel;
 
 	constructor(model: CsvCodingModel) {
-		this.model = model;
-		this.registry = model.registry;
+		super(model);
 	}
 
 	getAllMarkers(): CsvBaseMarker[] {
@@ -93,47 +87,5 @@ export class CsvSidebarAdapter implements SidebarModelInterface {
 		const def = this.registry.getByName(codeName);
 		if (def) this.registry.delete(def.id);
 		this.saveMarkers();
-	}
-
-	// ── Hover state ──
-
-	setHoverState(markerId: string | null, codeName: string | null): void {
-		this.model.setHoverState(markerId, codeName);
-	}
-
-	getHoverMarkerId(): string | null {
-		return this.model.getHoverMarkerId();
-	}
-
-	getHoverMarkerIds(): string[] {
-		const id = this.model.getHoverMarkerId();
-		return id ? [id] : [];
-	}
-
-	onChange(fn: () => void): void {
-		this.changeListeners.set(fn, fn);
-		this.model.onChange(fn);
-	}
-
-	offChange(fn: () => void): void {
-		const wrapped = this.changeListeners.get(fn);
-		if (wrapped) {
-			this.model.offChange(wrapped);
-			this.changeListeners.delete(fn);
-		}
-	}
-
-	onHoverChange(fn: () => void): void {
-		const wrapper = (_markerId: string | null, _codeName: string | null) => fn();
-		this.hoverListeners.set(fn, wrapper);
-		this.model.onHoverChange(wrapper);
-	}
-
-	offHoverChange(fn: () => void): void {
-		const wrapper = this.hoverListeners.get(fn);
-		if (wrapper) {
-			this.model.offHoverChange(wrapper);
-			this.hoverListeners.delete(fn);
-		}
 	}
 }
