@@ -7,9 +7,11 @@ import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 /** A coded region on a timeline (used by both Audio and Video). */
 export interface MediaMarker {
 	id: string;
+	fileId: string;
 	from: number;
 	to: number;
 	codes: string[];
+	colorOverride?: string;
 	memo?: string;
 	createdAt: number;
 	updatedAt: number;

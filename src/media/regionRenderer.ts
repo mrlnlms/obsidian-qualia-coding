@@ -32,7 +32,7 @@ export class MediaRegionRenderer {
 	renderMarkerRegion(marker: MediaMarker): void {
 		this.removeRegion(marker.id);
 
-		const baseColor = this.model.registry.getColorForCodes(marker.codes);
+		const baseColor = marker.colorOverride ?? this.model.registry.getColorForCodes(marker.codes);
 		const alpha = Math.round(this.model.settings.regionOpacity * 255).toString(16).padStart(2, '0');
 		const fallbackAlpha = Math.round(this.model.settings.regionOpacity * 0.6 * 255).toString(16).padStart(2, '0');
 		const fallback = this.renderer.readAccentHex() + fallbackAlpha;
@@ -160,7 +160,7 @@ export class MediaRegionRenderer {
 		if (duration <= 0 || markers.length === 0) return;
 
 		for (const marker of markers) {
-			const baseColor = this.model.registry.getColorForCodes(marker.codes);
+			const baseColor = marker.colorOverride ?? this.model.registry.getColorForCodes(marker.codes);
 			const color = baseColor ?? this.renderer.readAccentHex();
 			const left = (marker.from / duration) * 100;
 			const width = ((marker.to - marker.from) / duration) * 100;

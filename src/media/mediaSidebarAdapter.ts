@@ -36,8 +36,9 @@ export class MediaSidebarAdapter<
 	protected markerToBase(m: M): BM {
 		return {
 			id: m.id,
-			fileId: this.model.getFileForMarker(m.id) ?? '',
+			fileId: m.fileId,
 			codes: m.codes,
+			colorOverride: m.colorOverride,
 			memo: m.memo,
 			createdAt: m.createdAt,
 			updatedAt: m.updatedAt,
@@ -75,6 +76,7 @@ export class MediaSidebarAdapter<
 		const m = this.model.findMarkerById(markerId);
 		if (!m) return;
 		if ('memo' in fields) m.memo = fields.memo;
+		if ('colorOverride' in fields) m.colorOverride = fields.colorOverride;
 		m.updatedAt = Date.now();
 		this.model.notify();
 	}

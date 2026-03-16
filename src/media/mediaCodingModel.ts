@@ -39,10 +39,11 @@ export class MediaCodingModel<
 		this.files = (section as any).files ?? [];
 		this.settings = { ...defaultSettings, ...((section as any).settings as Partial<S>) };
 
-		// Migration: backfill updatedAt for markers created before this field existed
+		// Migration: backfill fields for markers created before they existed
 		for (const f of this.files) {
 			for (const m of f.markers) {
 				if (!m.updatedAt) m.updatedAt = m.createdAt ?? Date.now();
+				if (!m.fileId) m.fileId = f.path;
 			}
 		}
 	}
@@ -121,6 +122,7 @@ export class MediaCodingModel<
 		const now = Date.now();
 		const marker = {
 			id: this.generateId(),
+			fileId: filePath,
 			from,
 			to,
 			codes: [],
