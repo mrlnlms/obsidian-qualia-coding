@@ -163,8 +163,8 @@ export async function deserializeBoard(
         fill: "",
         selectable: true,
       });
-      (pathObj as any).boardType = "path";
-      (pathObj as any).boardId = pathData.id;
+      pathObj.boardType = "path";
+      pathObj.boardId = pathData.id;
       canvas.add(pathObj);
     } catch {
       // Skip invalid paths

@@ -1,5 +1,6 @@
 
 import { ItemView, WorkspaceLeaf, Menu, Notice } from "obsidian";
+import type { Group } from "fabric";
 import type { AnalyticsPluginAPI } from "../index";
 import { setupBoardCanvas, teardownBoardCanvas, zoomBy, fitContent, type BoardCanvasState } from "../board/boardCanvas";
 import { createStickyNote, nextNoteId, isStickyNote, isSnapshotNode, isExcerptNode, isCodeCardNode, isKpiCardNode, isClusterFrame, setStickyColor, enableStickyEditing, createSnapshotNode, nextSnapshotId, createExcerptNode, nextExcerptId, createCodeCardNode, nextCodeCardId, createKpiCardNode, nextKpiCardId, createClusterFrame, nextClusterFrameId, STICKY_COLORS, DEFAULT_STICKY_COLOR, type StickyNoteData, type SnapshotNodeData, type ExcerptNodeData, type CodeCardNodeData, type KpiCardNodeData, type ClusterFrameData } from "../board/boardNodes";
@@ -16,7 +17,7 @@ export class BoardView extends ItemView {
   private plugin: AnalyticsPluginAPI;
   private canvasState: BoardCanvasState | null = null;
   private currentTool: BoardTool = "select";
-  private arrowSourceObj: any = null; // first node clicked in arrow mode
+  private arrowSourceObj: import("fabric").FabricObject | null = null; // first node clicked in arrow mode
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private toolbarApi: { setActiveTool: (tool: BoardTool) => void } | null = null;
 
@@ -128,7 +129,7 @@ export class BoardView extends ItemView {
       for (const obj of active) {
         // If it's an arrow part, remove both line + head
         if (isArrow(obj)) {
-          removeArrowById(canvas, (obj as any).boardId);
+          removeArrowById(canvas, obj.boardId);
         } else {
           canvas.remove(obj);
         }
@@ -195,8 +196,8 @@ export class BoardView extends ItemView {
               this.arrowSourceObj.set("opacity", 1);
               createArrow(canvas, this.arrowSourceObj, t, {
                 id: nextArrowId(),
-                fromNodeId: (this.arrowSourceObj as any).boardId,
-                toNodeId: (t as any).boardId,
+                fromNodeId: this.arrowSourceObj.boardId!,
+                toNodeId: t.boardId!,
                 color: "#888",
                 label: "",
               });
@@ -257,7 +258,7 @@ export class BoardView extends ItemView {
           menu.addItem((item) => {
             item.setTitle(key.charAt(0).toUpperCase() + key.slice(1));
             item.onClick(() => {
-              setStickyColor(target as any, key);
+              setStickyColor(target as Group, key);
               this.scheduleSave();
             });
           });
@@ -269,7 +270,7 @@ export class BoardView extends ItemView {
         item.setIcon("trash-2");
         item.onClick(() => {
           if (isArrowObj) {
-            removeArrowById(canvas, (target as any).boardId);
+            removeArrowById(canvas, target.boardId);
           } else {
             canvas.remove(target);
           }
@@ -417,8 +418,8 @@ export class BoardView extends ItemView {
       data = await this.plugin.loadConsolidatedData();
     }
 
-    const codeNames = codeCards.map((o) => (o as any).boardCodeName as string);
-    const codeColors = codeCards.map((o) => (o as any).boardColor as string);
+    const codeNames = codeCards.map((o) => o.boardCodeName as string);
+    const codeColors = codeCards.map((o) => o.boardColor as string);
 
     const result = clusterCodeCards(codeNames, codeColors, data);
 
@@ -460,7 +461,7 @@ export class BoardView extends ItemView {
       // Move cards into grid inside frame
       let idx = 0;
       for (const codeName of cluster.codeNames) {
-        const card = codeCards.find((o) => (o as any).boardCodeName === codeName);
+        const card = codeCards.find((o) => o.boardCodeName === codeName);
         if (card) {
           const col = idx % cols;
           const row = Math.floor(idx / cols);
@@ -558,8 +559,8 @@ export class BoardView extends ItemView {
         (arrowData: ArrowData) => {
           // Find from/to nodes
           const objects = canvas.getObjects();
-          const fromObj = objects.find((o) => (o as any).boardId === arrowData.fromNodeId);
-          const toObj = objects.find((o) => (o as any).boardId === arrowData.toNodeId);
+          const fromObj = objects.find((o) => o.boardId === arrowData.fromNodeId);
+          const toObj = objects.find((o) => o.boardId === arrowData.toNodeId);
           if (fromObj && toObj) {
             createArrow(canvas, fromObj, toObj, arrowData);
           }

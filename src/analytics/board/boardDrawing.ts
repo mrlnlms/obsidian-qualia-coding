@@ -28,21 +28,22 @@ export function disableDrawingMode(canvas: Canvas): void {
 
 export function tagNewPaths(canvas: Canvas): void {
   for (const obj of canvas.getObjects()) {
-    if (obj instanceof Path && !(obj as any).boardType) {
-      (obj as any).boardType = "path";
-      (obj as any).boardId = nextPathId();
+    if (obj instanceof Path && !obj.boardType) {
+      obj.boardType = "path";
+      obj.boardId = nextPathId();
     }
   }
 }
 
 export function getPathData(obj: FabricObject): FreePathData | null {
-  if ((obj as any).boardType !== "path") return null;
+  if (obj.boardType !== "path") return null;
   if (!(obj instanceof Path)) return null;
-  const pathStr = (obj as any).path
-    ? JSON.stringify((obj as any).path)
+  const p = obj as Path;
+  const pathStr = p.path
+    ? JSON.stringify(p.path)
     : "";
   return {
-    id: (obj as any).boardId,
+    id: obj.boardId!,
     path: pathStr,
     color: (obj.stroke as string) ?? "#333",
     width: obj.strokeWidth ?? 2,
@@ -50,5 +51,5 @@ export function getPathData(obj: FabricObject): FreePathData | null {
 }
 
 export function isFreePath(obj: FabricObject): boolean {
-  return (obj as any).boardType === "path";
+  return obj.boardType === "path";
 }
