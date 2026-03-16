@@ -339,7 +339,8 @@ Audio/Video herdam via `MediaSidebarAdapter` intermediario.
 | BaseSidebarAdapter (todos os engines) | ~120 eliminadas | FEITO (2026-03-16) |
 | Menu consolidation nivel 2 (markdown → shared popover) | ~299 eliminadas | FEITO (2026-03-16) |
 | CSS cleanup full (remove namespace tooltip-menu, unifica seletores) | ~77 eliminadas | FEITO (2026-03-16) |
-| **Total eliminado** | **~1.280 linhas** | |
+| `as any` cleanup (222 → 16 restantes) | 206 removidos | FEITO (2026-03-16) |
+| **Total eliminado** | **~1.280 linhas + 206 as any** | |
 | analyticsView.ts split (5.907 linhas) | Reorganiza, nao elimina | Futuro |
 | statsEngine.ts split | Reorganiza | Futuro |
 
@@ -350,8 +351,94 @@ Ganho de manutenibilidade alcancado:
 - Types: nomes consistentes (fileId, memo, removeMarker, colorOverride)
 - Type guards: 1 lugar (markerResolvers.ts), nao duplicados
 - CSS: 1 namespace (codemarker-popover), zero duplicacao
+- Type safety: 222 → 16 `as any`, 44 → 3 `@ts-ignore`
+- Fabric.js: module augmentation em fabricExtensions.d.ts (25 custom board properties tipados)
 
-Pendente:
-- analyticsView.ts split (5.907 linhas num arquivo) — futuro
-- statsEngine.ts split — futuro
-- `as any` cleanup (220 instancias, maioria Fabric.js) — baixa prioridade
+---
+
+## 16 `as any` restantes — analise de eliminabilidade
+
+### DataManager migration code (6 instancias) — `src/core/dataManager.ts`
+
+```
+(raw as any)[key] = defaults[key]           // preenche campos faltantes
+(raw as any).markdown?.codeDescriptions     // acessa schema legado
+(def as any).name / .description            // definitions sem tipo durante migracao
+```
+
+**Eliminavel?** SIM, se criar `LegacyQualiaData` interface que descreve o schema antigo. Mas o codigo de migracao e transitorio — quando o plugin sair de dev, pode ser removido inteiramente (nenhum usuario tem dados no formato antigo). **Sugestao: remover o codigo de migracao quando o plugin for publicado.**
+
+### MediaCodingModel generic section key (4 instancias) — `src/media/mediaCodingModel.ts`
+
+```
+dm.section(sectionName as any)              // 'audio'|'video' como string, DataManager espera keyof
+(section as any).files                      // retorno e union type, files nao existe em todos
+```
+
+**Eliminavel?** SIM, com overload no DataManager:
+```typescript
+section(key: 'audio'): { files: AudioFile[]; settings: AudioSettings };
+section(key: 'video'): { files: VideoFile[]; settings: VideoSettings };
+```
+Ou aceitar o `as any` — e o custo de um model generico parametrizado. **Sugestao: criar overloads no DataManager se for adicionar mais engines.**
+
+### PDF Obsidian internal viewer API (3 instancias) — `src/pdf/index.ts`
+
+```
+view.viewer as any                          // acessa PDF.js viewer interno do Obsidian
+(leaf.view as any)                          // acessa propriedades de PdfView nao exportadas
+```
+
+**Eliminavel?** NAO facilmente. O Obsidian nao exporta tipos do PDF viewer. O `pdfTypings.d.ts` ja cobre parcialmente, mas a API interna muda entre versoes do Obsidian. **Sugestao: manter e documentar como "Obsidian internal API".**
+
+### WaveSurfer event type (1 instancia) — `src/media/waveformRenderer.ts`
+
+```
+this.ws?.on(event as any, callback)         // wavesurfer nao tipa eventos como union
+```
+
+**Eliminavel?** SIM, com module augmentation para WaveSurfer (similar ao que fizemos com Fabric.js). **Sugestao: fazer quando mexer no waveform renderer.**
+
+### Chart.js wordCloud plugin (1 instancia) — `src/analytics/views/analyticsView.ts`
+
+```
+type: "wordCloud" as any                    // chartjs-chart-wordcloud nao registra tipo
+```
+
+**Eliminavel?** SIM, com `declare module 'chart.js' { ... }` para registrar o tipo wordCloud. **Sugestao: fazer quando mexer no analytics.**
+
+### viewLookupUtils duck-type (1 instancia) — `src/markdown/cm6/utils/viewLookupUtils.ts`
+
+```
+return createStandaloneViewWrapper(standalone) as any
+```
+
+**Eliminavel?** SIM, tipando o retorno da funcao wrapper. **Sugestao: fazer quando mexer no viewLookup.**
+
+---
+
+## Erros tsc pre-existentes (82 erros)
+
+`@types/fabric` esta desatualizado para Fabric.js v6. Os imports `Canvas`, `Line`, `Triangle`, `Point`, `Path` nao sao exports diretos. O esbuild resolve em runtime.
+
+**Eliminavel?** SIM, de duas formas:
+1. Atualizar `@types/fabric` quando uma versao compativel com v6 existir
+2. Criar ambient declarations locais para os tipos faltantes (similar ao fabricExtensions.d.ts)
+
+**Sugestao: tratar quando for refatorar o board (Approach B — wrapper types).**
+
+---
+
+## Pendente (refactor futuro)
+
+| Item | Eliminavel? | Quando |
+|------|------------|--------|
+| analyticsView.ts split (5.907 linhas) | — | Quando mexer em analytics |
+| statsEngine.ts split | — | Quando mexer em analytics |
+| 6 `as any` DataManager migration | Sim (remover migration code) | Quando publicar o plugin |
+| 4 `as any` MediaCodingModel section | Sim (overloads DataManager) | Quando adicionar engines |
+| 3 `as any` PDF viewer | Nao (API interna Obsidian) | Manter |
+| 1 `as any` WaveSurfer event | Sim (module augmentation) | Quando mexer em waveform |
+| 1 `as any` Chart.js wordCloud | Sim (module augmentation) | Quando mexer em analytics |
+| 1 `as any` viewLookupUtils | Sim (tipar retorno) | Quando mexer em viewLookup |
+| 82 erros tsc Fabric.js | Sim (ambient declarations) | Quando refatorar board |
