@@ -22,7 +22,7 @@ function markerToBase(m: VideoMarker, filePath: string): VideoBaseMarker {
 		fileId: filePath,
 		codes: m.codes,
 		createdAt: m.createdAt,
-		updatedAt: m.createdAt,
+		updatedAt: m.updatedAt,
 		startTime: m.from,
 		endTime: m.to,
 		mediaType: 'video',

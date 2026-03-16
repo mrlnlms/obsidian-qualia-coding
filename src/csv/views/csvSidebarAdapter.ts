@@ -68,7 +68,8 @@ export class CsvSidebarAdapter implements SidebarModelInterface {
 	updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
 		const m = this.model.findMarkerById(markerId);
 		if (!m) return;
-		// CsvMarker doesn't have memo/colorOverride natively, but we can extend later
+		if ('memo' in fields) m.memo = fields.memo;
+		if ('colorOverride' in fields) m.colorOverride = fields.colorOverride;
 		m.updatedAt = Date.now();
 		this.model.notifyAndSave();
 	}

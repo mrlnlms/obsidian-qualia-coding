@@ -25,6 +25,7 @@ export interface PdfShapeMarker {
 	coords: import('../core/shapeTypes').NormalizedShapeCoords;
 	codes: string[];
 	note?: string;
+	colorOverride?: string;
 	createdAt: number;
 	updatedAt: number;
 }

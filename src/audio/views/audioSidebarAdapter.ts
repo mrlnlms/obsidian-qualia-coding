@@ -23,7 +23,7 @@ function markerToBase(m: AudioMarker, model: AudioCodingModel): AudioBaseMarker 
 		codes: m.codes,
 		memo: m.memo,
 		createdAt: m.createdAt,
-		updatedAt: m.createdAt,
+		updatedAt: m.updatedAt,
 		startTime: m.from,
 		endTime: m.to,
 		mediaType: 'audio',

@@ -7,6 +7,8 @@ export interface SegmentMarker {
 	from: number;       // char offset start within cell text
 	to: number;         // char offset end within cell text
 	codes: string[];    // code names applied to this segment
+	memo?: string;
+	colorOverride?: string;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -18,6 +20,8 @@ export interface RowMarker {
 	row: number;
 	column: string;
 	codes: string[];
+	memo?: string;
+	colorOverride?: string;
 	createdAt: number;
 	updatedAt: number;
 }

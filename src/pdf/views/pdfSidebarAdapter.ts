@@ -43,7 +43,7 @@ function shapeMarkerToBase(s: PdfShapeMarker, model: PdfCodingModel): PdfBaseMar
 		id: s.id,
 		fileId: s.file,
 		codes: s.codes,
-		colorOverride: undefined,
+		colorOverride: s.colorOverride,
 		memo: s.note,
 		createdAt: s.createdAt,
 		updatedAt: s.updatedAt,
@@ -113,7 +113,7 @@ export class PdfSidebarAdapter implements SidebarModelInterface {
 		const shape = this.model.findShapeById(markerId);
 		if (shape) {
 			if ('memo' in fields) shape.note = fields.memo;
-			// shapes don't have colorOverride yet
+			if ('colorOverride' in fields) shape.colorOverride = fields.colorOverride;
 			shape.updatedAt = Date.now();
 			(this.model as any).notify();
 		}
