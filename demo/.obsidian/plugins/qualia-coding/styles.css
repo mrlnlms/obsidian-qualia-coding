@@ -1100,25 +1100,6 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	border-top: 1px solid var(--background-modifier-border);
 }
 
-.codemarker-tooltip-input-wrapper {
-	padding: var(--size-4-1) var(--size-4-2) !important;
-}
-
-.codemarker-tooltip-input {
-	width: 100%;
-	padding: var(--size-4-1) var(--size-4-2);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-s);
-	background: var(--background-primary);
-	color: var(--text-normal);
-	font-size: var(--font-ui-small);
-	outline: none;
-}
-
-.codemarker-tooltip-input:focus {
-	border-color: var(--interactive-accent);
-	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
-}
 
 /* ========================================
    Menu TextComponent & ToggleComponent
@@ -1158,23 +1139,6 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	flex-shrink: 0;
 }
 
-/* ========================================
-   CM6 Tooltip toggle checkbox
-   ======================================== */
-
-.codemarker-tooltip-toggle {
-	display: flex;
-	align-items: center;
-	gap: var(--size-4-1);
-}
-
-.codemarker-tooltip-checkbox {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	accent-color: var(--interactive-accent);
-	cursor: pointer;
-}
 
 /* ========================================
    CodeFormModal — stacked form layout
