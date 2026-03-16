@@ -75,15 +75,15 @@ export class CsvCodingModel {
 	// ── Row Markers ──
 
 	getRowMarkersForCell(file: string, row: number, column: string): RowMarker[] {
-		return this.rowMarkers.filter(m => m.file === file && m.row === row && m.column === column);
+		return this.rowMarkers.filter(m => m.fileId === file && m.row === row && m.column === column);
 	}
 
 	findOrCreateRowMarker(file: string, row: number, column: string): RowMarker {
-		const existing = this.rowMarkers.find(m => m.file === file && m.row === row && m.column === column);
+		const existing = this.rowMarkers.find(m => m.fileId === file && m.row === row && m.column === column);
 		if (existing) return existing;
 		const marker: RowMarker = {
 			id: this.generateId(),
-			file, row, column,
+			fileId: file, row, column,
 			codes: [],
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
@@ -95,18 +95,18 @@ export class CsvCodingModel {
 	// ── Segment Markers ──
 
 	getSegmentMarkersForCell(file: string, row: number, column: string): SegmentMarker[] {
-		return this.segmentMarkers.filter(m => m.file === file && m.row === row && m.column === column);
+		return this.segmentMarkers.filter(m => m.fileId === file && m.row === row && m.column === column);
 	}
 
 	findOrCreateSegmentMarker(snapshot: CodingSnapshot): SegmentMarker {
 		const existing = this.segmentMarkers.find(m =>
-			m.file === snapshot.file && m.row === snapshot.row && m.column === snapshot.column &&
+			m.fileId === snapshot.fileId && m.row === snapshot.row && m.column === snapshot.column &&
 			m.from === snapshot.from && m.to === snapshot.to
 		);
 		if (existing) return existing;
 		const marker: SegmentMarker = {
 			id: this.generateId(),
-			file: snapshot.file,
+			fileId: snapshot.fileId,
 			row: snapshot.row,
 			column: snapshot.column,
 			from: snapshot.from,
@@ -169,10 +169,10 @@ export class CsvCodingModel {
 	migrateFilePath(oldPath: string, newPath: string): void {
 		let changed = false;
 		for (const m of this.segmentMarkers) {
-			if (m.file === oldPath) { m.file = newPath; changed = true; }
+			if (m.fileId === oldPath) { m.fileId = newPath; changed = true; }
 		}
 		for (const m of this.rowMarkers) {
-			if (m.file === oldPath) { m.file = newPath; changed = true; }
+			if (m.fileId === oldPath) { m.fileId = newPath; changed = true; }
 		}
 		// Migrate rowDataCache key to avoid orphaned entries
 		const cachedRows = this.rowDataCache.get(oldPath);
@@ -185,17 +185,17 @@ export class CsvCodingModel {
 
 	getAllFileIds(): string[] {
 		const ids = new Set<string>();
-		for (const m of this.segmentMarkers) ids.add(m.file);
-		for (const m of this.rowMarkers) ids.add(m.file);
+		for (const m of this.segmentMarkers) ids.add(m.fileId);
+		for (const m of this.rowMarkers) ids.add(m.fileId);
 		return Array.from(ids);
 	}
 
 	getMarkersForFile(fileId: string): CsvMarker[] {
-		return this.getAllMarkers().filter(m => m.file === fileId);
+		return this.getAllMarkers().filter(m => m.fileId === fileId);
 	}
 
 	getMarkerText(marker: CsvMarker): string | null {
-		const rows = this.rowDataCache.get(marker.file);
+		const rows = this.rowDataCache.get(marker.fileId);
 		if (!rows || !rows[marker.row]) return null;
 		const cellText = rows[marker.row]![marker.column] ?? null;
 		if (!cellText) return null;
@@ -218,7 +218,7 @@ export class CsvCodingModel {
 
 	deleteSegmentMarkersForCell(file: string, row: number, column: string): void {
 		this.segmentMarkers = this.segmentMarkers.filter(
-			m => !(m.file === file && m.row === row && m.column === column)
+			m => !(m.fileId === file && m.row === row && m.column === column)
 		);
 	}
 

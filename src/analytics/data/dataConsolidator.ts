@@ -60,7 +60,7 @@ export function consolidate(
         markers.push({
           id: m.id ?? "",
           source: "csv-segment",
-          file: m.file ?? "",
+          file: m.fileId ?? "",
           codes,
           meta: {
             row: m.row, column: m.column, fromLine: m.row, toLine: m.row,
@@ -79,7 +79,7 @@ export function consolidate(
         markers.push({
           id: m.id ?? "",
           source: "csv-row",
-          file: m.file ?? "",
+          file: m.fileId ?? "",
           codes,
           meta: { row: m.row, column: m.column, fromLine: m.row, toLine: m.row, ...(m.createdAt != null ? { createdAt: m.createdAt } : {}) },
         });
@@ -109,7 +109,7 @@ export function consolidate(
       markers.push({
         id: m.id ?? "",
         source: "image",
-        file: m.file ?? "",
+        file: m.fileId ?? "",
         codes,
         meta: imgMeta,
       });
@@ -131,7 +131,7 @@ export function consolidate(
       markers.push({
         id: m.id ?? "",
         source: "pdf",
-        file: m.file ?? "",
+        file: m.fileId ?? "",
         codes,
         meta: {
           page: m.page,

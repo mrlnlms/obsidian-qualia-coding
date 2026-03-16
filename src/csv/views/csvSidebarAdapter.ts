@@ -19,7 +19,7 @@ export interface CsvBaseMarker extends BaseMarker {
 function markerToBase(m: CsvMarker, model: CsvCodingModel): CsvBaseMarker {
 	return {
 		id: m.id,
-		fileId: m.file,
+		fileId: m.fileId,
 		codes: m.codes,
 		createdAt: m.createdAt,
 		updatedAt: m.updatedAt,

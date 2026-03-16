@@ -33,7 +33,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 
 	function openPopoverForMarkerAtElement(marker: PdfMarker, anchorEl: HTMLElement, onRefresh: () => void) {
 		const selectionResult: PdfSelectionResult = {
-			file: marker.file,
+			file: marker.fileId,
 			page: marker.page,
 			beginIndex: marker.beginIndex,
 			beginOffset: marker.beginOffset,

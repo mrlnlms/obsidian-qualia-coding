@@ -3,7 +3,7 @@ export type { ShapeType, RectCoords, EllipseCoords, PolygonCoords, NormalizedSha
 
 export interface PdfMarker {
 	id: string;
-	file: string;
+	fileId: string;
 	page: number;
 	beginIndex: number;
 	beginOffset: number;
@@ -19,7 +19,7 @@ export interface PdfMarker {
 
 export interface PdfShapeMarker {
 	id: string;
-	file: string;
+	fileId: string;
 	page: number;
 	shape: import('../core/shapeTypes').ShapeType;
 	coords: import('../core/shapeTypes').NormalizedShapeCoords;

@@ -2,7 +2,7 @@
  * PdfSidebarAdapter — wraps PdfCodingModel into the SidebarModelInterface
  * expected by BaseCodeDetailView and BaseCodeExplorerView.
  *
- * Maps PdfMarker.file → BaseMarker.fileId and merges text markers + shapes
+ * Maps PdfMarker/PdfShapeMarker fields to BaseMarker and merges text markers + shapes
  * into a unified BaseMarker[] stream.
  */
 
@@ -26,7 +26,7 @@ export interface PdfBaseMarker extends BaseMarker {
 function textMarkerToBase(m: PdfMarker, model: PdfCodingModel): PdfBaseMarker {
 	return {
 		id: m.id,
-		fileId: m.file,
+		fileId: m.fileId,
 		codes: m.codes,
 		colorOverride: m.colorOverride,
 		memo: m.memo,
@@ -41,7 +41,7 @@ function textMarkerToBase(m: PdfMarker, model: PdfCodingModel): PdfBaseMarker {
 function shapeMarkerToBase(s: PdfShapeMarker, model: PdfCodingModel): PdfBaseMarker {
 	return {
 		id: s.id,
-		fileId: s.file,
+		fileId: s.fileId,
 		codes: s.codes,
 		colorOverride: s.colorOverride,
 		memo: s.memo,
@@ -84,8 +84,8 @@ export class PdfSidebarAdapter implements SidebarModelInterface {
 
 	getAllFileIds(): string[] {
 		const fileIds = new Set<string>();
-		for (const m of this.model.getAllMarkers()) fileIds.add(m.file);
-		for (const s of this.model.getAllShapes()) fileIds.add(s.file);
+		for (const m of this.model.getAllMarkers()) fileIds.add(m.fileId);
+		for (const s of this.model.getAllShapes()) fileIds.add(s.fileId);
 		return [...fileIds];
 	}
 

@@ -580,7 +580,7 @@ export class CsvCodingView extends FileView {
 				const fromOffset = doc.line(marker.range.from.line + 1).from + marker.range.from.ch;
 				const toOffset = doc.line(marker.range.to.line + 1).from + marker.range.to.ch;
 
-				const snapshot = { file, row, column, from: fromOffset, to: toOffset, text: '' };
+				const snapshot = { fileId: file, row, column, from: fromOffset, to: toOffset, text: '' };
 				const segMarker = this.csvModel.findOrCreateSegmentMarker(snapshot);
 				segMarker.codes = [...marker.codes];
 				segMarker.updatedAt = marker.updatedAt;

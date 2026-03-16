@@ -85,14 +85,14 @@ export class PdfCodingModel {
 	migrateFilePath(oldPath: string, newPath: string): void {
 		let changed = false;
 		for (const marker of this.markers) {
-			if (marker.file === oldPath) {
-				marker.file = newPath;
+			if (marker.fileId === oldPath) {
+				marker.fileId = newPath;
 				changed = true;
 			}
 		}
 		for (const shape of this.shapes) {
-			if (shape.file === oldPath) {
-				shape.file = newPath;
+			if (shape.fileId === oldPath) {
+				shape.fileId = newPath;
 				changed = true;
 			}
 		}
@@ -107,7 +107,7 @@ export class PdfCodingModel {
 	/** Find an existing marker without creating one (for read-only checks). */
 	findExistingMarker(file: string, page: number, beginIndex: number, beginOffset: number, endIndex: number, endOffset: number): PdfMarker | undefined {
 		return this.markers.find(m =>
-			m.file === file && m.page === page &&
+			m.fileId === file && m.page === page &&
 			m.beginIndex === beginIndex && m.beginOffset === beginOffset &&
 			m.endIndex === endIndex && m.endOffset === endOffset
 		);
@@ -119,7 +119,7 @@ export class PdfCodingModel {
 
 		const marker: PdfMarker = {
 			id: this.generateId(),
-			file, page,
+			fileId: file, page,
 			beginIndex, beginOffset,
 			endIndex, endOffset,
 			text,
@@ -132,11 +132,11 @@ export class PdfCodingModel {
 	}
 
 	getMarkersForPage(file: string, page: number): PdfMarker[] {
-		return this.markers.filter(m => m.file === file && m.page === page);
+		return this.markers.filter(m => m.fileId === file && m.page === page);
 	}
 
 	getMarkersForFile(file: string): PdfMarker[] {
-		return this.markers.filter(m => m.file === file);
+		return this.markers.filter(m => m.fileId === file);
 	}
 
 	// ── Code assignment ──
@@ -288,7 +288,7 @@ export class PdfCodingModel {
 	createShape(file: string, page: number, coords: NormalizedShapeCoords): PdfShapeMarker {
 		const shape: PdfShapeMarker = {
 			id: this.generateId(),
-			file,
+			fileId: file,
 			page,
 			shape: coords.type,
 			coords,
@@ -316,11 +316,11 @@ export class PdfCodingModel {
 	}
 
 	getShapesForPage(file: string, page: number): PdfShapeMarker[] {
-		return this.shapes.filter(s => s.file === file && s.page === page);
+		return this.shapes.filter(s => s.fileId === file && s.page === page);
 	}
 
 	getShapesForFile(file: string): PdfShapeMarker[] {
-		return this.shapes.filter(s => s.file === file);
+		return this.shapes.filter(s => s.fileId === file);
 	}
 
 	getAllShapes(): PdfShapeMarker[] {
