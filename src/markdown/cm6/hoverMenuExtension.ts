@@ -106,7 +106,7 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 				if (sel.from !== sel.to) return;
 
 				// Guard: don't open if tooltip already visible
-				const existing = this.view.dom.ownerDocument.querySelector('.codemarker-tooltip-menu');
+				const existing = this.view.dom.ownerDocument.querySelector('.codemarker-popover');
 				if (existing) return;
 
 				// Guard: drag in progress
@@ -298,7 +298,7 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 				mousedown(_event: MouseEvent, _view: EditorView) {
 					this.cancelAll();
 					if (this.isMenuOpen) {
-						const tooltip = _view.dom.ownerDocument.querySelector('.codemarker-tooltip-menu');
+						const tooltip = _view.dom.ownerDocument.querySelector('.codemarker-popover');
 						if (tooltip && tooltip.contains(_event.target as Node)) {
 							return false;
 						}
