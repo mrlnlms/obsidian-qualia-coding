@@ -1,5 +1,5 @@
 import { FileView, Modal, Setting, TFile, Vault, WorkspaceLeaf, setIcon } from 'obsidian';
-import { AllCommunityModule, ModuleRegistry, createGrid, GridApi, themeQuartz } from 'ag-grid-community';
+import { AllCommunityModule, ModuleRegistry, createGrid, GridApi, themeQuartz, type ColDef } from 'ag-grid-community';
 import * as Papa from 'papaparse';
 import { parquetReadObjects } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
@@ -210,7 +210,7 @@ export class CsvCodingView extends FileView {
 			}
 		};
 		this.registerEvent(
-			(this.app.workspace as any).on('qualia-csv:navigate', navHandler)
+			this.app.workspace.on('qualia-csv:navigate', navHandler)
 		);
 
 		// Inject custom header buttons via MutationObserver
@@ -276,7 +276,7 @@ export class CsvCodingView extends FileView {
 				wrapBtn.className = 'csv-header-wrap-btn ag-header-icon ' + wrapBtn.className;
 
 				const col = this.gridApi?.getColumn(colId);
-				const colDef = col ? (col.getColDef() as any) : null;
+				const colDef = col ? col.getColDef() : null;
 				const isWrapped = colDef?.wrapText ?? true;
 				wrapBtn.style.opacity = isWrapped ? '0.8' : '0.3';
 
@@ -285,12 +285,12 @@ export class CsvCodingView extends FileView {
 					if (!this.gridApi) return;
 					const colDefs = this.gridApi.getColumnDefs();
 					if (!colDefs) return;
-					const def = colDefs.find((c: any) => c.field === colId) as any;
+					const def = colDefs.find((c) => (c as ColDef).field === colId) as ColDef | undefined;
 					if (!def) return;
 					const nowWrapped = def.wrapText ?? true;
-					def.wrapText = !nowWrapped;
-					def.autoHeight = !nowWrapped;
-					def.cellClass = !nowWrapped ? 'csv-comment-cell' : 'csv-comment-cell-nowrap';
+					(def as ColDef).wrapText = !nowWrapped;
+					(def as ColDef).autoHeight = !nowWrapped;
+					(def as ColDef).cellClass = !nowWrapped ? 'csv-comment-cell' : 'csv-comment-cell-nowrap';
 					this.gridApi.setGridOption('columnDefs', colDefs);
 				});
 
@@ -381,7 +381,7 @@ export class CsvCodingView extends FileView {
 		// Sync code definitions from shared registry so colors resolve in CM6
 		for (const def of this.csvModel.registry.getAll()) {
 			if (!mdModel.registry.getByName(def.name)) {
-				mdModel.registry.importDefinition(def as any);
+				mdModel.registry.importDefinition(def);
 			}
 		}
 
@@ -722,24 +722,24 @@ class ColumnToggleModal extends Modal {
 		const isComment = suffix === 'comment';
 
 		if (add) {
-			const srcIdx = colDefs.findIndex((c: any) => c.field === sourceHeader);
+			const srcIdx = colDefs.findIndex((c) => (c as ColDef).field === sourceHeader);
 			let insertIdx = srcIdx + 1;
 
 			if (isFrow || isComment) {
 				while (insertIdx < colDefs.length) {
-					const f: string = (colDefs[insertIdx] as any).field ?? '';
+					const f: string = (colDefs[insertIdx] as ColDef).field ?? '';
 					if (f.startsWith(sourceHeader + '_cod-')) { insertIdx++; } else { break; }
 				}
 			}
 			if (isComment) {
 				while (insertIdx < colDefs.length) {
-					const f: string = (colDefs[insertIdx] as any).field ?? '';
+					const f: string = (colDefs[insertIdx] as ColDef).field ?? '';
 					if (f === sourceHeader + '_comment') { insertIdx++; } else { break; }
 				}
 			}
 
 			if (isComment) {
-				const newCol: any = {
+				const newCol: ColDef = {
 					field,
 					headerName: `${sourceHeader}_comment`,
 					editable: true,
@@ -755,7 +755,7 @@ class ColumnToggleModal extends Modal {
 				};
 				colDefs.splice(insertIdx, 0, newCol);
 			} else {
-				const newCol: any = {
+				const newCol: ColDef = {
 					field,
 					headerName: `${sourceHeader}_${suffix}`,
 					editable: false,
@@ -773,18 +773,18 @@ class ColumnToggleModal extends Modal {
 			}
 
 			if (isCodSeg) {
-				const srcDef = colDefs[srcIdx] as any;
+				const srcDef = colDefs[srcIdx] as ColDef;
 				if (srcDef) {
 					srcDef.cellRenderer = sourceTagBtnRenderer;
 					srcDef.cellRendererParams = { codSegField: field, model: this.model, gridApi: this.gridApi, file: this.filePath, csvView: this.csvView, app: this.app };
 				}
 			}
 		} else {
-			const idx = colDefs.findIndex((c: any) => c.field === field);
+			const idx = colDefs.findIndex((c) => (c as ColDef).field === field);
 			if (idx >= 0) colDefs.splice(idx, 1);
 
 			if (isCodSeg) {
-				const srcDef = colDefs.find((c: any) => c.field === sourceHeader) as any;
+				const srcDef = colDefs.find((c) => (c as ColDef).field === sourceHeader) as ColDef | undefined;
 				if (srcDef) {
 					delete srcDef.cellRenderer;
 					delete srcDef.cellRendererParams;

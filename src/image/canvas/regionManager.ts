@@ -123,7 +123,7 @@ export class RegionManager {
 	private shapeToNormalizedCoords(shape: FabricObject): NormalizedCoords | null {
 		if (shape instanceof Polygon && !(shape instanceof Rect)) {
 			// Polygon — extract absolute points
-			const points = (shape as any).points as Array<{ x: number; y: number }>;
+			const points = (shape as Polygon).points as Array<{ x: number; y: number }>;
 			if (!points || points.length < 3) return null;
 
 			// Fabric stores polygon points relative to shape origin;

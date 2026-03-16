@@ -1,5 +1,5 @@
 
-import { ItemView, WorkspaceLeaf, setIcon, Notice } from "obsidian";
+import { ItemView, MarkdownView, WorkspaceLeaf, setIcon, Notice } from "obsidian";
 import type { AnalyticsPluginAPI } from "../index";
 import type { ConsolidatedData, FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult, TemporalResult, LagResult, PolarCoordResult, ChiSquareResult, SourceComparisonResult, OverlapResult, SourceType } from "../data/dataTypes";
 import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution, calculateTemporal, calculateTextStats, calculateLagSequential, calculatePolarCoordinates, calculateChiSquare, calculateSourceComparison, calculateOverlap } from "../data/statsEngine";
@@ -30,7 +30,7 @@ export class AnalyticsView extends ItemView {
   private displayMode: DisplayMode = "absolute";
   private showEdgeLabels = true;
   private minEdgeWeight = 1;
-  private enabledSources = new Set(["markdown", "csv-segment", "csv-row", "image", "pdf", "audio", "video"]);
+  private enabledSources = new Set<SourceType>(["markdown", "csv-segment", "csv-row", "image", "pdf", "audio", "video"]);
   private enabledCodes = new Set<string>();
   private minFrequency = 1;
   private codeSearch = "";
@@ -317,7 +317,7 @@ export class AnalyticsView extends ItemView {
     const section = this.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
     section.createDiv({ cls: "codemarker-config-section-title", text: "Sources" });
 
-    const sources: Array<{ label: string; keys: string[]; active: boolean }> = [
+    const sources: Array<{ label: string; keys: SourceType[]; active: boolean }> = [
       { label: "Markdown", keys: ["markdown"], active: this.data!.sources.markdown },
       { label: "CSV", keys: ["csv-segment", "csv-row"], active: this.data!.sources.csv },
       { label: "Image", keys: ["image"], active: this.data!.sources.image },
@@ -625,7 +625,7 @@ export class AnalyticsView extends ItemView {
     const excludeCodes = allCodeNames.filter((c) => !this.enabledCodes.has(c));
 
     return {
-      sources: Array.from(this.enabledSources) as any[],
+      sources: Array.from(this.enabledSources),
       codes: [], // empty = all (filtering via excludeCodes instead)
       excludeCodes,
       minFrequency: this.minFrequency,
@@ -2489,7 +2489,7 @@ export class AnalyticsView extends ItemView {
     const file = seg.file;
     if (seg.source === "audio") {
       const seekTo = seg.meta?.audioFrom ?? 0;
-      (this.plugin.app.workspace as any).trigger('codemarker-audio:seek', {
+      this.plugin.app.workspace.trigger('codemarker-audio:seek', {
         file: seg.file,
         seekTo,
       });
@@ -2497,7 +2497,7 @@ export class AnalyticsView extends ItemView {
     }
     if (seg.source === "video") {
       const seekTo = seg.meta?.videoFrom ?? 0;
-      (this.plugin.app.workspace as any).trigger('codemarker-video:seek', {
+      this.plugin.app.workspace.trigger('codemarker-video:seek', {
         file: seg.file,
         seekTo,
       });
@@ -2509,8 +2509,8 @@ export class AnalyticsView extends ItemView {
         setTimeout(() => {
           const leaf = this.plugin.app.workspace.getLeaf();
           const view = leaf?.view;
-          if (view && "editor" in view) {
-            const editor = (view as any).editor;
+          if (view instanceof MarkdownView) {
+            const editor = view.editor;
             if (editor?.setCursor) {
               editor.setCursor({ line: seg.fromLine ?? 0, ch: seg.fromCh ?? 0 });
               editor.scrollIntoView(
@@ -3213,7 +3213,7 @@ export class AnalyticsView extends ItemView {
       markers,
       this.data.codes,
       this.mdsMode,
-      Array.from(this.enabledSources) as any[],
+      Array.from(this.enabledSources),
     );
     loadingEl.remove();
 
@@ -3416,7 +3416,7 @@ export class AnalyticsView extends ItemView {
       filtered,
       this.data.codes,
       this.mdsMode,
-      Array.from(this.enabledSources) as any[],
+      Array.from(this.enabledSources),
     ).then((result) => {
       if (!result) {
         new Notice("Insufficient data for MDS export.");
@@ -5524,7 +5524,7 @@ export class AnalyticsView extends ItemView {
 
     // Meta info
     const meta = this.chartContainer.createDiv({ cls: "codemarker-overlap-meta" });
-    const fileCount = new Set(this.data.markers.filter((m) => filters.sources.includes(m.source as any)).map((m) => m.file)).size;
+    const fileCount = new Set(this.data.markers.filter((m) => filters.sources.includes(m.source)).map((m) => m.file)).size;
     meta.textContent = `${result.totalPairsChecked} marker pairs checked across ${fileCount} files`;
 
     // Reorder using co-occurrence sort logic (same interface)

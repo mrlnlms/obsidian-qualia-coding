@@ -59,7 +59,7 @@ export function codingCellRenderer(params: any): HTMLElement {
 				const marker = markers.find(m => m.codes.includes(codeName));
 				if (marker) {
 					// Dispatch detail event for sidebar
-					(csvView as any)?.app?.workspace?.trigger('qualia-csv:detail', {
+					csvView?.app?.workspace?.trigger('qualia-csv:detail', {
 						markerId: marker.id,
 						codeName,
 					});

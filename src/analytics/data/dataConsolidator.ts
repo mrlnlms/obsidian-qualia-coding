@@ -43,7 +43,7 @@ export function consolidate(
     }
     // Code definitions
     if (markdownData.codeDefinitions) {
-      for (const def of Object.values(markdownData.codeDefinitions) as any[]) {
+      for (const def of Object.values(markdownData.codeDefinitions as Record<string, { name: string; color: string; description?: string }>)) {
         mergeDef(codeMap, def.name, def.color, def.description, "markdown");
       }
     }
@@ -88,7 +88,7 @@ export function consolidate(
     // Registry
     const csvDefs = csvData.registry?.definitions;
     if (csvDefs) {
-      for (const def of Object.values(csvDefs) as any[]) {
+      for (const def of Object.values(csvDefs as Record<string, { name: string; color: string; description?: string }>)) {
         mergeDef(codeMap, def.name, def.color, def.description, "csv-segment");
       }
     }
@@ -116,7 +116,7 @@ export function consolidate(
     }
     const imgDefs = imageData.registry?.definitions;
     if (imgDefs) {
-      for (const def of Object.values(imgDefs) as any[]) {
+      for (const def of Object.values(imgDefs as Record<string, { name: string; color: string; description?: string }>)) {
         mergeDef(codeMap, def.name, def.color, def.description, "image");
       }
     }
@@ -144,7 +144,7 @@ export function consolidate(
     }
     const pdfDefs = pdfData.registry?.definitions;
     if (pdfDefs) {
-      for (const def of Object.values(pdfDefs) as any[]) {
+      for (const def of Object.values(pdfDefs as Record<string, { name: string; color: string; description?: string }>)) {
         mergeDef(codeMap, def.name, def.color, def.description, "pdf");
       }
     }
@@ -172,7 +172,7 @@ export function consolidate(
     }
     const audioDefs = audioData.codeDefinitions?.definitions;
     if (audioDefs) {
-      for (const def of Object.values(audioDefs) as any[]) {
+      for (const def of Object.values(audioDefs as Record<string, { name: string; color: string; description?: string }>)) {
         mergeDef(codeMap, def.name, def.color, def.description, "audio");
       }
     }
@@ -200,7 +200,7 @@ export function consolidate(
     }
     const videoDefs = videoData.codeDefinitions?.definitions;
     if (videoDefs) {
-      for (const def of Object.values(videoDefs) as any[]) {
+      for (const def of Object.values(videoDefs as Record<string, { name: string; color: string; description?: string }>)) {
         mergeDef(codeMap, def.name, def.color, def.description, "video");
       }
     }
