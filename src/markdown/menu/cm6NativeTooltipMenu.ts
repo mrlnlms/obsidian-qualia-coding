@@ -12,6 +12,7 @@ import {
 import { CodeFormModal } from '../../core/codeFormModal';
 import { CodeBrowserModal } from '../../core/codeBrowserModal';
 import { setSelectionPreviewEffect } from '../cm6/markerStateField';
+import { createActionItem, createSeparator, applyThemeColors, applyInputTheme } from '../../core/baseCodingMenu';
 
 /**
  * Approach C: CM6 Tooltip + Obsidian Native Components.
@@ -412,73 +413,3 @@ export function buildNativeTooltipMenuDOM(
 	return container;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-function createActionItem(title: string, iconName: string, onClick: () => void): HTMLElement {
-	const item = document.createElement('div');
-	item.className = 'menu-item';
-
-	const iconEl = document.createElement('div');
-	iconEl.className = 'menu-item-icon';
-	setIcon(iconEl, iconName);
-
-	const titleEl = document.createElement('div');
-	titleEl.className = 'menu-item-title';
-	titleEl.textContent = title;
-
-	item.appendChild(iconEl);
-	item.appendChild(titleEl);
-
-	item.addEventListener('click', (e) => {
-		e.stopPropagation();
-		onClick();
-	});
-
-	return item;
-}
-
-function createSeparator(): HTMLElement {
-	const sep = document.createElement('div');
-	sep.className = 'menu-separator';
-	return sep;
-}
-
-/**
- * Read computed CSS variable values from document.body and apply
- * them as inline styles on the container. This ensures the tooltip
- * respects Obsidian's current theme even inside CM6's tooltip DOM.
- */
-function applyThemeColors(container: HTMLElement) {
-	const s = getComputedStyle(document.body);
-	const get = (v: string) => s.getPropertyValue(v).trim();
-
-	container.style.backgroundColor = get('--background-secondary');
-	container.style.borderColor = get('--background-modifier-border');
-	container.style.color = get('--text-normal');
-
-	const vars = [
-		'--background-primary', '--background-secondary',
-		'--background-modifier-border', '--background-modifier-hover',
-		'--background-modifier-border-hover',
-		'--text-normal', '--text-muted',
-		'--interactive-accent', '--interactive-accent-rgb',
-		'--font-ui-small',
-		'--size-2-1', '--size-4-1', '--size-4-2',
-		'--radius-s', '--radius-m',
-		'--shadow-s',
-		'--toggle-border-width', '--toggle-width', '--toggle-radius',
-		'--toggle-thumb-color-off', '--toggle-thumb-color-on',
-		'--toggle-background-off', '--toggle-background-on',
-	];
-	for (const v of vars) {
-		const val = get(v);
-		if (val) container.style.setProperty(v, val);
-	}
-}
-
-function applyInputTheme(input: HTMLInputElement) {
-	const s = getComputedStyle(document.body);
-	input.style.backgroundColor = s.getPropertyValue('--background-primary').trim();
-	input.style.color = s.getPropertyValue('--text-normal').trim();
-	input.style.borderColor = s.getPropertyValue('--background-modifier-border').trim();
-}

@@ -365,7 +365,7 @@ export function applyThemeColors(container: HTMLElement): void {
 	}
 }
 
-function applyInputTheme(input: HTMLInputElement): void {
+export function applyInputTheme(input: HTMLInputElement): void {
 	const s = getComputedStyle(document.body);
 	input.style.backgroundColor = s.getPropertyValue('--background-primary').trim();
 	input.style.color = s.getPropertyValue('--text-normal').trim();
