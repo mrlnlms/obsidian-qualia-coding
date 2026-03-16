@@ -62,10 +62,10 @@ export function openPdfCodingPopover(
 		removeCode: (name) => {
 			for (const m of getMarkers()) model.removeCodeFromMarker(m.id, name, true);
 		},
-		getMemo: () => existingMarker?.note ?? '',
+		getMemo: () => existingMarker?.memo ?? '',
 		setMemo: (value) => {
 			if (existingMarker) {
-				existingMarker.note = value || undefined;
+				existingMarker.memo = value || undefined;
 				existingMarker.updatedAt = Date.now();
 				(model as any).save();
 			}
@@ -136,9 +136,9 @@ export function openShapeCodingPopover(
 		getActiveCodes: () => [...shape.codes],
 		addCode: (name) => model.addCodeToShape(shapeId, name),
 		removeCode: (name) => model.removeCodeFromShape(shapeId, name, true),
-		getMemo: () => shape.note ?? '',
+		getMemo: () => shape.memo ?? '',
 		setMemo: (value) => {
-			shape.note = value || undefined;
+			shape.memo = value || undefined;
 			shape.updatedAt = Date.now();
 			(model as any).save();
 		},

@@ -11,7 +11,7 @@ export interface PdfMarker {
 	endOffset: number;
 	text: string;
 	codes: string[];
-	note?: string;
+	memo?: string;
 	colorOverride?: string;
 	createdAt: number;
 	updatedAt: number;
@@ -24,7 +24,7 @@ export interface PdfShapeMarker {
 	shape: import('../core/shapeTypes').ShapeType;
 	coords: import('../core/shapeTypes').NormalizedShapeCoords;
 	codes: string[];
-	note?: string;
+	memo?: string;
 	colorOverride?: string;
 	createdAt: number;
 	updatedAt: number;

@@ -29,7 +29,7 @@ function textMarkerToBase(m: PdfMarker, model: PdfCodingModel): PdfBaseMarker {
 		fileId: m.file,
 		codes: m.codes,
 		colorOverride: m.colorOverride,
-		memo: m.note,
+		memo: m.memo,
 		createdAt: m.createdAt,
 		updatedAt: m.updatedAt,
 		page: m.page,
@@ -44,7 +44,7 @@ function shapeMarkerToBase(s: PdfShapeMarker, model: PdfCodingModel): PdfBaseMar
 		fileId: s.file,
 		codes: s.codes,
 		colorOverride: s.colorOverride,
-		memo: s.note,
+		memo: s.memo,
 		createdAt: s.createdAt,
 		updatedAt: s.updatedAt,
 		page: s.page,
@@ -104,7 +104,7 @@ export class PdfSidebarAdapter implements SidebarModelInterface {
 	updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
 		const tm = this.model.findMarkerById(markerId);
 		if (tm) {
-			if ('memo' in fields) tm.note = fields.memo;
+			if ('memo' in fields) tm.memo = fields.memo;
 			if ('colorOverride' in fields) tm.colorOverride = fields.colorOverride;
 			tm.updatedAt = Date.now();
 			(this.model as any).notify();
@@ -112,7 +112,7 @@ export class PdfSidebarAdapter implements SidebarModelInterface {
 		}
 		const shape = this.model.findShapeById(markerId);
 		if (shape) {
-			if ('memo' in fields) shape.note = fields.memo;
+			if ('memo' in fields) shape.memo = fields.memo;
 			if ('colorOverride' in fields) shape.colorOverride = fields.colorOverride;
 			shape.updatedAt = Date.now();
 			(this.model as any).notify();
