@@ -16,6 +16,11 @@ declare module 'obsidian' {
 		cm: EditorView;
 	}
 
+	interface WorkspaceLeaf {
+		/** Internal method to refresh the leaf header (title, icon, etc.). */
+		updateHeader?(): void;
+	}
+
 	interface Workspace {
 		on(name: 'qualia-csv:navigate', callback: (data: { file: string; row: number }) => void): EventRef;
 		on(name: 'qualia-csv:detail', callback: (data: { markerId: string; codeName: string }) => void): EventRef;
@@ -29,5 +34,7 @@ declare module 'obsidian' {
 		trigger(name: 'qualia-image:navigate', data: { file: string; markerId: string }): void;
 		trigger(name: 'qualia-video:navigate', data: { file: string; seekTo: number }): void;
 		trigger(name: 'qualia:reveal-detail', data: { markerId: string; codeName: string }): void;
+		trigger(name: 'codemarker-audio:seek', data: { file: string; seekTo: number }): void;
+		trigger(name: 'codemarker-video:seek', data: { file: string; seekTo: number }): void;
 	}
 }

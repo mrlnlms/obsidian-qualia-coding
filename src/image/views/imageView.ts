@@ -66,7 +66,7 @@ export class ImageCodingView extends ItemView {
 	async loadImage(file: TFile): Promise<void> {
 		this.cleanup();
 		this.currentFile = file;
-		(this.leaf as any).updateHeader?.();
+		this.leaf.updateHeader?.();
 
 		const { contentEl } = this;
 		contentEl.empty();

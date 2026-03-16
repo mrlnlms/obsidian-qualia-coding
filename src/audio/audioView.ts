@@ -12,7 +12,7 @@ const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 export class AudioView extends ItemView {
   private plugin: QualiaCodingPlugin;
   private model: AudioCodingModel;
-  private renderer: WaveformRenderer;
+  readonly renderer: WaveformRenderer;
   private regionRenderer: MediaRegionRenderer | null = null;
   private currentFile: TFile | null = null;
   private waveformEl: HTMLElement | null = null;
@@ -103,7 +103,7 @@ export class AudioView extends ItemView {
     this.renderer.destroy();
 
     this.currentFile = file;
-    (this.leaf as any).updateHeader?.();
+    this.leaf.updateHeader?.();
 
     const { contentEl } = this;
     contentEl.empty();

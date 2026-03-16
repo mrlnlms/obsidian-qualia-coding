@@ -74,7 +74,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	showList() {
 		this.markerId = null;
 		this.codeName = null;
-		(this.leaf as any).updateHeader?.();
+		this.leaf.updateHeader?.();
 		this.renderList();
 	}
 
@@ -82,7 +82,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	showCodeDetail(codeName: string) {
 		this.markerId = null;
 		this.codeName = codeName;
-		(this.leaf as any).updateHeader?.();
+		this.leaf.updateHeader?.();
 		this.renderCodeDetail();
 	}
 
@@ -90,7 +90,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	setContext(markerId: string, codeName: string) {
 		this.markerId = markerId;
 		this.codeName = codeName;
-		(this.leaf as any).updateHeader?.();
+		this.leaf.updateHeader?.();
 		this.renderMarkerDetail();
 	}
 
