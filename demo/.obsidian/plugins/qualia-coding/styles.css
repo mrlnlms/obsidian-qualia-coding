@@ -85,16 +85,6 @@
 	background: none;
 }
 
-/* Force theme inheritance inside CM6 tooltip for Approach C native components */
-.cm-tooltip .codemarker-tooltip-menu,
-
-/* Color swatch in toggle rows */
-.codemarker-tooltip-swatch {
-	width: 10px;
-	height: 10px;
-	border-radius: 3px;
-	flex-shrink: 0;
-}
 
 /* Memo collapsible in tooltip menu */
 .codemarker-tooltip-memo-header {
@@ -1035,71 +1025,6 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	border-radius: 2px;
 }
 
-/* ========================================
-   CM6 Tooltip Menu
-   ======================================== */
-
-.codemarker-tooltip-menu {
-	min-width: 180px;
-	max-width: 280px;
-	padding: var(--size-2-1) 0;
-	background-color: var(--background-secondary);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m);
-	box-shadow: var(--shadow-s);
-	color-scheme: inherit;
-}
-
-.cm-tooltip .codemarker-tooltip-menu,
-.cm-tooltip .codemarker-tooltip-menu * {
-	color-scheme: inherit;
-}
-
-.cm-tooltip .codemarker-tooltip-menu .checkbox-container {
-	background-color: var(--background-modifier-border-hover);
-}
-
-.cm-tooltip .codemarker-tooltip-menu .checkbox-container.is-enabled {
-	background-color: var(--interactive-accent);
-}
-
-.codemarker-tooltip-menu .menu-item {
-	display: flex;
-	align-items: center;
-	padding: var(--size-4-1) var(--size-4-2);
-	cursor: pointer;
-	font-size: var(--font-ui-small);
-	color: var(--text-normal);
-}
-
-.codemarker-tooltip-menu .menu-item:hover {
-	background-color: var(--background-modifier-hover);
-}
-
-.codemarker-tooltip-menu .menu-item-icon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 20px;
-	height: 20px;
-	margin-right: var(--size-4-1);
-	color: var(--text-muted);
-	flex-shrink: 0;
-}
-
-.codemarker-tooltip-menu .menu-item-title {
-	flex: 1;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.codemarker-tooltip-menu .menu-separator {
-	height: 0;
-	margin: var(--size-2-1) var(--size-4-2);
-	border-top: 1px solid var(--background-modifier-border);
-}
-
 
 /* ========================================
    Menu TextComponent & ToggleComponent
@@ -1111,8 +1036,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	padding: var(--size-4-1) var(--size-4-2);
 }
 
-.menu-item-textfield input[type="text"],
-.codemarker-tooltip-menu .menu-item-textfield input[type="text"] {
+.menu-item-textfield input[type="text"] {
 	flex: 1;
 	padding: var(--size-4-1) var(--size-4-2);
 	border: 1px solid var(--background-modifier-border);
@@ -1123,8 +1047,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	outline: none;
 }
 
-.menu-item-textfield input[type="text"]:focus,
-.codemarker-tooltip-menu .menu-item-textfield input[type="text"]:focus {
+.menu-item-textfield input[type="text"]:focus {
 	border-color: var(--interactive-accent);
 	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
 }
