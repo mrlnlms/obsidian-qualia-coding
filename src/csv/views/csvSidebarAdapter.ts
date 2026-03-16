@@ -79,7 +79,7 @@ export class CsvSidebarAdapter implements SidebarModelInterface {
 	}
 
 	removeMarker(markerId: string): boolean {
-		const result = this.model.deleteMarker(markerId);
+		const result = this.model.removeMarker(markerId);
 		if (result) this.model.notifyAndSave();
 		return result;
 	}

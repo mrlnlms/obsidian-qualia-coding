@@ -138,7 +138,7 @@ export class CsvCodingModel {
 		marker.codes = marker.codes.filter(c => c !== codeName);
 		marker.updatedAt = Date.now();
 		if (marker.codes.length === 0 && !keepIfEmpty) {
-			this.deleteMarker(markerId);
+			this.removeMarker(markerId);
 		}
 		this.notify();
 	}
@@ -228,7 +228,7 @@ export class CsvCodingModel {
 
 	// ── Private ──
 
-	deleteMarker(id: string): boolean {
+	removeMarker(id: string): boolean {
 		const segIdx = this.segmentMarkers.findIndex(m => m.id === id);
 		if (segIdx >= 0) { this.segmentMarkers.splice(segIdx, 1); return true; }
 		const rowIdx = this.rowMarkers.findIndex(m => m.id === id);

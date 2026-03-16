@@ -219,7 +219,7 @@ export class RegionManager {
 	deleteShape(shape: FabricObject): void {
 		const markerId = this.shapeToMarker.get(shape);
 		if (markerId) {
-			this.model.deleteMarker(markerId);
+			this.model.removeMarker(markerId);
 			this.markerToShape.delete(markerId);
 		}
 		this.shapeToMarker.delete(shape);

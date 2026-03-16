@@ -113,7 +113,7 @@ export class ImageCodingModel {
 		return true;
 	}
 
-	deleteMarker(id: string): boolean {
+	removeMarker(id: string): boolean {
 		const idx = this.markers.findIndex((m) => m.id === id);
 		if (idx < 0) return false;
 		this.markers.splice(idx, 1);
@@ -148,7 +148,7 @@ export class ImageCodingModel {
 		marker.updatedAt = Date.now();
 
 		if (marker.codes.length === 0 && !keepIfEmpty) {
-			this.deleteMarker(markerId);
+			this.removeMarker(markerId);
 		} else {
 			this.notify();
 		}

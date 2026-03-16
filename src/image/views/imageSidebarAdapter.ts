@@ -77,7 +77,7 @@ export class ImageSidebarAdapter implements SidebarModelInterface {
 	}
 
 	removeMarker(markerId: string): boolean {
-		return this.model.deleteMarker(markerId);
+		return this.model.removeMarker(markerId);
 	}
 
 	deleteCode(codeName: string): void {
