@@ -10,6 +10,7 @@ import type { ImageBaseMarker } from '../image/views/imageSidebarAdapter';
 import type { CsvBaseMarker } from '../csv/views/csvSidebarAdapter';
 import type { AudioBaseMarker } from '../audio/views/audioSidebarAdapter';
 import type { VideoBaseMarker } from '../video/views/videoSidebarAdapter';
+import type { MediaBaseMarker } from '../media/mediaSidebarAdapter';
 
 // ── Type guards ──────────────────────────────────────────────
 
@@ -26,11 +27,11 @@ export function isCsvMarker(marker: BaseMarker): marker is CsvBaseMarker {
 }
 
 export function isAudioMarker(marker: BaseMarker): marker is AudioBaseMarker {
-	return 'mediaType' in marker && (marker as any).mediaType === 'audio';
+	return 'mediaType' in marker && (marker as MediaBaseMarker).mediaType === 'audio';
 }
 
 export function isVideoMarker(marker: BaseMarker): marker is VideoBaseMarker {
-	return 'mediaType' in marker && (marker as any).mediaType === 'video';
+	return 'mediaType' in marker && (marker as MediaBaseMarker).mediaType === 'video';
 }
 
 // ── Label resolver ───────────────────────────────────────────

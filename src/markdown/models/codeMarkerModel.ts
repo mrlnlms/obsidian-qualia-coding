@@ -50,7 +50,7 @@ export class CodeMarkerModel {
 
 		if (rawMarkers) {
 			for (const fileId in rawMarkers) {
-				const fileMarkers: Marker[] = (rawMarkers[fileId] as any[]).map((m: any) => {
+				const fileMarkers: Marker[] = rawMarkers[fileId]!.map((m: any) => {
 					// Migration: convert old `code: string` to `codes: string[]`
 					if ('code' in m && !('codes' in m)) {
 						const codes = m.code ? [m.code] : [];

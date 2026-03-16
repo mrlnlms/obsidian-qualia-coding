@@ -5,7 +5,7 @@
  * they call `registerFileIntercept()` and a single listener dispatches.
  */
 
-import { TFile } from 'obsidian';
+import { FileView, TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 
 export interface FileInterceptRule {
@@ -66,8 +66,8 @@ export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 				const vs = leaf.getViewState();
 				if (vs.state?.file) {
 					filePath = vs.state.file as string;
-				} else {
-					const f = (leaf.view as any)?.file;
+				} else if (leaf.view instanceof FileView) {
+					const f = leaf.view.file;
 					if (f instanceof TFile) filePath = f.path;
 				}
 				if (!filePath) continue;
@@ -84,7 +84,7 @@ export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 				const existingLeaves = plugin.app.workspace.getLeavesOfType(rule.targetViewType);
 				const existingLeaf = existingLeaves.find(l => {
 					const state = l.view.getState?.();
-					const viewFile = state?.file ?? (l.view as any).file?.path;
+					const viewFile = state?.file ?? (l.view instanceof FileView ? l.view.file?.path : undefined);
 					return viewFile === filePath;
 				});
 				if (existingLeaf) {
