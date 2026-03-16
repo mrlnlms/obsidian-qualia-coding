@@ -29,6 +29,7 @@ import {
 	renderMemoSection,
 	renderEnterHint,
 	positionAndClamp,
+	applyThemeColors,
 	type MemoHandle,
 } from './baseCodingMenu';
 
@@ -85,6 +86,12 @@ export interface CodingPopoverOptions {
 	};
 	/** Override auto-focus behavior (defaults: true for selection, false for hover) */
 	autoFocus?: boolean;
+	/**
+	 * External container to render into (opt-in).
+	 * When provided, skips createPopover() — caller owns the container lifecycle.
+	 * Used by CM6 tooltip to host popover content inside a tooltip-managed element.
+	 */
+	externalContainer?: HTMLElement;
 }
 
 export interface CodingPopoverHandle {
@@ -98,7 +105,20 @@ export function openCodingPopover(
 	adapter: CodingPopoverAdapter,
 	options: CodingPopoverOptions,
 ): CodingPopoverHandle {
-	const { container, close: rawClose } = createPopover(options.className ?? 'codemarker-popover');
+	let container: HTMLElement;
+	let rawClose: () => void;
+
+	if (options.externalContainer) {
+		// External mode: caller owns the container, we just render content into it
+		container = options.externalContainer;
+		applyThemeColors(container);
+		rawClose = () => { container.empty(); };
+	} else {
+		// Standard mode: create floating popover attached to document.body
+		const popover = createPopover(options.className ?? 'codemarker-popover');
+		container = popover.container;
+		rawClose = popover.close;
+	}
 
 	const close = () => {
 		options.onClose?.();
@@ -285,8 +305,10 @@ export function openCodingPopover(
 		);
 	}
 
-	// ── Position and show ──
-	positionAndClamp(container, options.pos.x, options.pos.y);
+	// ── Position and show (skip for external container — caller handles positioning) ──
+	if (!options.externalContainer) {
+		positionAndClamp(container, options.pos.x, options.pos.y);
+	}
 
 	// Auto-focus (selection mode by default, overridable)
 	const shouldFocus = options.autoFocus ?? !isHoverMode;
