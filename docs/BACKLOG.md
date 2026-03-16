@@ -103,3 +103,253 @@ Todos os 7 engines seguem:
 5. File interception via `registerFileIntercept()`
 6. Hover state bidirecional
 7. Change notifications para unified views
+
+---
+
+## Analise detalhada: Menu pattern (2026-03-07)
+
+### Situacao atual — 3 padroes de entrada coexistentes
+
+| Padrao | Engine | Como funciona |
+|--------|--------|---------------|
+| **Classe wrapper** | Image | `new CodingMenu()` com lifecycle `open/close/destroy`. View chama `close()` em 4 momentos (seleção muda, limpa, toolbar mode, cleanup). |
+| **Funcao direta** | Audio, Video, PDF, CSV | `openXxxCodingPopover(...)` fire-and-forget. Popover se auto-gerencia (outside click, Escape). |
+| **CM6 tooltip** | Markdown | `MenuController` despacha `showCodingMenuEffect` → CM6 cria/destroi tooltip via StateField. |
+
+### Camadas internas
+
+- **5 de 7 engines** (PDF, CSV, Image, Audio, Video) ja usam o shared `codingPopover.ts` + `baseCodingMenu.ts`
+- **Markdown** reimplementa a mesma UX em `cm6NativeTooltipMenu.ts` (484 linhas) sem usar o shared
+- Audio e Video tem menus **identicos** (110 vs 106 linhas, mesma logica)
+
+### Por que a divergencia existe
+
+- **Markdown/CM6**: tooltips devem ser `StateField` + `showTooltip.from()`. Nao pode usar `document.body.appendChild()` sem perder posicionamento automatico e auto-close em mudanca de selecao. Restricao tecnica legitima.
+- **Image/classe**: fabric.js tem eventos de canvas (`selection:cleared`, toolbar mode change) que precisam fechar o menu programaticamente de fora. Justificado.
+- **Audio+Video/funcao**: `createPopover()` remove o anterior automaticamente. Fire-and-forget funciona. Mas sao **duplicados** — mesma logica, tipos diferentes.
+- **PDF+CSV/funcao**: variações legitimadas — cross-page, batch, shapes, grid refresh.
+
+### Duplicacao no markdown (cm6NativeTooltipMenu.ts)
+
+Helpers reimplementados localmente que ja existem em `baseCodingMenu.ts`:
+- `createActionItem()` — 22 linhas (identico)
+- `createSeparator()` — 5 linhas (identico)
+- `applyThemeColors()` — 26 linhas (identico)
+- `applyInputTheme()` — 6 linhas (identico)
+- `createToggleItem()` — 65 linhas (reimplementa `renderToggleList`)
+- `appendBrowseItem()` — 20 linhas (reimplementa `renderBrowseItem`)
+- `rebuildSuggestions()` — 60 linhas (mesma logica do `codingPopover.ts`)
+- Secao memo — 60 linhas (reimplementa `renderMemoSection`)
+
+Divergencia de CSS: markdown usa `codemarker-tooltip-swatch`, shared usa `codemarker-popover-swatch`.
+
+### Diferencas funcionais que devem ser preservadas
+
+1. CM6 tooltip hosting (posicionamento pelo editor)
+2. `setSelectionPreviewEffect` (preview highlight durante menu aberto)
+3. `addCodeWithDetailsAction()` (passa description ao criar codigo)
+4. `model.getSettings().defaultColor` vs `registry.peekNextPaletteColor()`
+5. Hover grace via custom events CM6 vs `hoverGrace` option
+
+### Plano de consolidacao
+
+**Nivel 1 — Markdown importa helpers do baseCodingMenu (~55 linhas)**
+- Remove helpers locais duplicados, troca por imports
+- Risco: baixo, mecanico
+
+**Nivel 2 — Markdown migra para adapter pattern (~335 linhas)**
+- `buildNativeTooltipMenuDOM` monta `CodingPopoverAdapter` e chama `openCodingPopover()` com param `externalContainer`
+- Elimina toggle, browse, suggestions, memo locais — tudo vem do shared
+- Mantem: adapter setup, glue CM6, diferencas funcionais acima
+- cm6NativeTooltipMenu: 484 → ~150 linhas
+- codingPopover.ts: +15 linhas (param externalContainer)
+
+**Nivel 3 — Audio + Video unificados (~85 linhas)**
+- Cria `media/mediaCodingMenu.ts` com tipo generico
+- Elimina `audioCodingMenu.ts` + `videoCodingMenu.ts`
+
+### Impacto estimado
+
+| Cenario | Linhas removidas | Reducao |
+|---------|-----------------|---------|
+| Nivel 1 | ~55 | 2% |
+| Nivel 1 + 3 | ~140 | 6% |
+| **Todos (1+2+3)** | **~420** | **17%** |
+
+Ganho principal nao e em linhas — e em **superficie de manutencao**:
+- Bug no toggle/memo/browse → corrige em 1 lugar, nao 2
+- Nova feature no menu (ex: keyboard nav) → implementa 1x
+- Divergencia de CSS entre engines → eliminada
+- Novo dev entende 1 fluxo de menu, nao 2
+
+---
+
+## Merge Audio + Video (2026-03-07)
+
+Audio e Video sao engines quase identicos. Alem do menu (ja contado acima), model, types e sidebar adapter sao copias com nomes trocados.
+
+### Diff real (apos normalizar nomes)
+
+| Arquivo | Audio | Video | Diff |
+|---------|-------|-------|------|
+| CodingModel | 254 | 253 | 2 linhas (comentario + cast) |
+| CodingMenu | 110 | 105 | 0 (identicos) |
+| CodingTypes | 28 | 24 | Video tem `videoFit`, Audio tem marker inline vs extends MediaMarker |
+| index.ts | 122 | 120 | Estrutura identica, muda extensoes/icone/nomes |
+| SidebarAdapter | 136 | 143 | ~15 linhas — Video inlina formatTime e filePath |
+| View | 387 | 393 | Legitimamente diferentes (wavesurfer vs `<video>`) |
+
+### Plano
+
+- `media/mediaCodingModel.ts` — classe base parametrizada por section name. Audio e Video instanciam com `'audio'`/`'video'`
+- `media/mediaCodingMenu.ts` — funcao generica (ja contada no menu nivel 3)
+- `media/mediaTypes.ts` — types base, cada engine extends para settings extras (`videoFit`)
+- `media/mediaSidebarAdapter.ts` — adapter base, thin wrappers se necessario
+- Views e index.ts **mantidos separados** — wavesurfer ≠ `<video>`, extensoes diferentes
+
+### Impacto
+
+| Componente | Atual | Apos merge | Economia |
+|------------|-------|------------|----------|
+| Model (2x254) | 507 | ~270 | ~237 |
+| Types (2x26) | 52 | ~35 | ~17 |
+| SidebarAdapter (2x140) | 279 | ~155 | ~124 |
+| Menu (ja contado acima) | — | — | — |
+| **Subtotal** | | | **~378** |
+
+---
+
+## CSS cleanup (2026-03-07)
+
+Dois namespaces CSS coexistem para os mesmos componentes visuais:
+- `codemarker-tooltip-*` — markdown (CM6 tooltip)
+- `codemarker-popover-*` — shared (PDF, CSV, Image, Audio, Video)
+
+### Problemas concretos
+
+1. **Swatch duplicado**: `codemarker-tooltip-swatch` (L92) e `codemarker-popover-swatch` (L1559) — mesma bolinha, 2 regras
+2. **Container duplicado**: bloco `.codemarker-tooltip-menu` (L1042-1171, ~130 linhas) estiliza o menu markdown; shared usa `.codemarker-popover` com classe `.menu` base
+3. **Classes orfas** (nao referenciadas em nenhum .ts): `codemarker-tooltip-input-wrapper`, `codemarker-tooltip-input`, `codemarker-tooltip-toggle`, `codemarker-tooltip-checkbox` (~30 linhas) — restos de iteracoes anteriores
+
+### Impacto
+
+| Item | Linhas |
+|------|--------|
+| Bloco tooltip-menu duplicado | ~130 |
+| Swatch duplicado | ~8 |
+| Classes orfas | ~30 |
+| **Total** | **~168** |
+
+Se o menu markdown migrar para adapter (nivel 2), tudo unifica em `codemarker-popover` e o bloco tooltip-menu inteiro some. Classes orfas podem ser removidas a qualquer momento sem risco.
+
+---
+
+## Bugs encontrados (2026-03-07)
+
+| # | Severidade | Local | Problema |
+|---|-----------|-------|----------|
+| 1 | **Critico** | `audioSidebarAdapter.ts:26`, `videoSidebarAdapter.ts:25` | `updatedAt: m.createdAt` — mapeia pro campo errado. Markers audio/video reportam data de update incorreta. |
+| 2 | **Alto** | `csvSidebarAdapter.ts:68-74` | `updateMarkerFields` recebe memo/colorOverride mas nao aplica — tipos CSV nao tem esses campos. Edicao silenciosamente ignorada. |
+| 3 | **Alto** | `pdf/pdfCodingTypes.ts:20-30` | `PdfShapeMarker` nao tem `colorOverride`. Shapes PDF nao podem ter cor personalizada via sidebar. |
+
+---
+
+## Dead code (2026-03-07)
+
+Arquivos que ninguem importa — substituidos pelas unified views:
+
+| Arquivo | Linhas |
+|---------|--------|
+| `markdown/views/codeExplorerView.ts` | 73 |
+| `markdown/views/codeDetailView.ts` | 80 |
+| `pdf/views/pdfCodeExplorerView.ts` | ~70 |
+| `pdf/views/pdfCodeDetailView.ts` | ~70 |
+| **Total** | **~293** |
+
+---
+
+## Sidebar views — duplicacao explorer/detail (2026-03-07)
+
+`unifiedExplorerView.ts` e `unifiedDetailView.ts` duplicam:
+- `getMarkerLabel()` — cadeia identica de if/isPdf/isImage/isCsv/isAudio/isVideo/markdown (~35 linhas x2)
+- `navigateToMarker()` — mesma logica de navegacao por engine (~45 linhas x2)
+- `shortenPath()` — mesma regex
+- Type guards no fundo do arquivo — 5 funcoes identicas x2
+
+**Acao**: extrair para `core/markerResolvers.ts` — elimina **~130 linhas**.
+
+---
+
+## Inconsistencias de tipos (2026-03-07) — RESOLVIDO (2026-03-16)
+
+Todas as inconsistencias foram corrigidas:
+- `file` → `fileId` em PDF e CSV
+- `note` → `memo` em PDF
+- `AudioMarker` agora extends `MediaMarker`
+- `CsvMarker` agora tem `memo` e `colorOverride`
+- `PdfShapeMarker` agora tem `colorOverride`
+- `MediaMarker` agora tem `fileId` e `colorOverride`
+- `deleteMarker` → `removeMarker` em Image e CSV
+
+---
+
+## Sidebar adapter duplicacao (2026-03-07) — RESOLVIDO (2026-03-16)
+
+Criado `BaseSidebarAdapter` em `src/core/baseSidebarAdapter.ts`.
+Todos os 5 adapters agora herdam da base class (listener wrapping, hover state).
+Audio/Video herdam via `MediaSidebarAdapter` intermediario.
+
+---
+
+## Type safety (2026-03-07) — PARCIAL (2026-03-16)
+
+- `@ts-ignore`: 44 → 3 restantes (wavesurfer.js module resolution — nao resolvivel)
+- `obsidian-internals.d.ts` criado com ambient types para Editor + workspace events
+- `as any`: 220 instancias — nao atacado ainda (maioria em boardNodes.ts/Fabric.js)
+
+---
+
+## Arquivos grandes (2026-03-07)
+
+| Arquivo | Linhas | Problema |
+|---------|--------|----------|
+| `analytics/views/analyticsView.ts` | 5.907 | 20+ modos de visualizacao num so arquivo |
+| `analytics/data/statsEngine.ts` | 949 | 20+ funcoes de calculo misturadas |
+| `analytics/board/boardNodes.ts` | 825 | 91 `as any` (Fabric.js) |
+| `csv/csvCodingView.ts` | 801 | Grid + parser + editor + markers misturados |
+| `markdown/cm6/markerViewPlugin.ts` | 706 | Render + drag + hover + DOM overlay |
+| `markdown/cm6/marginPanelExtension.ts` | 674 | Labels + positioning + collapse |
+
+---
+
+## Consolidado geral — todas as frentes
+
+| Frente | Linhas | Status |
+|--------|--------|--------|
+| Bug fixes (3 bugs) | ~10 de fix | FEITO (2026-03-16) |
+| Dead code (4 arquivos) | ~293 eliminadas | FEITO (2026-03-16) |
+| Menu consolidation nivel 1 (markdown importa helpers) | ~55 eliminadas | FEITO (2026-03-16) |
+| Menu consolidation nivel 3 (audio+video unificado) | ~90 eliminadas | FEITO (2026-03-16) |
+| Audio+Video merge (model, types, adapter, menu) | ~370 eliminadas | FEITO (2026-03-16) |
+| CSS cleanup (classes orfas) | ~36 eliminadas | FEITO (2026-03-16) |
+| Sidebar views (shared helpers — markerResolvers.ts) | ~108 eliminadas | FEITO (2026-03-16) |
+| `obsidian-internals.d.ts` | 41 @ts-ignore removidos | FEITO (2026-03-16) |
+| Padronizacao campos (note→memo, file→fileId, MediaMarker) | ~10 linhas mudadas | FEITO (2026-03-16) |
+| Padronizacao metodos (deleteMarker→removeMarker) | ~7 linhas mudadas | FEITO (2026-03-16) |
+| BaseSidebarAdapter (todos os engines) | ~120 eliminadas | FEITO (2026-03-16) |
+| **Total eliminado** | **~900 linhas** | |
+| Menu consolidation nivel 2 (markdown → adapter pattern) | ~335 eliminadas | Pendente (alto risco) |
+| CSS cleanup full (unifica namespace tooltip→popover) | ~138 eliminadas | Pendente (depende nivel 2) |
+| analyticsView.ts split (5.907 linhas) | Reorganiza, nao elimina | Futuro |
+| statsEngine.ts split | Reorganiza | Futuro |
+
+Ganho de manutenibilidade alcancado:
+- Audio/Video: corrigir bug em 1 model base, nao 2
+- Sidebar: 1 adapter base, listeners unificados
+- Types: nomes consistentes (fileId, memo, removeMarker, colorOverride)
+- Type guards: 1 lugar (markerResolvers.ts), nao duplicados
+- Menu helpers: 1 lugar (baseCodingMenu.ts), nao duplicados
+
+Pendente:
+- Menu nivel 2: markdown CM6 tooltip migra para usar shared popover (~335 linhas, requer design cuidadoso)
+- CSS cleanup full: unificar namespace `codemarker-tooltip-*` → `codemarker-popover-*` (depende do menu nivel 2)
