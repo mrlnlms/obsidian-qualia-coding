@@ -318,13 +318,13 @@ function hitTestTextLayer(pageView: PDFPageView, clientX: number, clientY: numbe
 	let offsetInNode = 0;
 
 	if ('caretPositionFromPoint' in document) {
-		const pos = (document as any).caretPositionFromPoint(clientX, clientY);
+		const pos = (document as Document & { caretPositionFromPoint(x: number, y: number): { offsetNode: Node; offset: number } | null }).caretPositionFromPoint(clientX, clientY);
 		if (pos) {
 			node = pos.offsetNode;
 			offsetInNode = pos.offset;
 		}
-	} else if ('caretRangeFromPoint' in (document as any)) {
-		const range = (document as any).caretRangeFromPoint(clientX, clientY) as Range | null;
+	} else if ('caretRangeFromPoint' in document) {
+		const range = (document as Document & { caretRangeFromPoint(x: number, y: number): Range | null }).caretRangeFromPoint(clientX, clientY);
 		if (range) {
 			node = range.startContainer;
 			offsetInNode = range.startOffset;

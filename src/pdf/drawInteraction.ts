@@ -279,7 +279,7 @@ export class DrawInteraction {
 				this.selectShape(shapeId);
 
 				// Start move
-				const pageEl = getPageElFromNode(shapeEl as any) ?? shapeEl.closest?.('div.page[data-page-number]') as HTMLElement | null;
+				const pageEl = getPageElFromNode(shapeEl) ?? shapeEl.closest?.('div.page[data-page-number]') as HTMLElement | null;
 				if (pageEl) {
 					const shape = this.model.findShapeById(shapeId);
 					if (shape) {

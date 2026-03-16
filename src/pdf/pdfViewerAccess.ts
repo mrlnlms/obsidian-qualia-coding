@@ -84,7 +84,7 @@ export function getTextLayerInfo(pageView: PDFPageView): TextLayerInfo | null {
 
 	// Obsidian v1.8.0+ — TextLayerBuilder has .textLayer property
 	if ('textLayer' in textLayer && textLayer.textLayer) {
-		const tl = textLayer.textLayer as any;
+		const tl = textLayer.textLayer;
 		return {
 			textDivs: tl.textDivs ?? [],
 			textContentItems: tl.textContentItems ?? [],
@@ -93,9 +93,10 @@ export function getTextLayerInfo(pageView: PDFPageView): TextLayerInfo | null {
 
 	// Obsidian v1.7.7 — OldTextLayerBuilder has direct properties
 	if ('textDivs' in textLayer && 'textContentItems' in textLayer) {
+		const old = textLayer as OldTextLayerBuilder;
 		return {
-			textDivs: (textLayer as any).textDivs ?? [],
-			textContentItems: (textLayer as any).textContentItems ?? [],
+			textDivs: old.textDivs ?? [],
+			textContentItems: old.textContentItems ?? [],
 		};
 	}
 

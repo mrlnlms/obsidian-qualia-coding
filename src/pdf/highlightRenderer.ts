@@ -355,17 +355,17 @@ function attachLayerHoverTracking(
 		}
 	};
 
-	// Clean up previous listeners if any (stored on the page div)
-	const prev = (pageDiv as any).__codemarkerHoverCleanup;
+	// Clean up previous listeners if any
+	const prev = hoverCleanupMap.get(pageDiv);
 	if (prev) prev();
 
 	pageDiv.addEventListener('mousemove', onMouseMove);
 	pageDiv.addEventListener('mouseleave', onMouseLeave);
 
-	(pageDiv as any).__codemarkerHoverCleanup = () => {
+	hoverCleanupMap.set(pageDiv, () => {
 		pageDiv.removeEventListener('mousemove', onMouseMove);
 		pageDiv.removeEventListener('mouseleave', onMouseLeave);
-	};
+	});
 }
 
 /**
@@ -538,6 +538,9 @@ function normalizeRect(rect: number[]): [number, number, number, number] {
 }
 
 // ── Selection Preview ──
+
+/** WeakMap to store hover cleanup functions per page div (avoids DOM property hacks). */
+const hoverCleanupMap = new WeakMap<HTMLElement, () => void>();
 
 const PREVIEW_CLASS = 'codemarker-pdf-selection-preview';
 
