@@ -23,7 +23,7 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	const model = new ImageCodingModel(dm, registry);
 
 	// Expose on plugin instance for other modules
-	(plugin as any).imageModel = model;
+	plugin.imageModel = model;
 
 	// Register view type
 	plugin.registerView(IMAGE_CODING_VIEW_TYPE, (leaf) =>

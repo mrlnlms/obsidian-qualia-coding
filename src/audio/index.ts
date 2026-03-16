@@ -18,7 +18,7 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	const registry = plugin.sharedRegistry;
 
 	const model = new AudioCodingModel(dm, registry);
-	(plugin as any).audioModel = model;
+	plugin.audioModel = model;
 
 	// Register view type
 	plugin.registerView(AUDIO_VIEW_TYPE, (leaf) =>
@@ -96,8 +96,8 @@ async function openAudioAndSeek(plugin: QualiaCodingPlugin, _model: AudioCodingM
 		const state = view.getState();
 		if (state.file === filePath) {
 			plugin.app.workspace.revealLeaf(leaf);
-			(view as any).renderer?.seekTo(seekTo);
-			(view as any).renderer?.setScrollTime(seekTo);
+			view.renderer.seekTo(seekTo);
+			view.renderer.setScrollTime(seekTo);
 			return;
 		}
 	}
@@ -114,8 +114,8 @@ async function openAudioAndSeek(plugin: QualiaCodingPlugin, _model: AudioCodingM
 	plugin.app.workspace.revealLeaf(leaf);
 
 	const view = leaf.view as AudioView;
-	(view as any).renderer?.on('ready', () => {
-		(view as any).renderer?.seekTo(seekTo);
-		(view as any).renderer?.setScrollTime(seekTo);
+	view.renderer.on('ready', () => {
+		view.renderer.seekTo(seekTo);
+		view.renderer.setScrollTime(seekTo);
 	});
 }

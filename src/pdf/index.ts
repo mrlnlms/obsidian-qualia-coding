@@ -21,7 +21,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	model.load();
 
 	// Expose model on plugin for cross-engine access
-	(plugin as any).pdfModel = model;
+	plugin.pdfModel = model;
 
 	// State tracking
 	const instrumentedViewers = new WeakSet<PDFViewerChild>();

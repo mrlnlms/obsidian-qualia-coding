@@ -67,10 +67,10 @@ export function openPdfCodingPopover(
 			if (existingMarker) {
 				existingMarker.memo = value || undefined;
 				existingMarker.updatedAt = Date.now();
-				(model as any).save();
+				model.save();
 			}
 		},
-		save: () => (model as any).save(),
+		save: () => model.save(),
 		onRefresh: onHighlightRefresh,
 		onNavClick: (codeName, isActive) => {
 			if (isActive && existingMarker) {
@@ -140,9 +140,9 @@ export function openShapeCodingPopover(
 		setMemo: (value) => {
 			shape.memo = value || undefined;
 			shape.updatedAt = Date.now();
-			(model as any).save();
+			model.save();
 		},
-		save: () => (model as any).save(),
+		save: () => model.save(),
 		onRefresh,
 		onNavClick: (codeName, isActive) => {
 			if (isActive) {

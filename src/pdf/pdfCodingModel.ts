@@ -41,14 +41,14 @@ export class PdfCodingModel {
 		if (section.shapes) this.shapes = section.shapes;
 	}
 
-	private save(): void {
+	save(): void {
 		this.dataManager.setSection('pdf', {
 			markers: this.markers,
 			shapes: this.shapes,
 		});
 	}
 
-	private notify(): void {
+	notify(): void {
 		this.save();
 		for (const fn of this.listeners) fn();
 	}

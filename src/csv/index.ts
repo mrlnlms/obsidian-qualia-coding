@@ -16,7 +16,7 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	const registry = plugin.sharedRegistry;
 
 	const model = new CsvCodingModel(dm, registry);
-	(plugin as any).csvModel = model;
+	plugin.csvModel = model;
 
 	// Register view type
 	plugin.registerView(CSV_CODING_VIEW_TYPE, (leaf) =>

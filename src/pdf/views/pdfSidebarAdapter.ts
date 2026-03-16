@@ -84,7 +84,7 @@ export class PdfSidebarAdapter extends BaseSidebarAdapter {
 	}
 
 	saveMarkers(): void {
-		(this.model as any).save?.();
+		this.model.save();
 	}
 
 	updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
@@ -93,7 +93,7 @@ export class PdfSidebarAdapter extends BaseSidebarAdapter {
 			if ('memo' in fields) tm.memo = fields.memo;
 			if ('colorOverride' in fields) tm.colorOverride = fields.colorOverride;
 			tm.updatedAt = Date.now();
-			(this.model as any).notify();
+			this.model.notify();
 			return;
 		}
 		const shape = this.model.findShapeById(markerId);
@@ -101,12 +101,12 @@ export class PdfSidebarAdapter extends BaseSidebarAdapter {
 			if ('memo' in fields) shape.memo = fields.memo;
 			if ('colorOverride' in fields) shape.colorOverride = fields.colorOverride;
 			shape.updatedAt = Date.now();
-			(this.model as any).notify();
+			this.model.notify();
 		}
 	}
 
 	updateDecorations(_fileId: string): void {
-		(this.model as any).notify();
+		this.model.notify();
 	}
 
 	removeMarker(markerId: string): boolean {

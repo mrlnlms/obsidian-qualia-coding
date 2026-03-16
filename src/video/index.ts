@@ -18,7 +18,7 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	const registry = plugin.sharedRegistry;
 
 	const model = new VideoCodingModel(dm, registry);
-	(plugin as any).videoModel = model;
+	plugin.videoModel = model;
 
 	// Register view type
 	plugin.registerView(VIDEO_VIEW_TYPE, (leaf) =>
@@ -95,8 +95,8 @@ async function openVideoAndSeek(plugin: QualiaCodingPlugin, _model: VideoCodingM
 		const state = view.getState();
 		if (state.file === filePath) {
 			plugin.app.workspace.revealLeaf(leaf);
-			(view as any).renderer?.seekTo(seekTo);
-			(view as any).renderer?.setScrollTime(seekTo);
+			view.renderer.seekTo(seekTo);
+			view.renderer.setScrollTime(seekTo);
 			return;
 		}
 	}
@@ -112,8 +112,8 @@ async function openVideoAndSeek(plugin: QualiaCodingPlugin, _model: VideoCodingM
 	plugin.app.workspace.revealLeaf(leaf);
 
 	const view = leaf.view as VideoView;
-	(view as any).renderer?.on('ready', () => {
-		(view as any).renderer?.seekTo(seekTo);
-		(view as any).renderer?.setScrollTime(seekTo);
+	view.renderer.on('ready', () => {
+		view.renderer.seekTo(seekTo);
+		view.renderer.setScrollTime(seekTo);
 	});
 }

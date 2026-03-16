@@ -32,6 +32,11 @@ export default class QualiaCodingPlugin extends Plugin {
 	private cleanups: EngineCleanup[] = [];
 	updateFileMarkersEffect: any; // Set by markdown engine
 	markdownModel: any; // Set by markdown engine
+	pdfModel?: PdfCodingModel;
+	imageModel?: ImageCodingModel;
+	csvModel?: CsvCodingModel;
+	audioModel?: AudioCodingModel;
+	videoModel?: VideoCodingModel;
 
 	async onload() {
 		console.log('[Qualia Coding] v45 loaded — Cache refresh + market research + strategy docs (final)');
@@ -59,11 +64,11 @@ export default class QualiaCodingPlugin extends Plugin {
 
 		// Build unified model from all engines
 		const mdModel = this.markdownModel as CodeMarkerModel;
-		const pdfModel = (this as any).pdfModel as PdfCodingModel;
-		const imageModel = (this as any).imageModel as ImageCodingModel;
-		const csvModel = (this as any).csvModel as CsvCodingModel;
-		const audioModel = (this as any).audioModel as AudioCodingModel;
-		const videoModel = (this as any).videoModel as VideoCodingModel;
+		const pdfModel = this.pdfModel!;
+		const imageModel = this.imageModel!;
+		const csvModel = this.csvModel!;
+		const audioModel = this.audioModel!;
+		const videoModel = this.videoModel!;
 		const pdfAdapter = new PdfSidebarAdapter(pdfModel);
 		const imageAdapter = new ImageSidebarAdapter(imageModel);
 		const csvAdapter = new CsvSidebarAdapter(csvModel);
