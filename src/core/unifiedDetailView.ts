@@ -8,11 +8,7 @@ import { EditorView } from '@codemirror/view';
 import { BaseCodeDetailView } from './baseCodeDetailView';
 import type { BaseMarker, SidebarModelInterface } from './types';
 import type { CodeMarkerModel, Marker } from '../markdown/models/codeMarkerModel';
-import type { PdfBaseMarker } from '../pdf/views/pdfSidebarAdapter';
-import type { ImageBaseMarker } from '../image/views/imageSidebarAdapter';
-import type { CsvBaseMarker } from '../csv/views/csvSidebarAdapter';
-import type { AudioBaseMarker } from '../audio/views/audioSidebarAdapter';
-import type { VideoBaseMarker } from '../video/views/videoSidebarAdapter';
+import { isPdfMarker, isImageMarker, isCsvMarker, isAudioMarker, isVideoMarker, shortenPath as _shortenPath, getMarkerLabel as _getMarkerLabel } from './markerResolvers';
 
 export const CODE_DETAIL_VIEW_TYPE = 'qualia-code-detail';
 
@@ -29,42 +25,7 @@ export class UnifiedCodeDetailView extends BaseCodeDetailView {
 	}
 
 	getMarkerLabel(marker: BaseMarker): string {
-		if (isPdfMarker(marker)) {
-			if (marker.isShape && marker.shapeLabel) return marker.shapeLabel;
-			const text = marker.text;
-			if (text) return text.length > 60 ? text.substring(0, 60) + '...' : text;
-			return `Page ${marker.page}`;
-		}
-		if (isImageMarker(marker)) {
-			return marker.shapeLabel;
-		}
-		if (isCsvMarker(marker)) {
-			if (marker.markerText) {
-				return marker.markerText.length > 60 ? marker.markerText.substring(0, 60) + '...' : marker.markerText;
-			}
-			return marker.markerLabel;
-		}
-		if (isAudioMarker(marker)) {
-			return marker.markerLabel;
-		}
-		if (isVideoMarker(marker)) {
-			return marker.markerLabel;
-		}
-		// Markdown
-		const md = marker as Marker;
-		if (!this.mdModel) return md.text ? (md.text.length > 60 ? md.text.substring(0, 60) + '...' : md.text) : `Line ${md.range.from.line + 1}`;
-		const view = this.mdModel.getViewForFile(md.fileId);
-		if (!view?.editor) {
-			if (md.text) return md.text.length > 60 ? md.text.substring(0, 60) + '...' : md.text;
-			return `Line ${md.range.from.line + 1}`;
-		}
-		try {
-			const text = view.editor.getRange(md.range.from, md.range.to);
-			return text.length > 60 ? text.substring(0, 60) + '...' : text;
-		} catch {
-			if (md.text) return md.text.length > 60 ? md.text.substring(0, 60) + '...' : md.text;
-			return `Line ${md.range.from.line + 1}`;
-		}
+		return _getMarkerLabel(marker, this.mdModel);
 	}
 
 	getMarkerText(marker: BaseMarker): string | null {
@@ -164,28 +125,6 @@ export class UnifiedCodeDetailView extends BaseCodeDetailView {
 	}
 
 	shortenPath(fileId: string): string {
-		const parts = fileId.split('/');
-		const name = parts[parts.length - 1] ?? fileId;
-		return name.replace(/\.(md|pdf|csv|parquet|png|jpg|jpeg|gif|bmp|webp|avif|svg|mp3|m4a|wav|ogg|flac|aac|wma|aiff|opus|webm|mp4|ogv)$/i, '');
+		return _shortenPath(fileId);
 	}
-}
-
-function isPdfMarker(marker: BaseMarker): marker is PdfBaseMarker {
-	return 'page' in marker && 'isShape' in marker;
-}
-
-function isImageMarker(marker: BaseMarker): marker is ImageBaseMarker {
-	return 'shape' in marker && 'shapeLabel' in marker;
-}
-
-function isCsvMarker(marker: BaseMarker): marker is CsvBaseMarker {
-	return 'rowIndex' in marker && 'columnId' in marker;
-}
-
-function isAudioMarker(marker: BaseMarker): marker is AudioBaseMarker {
-	return 'mediaType' in marker && (marker as any).mediaType === 'audio';
-}
-
-function isVideoMarker(marker: BaseMarker): marker is VideoBaseMarker {
-	return 'mediaType' in marker && (marker as any).mediaType === 'video';
 }
