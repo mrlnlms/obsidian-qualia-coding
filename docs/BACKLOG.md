@@ -337,19 +337,21 @@ Audio/Video herdam via `MediaSidebarAdapter` intermediario.
 | Padronizacao campos (note→memo, file→fileId, MediaMarker) | ~10 linhas mudadas | FEITO (2026-03-16) |
 | Padronizacao metodos (deleteMarker→removeMarker) | ~7 linhas mudadas | FEITO (2026-03-16) |
 | BaseSidebarAdapter (todos os engines) | ~120 eliminadas | FEITO (2026-03-16) |
-| **Total eliminado** | **~900 linhas** | |
-| Menu consolidation nivel 2 (markdown → adapter pattern) | ~335 eliminadas | Pendente (alto risco) |
-| CSS cleanup full (unifica namespace tooltip→popover) | ~138 eliminadas | Pendente (depende nivel 2) |
+| Menu consolidation nivel 2 (markdown → shared popover) | ~299 eliminadas | FEITO (2026-03-16) |
+| CSS cleanup full (remove namespace tooltip-menu, unifica seletores) | ~77 eliminadas | FEITO (2026-03-16) |
+| **Total eliminado** | **~1.280 linhas** | |
 | analyticsView.ts split (5.907 linhas) | Reorganiza, nao elimina | Futuro |
 | statsEngine.ts split | Reorganiza | Futuro |
 
 Ganho de manutenibilidade alcancado:
+- Menu: 1 sistema unificado para TODOS os engines (codingPopover.ts + externalContainer para CM6)
 - Audio/Video: corrigir bug em 1 model base, nao 2
-- Sidebar: 1 adapter base, listeners unificados
+- Sidebar: 1 adapter base (BaseSidebarAdapter), listeners unificados
 - Types: nomes consistentes (fileId, memo, removeMarker, colorOverride)
 - Type guards: 1 lugar (markerResolvers.ts), nao duplicados
-- Menu helpers: 1 lugar (baseCodingMenu.ts), nao duplicados
+- CSS: 1 namespace (codemarker-popover), zero duplicacao
 
 Pendente:
-- Menu nivel 2: markdown CM6 tooltip migra para usar shared popover (~335 linhas, requer design cuidadoso)
-- CSS cleanup full: unificar namespace `codemarker-tooltip-*` → `codemarker-popover-*` (depende do menu nivel 2)
+- analyticsView.ts split (5.907 linhas num arquivo) — futuro
+- statsEngine.ts split — futuro
+- `as any` cleanup (220 instancias, maioria Fabric.js) — baixa prioridade
