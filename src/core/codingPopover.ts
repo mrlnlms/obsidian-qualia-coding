@@ -92,6 +92,12 @@ export interface CodingPopoverOptions {
 	 * Used by CM6 tooltip to host popover content inside a tooltip-managed element.
 	 */
 	externalContainer?: HTMLElement;
+	/** Called before opening CodeFormModal (e.g. dispatch selection preview effect) */
+	onBeforeModal?: () => void;
+	/** Override default color for CodeFormModal (defaults to registry.peekNextPaletteColor()) */
+	modalDefaultColor?: string;
+	/** Called when CodeFormModal closes (e.g. rebuild/recreate menu) */
+	onModalClose?: () => void;
 }
 
 export interface CodingPopoverHandle {
@@ -283,14 +289,16 @@ export function openCodingPopover(
 
 	if (options.app) {
 		const app = options.app;
+		const defaultColor = options.modalDefaultColor ?? adapter.registry.peekNextPaletteColor();
 		container.appendChild(
 			createActionItem('Add New Code', 'plus-circle', () => {
 				close();
-				new CodeFormModal(app, adapter.registry.peekNextPaletteColor(), (name, color, description) => {
+				options.onBeforeModal?.();
+				new CodeFormModal(app, defaultColor, (name, color, description) => {
 					adapter.registry.create(name, color, description);
 					adapter.addCode(name);
 					adapter.onRefresh();
-				}).open();
+				}, options.onModalClose).open();
 			}),
 		);
 	}
