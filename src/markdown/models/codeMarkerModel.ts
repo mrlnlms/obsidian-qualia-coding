@@ -80,9 +80,7 @@ export class CodeMarkerModel {
 		const targetView = this.getViewForFile(snapshot.fileId);
 
 		if (targetView?.editor) {
-			// @ts-ignore
 			const fromPos = targetView.editor.offsetToPos(snapshot.from);
-			// @ts-ignore
 			const toPos = targetView.editor.offsetToPos(snapshot.to);
 
 			const marker: Marker = {
@@ -128,9 +126,7 @@ export class CodeMarkerModel {
 		if (targetView?.editor) {
 			for (const marker of fileMarkers) {
 				try {
-					// @ts-ignore
 					const startOffset = targetView.editor.posToOffset(marker.range.from);
-					// @ts-ignore
 					const endOffset = targetView.editor.posToOffset(marker.range.to);
 					if (startOffset === snapshot.from && endOffset === snapshot.to) {
 						return marker;
@@ -151,9 +147,7 @@ export class CodeMarkerModel {
 		const result: Marker[] = [];
 		for (const marker of markers) {
 			try {
-				// @ts-ignore
 				const startOffset = targetView.editor.posToOffset(marker.range.from);
-				// @ts-ignore
 				const endOffset = targetView.editor.posToOffset(marker.range.to);
 				if (startOffset <= to && endOffset >= from) {
 					result.push(marker);
@@ -306,7 +300,6 @@ export class CodeMarkerModel {
 		for (const leaf of leaves) {
 			const view = leaf.view;
 			if (view instanceof MarkdownView && view.file?.path === newPath) {
-				// @ts-ignore
 				const editorView = view.editor?.cm as EditorView | undefined;
 				if (editorView && this.plugin.updateFileMarkersEffect) {
 					editorView.dispatch({
@@ -349,7 +342,6 @@ export class CodeMarkerModel {
 		try {
 			const view = fileId ? this.getViewForFile(fileId) : this.getActiveView();
 			if (!view?.editor) return null;
-			// @ts-ignore
 			return view.editor.posToOffset(pos);
 		} catch (e) {
 			console.error("QualiaCoding: Error converting position to offset", e);
@@ -361,7 +353,6 @@ export class CodeMarkerModel {
 		try {
 			const view = fileId ? this.getViewForFile(fileId) : this.getActiveView();
 			if (!view?.editor) return null;
-			// @ts-ignore
 			return view.editor.offsetToPos(offset);
 		} catch (e) {
 			console.error("QualiaCoding: Error converting offset to position", e);
@@ -384,7 +375,6 @@ export class CodeMarkerModel {
 		for (const leaf of leaves) {
 			const view = leaf.view;
 			if (view instanceof MarkdownView && view.file?.path === fileId) {
-				// @ts-ignore
 				const editorView = view.editor?.cm;
 
 				if (editorView && this.plugin.updateFileMarkersEffect) {

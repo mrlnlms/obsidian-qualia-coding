@@ -163,7 +163,6 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineCleanu
 			const selection = editor.getSelection();
 			if (!selection?.trim()) return;
 
-			// @ts-ignore
 			const editorView = editor.cm;
 			if (!editorView) return;
 
@@ -241,7 +240,6 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineCleanu
 				item.setTitle('Code Selection')
 					.setIcon('code')
 					.onClick(() => {
-						// @ts-ignore
 						const editorView = editor.cm;
 						if (!editorView) return;
 
@@ -277,7 +275,6 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineCleanu
 		const selection = editor.getSelection();
 		if (!selection?.trim()) return;
 
-		// @ts-ignore
 		const editorView = editor.cm;
 		if (!editorView) return;
 

@@ -209,9 +209,7 @@ function buildDecorationsForFile(
 	const resolved: Array<{ marker: typeof markers[0]; from: number; to: number }> = [];
 	for (const marker of markers) {
 		try {
-			// @ts-ignore
 			const startOffset = targetView.editor.posToOffset(marker.range.from);
-			// @ts-ignore
 			const endOffset = targetView.editor.posToOffset(marker.range.to);
 			if (startOffset == null || endOffset == null) continue;
 			resolved.push({ marker, from: Math.min(startOffset, endOffset), to: Math.max(startOffset, endOffset) });
@@ -234,7 +232,6 @@ function buildDecorationsForFile(
 	// Calculate padding once (same for all markers in this file)
 	let paddingValue = 1;
 	try {
-		// @ts-ignore
 		const editorElement = targetView.editor.cm.dom;
 		const computedStyle = window.getComputedStyle(editorElement);
 		const currentFontSize = parseFloat(computedStyle.fontSize);

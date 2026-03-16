@@ -71,7 +71,6 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	});
 
 	// Navigation event from sidebar
-	// @ts-ignore — custom workspace event
 	const navRef = plugin.app.workspace.on('qualia-image:navigate', (data: { file: string; markerId: string }) => {
 		const file = plugin.app.vault.getAbstractFileByPath(data.file);
 		if (!(file instanceof TFile)) return;

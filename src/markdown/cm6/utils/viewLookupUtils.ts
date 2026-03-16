@@ -54,7 +54,6 @@ export function findFileIdForEditorView(editorView: EditorView, app: App): strin
 		const leafView = leaf.view;
 		if (leafView instanceof MarkdownView && leafView.editor) {
 			try {
-				// @ts-ignore
 				const cmView = leafView.editor.cm;
 				if (cmView === editorView) {
 					return leafView.file?.path || null;

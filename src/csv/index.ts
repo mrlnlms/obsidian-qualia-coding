@@ -55,7 +55,6 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	plugin.registerEvent(fileMenuRef);
 
 	// Navigation event from sidebar
-	// @ts-ignore — custom workspace event
 	const navRef = plugin.app.workspace.on('qualia-csv:navigate', (data: { file: string; row: number }) => {
 		const file = plugin.app.vault.getAbstractFileByPath(data.file);
 		if (!(file instanceof TFile)) return;
@@ -72,7 +71,6 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	plugin.registerEvent(navRef);
 
 	// Detail event from cell renderer chips
-	// @ts-ignore — custom workspace event
 	const detailRef = plugin.app.workspace.on('qualia-csv:detail', (data: { markerId: string; codeName: string }) => {
 		// Reveal the detail sidebar with this marker
 		plugin.app.workspace.trigger('qualia:reveal-detail', data);

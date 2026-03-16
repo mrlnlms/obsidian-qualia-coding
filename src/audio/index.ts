@@ -56,7 +56,6 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	});
 
 	// Navigate event from sidebar → seek in audio view
-	// @ts-ignore — custom workspace event
 	const navRef = plugin.app.workspace.on('qualia-audio:navigate', (data: { file: string; seekTo: number }) => {
 		openAudioAndSeek(plugin, model, data.file, data.seekTo);
 	});

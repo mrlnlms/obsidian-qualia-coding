@@ -149,9 +149,7 @@ export class UnifiedCodeDetailView extends BaseCodeDetailView {
 		}
 
 		try {
-			// @ts-ignore
 			const offset = view.editor.posToOffset(md.range.from);
-			// @ts-ignore
 			const editorView: EditorView = view.editor.cm;
 			if (editorView) {
 				editorView.dispatch({

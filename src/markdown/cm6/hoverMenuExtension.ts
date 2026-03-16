@@ -121,9 +121,7 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 
 				let startOffset: number, endOffset: number;
 				try {
-					// @ts-ignore
 					startOffset = targetView.editor.posToOffset(marker.range.from);
-					// @ts-ignore
 					endOffset = targetView.editor.posToOffset(marker.range.to);
 				} catch { return; }
 

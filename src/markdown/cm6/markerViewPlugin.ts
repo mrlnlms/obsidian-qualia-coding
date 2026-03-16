@@ -187,9 +187,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 							}
 
 							try {
-								// @ts-ignore
 								const fromOffset = targetView.editor.posToOffset(m.range.from);
-								// @ts-ignore
 								const toOffset = targetView.editor.posToOffset(m.range.to);
 
 								const fromCoords = view.coordsAtPos(fromOffset);
@@ -283,9 +281,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 						const scrollRect = view.scrollDOM.getBoundingClientRect();
 
 						try {
-							// @ts-ignore
 							const fromOffset = targetView.editor.posToOffset(marker.range.from);
-							// @ts-ignore
 							const toOffset = targetView.editor.posToOffset(marker.range.to);
 							const fromCoords = view.coordsAtPos(fromOffset);
 							const toCoords = view.coordsAtPos(toOffset);
@@ -457,7 +453,6 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 					const targetView = this.getViewForFileLocal(this.fileId);
 					if (!targetView?.editor) return;
 
-					// @ts-ignore
 					const newPosConverted = targetView.editor.offsetToPos(newPos);
 					if (!newPosConverted) return;
 

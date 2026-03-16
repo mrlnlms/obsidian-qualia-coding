@@ -56,7 +56,6 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	});
 
 	// Navigate event from sidebar → seek in video view
-	// @ts-ignore — custom workspace event
 	const navRef = plugin.app.workspace.on('qualia-video:navigate', (data: { file: string; seekTo: number }) => {
 		openVideoAndSeek(plugin, model, data.file, data.seekTo);
 	});

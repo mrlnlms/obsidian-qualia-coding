@@ -324,9 +324,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 					// and pull back to the end of the intended line.
 					let startOffset: number, endOffset: number;
 					try {
-						// @ts-ignore – posToOffset exists on Obsidian Editor
 						startOffset = targetView.editor.posToOffset(marker.range.from);
-						// @ts-ignore
 						endOffset = targetView.editor.posToOffset(marker.range.to);
 
 						// Clamp overflows: if offset landed past the intended line, pull back

@@ -97,9 +97,7 @@ function collectMarkersAtPos(
 			} catch {
 				const targetView = getViewForFile(fileId, app);
 				if (!targetView?.editor) continue;
-				// @ts-ignore
 				startOffset = targetView.editor.posToOffset(marker.range.from);
-				// @ts-ignore
 				endOffset = targetView.editor.posToOffset(marker.range.to);
 			}
 
