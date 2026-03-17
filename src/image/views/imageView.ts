@@ -135,7 +135,7 @@ export class ImageCodingView extends ItemView {
 			const saveView = () => {
 				if (this.currentFile && this.fabricState) {
 					const c = this.fabricState.canvas;
-					const vt = c.viewportTransform!;
+					const vt = c.viewportTransform;
 					this.model.saveFileViewState(this.currentFile.path, c.getZoom(), vt[4], vt[5]);
 				}
 			};
@@ -170,7 +170,7 @@ export class ImageCodingView extends ItemView {
 			if (savedView) {
 				const c = this.fabricState.canvas;
 				c.setZoom(savedView.zoom);
-				const vt = c.viewportTransform!;
+				const vt = c.viewportTransform;
 				vt[4] = savedView.panX;
 				vt[5] = savedView.panY;
 				c.requestRenderAll();

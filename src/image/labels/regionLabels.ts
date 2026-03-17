@@ -112,7 +112,7 @@ export class RegionLabels {
 
   private positionLabel(label: FabricText, shape: FabricObject): void {
     const bound = shape.getBoundingRect();
-    const vt = this.canvas.viewportTransform!;
+    const vt = this.canvas.viewportTransform;
     // Convert screen-space bounding rect back to canvas coords
     const left = (bound.left - vt[4]) / vt[0];
     const top = (bound.top - vt[5]) / vt[3];

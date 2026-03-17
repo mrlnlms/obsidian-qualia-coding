@@ -73,7 +73,7 @@ export function setupZoomPanControls(state: FabricCanvasState, callbacks?: ZoomP
     lastPanX = e.clientX;
     lastPanY = e.clientY;
 
-    const vt = canvas.viewportTransform!;
+    const vt = canvas.viewportTransform;
     vt[4] += dx;
     vt[5] += dy;
     canvas.requestRenderAll();

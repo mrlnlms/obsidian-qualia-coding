@@ -40,7 +40,7 @@ export function setupRegionDrawing(
     const rect = canvas.upperCanvasEl.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const vt = canvas.viewportTransform!;
+    const vt = canvas.viewportTransform;
     return new Point(
       (x - vt[4]) / vt[0],
       (y - vt[5]) / vt[3]
