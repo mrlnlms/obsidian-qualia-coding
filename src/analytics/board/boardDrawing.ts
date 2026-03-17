@@ -1,5 +1,6 @@
 
 import { Canvas, PencilBrush, type FabricObject, Path } from "fabric";
+import type { PathNode } from "./boardTypes";
 
 export interface FreePathData {
   id: string;
@@ -29,8 +30,9 @@ export function disableDrawingMode(canvas: Canvas): void {
 export function tagNewPaths(canvas: Canvas): void {
   for (const obj of canvas.getObjects()) {
     if (obj instanceof Path && !obj.boardType) {
-      obj.boardType = "path";
-      obj.boardId = nextPathId();
+      const node = obj as unknown as PathNode;
+      node.boardType = "path";
+      node.boardId = nextPathId();
     }
   }
 }
@@ -38,12 +40,12 @@ export function tagNewPaths(canvas: Canvas): void {
 export function getPathData(obj: FabricObject): FreePathData | null {
   if (obj.boardType !== "path") return null;
   if (!(obj instanceof Path)) return null;
-  const p = obj as Path;
-  const pathStr = p.path
-    ? JSON.stringify(p.path)
+  const node = obj as unknown as PathNode;
+  const pathStr = node.path
+    ? JSON.stringify(node.path)
     : "";
   return {
-    id: obj.boardId!,
+    id: node.boardId,
     path: pathStr,
     color: (obj.stroke as string) ?? "#333",
     width: obj.strokeWidth ?? 2,

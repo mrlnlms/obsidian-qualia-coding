@@ -3,6 +3,7 @@ import { Canvas, Path } from "fabric";
 import type { StickyNoteData, SnapshotNodeData, ExcerptNodeData, CodeCardNodeData, KpiCardNodeData } from "./boardNodes";
 import type { ArrowData } from "./boardArrows";
 import type { FreePathData } from "./boardDrawing";
+import type { PathNode } from "./boardTypes";
 import { getStickyData, isStickyNote, getSnapshotData, isSnapshotNode, getExcerptData, isExcerptNode, getCodeCardData, isCodeCardNode, getKpiCardData, isKpiCardNode, getClusterFrameData, isClusterFrame, type ClusterFrameData } from "./boardNodes";
 import { getArrowData, isArrowLine, isArrow } from "./boardArrows";
 import { getPathData, isFreePath } from "./boardDrawing";
@@ -75,7 +76,7 @@ export function serializeBoard(canvas: Canvas): BoardFileData {
     }
   }
 
-  const vt = canvas.viewportTransform!;
+  const vt = canvas.viewportTransform;
   return {
     version: 1,
     nodes,
@@ -163,8 +164,9 @@ export async function deserializeBoard(
         fill: "",
         selectable: true,
       });
-      pathObj.boardType = "path";
-      pathObj.boardId = pathData.id;
+      const pathNode = pathObj as unknown as PathNode;
+      pathNode.boardType = "path";
+      pathNode.boardId = pathData.id;
       canvas.add(pathObj);
     } catch {
       // Skip invalid paths

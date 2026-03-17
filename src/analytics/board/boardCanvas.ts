@@ -73,7 +73,7 @@ export function setupBoardCanvas(container: HTMLElement): BoardCanvasState {
   canvas.on("mouse:move", (opt) => {
     if (!isPanning) return;
     const e = opt.e as MouseEvent;
-    const vt = canvas.viewportTransform!;
+    const vt = canvas.viewportTransform;
     vt[4] += e.clientX - lastPanX;
     vt[5] += e.clientY - lastPanY;
     lastPanX = e.clientX;
@@ -130,7 +130,7 @@ export function setupBoardCanvas(container: HTMLElement): BoardCanvasState {
 
 function drawGridDots(canvas: Canvas): void {
   const ctx = canvas.getContext();
-  const vt = canvas.viewportTransform!;
+  const vt = canvas.viewportTransform;
   const zoom = canvas.getZoom();
   const w = canvas.getWidth();
   const h = canvas.getHeight();

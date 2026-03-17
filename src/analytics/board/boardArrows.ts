@@ -1,5 +1,6 @@
 
 import { Canvas, Line, Triangle, type FabricObject } from "fabric";
+import { type ArrowLineNode, type ArrowHeadNode, isArrowLineNode, isArrowHeadNode, isBoardNode } from "./boardTypes";
 
 export interface ArrowData {
   id: string;
@@ -26,6 +27,7 @@ function getNodeCenter(obj: FabricObject): { x: number; y: number } {
  */
 function findNodeById(canvas: Canvas, nodeId: string): FabricObject | undefined {
   return canvas.getObjects().find((o) => {
+    if (!isBoardNode(o)) return false;
     const t = o.boardType;
     return (
       o.boardId === nodeId &&
@@ -55,12 +57,13 @@ export function createArrow(
     lockMovementY: true,
   });
 
-  line.boardType = "arrow-line";
-  line.boardId = data.id;
-  line.boardFromId = data.fromNodeId;
-  line.boardToId = data.toNodeId;
-  line.boardColor = color;
-  line.boardLabel = data.label;
+  const lineNode = line as unknown as ArrowLineNode;
+  lineNode.boardType = "arrow-line";
+  lineNode.boardId = data.id;
+  lineNode.boardFromId = data.fromNodeId;
+  lineNode.boardToId = data.toNodeId;
+  lineNode.boardColor = color;
+  lineNode.boardLabel = data.label;
 
   // Arrow head
   const angle = Math.atan2(to.y - from.y, to.x - from.x) * (180 / Math.PI);
@@ -79,8 +82,9 @@ export function createArrow(
     hasControls: false,
   });
 
-  head.boardType = "arrow-head";
-  head.boardId = data.id;
+  const headNode = head as unknown as ArrowHeadNode;
+  headNode.boardType = "arrow-head";
+  headNode.boardId = data.id;
 
   canvas.add(line);
   canvas.add(head);
@@ -94,18 +98,17 @@ export function updateArrowForNodes(canvas: Canvas): void {
   const objects = canvas.getObjects();
 
   // Collect all arrow lines
-  const arrowLines: FabricObject[] = [];
+  const arrowLines: ArrowLineNode[] = [];
   const arrowHeads = new Map<string, FabricObject>(); // id -> head
 
   for (const obj of objects) {
-    const t = obj.boardType;
-    if (t === "arrow-line") arrowLines.push(obj);
-    if (t === "arrow-head") arrowHeads.set(obj.boardId!, obj);
+    if (isArrowLineNode(obj)) arrowLines.push(obj);
+    if (isArrowHeadNode(obj)) arrowHeads.set(obj.boardId, obj);
   }
 
   for (const lineObj of arrowLines) {
-    const fromId = lineObj.boardFromId!;
-    const toId = lineObj.boardToId!;
+    const fromId = lineObj.boardFromId;
+    const toId = lineObj.boardToId;
     const fromNode = findNodeById(canvas, fromId);
     const toNode = findNodeById(canvas, toId);
     if (!fromNode || !toNode) continue;
@@ -118,7 +121,7 @@ export function updateArrowForNodes(canvas: Canvas): void {
     lineObj.setCoords();
 
     // Update head position and angle
-    const headObj = arrowHeads.get(lineObj.boardId!);
+    const headObj = arrowHeads.get(lineObj.boardId);
     if (headObj) {
       const angle = Math.atan2(to.y - from.y, to.x - from.x) * (180 / Math.PI);
       headObj.set({ left: to.x, top: to.y, angle: angle + 90 });
@@ -130,11 +133,11 @@ export function updateArrowForNodes(canvas: Canvas): void {
 }
 
 export function getArrowData(obj: FabricObject): ArrowData | null {
-  if (obj.boardType !== "arrow-line") return null;
+  if (!isArrowLineNode(obj)) return null;
   return {
-    id: obj.boardId!,
-    fromNodeId: obj.boardFromId!,
-    toNodeId: obj.boardToId!,
+    id: obj.boardId,
+    fromNodeId: obj.boardFromId,
+    toNodeId: obj.boardToId,
     color: obj.boardColor || "#888",
     label: obj.boardLabel || "",
   };
@@ -151,7 +154,12 @@ export function isArrowLine(obj: FabricObject): boolean {
 
 /** Remove an arrow (both line and head) by arrow ID */
 export function removeArrowById(canvas: Canvas, arrowId: string): void {
-  const toRemove = canvas.getObjects().filter((o) => o.boardId === arrowId && isArrow(o));
+  const toRemove = canvas.getObjects().filter((o) => {
+    if (!isArrow(o)) return false;
+    if (isArrowLineNode(o)) return o.boardId === arrowId;
+    if (isArrowHeadNode(o)) return o.boardId === arrowId;
+    return false;
+  });
   for (const obj of toRemove) {
     canvas.remove(obj);
   }

@@ -1,5 +1,7 @@
 
 import { Canvas, Rect, Textbox, Group, Shadow, FabricImage, type FabricObject } from "fabric";
+import type { StickyNode, SnapshotNode, ExcerptNode, CodeCardNode, KpiCardNode, ClusterFrameNode } from "./boardTypes";
+export { isStickyNode as isStickyNote, isSnapshotNode, isExcerptNode, isCodeCardNode, isKpiCardNode, isClusterFrameNode as isClusterFrame } from "./boardTypes";
 
 export interface StickyNoteData {
   id: string;
@@ -60,9 +62,10 @@ export function createStickyNote(canvas: Canvas, data: StickyNoteData): Group {
   });
 
   // Store metadata
-  group.boardType = "sticky";
-  group.boardId = data.id;
-  group.boardColor = data.color;
+  const node = group as unknown as StickyNode;
+  node.boardType = "sticky";
+  node.boardId = data.id;
+  node.boardColor = data.color;
 
   canvas.add(group);
   canvas.requestRenderAll();
@@ -71,16 +74,17 @@ export function createStickyNote(canvas: Canvas, data: StickyNoteData): Group {
 
 export function getStickyData(group: Group): StickyNoteData | null {
   if (group.boardType !== "sticky") return null;
+  const node = group as unknown as StickyNode;
   const textbox = group.getObjects().find((o) => o instanceof Textbox) as Textbox | undefined;
   const br = group.getBoundingRect();
   return {
-    id: group.boardId,
+    id: node.boardId,
     x: group.left ?? 0,
     y: group.top ?? 0,
     width: br.width / (group.scaleX ?? 1),
     height: br.height / (group.scaleY ?? 1),
     text: textbox?.text ?? "",
-    color: group.boardColor ?? DEFAULT_STICKY_COLOR,
+    color: node.boardColor ?? DEFAULT_STICKY_COLOR,
   };
 }
 
@@ -90,12 +94,8 @@ export function setStickyColor(group: Group, colorKey: string): void {
   if (rect) {
     rect.set("fill", bgColor);
   }
-  group.boardColor = colorKey;
+  (group as unknown as StickyNode).boardColor = colorKey;
   group.canvas?.requestRenderAll();
-}
-
-export function isStickyNote(obj: FabricObject): obj is Group {
-  return obj.boardType === "sticky";
 }
 
 export function enableStickyEditing(canvas: Canvas, group: Group): void {
@@ -209,14 +209,15 @@ export async function createSnapshotNode(canvas: Canvas, data: SnapshotNodeData)
     top: data.y,
   });
 
-  group.boardType = "snapshot";
-  group.boardId = data.id;
-  group.boardTitle = data.title;
-  group.boardDataUrl = data.dataUrl;
-  group.boardViewMode = data.viewMode;
-  group.boardCreatedAt = data.createdAt;
-  group.boardWidth = data.width;
-  group.boardHeight = data.height;
+  const node = group as unknown as SnapshotNode;
+  node.boardType = "snapshot";
+  node.boardId = data.id;
+  node.boardTitle = data.title;
+  node.boardDataUrl = data.dataUrl;
+  node.boardViewMode = data.viewMode;
+  node.boardCreatedAt = data.createdAt;
+  node.boardWidth = data.width;
+  node.boardHeight = data.height;
 
   canvas.add(group);
   canvas.requestRenderAll();
@@ -225,21 +226,18 @@ export async function createSnapshotNode(canvas: Canvas, data: SnapshotNodeData)
 
 export function getSnapshotData(group: Group): SnapshotNodeData | null {
   if (group.boardType !== "snapshot") return null;
+  const node = group as unknown as SnapshotNode;
   return {
-    id: group.boardId,
+    id: node.boardId,
     x: group.left ?? 0,
     y: group.top ?? 0,
-    width: group.boardWidth ?? 280,
-    height: group.boardHeight ?? 180,
-    title: group.boardTitle ?? "",
-    dataUrl: group.boardDataUrl ?? "",
-    viewMode: group.boardViewMode ?? "",
-    createdAt: group.boardCreatedAt ?? 0,
+    width: node.boardWidth ?? 280,
+    height: node.boardHeight ?? 180,
+    title: node.boardTitle ?? "",
+    dataUrl: node.boardDataUrl ?? "",
+    viewMode: node.boardViewMode ?? "",
+    createdAt: node.boardCreatedAt ?? 0,
   };
-}
-
-export function isSnapshotNode(obj: FabricObject): obj is Group {
-  return obj.boardType === "snapshot";
 }
 
 // ── Excerpt Nodes (text retrieval excerpts) ──
@@ -407,16 +405,17 @@ export function createExcerptNode(canvas: Canvas, data: ExcerptNodeData): Group 
     top: data.y,
   });
 
-  group.boardType = "excerpt";
-  group.boardId = data.id;
-  group.boardText = data.text;
-  group.boardFile = data.file;
-  group.boardSource = data.source;
-  group.boardLocation = data.location;
-  group.boardCodes = data.codes;
-  group.boardCodeColors = data.codeColors;
-  group.boardCreatedAt = data.createdAt;
-  group.boardWidth = data.width;
+  const node = group as unknown as ExcerptNode;
+  node.boardType = "excerpt";
+  node.boardId = data.id;
+  node.boardText = data.text;
+  node.boardFile = data.file;
+  node.boardSource = data.source;
+  node.boardLocation = data.location;
+  node.boardCodes = data.codes;
+  node.boardCodeColors = data.codeColors;
+  node.boardCreatedAt = data.createdAt;
+  node.boardWidth = data.width;
 
   canvas.add(group);
   canvas.requestRenderAll();
@@ -425,23 +424,20 @@ export function createExcerptNode(canvas: Canvas, data: ExcerptNodeData): Group 
 
 export function getExcerptData(group: Group): ExcerptNodeData | null {
   if (group.boardType !== "excerpt") return null;
+  const node = group as unknown as ExcerptNode;
   return {
-    id: group.boardId,
+    id: node.boardId,
     x: group.left ?? 0,
     y: group.top ?? 0,
-    width: group.boardWidth ?? 260,
-    text: group.boardText ?? "",
-    file: group.boardFile ?? "",
-    source: group.boardSource ?? "markdown",
-    location: group.boardLocation ?? "",
-    codes: group.boardCodes ?? [],
-    codeColors: group.boardCodeColors ?? [],
-    createdAt: group.boardCreatedAt ?? 0,
+    width: node.boardWidth ?? 260,
+    text: node.boardText ?? "",
+    file: node.boardFile ?? "",
+    source: node.boardSource ?? "markdown",
+    location: node.boardLocation ?? "",
+    codes: node.boardCodes ?? [],
+    codeColors: node.boardCodeColors ?? [],
+    createdAt: node.boardCreatedAt ?? 0,
   };
-}
-
-export function isExcerptNode(obj: FabricObject): obj is Group {
-  return obj.boardType === "excerpt";
 }
 
 // ── Code Card Nodes (code definitions) ──
@@ -600,14 +596,15 @@ export function createCodeCardNode(canvas: Canvas, data: CodeCardNodeData): Grou
     top: data.y,
   });
 
-  group.boardType = "codeCard";
-  group.boardId = data.id;
-  group.boardCodeName = data.codeName;
-  group.boardColor = data.color;
-  group.boardDescription = data.description;
-  group.boardMarkerCount = data.markerCount;
-  group.boardSources = data.sources;
-  group.boardCreatedAt = data.createdAt;
+  const node = group as unknown as CodeCardNode;
+  node.boardType = "codeCard";
+  node.boardId = data.id;
+  node.boardCodeName = data.codeName;
+  node.boardColor = data.color;
+  node.boardDescription = data.description;
+  node.boardMarkerCount = data.markerCount;
+  node.boardSources = data.sources;
+  node.boardCreatedAt = data.createdAt;
 
   canvas.add(group);
   canvas.requestRenderAll();
@@ -616,21 +613,18 @@ export function createCodeCardNode(canvas: Canvas, data: CodeCardNodeData): Grou
 
 export function getCodeCardData(group: Group): CodeCardNodeData | null {
   if (group.boardType !== "codeCard") return null;
+  const node = group as unknown as CodeCardNode;
   return {
-    id: group.boardId,
+    id: node.boardId,
     x: group.left ?? 0,
     y: group.top ?? 0,
-    codeName: group.boardCodeName ?? "",
-    color: group.boardColor ?? "#6200EE",
-    description: group.boardDescription ?? "",
-    markerCount: group.boardMarkerCount ?? 0,
-    sources: group.boardSources ?? [],
-    createdAt: group.boardCreatedAt ?? 0,
+    codeName: node.boardCodeName ?? "",
+    color: node.boardColor ?? "#6200EE",
+    description: node.boardDescription ?? "",
+    markerCount: node.boardMarkerCount ?? 0,
+    sources: node.boardSources ?? [],
+    createdAt: node.boardCreatedAt ?? 0,
   };
-}
-
-export function isCodeCardNode(obj: FabricObject): obj is Group {
-  return obj.boardType === "codeCard";
 }
 
 // ── KPI Card Nodes ──
@@ -711,12 +705,13 @@ export function createKpiCardNode(canvas: Canvas, data: KpiCardNodeData): Group 
     top: data.y,
   });
 
-  group.boardType = "kpiCard";
-  group.boardId = data.id;
-  group.boardValue = data.value;
-  group.boardLabel = data.label;
-  group.boardAccent = data.accent;
-  group.boardCreatedAt = data.createdAt;
+  const node = group as unknown as KpiCardNode;
+  node.boardType = "kpiCard";
+  node.boardId = data.id;
+  node.boardValue = data.value;
+  node.boardLabel = data.label;
+  node.boardAccent = data.accent;
+  node.boardCreatedAt = data.createdAt;
 
   canvas.add(group);
   canvas.requestRenderAll();
@@ -725,19 +720,16 @@ export function createKpiCardNode(canvas: Canvas, data: KpiCardNodeData): Group 
 
 export function getKpiCardData(group: Group): KpiCardNodeData | null {
   if (group.boardType !== "kpiCard") return null;
+  const node = group as unknown as KpiCardNode;
   return {
-    id: group.boardId,
+    id: node.boardId,
     x: group.left ?? 0,
     y: group.top ?? 0,
-    value: group.boardValue ?? "",
-    label: group.boardLabel ?? "",
-    accent: group.boardAccent ?? "#6200EE",
-    createdAt: group.boardCreatedAt ?? 0,
+    value: node.boardValue ?? "",
+    label: node.boardLabel ?? "",
+    accent: node.boardAccent ?? "#6200EE",
+    createdAt: node.boardCreatedAt ?? 0,
   };
-}
-
-export function isKpiCardNode(obj: FabricObject): obj is Group {
-  return obj.boardType === "kpiCard";
 }
 
 // ── Cluster Frame Nodes (visual grouping) ──
@@ -792,13 +784,14 @@ export function createClusterFrame(canvas: Canvas, data: ClusterFrameData): Grou
     interactive: false,
   });
 
-  group.boardType = "cluster-frame";
-  group.boardId = data.id;
-  group.boardLabel = data.label;
-  group.boardColor = data.color;
-  group.boardCodeNames = data.codeNames;
-  group.boardWidth = data.width;
-  group.boardHeight = data.height;
+  const node = group as unknown as ClusterFrameNode;
+  node.boardType = "cluster-frame";
+  node.boardId = data.id;
+  node.boardLabel = data.label;
+  node.boardColor = data.color;
+  node.boardCodeNames = data.codeNames;
+  node.boardWidth = data.width;
+  node.boardHeight = data.height;
 
   canvas.add(group);
   canvas.sendObjectToBack(group);
@@ -808,18 +801,15 @@ export function createClusterFrame(canvas: Canvas, data: ClusterFrameData): Grou
 
 export function getClusterFrameData(group: Group): ClusterFrameData | null {
   if (group.boardType !== "cluster-frame") return null;
+  const node = group as unknown as ClusterFrameNode;
   return {
-    id: group.boardId,
+    id: node.boardId,
     x: group.left ?? 0,
     y: group.top ?? 0,
-    width: group.boardWidth ?? 200,
-    height: group.boardHeight ?? 200,
-    label: group.boardLabel ?? "",
-    color: group.boardColor ?? "rgba(100,100,100,0.1)",
-    codeNames: group.boardCodeNames ?? [],
+    width: node.boardWidth ?? 200,
+    height: node.boardHeight ?? 200,
+    label: node.boardLabel ?? "",
+    color: node.boardColor ?? "rgba(100,100,100,0.1)",
+    codeNames: node.boardCodeNames ?? [],
   };
-}
-
-export function isClusterFrame(obj: FabricObject): obj is Group {
-  return obj.boardType === "cluster-frame";
 }

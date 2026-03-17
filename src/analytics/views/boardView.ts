@@ -9,6 +9,7 @@ import { enableDrawingMode, disableDrawingMode, tagNewPaths } from "../board/boa
 import { createBoardToolbar, type BoardTool } from "../board/boardToolbar";
 import { serializeBoard, deserializeBoard, emptyBoardData, type BoardFileData } from "../board/boardData";
 import { clusterCodeCards } from "../board/boardClusters";
+import { isArrowLineNode, isArrowHeadNode, isBoardNode, type CodeCardNode } from "../board/boardTypes";
 
 export const BOARD_VIEW_TYPE = "codemarker-board";
 const BOARD_FILE = ".obsidian/plugins/qualia-coding/board.json";
@@ -128,7 +129,9 @@ export class BoardView extends ItemView {
       const active = canvas.getActiveObjects();
       for (const obj of active) {
         // If it's an arrow part, remove both line + head
-        if (isArrow(obj)) {
+        if (isArrowLineNode(obj)) {
+          removeArrowById(canvas, obj.boardId);
+        } else if (isArrowHeadNode(obj)) {
           removeArrowById(canvas, obj.boardId);
         } else {
           canvas.remove(obj);
@@ -194,10 +197,12 @@ export class BoardView extends ItemView {
             } else if (this.arrowSourceObj !== t) {
               // Second click — create arrow
               this.arrowSourceObj.set("opacity", 1);
+              const fromId = isBoardNode(this.arrowSourceObj) ? this.arrowSourceObj.boardId : "";
+              const toId = isBoardNode(t) ? t.boardId : "";
               createArrow(canvas, this.arrowSourceObj, t, {
                 id: nextArrowId(),
-                fromNodeId: this.arrowSourceObj.boardId!,
-                toNodeId: t.boardId!,
+                fromNodeId: fromId,
+                toNodeId: toId,
                 color: "#888",
                 label: "",
               });
@@ -269,7 +274,9 @@ export class BoardView extends ItemView {
         item.setTitle("Delete");
         item.setIcon("trash-2");
         item.onClick(() => {
-          if (isArrowObj) {
+          if (isArrowLineNode(target)) {
+            removeArrowById(canvas, target.boardId);
+          } else if (isArrowHeadNode(target)) {
             removeArrowById(canvas, target.boardId);
           } else {
             canvas.remove(target);
@@ -289,7 +296,7 @@ export class BoardView extends ItemView {
     const canvas = this.canvasState.canvas;
 
     // Place new snapshot in a visible area — center of current viewport
-    const vt = canvas.viewportTransform!;
+    const vt = canvas.viewportTransform;
     const zoom = canvas.getZoom();
     const cw = this.canvasState.container.clientWidth;
     const ch = this.canvasState.container.clientHeight;
@@ -319,7 +326,7 @@ export class BoardView extends ItemView {
     if (!this.canvasState) return;
     const canvas = this.canvasState.canvas;
 
-    const vt = canvas.viewportTransform!;
+    const vt = canvas.viewportTransform;
     const zoom = canvas.getZoom();
     const cw = this.canvasState.container.clientWidth;
     const ch = this.canvasState.container.clientHeight;
@@ -346,7 +353,7 @@ export class BoardView extends ItemView {
     if (!this.canvasState) return;
     const canvas = this.canvasState.canvas;
 
-    const vt = canvas.viewportTransform!;
+    const vt = canvas.viewportTransform;
     const zoom = canvas.getZoom();
     const cw = this.canvasState.container.clientWidth;
     const ch = this.canvasState.container.clientHeight;
@@ -375,7 +382,7 @@ export class BoardView extends ItemView {
     if (!this.canvasState) return;
     const canvas = this.canvasState.canvas;
 
-    const vt = canvas.viewportTransform!;
+    const vt = canvas.viewportTransform;
     const zoom = canvas.getZoom();
     const cw = this.canvasState.container.clientWidth;
     const ch = this.canvasState.container.clientHeight;
@@ -418,8 +425,8 @@ export class BoardView extends ItemView {
       data = await this.plugin.loadConsolidatedData();
     }
 
-    const codeNames = codeCards.map((o) => o.boardCodeName as string);
-    const codeColors = codeCards.map((o) => o.boardColor as string);
+    const codeNames = codeCards.map((o) => (o as unknown as CodeCardNode).boardCodeName);
+    const codeColors = codeCards.map((o) => (o as unknown as CodeCardNode).boardColor);
 
     const result = clusterCodeCards(codeNames, codeColors, data);
 
@@ -461,7 +468,7 @@ export class BoardView extends ItemView {
       // Move cards into grid inside frame
       let idx = 0;
       for (const codeName of cluster.codeNames) {
-        const card = codeCards.find((o) => o.boardCodeName === codeName);
+        const card = codeCards.find((o) => (o as unknown as CodeCardNode).boardCodeName === codeName);
         if (card) {
           const col = idx % cols;
           const row = Math.floor(idx / cols);
@@ -492,7 +499,7 @@ export class BoardView extends ItemView {
       const payload = JSON.parse(raw);
       if (payload.type !== "codemarker-code-card") return;
       const canvas = this.canvasState.canvas;
-      const vt = canvas.viewportTransform!;
+      const vt = canvas.viewportTransform;
       const zoom = canvas.getZoom();
       // Convert DOM coords to canvas coords
       const rect = this.canvasState.container.getBoundingClientRect();
@@ -559,8 +566,8 @@ export class BoardView extends ItemView {
         (arrowData: ArrowData) => {
           // Find from/to nodes
           const objects = canvas.getObjects();
-          const fromObj = objects.find((o) => o.boardId === arrowData.fromNodeId);
-          const toObj = objects.find((o) => o.boardId === arrowData.toNodeId);
+          const fromObj = objects.find((o) => isBoardNode(o) && o.boardId === arrowData.fromNodeId);
+          const toObj = objects.find((o) => isBoardNode(o) && o.boardId === arrowData.toNodeId);
           if (fromObj && toObj) {
             createArrow(canvas, fromObj, toObj, arrowData);
           }
