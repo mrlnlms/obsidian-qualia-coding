@@ -19,109 +19,26 @@ export class DataManager {
 		const defaults = createDefaultData();
 		if (raw) {
 			for (const key of Object.keys(defaults) as Array<keyof QualiaData>) {
-				if (raw[key] === undefined) (raw as any)[key] = defaults[key];
+				if (raw[key] === undefined) raw[key] = defaults[key];
 			}
 			// Merge nested settings with defaults (handles new keys added later)
 			raw.markdown.settings = { ...defaults.markdown.settings, ...(raw.markdown.settings ?? {}) };
 			this.data = raw as QualiaData;
-
-			// D21: Normalize registry from 3 legacy formats
-			this.migrateRegistries(raw);
-			// D22: Strip legacy codeDescriptions → migrate to registry
-			this.migrateLegacyDescriptions(raw);
 		} else {
 			this.data = defaults;
 		}
 	}
 
-	/**
-	 * D21: Normalize per-engine registries from 3 legacy formats into unified `registry`.
-	 * - v2: `data.markdown.codeDefinitions` (flat Record) + `data.markdown.nextPaletteIndex` (number)
-	 * - CSV/Image/PDF: `data.<engine>.codeDefinitions` (flat Record) + `data.<engine>.nextPaletteIndex` (number)
-	 * - Audio/Video: `data.<engine>.codeDefinitions` (nested { definitions, nextPaletteIndex })
-	 * Merges by `updatedAt` (newest wins). Writes result to `this.data.registry`.
-	 * Deletes per-engine copies after migration. One-time normalization.
-	 */
-	private migrateRegistries(raw: any): void {
-		const sources: Array<{ defs: Record<string, any>; paletteIndex: number; cleanupKeys: string[] }> = [];
-
-		// Format 1: v2/CSV/Image/PDF — flat codeDefinitions + nextPaletteIndex at engine level
-		for (const engine of ['markdown', 'csv', 'image', 'pdf'] as const) {
-			const section = raw[engine];
-			if (section?.codeDefinitions && typeof section.codeDefinitions === 'object' && !section.codeDefinitions.definitions) {
-				sources.push({
-					defs: section.codeDefinitions,
-					paletteIndex: typeof section.nextPaletteIndex === 'number' ? section.nextPaletteIndex : 0,
-					cleanupKeys: [`${engine}.codeDefinitions`, `${engine}.nextPaletteIndex`],
-				});
-			}
-		}
-
-		// Format 2: Audio/Video — nested { definitions, nextPaletteIndex } under codeDefinitions
-		for (const engine of ['audio', 'video'] as const) {
-			const section = raw[engine];
-			if (section?.codeDefinitions?.definitions) {
-				sources.push({
-					defs: section.codeDefinitions.definitions,
-					paletteIndex: typeof section.codeDefinitions.nextPaletteIndex === 'number' ? section.codeDefinitions.nextPaletteIndex : 0,
-					cleanupKeys: [`${engine}.codeDefinitions`],
-				});
-			}
-		}
-
-		if (sources.length === 0) return;
-
-		// Merge into unified registry by updatedAt (newest wins)
-		const unified = this.data.registry.definitions;
-		let maxPaletteIndex = this.data.registry.nextPaletteIndex;
-
-		for (const source of sources) {
-			for (const [id, def] of Object.entries(source.defs)) {
-				const existing = unified[id];
-				if (!existing || (def.updatedAt && (!existing.updatedAt || def.updatedAt > existing.updatedAt))) {
-					unified[id] = def;
-				}
-			}
-			if (source.paletteIndex > maxPaletteIndex) {
-				maxPaletteIndex = source.paletteIndex;
-			}
-		}
-
-		this.data.registry.nextPaletteIndex = maxPaletteIndex;
-
-		// Delete per-engine copies
-		for (const source of sources) {
-			for (const keyPath of source.cleanupKeys) {
-				const [engine, key] = keyPath.split('.') as [string, string];
-				if (raw[engine]) delete raw[engine][key];
-			}
-		}
+	section<K extends keyof QualiaData>(key: K): QualiaData[K];
+	section(key: string): Record<string, any>;
+	section(key: string): any {
+		return this.data[key as keyof QualiaData];
 	}
 
-	/**
-	 * D22: Migrate legacy `codeDescriptions` map from v2 markdown data
-	 * into `registry.definitions[].description`.
-	 */
-	private migrateLegacyDescriptions(raw: any): void {
-		if (!(raw as any).markdown?.codeDescriptions) return;
-		const descs = (raw as any).markdown.codeDescriptions as Record<string, string>;
-		for (const [name, desc] of Object.entries(descs)) {
-			// Find definition by name
-			for (const def of Object.values(this.data.registry.definitions)) {
-				if ((def as any).name === name && !(def as any).description) {
-					(def as any).description = desc;
-				}
-			}
-		}
-		delete (raw as any).markdown.codeDescriptions;
-	}
-
-	section<K extends keyof QualiaData>(key: K): QualiaData[K] {
-		return this.data[key];
-	}
-
-	setSection<K extends keyof QualiaData>(key: K, value: QualiaData[K]): void {
-		this.data[key] = value;
+	setSection<K extends keyof QualiaData>(key: K, value: QualiaData[K]): void;
+	setSection(key: string, value: Record<string, any>): void;
+	setSection(key: string, value: any): void {
+		(this.data as Record<string, any>)[key] = value;
 		this.markDirty();
 	}
 

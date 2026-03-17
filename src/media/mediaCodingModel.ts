@@ -35,9 +35,9 @@ export class MediaCodingModel<
 		this.sectionName = sectionName;
 		this.settings = { ...defaultSettings };
 
-		const section = dm.section(sectionName as any);
-		this.files = (section as any).files ?? [];
-		this.settings = { ...defaultSettings, ...((section as any).settings as Partial<S>) };
+		const section = dm.section(sectionName);
+		this.files = (section.files as F[]) ?? [];
+		this.settings = { ...defaultSettings, ...(section.settings as Partial<S>) };
 
 		// Migration: backfill fields for markers created before they existed
 		for (const f of this.files) {
@@ -51,7 +51,7 @@ export class MediaCodingModel<
 	// ── Persistence ──
 
 	save(): void {
-		this.dm.setSection(this.sectionName as any, {
+		this.dm.setSection(this.sectionName, {
 			files: this.files,
 			settings: this.settings,
 		});
