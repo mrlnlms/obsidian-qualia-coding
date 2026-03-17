@@ -339,8 +339,10 @@ Audio/Video herdam via `MediaSidebarAdapter` intermediario.
 | BaseSidebarAdapter (todos os engines) | ~120 eliminadas | FEITO (2026-03-16) |
 | Menu consolidation nivel 2 (markdown → shared popover) | ~299 eliminadas | FEITO (2026-03-16) |
 | CSS cleanup full (remove namespace tooltip-menu, unifica seletores) | ~77 eliminadas | FEITO (2026-03-16) |
-| `as any` cleanup (222 → 16 restantes) | 206 removidos | FEITO (2026-03-16) |
-| **Total eliminado** | **~1.280 linhas + 206 as any** | |
+| `as any` cleanup (222 → 6 restantes) | 216 removidos | FEITO (2026-03-17) |
+| Board discriminated union (boardTypes.ts) + zero erros tsc | 82 erros eliminados | FEITO (2026-03-17) |
+| Migration code legado removido + DataManager overloads | -83 linhas dead code | FEITO (2026-03-17) |
+| **Total eliminado** | **~1.360 linhas, 222→6 as any, 44→3 @ts-ignore, 82→0 erros tsc** | |
 | analyticsView.ts split (5.907 linhas) | Reorganiza, nao elimina | Futuro |
 | statsEngine.ts split | Reorganiza | Futuro |
 
@@ -358,31 +360,7 @@ Ganho de manutenibilidade alcancado:
 
 ---
 
-## 16 `as any` restantes — analise de eliminabilidade
-
-### DataManager migration code (6 instancias) — `src/core/dataManager.ts`
-
-```
-(raw as any)[key] = defaults[key]           // preenche campos faltantes
-(raw as any).markdown?.codeDescriptions     // acessa schema legado
-(def as any).name / .description            // definitions sem tipo durante migracao
-```
-
-**Eliminavel?** SIM, se criar `LegacyQualiaData` interface que descreve o schema antigo. Mas o codigo de migracao e transitorio — quando o plugin sair de dev, pode ser removido inteiramente (nenhum usuario tem dados no formato antigo). **Sugestao: remover o codigo de migracao quando o plugin for publicado.**
-
-### MediaCodingModel generic section key (4 instancias) — `src/media/mediaCodingModel.ts`
-
-```
-dm.section(sectionName as any)              // 'audio'|'video' como string, DataManager espera keyof
-(section as any).files                      // retorno e union type, files nao existe em todos
-```
-
-**Eliminavel?** SIM, com overload no DataManager:
-```typescript
-section(key: 'audio'): { files: AudioFile[]; settings: AudioSettings };
-section(key: 'video'): { files: VideoFile[]; settings: VideoSettings };
-```
-Ou aceitar o `as any` — e o custo de um model generico parametrizado. **Sugestao: criar overloads no DataManager se for adicionar mais engines.**
+## 6 `as any` restantes — APIs externas sem tipos
 
 ### PDF Obsidian internal viewer API (3 instancias) — `src/pdf/index.ts`
 
@@ -437,9 +415,7 @@ return createStandaloneViewWrapper(standalone) as any
 |------|------------|--------|
 | analyticsView.ts split (5.907 linhas) | — | Quando mexer em analytics |
 | statsEngine.ts split | — | Quando mexer em analytics |
-| 6 `as any` DataManager migration | Sim (remover migration code) | Quando publicar o plugin |
-| 4 `as any` MediaCodingModel section | Sim (overloads DataManager) | Quando adicionar engines |
-| 3 `as any` PDF viewer | Nao (API interna Obsidian) | Manter |
+| 3 `as any` PDF viewer | Nao (API interna Obsidian) | Permanente |
 | 1 `as any` WaveSurfer event | Sim (module augmentation) | Quando mexer em waveform |
 | 1 `as any` Chart.js wordCloud | Sim (module augmentation) | Quando mexer em analytics |
 | 1 `as any` viewLookupUtils | Sim (tipar retorno) | Quando mexer em viewLookup |
