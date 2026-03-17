@@ -33,6 +33,12 @@ export function registerFileRename(rule: FileRenameRule): void {
 	renameRules.push(rule);
 }
 
+/** Clear all registered rules. Call on plugin unload to prevent accumulation on hot-reload. */
+export function clearFileInterceptRules(): void {
+	rules.length = 0;
+	renameRules.length = 0;
+}
+
 export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 	// Centralized rename handler — dispatches to all registered engines
 	plugin.registerEvent(

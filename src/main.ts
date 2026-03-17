@@ -3,6 +3,7 @@ import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
 import type { EngineCleanup, SidebarModelInterface } from './core/types';
+import { clearFileInterceptRules } from './core/fileInterceptor';
 import { UnifiedModelAdapter } from './core/unifiedModelAdapter';
 import { UnifiedCodeExplorerView, CODE_EXPLORER_VIEW_TYPE } from './core/unifiedExplorerView';
 import { UnifiedCodeDetailView, CODE_DETAIL_VIEW_TYPE } from './core/unifiedDetailView';
@@ -103,6 +104,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	}
 
 	async onunload() {
+		clearFileInterceptRules();
 		this.app.workspace.detachLeavesOfType(CODE_EXPLORER_VIEW_TYPE);
 		this.app.workspace.detachLeavesOfType(CODE_DETAIL_VIEW_TYPE);
 
