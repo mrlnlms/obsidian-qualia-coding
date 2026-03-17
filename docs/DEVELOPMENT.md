@@ -53,6 +53,8 @@ src/
 │   ├── unifiedDetailView.ts      # Code Detail unificado
 │   ├── baseCodeExplorerView.ts   # Base class do explorer
 │   ├── baseCodeDetailView.ts     # Base class do detail
+│   ├── baseSidebarAdapter.ts     # Base class para sidebar adapters
+│   ├── markerResolvers.ts        # Type guards e resolvers centralizados
 │   └── settingTab.ts        # Settings
 ├── markdown/                # Engine markdown (CM6)
 ├── pdf/                     # Engine PDF (DOM/SVG)
@@ -60,10 +62,16 @@ src/
 ├── image/                   # Engine Image (Fabric.js)
 ├── audio/                   # Engine Audio (WaveSurfer)
 ├── video/                   # Engine Video (WaveSurfer)
+├── obsidian-internals.d.ts   # Type declarations para APIs internas do Obsidian
 ├── media/                   # Shared audio+video (waveformRenderer, regionRenderer)
+│   ├── mediaCodingModel.ts      # Model compartilhado audio+video
+│   ├── mediaSidebarAdapter.ts   # Sidebar adapter compartilhado
+│   └── mediaCodingMenu.ts       # Menu de codificação compartilhado
 └── analytics/               # Engine Analytics (Chart.js + Fabric.js)
     ├── data/                # 6 computation engines
     ├── board/               # Research Board
+    │   ├── boardTypes.ts        # Tipos do board
+    │   └── fabricExtensions.d.ts # Type declarations Fabric.js
     └── views/               # 17 ViewModes
 ```
 
@@ -91,13 +99,13 @@ interface SidebarModelInterface {
   onChange(fn: () => void): void;
   offChange(fn: () => void): void;
   getAllMarkers(): BaseMarker[];
-  getMarkerById(id: string): BaseMarker | undefined;
+  getMarkerById(id: string): BaseMarker | null;
   getAllFileIds(): string[];
   getMarkersForFile(fileId: string): BaseMarker[];
   saveMarkers(): void;
-  updateMarkerFields(markerId: string, fields: Partial<BaseMarker>): void;
+  updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void;
   updateDecorations?(): void;
-  removeMarker(markerId: string): void;
+  removeMarker(markerId: string): boolean;
   deleteCode(codeName: string): void;
   setHoverState(markerId: string | null, codeName: string | null): void;
   getHoverMarkerId(): string | null;
@@ -108,9 +116,14 @@ interface SidebarModelInterface {
 }
 ```
 
-#### 4. Adapter wraps model → BaseMarker
-Criar adapter que converte markers engine-specific em `BaseMarker` para a sidebar unificada.
+#### 4. Adapter extends BaseSidebarAdapter
+Criar adapter que estende `BaseSidebarAdapter` (em `src/core/baseSidebarAdapter.ts`) e converte markers engine-specific em `BaseMarker` para a sidebar unificada.
 ```typescript
+export class XxxSidebarAdapter extends BaseSidebarAdapter {
+  constructor(model: XxxModel) { super(model); }
+  // implement abstract methods
+}
+
 export interface XxxBaseMarker extends BaseMarker {
   // campos únicos para type guard
   // ex: shape + shapeLabel para Image, page + isShape para PDF
@@ -121,7 +134,7 @@ export interface XxxBaseMarker extends BaseMarker {
 Em `main.ts`, registrar engine e adicionar adapter ao `UnifiedModelAdapter`.
 
 #### 6. Type guards para unified views
-Adicionar discriminator function: `isMyEngineMarker(m): m is MyMarker`.
+Adicionar discriminator function em `src/core/markerResolvers.ts` (localização central para todos os type guards e resolvers de marker):
 ```typescript
 function isXxxMarker(marker: BaseMarker): marker is XxxBaseMarker {
   return 'campoUnico1' in marker && 'campoUnico2' in marker;
@@ -130,17 +143,19 @@ function isXxxMarker(marker: BaseMarker): marker is XxxBaseMarker {
 ```
 
 #### 7. Menu usa `openCodingPopover()`
-Implementar `CodingPopoverAdapter` interface. NÃO criar menu custom.
+Implementar `CodingPopoverAdapter` interface (definida em `src/core/codingPopover.ts`). NÃO criar menu custom.
 ```typescript
-// CodingPopoverAdapter methods:
-getActiveCodes(markerId): string[]
-addCode(markerId, codeName): void
-removeCode(markerId, codeName): void
-getMemo(markerId): string
-setMemo(markerId, memo): void
-save(): void
-onRefresh?(): void
-onNavClick?(markerId, codeName): void
+interface CodingPopoverAdapter {
+  registry: CodeDefinitionRegistry;
+  getActiveCodes(markerId: string): string[];
+  addCode(markerId: string, codeName: string): void;
+  removeCode(markerId: string, codeName: string): void;
+  getMemo(markerId: string): string;
+  setMemo(markerId: string, memo: string): void;
+  save(): void;
+  onRefresh?(): void;
+  onNavClick?(markerId: string, codeName: string): void;
+}
 ```
 
 #### 8. Bidirectional hover
@@ -151,13 +166,14 @@ Sidebar hover → `model.setHoverState()` → view highlights.
 Usar prefixo namespaced (`codemarker-myengine-`). Zero colisões.
 
 #### 10. Events + EngineCleanup pattern
+`EngineCleanup` é `() => void` — uma função simples de cleanup.
 ```typescript
 function registerMyEngine(plugin: QualiaPlugin): EngineCleanup {
   // setup...
-  return { destroy() { /* cleanup tudo */ } };
+  return () => { /* cleanup tudo */ };
 }
 ```
-Registrar workspace events (`codemarker-myengine:navigate`). Cleanup no destroy.
+Registrar workspace events (`codemarker-myengine:navigate`). Cleanup na função retornada.
 
 #### 11. Settings
 Adicionar seção no `settingTab.ts` se necessário. Persistir via DataManager.
@@ -411,7 +427,20 @@ renderMatches(el, text, result.matches);  // highlights matches in DOM
 
 ---
 
-## 7. Convenções do Projeto
+## 7. Nomes Padronizados de Campos
+
+Convenções de naming aplicadas em todos os engines e interfaces:
+
+| Campo | Correto | Incorreto (legado) |
+|-------|---------|---------------------|
+| Identificador de arquivo | `fileId` | `file` |
+| Nota/anotação do marker | `memo` | `note` |
+| Método de remoção de marker | `removeMarker()` | `deleteMarker()` |
+| Cor custom do marker | `colorOverride` | — (presente em todos os tipos de marker) |
+
+---
+
+## 8. Convenções do Projeto
 
 ### Código
 - TypeScript strict mode

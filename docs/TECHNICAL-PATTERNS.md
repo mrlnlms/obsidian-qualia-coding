@@ -389,8 +389,8 @@ leaf.openFile(file, { eState: { subpath: '#page=N' } });
 
 ### 7.10 PDF Data Schema
 ```typescript
-PdfMarker { id, file, page, beginIndex, beginOffset, endIndex, endOffset, text, codes[], createdAt, updatedAt }
-PdfShapeMarker { id, file, page, shape: 'rect'|'ellipse'|'polygon', normalizedCoords, codes[], createdAt, updatedAt }
+PdfMarker { id, fileId, page, beginIndex, beginOffset, endIndex, endOffset, text, codes[], memo?, createdAt, updatedAt }
+PdfShapeMarker { id, fileId, page, shape: 'rect'|'ellipse'|'polygon', coords: NormalizedShapeCoords, codes[], memo?, createdAt, updatedAt }
 ```
 
 ---
@@ -629,14 +629,15 @@ Inline title toggle e theme switches não disparam CM6 resize/viewport events. M
 
 ### 6.1 Phantom Marker Prevention
 
-Dois métodos separados em todos os engines:
+Dois métodos internos em cada engine model (NÃO fazem parte de SidebarModelInterface):
 - `findExistingMarker()` — read-only, para hover/display
 - `findOrCreateMarker()` — cria sob demanda, só no primeiro code toggle
 
-### 6.2 Debounced Save (2 níveis)
+### 6.2 Debounced Save (3 níveis)
 
 1. **DataManager**: 500ms debounce (todos os engines)
 2. **Markdown Model**: 2s debounce adicional via `markDirtyForSave()` (específico do markdown)
+3. **MediaCodingModel** (Audio/Video): 500ms debounce via `scheduleSave()` (base genérica compartilhada)
 
 Ambos fazem `flushPendingSave()` no `onunload()`.
 
@@ -734,6 +735,7 @@ Se `markDirty()` dispara durante um save ativo, defere em vez de dropar. Sem ess
 | Menu recreation timeout | 50ms | `onRecreate()` |
 | MutationObserver self-suppression | 50ms | `marginPanelExtension.ts` |
 | DataManager save debounce | 500ms | `dataManager.ts` |
+| MediaCodingModel save debounce | 500ms | `mediaCodingModel.ts` |
 | Markdown model save debounce | 2000ms | `codeMarkerModel.ts` |
 | ResizeObserver zoom debounce | 100ms | WaveSurfer views |
 | Board auto-save debounce | 2000ms | `boardSerializer.ts` |
@@ -760,6 +762,17 @@ v2 > PDF > CSV > Image > Audio > Video > Analytics
 ```
 
 Divergência conhecida: `.codemarker-code-form .cm-form-actions` — v2 usa `padding-top: 16px` + `margin-top: 8px`, outros engines usavam `margin-top: 16px`. v2 como canônico.
+
+### 6.15 Architectural Patterns (Refactor)
+
+Padrões estabelecidos durante o refactor de unificação:
+
+- **BaseSidebarAdapter**: Classe base (`baseSidebarAdapter.ts`) da qual todos os sidebar adapters herdam. Concentra lógica comum de sidebar (toggle codes, memo, navigation). Adapters específicos (PDF, CSV, Image, Media) estendem.
+- **MediaCodingModel**: Base genérica (`mediaCodingModel.ts`) compartilhada entre Audio e Video. Gerencia markers, save debounce (500ms via `scheduleSave()`), e change listeners. `AudioCodingModel` e `VideoCodingModel` estendem.
+- **Module augmentation**: Typings adicionais via declaration files — `obsidian-internals.d.ts` (workspace events, internal APIs) e `fabricExtensions.d.ts` (propriedades custom em FabricObject para board nodes).
+- **Discriminated union para board nodes**: `boardTypes.ts` define cada tipo de node (Sticky, Snapshot, Excerpt, CodeCard, KpiCard, ClusterFrame, Arrow) como interface com `boardType` discriminant. Type guards (`isStickyNode()`, `isExcerptNode()`, etc.) para narrowing seguro.
+- **CodeDefinitionRegistry auto-persistence**: `onMutate` callback no registry — qualquer mutação (add, remove, update de code definition) dispara save automaticamente via DataManager, sem chamada manual.
+- **Shared type guards**: `markerResolvers.ts` exporta type guards (`isPdfMarker()`, `isImageMarker()`, `isCsvMarker()`, `isAudioMarker()`, `isVideoMarker()`) usados por views unificadas (Explorer, Detail) para narrowing de `BaseMarker` para tipo específico.
 
 ---
 

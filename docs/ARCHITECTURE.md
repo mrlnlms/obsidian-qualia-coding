@@ -220,10 +220,14 @@ Elementos renderizados fora do DOM do Obsidian (CM6 tooltips, WaveSurfer, Fabric
 ### 4.7 openCodingPopover()
 
 Menu de codificação unificado via `CodingPopoverAdapter` interface. Cada engine fornece um wrapper que implementa:
-- `getAvailableCodes()` / `getActiveCodes(markerId)`
-- `toggleCode(markerId, codeName)`
-- `createCode(name, color)`
-- `deleteMarker(markerId)`
+- `getActiveCodes(): string[]`
+- `addCode(codeName: string): void`
+- `removeCode(codeName: string): void`
+- `getMemo(): string`
+- `setMemo(value: string): void`
+- `save(): void`
+- `onRefresh(): void`
+- `onNavClick?(codeName: string, isActive: boolean): void`
 
 CSV tem batch mode especial para codificar múltiplas linhas visíveis de uma vez.
 
@@ -237,6 +241,7 @@ Instância única compartilhada entre todos os 7 engines:
 - 12 cores auto-palette (alta contrast, safe em light/dark)
 - Palette categórica (não gradiente) — cada cor é visualmente distinta
 - Referências por ID previnem problemas com rename de códigos
+- Auto-persistence via `onMutate` callback — qualquer mutação (add, rename, delete, recolor) dispara save automaticamente, sem necessidade de chamada manual pelo engine
 
 ### 5.2 DataManager
 
@@ -259,6 +264,23 @@ interface EngineCleanup {
 `main.ts` orquestra: registra todos os engines, coleta cleanup functions, chama `destroy()` no `onunload()`.
 
 **Regra**: `main.ts` deve ficar ~15 LOC. Se crescer, mover lógica para os engines.
+
+### 5.4 Shared Files
+
+```
+src/
+  core/
+    baseSidebarAdapter.ts    — base class for all sidebar adapters (listener wrapping, hover state)
+    markerResolvers.ts       — shared marker lookup/resolution utilities across engines
+  media/
+    mediaCodingModel.ts      — shared CodingModel for audio/video engines
+    mediaSidebarAdapter.ts   — shared sidebar adapter for audio/video engines
+    mediaCodingMenu.ts       — shared coding menu for audio/video engines
+  analytics/board/
+    boardTypes.ts            — TypeScript types for Research Board nodes, arrows, connections
+    fabricExtensions.d.ts    — Fabric.js type extensions for custom node properties
+  obsidian-internals.d.ts    — type declarations for undocumented Obsidian internals
+```
 
 ---
 
@@ -604,7 +626,7 @@ interface QDAProject {
 | `getMarkers()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `addCode()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `removeCode()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `deleteMarker()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `removeMarker()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `getMemo()` | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
 | `setMemo()` | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
 | `renameCode()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -630,6 +652,8 @@ interface QDAProject {
 2. `getNavigationAction(marker: BaseMarker): () => void` — Return navigation callback
 3. `getMarkerLabel(marker: BaseMarker): string` — Human-readable marker description
 4. `getSortedMarkers(codeId: string): BaseMarker[]` — Return markers sorted by engine-specific ordering
+
+**`BaseSidebarAdapter`** — shared base class for all sidebar adapters (markdown, PDF, CSV, image, audio, video). Handles listener wrapping (subscribe/unsubscribe lifecycle) and hover state management. Each engine's sidebar adapter extends this base, inheriting consistent event plumbing and hover highlight behavior without duplicating boilerplate.
 
 ### Bugs Found During Consolidation
 
