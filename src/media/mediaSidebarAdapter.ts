@@ -67,12 +67,7 @@ export class MediaSidebarAdapter<
 		this.model.saveMarkers();
 	}
 
-	updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
-		const m = this.model.findMarkerById(markerId);
-		if (!m) return;
-		if ('memo' in fields) m.memo = fields.memo;
-		if ('colorOverride' in fields) m.colorOverride = fields.colorOverride;
-		m.updatedAt = Date.now();
+	protected notifyAfterFieldUpdate(): void {
 		this.model.notify();
 	}
 

@@ -87,7 +87,11 @@ export class PdfSidebarAdapter extends BaseSidebarAdapter {
 		this.model.save();
 	}
 
-	updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
+	protected notifyAfterFieldUpdate(): void {
+		this.model.notify();
+	}
+
+	override updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
 		const tm = this.model.findMarkerById(markerId);
 		if (tm) {
 			if ('memo' in fields) tm.memo = fields.memo;

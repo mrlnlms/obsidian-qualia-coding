@@ -20,6 +20,7 @@ export interface AdapterModel {
 	getHoverMarkerId(): string | null;
 	getAllMarkers(): Array<{ id: string; codes: string[] }>;
 	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty?: boolean): void;
+	findMarkerById(id: string): { memo?: string; colorOverride?: string; updatedAt: number } | undefined | null;
 }
 
 export abstract class BaseSidebarAdapter implements SidebarModelInterface {
@@ -91,11 +92,23 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 	abstract getAllFileIds(): string[];
 	abstract getMarkersForFile(fileId: string): BaseMarker[];
 	abstract saveMarkers(): void;
-	abstract updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void;
 	abstract updateDecorations(fileId: string): void;
 	abstract removeMarker(markerId: string): boolean;
 
 	// ── Shared implementations (override for engine-specific behavior) ──
+
+	/** Notification after field update. Override per engine (notify, notifyAndSave, etc.) */
+	protected abstract notifyAfterFieldUpdate(): void;
+
+	/** Update memo/colorOverride on a marker. PDF overrides for dual text/shape lookup. */
+	updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
+		const m = this.model.findMarkerById(markerId);
+		if (!m) return;
+		if ('memo' in fields) m.memo = fields.memo;
+		if ('colorOverride' in fields) m.colorOverride = fields.colorOverride;
+		m.updatedAt = Date.now();
+		this.notifyAfterFieldUpdate();
+	}
 
 	/** Remove a code from all markers and delete its definition. PDF overrides for shapes. */
 	deleteCode(codeName: string): void {
