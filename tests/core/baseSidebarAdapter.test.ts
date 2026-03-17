@@ -13,6 +13,9 @@ function createMockAdapterModel(): AdapterModel {
 		offHoverChange: vi.fn(),
 		setHoverState: vi.fn(),
 		getHoverMarkerId: vi.fn(() => null),
+		getAllMarkers: vi.fn(() => []),
+		removeCodeFromMarker: vi.fn(),
+		findMarkerById: vi.fn(() => null),
 	};
 }
 
@@ -21,11 +24,11 @@ class TestAdapter extends BaseSidebarAdapter {
 	getMarkerById(): BaseMarker | null { return null; }
 	getAllFileIds(): string[] { return []; }
 	getMarkersForFile(): BaseMarker[] { return []; }
-	saveMarkers(): void {}
-	updateMarkerFields(): void {}
+	saveMarkers = vi.fn();
 	updateDecorations(): void {}
 	removeMarker(): boolean { return false; }
-	deleteCode(): void {}
+	protected override notifyAfterFieldUpdate = vi.fn();
+	// deleteCode and updateMarkerFields inherited from base — NOT overridden
 }
 
 let model: AdapterModel;
@@ -188,5 +191,96 @@ describe('multiple listeners', () => {
 		// Should have removed first wrapper before registering new one
 		expect(model.offHoverChange).toHaveBeenCalledWith(firstWrapper);
 		expect(model.onHoverChange).toHaveBeenCalledTimes(2);
+	});
+});
+
+// ── deleteCode (shared implementation) ───────────────────────
+
+describe('deleteCode', () => {
+	it('removes code from all markers via model.removeCodeFromMarker', () => {
+		vi.mocked(model.getAllMarkers).mockReturnValue([
+			{ id: 'm1', codes: ['A', 'B'] },
+			{ id: 'm2', codes: ['A'] },
+			{ id: 'm3', codes: ['B'] },
+		]);
+		adapter.deleteCode('A');
+		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('m1', 'A', true);
+		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('m2', 'A', true);
+		expect(model.removeCodeFromMarker).not.toHaveBeenCalledWith('m3', 'A', true);
+	});
+
+	it('deletes code definition from registry', () => {
+		vi.mocked(model.getAllMarkers).mockReturnValue([]);
+		const def = model.registry.create('TestCode');
+		adapter.deleteCode('TestCode');
+		expect(model.registry.getByName('TestCode')).toBeUndefined();
+	});
+
+	it('calls saveMarkers after cleanup', () => {
+		vi.mocked(model.getAllMarkers).mockReturnValue([]);
+		adapter.deleteCode('X');
+		expect(adapter.saveMarkers).toHaveBeenCalledOnce();
+	});
+
+	it('handles empty markers array', () => {
+		vi.mocked(model.getAllMarkers).mockReturnValue([]);
+		adapter.deleteCode('nonexistent');
+		expect(model.removeCodeFromMarker).not.toHaveBeenCalled();
+		expect(adapter.saveMarkers).toHaveBeenCalledOnce();
+	});
+});
+
+// ── updateMarkerFields (shared implementation) ───────────────
+
+describe('updateMarkerFields', () => {
+	it('updates memo on marker via findMarkerById', () => {
+		const marker = { memo: 'old', colorOverride: undefined, updatedAt: 0 };
+		vi.mocked(model.findMarkerById).mockReturnValue(marker);
+		adapter.updateMarkerFields('m1', { memo: 'new memo' });
+		expect(model.findMarkerById).toHaveBeenCalledWith('m1');
+		expect(marker.memo).toBe('new memo');
+	});
+
+	it('updates colorOverride on marker', () => {
+		const marker = { memo: undefined, colorOverride: '#old', updatedAt: 0 };
+		vi.mocked(model.findMarkerById).mockReturnValue(marker);
+		adapter.updateMarkerFields('m1', { colorOverride: '#new' });
+		expect(marker.colorOverride).toBe('#new');
+	});
+
+	it('updates both memo and colorOverride', () => {
+		const marker = { memo: 'old', colorOverride: '#old', updatedAt: 0 };
+		vi.mocked(model.findMarkerById).mockReturnValue(marker);
+		adapter.updateMarkerFields('m1', { memo: 'new', colorOverride: '#new' });
+		expect(marker.memo).toBe('new');
+		expect(marker.colorOverride).toBe('#new');
+	});
+
+	it('sets updatedAt to current time', () => {
+		const marker = { memo: undefined, colorOverride: undefined, updatedAt: 0 };
+		vi.mocked(model.findMarkerById).mockReturnValue(marker);
+		const before = Date.now();
+		adapter.updateMarkerFields('m1', { memo: 'x' });
+		expect(marker.updatedAt).toBeGreaterThanOrEqual(before);
+	});
+
+	it('calls notifyAfterFieldUpdate', () => {
+		const marker = { memo: undefined, colorOverride: undefined, updatedAt: 0 };
+		vi.mocked(model.findMarkerById).mockReturnValue(marker);
+		adapter.updateMarkerFields('m1', { memo: 'x' });
+		expect(adapter['notifyAfterFieldUpdate']).toHaveBeenCalledOnce();
+	});
+
+	it('is a no-op when marker not found', () => {
+		vi.mocked(model.findMarkerById).mockReturnValue(null);
+		adapter.updateMarkerFields('missing', { memo: 'x' });
+		expect(adapter['notifyAfterFieldUpdate']).not.toHaveBeenCalled();
+	});
+
+	it('can set memo to undefined', () => {
+		const marker = { memo: 'old', colorOverride: undefined, updatedAt: 0 };
+		vi.mocked(model.findMarkerById).mockReturnValue(marker);
+		adapter.updateMarkerFields('m1', { memo: undefined });
+		expect(marker.memo).toBeUndefined();
 	});
 });
