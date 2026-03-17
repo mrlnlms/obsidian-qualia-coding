@@ -64,7 +64,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1157 testes em 34 suites (Vitest + jsdom)
+- `npm run test` — 1214 testes em 36 suites (Vitest + jsdom)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView
 - Type guards compartilhados em `markerResolvers.ts`
