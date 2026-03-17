@@ -84,14 +84,4 @@ export class MediaSidebarAdapter<
 		return this.model.removeMarker(markerId);
 	}
 
-	deleteCode(codeName: string): void {
-		for (const m of this.model.getAllMarkers()) {
-			if (m.codes.includes(codeName)) {
-				this.model.removeCodeFromMarker(m.id, codeName, true);
-			}
-		}
-		const def = this.registry.getByName(codeName);
-		if (def) this.registry.delete(def.id);
-		this.saveMarkers();
-	}
 }

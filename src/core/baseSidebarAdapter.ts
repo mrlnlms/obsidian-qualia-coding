@@ -18,6 +18,8 @@ export interface AdapterModel {
 	offHoverChange(fn: (...args: unknown[]) => void): void;
 	setHoverState(markerId: string | null, codeName: string | null): void;
 	getHoverMarkerId(): string | null;
+	getAllMarkers(): Array<{ id: string; codes: string[] }>;
+	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty?: boolean): void;
 }
 
 export abstract class BaseSidebarAdapter implements SidebarModelInterface {
@@ -92,5 +94,18 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 	abstract updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void;
 	abstract updateDecorations(fileId: string): void;
 	abstract removeMarker(markerId: string): boolean;
-	abstract deleteCode(codeName: string): void;
+
+	// ── Shared implementations (override for engine-specific behavior) ──
+
+	/** Remove a code from all markers and delete its definition. PDF overrides for shapes. */
+	deleteCode(codeName: string): void {
+		for (const m of this.model.getAllMarkers()) {
+			if (m.codes.includes(codeName)) {
+				this.model.removeCodeFromMarker(m.id, codeName, true);
+			}
+		}
+		const def = this.registry.getByName(codeName);
+		if (def) this.registry.delete(def.id);
+		this.saveMarkers();
+	}
 }
