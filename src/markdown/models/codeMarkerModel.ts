@@ -50,12 +50,14 @@ export class CodeMarkerModel {
 
 		if (rawMarkers) {
 			for (const fileId in rawMarkers) {
-				const fileMarkers: Marker[] = rawMarkers[fileId]!.map((m: any) => {
+				const fileMarkers: Marker[] = rawMarkers[fileId]!.map((m) => {
 					// Migration: convert old `code: string` to `codes: string[]`
-					if ('code' in m && !('codes' in m)) {
-						const codes = m.code ? [m.code] : [];
-						const { code, ...rest } = m;
-						return { ...rest, codes };
+					// Legacy data may have { code: "X" } instead of { codes: ["X"] }
+					const legacy = m as unknown as Record<string, unknown>;
+					if ('code' in legacy && !('codes' in legacy)) {
+						const codes = legacy.code ? [legacy.code as string] : [];
+						const { code: _, ...rest } = legacy;
+						return { ...rest, codes } as unknown as Marker;
 					}
 					return m;
 				});

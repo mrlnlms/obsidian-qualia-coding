@@ -5,14 +5,52 @@ import type {
   UnifiedCode,
   ConsolidatedData,
 } from "./dataTypes";
+import type { Marker } from "../../markdown/models/codeMarkerModel";
+import type { SegmentMarker, RowMarker } from "../../csv/codingTypes";
+import type { ImageMarker } from "../../image/models/codingTypes";
+import type { PdfMarker } from "../../pdf/pdfCodingTypes";
+import type { AudioFile } from "../../audio/audioCodingTypes";
+import type { VideoFile } from "../../video/videoCodingTypes";
+import type { CodeDefinition } from "../../core/types";
+
+interface MarkdownEngineData {
+  markers: Record<string, Marker[]>;
+  codeDefinitions?: Record<string, CodeDefinition>;
+}
+
+interface CsvEngineData {
+  segmentMarkers: SegmentMarker[];
+  rowMarkers: RowMarker[];
+  registry?: { definitions: Record<string, CodeDefinition> };
+}
+
+interface ImageEngineData {
+  markers: ImageMarker[];
+  registry?: { definitions: Record<string, CodeDefinition> };
+}
+
+interface PdfEngineData {
+  markers: PdfMarker[];
+  registry?: { definitions: Record<string, CodeDefinition> };
+}
+
+interface AudioEngineData {
+  files: AudioFile[];
+  codeDefinitions?: { definitions: Record<string, CodeDefinition> };
+}
+
+interface VideoEngineData {
+  files: VideoFile[];
+  codeDefinitions?: { definitions: Record<string, CodeDefinition> };
+}
 
 export function consolidate(
-  markdownData: any | null,
-  csvData: any | null,
-  imageData: any | null,
-  pdfData: any | null = null,
-  audioData: any | null = null,
-  videoData: any | null = null
+  markdownData: MarkdownEngineData | null,
+  csvData: CsvEngineData | null,
+  imageData: ImageEngineData | null,
+  pdfData: PdfEngineData | null = null,
+  audioData: AudioEngineData | null = null,
+  videoData: VideoEngineData | null = null,
 ): ConsolidatedData {
   const markers: UnifiedMarker[] = [];
   const codeMap = new Map<string, { color: string; description?: string; sources: Set<SourceType> }>();
@@ -20,7 +58,7 @@ export function consolidate(
   // ── Markdown ──
   const hasMd = markdownData?.markers != null;
   if (hasMd) {
-    const mdMarkers = markdownData.markers as Record<string, any[]>;
+    const mdMarkers = markdownData.markers;
     for (const [fileId, fileMarkers] of Object.entries(mdMarkers)) {
       if (!Array.isArray(fileMarkers)) continue;
       for (const m of fileMarkers) {
@@ -43,7 +81,7 @@ export function consolidate(
     }
     // Code definitions
     if (markdownData.codeDefinitions) {
-      for (const def of Object.values(markdownData.codeDefinitions as Record<string, { name: string; color: string; description?: string }>)) {
+      for (const def of Object.values(markdownData.codeDefinitions)) {
         mergeDef(codeMap, def.name, def.color, def.description, "markdown");
       }
     }
@@ -88,7 +126,7 @@ export function consolidate(
     // Registry
     const csvDefs = csvData.registry?.definitions;
     if (csvDefs) {
-      for (const def of Object.values(csvDefs as Record<string, { name: string; color: string; description?: string }>)) {
+      for (const def of Object.values(csvDefs)) {
         mergeDef(codeMap, def.name, def.color, def.description, "csv-segment");
       }
     }
@@ -100,10 +138,10 @@ export function consolidate(
     for (const m of imageData.markers) {
       const codes = extractCodes(m.codes);
       if (codes.length === 0) continue;
-      const imgMeta: any = { regionType: m.shape };
-      if (m.coords?.y != null) {
+      const imgMeta: Record<string, unknown> = { regionType: m.shape };
+      if (m.coords?.type === 'rect') {
         imgMeta.fromLine = m.coords.y;
-        imgMeta.toLine = m.coords.y + (m.coords.height ?? 0);
+        imgMeta.toLine = m.coords.y + (m.coords.h ?? 0);
       }
       if (m.createdAt != null) imgMeta.createdAt = m.createdAt;
       markers.push({
@@ -116,7 +154,7 @@ export function consolidate(
     }
     const imgDefs = imageData.registry?.definitions;
     if (imgDefs) {
-      for (const def of Object.values(imgDefs as Record<string, { name: string; color: string; description?: string }>)) {
+      for (const def of Object.values(imgDefs)) {
         mergeDef(codeMap, def.name, def.color, def.description, "image");
       }
     }
@@ -144,7 +182,7 @@ export function consolidate(
     }
     const pdfDefs = pdfData.registry?.definitions;
     if (pdfDefs) {
-      for (const def of Object.values(pdfDefs as Record<string, { name: string; color: string; description?: string }>)) {
+      for (const def of Object.values(pdfDefs)) {
         mergeDef(codeMap, def.name, def.color, def.description, "pdf");
       }
     }
@@ -172,7 +210,7 @@ export function consolidate(
     }
     const audioDefs = audioData.codeDefinitions?.definitions;
     if (audioDefs) {
-      for (const def of Object.values(audioDefs as Record<string, { name: string; color: string; description?: string }>)) {
+      for (const def of Object.values(audioDefs)) {
         mergeDef(codeMap, def.name, def.color, def.description, "audio");
       }
     }
@@ -200,7 +238,7 @@ export function consolidate(
     }
     const videoDefs = videoData.codeDefinitions?.definitions;
     if (videoDefs) {
-      for (const def of Object.values(videoDefs as Record<string, { name: string; color: string; description?: string }>)) {
+      for (const def of Object.values(videoDefs)) {
         mergeDef(codeMap, def.name, def.color, def.description, "video");
       }
     }

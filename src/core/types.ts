@@ -1,5 +1,11 @@
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import type { CodeMarkerSettings } from '../markdown/models/settings';
+import type { Marker } from '../markdown/models/codeMarkerModel';
+import type { SegmentMarker, RowMarker } from '../csv/codingTypes';
+import type { ImageMarker } from '../image/models/codingTypes';
+import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
+import type { AudioFile } from '../audio/audioCodingTypes';
+import type { VideoFile } from '../video/videoCodingTypes';
 
 // ─── Base interfaces for sidebar views (all engines) ─────────────
 
@@ -71,27 +77,27 @@ export interface QualiaData {
 		definitions: Record<string, CodeDefinition>;
 		nextPaletteIndex: number;
 	};
-	markdown: { markers: Record<string, any[]>; settings: CodeMarkerSettings };
-	csv: { segmentMarkers: any[]; rowMarkers: any[] };
-	image: { markers: any[]; settings: { autoOpenImages: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> } };
-	pdf: { markers: any[]; shapes: any[] };
+	markdown: { markers: Record<string, Marker[]>; settings: CodeMarkerSettings };
+	csv: { segmentMarkers: SegmentMarker[]; rowMarkers: RowMarker[] };
+	image: { markers: ImageMarker[]; settings: { autoOpenImages: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> } };
+	pdf: { markers: PdfMarker[]; shapes: PdfShapeMarker[] };
 	audio: {
-		files: any[];
+		files: AudioFile[];
 		settings: {
 			defaultZoom: number;
 			regionOpacity: number;
 			showLabelsOnRegions: boolean;
-			fileStates: Record<string, any>;
+			fileStates: Record<string, { zoom: number; lastPosition: number }>;
 		};
 	};
 	video: {
-		files: any[];
+		files: VideoFile[];
 		settings: {
 			defaultZoom: number;
 			regionOpacity: number;
 			showLabelsOnRegions: boolean;
-			videoFit: string;
-			fileStates: Record<string, any>;
+			videoFit: 'contain' | 'cover';
+			fileStates: Record<string, { zoom: number; lastPosition: number }>;
 		};
 	};
 }
