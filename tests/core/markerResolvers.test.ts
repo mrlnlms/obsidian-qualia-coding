@@ -136,6 +136,11 @@ describe('shortenPath', () => {
 // ── getMarkerLabel ───────────────────────────────────────────
 
 describe('getMarkerLabel', () => {
+  it('returns shapeLabel for image marker', () => {
+    const marker = makeBase({ shape: 'rect', shapeLabel: 'Region 1' });
+    expect(getMarkerLabel(marker, null)).toBe('Region 1');
+  });
+
   it('returns text for PDF marker with text', () => {
     const marker = makeBase({ page: 1, isShape: false, text: 'highlighted text' });
     expect(getMarkerLabel(marker, null)).toBe('highlighted text');
@@ -193,5 +198,103 @@ describe('getMarkerLabel', () => {
     const text = 'a'.repeat(60);
     const marker = makeBase({ page: 1, isShape: false, text });
     expect(getMarkerLabel(marker, null, 60)).toBe(text);
+  });
+
+  // ── Markdown with mdModel (lines 47, 64-74) ──
+
+  it('uses editor.getRange when mdModel provides a view with editor', () => {
+    const marker = makeBase({
+      text: 'fallback text',
+      range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 20 } },
+    });
+    const mockMdModel = {
+      getViewForFile: (_fileId: string) => ({
+        editor: {
+          getRange: (_from: any, _to: any) => 'mocked editor text',
+        },
+      }),
+    };
+    expect(getMarkerLabel(marker, mockMdModel as any)).toBe('mocked editor text');
+  });
+
+  it('truncates editor text when longer than maxLength', () => {
+    const marker = makeBase({
+      text: 'fallback',
+      range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 100 } },
+    });
+    const longText = 'x'.repeat(80);
+    const mockMdModel = {
+      getViewForFile: (_fileId: string) => ({
+        editor: {
+          getRange: (_from: any, _to: any) => longText,
+        },
+      }),
+    };
+    expect(getMarkerLabel(marker, mockMdModel as any, 20)).toBe('x'.repeat(20) + '...');
+  });
+
+  it('falls back to marker.text when mdModel view has no editor', () => {
+    const marker = makeBase({
+      text: 'fallback text',
+      range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 13 } },
+    });
+    const mockMdModel = {
+      getViewForFile: (_fileId: string) => ({
+        editor: null,
+      }),
+    };
+    expect(getMarkerLabel(marker, mockMdModel as any)).toBe('fallback text');
+  });
+
+  it('falls back to "Line N" when mdModel view has no editor and no text', () => {
+    const marker = makeBase({
+      range: { from: { line: 4, ch: 0 }, to: { line: 4, ch: 10 } },
+    });
+    const mockMdModel = {
+      getViewForFile: (_fileId: string) => ({
+        editor: null,
+      }),
+    };
+    expect(getMarkerLabel(marker, mockMdModel as any)).toBe('Line 5');
+  });
+
+  it('falls back to marker.text when getRange throws', () => {
+    const marker = makeBase({
+      text: 'safe fallback',
+      range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 13 } },
+    });
+    const mockMdModel = {
+      getViewForFile: (_fileId: string) => ({
+        editor: {
+          getRange: () => { throw new Error('editor disposed'); },
+        },
+      }),
+    };
+    expect(getMarkerLabel(marker, mockMdModel as any)).toBe('safe fallback');
+  });
+
+  it('falls back to "Line N" when getRange throws and no text', () => {
+    const marker = makeBase({
+      range: { from: { line: 9, ch: 0 }, to: { line: 9, ch: 5 } },
+    });
+    const mockMdModel = {
+      getViewForFile: (_fileId: string) => ({
+        editor: {
+          getRange: () => { throw new Error('editor disposed'); },
+        },
+      }),
+    };
+    expect(getMarkerLabel(marker, mockMdModel as any)).toBe('Line 10');
+  });
+
+  it('falls back to marker.text when getViewForFile returns null', () => {
+    const marker = makeBase({
+      text: 'text fallback',
+      range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 13 } },
+    });
+    const mockMdModel = {
+      getViewForFile: (_fileId: string) => null,
+    };
+    expect(getMarkerLabel(marker, mockMdModel as any)).toBe('text fallback');
   });
 });

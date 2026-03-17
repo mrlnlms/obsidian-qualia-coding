@@ -28,6 +28,7 @@
     "@codemirror/view": "^6.40.0",
     "@types/node": "^20.0.0",
     "@types/papaparse": "^5.3.14",
+    "@vitest/coverage-v8": "^4.1.0",
     "esbuild": "^0.19.0",
     "jsdom": "^29.0.0",
     "obsidian": "latest",
