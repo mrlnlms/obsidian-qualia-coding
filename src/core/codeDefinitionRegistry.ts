@@ -106,6 +106,7 @@ export class CodeDefinitionRegistry {
 		this.definitions.clear();
 		this.nameIndex.clear();
 		this.nextPaletteIndex = 0;
+		this.onMutate?.();
 	}
 
 	// --- Palette ---

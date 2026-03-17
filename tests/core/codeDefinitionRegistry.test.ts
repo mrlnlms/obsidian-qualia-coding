@@ -291,6 +291,16 @@ describe('onMutate', () => {
     registry.delete('nope');
     expect(fn).not.toHaveBeenCalled();
   });
+
+  it('calls callback on clear', () => {
+    registry.create('A');
+    registry.create('B');
+    const fn = vi.fn();
+    registry.setOnMutate(fn);
+    registry.clear();
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(registry.getAll()).toEqual([]);
+  });
 });
 
 // ── getColorForCodes ─────────────────────────────────────────
