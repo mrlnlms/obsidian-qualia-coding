@@ -48,6 +48,11 @@ export default class QualiaCodingPlugin extends Plugin {
 			this.dataManager.section('registry'),
 		);
 
+		// Auto-persist registry on any mutation (create/update/delete code)
+		this.sharedRegistry.setOnMutate(() => {
+			this.dataManager.setSection('registry', this.sharedRegistry.toJSON());
+		});
+
 		this.addSettingTab(new QualiaSettingTab(this.app, this));
 
 		// Register engines — all receive the same registry instance
