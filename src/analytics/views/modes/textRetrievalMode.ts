@@ -305,14 +305,14 @@ function renderSegmentCard(
   card.addEventListener("click", () => navigateToSegment(ctx, seg));
 }
 
-function formatAudioTime(seconds: number): string {
+export function formatAudioTime(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return "0:00.0";
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${s.toFixed(1).padStart(4, "0")}`;
 }
 
-function formatLocation(seg: ExtractedSegment): string {
+export function formatLocation(seg: ExtractedSegment): string {
   if (seg.source === "audio") {
     const from = seg.meta?.audioFrom;
     const to = seg.meta?.audioTo;
