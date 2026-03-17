@@ -352,7 +352,9 @@ Ganho de manutenibilidade alcancado:
 - Type guards: 1 lugar (markerResolvers.ts), nao duplicados
 - CSS: 1 namespace (codemarker-popover), zero duplicacao
 - Type safety: 222 → 16 `as any`, 44 → 3 `@ts-ignore`
-- Fabric.js: module augmentation em fabricExtensions.d.ts (25 custom board properties tipados)
+- Fabric.js: fabricExtensions.d.ts (Canvas, Rect, etc.) + boardTypes.ts (discriminated union por tipo de no)
+- Board: zero erros tsc — discriminated union com type guards para narrowing automatico
+- Build: `npm run build` passa com zero erros (tsc + esbuild)
 
 ---
 
@@ -417,15 +419,15 @@ return createStandaloneViewWrapper(standalone) as any
 
 ---
 
-## Erros tsc pre-existentes (82 erros)
+## Erros tsc pre-existentes — RESOLVIDO (2026-03-17)
 
-`@types/fabric` esta desatualizado para Fabric.js v6. Os imports `Canvas`, `Line`, `Triangle`, `Point`, `Path` nao sao exports diretos. O esbuild resolve em runtime.
+82 erros Fabric.js eliminados via:
+- `fabricExtensions.d.ts` com class declarations completas (Canvas, Rect, etc.)
+- `boardTypes.ts` com discriminated union (StickyNode, SnapshotNode, etc.)
+- Typed tuple para viewportTransform
+- Null checks em geometry access
 
-**Eliminavel?** SIM, de duas formas:
-1. Atualizar `@types/fabric` quando uma versao compativel com v6 existir
-2. Criar ambient declarations locais para os tipos faltantes (similar ao fabricExtensions.d.ts)
-
-**Sugestao: tratar quando for refatorar o board (Approach B — wrapper types).**
+**Build agora passa com zero erros.**
 
 ---
 
@@ -441,4 +443,3 @@ return createStandaloneViewWrapper(standalone) as any
 | 1 `as any` WaveSurfer event | Sim (module augmentation) | Quando mexer em waveform |
 | 1 `as any` Chart.js wordCloud | Sim (module augmentation) | Quando mexer em analytics |
 | 1 `as any` viewLookupUtils | Sim (tipar retorno) | Quando mexer em viewLookup |
-| 82 erros tsc Fabric.js | Sim (ambient declarations) | Quando refatorar board |
