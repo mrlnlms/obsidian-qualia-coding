@@ -658,3 +658,239 @@ describe('calculatePolarCoordinates', () => {
 		expect(focalInVectors).toBeUndefined();
 	});
 });
+
+// ══════════════════════════════════════════════════════════════
+// GAP FILLING — expanded coverage for under-tested functions
+// ══════════════════════════════════════════════════════════════
+
+// ── applyFilters (tested via calculateFrequency) ─────────────
+
+describe('applyFilters (via calculateFrequency)', () => {
+	const allMarkers = [
+		makeMarker('m1', 'markdown', 'f1', ['A']),
+		makeMarker('m2', 'pdf', 'f2', ['B']),
+		makeMarker('m3', 'image', 'f3', ['A', 'B']),
+		makeMarker('m4', 'audio', 'f4', ['C']),
+	];
+	const allCodes = [makeCode('A', '#f00'), makeCode('B', '#0f0'), makeCode('C', '#00f')];
+
+	it('filters by sources', () => {
+		const data = createTestData(allMarkers, allCodes);
+		const result = calculateFrequency(data, createFilters({ sources: ['markdown'] }));
+		// Only markdown markers → only code A
+		expect(result.every(r => r.bySource.markdown > 0 || r.count === 0)).toBe(true);
+	});
+
+	it('filters by codes', () => {
+		const data = createTestData(allMarkers, allCodes);
+		const result = calculateFrequency(data, createFilters({ codes: ['A'] }));
+		expect(result.map(r => r.code)).toContain('A');
+		expect(result.find(r => r.code === 'C')).toBeUndefined();
+	});
+
+	it('excludes codes', () => {
+		const data = createTestData(allMarkers, allCodes);
+		const result = calculateFrequency(data, createFilters({ excludeCodes: ['C'] }));
+		expect(result.find(r => r.code === 'C')).toBeUndefined();
+	});
+
+	it('empty sources filter returns nothing', () => {
+		const data = createTestData(allMarkers, allCodes);
+		const result = calculateFrequency(data, createFilters({ sources: [] }));
+		expect(result).toEqual([]);
+	});
+
+	it('combined sources + codes', () => {
+		const data = createTestData(allMarkers, allCodes);
+		const result = calculateFrequency(data, createFilters({ sources: ['markdown', 'image'], codes: ['A'] }));
+		expect(result).toHaveLength(1);
+		expect(result[0].code).toBe('A');
+	});
+
+	it('minFrequency affects result count', () => {
+		const data = createTestData(allMarkers, allCodes);
+		const allResult = calculateFrequency(data, createFilters({ minFrequency: 1 }));
+		const filteredResult = calculateFrequency(data, createFilters({ minFrequency: 2 }));
+		// Higher minFrequency should return same or fewer results
+		expect(filteredResult.length).toBeLessThanOrEqual(allResult.length);
+	});
+});
+
+// ── calculateSourceComparison (expanded) ─────────────────────
+
+describe('calculateSourceComparison (expanded)', () => {
+	it('computes percentages correctly', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'markdown', 'f1', ['A']),
+				makeMarker('m2', 'markdown', 'f1', ['A']),
+				makeMarker('m3', 'pdf', 'f2', ['A']),
+				makeMarker('m4', 'pdf', 'f2', ['B']),
+			],
+			[makeCode('A'), makeCode('B')],
+		);
+		const result = calculateSourceComparison(data, createFilters());
+		const entryA = result.entries.find(e => e.code === 'A')!;
+		expect(entryA.total).toBe(3);
+		// pct of code: 2/3 markdown, 1/3 pdf
+		expect(entryA.bySourcePctOfCode.markdown).toBeCloseTo(66.7, 0);
+		expect(entryA.bySourcePctOfCode.pdf).toBeCloseTo(33.3, 0);
+	});
+
+	it('handles source with zero markers for a code', () => {
+		const data = createTestData(
+			[makeMarker('m1', 'markdown', 'f1', ['A'])],
+			[makeCode('A')],
+		);
+		const result = calculateSourceComparison(data, createFilters());
+		const entryA = result.entries.find(e => e.code === 'A')!;
+		expect(entryA.bySource.pdf).toBe(0);
+		expect(entryA.bySource.image).toBe(0);
+	});
+
+	it('activeSources only includes sources with markers', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'markdown', 'f1', ['A']),
+				makeMarker('m2', 'audio', 'f2', ['A']),
+			],
+			[makeCode('A')],
+		);
+		const result = calculateSourceComparison(data, createFilters());
+		expect(result.activeSources).toContain('markdown');
+		expect(result.activeSources).toContain('audio');
+		expect(result.activeSources).not.toContain('pdf');
+	});
+
+	it('respects source filter', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'markdown', 'f1', ['A']),
+				makeMarker('m2', 'pdf', 'f2', ['A']),
+			],
+			[makeCode('A')],
+		);
+		const result = calculateSourceComparison(data, createFilters({ sources: ['markdown'] }));
+		const entryA = result.entries.find(e => e.code === 'A')!;
+		expect(entryA.total).toBe(1);
+		expect(entryA.bySource.pdf).toBe(0);
+	});
+});
+
+// ── calculateChiSquare (expanded) ────────────────────────────
+
+describe('calculateChiSquare (expanded)', () => {
+	it('chi-square value is non-negative', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'markdown', 'f1', ['A']),
+				makeMarker('m2', 'markdown', 'f1', ['A']),
+				makeMarker('m3', 'pdf', 'f2', ['A']),
+				makeMarker('m4', 'pdf', 'f2', ['B']),
+				makeMarker('m5', 'markdown', 'f1', ['B']),
+			],
+			[makeCode('A'), makeCode('B')],
+		);
+		const result = calculateChiSquare(data, createFilters(), 'source');
+		for (const e of result.entries) {
+			expect(e.chiSquare).toBeGreaterThanOrEqual(0);
+		}
+	});
+
+	it('p-value is between 0 and 1', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'markdown', 'f1', ['A']),
+				makeMarker('m2', 'pdf', 'f2', ['A']),
+				makeMarker('m3', 'markdown', 'f1', ['B']),
+				makeMarker('m4', 'pdf', 'f2', ['B']),
+			],
+			[makeCode('A'), makeCode('B')],
+		);
+		const result = calculateChiSquare(data, createFilters(), 'source');
+		for (const e of result.entries) {
+			expect(e.pValue).toBeGreaterThanOrEqual(0);
+			expect(e.pValue).toBeLessThanOrEqual(1);
+		}
+	});
+
+	it('Cramers V is between 0 and 1', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'markdown', 'f1', ['A']),
+				makeMarker('m2', 'pdf', 'f2', ['A']),
+				makeMarker('m3', 'markdown', 'f1', ['B']),
+			],
+			[makeCode('A'), makeCode('B')],
+		);
+		const result = calculateChiSquare(data, createFilters(), 'source');
+		for (const e of result.entries) {
+			expect(e.cramersV).toBeGreaterThanOrEqual(0);
+			expect(e.cramersV).toBeLessThanOrEqual(1);
+		}
+	});
+
+	it('significant flag matches p < 0.05', () => {
+		const markers: UnifiedMarker[] = [];
+		// Create strong association: A always in markdown, B always in pdf
+		for (let i = 0; i < 20; i++) {
+			markers.push(makeMarker(`ma${i}`, 'markdown', 'f1', ['A']));
+			markers.push(makeMarker(`mb${i}`, 'pdf', 'f2', ['B']));
+		}
+		const data = createTestData(markers, [makeCode('A'), makeCode('B')]);
+		const result = calculateChiSquare(data, createFilters(), 'source');
+		for (const e of result.entries) {
+			expect(e.significant).toBe(e.pValue < 0.05);
+		}
+	});
+});
+
+// ── calculateDocumentCodeMatrix (expanded) ───────────────────
+
+describe('calculateDocumentCodeMatrix (expanded)', () => {
+	it('matrix dimensions match files x codes', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'markdown', 'f1', ['A']),
+				makeMarker('m2', 'markdown', 'f2', ['B']),
+				makeMarker('m3', 'markdown', 'f2', ['A', 'B']),
+			],
+			[makeCode('A'), makeCode('B')],
+		);
+		const result = calculateDocumentCodeMatrix(data, createFilters());
+		expect(result.files.length).toBeGreaterThanOrEqual(2);
+		expect(result.codes.length).toBeGreaterThanOrEqual(2);
+		expect(result.matrix.length).toBe(result.files.length);
+		expect(result.matrix[0].length).toBe(result.codes.length);
+	});
+
+	it('counts markers per file per code correctly', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'markdown', 'f1', ['A']),
+				makeMarker('m2', 'markdown', 'f1', ['A']),
+				makeMarker('m3', 'markdown', 'f1', ['B']),
+			],
+			[makeCode('A'), makeCode('B')],
+		);
+		const result = calculateDocumentCodeMatrix(data, createFilters());
+		const fileIdx = result.files.indexOf('f1');
+		const codeAIdx = result.codes.indexOf('A');
+		const codeBIdx = result.codes.indexOf('B');
+		expect(result.matrix[fileIdx][codeAIdx]).toBe(2);
+		expect(result.matrix[fileIdx][codeBIdx]).toBe(1);
+	});
+
+	it('marker with multiple codes counts once per code', () => {
+		const data = createTestData(
+			[makeMarker('m1', 'markdown', 'f1', ['A', 'B'])],
+			[makeCode('A'), makeCode('B')],
+		);
+		const result = calculateDocumentCodeMatrix(data, createFilters());
+		const fileIdx = result.files.indexOf('f1');
+		const codeAIdx = result.codes.indexOf('A');
+		const codeBIdx = result.codes.indexOf('B');
+		expect(result.matrix[fileIdx][codeAIdx]).toBe(1);
+		expect(result.matrix[fileIdx][codeBIdx]).toBe(1);
+	});
+});
