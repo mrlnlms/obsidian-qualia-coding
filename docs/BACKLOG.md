@@ -342,7 +342,12 @@ Audio/Video herdam via `MediaSidebarAdapter` intermediario.
 | `as any` cleanup (222 → 6 restantes) | 216 removidos | FEITO (2026-03-17) |
 | Board discriminated union (boardTypes.ts) + zero erros tsc | 82 erros eliminados | FEITO (2026-03-17) |
 | Migration code legado removido + DataManager overloads | -83 linhas dead code | FEITO (2026-03-17) |
-| **Total eliminado** | **~1.360 linhas, 222→6 as any, 44→3 @ts-ignore, 82→0 erros tsc** | |
+| `as any` final cleanup (222 → 4 restantes) | 218 removidos | FEITO (2026-03-17) |
+| Registry auto-persistence (onMutate callback) | Bug de perda de dados corrigido | FEITO (2026-03-17) |
+| Tipa fronteira de integracao (main.ts + baseSidebarAdapter) | Zero any na integracao | FEITO (2026-03-17) |
+| Suite de testes Vitest (429 testes, 19 suites) | Cobertura core + analytics | FEITO (2026-03-17) |
+| Bug fixes: overlap PDF/CSV-row, temporal filters.codes, listener leak | 3 bugs do Codex | FEITO (2026-03-17) |
+| **Total eliminado** | **~1.360 linhas, 222→4 as any, 44→3 @ts-ignore, 82→0 erros tsc, 429 testes** | |
 | analyticsView.ts split (5.907 linhas) | Reorganiza, nao elimina | Futuro |
 | statsEngine.ts split | Reorganiza | Futuro |
 
@@ -353,7 +358,9 @@ Ganho de manutenibilidade alcancado:
 - Types: nomes consistentes (fileId, memo, removeMarker, colorOverride)
 - Type guards: 1 lugar (markerResolvers.ts), nao duplicados
 - CSS: 1 namespace (codemarker-popover), zero duplicacao
-- Type safety: 222 → 16 `as any`, 44 → 3 `@ts-ignore`
+- Type safety: 222 → 4 `as any`, 44 → 3 `@ts-ignore`
+- Testes: 429 testes em 19 suites (Vitest + jsdom), cobrindo core, analytics, media, engine models
+- Registry: auto-persist via onMutate callback (zero risco de perda de dados)
 - Fabric.js: fabricExtensions.d.ts (Canvas, Rect, etc.) + boardTypes.ts (discriminated union por tipo de no)
 - Board: zero erros tsc — discriminated union com type guards para narrowing automatico
 - Build: `npm run build` passa com zero erros (tsc + esbuild)
