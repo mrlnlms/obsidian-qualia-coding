@@ -5,7 +5,9 @@
   "main": "main.js",
   "scripts": {
     "build": "tsc -noEmit && node esbuild.config.mjs production",
-    "dev": "node esbuild.config.mjs"
+    "dev": "node esbuild.config.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "ag-grid-community": "^33.0.0",
@@ -21,10 +23,15 @@
     "wavesurfer.js": "^7.0.0"
   },
   "devDependencies": {
+    "@codemirror/language": "^6.12.2",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.40.0",
     "@types/node": "^20.0.0",
     "@types/papaparse": "^5.3.14",
     "esbuild": "^0.19.0",
+    "jsdom": "^29.0.0",
     "obsidian": "latest",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.0"
   }
 }
