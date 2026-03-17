@@ -313,7 +313,7 @@ Audio/Video herdam via `MediaSidebarAdapter` intermediario.
 
 | Arquivo | Linhas | Problema |
 |---------|--------|----------|
-| `analytics/views/analyticsView.ts` | 5.907 | 20+ modos de visualizacao num so arquivo |
+| `analytics/views/analyticsView.ts` | ~~5.907~~ 798 | FEITO — split em 19 mode modules + shared helpers (2026-03-17) |
 | `analytics/data/statsEngine.ts` | 949 | 20+ funcoes de calculo misturadas |
 | `analytics/board/boardNodes.ts` | 825 | 91 `as any` (Fabric.js) |
 | `csv/csvCodingView.ts` | 801 | Grid + parser + editor + markers misturados |
@@ -352,8 +352,8 @@ Audio/Video herdam via `MediaSidebarAdapter` intermediario.
 | Suite de testes expandida (430 testes, 19 suites) | +statsEngine, dataManager, adapters, CSV/Image models, cluster, MCA, MDS, decisionTree | FEITO (2026-03-17) |
 | Fixa versao obsidian (latest → ^1.12.3) | Previne breaking changes upstream | FEITO (2026-03-17) |
 | fileInterceptor cleanup no unload (clearFileInterceptRules) | Previne leak de regras em hot-reload | FEITO (2026-03-17) |
-| **Total** | **~1.360 linhas eliminadas, 222→4 as any, 44→3 @ts-ignore, 82→0 erros tsc, 430 testes, 55 commits** | |
-| analyticsView.ts split (5.907 linhas) | Reorganiza, nao elimina | Futuro |
+| **Total** | **~1.360 linhas eliminadas, 222→4 as any, 44→3 @ts-ignore, 82→0 erros tsc, 430 testes, 57 commits** | |
+| analyticsView.ts split (5.907 → 798 + 19 modules) | Core + 19 modes + shared | FEITO (2026-03-17) |
 | statsEngine.ts split | Reorganiza | Futuro |
 
 Ganho de manutenibilidade alcancado:
@@ -392,7 +392,7 @@ this.ws?.on(event as any, callback)         // wavesurfer nao tipa eventos como 
 
 **Eliminavel?** SIM, com module augmentation para WaveSurfer (similar ao que fizemos com Fabric.js). **Sugestao: fazer quando mexer no waveform renderer.**
 
-### Chart.js wordCloud plugin (1 instancia) — `src/analytics/views/analyticsView.ts`
+### Chart.js wordCloud plugin (1 instancia) — `src/analytics/views/modes/wordCloudMode.ts`
 
 ```
 type: "wordCloud" as any                    // chartjs-chart-wordcloud nao registra tipo
@@ -426,7 +426,7 @@ return createStandaloneViewWrapper(standalone) as any
 
 | Item | Eliminavel? | Quando |
 |------|------------|--------|
-| analyticsView.ts split (5.907 linhas) | — | Quando mexer em analytics |
+| ~~analyticsView.ts split~~ | ~~—~~ | ~~FEITO (2026-03-17)~~ |
 | statsEngine.ts split | — | Quando mexer em analytics |
 | 3 `as any` PDF viewer | Nao (API interna Obsidian) | Permanente |
 | 1 `as any` WaveSurfer event | Sim (module augmentation) | Quando mexer em waveform |

@@ -72,7 +72,32 @@ src/
     ├── board/               # Research Board
     │   ├── boardTypes.ts        # Tipos do board
     │   └── fabricExtensions.d.ts # Type declarations Fabric.js
-    └── views/               # 17 ViewModes
+    └── views/               # Analytics views (modular)
+        ├── analyticsView.ts         # Core (~800 LOC): lifecycle, dispatchers, config panels
+        ├── analyticsViewContext.ts   # Interface AnalyticsViewContext + type aliases
+        ├── boardView.ts             # Research Board view
+        ├── shared/
+        │   └── chartHelpers.ts      # heatmapColor, computeDisplayMatrix, divergentColor, etc.
+        └── modes/                   # 19 mode modules (1 por visualizacao)
+            ├── dashboardMode.ts     # Dashboard + mini thumbnails
+            ├── frequencyMode.ts     # Frequency bars + sort/group options
+            ├── cooccurrenceMode.ts  # Co-occurrence matrix + display/sort
+            ├── graphMode.ts         # Network graph (force-directed)
+            ├── docMatrixMode.ts     # Document-Code matrix
+            ├── evolutionMode.ts     # Code evolution (positional)
+            ├── textRetrievalMode.ts # Text retrieval + navigation
+            ├── wordCloudMode.ts     # Word cloud (chartjs-chart-wordcloud)
+            ├── acmMode.ts           # MCA Biplot
+            ├── mdsMode.ts           # MDS Map
+            ├── temporalMode.ts      # Temporal analysis (time series)
+            ├── textStatsMode.ts     # Text statistics (TTR, word counts)
+            ├── dendrogramMode.ts    # Dendrogram + silhouette
+            ├── lagSequentialMode.ts # Lag sequential analysis
+            ├── polarMode.ts         # Polar coordinates
+            ├── chiSquareMode.ts     # Chi-square independence tests
+            ├── decisionTreeMode.ts  # Decision tree (CHAID)
+            ├── sourceComparisonMode.ts # Source comparison
+            └── overlapMode.ts       # Code overlap matrix
 ```
 
 ### Regra: `main.ts` é orquestrador leve (~100 LOC)
