@@ -61,6 +61,11 @@ export interface CodeDefinition {
 
 export type EngineCleanup = () => void | Promise<void>;
 
+export interface EngineRegistration<M = unknown> {
+	cleanup: EngineCleanup;
+	model: M;
+}
+
 export interface QualiaData {
 	registry: {
 		definitions: Record<string, CodeDefinition>;

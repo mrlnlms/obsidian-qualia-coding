@@ -4,14 +4,14 @@
 
 import { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
-import type { EngineCleanup } from '../core/types';
+import type { EngineRegistration } from '../core/types';
 import { registerFileRename } from '../core/fileInterceptor';
 import { CsvCodingModel } from './codingModel';
 import { CsvCodingView, CSV_CODING_VIEW_TYPE } from './csvCodingView';
 
 export { CSV_CODING_VIEW_TYPE };
 
-export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineCleanup {
+export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineRegistration<CsvCodingModel> {
 	const dm = plugin.dataManager;
 	const registry = plugin.sharedRegistry;
 
@@ -83,8 +83,11 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 		onRename: (oldPath, newPath) => model.migrateFilePath(oldPath, newPath),
 	});
 
-	return () => {
-		plugin.app.workspace.detachLeavesOfType(CSV_CODING_VIEW_TYPE);
+	return {
+		cleanup: () => {
+			plugin.app.workspace.detachLeavesOfType(CSV_CODING_VIEW_TYPE);
+		},
+		model,
 	};
 }
 

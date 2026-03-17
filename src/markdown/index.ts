@@ -1,6 +1,6 @@
 import { MarkdownView, Modal, Setting } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
-import type { EngineCleanup } from '../core/types';
+import type { EngineRegistration } from '../core/types';
 import { CodeMarkerModel } from './models/codeMarkerModel';
 import { EditorView } from '@codemirror/view';
 import { createMarkerStateField, updateFileMarkersEffect, setSelectionPreviewEffect } from './cm6/markerStateField';
@@ -15,7 +15,12 @@ import { CODE_DETAIL_VIEW_TYPE } from '../core/unifiedDetailView';
 import { BaseCodeDetailView } from '../core/baseCodeDetailView';
 import { registerFileRename } from '../core/fileInterceptor';
 
-export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineCleanup {
+export interface MarkdownEngineModel {
+	codeMarkerModel: CodeMarkerModel;
+	updateFileMarkersEffect: typeof updateFileMarkersEffect;
+}
+
+export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegistration<MarkdownEngineModel> {
 	// Use shared registry from plugin (single instance for all engines)
 	const registry = plugin.sharedRegistry;
 
@@ -304,10 +309,16 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineCleanu
 	});
 
 	// Cleanup
-	return () => {
-		document.removeEventListener(SELECTION_EVENT, onSelectionEvent);
-		document.removeEventListener('codemarker:label-click', onLabelClick);
-		document.removeEventListener('codemarker:code-click', onCodeClick);
-		model.flushPendingSave();
+	return {
+		cleanup: () => {
+			document.removeEventListener(SELECTION_EVENT, onSelectionEvent);
+			document.removeEventListener('codemarker:label-click', onLabelClick);
+			document.removeEventListener('codemarker:code-click', onCodeClick);
+			model.flushPendingSave();
+		},
+		model: {
+			codeMarkerModel: model,
+			updateFileMarkersEffect,
+		},
 	};
 }

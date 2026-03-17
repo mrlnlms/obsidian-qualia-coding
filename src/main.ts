@@ -19,7 +19,6 @@ import { registerAudioEngine } from './audio';
 import { registerVideoEngine } from './video';
 import { registerAnalyticsEngine } from './analytics';
 import { setupFileInterceptor } from './core/fileInterceptor';
-import type { CodeMarkerModel } from './markdown/models/codeMarkerModel';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/models/codingModel';
 import type { CsvCodingModel } from './csv/codingModel';
@@ -56,24 +55,36 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.addSettingTab(new QualiaSettingTab(this.app, this));
 
 		// Register engines — all receive the same registry instance
-		this.cleanups.push(registerMarkdownEngine(this));
-		this.cleanups.push(registerPdfEngine(this));
-		this.cleanups.push(registerImageEngine(this));
-		this.cleanups.push(registerCsvEngine(this));
-		this.cleanups.push(registerAudioEngine(this));
-		this.cleanups.push(registerVideoEngine(this));
+		const markdown = registerMarkdownEngine(this);
+		this.cleanups.push(markdown.cleanup);
+
+		const pdf = registerPdfEngine(this);
+		this.cleanups.push(pdf.cleanup);
+
+		const image = registerImageEngine(this);
+		this.cleanups.push(image.cleanup);
+
+		const csv = registerCsvEngine(this);
+		this.cleanups.push(csv.cleanup);
+
+		const audio = registerAudioEngine(this);
+		this.cleanups.push(audio.cleanup);
+
+		const video = registerVideoEngine(this);
+		this.cleanups.push(video.cleanup);
+
 		this.cleanups.push(registerAnalyticsEngine(this));
 
 		// Single active-leaf-change listener for file-open interception
 		setupFileInterceptor(this);
 
 		// Build unified model from all engines
-		const mdModel = this.markdownModel as CodeMarkerModel;
-		const pdfModel = this.pdfModel!;
-		const imageModel = this.imageModel!;
-		const csvModel = this.csvModel!;
-		const audioModel = this.audioModel!;
-		const videoModel = this.videoModel!;
+		const mdModel = markdown.model.codeMarkerModel;
+		const pdfModel = pdf.model;
+		const imageModel = image.model;
+		const csvModel = csv.model;
+		const audioModel = audio.model;
+		const videoModel = video.model;
 		const pdfAdapter = new PdfSidebarAdapter(pdfModel);
 		const imageAdapter = new ImageSidebarAdapter(imageModel);
 		const csvAdapter = new CsvSidebarAdapter(csvModel);

@@ -4,7 +4,7 @@
 
 import { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
-import type { EngineCleanup } from '../core/types';
+import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
 import { VideoCodingModel } from './videoCodingModel';
 import { VideoView, VIDEO_VIEW_TYPE } from './videoView';
@@ -13,7 +13,7 @@ const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'ogv']);
 
 export { VIDEO_VIEW_TYPE };
 
-export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineCleanup {
+export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineRegistration<VideoCodingModel> {
 	const dm = plugin.dataManager;
 	const registry = plugin.sharedRegistry;
 
@@ -67,8 +67,11 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 		onRename: (oldPath, newPath) => model.migrateFilePath(oldPath, newPath),
 	});
 
-	return () => {
-		plugin.app.workspace.detachLeavesOfType(VIDEO_VIEW_TYPE);
+	return {
+		cleanup: () => {
+			plugin.app.workspace.detachLeavesOfType(VIDEO_VIEW_TYPE);
+		},
+		model,
 	};
 }
 

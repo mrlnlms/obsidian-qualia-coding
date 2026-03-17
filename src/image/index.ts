@@ -4,7 +4,7 @@
 
 import { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
-import type { EngineCleanup } from '../core/types';
+import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
 import { ImageCodingModel } from './models/codingModel';
 import { ImageCodingView, IMAGE_CODING_VIEW_TYPE } from './views/imageView';
@@ -13,7 +13,7 @@ const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'a
 
 export { IMAGE_CODING_VIEW_TYPE };
 
-export function registerImageEngine(plugin: QualiaCodingPlugin): EngineCleanup {
+export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistration<ImageCodingModel> {
 	const dm = plugin.dataManager;
 
 	// Use shared registry from plugin (single instance for all engines)
@@ -92,8 +92,11 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 	});
 	plugin.registerEvent(navRef);
 
-	return () => {
-		plugin.app.workspace.detachLeavesOfType(IMAGE_CODING_VIEW_TYPE);
+	return {
+		cleanup: () => {
+			plugin.app.workspace.detachLeavesOfType(IMAGE_CODING_VIEW_TYPE);
+		},
+		model,
 	};
 }
 

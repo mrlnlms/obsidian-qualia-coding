@@ -1,6 +1,6 @@
 import { TFile, Notice } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
-import type { EngineCleanup } from '../core/types';
+import type { EngineRegistration } from '../core/types';
 import { registerFileRename } from '../core/fileInterceptor';
 import { PdfCodingModel } from './pdfCodingModel';
 import { capturePdfSelection, detectCrossPageSelection, captureCrossPageSelection, type PdfSelectionResult } from './selectionCapture';
@@ -12,7 +12,7 @@ import { renderSelectionPreview } from './highlightRenderer';
 import type { PDFViewerChild } from './pdfTypings';
 import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
 
-export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineCleanup {
+export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistration<PdfCodingModel> {
 	// Use shared registry from plugin (single instance for all engines)
 	const registry = plugin.sharedRegistry;
 
@@ -277,20 +277,23 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 
 	// ── Return cleanup function ──
 
-	return () => {
-		for (const [, observer] of observers) {
-			observer.stop();
-		}
-		observers.clear();
+	return {
+		cleanup: () => {
+			for (const [, observer] of observers) {
+				observer.stop();
+			}
+			observers.clear();
 
-		for (const [, interaction] of drawInteractions) {
-			interaction.stop();
-		}
-		drawInteractions.clear();
+			for (const [, interaction] of drawInteractions) {
+				interaction.stop();
+			}
+			drawInteractions.clear();
 
-		for (const [, toolbar] of drawToolbars) {
-			toolbar.unmount();
-		}
-		drawToolbars.clear();
+			for (const [, toolbar] of drawToolbars) {
+				toolbar.unmount();
+			}
+			drawToolbars.clear();
+		},
+		model,
 	};
 }

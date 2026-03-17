@@ -4,7 +4,7 @@
 
 import { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
-import type { EngineCleanup } from '../core/types';
+import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
 import { AudioCodingModel } from './audioCodingModel';
 import { AudioView, AUDIO_VIEW_TYPE } from './audioView';
@@ -13,7 +13,7 @@ const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'wm
 
 export { AUDIO_VIEW_TYPE };
 
-export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineCleanup {
+export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistration<AudioCodingModel> {
 	const dm = plugin.dataManager;
 	const registry = plugin.sharedRegistry;
 
@@ -67,8 +67,11 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineCleanup {
 		onRename: (oldPath, newPath) => model.migrateFilePath(oldPath, newPath),
 	});
 
-	return () => {
-		plugin.app.workspace.detachLeavesOfType(AUDIO_VIEW_TYPE);
+	return {
+		cleanup: () => {
+			plugin.app.workspace.detachLeavesOfType(AUDIO_VIEW_TYPE);
+		},
+		model,
 	};
 }
 
