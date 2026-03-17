@@ -28,6 +28,26 @@ vi.mock('../../src/analytics/data/decisionTreeEngine', () => ({
 	buildDecisionTree: vi.fn(),
 }));
 
+// ── Mock async engines ──
+vi.mock('../../src/analytics/data/mcaEngine', () => ({
+	calculateMCA: vi.fn(),
+}));
+
+vi.mock('../../src/analytics/data/mdsEngine', () => ({
+	calculateMDS: vi.fn(),
+}));
+
+const mockExtractBatch = vi.fn().mockResolvedValue([]);
+vi.mock('../../src/analytics/data/textExtractor', () => ({
+	TextExtractor: class MockTextExtractor {
+		extractBatch = mockExtractBatch;
+	},
+}));
+
+vi.mock('../../src/analytics/data/wordFrequency', () => ({
+	calculateWordFrequencies: vi.fn(),
+}));
+
 // ── Imports (after mocks) ──
 import { calculateTemporal, calculateLagSequential, calculatePolarCoordinates, calculateChiSquare, calculateOverlap, calculateSourceComparison, calculateCooccurrence } from '../../src/analytics/data/statsEngine';
 import { buildDendrogram, cutDendrogram, calculateSilhouette } from '../../src/analytics/data/clusterEngine';
@@ -41,6 +61,15 @@ import { exportOverlapCSV } from '../../src/analytics/views/modes/overlapMode';
 import { exportSourceComparisonCSV } from '../../src/analytics/views/modes/sourceComparisonMode';
 import { exportDendrogramCSV } from '../../src/analytics/views/modes/dendrogramMode';
 import { exportDecisionTreeCSV } from '../../src/analytics/views/modes/decisionTreeMode';
+import { exportACMCSV } from '../../src/analytics/views/modes/acmMode';
+import { exportMDSCSV } from '../../src/analytics/views/modes/mdsMode';
+import { exportWordCloudCSV } from '../../src/analytics/views/modes/wordCloudMode';
+import { exportTextStatsCSV } from '../../src/analytics/views/modes/textStatsMode';
+import { calculateMCA } from '../../src/analytics/data/mcaEngine';
+import { calculateMDS } from '../../src/analytics/data/mdsEngine';
+import { TextExtractor } from '../../src/analytics/data/textExtractor';
+import { calculateWordFrequencies } from '../../src/analytics/data/wordFrequency';
+import { calculateTextStats } from '../../src/analytics/data/statsEngine';
 
 // ── Helpers ──
 
@@ -67,7 +96,7 @@ function createMockCtx(overrides: Partial<AnalyticsViewContext> = {}): Analytics
 		[makeCode('A', '#ff0000'), makeCode('B', '#00ff00')],
 	);
 	return {
-		plugin: {} as any,
+		plugin: { app: { vault: {} } } as any,
 		data,
 		chartContainer: null,
 		configPanelEl: null,
@@ -414,6 +443,136 @@ describe('exportDecisionTreeCSV', () => {
 		expect(rows[1]![0]).toBe('0');
 		expect(rows[1]![5]).toBe('present'); // prediction=1
 		expect(rows[1]![12]).toBe('yes'); // is_leaf (no children)
+		expect(clickSpy).toHaveBeenCalledOnce();
+	});
+});
+
+// ══════════════════════════════════════════════════════════════
+// ASYNC EXPORT CSV FUNCTIONS
+// ══════════════════════════════════════════════════════════════
+
+async function flushPromises(): Promise<void> {
+	await new Promise((r) => setTimeout(r, 0));
+}
+
+describe('exportACMCSV', () => {
+	it('early returns without data', () => {
+		exportACMCSV(createMockCtx({ data: null }), '2026-01-01');
+		expect(capturedBlobs).toHaveLength(0);
+	});
+
+	it('produces correct CSV after async MCA', async () => {
+		vi.mocked(calculateMCA).mockResolvedValue({
+			codePoints: [{ name: 'A', x: 0.5, y: -0.3, color: '#f00' }],
+			markerPoints: [{ id: 'm1', x: 0.1, y: 0.2, file: 'f.md', codes: ['A', 'B'], color: '#f00' }],
+			inertia: [60, 30],
+		} as any);
+		const ctx = createMockCtx();
+		exportACMCSV(ctx, '2026-01-01');
+		await flushPromises();
+
+		const csv = await getCapturedCSV();
+		const rows = csvRows(csv);
+		expect(rows[0]).toEqual(['type', 'name', 'dim1', 'dim2', 'file', 'codes']);
+		expect(rows[1]![0]).toBe('code');
+		expect(rows[2]![0]).toBe('marker');
+		expect(clickSpy).toHaveBeenCalledOnce();
+	});
+
+	it('does not download when MCA returns null', async () => {
+		vi.mocked(calculateMCA).mockResolvedValue(null);
+		const ctx = createMockCtx();
+		exportACMCSV(ctx, '2026-01-01');
+		await flushPromises();
+		expect(capturedBlobs).toHaveLength(0);
+	});
+});
+
+describe('exportMDSCSV', () => {
+	it('early returns without data', () => {
+		exportMDSCSV(createMockCtx({ data: null }), '2026-01-01');
+		expect(capturedBlobs).toHaveLength(0);
+	});
+
+	it('produces correct CSV after async MDS', async () => {
+		vi.mocked(calculateMDS).mockResolvedValue({
+			points: [
+				{ name: 'A', x: 0.5, y: -0.3, size: 10, color: '#f00' },
+				{ name: 'B', x: -0.2, y: 0.8, size: 5, color: '#0f0' },
+			],
+			stress: 0.12,
+			mode: 'codes',
+		} as any);
+		const ctx = createMockCtx();
+		exportMDSCSV(ctx, '2026-01-01');
+		await flushPromises();
+
+		const csv = await getCapturedCSV();
+		const rows = csvRows(csv);
+		expect(rows[0]).toEqual(['name', 'dim1', 'dim2', 'size', 'mode']);
+		expect(rows).toHaveLength(3);
+		expect(rows[1]![4]).toBe('codes');
+		expect(clickSpy).toHaveBeenCalledOnce();
+	});
+
+	it('does not download when MDS returns null', async () => {
+		vi.mocked(calculateMDS).mockResolvedValue(null);
+		const ctx = createMockCtx();
+		exportMDSCSV(ctx, '2026-01-01');
+		await flushPromises();
+		expect(capturedBlobs).toHaveLength(0);
+	});
+});
+
+describe('exportWordCloudCSV', () => {
+	it('early returns without data', () => {
+		exportWordCloudCSV(createMockCtx({ data: null }), '2026-01-01');
+		expect(capturedBlobs).toHaveLength(0);
+	});
+
+	it('produces correct CSV after async text extraction', async () => {
+		vi.mocked(calculateWordFrequencies).mockReturnValue([
+			{ word: 'hello', count: 5, codes: ['A'], sources: ['markdown'] },
+			{ word: 'world', count: 3, codes: ['A', 'B'], sources: ['markdown'] },
+		] as any);
+
+		const ctx = createMockCtx();
+		exportWordCloudCSV(ctx, '2026-01-01');
+		await flushPromises();
+
+		const csv = await getCapturedCSV();
+		const rows = csvRows(csv);
+		expect(rows[0]).toEqual(['word', 'count', 'codes']);
+		expect(rows).toHaveLength(3);
+		expect(rows[1]![0]).toBe('"hello"');
+		expect(rows[1]![1]).toBe('5');
+		expect(clickSpy).toHaveBeenCalledOnce();
+	});
+});
+
+describe('exportTextStatsCSV', () => {
+	it('early returns without data', () => {
+		exportTextStatsCSV(createMockCtx({ data: null }), '2026-01-01');
+		expect(capturedBlobs).toHaveLength(0);
+	});
+
+	it('produces correct CSV after async text extraction', async () => {
+		vi.mocked(calculateTextStats).mockReturnValue({
+			codes: [
+				{ code: 'A', color: '#f00', segmentCount: 3, totalWords: 50, uniqueWords: 30, ttr: 0.6, avgWordsPerSegment: 16.7, avgCharsPerSegment: 100 },
+			],
+			global: { totalSegments: 3, totalWords: 50, uniqueWords: 30, ttr: 0.6 },
+		});
+
+		const ctx = createMockCtx();
+		exportTextStatsCSV(ctx, '2026-01-01');
+		await flushPromises();
+
+		const csv = await getCapturedCSV();
+		const rows = csvRows(csv);
+		expect(rows[0]).toEqual(['code', 'segments', 'total_words', 'unique_words', 'ttr', 'avg_words_per_segment', 'avg_chars_per_segment']);
+		expect(rows).toHaveLength(2);
+		expect(rows[1]![0]).toBe('"A"');
 		expect(clickSpy).toHaveBeenCalledOnce();
 	});
 });
