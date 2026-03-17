@@ -169,7 +169,7 @@ QualiaData {
 
 **UnifiedModelAdapter** merge N engines em 1 `SidebarModelInterface`:
 - Delega writes para o engine owner via type detection
-- Type guards discriminam markers: `isPdfMarker()`, `isImageMarker()`, `isCsvMarker()`, `isAudioMarker()`, `isVideoMarker()`
+- Type guards via `markerType` discriminante: `isPdfMarker()`, `isImageMarker()`, `isCsvMarker()`, `isAudioMarker()`, `isVideoMarker()`
 - Um único `UnifiedCodeExplorerView` + `UnifiedCodeDetailView` para todos os formatos
 
 ### 4.2 Phantom Marker Prevention

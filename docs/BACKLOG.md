@@ -363,6 +363,7 @@ Expandido (2026-03-17): `deleteCode()` e `updateMarkerFields()` movidos para Bas
 | Bug fix: media migrateFilePath nao atualizava marker.fileId | Unico engine com bug — fix + teste explicito | FEITO (2026-03-17) |
 | fileInterceptor: extrai helpers puros + 17 testes | resolveLeafFilePath, matchesInterceptRule, dispatchRenameRules | FEITO (2026-03-17) |
 | deleteCode + updateMarkerFields → BaseSidebarAdapter | Elimina 3 copias identicas, PDF mantem override | FEITO (2026-03-17) |
+| markerType discriminante no BaseMarker | Elimina duck typing fragil nos type guards, usa `marker.markerType === 'X'` | FEITO (2026-03-17) |
 | statsEngine.ts split | Reorganiza | Futuro |
 
 Ganho de manutenibilidade alcancado:
