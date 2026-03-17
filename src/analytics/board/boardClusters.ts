@@ -31,8 +31,12 @@ export function clusterCodeCards(
   }
 
   // Calculate co-occurrence for just the codes on the board
+  const allSources = Object.entries(data.sources)
+    .filter(([, active]) => active)
+    .flatMap(([key]) => key === "csv" ? ["csv-segment", "csv-row"] as const : [key as import("../data/dataTypes").SourceType]);
+
   const cooc = calculateCooccurrence(data, {
-    sources: [],
+    sources: allSources,
     codes: [],
     excludeCodes: [],
     minFrequency: 0,
