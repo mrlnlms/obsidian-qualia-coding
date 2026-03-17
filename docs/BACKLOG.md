@@ -432,3 +432,19 @@ return createStandaloneViewWrapper(standalone) as any
 | 1 `as any` WaveSurfer event | Sim (module augmentation) | Quando mexer em waveform |
 | 1 `as any` Chart.js wordCloud | Sim (module augmentation) | Quando mexer em analytics |
 | 1 `as any` viewLookupUtils | Sim (tipar retorno) | Quando mexer em viewLookup |
+
+---
+
+## Testes pendentes — analytics modes (2026-03-17)
+
+Cobertura atual: 594 testes, 22 suites. Os mode modules extraidos tem gaps:
+
+| Categoria | Funcoes | Testavel jsdom? | Prioridade |
+|-----------|---------|----------------|------------|
+| export\*CSV (11 modes) | exportLagCSV, exportPolarCSV, exportChiSquareCSV, exportDendrogramCSV, exportMDSCSV, exportACMCSV, exportDecisionTreeCSV, exportSourceComparisonCSV, exportOverlapCSV, exportTextStatsCSV, exportWordCloudCSV, exportTemporalCSV | Sim — produzem CSV via Blob | Alta — logica pura |
+| renderOptions sections (12 modes) | renderLagOptionsSection, renderPolarOptionsSection, renderChiSquareOptionsSection, renderDendrogramOptionsSection, renderMDSOptionsSection, renderACMOptionsSection, renderDecisionTreeOptionsSection, renderSourceComparisonOptionsSection, renderWordCloudOptionsSection, renderGraphOptionsSection, renderMatrixSortSection, renderEvolutionFileSection | Sim — criam DOM | Media |
+| textRetrievalMode logic | formatLocation, formatAudioTime (internas, nao exportadas) | Sim se exportar | Alta — logica pura |
+| render\*Chart/View (19 modes) | renderFrequencyChart, renderNetworkGraph, etc. | Parcial — Canvas2D/Chart.js | Baixa — melhor como visual test |
+| renderMini\* (17 funcoes) | renderMiniFrequency, renderMiniCooccurrence, etc. | Nao — Canvas2D null em jsdom | Baixa |
+
+**Estrategia:** export\*CSV primeiro (maior ROI), depois renderOptions sections. Render chart/mini sao melhores candidatos pra visual testing (/ui-inspect).
