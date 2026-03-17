@@ -39,7 +39,7 @@ npm run dev      # esbuild watch mode (hot reload com hot-reload plugin)
 
 ```
 src/
-├── main.ts                  # Entry point (~15 LOC) — registra engines, monta sidebar
+├── main.ts                  # Entry point (~105 LOC) — registra engines, monta sidebar, auto-persist registry
 ├── core/                    # Infraestrutura compartilhada
 │   ├── types.ts             # BaseMarker, SidebarModelInterface, CodeDefinition
 │   ├── dataManager.ts       # Cache in-memory + debounced save
@@ -75,8 +75,8 @@ src/
     └── views/               # 17 ViewModes
 ```
 
-### Regra: `main.ts` fica ~15 LOC
-Se crescer, mover lógica para os engines. Cada engine exporta `registerXxxEngine()` que retorna `EngineCleanup`.
+### Regra: `main.ts` é orquestrador leve (~100 LOC)
+Não implementa lógica de engine — apenas registra, conecta e limpa. Cada engine exporta `registerXxxEngine()` que retorna `EngineCleanup`. O registry persiste automaticamente via `onMutate` callback.
 
 ---
 
