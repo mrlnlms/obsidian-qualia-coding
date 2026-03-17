@@ -21,11 +21,11 @@ export class DataManager {
 			for (const key of Object.keys(defaults) as Array<keyof QualiaData>) {
 				if (raw[key] === undefined) raw[key] = defaults[key];
 			}
-			// Merge nested settings with defaults for ALL engines (handles new keys added later)
-			raw.markdown.settings = { ...defaults.markdown.settings, ...(raw.markdown.settings ?? {}) };
-			raw.image.settings = { ...defaults.image.settings, ...(raw.image.settings ?? {}) };
-			raw.audio.settings = { ...defaults.audio.settings, ...(raw.audio.settings ?? {}) };
-			raw.video.settings = { ...defaults.video.settings, ...(raw.video.settings ?? {}) };
+			// Deep merge settings with defaults for ALL engines (handles new/nested keys added later)
+			raw.markdown.settings = deepMerge(defaults.markdown.settings, raw.markdown.settings);
+			raw.image.settings = deepMerge(defaults.image.settings, raw.image.settings);
+			raw.audio.settings = deepMerge(defaults.audio.settings, raw.audio.settings);
+			raw.video.settings = deepMerge(defaults.video.settings, raw.video.settings);
 			this.data = raw as QualiaData;
 		} else {
 			this.data = defaults;
@@ -82,4 +82,21 @@ export class DataManager {
 		this.data.video = { files: [], settings: this.data.video.settings };
 		await this.flush();
 	}
+}
+
+/** Recursively merge defaults into persisted data. Persisted values win. */
+function deepMerge<T>(defaults: T, persisted: Partial<T> | undefined): T {
+	if (!persisted) return { ...defaults };
+	const result = { ...defaults } as any;
+	for (const key of Object.keys(persisted as object)) {
+		const val = (persisted as any)[key];
+		const def = (defaults as any)[key];
+		if (val !== null && typeof val === 'object' && !Array.isArray(val)
+			&& def !== null && typeof def === 'object' && !Array.isArray(def)) {
+			result[key] = deepMerge(def, val);
+		} else if (val !== undefined) {
+			result[key] = val;
+		}
+	}
+	return result as T;
 }

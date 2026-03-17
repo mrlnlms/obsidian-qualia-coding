@@ -273,4 +273,27 @@ describe('settings deep merge on load', () => {
 		expect(dm.section('audio').settings.defaultZoom).toBe(50);
 		expect(dm.section('video').settings.videoFit).toBe('contain');
 	});
+
+	it('deep merges nested objects inside settings (future-proof)', async () => {
+		// Simulate a future scenario where settings gain nested structure.
+		// The deep merge should fill new nested defaults without wiping persisted nested values.
+		const plugin = createMockPlugin({
+			registry: { definitions: {}, nextPaletteIndex: 0 },
+			markdown: { markers: {}, settings: { defaultColor: '#custom' } },
+			csv: { segmentMarkers: [], rowMarkers: [] },
+			image: { markers: [], settings: { autoOpenImages: false, fileStates: { 'img.png': { zoom: 2, panX: 10, panY: 20 } } } },
+			pdf: { markers: [], shapes: [] },
+			audio: { files: [], settings: { defaultZoom: 80, fileStates: { 'a.mp3': { zoom: 3, lastPosition: 42 } } } },
+			video: { files: [], settings: { defaultZoom: 80, videoFit: 'cover', fileStates: {} } },
+		});
+		const dm = new DataManager(plugin);
+		await dm.load();
+
+		// Persisted nested fileStates should survive the merge
+		const imgStates = dm.section('image').settings.fileStates;
+		expect(imgStates['img.png']).toEqual({ zoom: 2, panX: 10, panY: 20 });
+
+		const audioStates = dm.section('audio').settings.fileStates;
+		expect(audioStates['a.mp3']).toEqual({ zoom: 3, lastPosition: 42 });
+	});
 });
