@@ -29,7 +29,11 @@ export class DataManager {
 		}
 	}
 
+	// Typed overload: used by all engines with literal keys (e.g. section('pdf')).
+	// Returns the exact QualiaData[K] type — fully typed, no any.
 	section<K extends keyof QualiaData>(key: K): QualiaData[K];
+	// Fallback overload: for dynamic string keys (e.g. MediaCodingModel passes sectionName variable).
+	// Intentionally loose — removing this would break ergonomics for generic engine code.
 	section(key: string): Record<string, any>;
 	section(key: string): any {
 		return this.data[key as keyof QualiaData];

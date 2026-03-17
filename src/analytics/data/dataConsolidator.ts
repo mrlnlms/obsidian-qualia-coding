@@ -64,7 +64,7 @@ export function consolidate(
       for (const m of fileMarkers) {
         const codes = extractCodes(m.codes);
         if (codes.length === 0) continue;
-        const meta: any = {};
+        const meta: NonNullable<UnifiedMarker["meta"]> = {};
         if (m.range?.from?.line != null) meta.fromLine = m.range.from.line;
         if (m.range?.to?.line != null) meta.toLine = m.range.to.line;
         if (m.range?.from?.ch != null) meta.fromCh = m.range.from.ch;
@@ -138,7 +138,7 @@ export function consolidate(
     for (const m of imageData.markers) {
       const codes = extractCodes(m.codes);
       if (codes.length === 0) continue;
-      const imgMeta: Record<string, unknown> = { regionType: m.shape };
+      const imgMeta: NonNullable<UnifiedMarker["meta"]> = { regionType: m.shape };
       if (m.coords?.type === 'rect') {
         imgMeta.fromLine = m.coords.y;
         imgMeta.toLine = m.coords.y + (m.coords.h ?? 0);
