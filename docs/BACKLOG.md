@@ -319,7 +319,7 @@ Expandido (2026-03-17): `deleteCode()` e `updateMarkerFields()` movidos para Bas
 | Arquivo | Linhas | Problema |
 |---------|--------|----------|
 | `analytics/views/analyticsView.ts` | ~~5.907~~ 798 | FEITO — split em 19 mode modules + shared helpers (2026-03-17) |
-| `analytics/data/statsEngine.ts` | 949 | 20+ funcoes de calculo misturadas |
+| ~~`analytics/data/statsEngine.ts`~~ | ~~949~~ | FEITO — split em 6 modulos (2026-03-17) |
 | `analytics/board/boardNodes.ts` | 825 | 91 `as any` (Fabric.js) |
 | `csv/csvCodingView.ts` | 801 | Grid + parser + editor + markers misturados |
 | `markdown/cm6/markerViewPlugin.ts` | 706 | Render + drag + hover + DOM overlay |
@@ -354,7 +354,7 @@ Expandido (2026-03-17): `deleteCode()` e `updateMarkerFields()` movidos para Bas
 | Bug fixes: overlap PDF/CSV-row, temporal filters.codes, listener leak | 3 bugs do Codex | FEITO (2026-03-17) |
 | clear() dispara onMutate + remove dead code addExistingCodeAction | Borda de persist + dead code | FEITO (2026-03-17) |
 | Engine registration retorna {cleanup, model} — zero ! no main.ts | Contrato explicito | FEITO (2026-03-17) |
-| Suite de testes expandida (1100 testes, 32 suites) | +statsEngine, dataManager, adapters, CSV/Image models, cluster, MCA, MDS, decisionTree, chartHelpers, viewModes, core, textRetrieval, optionSections, CodeMarkerModel, PdfCodingModel, highlightGeometry, fileInterceptor | FEITO (2026-03-17) |
+| Suite de testes expandida (1157 testes, 34 suites) | +statsEngine, dataManager, adapters, CSV/Image models, cluster, MCA, MDS, decisionTree, chartHelpers, viewModes, core, textRetrieval, optionSections, CodeMarkerModel, PdfCodingModel, highlightGeometry, fileInterceptor | FEITO (2026-03-17) |
 | Fixa versao obsidian (latest → ^1.12.3) | Previne breaking changes upstream | FEITO (2026-03-17) |
 | fileInterceptor cleanup no unload (clearFileInterceptRules) | Previne leak de regras em hot-reload | FEITO (2026-03-17) |
 | **Total refactor (2026-03-16/17)** | **~1.360 linhas eliminadas, 222→4 as any, 44→3 @ts-ignore, 82→0 erros tsc, 57 commits** | |
@@ -364,7 +364,8 @@ Expandido (2026-03-17): `deleteCode()` e `updateMarkerFields()` movidos para Bas
 | fileInterceptor: extrai helpers puros + 17 testes | resolveLeafFilePath, matchesInterceptRule, dispatchRenameRules | FEITO (2026-03-17) |
 | deleteCode + updateMarkerFields → BaseSidebarAdapter | Elimina 3 copias identicas, PDF mantem override | FEITO (2026-03-17) |
 | markerType discriminante no BaseMarker | Elimina duck typing fragil nos type guards, usa `marker.markerType === 'X'` | FEITO (2026-03-17) |
-| statsEngine.ts split | Reorganiza | Futuro |
+| exportCSV tests (8 sync) + formatAudioTime + formatLocation | +57 testes para analytics modes | FEITO (2026-03-17) |
+| statsEngine.ts split (951 → 6 modulos + barrel) | frequency, cooccurrence, evolution, sequential, inferential, textAnalysis | FEITO (2026-03-17) |
 
 Ganho de manutenibilidade alcancado:
 - Menu: 1 sistema unificado para TODOS os engines (codingPopover.ts + externalContainer para CM6)
@@ -382,7 +383,7 @@ Ganho de manutenibilidade alcancado:
 | 7 plugins separados (pre-merge) | 38.067 | ~4.500* | ~42.500 | 7×~15 | 11.147 (analytics) | 0 |
 | Merge 7→1 (d7eb286, 2026-03-02) | 29.074 | 4.143 | 33.217 | 106 | 5.907 (analyticsView) | 0 |
 | Porting complete v45 (6a0bb35, 2026-03-07) | 29.329 | 4.139 | 33.468 | 106 | 5.907 (analyticsView) | 0 |
-| Pos-refactor + split + testes (2026-03-17) | 28.415 | 4.026 | 32.441 | 129 | 950 (statsEngine) | 1100 |
+| Pos-refactor + split + testes (2026-03-17) | 28.415 | 4.026 | 32.441 | 135 | ~250 (frequency.ts) | 1157 |
 
 *CSS estimado: soma dos 7 styles.css individuais antes da dedup.
 
@@ -393,7 +394,7 @@ Ganho de manutenibilidade alcancado:
 | **LOC (src/*.ts)** | 38.067 | 28.415 | **-9.652 (-25.4%)** |
 | **CSS** | ~4.500 | 4.026 | **-474 (-10.5%)** |
 | **Maior arquivo** | 11.147 | 950 | **-91.5%** |
-| **Testes** | 0 | 1100 | +1100 |
+| **Testes** | 0 | 1157 | +1157 |
 | **as any** | 222+ | 4 | -99% |
 | **@ts-ignore** | 44+ | 3 | -93% |
 | **tsc errors** | 82 | 0 | -100% |
@@ -410,7 +411,7 @@ Ganho de manutenibilidade alcancado:
 - Type guards: 1 lugar (markerResolvers.ts), nao duplicados
 - CSS: 1 namespace (codemarker-popover), zero duplicacao
 - Type safety: 222 → 4 `as any`, 44 → 3 `@ts-ignore`
-- Testes: 1100 testes em 32 suites (Vitest + jsdom), cobrindo core, analytics, media, engine models, fileInterceptor
+- Testes: 1157 testes em 34 suites (Vitest + jsdom), cobrindo core, analytics (exportCSV, modes, statsEngine), media, engine models, fileInterceptor
 - Registry: auto-persist via onMutate callback em create/update/delete/clear
 - Engine registration: retorno explicito {cleanup, model} — zero non-null assertions no main.ts
 - Fabric.js: fabricExtensions.d.ts (Canvas, Rect, etc.) + boardTypes.ts (discriminated union por tipo de no)
@@ -483,7 +484,7 @@ return createStandaloneViewWrapper(standalone) as any
 
 ## Testes pendentes — analytics modes (2026-03-17)
 
-Cobertura atual: 1100 testes, 32 suites. Os mode modules extraidos tem gaps:
+Cobertura atual: 1157 testes, 34 suites. Gaps restantes:
 
 | Categoria | Funcoes | Testavel jsdom? | Prioridade |
 |-----------|---------|----------------|------------|

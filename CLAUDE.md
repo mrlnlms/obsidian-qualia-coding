@@ -20,6 +20,9 @@ src/
   audio/                     — Audio engine (wavesurfer.js) — extends MediaCodingModel
   video/                     — Video engine — extends MediaCodingModel
   analytics/                 — Charts e word clouds (chart.js)
+    data/
+      statsEngine.ts         — barrel re-export (6 modulos: frequency, cooccurrence, evolution, sequential, inferential, textAnalysis)
+      statsHelpers.ts        — applyFilters compartilhado
     board/
       boardTypes.ts          — discriminated union: StickyNode, SnapshotNode, ExcerptNode, etc.
       fabricExtensions.d.ts  — ambient types para Fabric.js (Canvas, Rect, etc. + FabricObject methods)
@@ -61,7 +64,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1082 testes em 32 suites (Vitest + jsdom)
+- `npm run test` — 1157 testes em 34 suites (Vitest + jsdom)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView
 - Type guards compartilhados em `markerResolvers.ts`
