@@ -55,7 +55,7 @@ export class ImageSidebarAdapter extends BaseSidebarAdapter {
 		this.model.saveMarkers();
 	}
 
-	protected notifyAfterFieldUpdate(): void {
+	protected override notifyAfterFieldUpdate(): void {
 		this.model.notify();
 	}
 

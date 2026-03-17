@@ -87,7 +87,7 @@ export class PdfSidebarAdapter extends BaseSidebarAdapter {
 		this.model.save();
 	}
 
-	protected notifyAfterFieldUpdate(): void {
+	protected override notifyAfterFieldUpdate(): void {
 		this.model.notify();
 	}
 

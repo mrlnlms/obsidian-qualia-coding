@@ -67,7 +67,7 @@ export class MediaSidebarAdapter<
 		this.model.saveMarkers();
 	}
 
-	protected notifyAfterFieldUpdate(): void {
+	protected override notifyAfterFieldUpdate(): void {
 		this.model.notify();
 	}
 

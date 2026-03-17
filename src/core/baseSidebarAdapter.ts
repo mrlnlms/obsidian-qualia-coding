@@ -2,8 +2,8 @@
  * BaseSidebarAdapter — shared boilerplate for all engine sidebar adapters.
  *
  * Handles listener wrapping (onChange, onHoverChange), hover state proxy,
- * and constructor setup. Subclasses implement engine-specific methods
- * (getAllMarkers, updateMarkerFields, removeMarker, deleteCode, etc.).
+ * constructor setup, and shared CRUD (deleteCode, updateMarkerFields).
+ * Subclasses implement engine-specific methods (getAllMarkers, removeMarker, etc.).
  */
 
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
