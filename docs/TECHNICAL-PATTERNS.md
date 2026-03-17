@@ -714,16 +714,18 @@ flush():
 
 Se `markDirty()` dispara durante um save ativo, defere em vez de dropar. Sem esse pattern, saves concorrentes causam data loss.
 
-### 6.10 File Rename Tracking — Inconsistente entre Engines
+### 6.10 File Rename Tracking
+
+Todos os engines agora suportam rename via `fileInterceptor.ts` centralizado + `model.migrateFilePath()`:
 
 | Engine | File rename support | Method |
 |--------|-------------------|--------|
-| Markdown | ✅ | External vault event handler |
-| PDF | ✅ | `model.migrateFilePath()` |
-| Audio | ✅ | `model.migrateFilePath()` |
-| Video | ✅ | `model.migrateFilePath()` |
-| CSV | ❌ | Markers orphaned on rename |
-| Image | ❌ | Markers orphaned on rename |
+| Markdown | ✅ | `model.migrateFilePath()` via fileInterceptor |
+| PDF | ✅ | `model.migrateFilePath()` via fileInterceptor |
+| Audio | ✅ | `model.migrateFilePath()` via fileInterceptor |
+| Video | ✅ | `model.migrateFilePath()` via fileInterceptor |
+| CSV | ✅ | `model.migrateFilePath()` via fileInterceptor |
+| Image | ✅ | `model.migrateFilePath()` via fileInterceptor |
 
 ### 6.11 Timing Inventory (Valores Consolidados)
 
@@ -767,7 +769,7 @@ Divergência conhecida: `.codemarker-code-form .cm-form-actions` — v2 usa `pad
 
 Padrões estabelecidos durante o refactor de unificação:
 
-- **BaseSidebarAdapter**: Classe base (`baseSidebarAdapter.ts`) da qual todos os sidebar adapters herdam. Concentra lógica comum de sidebar (toggle codes, memo, navigation). Adapters específicos (PDF, CSV, Image, Media) estendem.
+- **BaseSidebarAdapter**: Classe base (`baseSidebarAdapter.ts`) da qual todos os sidebar adapters herdam. Concentra listener wrapping, hover state, `deleteCode()` e `updateMarkerFields()` com hook `notifyAfterFieldUpdate()`. PDF override para dual text/shape. CSV override hook para `notifyAndSave()`. Adapters específicos (PDF, CSV, Image, Media) estendem.
 - **MediaCodingModel**: Base genérica (`mediaCodingModel.ts`) compartilhada entre Audio e Video. Gerencia markers, save debounce (500ms via `scheduleSave()`), e change listeners. `AudioCodingModel` e `VideoCodingModel` estendem.
 - **Module augmentation**: Typings adicionais via declaration files — `obsidian-internals.d.ts` (workspace events, internal APIs) e `fabricExtensions.d.ts` (propriedades custom em FabricObject para board nodes).
 - **Discriminated union para board nodes**: `boardTypes.ts` define cada tipo de node (Sticky, Snapshot, Excerpt, CodeCard, KpiCard, ClusterFrame, Arrow) como interface com `boardType` discriminant. Type guards (`isStickyNode()`, `isExcerptNode()`, etc.) para narrowing seguro.

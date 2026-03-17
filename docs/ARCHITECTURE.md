@@ -254,14 +254,15 @@ Instância única compartilhada entre todos os 7 engines:
 
 ### 5.3 Engine Registration Pattern
 
-Cada engine exporta `registerXxxEngine()` que retorna `EngineCleanup`:
+Cada engine exporta `registerXxxEngine()` que retorna `EngineRegistration<Model>`:
 ```typescript
-interface EngineCleanup {
-  destroy(): void;
+interface EngineRegistration<M> {
+  cleanup: { destroy(): void };
+  model: M;
 }
 ```
 
-`main.ts` orquestra: registra todos os engines, coleta cleanup functions, chama `destroy()` no `onunload()`.
+`main.ts` orquestra: registra todos os engines, coleta cleanup + model references, chama `destroy()` no `onunload()`. Models são passados ao `UnifiedModelAdapter` para a sidebar unificada.
 
 **Regra**: `main.ts` deve ficar ~15 LOC. Se crescer, mover lógica para os engines.
 
@@ -270,7 +271,7 @@ interface EngineCleanup {
 ```
 src/
   core/
-    baseSidebarAdapter.ts    — base class for all sidebar adapters (listener wrapping, hover state)
+    baseSidebarAdapter.ts    — base class for all sidebar adapters (listener wrapping, hover state, deleteCode, updateMarkerFields)
     markerResolvers.ts       — shared marker lookup/resolution utilities across engines
   media/
     mediaCodingModel.ts      — shared CodingModel for audio/video engines
@@ -653,7 +654,7 @@ interface QDAProject {
 3. `getMarkerLabel(marker: BaseMarker): string` — Human-readable marker description
 4. `getSortedMarkers(codeId: string): BaseMarker[]` — Return markers sorted by engine-specific ordering
 
-**`BaseSidebarAdapter`** — shared base class for all sidebar adapters (markdown, PDF, CSV, image, audio, video). Handles listener wrapping (subscribe/unsubscribe lifecycle) and hover state management. Each engine's sidebar adapter extends this base, inheriting consistent event plumbing and hover highlight behavior without duplicating boilerplate.
+**`BaseSidebarAdapter`** — shared base class for all sidebar adapters (PDF, CSV, image, audio, video). Handles listener wrapping, hover state, `deleteCode()`, and `updateMarkerFields()` (with `notifyAfterFieldUpdate()` hook). PDF overrides both for dual text/shape handling. CSV overrides the notification hook for `notifyAndSave()`. Markdown implements `SidebarModelInterface` directly on its model.
 
 ### Bugs Found During Consolidation
 
