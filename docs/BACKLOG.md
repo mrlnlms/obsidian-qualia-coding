@@ -350,7 +350,9 @@ Audio/Video herdam via `MediaSidebarAdapter` intermediario.
 | clear() dispara onMutate + remove dead code addExistingCodeAction | Borda de persist + dead code | FEITO (2026-03-17) |
 | Engine registration retorna {cleanup, model} — zero ! no main.ts | Contrato explicito | FEITO (2026-03-17) |
 | Suite de testes expandida (430 testes, 19 suites) | +statsEngine, dataManager, adapters, CSV/Image models, cluster, MCA, MDS, decisionTree | FEITO (2026-03-17) |
-| **Total eliminado** | **~1.360 linhas, 222→4 as any, 44→3 @ts-ignore, 82→0 erros tsc, 430 testes** | |
+| Fixa versao obsidian (latest → ^1.12.3) | Previne breaking changes upstream | FEITO (2026-03-17) |
+| fileInterceptor cleanup no unload (clearFileInterceptRules) | Previne leak de regras em hot-reload | FEITO (2026-03-17) |
+| **Total** | **~1.360 linhas eliminadas, 222→4 as any, 44→3 @ts-ignore, 82→0 erros tsc, 430 testes, 55 commits** | |
 | analyticsView.ts split (5.907 linhas) | Reorganiza, nao elimina | Futuro |
 | statsEngine.ts split | Reorganiza | Futuro |
 
