@@ -7,15 +7,15 @@
  */
 
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
-import type { SidebarModelInterface } from './types';
+import type { BaseMarker, SidebarModelInterface } from './types';
 
 /** Minimal model interface that all engine models satisfy for adapter plumbing. */
 export interface AdapterModel {
 	registry: CodeDefinitionRegistry;
 	onChange(fn: () => void): void;
 	offChange(fn: () => void): void;
-	onHoverChange(fn: (...args: any[]) => void): void;
-	offHoverChange(fn: (...args: any[]) => void): void;
+	onHoverChange(fn: (...args: unknown[]) => void): void;
+	offHoverChange(fn: (...args: unknown[]) => void): void;
 	setHoverState(markerId: string | null, codeName: string | null): void;
 	getHoverMarkerId(): string | null;
 }
@@ -25,7 +25,7 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 	protected readonly model: AdapterModel;
 
 	private changeListeners = new Map<() => void, () => void>();
-	private hoverListeners = new Map<() => void, (...args: any[]) => void>();
+	private hoverListeners = new Map<() => void, (...args: unknown[]) => void>();
 
 	constructor(model: AdapterModel) {
 		this.model = model;
@@ -48,7 +48,7 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 	}
 
 	onHoverChange(fn: () => void): void {
-		const wrapper = (..._args: any[]) => fn();
+		const wrapper = (..._args: unknown[]) => fn();
 		this.hoverListeners.set(fn, wrapper);
 		this.model.onHoverChange(wrapper);
 	}
@@ -78,10 +78,10 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 
 	// ── Abstract — subclasses implement ──
 
-	abstract getAllMarkers(): any[];
-	abstract getMarkerById(id: string): any;
+	abstract getAllMarkers(): BaseMarker[];
+	abstract getMarkerById(id: string): BaseMarker | null;
 	abstract getAllFileIds(): string[];
-	abstract getMarkersForFile(fileId: string): any[];
+	abstract getMarkersForFile(fileId: string): BaseMarker[];
 	abstract saveMarkers(): void;
 	abstract updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void;
 	abstract updateDecorations(fileId: string): void;

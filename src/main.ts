@@ -30,8 +30,8 @@ export default class QualiaCodingPlugin extends Plugin {
 	dataManager!: DataManager;
 	sharedRegistry!: CodeDefinitionRegistry;
 	private cleanups: EngineCleanup[] = [];
-	updateFileMarkersEffect: any; // Set by markdown engine
-	markdownModel: any; // Set by markdown engine
+	updateFileMarkersEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
+	markdownModel?: import('./markdown/models/codeMarkerModel').CodeMarkerModel;
 	pdfModel?: PdfCodingModel;
 	imageModel?: ImageCodingModel;
 	csvModel?: CsvCodingModel;

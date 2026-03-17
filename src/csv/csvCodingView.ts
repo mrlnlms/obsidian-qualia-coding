@@ -376,7 +376,7 @@ export class CsvCodingView extends FileView {
 		editorContainer.style.flex = '1';
 		editorContainer.style.overflow = 'auto';
 
-		const mdModel = this.plugin.markdownModel;
+		const mdModel = this.plugin.markdownModel!;
 
 		// Sync code definitions from shared registry so colors resolve in CM6
 		for (const def of this.csvModel.registry.getAll()) {
@@ -490,7 +490,7 @@ export class CsvCodingView extends FileView {
 	}
 
 	private populateMarkersFromSegments(virtualFileId: string, segments: SegmentMarker[], cellText: string) {
-		const mdModel = this.plugin.markdownModel;
+		const mdModel = this.plugin.markdownModel!;
 		mdModel.clearMarkersForFile(virtualFileId);
 
 		const lines = cellText.split('\n');
@@ -537,7 +537,7 @@ export class CsvCodingView extends FileView {
 
 			this.syncMarkersBackToCsvModel(virtualFileId, file, row, column);
 
-			const mdModel = this.plugin.markdownModel;
+			const mdModel = this.plugin.markdownModel!;
 			unregisterStandaloneEditor(this.editorView);
 			mdModel.unregisterStandaloneEditor(virtualFileId);
 			mdModel.clearMarkersForFile(virtualFileId);
@@ -566,7 +566,7 @@ export class CsvCodingView extends FileView {
 	}
 
 	private syncMarkersBackToCsvModel(virtualFileId: string, file: string, row: number, column: string) {
-		const mdModel = this.plugin.markdownModel;
+		const mdModel = this.plugin.markdownModel!;
 		const mdMarkers = mdModel.getMarkersForFile(virtualFileId);
 
 		if (!this.editorView) return;
