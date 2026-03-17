@@ -218,3 +218,59 @@ describe('clearAllSections', () => {
 		expect((plugin as any).saveData).toHaveBeenCalled();
 	});
 });
+
+// ── Settings deep merge ──────────────────────────────────────
+
+describe('settings deep merge on load', () => {
+	it('merges all engine settings with defaults, preserving custom values', async () => {
+		const plugin = createMockPlugin({
+			registry: { definitions: {}, nextPaletteIndex: 0 },
+			markdown: { markers: {}, settings: { defaultColor: '#custom' } },
+			csv: { segmentMarkers: [], rowMarkers: [] },
+			image: { markers: [], settings: { autoOpenImages: false } },
+			pdf: { markers: [], shapes: [] },
+			audio: { files: [], settings: { defaultZoom: 80 } },
+			video: { files: [], settings: { defaultZoom: 80, videoFit: 'cover' } },
+		});
+		const dm = new DataManager(plugin);
+		await dm.load();
+
+		// markdown: custom preserved, defaults filled
+		expect(dm.section('markdown').settings.defaultColor).toBe('#custom');
+		expect(dm.section('markdown').settings.markerOpacity).toBe(0.4);
+
+		// image: custom preserved, defaults filled
+		expect(dm.section('image').settings.autoOpenImages).toBe(false);
+		expect(dm.section('image').settings.fileStates).toEqual({});
+
+		// audio: custom preserved, defaults filled
+		expect(dm.section('audio').settings.defaultZoom).toBe(80);
+		expect(dm.section('audio').settings.regionOpacity).toBe(0.4);
+		expect(dm.section('audio').settings.fileStates).toEqual({});
+
+		// video: custom preserved, defaults filled
+		expect(dm.section('video').settings.defaultZoom).toBe(80);
+		expect(dm.section('video').settings.videoFit).toBe('cover');
+		expect(dm.section('video').settings.regionOpacity).toBe(0.4);
+		expect(dm.section('video').settings.fileStates).toEqual({});
+	});
+
+	it('fills all defaults when settings are completely missing', async () => {
+		const plugin = createMockPlugin({
+			registry: { definitions: {}, nextPaletteIndex: 0 },
+			markdown: { markers: {} },
+			csv: { segmentMarkers: [], rowMarkers: [] },
+			image: { markers: [] },
+			pdf: { markers: [], shapes: [] },
+			audio: { files: [] },
+			video: { files: [] },
+		});
+		const dm = new DataManager(plugin);
+		await dm.load();
+
+		expect(dm.section('markdown').settings.defaultColor).toBe('#6200EE');
+		expect(dm.section('image').settings.autoOpenImages).toBe(true);
+		expect(dm.section('audio').settings.defaultZoom).toBe(50);
+		expect(dm.section('video').settings.videoFit).toBe('contain');
+	});
+});
