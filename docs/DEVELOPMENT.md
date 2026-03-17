@@ -76,7 +76,14 @@ src/
 ```
 
 ### Regra: `main.ts` é orquestrador leve (~100 LOC)
-Não implementa lógica de engine — apenas registra, conecta e limpa. Cada engine exporta `registerXxxEngine()` que retorna `EngineCleanup`. O registry persiste automaticamente via `onMutate` callback.
+Não implementa lógica de engine — apenas registra, conecta e limpa. Cada engine exporta `registerXxxEngine()` que retorna `EngineRegistration<Model>` com `{ cleanup, model }`. O main.ts destructura o model diretamente — sem non-null assertions. O registry persiste automaticamente via `onMutate` callback.
+
+```typescript
+// Padrão de registro de engine
+const pdf = registerPdfEngine(this);
+this.cleanups.push(pdf.cleanup);
+const pdfModel = pdf.model;  // tipado, sem !
+```
 
 ---
 

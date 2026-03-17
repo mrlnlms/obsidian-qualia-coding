@@ -347,7 +347,10 @@ Audio/Video herdam via `MediaSidebarAdapter` intermediario.
 | Tipa fronteira de integracao (main.ts + baseSidebarAdapter) | Zero any na integracao | FEITO (2026-03-17) |
 | Suite de testes Vitest (429 testes, 19 suites) | Cobertura core + analytics | FEITO (2026-03-17) |
 | Bug fixes: overlap PDF/CSV-row, temporal filters.codes, listener leak | 3 bugs do Codex | FEITO (2026-03-17) |
-| **Total eliminado** | **~1.360 linhas, 222→4 as any, 44→3 @ts-ignore, 82→0 erros tsc, 429 testes** | |
+| clear() dispara onMutate + remove dead code addExistingCodeAction | Borda de persist + dead code | FEITO (2026-03-17) |
+| Engine registration retorna {cleanup, model} — zero ! no main.ts | Contrato explicito | FEITO (2026-03-17) |
+| Suite de testes expandida (430 testes, 19 suites) | +statsEngine, dataManager, adapters, CSV/Image models, cluster, MCA, MDS, decisionTree | FEITO (2026-03-17) |
+| **Total eliminado** | **~1.360 linhas, 222→4 as any, 44→3 @ts-ignore, 82→0 erros tsc, 430 testes** | |
 | analyticsView.ts split (5.907 linhas) | Reorganiza, nao elimina | Futuro |
 | statsEngine.ts split | Reorganiza | Futuro |
 
@@ -359,8 +362,9 @@ Ganho de manutenibilidade alcancado:
 - Type guards: 1 lugar (markerResolvers.ts), nao duplicados
 - CSS: 1 namespace (codemarker-popover), zero duplicacao
 - Type safety: 222 → 4 `as any`, 44 → 3 `@ts-ignore`
-- Testes: 429 testes em 19 suites (Vitest + jsdom), cobrindo core, analytics, media, engine models
-- Registry: auto-persist via onMutate callback (zero risco de perda de dados)
+- Testes: 430 testes em 19 suites (Vitest + jsdom), cobrindo core, analytics, media, engine models
+- Registry: auto-persist via onMutate callback em create/update/delete/clear
+- Engine registration: retorno explicito {cleanup, model} — zero non-null assertions no main.ts
 - Fabric.js: fabricExtensions.d.ts (Canvas, Rect, etc.) + boardTypes.ts (discriminated union por tipo de no)
 - Board: zero erros tsc — discriminated union com type guards para narrowing automatico
 - Build: `npm run build` passa com zero erros (tsc + esbuild)
