@@ -21,8 +21,11 @@ export class DataManager {
 			for (const key of Object.keys(defaults) as Array<keyof QualiaData>) {
 				if (raw[key] === undefined) raw[key] = defaults[key];
 			}
-			// Merge nested settings with defaults (handles new keys added later)
+			// Merge nested settings with defaults for ALL engines (handles new keys added later)
 			raw.markdown.settings = { ...defaults.markdown.settings, ...(raw.markdown.settings ?? {}) };
+			raw.image.settings = { ...defaults.image.settings, ...(raw.image.settings ?? {}) };
+			raw.audio.settings = { ...defaults.audio.settings, ...(raw.audio.settings ?? {}) };
+			raw.video.settings = { ...defaults.video.settings, ...(raw.video.settings ?? {}) };
 			this.data = raw as QualiaData;
 		} else {
 			this.data = defaults;

@@ -21,6 +21,20 @@ export interface AnalyticsPluginAPI {
 }
 
 export function registerAnalyticsEngine(plugin: QualiaCodingPlugin): () => void {
+
+  /** Activate board and wait until the view is ready (polling instead of fixed setTimeout). */
+  async function getBoardView(): Promise<BoardView | null> {
+    await activateBoard();
+    for (let i = 0; i < 20; i++) {
+      const leaves = plugin.app.workspace.getLeavesOfType(BOARD_VIEW_TYPE);
+      if (leaves.length > 0 && leaves[0]!.view instanceof BoardView) {
+        return leaves[0]!.view as BoardView;
+      }
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    return null;
+  }
+
   const api: AnalyticsPluginAPI = {
     app: plugin.app,
     data: null,
@@ -39,40 +53,23 @@ export function registerAnalyticsEngine(plugin: QualiaCodingPlugin): () => void 
     },
 
     async addChartToBoard(title: string, dataUrl: string, viewMode: string): Promise<void> {
-      await activateBoard();
-      await new Promise((r) => setTimeout(r, 100));
-      const leaves = plugin.app.workspace.getLeavesOfType(BOARD_VIEW_TYPE);
-      if (leaves.length > 0) {
-        const boardView = leaves[0]!.view as BoardView;
-        await boardView.addSnapshot(title, dataUrl, viewMode);
-      }
+      const boardView = await getBoardView();
+      if (boardView) await boardView.addSnapshot(title, dataUrl, viewMode);
     },
 
     async addKpiCardToBoard(value: string, label: string, accent: string): Promise<void> {
-      await activateBoard();
-      await new Promise((r) => setTimeout(r, 100));
-      const leaves = plugin.app.workspace.getLeavesOfType(BOARD_VIEW_TYPE);
-      if (leaves.length > 0) {
-        (leaves[0]!.view as BoardView).addKpiCard(value, label, accent);
-      }
+      const boardView = await getBoardView();
+      if (boardView) boardView.addKpiCard(value, label, accent);
     },
 
     async addCodeCardToBoard(codeName: string, color: string, description: string, markerCount: number, sources: string[]): Promise<void> {
-      await activateBoard();
-      await new Promise((r) => setTimeout(r, 100));
-      const leaves = plugin.app.workspace.getLeavesOfType(BOARD_VIEW_TYPE);
-      if (leaves.length > 0) {
-        (leaves[0]!.view as BoardView).addCodeCard(codeName, color, description, markerCount, sources);
-      }
+      const boardView = await getBoardView();
+      if (boardView) boardView.addCodeCard(codeName, color, description, markerCount, sources);
     },
 
     async addExcerptToBoard(text: string, file: string, source: string, location: string, codes: string[], codeColors: string[]): Promise<void> {
-      await activateBoard();
-      await new Promise((r) => setTimeout(r, 100));
-      const leaves = plugin.app.workspace.getLeavesOfType(BOARD_VIEW_TYPE);
-      if (leaves.length > 0) {
-        (leaves[0]!.view as BoardView).addExcerpt(text, file, source, location, codes, codeColors);
-      }
+      const boardView = await getBoardView();
+      if (boardView) boardView.addExcerpt(text, file, source, location, codes, codeColors);
     },
   };
 

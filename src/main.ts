@@ -39,7 +39,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	videoModel?: VideoCodingModel;
 
 	async onload() {
-		console.log('[Qualia Coding] v45 loaded — Cache refresh + market research + strategy docs (final)');
+		console.log(`[Qualia Coding] v${this.manifest.version} loaded`);
 		this.dataManager = new DataManager(this);
 		await this.dataManager.load();
 
