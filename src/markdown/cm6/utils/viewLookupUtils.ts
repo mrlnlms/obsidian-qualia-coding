@@ -27,7 +27,8 @@ export function getViewForFile(fileId: string, app: App): MarkdownView | null {
 	// Check standalone first (virtual fileIds like csv:...)
 	const standalone = standaloneByFileId.get(fileId);
 	if (standalone) {
-		return createStandaloneViewWrapper(standalone) as any;
+		// Duck-type wrapper — implements .editor subset needed by CodeMarkerModel
+		return createStandaloneViewWrapper(standalone) as Pick<MarkdownView, 'editor'> as MarkdownView;
 	}
 
 	const leaves = app.workspace.getLeavesOfType('markdown');

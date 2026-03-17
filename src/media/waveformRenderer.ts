@@ -201,7 +201,7 @@ export class WaveformRenderer {
   }
 
   on(event: string, callback: (...args: any[]) => void): void {
-    this.ws?.on(event as any, callback);
+    this.ws?.on(event as 'ready', callback);
   }
 
   applyThemeColors(): void {
