@@ -352,14 +352,51 @@ Audio/Video herdam via `MediaSidebarAdapter` intermediario.
 | Suite de testes expandida (430 testes, 19 suites) | +statsEngine, dataManager, adapters, CSV/Image models, cluster, MCA, MDS, decisionTree | FEITO (2026-03-17) |
 | Fixa versao obsidian (latest → ^1.12.3) | Previne breaking changes upstream | FEITO (2026-03-17) |
 | fileInterceptor cleanup no unload (clearFileInterceptRules) | Previne leak de regras em hot-reload | FEITO (2026-03-17) |
-| **Total** | **~1.360 linhas eliminadas, 222→4 as any, 44→3 @ts-ignore, 82→0 erros tsc, 430 testes, 57 commits** | |
+| **Total refactor (2026-03-16/17)** | **~1.360 linhas eliminadas, 222→4 as any, 44→3 @ts-ignore, 82→0 erros tsc, 57 commits** | |
 | analyticsView.ts split (5.907 → 798 + 19 modules) | Core + 19 modes + shared | FEITO (2026-03-17) |
+| Suite de testes (430 → 919 testes, 19 → 27 suites) | +chartHelpers, viewModes, core, textRetrieval, optionSections, CodeMarkerModel, PdfCodingModel, highlightGeometry | FEITO (2026-03-17) |
 | statsEngine.ts split | Reorganiza | Futuro |
 
 Ganho de manutenibilidade alcancado:
 - Menu: 1 sistema unificado para TODOS os engines (codingPopover.ts + externalContainer para CM6)
 - Audio/Video: corrigir bug em 1 model base, nao 2
 - Sidebar: 1 adapter base (BaseSidebarAdapter), listeners unificados
+
+---
+
+## Evolucao do codebase — metricas historicas (2026-03-17)
+
+### LOC por fase
+
+| Fase | src/*.ts | styles.css | Total | Arquivos | Maior arquivo | Testes |
+|------|---------|------------|-------|----------|---------------|--------|
+| 7 plugins separados (pre-merge) | 38.067 | ~4.500* | ~42.500 | 7×~15 | 11.147 (analytics) | 0 |
+| Merge 7→1 (d7eb286, 2026-03-02) | 29.074 | 4.143 | 33.217 | 106 | 5.907 (analyticsView) | 0 |
+| Porting complete v45 (6a0bb35, 2026-03-07) | 29.329 | 4.139 | 33.468 | 106 | 5.907 (analyticsView) | 0 |
+| Pos-refactor + split + testes (2026-03-17) | 28.415 | 4.026 | 32.441 | 129 | 950 (statsEngine) | 919 |
+
+*CSS estimado: soma dos 7 styles.css individuais antes da dedup.
+
+### Reducao total
+
+| Metrica | 7 plugins | Agora | Delta |
+|---------|-----------|-------|-------|
+| **LOC (src/*.ts)** | 38.067 | 28.415 | **-9.652 (-25.4%)** |
+| **CSS** | ~4.500 | 4.026 | **-474 (-10.5%)** |
+| **Maior arquivo** | 11.147 | 950 | **-91.5%** |
+| **Testes** | 0 | 919 | +919 |
+| **as any** | 222+ | 4 | -99% |
+| **@ts-ignore** | 44+ | 3 | -93% |
+| **tsc errors** | 82 | 0 | -100% |
+
+### Onde foram as 9.652 linhas?
+
+- **Codigo duplicado entre plugins**: ~8.900 linhas. Cada plugin copiava integralmente: registry, menu system, sidebar views, settings tab, hover bridge, type guards, save/load. Com 7 plugins, havia ~6 copias de cada modulo compartilhado
+- **Dead code**: ~293 linhas de views/explorers substituidos pelas unified views
+- **CSS duplicado**: ~474 linhas de seletores identicos entre os 7 styles.css
+- **Consolidacao audio/video**: ~370 linhas — 2 models identicos viraram 1 (MediaCodingModel)
+- **Menu unification**: ~444 linhas — 6 menus com ~70% identico viraram 1 sistema
+- **Boilerplate de split** (compensacao): +231 linhas de imports nos novos modulos
 - Types: nomes consistentes (fileId, memo, removeMarker, colorOverride)
 - Type guards: 1 lugar (markerResolvers.ts), nao duplicados
 - CSS: 1 namespace (codemarker-popover), zero duplicacao
