@@ -121,6 +121,10 @@ npx vitest run tests/analytics/performanceBenchmark.test.ts --reporter=verbose
 
 Os tempos variam por máquina. Os valores acima foram medidos em Apple Silicon (M-series). Em máquinas mais lentas os números serão maiores, mas as proporções relativas se mantêm.
 
+## Nota sobre o benchmark como teste
+
+O benchmark atual usa threshold generoso (2s) e loga resultados — serve como **observabilidade**, não como proteção dura contra regressão. Se uma mudança dobrar o tempo de uma função, o teste ainda passa. Quando o plugin tiver uso real com vaults grandes, calibrar os asserts para orçamentos mais apertados (ex: <50ms para 500 markers) e transformar em proteção de regressão efetiva.
+
 ## Conclusão
 
-O analytics engine está pronto para vaults com centenas a milhares de markers. O único ponto de atenção é o MCA, que deve ser monitorado se o vault crescer além de 5.000 markers codificados.
+O analytics engine está pronto para vaults com centenas a milhares de markers. O único ponto de atenção é o MCA, que deve ser monitorado se o vault crescer além de 5.000 markers codificados. O próximo passo não é otimizar — é instrumentar uso real e só atacar o MCA se aparecer como gargalo no fluxo de usuários.
