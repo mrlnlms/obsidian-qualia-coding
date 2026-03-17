@@ -25,6 +25,41 @@ export interface FileRenameRule {
 const rules: FileInterceptRule[] = [];
 const renameRules: FileRenameRule[] = [];
 
+// ── Extracted pure helpers (testable without Obsidian) ──
+
+/** Extract file path from a leaf's view state or FileView fallback. */
+export function resolveLeafFilePath(
+	stateFile: unknown,
+	viewFilePath: string | undefined,
+): string | undefined {
+	if (typeof stateFile === 'string') return stateFile;
+	return viewFilePath;
+}
+
+/** Check whether a rule matches the current context (guards + extension). */
+export function matchesInterceptRule(
+	rule: FileInterceptRule,
+	currentViewType: string,
+	fileExt: string,
+): boolean {
+	if (currentViewType === rule.targetViewType) return false;
+	if (rule.sourceViewType && currentViewType !== rule.sourceViewType) return false;
+	if (rule.shouldIntercept && !rule.shouldIntercept()) return false;
+	return rule.extensions.has(fileExt);
+}
+
+/** Dispatch rename to all rules matching the file extension. */
+export function dispatchRenameRules(
+	rules: FileRenameRule[],
+	ext: string,
+	oldPath: string,
+	newPath: string,
+): void {
+	for (const rule of rules) {
+		if (rule.extensions.has(ext)) rule.onRename(oldPath, newPath);
+	}
+}
+
 export function registerFileIntercept(rule: FileInterceptRule): void {
 	rules.push(rule);
 }
@@ -44,10 +79,7 @@ export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 	plugin.registerEvent(
 		plugin.app.vault.on('rename', (file, oldPath) => {
 			if (!(file instanceof TFile)) return;
-			const ext = file.extension.toLowerCase();
-			for (const rule of renameRules) {
-				if (rule.extensions.has(ext)) rule.onRename(oldPath, file.path);
-			}
+			dispatchRenameRules(renameRules, file.extension.toLowerCase(), oldPath, file.path);
 		})
 	);
 
@@ -58,29 +90,17 @@ export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 			const viewType = leaf.view.getViewType();
 
 			for (const rule of rules) {
-				// Already showing target view — skip
-				if (viewType === rule.targetViewType) continue;
-
-				// Source filter: only intercept specific source view types
-				if (rule.sourceViewType && viewType !== rule.sourceViewType) continue;
-
-				// Custom guard
-				if (rule.shouldIntercept && !rule.shouldIntercept()) continue;
-
 				// Resolve file path from view state or view.file
-				let filePath: string | undefined;
 				const vs = leaf.getViewState();
-				if (vs.state?.file) {
-					filePath = vs.state.file as string;
-				} else if (leaf.view instanceof FileView) {
-					const f = leaf.view.file;
-					if (f instanceof TFile) filePath = f.path;
-				}
+				const viewFilePath = leaf.view instanceof FileView && leaf.view.file instanceof TFile
+					? leaf.view.file.path
+					: undefined;
+				const filePath = resolveLeafFilePath(vs.state?.file, viewFilePath);
 				if (!filePath) continue;
 
-				// Extension check
+				// Extension + guard checks
 				const ext = filePath.split('.').pop()?.toLowerCase();
-				if (!ext || !rule.extensions.has(ext)) continue;
+				if (!ext || !matchesInterceptRule(rule, viewType, ext)) continue;
 
 				// Verify file exists
 				const file = plugin.app.vault.getAbstractFileByPath(filePath);
