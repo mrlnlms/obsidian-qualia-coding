@@ -262,12 +262,26 @@ describe('getOrCreateFile', () => {
 // ── migrateFilePath ──
 
 describe('migrateFilePath', () => {
-	it('renames file path in files array', () => {
+	it('renames file path and updates marker.fileId', () => {
 		model.findOrCreateMarker('old.mp3', 0, 5);
 		model.migrateFilePath('old.mp3', 'new.mp3');
 		vi.advanceTimersByTime(600);
 		expect(model.getMarkersForFile('new.mp3')).toHaveLength(1);
 		expect(model.getMarkersForFile('old.mp3')).toEqual([]);
+		const marker = model.getMarkersForFile('new.mp3')[0];
+		expect(marker.fileId).toBe('new.mp3');
+	});
+
+	it('updates fileId on all markers in the file', () => {
+		model.findOrCreateMarker('old.mp3', 0, 5);
+		model.findOrCreateMarker('old.mp3', 10, 15);
+		model.migrateFilePath('old.mp3', 'renamed.mp3');
+		vi.advanceTimersByTime(600);
+		const markers = model.getMarkersForFile('renamed.mp3');
+		expect(markers).toHaveLength(2);
+		for (const m of markers) {
+			expect(m.fileId).toBe('renamed.mp3');
+		}
 	});
 
 	it('does nothing for unknown old path', () => {

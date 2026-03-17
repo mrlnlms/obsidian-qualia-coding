@@ -252,6 +252,9 @@ export class MediaCodingModel<
 		const file = this.files.find((f) => f.path === oldPath);
 		if (file) {
 			file.path = newPath;
+			for (const m of file.markers) {
+				m.fileId = newPath;
+			}
 			this.notify();
 		}
 	}
