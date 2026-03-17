@@ -1,0 +1,220 @@
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { DataManager } from '../../src/core/dataManager';
+import { createDefaultData } from '../../src/core/types';
+import type { QualiaData } from '../../src/core/types';
+import type { Plugin } from 'obsidian';
+
+function createMockPlugin(initialData: any = null) {
+	let stored = initialData;
+	return {
+		loadData: vi.fn(async () => stored),
+		saveData: vi.fn(async (data: any) => { stored = data; }),
+	} as unknown as Plugin;
+}
+
+let dm: DataManager;
+let plugin: ReturnType<typeof createMockPlugin>;
+
+beforeEach(() => {
+	vi.useFakeTimers();
+	plugin = createMockPlugin();
+	dm = new DataManager(plugin as unknown as Plugin);
+});
+
+afterEach(() => {
+	vi.useRealTimers();
+});
+
+// ── load ──────────────────────────────────────────────────────
+
+describe('load', () => {
+	it('creates defaults when loadData returns null', async () => {
+		await dm.load();
+		const data = dm.getAll();
+		const defaults = createDefaultData();
+		expect(data.registry).toEqual(defaults.registry);
+		expect(data.markdown.settings).toEqual(defaults.markdown.settings);
+		expect(data.csv).toEqual(defaults.csv);
+	});
+
+	it('fills missing sections from defaults on partial data', async () => {
+		const partial = { registry: { definitions: {}, nextPaletteIndex: 3 } };
+		plugin = createMockPlugin(partial);
+		dm = new DataManager(plugin as unknown as Plugin);
+		await dm.load();
+		const data = dm.getAll();
+		expect(data.registry.nextPaletteIndex).toBe(3);
+		// Missing sections should be filled from defaults
+		expect(data.csv).toEqual(createDefaultData().csv);
+		expect(data.image).toEqual(createDefaultData().image);
+	});
+
+	it('merges nested markdown settings with defaults', async () => {
+		const partial = {
+			...createDefaultData(),
+			markdown: { markers: {}, settings: { defaultColor: '#FF0000' } },
+		};
+		plugin = createMockPlugin(partial);
+		dm = new DataManager(plugin as unknown as Plugin);
+		await dm.load();
+		const data = dm.getAll();
+		// Custom value preserved
+		expect(data.markdown.settings.defaultColor).toBe('#FF0000');
+		// Default values filled in for missing keys
+		expect(data.markdown.settings.markerOpacity).toBe(0.4);
+		expect(data.markdown.settings.showHandlesOnHover).toBe(true);
+	});
+
+	it('preserves existing data when all sections present', async () => {
+		const full = createDefaultData();
+		full.registry.nextPaletteIndex = 7;
+		plugin = createMockPlugin(full);
+		dm = new DataManager(plugin as unknown as Plugin);
+		await dm.load();
+		expect(dm.getAll().registry.nextPaletteIndex).toBe(7);
+	});
+});
+
+// ── section ───────────────────────────────────────────────────
+
+describe('section', () => {
+	it('returns the correct section by typed key', async () => {
+		await dm.load();
+		const csv = dm.section('csv');
+		expect(csv).toEqual({ segmentMarkers: [], rowMarkers: [] });
+	});
+
+	it('returns the correct section for registry', async () => {
+		await dm.load();
+		const reg = dm.section('registry');
+		expect(reg.definitions).toEqual({});
+		expect(reg.nextPaletteIndex).toBe(0);
+	});
+});
+
+// ── setSection ────────────────────────────────────────────────
+
+describe('setSection', () => {
+	it('updates data for a typed key', async () => {
+		await dm.load();
+		dm.setSection('csv', { segmentMarkers: [{ id: '1' }], rowMarkers: [] } as any);
+		expect(dm.section('csv').segmentMarkers).toHaveLength(1);
+	});
+
+	it('works with string key overload', async () => {
+		await dm.load();
+		dm.setSection('customKey' as any, { foo: 'bar' } as any);
+		expect(dm.section('customKey' as any)).toEqual({ foo: 'bar' });
+	});
+});
+
+// ── getAll ────────────────────────────────────────────────────
+
+describe('getAll', () => {
+	it('returns full data snapshot', async () => {
+		await dm.load();
+		const all = dm.getAll();
+		expect(all).toHaveProperty('registry');
+		expect(all).toHaveProperty('markdown');
+		expect(all).toHaveProperty('csv');
+		expect(all).toHaveProperty('image');
+		expect(all).toHaveProperty('pdf');
+		expect(all).toHaveProperty('audio');
+		expect(all).toHaveProperty('video');
+	});
+});
+
+// ── flush ─────────────────────────────────────────────────────
+
+describe('flush', () => {
+	it('calls saveData on the plugin', async () => {
+		await dm.load();
+		await dm.flush();
+		expect((plugin as any).saveData).toHaveBeenCalled();
+	});
+
+	it('saves the current data state', async () => {
+		await dm.load();
+		dm.setSection('csv', { segmentMarkers: [{ id: 'x' }], rowMarkers: [] } as any);
+		// Clear the timer so flush isn't called automatically
+		vi.clearAllTimers();
+		await dm.flush();
+		const savedArg = (plugin as any).saveData.mock.calls.at(-1)?.[0];
+		expect(savedArg.csv.segmentMarkers).toHaveLength(1);
+	});
+});
+
+// ── markDirty ─────────────────────────────────────────────────
+
+describe('markDirty', () => {
+	it('schedules a save after 500ms', async () => {
+		await dm.load();
+		dm.markDirty();
+		expect((plugin as any).saveData).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(500);
+		expect((plugin as any).saveData).toHaveBeenCalled();
+	});
+
+	it('debounces multiple markDirty calls', async () => {
+		await dm.load();
+		dm.markDirty();
+		await vi.advanceTimersByTimeAsync(200);
+		dm.markDirty();
+		await vi.advanceTimersByTimeAsync(200);
+		// Only 400ms since last markDirty — should not have saved yet
+		expect((plugin as any).saveData).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(300);
+		expect((plugin as any).saveData).toHaveBeenCalledTimes(1);
+	});
+
+	it('setSection triggers markDirty automatically', async () => {
+		await dm.load();
+		dm.setSection('csv', { segmentMarkers: [], rowMarkers: [] });
+		await vi.advanceTimersByTimeAsync(500);
+		expect((plugin as any).saveData).toHaveBeenCalled();
+	});
+});
+
+// ── clearAllSections ──────────────────────────────────────────
+
+describe('clearAllSections', () => {
+	it('resets all engine data', async () => {
+		await dm.load();
+		dm.setSection('csv', { segmentMarkers: [{ id: '1' }], rowMarkers: [{ id: '2' }] } as any);
+		vi.clearAllTimers();
+		await dm.clearAllSections();
+		const data = dm.getAll();
+		expect(data.csv.segmentMarkers).toEqual([]);
+		expect(data.csv.rowMarkers).toEqual([]);
+		expect(data.pdf.markers).toEqual([]);
+		expect(data.pdf.shapes).toEqual([]);
+		expect(data.image.markers).toEqual([]);
+		expect(data.audio.files).toEqual([]);
+		expect(data.video.files).toEqual([]);
+		expect(data.markdown.markers).toEqual({});
+		expect(data.registry).toEqual({ definitions: {}, nextPaletteIndex: 0 });
+	});
+
+	it('preserves per-engine settings', async () => {
+		const initial = createDefaultData();
+		initial.markdown.settings.defaultColor = '#CUSTOM';
+		initial.image.settings.autoOpenImages = false;
+		initial.audio.settings.defaultZoom = 100;
+		initial.video.settings.videoFit = 'cover';
+		plugin = createMockPlugin(initial);
+		dm = new DataManager(plugin as unknown as Plugin);
+		await dm.load();
+		await dm.clearAllSections();
+		const data = dm.getAll();
+		expect(data.markdown.settings.defaultColor).toBe('#CUSTOM');
+		expect(data.image.settings.autoOpenImages).toBe(false);
+		expect(data.audio.settings.defaultZoom).toBe(100);
+		expect(data.video.settings.videoFit).toBe('cover');
+	});
+
+	it('calls flush after clearing', async () => {
+		await dm.load();
+		await dm.clearAllSections();
+		expect((plugin as any).saveData).toHaveBeenCalled();
+	});
+});
