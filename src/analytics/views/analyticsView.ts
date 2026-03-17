@@ -9,15 +9,12 @@ import { calculateMCA, type MCAResult } from "../data/mcaEngine";
 import { calculateMDS, type MDSResult, type MDSMode } from "../data/mdsEngine";
 import { hierarchicalCluster, buildDendrogram, cutDendrogram, calculateSilhouette, type DendrogramNode } from "../data/clusterEngine";
 import { buildDecisionTree, type DecisionTreeNode, type DecisionTreeResult } from "../data/decisionTreeEngine";
+import type { AnalyticsViewContext } from "./analyticsViewContext";
+export type { ViewMode, SortMode, MatrixSortMode, GroupMode, DisplayMode, CooccSortMode } from "./analyticsViewContext";
+import type { ViewMode, SortMode, MatrixSortMode, GroupMode, DisplayMode, CooccSortMode } from "./analyticsViewContext";
+import { heatmapColor, isLightColor, generateFileColors, computeDisplayMatrix, divergentColor, isDivergentLight, SOURCE_COLORS } from "./shared/chartHelpers";
 
 export const ANALYTICS_VIEW_TYPE = "codemarker-analytics";
-
-export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap";
-export type SortMode = "alpha" | "freq-desc" | "freq-asc";
-export type MatrixSortMode = "alpha" | "total";
-export type GroupMode = "none" | "source" | "file";
-export type DisplayMode = "absolute" | "percentage" | "jaccard" | "dice" | "presence";
-export type CooccSortMode = "alpha" | "frequency" | "cluster";
 
 export class AnalyticsView extends ItemView {
   private plugin: AnalyticsPluginAPI;
@@ -921,7 +918,7 @@ export class AnalyticsView extends ItemView {
       for (let j = 0; j < n; j++) {
         const x = offsetX + j * cellSize;
         const y = offsetY + i * cellSize;
-        ctx.fillStyle = this.heatmapColor(cooc.matrix[i]![j]!, cooc.maxValue, isDark);
+        ctx.fillStyle = heatmapColor(cooc.matrix[i]![j]!, cooc.maxValue, isDark);
         ctx.fillRect(x, y, cellSize, cellSize);
       }
     }
@@ -1032,7 +1029,7 @@ export class AnalyticsView extends ItemView {
       for (let ci = 0; ci < nCodes; ci++) {
         const x = offsetX + ci * cellW;
         const y = offsetY + fi * cellH;
-        ctx.fillStyle = this.heatmapColor(dm.matrix[fi]![ci]!, dm.maxValue, isDark);
+        ctx.fillStyle = heatmapColor(dm.matrix[fi]![ci]!, dm.maxValue, isDark);
         ctx.fillRect(x, y, cellW, cellH);
       }
     }
@@ -1170,7 +1167,7 @@ export class AnalyticsView extends ItemView {
         for (const f of Object.keys(r.byFile)) allFiles.add(f);
       }
       const fileList = Array.from(allFiles).sort();
-      const fileColors = this.generateFileColors(fileList.length);
+      const fileColors = generateFileColors(fileList.length);
       datasets = fileList.map((file, i) => ({
         label: file.split("/").pop() ?? file,
         data: results.map((r) => r.byFile[file] ?? 0),
@@ -1395,7 +1392,7 @@ export class AnalyticsView extends ItemView {
     const textColor = styles.getPropertyValue("--text-normal").trim() || (isDark ? "#dcddde" : "#1a1a1a");
 
     // Prepare display values
-    const displayMatrix = this.computeDisplayMatrix(result);
+    const displayMatrix = computeDisplayMatrix(result, this.displayMode);
     const isNormalized = this.displayMode === "jaccard" || this.displayMode === "dice";
 
     // Draw cells
@@ -1409,7 +1406,7 @@ export class AnalyticsView extends ItemView {
         // Cell background — for Jaccard/Dice use display value (0-1) for coloring
         const heatVal = isNormalized ? dispVal : rawVal;
         const heatMax = isNormalized ? 1 : result.maxValue;
-        ctx.fillStyle = this.heatmapColor(heatVal!, heatMax!, isDark);
+        ctx.fillStyle = heatmapColor(heatVal!, heatMax!, isDark);
         ctx.fillRect(x, y, cellSize, cellSize);
 
         // Diagonal highlight
@@ -1433,7 +1430,7 @@ export class AnalyticsView extends ItemView {
         } else {
           textVal = `${dispVal}`;
         }
-        const textBright = this.isLightColor(this.heatmapColor(heatVal!, heatMax!, isDark));
+        const textBright = isLightColor(heatmapColor(heatVal!, heatMax!, isDark));
         ctx.fillStyle = textBright ? "#1a1a1a" : "#f0f0f0";
         ctx.font = `${Math.min(12, cellSize * 0.3)}px sans-serif`;
         ctx.textAlign = "center";
@@ -1748,7 +1745,7 @@ export class AnalyticsView extends ItemView {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       // Text color contrasting with node
-      const bright = this.isLightColor(color!);
+      const bright = isLightColor(color!);
       ctx.fillStyle = bright ? "#1a1a1a" : "#f0f0f0";
       ctx.fillText(label!, node!.x, node!.y);
     }
@@ -1884,7 +1881,7 @@ export class AnalyticsView extends ItemView {
         const y = labelSpaceTop + fi * cellSize;
         const val = result.matrix[fileIdx]![ci]!;
 
-        ctx.fillStyle = this.heatmapColor(val, result.maxValue, isDark);
+        ctx.fillStyle = heatmapColor(val, result.maxValue, isDark);
         ctx.fillRect(x, y, cellSize, cellSize);
 
         // Cell border
@@ -1894,7 +1891,7 @@ export class AnalyticsView extends ItemView {
 
         // Value text
         if (val > 0) {
-          const textBright = this.isLightColor(this.heatmapColor(val, result.maxValue, isDark));
+          const textBright = isLightColor(heatmapColor(val, result.maxValue, isDark));
           ctx.fillStyle = textBright ? "#1a1a1a" : "#f0f0f0";
           ctx.font = `${Math.min(12, cellSize * 0.3)}px sans-serif`;
           ctx.textAlign = "center";
@@ -2522,78 +2519,6 @@ export class AnalyticsView extends ItemView {
         }, 200);
       }
     });
-  }
-
-  private computeDisplayMatrix(result: CooccurrenceResult): number[][] {
-    const n = result.codes.length;
-    const m: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
-
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
-        const raw = result.matrix[i]![j]!;
-        if (this.displayMode === "absolute") {
-          m[i]![j] = raw;
-        } else if (this.displayMode === "presence") {
-          m[i]![j] = raw > 0 ? 1 : 0;
-        } else if (this.displayMode === "jaccard") {
-          if (i === j) {
-            m[i]![j] = raw > 0 ? 1 : 0;
-          } else {
-            const union = result.matrix[i]![i]! + result.matrix[j]![j]! - raw;
-            m[i]![j] = union > 0 ? Math.round((raw / union) * 100) / 100 : 0;
-          }
-        } else if (this.displayMode === "dice") {
-          if (i === j) {
-            m[i]![j] = raw > 0 ? 1 : 0;
-          } else {
-            const sum = result.matrix[i]![i]! + result.matrix[j]![j]!;
-            m[i]![j] = sum > 0 ? Math.round((2 * raw / sum) * 100) / 100 : 0;
-          }
-        } else {
-          // percentage
-          if (i === j) {
-            m[i]![j] = raw;
-          } else {
-            const minFreq = Math.min(result.matrix[i]![i]!, result.matrix[j]![j]!);
-            m[i]![j] = minFreq > 0 ? Math.round((raw / minFreq) * 100) : 0;
-          }
-        }
-      }
-    }
-    return m;
-  }
-
-  private heatmapColor(value: number, maxValue: number, isDark: boolean): string {
-    if (value === 0 || maxValue === 0) return isDark ? "#2a2a2a" : "#f5f5f5";
-    const intensity = value / maxValue;
-    if (isDark) {
-      const r = Math.round(42 + intensity * (229 - 42));
-      const g = Math.round(42 + intensity * (57 - 42));
-      const b = Math.round(42 + intensity * (53 - 42));
-      return `rgb(${r},${g},${b})`;
-    } else {
-      const r = Math.round(245 + intensity * (229 - 245));
-      const g = Math.round(245 + intensity * (57 - 245));
-      const b = Math.round(245 + intensity * (53 - 245));
-      return `rgb(${r},${g},${b})`;
-    }
-  }
-
-  private isLightColor(color: string): boolean {
-    const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-    if (!match) return true;
-    const [, r, g, b] = match.map(Number);
-    const luminance = (0.299 * r! + 0.587 * g! + 0.114 * b!) / 255;
-    return luminance > 0.5;
-  }
-
-  private generateFileColors(count: number): string[] {
-    const colors: string[] = [];
-    for (let i = 0; i < count; i++) {
-      const hue = (i * 137.5) % 360; // golden angle for good distribution
-      colors.push(`hsl(${hue}, 60%, 55%)`);
-    }
-    return colors;
   }
 
   // ─── Word Cloud ───
@@ -4252,7 +4177,7 @@ export class AnalyticsView extends ItemView {
         const z = result.zScores[i]![j]!;
 
         // Divergent: blue (negative) → white → red (positive)
-        ctx.fillStyle = this.divergentColor(z!, maxZ, isDark);
+        ctx.fillStyle = divergentColor(z!, maxZ, isDark);
         ctx.fillRect(x, y, cellSize, cellSize);
 
         // Significance border
@@ -4269,7 +4194,7 @@ export class AnalyticsView extends ItemView {
 
         // Z-score text
         const zText = z!.toFixed(1);
-        const bgBright = this.isDivergentLight(z!, maxZ, isDark);
+        const bgBright = isDivergentLight(z!, maxZ, isDark);
         ctx.fillStyle = bgBright ? "#1a1a1a" : "#f0f0f0";
         ctx.font = `${Math.min(11, cellSize * 0.28)}px sans-serif`;
         ctx.textAlign = "center";
@@ -4350,43 +4275,6 @@ export class AnalyticsView extends ItemView {
     canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
   }
 
-  private divergentColor(z: number, maxZ: number, isDark: boolean): string {
-    const intensity = Math.min(Math.abs(z) / Math.max(maxZ, 3), 1);
-    if (z > 0) {
-      // Red (activation)
-      if (isDark) {
-        const r = Math.round(42 + intensity * (229 - 42));
-        const g = Math.round(42 + intensity * (57 - 42));
-        const b = Math.round(42 + intensity * (53 - 42));
-        return `rgb(${r},${g},${b})`;
-      } else {
-        const r = Math.round(255 - intensity * (255 - 229));
-        const g = Math.round(255 - intensity * (255 - 57));
-        const b = Math.round(255 - intensity * (255 - 53));
-        return `rgb(${r},${g},${b})`;
-      }
-    } else {
-      // Blue (inhibition)
-      if (isDark) {
-        const r = Math.round(42 + intensity * (33 - 42));
-        const g = Math.round(42 + intensity * (150 - 42));
-        const b = Math.round(42 + intensity * (243 - 42));
-        return `rgb(${r},${g},${b})`;
-      } else {
-        const r = Math.round(255 - intensity * (255 - 33));
-        const g = Math.round(255 - intensity * (255 - 150));
-        const b = Math.round(255 - intensity * (255 - 243));
-        return `rgb(${r},${g},${b})`;
-      }
-    }
-  }
-
-  private isDivergentLight(z: number, maxZ: number, isDark: boolean): boolean {
-    const intensity = Math.min(Math.abs(z) / Math.max(maxZ, 3), 1);
-    if (isDark) return intensity < 0.3;
-    return intensity < 0.5;
-  }
-
   private renderMiniLag(canvas: HTMLCanvasElement, lag: LagResult): void {
     const ctx = canvas.getContext("2d");
     if (!ctx || lag.codes.length < 2) return;
@@ -4406,7 +4294,7 @@ export class AnalyticsView extends ItemView {
       for (let j = 0; j < n; j++) {
         const x = offsetX + j * cellSize;
         const y = offsetY + i * cellSize;
-        ctx.fillStyle = this.divergentColor(lag.zScores[i]![j]!, maxZ, isDark);
+        ctx.fillStyle = divergentColor(lag.zScores[i]![j]!, maxZ, isDark);
         ctx.fillRect(x, y, cellSize, cellSize);
       }
     }
@@ -5243,16 +5131,6 @@ export class AnalyticsView extends ItemView {
     }
   }
 
-  private readonly SOURCE_COLORS: Record<string, string> = {
-    markdown: "#42A5F5",
-    "csv-segment": "#66BB6A",
-    "csv-row": "#81C784",
-    image: "#FFA726",
-    pdf: "#EF5350",
-    audio: "#AB47BC",
-    video: "#7E57C2",
-  };
-
   private renderSourceComparisonChart(result: SourceComparisonResult, container: HTMLElement): void {
     const entries = result.entries;
     const sources = result.activeSources;
@@ -5301,7 +5179,7 @@ export class AnalyticsView extends ItemView {
     ctx.textBaseline = "middle";
     let legendX = labelSpace;
     for (const s of sources) {
-      ctx.fillStyle = this.SOURCE_COLORS[s] ?? "#888";
+      ctx.fillStyle = SOURCE_COLORS[s] ?? "#888";
       ctx.fillRect(legendX, 6, 10, 10);
       ctx.fillStyle = textColor;
       const label = s === "csv-segment" ? "CSV-Seg" : s === "csv-row" ? "CSV-Row" : s.charAt(0).toUpperCase() + s.slice(1);
@@ -5337,7 +5215,7 @@ export class AnalyticsView extends ItemView {
         const barW = Math.max(0, (val / maxVal) * barAreaW);
         const y = baseY + si * barH;
 
-        ctx.fillStyle = this.SOURCE_COLORS[s] ?? "#888";
+        ctx.fillStyle = SOURCE_COLORS[s] ?? "#888";
         ctx.fillRect(labelSpace, y, barW, barH - 1);
 
         // Value label
@@ -5430,7 +5308,7 @@ export class AnalyticsView extends ItemView {
         if (val > 0 && this.srcCompDisplayMode === "count") {
           const maxSrc = result.sourceTotals[s] || 1;
           const pct = Math.min(100, (e.bySource[s] / maxSrc) * 100);
-          td.style.background = `linear-gradient(90deg, ${this.SOURCE_COLORS[s] ?? "#888"}22 ${pct}%, transparent ${pct}%)`;
+          td.style.background = `linear-gradient(90deg, ${SOURCE_COLORS[s] ?? "#888"}22 ${pct}%, transparent ${pct}%)`;
         }
       }
     }
@@ -5469,7 +5347,7 @@ export class AnalyticsView extends ItemView {
         const val = r!.bySource[s];
         if (val <= 0) continue;
         const barW = (val / total) * barAreaW;
-        ctx.fillStyle = this.SOURCE_COLORS[s] ?? "#888";
+        ctx.fillStyle = SOURCE_COLORS[s] ?? "#888";
         ctx.fillRect(leftPad + offset, y, barW, barHeight);
         offset += barW;
       }
@@ -5557,7 +5435,7 @@ export class AnalyticsView extends ItemView {
     const styles = getComputedStyle(document.body);
     const textColor = styles.getPropertyValue("--text-normal").trim() || (isDark ? "#dcddde" : "#1a1a1a");
 
-    const displayMatrix = this.computeDisplayMatrix(asCooc);
+    const displayMatrix = computeDisplayMatrix(asCooc, this.displayMode);
     const isNormalized = this.displayMode === "jaccard" || this.displayMode === "dice";
 
     // Draw cells
@@ -5570,7 +5448,7 @@ export class AnalyticsView extends ItemView {
 
         const heatVal = isNormalized ? dispVal : rawVal;
         const heatMax = isNormalized ? 1 : asCooc.maxValue;
-        ctx.fillStyle = this.heatmapColor(heatVal!, heatMax!, isDark);
+        ctx.fillStyle = heatmapColor(heatVal!, heatMax!, isDark);
         ctx.fillRect(x, y, cellSize, cellSize);
 
         if (i === j) {
@@ -5591,7 +5469,7 @@ export class AnalyticsView extends ItemView {
         } else {
           textVal = `${dispVal}`;
         }
-        const textBright = this.isLightColor(this.heatmapColor(heatVal!, heatMax!, isDark));
+        const textBright = isLightColor(heatmapColor(heatVal!, heatMax!, isDark));
         ctx.fillStyle = textBright ? "#1a1a1a" : "#f0f0f0";
         ctx.font = `${Math.min(12, cellSize * 0.3)}px sans-serif`;
         ctx.textAlign = "center";
@@ -5684,7 +5562,7 @@ export class AnalyticsView extends ItemView {
       for (let j = 0; j < n; j++) {
         const x = offsetX + j * cellSize;
         const y = offsetY + i * cellSize;
-        ctx.fillStyle = this.heatmapColor(matrix[i]![j]!, maxValue, isDark);
+        ctx.fillStyle = heatmapColor(matrix[i]![j]!, maxValue, isDark);
         ctx.fillRect(x, y, cellSize, cellSize);
       }
     }
