@@ -279,6 +279,7 @@ export function calculateTemporal(data: ConsolidatedData, filters: FilterConfig)
     if (ts == null) continue;
     for (const code of m.codes) {
       if (filters.excludeCodes.includes(code)) continue;
+      if (filters.codes.length > 0 && !filters.codes.includes(code)) continue;
       let arr = codeTimestamps.get(code);
       if (!arr) { arr = []; codeTimestamps.set(code, arr); }
       arr.push(ts);
@@ -844,7 +845,7 @@ function markerToRange(m: UnifiedMarker): { start: number; end: number } | null 
 }
 
 function rangesOverlap(a: { start: number; end: number }, b: { start: number; end: number }): boolean {
-  return a.start < b.end && b.start < a.end;
+  return a.start <= b.end && b.start <= a.end;
 }
 
 export function calculateOverlap(

@@ -168,9 +168,25 @@ describe('multiple listeners', () => {
 		adapter.onHoverChange(fn1);
 		adapter.onHoverChange(fn2);
 		adapter.offHoverChange(fn1);
+		// Should have removed fn1's wrapper via offHoverChange on model
+		// onHoverChange called 2x, offHoverChange called 1x for fn1's wrapper
 		expect(model.offHoverChange).toHaveBeenCalledTimes(1);
-		// Should have removed the wrapper for fn1, not fn2
-		const wrapper1 = (model.onHoverChange as ReturnType<typeof vi.fn>).mock.calls[0][0];
-		expect(model.offHoverChange).toHaveBeenCalledWith(wrapper1);
+	});
+
+	it('prevents duplicate onChange registration for same fn', () => {
+		const fn = vi.fn();
+		adapter.onChange(fn);
+		adapter.onChange(fn); // second call should be no-op
+		expect(model.onChange).toHaveBeenCalledTimes(1);
+	});
+
+	it('re-registering onHoverChange cleans up previous wrapper', () => {
+		const fn = vi.fn();
+		adapter.onHoverChange(fn);
+		const firstWrapper = (model.onHoverChange as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		adapter.onHoverChange(fn); // re-register same fn
+		// Should have removed first wrapper before registering new one
+		expect(model.offHoverChange).toHaveBeenCalledWith(firstWrapper);
+		expect(model.onHoverChange).toHaveBeenCalledTimes(2);
 	});
 });

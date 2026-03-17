@@ -310,6 +310,22 @@ describe('calculateTemporal', () => {
 		expect(result.dateRange).toEqual([500, 5000]);
 	});
 
+	it('respects filters.codes — only includes specified codes', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'markdown', 'f1', ['A', 'B'], { createdAt: 1000 }),
+				makeMarker('m2', 'markdown', 'f1', ['B'], { createdAt: 2000 }),
+			],
+			[makeCode('A'), makeCode('B')],
+		);
+		const filters = createFilters({ codes: ['A'] });
+		const result = calculateTemporal(data, filters);
+		// Only A should appear, not B
+		expect(result.codes).toEqual(['A']);
+		expect(result.series).toHaveLength(1);
+		expect(result.series[0].code).toBe('A');
+	});
+
 	it('returns [0, 0] dateRange for empty qualified codes', () => {
 		const data = createTestData([], []);
 		const result = calculateTemporal(data, createFilters());
@@ -444,6 +460,34 @@ describe('calculateOverlap', () => {
 		const ai = result.codes.indexOf('A');
 		const bi = result.codes.indexOf('B');
 		expect(result.matrix[ai][bi]).toBe(0);
+	});
+
+	it('detects overlap for PDF markers on same page (zero-width range)', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'pdf', 'f1', ['A'], { page: 3, fromLine: 3, toLine: 3 }),
+				makeMarker('m2', 'pdf', 'f1', ['B'], { page: 3, fromLine: 3, toLine: 3 }),
+			],
+			[makeCode('A'), makeCode('B')],
+		);
+		const result = calculateOverlap(data, createFilters());
+		const ai = result.codes.indexOf('A');
+		const bi = result.codes.indexOf('B');
+		expect(result.matrix[ai][bi]).toBeGreaterThan(0);
+	});
+
+	it('detects overlap for csv-row markers on same row (zero-width range)', () => {
+		const data = createTestData(
+			[
+				makeMarker('m1', 'csv-row', 'f1', ['A'], { row: 5, fromLine: 5, toLine: 5 }),
+				makeMarker('m2', 'csv-row', 'f1', ['B'], { row: 5, fromLine: 5, toLine: 5 }),
+			],
+			[makeCode('A'), makeCode('B')],
+		);
+		const result = calculateOverlap(data, createFilters());
+		const ai = result.codes.indexOf('A');
+		const bi = result.codes.indexOf('B');
+		expect(result.matrix[ai][bi]).toBeGreaterThan(0);
 	});
 
 	it('skips image markers and reports in skippedSources', () => {

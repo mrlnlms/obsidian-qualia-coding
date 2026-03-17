@@ -35,6 +35,7 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 	// ── Listener wrapping ──
 
 	onChange(fn: () => void): void {
+		if (this.changeListeners.has(fn)) return; // prevent duplicate registration
 		this.changeListeners.set(fn, fn);
 		this.model.onChange(fn);
 	}
@@ -48,6 +49,11 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 	}
 
 	onHoverChange(fn: () => void): void {
+		// Remove previous wrapper if re-registering same fn (prevents leak)
+		const existing = this.hoverListeners.get(fn);
+		if (existing) {
+			this.model.offHoverChange(existing);
+		}
 		const wrapper = (..._args: unknown[]) => fn();
 		this.hoverListeners.set(fn, wrapper);
 		this.model.onHoverChange(wrapper);
