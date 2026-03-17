@@ -12,6 +12,7 @@ import type { BaseMarker } from '../../src/core/types';
 
 function makeBase(extra: Record<string, any> = {}): BaseMarker {
   return {
+    markerType: 'markdown',
     id: 'test-1',
     fileId: 'file.md',
     codes: ['code1'],
@@ -24,71 +25,71 @@ function makeBase(extra: Record<string, any> = {}): BaseMarker {
 // ── Type Guards ──────────────────────────────────────────────
 
 describe('isPdfMarker', () => {
-  it('returns true for marker with page and isShape', () => {
-    expect(isPdfMarker(makeBase({ page: 1, isShape: false, text: 'hello' }))).toBe(true);
+  it('returns true for marker with markerType pdf', () => {
+    expect(isPdfMarker(makeBase({ markerType: 'pdf', page: 1, isShape: false, text: 'hello' }))).toBe(true);
   });
 
-  it('returns false for marker without page', () => {
-    expect(isPdfMarker(makeBase({ isShape: false }))).toBe(false);
+  it('returns false for non-pdf markerType', () => {
+    expect(isPdfMarker(makeBase({ markerType: 'image' }))).toBe(false);
   });
 
-  it('returns false for empty extra fields', () => {
+  it('returns false for default markdown markerType', () => {
     expect(isPdfMarker(makeBase())).toBe(false);
   });
 });
 
 describe('isImageMarker', () => {
-  it('returns true for marker with shape and shapeLabel', () => {
-    expect(isImageMarker(makeBase({ shape: 'rect', shapeLabel: 'Region 1' }))).toBe(true);
+  it('returns true for marker with markerType image', () => {
+    expect(isImageMarker(makeBase({ markerType: 'image', shape: 'rect', shapeLabel: 'Region 1' }))).toBe(true);
   });
 
-  it('returns false for marker without shapeLabel', () => {
-    expect(isImageMarker(makeBase({ shape: 'rect' }))).toBe(false);
+  it('returns false for non-image markerType', () => {
+    expect(isImageMarker(makeBase({ markerType: 'pdf' }))).toBe(false);
   });
 
-  it('returns false for plain marker', () => {
+  it('returns false for default markdown markerType', () => {
     expect(isImageMarker(makeBase())).toBe(false);
   });
 });
 
 describe('isCsvMarker', () => {
-  it('returns true for marker with rowIndex and columnId', () => {
-    expect(isCsvMarker(makeBase({ rowIndex: 0, columnId: 'col1' }))).toBe(true);
+  it('returns true for marker with markerType csv', () => {
+    expect(isCsvMarker(makeBase({ markerType: 'csv', rowIndex: 0, columnId: 'col1' }))).toBe(true);
   });
 
-  it('returns false for marker without columnId', () => {
-    expect(isCsvMarker(makeBase({ rowIndex: 0 }))).toBe(false);
+  it('returns false for non-csv markerType', () => {
+    expect(isCsvMarker(makeBase({ markerType: 'pdf' }))).toBe(false);
   });
 
-  it('returns false for unrelated fields', () => {
-    expect(isCsvMarker(makeBase({ page: 1 }))).toBe(false);
+  it('returns false for default markdown markerType', () => {
+    expect(isCsvMarker(makeBase())).toBe(false);
   });
 });
 
 describe('isAudioMarker', () => {
-  it('returns true for marker with mediaType "audio"', () => {
-    expect(isAudioMarker(makeBase({ mediaType: 'audio', markerLabel: 'seg' }))).toBe(true);
+  it('returns true for marker with markerType audio', () => {
+    expect(isAudioMarker(makeBase({ markerType: 'audio', mediaType: 'audio', markerLabel: 'seg' }))).toBe(true);
   });
 
-  it('returns false for marker with mediaType "video"', () => {
-    expect(isAudioMarker(makeBase({ mediaType: 'video', markerLabel: 'seg' }))).toBe(false);
+  it('returns false for video markerType', () => {
+    expect(isAudioMarker(makeBase({ markerType: 'video', mediaType: 'video', markerLabel: 'seg' }))).toBe(false);
   });
 
-  it('returns false for marker without mediaType', () => {
+  it('returns false for default markdown markerType', () => {
     expect(isAudioMarker(makeBase())).toBe(false);
   });
 });
 
 describe('isVideoMarker', () => {
-  it('returns true for marker with mediaType "video"', () => {
-    expect(isVideoMarker(makeBase({ mediaType: 'video', markerLabel: 'seg' }))).toBe(true);
+  it('returns true for marker with markerType video', () => {
+    expect(isVideoMarker(makeBase({ markerType: 'video', mediaType: 'video', markerLabel: 'seg' }))).toBe(true);
   });
 
-  it('returns false for marker with mediaType "audio"', () => {
-    expect(isVideoMarker(makeBase({ mediaType: 'audio', markerLabel: 'seg' }))).toBe(false);
+  it('returns false for audio markerType', () => {
+    expect(isVideoMarker(makeBase({ markerType: 'audio', mediaType: 'audio', markerLabel: 'seg' }))).toBe(false);
   });
 
-  it('returns false for plain marker', () => {
+  it('returns false for default markdown markerType', () => {
     expect(isVideoMarker(makeBase())).toBe(false);
   });
 });
@@ -137,42 +138,42 @@ describe('shortenPath', () => {
 
 describe('getMarkerLabel', () => {
   it('returns shapeLabel for image marker', () => {
-    const marker = makeBase({ shape: 'rect', shapeLabel: 'Region 1' });
+    const marker = makeBase({ markerType: 'image', shape: 'rect', shapeLabel: 'Region 1' });
     expect(getMarkerLabel(marker, null)).toBe('Region 1');
   });
 
   it('returns text for PDF marker with text', () => {
-    const marker = makeBase({ page: 1, isShape: false, text: 'highlighted text' });
+    const marker = makeBase({ markerType: 'pdf', page: 1, isShape: false, text: 'highlighted text' });
     expect(getMarkerLabel(marker, null)).toBe('highlighted text');
   });
 
   it('returns shapeLabel for PDF shape marker', () => {
-    const marker = makeBase({ page: 1, isShape: true, shapeLabel: 'Shape A', text: '' });
+    const marker = makeBase({ markerType: 'pdf', page: 1, isShape: true, shapeLabel: 'Shape A', text: '' });
     expect(getMarkerLabel(marker, null)).toBe('Shape A');
   });
 
   it('returns "Page N" for PDF marker without text', () => {
-    const marker = makeBase({ page: 3, isShape: false, text: '' });
+    const marker = makeBase({ markerType: 'pdf', page: 3, isShape: false, text: '' });
     expect(getMarkerLabel(marker, null)).toBe('Page 3');
   });
 
   it('returns markerText for CSV marker with markerText', () => {
-    const marker = makeBase({ rowIndex: 0, columnId: 'c1', markerText: 'cell content', markerLabel: 'R0:c1', isSegment: true });
+    const marker = makeBase({ markerType: 'csv', rowIndex: 0, columnId: 'c1', markerText: 'cell content', markerLabel: 'R0:c1', isSegment: true });
     expect(getMarkerLabel(marker, null)).toBe('cell content');
   });
 
   it('returns markerLabel for CSV marker without markerText', () => {
-    const marker = makeBase({ rowIndex: 0, columnId: 'c1', markerText: null, markerLabel: 'R0:c1', isSegment: false });
+    const marker = makeBase({ markerType: 'csv', rowIndex: 0, columnId: 'c1', markerText: null, markerLabel: 'R0:c1', isSegment: false });
     expect(getMarkerLabel(marker, null)).toBe('R0:c1');
   });
 
   it('returns markerLabel for audio marker', () => {
-    const marker = makeBase({ mediaType: 'audio', markerLabel: '0:05 - 0:10', startTime: 5, endTime: 10, markerText: null });
+    const marker = makeBase({ markerType: 'audio', mediaType: 'audio', markerLabel: '0:05 - 0:10', startTime: 5, endTime: 10, markerText: null });
     expect(getMarkerLabel(marker, null)).toBe('0:05 - 0:10');
   });
 
   it('returns markerLabel for video marker', () => {
-    const marker = makeBase({ mediaType: 'video', markerLabel: '1:00 - 1:30', startTime: 60, endTime: 90, markerText: null });
+    const marker = makeBase({ markerType: 'video', mediaType: 'video', markerLabel: '1:00 - 1:30', startTime: 60, endTime: 90, markerText: null });
     expect(getMarkerLabel(marker, null)).toBe('1:00 - 1:30');
   });
 
@@ -183,20 +184,20 @@ describe('getMarkerLabel', () => {
 
   it('truncates text longer than maxLength with "..."', () => {
     const longText = 'a'.repeat(100);
-    const marker = makeBase({ page: 1, isShape: false, text: longText });
+    const marker = makeBase({ markerType: 'pdf', page: 1, isShape: false, text: longText });
     const label = getMarkerLabel(marker, null, 20);
     expect(label).toBe('a'.repeat(20) + '...');
   });
 
   it('uses custom maxLength parameter', () => {
     const text = 'abcdefghij';
-    const marker = makeBase({ page: 1, isShape: false, text });
+    const marker = makeBase({ markerType: 'pdf', page: 1, isShape: false, text });
     expect(getMarkerLabel(marker, null, 5)).toBe('abcde...');
   });
 
   it('does not truncate text equal to maxLength', () => {
     const text = 'a'.repeat(60);
-    const marker = makeBase({ page: 1, isShape: false, text });
+    const marker = makeBase({ markerType: 'pdf', page: 1, isShape: false, text });
     expect(getMarkerLabel(marker, null, 60)).toBe(text);
   });
 

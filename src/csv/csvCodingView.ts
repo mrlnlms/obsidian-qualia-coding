@@ -511,6 +511,7 @@ export class CsvCodingView extends FileView {
 		for (const seg of segments) {
 			if (seg.codes.length === 0) continue;
 			const marker: Marker = {
+				markerType: 'markdown',
 				id: seg.id,
 				fileId: virtualFileId,
 				range: {

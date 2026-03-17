@@ -9,7 +9,10 @@ import type { VideoFile } from '../video/videoCodingTypes';
 
 // ─── Base interfaces for sidebar views (all engines) ─────────────
 
+export type MarkerType = 'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video';
+
 export interface BaseMarker {
+	markerType: MarkerType;
 	id: string;
 	fileId: string;
 	codes: string[];

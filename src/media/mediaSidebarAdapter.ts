@@ -30,6 +30,7 @@ export class MediaSidebarAdapter<
 
 	protected markerToBase(m: M): BM {
 		return {
+			markerType: this.mediaType as import('../core/types').MarkerType,
 			id: m.id,
 			fileId: m.fileId,
 			codes: m.codes,

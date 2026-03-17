@@ -8,6 +8,7 @@ import { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
 import { setFileIdEffect } from '../cm6/markerStateField';
 
 export interface Marker {
+	markerType: 'markdown';
 	id: string;
 	fileId: string;
 	range: {
@@ -86,6 +87,7 @@ export class CodeMarkerModel {
 			const toPos = targetView.editor.offsetToPos(snapshot.to);
 
 			const marker: Marker = {
+				markerType: 'markdown',
 				id: this.generateId(),
 				fileId: snapshot.fileId,
 				range: { from: fromPos, to: toPos },
@@ -103,6 +105,7 @@ export class CodeMarkerModel {
 
 		// Fallback: create marker without position conversion
 		const marker: Marker = {
+			markerType: 'markdown',
 			id: this.generateId(),
 			fileId: snapshot.fileId,
 			range: {

@@ -15,23 +15,23 @@ import type { MediaBaseMarker } from '../media/mediaSidebarAdapter';
 // ── Type guards ──────────────────────────────────────────────
 
 export function isPdfMarker(marker: BaseMarker): marker is PdfBaseMarker {
-	return 'page' in marker && 'isShape' in marker;
+	return marker.markerType === 'pdf';
 }
 
 export function isImageMarker(marker: BaseMarker): marker is ImageBaseMarker {
-	return 'shape' in marker && 'shapeLabel' in marker;
+	return marker.markerType === 'image';
 }
 
 export function isCsvMarker(marker: BaseMarker): marker is CsvBaseMarker {
-	return 'rowIndex' in marker && 'columnId' in marker;
+	return marker.markerType === 'csv';
 }
 
 export function isAudioMarker(marker: BaseMarker): marker is AudioBaseMarker {
-	return 'mediaType' in marker && (marker as MediaBaseMarker).mediaType === 'audio';
+	return marker.markerType === 'audio';
 }
 
 export function isVideoMarker(marker: BaseMarker): marker is VideoBaseMarker {
-	return 'mediaType' in marker && (marker as MediaBaseMarker).mediaType === 'video';
+	return marker.markerType === 'video';
 }
 
 // ── Label resolver ───────────────────────────────────────────

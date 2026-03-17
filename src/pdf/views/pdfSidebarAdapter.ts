@@ -20,6 +20,7 @@ export interface PdfBaseMarker extends BaseMarker {
 
 function textMarkerToBase(m: PdfMarker, model: PdfCodingModel): PdfBaseMarker {
 	return {
+		markerType: 'pdf',
 		id: m.id,
 		fileId: m.fileId,
 		codes: m.codes,
@@ -35,6 +36,7 @@ function textMarkerToBase(m: PdfMarker, model: PdfCodingModel): PdfBaseMarker {
 
 function shapeMarkerToBase(s: PdfShapeMarker, model: PdfCodingModel): PdfBaseMarker {
 	return {
+		markerType: 'pdf',
 		id: s.id,
 		fileId: s.fileId,
 		codes: s.codes,

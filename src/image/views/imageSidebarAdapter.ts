@@ -14,6 +14,7 @@ export interface ImageBaseMarker extends BaseMarker {
 
 function markerToBase(m: ImageMarker, model: ImageCodingModel): ImageBaseMarker {
 	return {
+		markerType: 'image',
 		id: m.id,
 		fileId: m.fileId,
 		codes: m.codes,
