@@ -601,7 +601,7 @@ Testar esses modulos diretamente seria testar o mecanismo de delivery quando ja 
 └─────────────────────────────────────────────────────┘
 ```
 
-Harness e2e: pacote reutilizavel `obsidian-plugin-e2e` em `~/Desktop/obsidian-plugin-e2e/` — funciona com qualquer plugin Obsidian.
+Harness e2e: `obsidian-e2e-visual-test-kit` ([GitHub](https://github.com/mrlnlms/obsidian-e2e-visual-test-kit)) — funciona com qualquer plugin Obsidian.
 
 ---
 
