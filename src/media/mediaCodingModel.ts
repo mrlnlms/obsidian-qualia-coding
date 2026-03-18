@@ -128,7 +128,7 @@ export class MediaCodingModel<
 			codes: [],
 			createdAt: now,
 			updatedAt: now,
-		} as unknown as M;
+		} as MediaMarker as M;
 
 		const file = this.getOrCreateFile(filePath);
 		file.markers.push(marker);
@@ -242,7 +242,7 @@ export class MediaCodingModel<
 	getOrCreateFile(filePath: string): F {
 		let file = this.files.find((f) => f.path === filePath);
 		if (!file) {
-			file = { path: filePath, markers: [] } as unknown as F;
+			file = { path: filePath, markers: [] } as MediaFile<M> as F;
 			this.files.push(file);
 		}
 		return file;
