@@ -1,15 +1,10 @@
 import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/view";
 import { CodeMarkerModel } from "../models/codeMarkerModel";
-import { findFileIdForEditorView, getViewForFile } from "./utils/viewLookupUtils";
+import { findFileIdForEditorView } from "./utils/viewLookupUtils";
 import { findSmallestMarkerAtPos, classifyMarkersAtPos } from "./utils/markerPositionUtils";
-import {
-	setFileIdEffect,
-	setHoverEffect,
-	startDragEffect,
-	updateDragEffect,
-	endDragEffect
-} from "./markerStateField";
+import { setFileIdEffect, setHoverEffect } from "./markerStateField";
 import { HandleOverlayRenderer } from "./handleOverlayRenderer";
+import { DragManager } from "./dragManager";
 
 // Custom event dispatched when user makes a text selection (for menu trigger)
 export const SELECTION_EVENT = 'codemarker-selection-made';
@@ -31,10 +26,8 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 			public fileId: string | null = null;
 			private fileIdSent = false;
 
-			// Drag state
-			dragging: { markerId: string, type: 'start' | 'end' } | null = null;
+			drag: DragManager;
 			private cleanup: Array<() => void> = [];
-			_lastDragUpdate: number = 0;
 
 			// Local hover state
 			hoveredMarkerId: string | null = null;
@@ -47,6 +40,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 
 			constructor(view: EditorView) {
 				this.instanceId = Math.random().toString(36).substr(2, 9);
+				this.drag = new DragManager(model);
 				this.identifyAndSendFileId(view);
 				this.renderer = new HandleOverlayRenderer(model, view.scrollDOM);
 				this.setupOverlayListeners(view);
@@ -66,30 +60,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 					if (markerId && handleType && (handleType === 'start' || handleType === 'end')) {
 						event.preventDefault();
 						event.stopPropagation();
-
-						this.dragging = { markerId, type: handleType as 'start' | 'end' };
-
-						document.body.classList.add('codemarker-dragging');
-						document.body.classList.add(handleType === 'start' ? 'codemarker-dragging-start' : 'codemarker-dragging-end');
-
-						view.dispatch({
-							effects: startDragEffect.of({ markerId, type: handleType as 'start' | 'end' })
-						});
-
-						// Document-level mouseup to ensure drag always ends,
-						// even if mouse is released outside the editor
-						const onDocMouseUp = () => {
-							document.removeEventListener('mouseup', onDocMouseUp, true);
-							if (this.dragging) {
-								const endMarkerId = this.dragging.markerId;
-								this.dragging = null;
-								document.body.classList.remove('codemarker-dragging', 'codemarker-dragging-start', 'codemarker-dragging-end');
-								view.dispatch({
-									effects: endDragEffect.of({ markerId: endMarkerId })
-								});
-							}
-						};
-						document.addEventListener('mouseup', onDocMouseUp, true);
+						this.drag.start(view, markerId, handleType as 'start' | 'end');
 					}
 				};
 				this.renderer.overlayEl.addEventListener('mousedown', onMouseDown);
@@ -163,42 +134,6 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 				return findSmallestMarkerAtPos(pos, this.fileId, model, view, model.plugin.app);
 			}
 
-			updateMarkerPosition(view: EditorView, markerId: string, newPos: number, type: 'start' | 'end') {
-				if (!this.fileId) return;
-
-				const marker = model.getMarkerById(markerId);
-				if (!marker || marker.fileId !== this.fileId) return;
-
-				try {
-					const targetView = getViewForFile(this.fileId, model.plugin.app);
-					if (!targetView?.editor) return;
-
-					const newPosConverted = targetView.editor.offsetToPos(newPos);
-					if (!newPosConverted) return;
-
-					const updatedMarker = { ...marker };
-
-					if (type === 'start') {
-						if (model.isPositionBefore(newPosConverted, marker.range.to) ||
-							(newPosConverted.line === marker.range.to.line && newPosConverted.ch === marker.range.to.ch)) {
-							updatedMarker.range.from = newPosConverted;
-						}
-					} else {
-						if (model.isPositionAfter(newPosConverted, marker.range.from) ||
-							(newPosConverted.line === marker.range.from.line && newPosConverted.ch === marker.range.from.ch)) {
-							updatedMarker.range.to = newPosConverted;
-						}
-					}
-
-					updatedMarker.updatedAt = Date.now();
-					model.updateMarker(updatedMarker);
-					model.updateMarkersForFile(this.fileId!);
-
-				} catch (e) {
-					console.warn(`QualiaCoding: Error updating marker position`, e);
-				}
-			}
-
 			update(update: ViewUpdate) {
 				if (!this.fileId || !this.fileIdSent) {
 					setTimeout(() => {
@@ -228,9 +163,9 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 				}
 
 				if (this.fileId) {
-					if (this.dragging) {
+					if (this.drag.current) {
 						// During drag: only reposition the dragged marker's handles (fast path)
-						this.renderer.scheduleDragRender(update.view, this.fileId, this.dragging.markerId);
+						this.renderer.scheduleDragRender(update.view, this.fileId, this.drag.current.markerId);
 					} else {
 						// Normal: full handle overlay render
 						this.renderer.scheduleRender(update.view, {
@@ -248,7 +183,6 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 					this._hoverClearTimeout = null;
 				}
 				this.cleanup.forEach(cleanupFn => cleanupFn());
-				this.dragging = null;
 				this.hoveredMarkerId = null;
 				this.hoveredMarkerIds = [];
 				this.fileIdSent = false;
@@ -264,34 +198,8 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 
 				// MOUSEMOVE: Drag + Hover
 				mousemove(event: MouseEvent, view: EditorView) {
-					if (this.dragging) {
-						event.preventDefault();
-
-						// Throttle drag updates to ~60fps (16ms)
-						const now = Date.now();
-						if (now - this._lastDragUpdate < 16) return true;
-						this._lastDragUpdate = now;
-
-						const coords = { x: event.clientX, y: event.clientY };
-						let pos = view.posAtCoords(coords);
-
-						if (pos === null) {
-							pos = view.posAtCoords(coords, false);
-						}
-
-						if (pos !== null) {
-							this.updateMarkerPosition(view, this.dragging.markerId, pos, this.dragging.type);
-
-							view.dispatch({
-								effects: updateDragEffect.of({
-									markerId: this.dragging.markerId,
-									pos,
-									type: this.dragging.type
-								})
-							});
-						}
-
-						return true;
+					if (this.drag.current) {
+						return this.drag.move(view, event, this.fileId!);
 					}
 
 					// Hover logic — use DOM element for precise hit-testing
@@ -366,16 +274,9 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 
 				// MOUSEUP: End drag + detect text selection for menu
 				mouseup(event: MouseEvent, view: EditorView) {
-					if (this.dragging) {
-						const markerId = this.dragging.markerId;
-						this.dragging = null;
-
-						document.body.classList.remove('codemarker-dragging', 'codemarker-dragging-start', 'codemarker-dragging-end');
-
-						view.dispatch({
-							effects: endDragEffect.of({ markerId })
-						});
-
+					if (this.drag.current) {
+						const markerId = this.drag.current.markerId;
+						this.drag.end(view, markerId);
 						return true;
 					}
 
