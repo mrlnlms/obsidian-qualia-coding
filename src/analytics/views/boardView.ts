@@ -1,18 +1,18 @@
 
-import { ItemView, WorkspaceLeaf, Menu, Notice } from "obsidian";
+import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import type { Group } from "fabric";
 import type { AnalyticsPluginAPI } from "../index";
 import { setupBoardCanvas, teardownBoardCanvas, zoomBy, fitContent, type BoardCanvasState } from "../board/boardCanvas";
-import { createStickyNote, nextNoteId, isStickyNote, isSnapshotNode, isExcerptNode, isCodeCardNode, isKpiCardNode, isClusterFrame, setStickyColor, enableStickyEditing, createSnapshotNode, nextSnapshotId, createExcerptNode, nextExcerptId, createCodeCardNode, nextCodeCardId, createKpiCardNode, nextKpiCardId, createClusterFrame, nextClusterFrameId, STICKY_COLORS, DEFAULT_STICKY_COLOR, type StickyNoteData, type SnapshotNodeData, type ExcerptNodeData, type CodeCardNodeData, type KpiCardNodeData, type ClusterFrameData } from "../board/boardNodes";
+import { createStickyNote, nextNoteId, isStickyNote, isSnapshotNode, isExcerptNode, isCodeCardNode, isKpiCardNode, isClusterFrame, enableStickyEditing, createSnapshotNode, nextSnapshotId, createExcerptNode, nextExcerptId, createCodeCardNode, nextCodeCardId, createKpiCardNode, nextKpiCardId, createClusterFrame, nextClusterFrameId, DEFAULT_STICKY_COLOR, type StickyNoteData, type SnapshotNodeData, type ExcerptNodeData, type CodeCardNodeData, type KpiCardNodeData, type ClusterFrameData } from "../board/boardNodes";
 import { createArrow, nextArrowId, updateArrowForNodes, removeArrowById, isArrow, type ArrowData } from "../board/boardArrows";
 import { enableDrawingMode, disableDrawingMode, tagNewPaths } from "../board/boardDrawing";
 import { createBoardToolbar, type BoardTool } from "../board/boardToolbar";
-import { serializeBoard, deserializeBoard, emptyBoardData, type BoardFileData } from "../board/boardData";
 import { clusterCodeCards } from "../board/boardClusters";
 import { isArrowLineNode, isArrowHeadNode, isBoardNode, type CodeCardNode } from "../board/boardTypes";
+import { showBoardContextMenu } from "./boardContextMenu";
+import { saveBoard, loadBoard } from "./boardPersistence";
 
 export const BOARD_VIEW_TYPE = "codemarker-board";
-const BOARD_FILE = ".obsidian/plugins/qualia-coding/board.json";
 
 export class BoardView extends ItemView {
   private plugin: AnalyticsPluginAPI;
@@ -78,12 +78,16 @@ export class BoardView extends ItemView {
     });
 
     // Load saved board
-    await this.loadBoard();
+    if (this.canvasState) {
+      await loadBoard(this.canvasState.canvas, this.app.vault.adapter);
+    }
   }
 
   async onClose(): Promise<void> {
     if (this.saveTimer) clearTimeout(this.saveTimer);
-    await this.saveBoard();
+    if (this.canvasState) {
+      await saveBoard(this.canvasState.canvas, this.app.vault.adapter);
+    }
     teardownBoardCanvas(this.canvasState);
     this.canvasState = null;
     this.contentEl.empty();
@@ -149,7 +153,7 @@ export class BoardView extends ItemView {
     } else if (action === "cluster") {
       this.autoGroupCards();
     } else if (action === "save") {
-      this.saveBoard();
+      saveBoard(this.canvasState.canvas, this.app.vault.adapter);
       new Notice("Board saved");
     }
   }
@@ -243,50 +247,7 @@ export class BoardView extends ItemView {
       const e = opt.e as MouseEvent;
       if (e.button !== 2) return;
       if (!opt.target) return;
-      const isSticky = isStickyNote(opt.target);
-      const isSnapshot = isSnapshotNode(opt.target);
-      const isExcerpt = isExcerptNode(opt.target);
-      const isCodeCard = isCodeCardNode(opt.target);
-      const isKpi = isKpiCardNode(opt.target);
-      const isCluster = isClusterFrame(opt.target);
-      const isArrowObj = isArrow(opt.target);
-      if (!isSticky && !isSnapshot && !isExcerpt && !isCodeCard && !isKpi && !isCluster && !isArrowObj) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-      const target = opt.target;
-
-      const menu = new Menu();
-      // Color submenu (sticky notes only)
-      if (isSticky) {
-        for (const [key, hex] of Object.entries(STICKY_COLORS)) {
-          menu.addItem((item) => {
-            item.setTitle(key.charAt(0).toUpperCase() + key.slice(1));
-            item.onClick(() => {
-              setStickyColor(target as Group, key);
-              this.scheduleSave();
-            });
-          });
-        }
-        menu.addSeparator();
-      }
-      menu.addItem((item) => {
-        item.setTitle("Delete");
-        item.setIcon("trash-2");
-        item.onClick(() => {
-          if (isArrowLineNode(target)) {
-            removeArrowById(canvas, target.boardId);
-          } else if (isArrowHeadNode(target)) {
-            removeArrowById(canvas, target.boardId);
-          } else {
-            canvas.remove(target);
-          }
-          canvas.requestRenderAll();
-          this.scheduleSave();
-        });
-      });
-
-      menu.showAtPosition({ x: e.pageX, y: e.pageY });
+      showBoardContextMenu(e, opt.target, canvas, () => this.scheduleSave());
     });
   }
 
@@ -529,67 +490,10 @@ export class BoardView extends ItemView {
 
   private scheduleSave(): void {
     if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => this.saveBoard(), 2000);
-  }
-
-  private async saveBoard(): Promise<void> {
-    if (!this.canvasState) return;
-    const data = serializeBoard(this.canvasState.canvas);
-    const json = JSON.stringify(data, null, 2);
-    try {
-      await this.app.vault.adapter.write(BOARD_FILE, json);
-    } catch {
-      // Directory might not exist yet, try creating
-      try {
-        await this.app.vault.adapter.write(BOARD_FILE, json);
-      } catch {
-        console.warn("Failed to save board");
+    this.saveTimer = setTimeout(() => {
+      if (this.canvasState) {
+        saveBoard(this.canvasState.canvas, this.app.vault.adapter);
       }
-    }
-  }
-
-  private async loadBoard(): Promise<void> {
-    if (!this.canvasState) return;
-    try {
-      const raw = await this.app.vault.adapter.read(BOARD_FILE);
-      const data: BoardFileData = JSON.parse(raw);
-      if (data.version !== 1) return;
-
-      const canvas = this.canvasState.canvas;
-
-      await deserializeBoard(
-        canvas,
-        data,
-        (nodeData: StickyNoteData) => {
-          createStickyNote(canvas, nodeData);
-        },
-        (arrowData: ArrowData) => {
-          // Find from/to nodes
-          const objects = canvas.getObjects();
-          const fromObj = objects.find((o) => isBoardNode(o) && o.boardId === arrowData.fromNodeId);
-          const toObj = objects.find((o) => isBoardNode(o) && o.boardId === arrowData.toNodeId);
-          if (fromObj && toObj) {
-            createArrow(canvas, fromObj, toObj, arrowData);
-          }
-        },
-        async (snapData: SnapshotNodeData) => {
-          await createSnapshotNode(canvas, snapData);
-        },
-        (excData: ExcerptNodeData) => {
-          createExcerptNode(canvas, excData);
-        },
-        (ccData: CodeCardNodeData) => {
-          createCodeCardNode(canvas, ccData);
-        },
-        (kpiData: KpiCardNodeData) => {
-          createKpiCardNode(canvas, kpiData);
-        },
-        (cfData: ClusterFrameData) => {
-          createClusterFrame(canvas, cfData);
-        },
-      );
-    } catch {
-      // No saved board — start fresh
-    }
+    }, 2000);
   }
 }
