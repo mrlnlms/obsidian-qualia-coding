@@ -2,7 +2,7 @@ import { setIcon } from 'obsidian';
 import type { App } from 'obsidian';
 import type { CsvCodingModel } from './codingModel';
 import type { GridApi } from 'ag-grid-community';
-import type { CsvCodingView } from './csvCodingView';
+import type { CsvViewRef } from './columnToggleModal';
 import { openCsvCodingPopover } from './codingMenu';
 
 /** Cell renderer for cod-seg and cod-frow columns — tag chips + action button */
@@ -15,7 +15,7 @@ export function codingCellRenderer(params: any): HTMLElement {
 	const model: CsvCodingModel | undefined = params.model;
 	const gridApi: GridApi | undefined = params.gridApi;
 	const file: string = params.file ?? '';
-	const csvView: CsvCodingView | undefined = params.csvView;
+	const csvView: CsvViewRef | undefined = params.csvView;
 	const app: App | undefined = params.app;
 	const isFrow = field.endsWith('_cod-frow');
 	const isSeg = field.endsWith('_cod-seg');
@@ -59,7 +59,7 @@ export function codingCellRenderer(params: any): HTMLElement {
 				const marker = markers.find(m => m.codes.includes(codeName));
 				if (marker) {
 					// Dispatch detail event for sidebar
-					csvView?.app?.workspace?.trigger('qualia-csv:detail', {
+					app?.workspace?.trigger('qualia-csv:detail', {
 						markerId: marker.id,
 						codeName,
 					});
@@ -135,7 +135,7 @@ export function sourceTagBtnRenderer(params: any): HTMLElement {
 		const segField: string = params.codSegField;
 		const row = params.node?.rowIndex ?? params.rowIndex ?? 0;
 		const file: string = params.file ?? '';
-		const csvView: CsvCodingView | undefined = params.csvView;
+		const csvView: CsvViewRef | undefined = params.csvView;
 		const cellText: string = params.value ?? '';
 
 		if (csvView) {
