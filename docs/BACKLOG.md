@@ -493,87 +493,112 @@ return createStandaloneViewWrapper(standalone) as any
 
 | Camada | Testes | Suites/Specs | O que cobre |
 |--------|--------|-------------|-------------|
-| Vitest + jsdom | 1263 | 39 suites | Logica pura: models, engines, helpers, resolvers, registry |
-| wdio + Obsidian (e2e) | 27 | 8 specs | UI real: editor, sidebar, analytics, hover, screenshots |
-| **Total** | **1290** | **47** | |
+| Vitest + jsdom | 1.263 | 39 suites | Logica pura: models, engines, helpers, resolvers, registry |
+| wdio + Obsidian (e2e) | 65 | 18 specs | UI real: editor, sidebar, analytics, media views, modais, screenshots |
+| **Total** | **1.328** | **57** | |
 
-### Cobertura unitaria (Vitest) — o que esta coberto
+### Evolucao
 
-| Modulo | Status | Testes |
-|--------|--------|--------|
-| core/dataManager | Coberto | load, section, setSection, persistence |
-| core/codeDefinitionRegistry | Coberto | CRUD, palette, mutation callbacks |
-| core/markerResolvers | Coberto | type guards, getMarkerLabel, shortenPath |
-| core/baseSidebarAdapter | Coberto | deletion, code updates, marker fields |
-| core/fileInterceptor | Coberto | rules, matching, helpers puros |
-| markdown/codeMarkerModel | Coberto | CRUD markers, listeners, hover, migration |
-| markdown/markerPositionUtils | Coberto | offsetToPos, classify nesting/overlap |
-| pdf/pdfCodingModel | Coberto | CRUD, shapes, undo, listeners (Set) |
-| pdf/highlightGeometry | Coberto | rect merging, edge cases |
-| image/codingModel | Coberto | CRUD, deletion, hover, listeners |
-| csv/codingModel | Coberto | segment/row markers, caching |
-| media/mediaCodingModel | Coberto | file CRUD, markers, cleanup |
-| media/formatTime | Coberto | edge cases, formatting |
-| media/mediaSidebarAdapter | Coberto | hover, display, grouping |
-| analytics/statsEngine (6 modulos) | Coberto | frequency, cooccurrence, evolution, sequential, inferential, textAnalysis |
-| analytics/statsHelpers | Coberto | applyFilters (direto + via frequency) |
-| analytics/textExtractor | Coberto | segmentation, ranges |
-| analytics/wordFrequency | Coberto | frequency, filtering |
-| analytics/dataConsolidator | Coberto | marker consolidation, filtering |
-| analytics/clusterEngine | Coberto | hierarchical clustering, dendrograms |
-| analytics/decisionTreeEngine | Coberto | tree construction, Gini |
-| analytics/mcaEngine | Coberto | MCA, eigenvalues |
-| analytics/mdsEngine | Coberto | MDS, distance preservation |
-| analytics/boardTypes | Coberto | type guards, node validation |
-| analytics/boardNodes | Coberto | 6 node factories, round-trip |
-| analytics/boardClusters | Coberto | clustering por co-ocorrencia |
-| analytics/chartHelpers | Coberto | colors, matrix, divergent |
-| analytics modes (19) | Parcial | via viewModes, renderChart, renderMini, exportCSV |
+| Momento | Unit | E2E | Total |
+|---------|------|-----|-------|
+| 7 plugins separados (pre-merge) | 0 | 0 | 0 |
+| Pos-refactor (2026-03-17) | 1.214 | 0 | 1.214 |
+| Pos-test coverage expansion (2026-03-18 manha) | 1.263 | 0 | 1.263 |
+| Pos-e2e harness + specs (2026-03-18 tarde) | 1.263 | 65 | 1.328 |
 
-### Cobertura e2e (wdio) — componentes UI
+### Cobertura unitaria (Vitest + jsdom) — 32 modulos de logica pura
 
-| Spec | Testes | Componente | Tipo de validacao |
-|------|--------|-----------|-------------------|
-| smoke | 3 | Plugin lifecycle | Plugin carrega, arquivo abre, editor visivel |
-| margin-panel | 4 | Margin panel CM6 | DOM structure + screenshot + hover |
+| Modulo | O que testa |
+|--------|------------|
+| core/dataManager | load, section, setSection, persistence, deep merge |
+| core/codeDefinitionRegistry | CRUD, palette, mutation callbacks |
+| core/markerResolvers | type guards, getMarkerLabel, shortenPath |
+| core/baseSidebarAdapter | deletion, code updates, marker fields |
+| core/fileInterceptor | rules, matching, helpers puros |
+| markdown/codeMarkerModel | CRUD markers, listeners, hover, migration |
+| markdown/markerPositionUtils | offsetToPos, classify nesting vs partial overlap |
+| pdf/pdfCodingModel | CRUD, shapes, undo, listeners (Set) |
+| pdf/highlightGeometry | rect merging, edge cases |
+| image/codingModel | CRUD, deletion, hover, listeners |
+| csv/codingModel | segment/row markers, caching |
+| media/mediaCodingModel | file CRUD, markers, cleanup |
+| media/formatTime | edge cases, formatting |
+| media/mediaSidebarAdapter | hover, display, grouping |
+| analytics/statsEngine (6 sub-modulos) | frequency, cooccurrence, evolution, sequential, inferential, textAnalysis |
+| analytics/statsHelpers | applyFilters direto (multi-codigo, excludeCodes) |
+| analytics/textExtractor | segmentation, ranges |
+| analytics/wordFrequency | frequency, filtering |
+| analytics/dataConsolidator | marker consolidation, filtering |
+| analytics/clusterEngine | hierarchical clustering, dendrograms |
+| analytics/decisionTreeEngine | tree construction, Gini |
+| analytics/mcaEngine | MCA, eigenvalues |
+| analytics/mdsEngine | MDS, distance preservation |
+| analytics/boardTypes | type guards, node validation |
+| analytics/boardNodes | 6 node factories, round-trip |
+| analytics/boardClusters | clustering por co-ocorrencia real |
+| analytics/chartHelpers | colors, matrix, divergent |
+| analytics modes (19) | Parcial — via viewModes, renderChart, renderMini, exportCSV |
+
+### Cobertura e2e (wdio + Obsidian) — 18 specs visuais
+
+| Spec | Testes | Componente | O que valida |
+|------|--------|-----------|-------------|
+| **Markdown engine** | | | |
+| smoke | 3 | Plugin lifecycle | Carrega, abre arquivo, editor visivel |
+| margin-panel | 4 | Margin panel CM6 | Bars, CSS classes, screenshot, hover |
 | highlights | 4 | CM6 decorations | Highlight spans, nested markers, screenshot |
 | handle-overlay | 3 | SVG drag handles | Container, handles no hover, screenshot |
 | hover-interaction | 3 | Hover sync | Editor↔margin bar sync, clear on leave |
+| **Sidebar + Analytics** | | | |
 | code-explorer | 4 | Sidebar tree | View renderiza, tree items, code names, screenshot |
 | analytics-frequency | 3 | Chart.js bar chart | View, toolbar, chart screenshot |
 | analytics-dashboard | 3 | Dashboard KPIs | KPI cards, marker count, screenshot |
+| **Outros engines** | | | |
+| csv-grid | 4 | ag-grid | Headers, rows, screenshot |
+| board-view | 3 | Fabric.js canvas | Canvas, toolbar, screenshot |
+| pdf-view | 3 | PDF pdfjs | Pages, canvas, screenshot |
+| image-view | 3 | Image Fabric.js | Canvas, screenshot |
+| audio-view | 3 | WaveSurfer | Waveform container, screenshot |
+| video-view | 3 | Video player | Player, canvas/video element, screenshot |
+| **Settings + Modais** | | | |
+| settings-tab | 3 | Plugin settings | Setting items, color picker, toggles |
+| code-form-modal | 8 | CodeFormModal | Title, name/color/description inputs, buttons, screenshot |
+| code-browser-modal | 5 | CodeBrowserModal | Title, lista de codigos, search, swatches, screenshot |
+| column-toggle-modal | 3 | ColumnToggleModal | Abre via gear icon CSV, settings, screenshot |
+| **Total** | **65** | **18 specs** | |
 
-### Cobertura e2e completa (atualizada 2026-03-18)
+### O que NAO esta coberto — e por que nao precisa
 
-| Spec | Testes | Componente |
-|------|--------|-----------|
-| smoke | 3 | Plugin lifecycle |
-| margin-panel | 4 | Margin panel CM6 |
-| highlights | 4 | CM6 decorations |
-| handle-overlay | 3 | SVG drag handles |
-| hover-interaction | 3 | Hover sync |
-| code-explorer | 4 | Sidebar tree |
-| analytics-frequency | 3 | Chart.js bar chart |
-| analytics-dashboard | 3 | Dashboard KPIs |
-| csv-grid | 4 | ag-grid rendering |
-| board-view | 3 | Fabric.js canvas |
-| settings-tab | 3 | Plugin settings |
-| pdf-view | 3 | PDF pages + pdfjs |
-| image-view | 3 | Image canvas Fabric.js |
-| audio-view | 3 | WaveSurfer waveform |
-| video-view | 3 | Video player + timeline |
-| **Total** | **49** | **15 specs** |
+**Config sections dos analytics modes (12 funcoes renderOptionsSection)**
 
-| code-form-modal | 8 | CodeFormModal (Add Code) |
-| code-browser-modal | 5 | CodeBrowserModal (All Codes) |
-| column-toggle-modal | 3 | ColumnToggleModal (CSV) |
-| **Total** | **65** | **18 specs** |
+Sao os paineis de configuracao no sidebar do Analytics (radio buttons de sort, dropdowns de group, sliders de min frequency). Cada funcao faz exclusivamente: `createDiv` → `createEl("input")` → `addEventListener("change", callback)`. Zero logica de transformacao — sao DOM builders puros. Se um controle renderizar errado, os screenshots do analytics-frequency e analytics-dashboard ja pegam (o config panel esta visivel nos baselines).
 
-### O que NAO esta coberto (baixissimo risco)
+**CM6 internals (3 modulos: markerStateField, selectionMenuField, hoverBridge)**
 
-| Categoria | Modulos | Razao |
-|-----------|---------|-------|
-| Config sections (12 modes) | renderOptionsSection | DOM puro, sem logica |
-| CM6 internals | markerStateField, selectionMenuField, hoverBridge | Reativos, testados indiretamente via e2e |
+Sao StateFields e ViewPlugins do CodeMirror 6 que gerenciam estado reativo dentro do editor. Nao renderizam nada por si — sao infraestrutura que faz os componentes visuais funcionarem:
 
-Todos os engines (markdown, PDF, image, CSV, audio, video), views (analytics, board, explorer, settings) e modais (form, browser, column toggle) tem baseline visual.
+- `markerStateField` → mantem as decoracoes (highlights). Se quebrar, `highlights.e2e.ts` falha (highlights somem)
+- `selectionMenuField` → mostra o menu quando texto e selecionado. Se quebrar, o popover nao aparece
+- `hoverBridge` → sincroniza hover entre editor e margin panel. Se quebrar, `hover-interaction.e2e.ts` falha (hover nao sincroniza)
+
+Testar esses modulos diretamente seria testar o mecanismo de delivery quando ja testamos o resultado final. Os 18 specs e2e existentes cobrem todos os comportamentos que dependem desses internals.
+
+### Stack de testes completo
+
+```
+┌─────────────────────────────────────────────────────┐
+│  E2E (wdio + Obsidian real)   65 testes, 18 specs  │
+│  Abre Obsidian, navega, injeta dados, screenshots   │
+│  Cobre: 6 engines + analytics + sidebar + modais    │
+├─────────────────────────────────────────────────────┤
+│  Unit (Vitest + jsdom)        1263 testes, 39 suites│
+│  Roda em memoria, ~6 segundos                        │
+│  Cobre: 32 modulos de logica pura                    │
+├─────────────────────────────────────────────────────┤
+│  Nao coberto (baixissimo risco)                      │
+│  12 config sections (DOM builder puro)               │
+│  3 CM6 internals (testados indiretamente via e2e)    │
+└─────────────────────────────────────────────────────┘
+```
+
+Harness e2e: pacote reutilizavel `obsidian-plugin-e2e` em `~/Desktop/obsidian-plugin-e2e/` — funciona com qualquer plugin Obsidian.
