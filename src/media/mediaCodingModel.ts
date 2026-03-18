@@ -6,7 +6,7 @@
 import type { DataManager } from '../core/dataManager';
 import type { MediaMarker, MediaFile, BaseMediaSettings } from './mediaTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
-import type { CodeDefinition } from '../core/types';
+import type { CodeDefinition, QualiaData } from '../core/types';
 import { formatTime } from './formatTime';
 
 const TOLERANCE = 0.01;

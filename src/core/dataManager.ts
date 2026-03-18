@@ -32,11 +32,10 @@ export class DataManager {
 		}
 	}
 
-	// Typed overload: used by all engines with literal keys (e.g. section('pdf')).
-	// Returns the exact QualiaData[K] type — fully typed, no any.
+	// Typed overload: literal keys return exact type (e.g. section('pdf') → PdfData)
 	section<K extends keyof QualiaData>(key: K): QualiaData[K];
-	// Fallback overload: for dynamic string keys (e.g. MediaCodingModel passes sectionName variable).
-	// Intentionally loose — removing this would break ergonomics for generic engine code.
+	// Dynamic key fallback: MediaCodingModel passes sectionName as keyof QualiaData
+	// but TypeScript can't narrow the union, so the implementation returns any.
 	section(key: string): Record<string, any>;
 	section(key: string): any {
 		return this.data[key as keyof QualiaData];

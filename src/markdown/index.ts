@@ -79,41 +79,8 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 		}
 	}
 
-	async function revealCodeDetailForCode(codeName: string) {
-		const leaves = plugin.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
-		const existing = leaves[0];
-		if (existing) {
-			const view = existing.view as BaseCodeDetailView;
-			view.showCodeDetail(codeName);
-			plugin.app.workspace.revealLeaf(existing);
-		} else {
-			const leaf = plugin.app.workspace.getRightLeaf(false);
-			if (leaf) {
-				await leaf.setViewState({ type: CODE_DETAIL_VIEW_TYPE, active: true });
-				const view = leaf.view as BaseCodeDetailView;
-				view.showCodeDetail(codeName);
-				plugin.app.workspace.revealLeaf(leaf);
-			}
-		}
-	}
-
-	async function revealCodeDetailPanel(markerId: string, codeName: string) {
-		const leaves = plugin.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
-		const existing = leaves[0];
-		if (existing) {
-			const view = existing.view as BaseCodeDetailView;
-			view.setContext(markerId, codeName);
-			plugin.app.workspace.revealLeaf(existing);
-		} else {
-			const leaf = plugin.app.workspace.getRightLeaf(false);
-			if (leaf) {
-				await leaf.setViewState({ type: CODE_DETAIL_VIEW_TYPE, active: true });
-				const view = leaf.view as BaseCodeDetailView;
-				view.setContext(markerId, codeName);
-				plugin.app.workspace.revealLeaf(leaf);
-			}
-		}
-	}
+	// revealCodeDetailForCode and revealCodeDetailPanel moved to main.ts
+	// (cross-engine — serve all engines, not just markdown)
 
 	// ── SELECTION_EVENT listener: auto-open menu on text selection ────────
 	const onSelectionEvent = (evt: Event) => {
@@ -141,21 +108,7 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 	};
 	document.addEventListener(SELECTION_EVENT, onSelectionEvent);
 
-	// ── Label-click listener: margin panel → Code Detail sidebar ─────────
-	const onLabelClick = (evt: Event) => {
-		const detail = (evt as CustomEvent<{ markerId: string; codeName: string }>).detail;
-		if (!detail?.markerId || !detail?.codeName) return;
-		revealCodeDetailPanel(detail.markerId, detail.codeName);
-	};
-	document.addEventListener('codemarker:label-click', onLabelClick);
-
-	// ── Code-click listener: hover menu → Code Detail sidebar (code-focused) ──
-	const onCodeClick = (evt: Event) => {
-		const detail = (evt as CustomEvent<{ codeName: string }>).detail;
-		if (!detail?.codeName) return;
-		revealCodeDetailForCode(detail.codeName);
-	};
-	document.addEventListener('codemarker:code-click', onCodeClick);
+	// Label-click and code-click listeners moved to main.ts (cross-engine)
 
 	// ── Command: Code Selection (Cmd+Shift+C) ────────────────────────────
 	plugin.addCommand({
@@ -308,12 +261,10 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 		onRename: (oldPath, newPath) => model.migrateFilePath(oldPath, newPath),
 	});
 
-	// Cleanup
+	// Cleanup (label-click and code-click cleanup now in main.ts via this.register())
 	return {
 		cleanup: () => {
 			document.removeEventListener(SELECTION_EVENT, onSelectionEvent);
-			document.removeEventListener('codemarker:label-click', onLabelClick);
-			document.removeEventListener('codemarker:code-click', onCodeClick);
 			model.flushPendingSave();
 		},
 		model: {

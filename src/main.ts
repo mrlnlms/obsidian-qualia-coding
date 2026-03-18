@@ -2,7 +2,8 @@ import { Plugin } from 'obsidian';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
-import type { EngineCleanup, SidebarModelInterface } from './core/types';
+import type { EngineCleanup } from './core/types';
+import { BaseCodeDetailView } from './core/baseCodeDetailView';
 import { clearFileInterceptRules } from './core/fileInterceptor';
 import { UnifiedModelAdapter } from './core/unifiedModelAdapter';
 import { UnifiedCodeExplorerView, CODE_EXPLORER_VIEW_TYPE } from './core/unifiedExplorerView';
@@ -93,7 +94,7 @@ export default class QualiaCodingPlugin extends Plugin {
 		const videoAdapter = new VideoSidebarAdapter(videoModel);
 		const unifiedModel = new UnifiedModelAdapter(
 			this.sharedRegistry,
-			[mdModel as unknown as SidebarModelInterface, pdfAdapter, imageAdapter, csvAdapter, audioAdapter, videoAdapter],
+			[mdModel, pdfAdapter, imageAdapter, csvAdapter, audioAdapter, videoAdapter],
 		);
 
 		// Propagate code renames to all markers across all engines
@@ -106,6 +107,64 @@ export default class QualiaCodingPlugin extends Plugin {
 			new UnifiedCodeExplorerView(leaf, unifiedModel, mdModel));
 		this.registerView(CODE_DETAIL_VIEW_TYPE, (leaf) =>
 			new UnifiedCodeDetailView(leaf, unifiedModel, mdModel));
+
+		// ── Cross-engine navigation listeners ──────────────────────────
+		// These serve ALL engines (margin panel label-click, hover menu code-click)
+		// and open the unified sidebar views. Previously lived in markdown/index.ts.
+
+		const onLabelClick = (evt: Event) => {
+			const detail = (evt as CustomEvent<{ markerId: string; codeName: string }>).detail;
+			if (!detail?.markerId || !detail?.codeName) return;
+			this.revealCodeDetailPanel(detail.markerId, detail.codeName);
+		};
+		document.addEventListener('codemarker:label-click', onLabelClick);
+		this.register(() => document.removeEventListener('codemarker:label-click', onLabelClick));
+
+		const onCodeClick = (evt: Event) => {
+			const detail = (evt as CustomEvent<{ codeName: string }>).detail;
+			if (!detail?.codeName) return;
+			this.revealCodeDetailForCode(detail.codeName);
+		};
+		document.addEventListener('codemarker:code-click', onCodeClick);
+		this.register(() => document.removeEventListener('codemarker:code-click', onCodeClick));
+	}
+
+	// ── Sidebar reveal helpers (used by cross-engine listeners + commands) ──
+
+	async revealCodeDetailPanel(markerId: string, codeName: string) {
+		const leaves = this.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
+		const existing = leaves[0];
+		if (existing) {
+			const view = existing.view as BaseCodeDetailView;
+			view.setContext(markerId, codeName);
+			this.app.workspace.revealLeaf(existing);
+		} else {
+			const leaf = this.app.workspace.getRightLeaf(false);
+			if (leaf) {
+				await leaf.setViewState({ type: CODE_DETAIL_VIEW_TYPE, active: true });
+				const view = leaf.view as BaseCodeDetailView;
+				view.setContext(markerId, codeName);
+				this.app.workspace.revealLeaf(leaf);
+			}
+		}
+	}
+
+	async revealCodeDetailForCode(codeName: string) {
+		const leaves = this.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
+		const existing = leaves[0];
+		if (existing) {
+			const view = existing.view as BaseCodeDetailView;
+			view.showCodeDetail(codeName);
+			this.app.workspace.revealLeaf(existing);
+		} else {
+			const leaf = this.app.workspace.getRightLeaf(false);
+			if (leaf) {
+				await leaf.setViewState({ type: CODE_DETAIL_VIEW_TYPE, active: true });
+				const view = leaf.view as BaseCodeDetailView;
+				view.showCodeDetail(codeName);
+				this.app.workspace.revealLeaf(leaf);
+			}
+		}
 	}
 
 	async onunload() {

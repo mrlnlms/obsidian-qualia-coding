@@ -5,6 +5,7 @@ import { CodeMarkerSettings, DEFAULT_SETTINGS } from './settings';
 import { CodeItem, SelectionSnapshot } from '../menu/menuTypes';
 import { getViewForFile as getViewForFileLookup } from '../cm6/utils/viewLookupUtils';
 import { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
+import type { SidebarModelInterface } from '../../core/types';
 import { setFileIdEffect } from '../cm6/markerStateField';
 
 export interface Marker {
@@ -24,7 +25,7 @@ export interface Marker {
 	updatedAt: number;
 }
 
-export class CodeMarkerModel {
+export class CodeMarkerModel implements SidebarModelInterface {
 	private markers: Map<string, Marker[]> = new Map();
 	registry: CodeDefinitionRegistry;
 	plugin: QualiaCodingPlugin;
