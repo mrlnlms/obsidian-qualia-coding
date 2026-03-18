@@ -667,6 +667,29 @@ Harness e2e: pacote reutilizavel `obsidian-plugin-e2e` em `~/Desktop/obsidian-pl
 - Con: adiciona complexidade (conditionals `if hasVideo`, generics, ou config object)
 - Risco: abstracoes de media player tendem a acumular edge cases (fullscreen, PiP, codec handling)
 
+### CI workflow + e2e reproducibility (proposto 2026-03-18)
+
+**Problema (achado Codex):** `npm test` cobre so Vitest. E2E depende de `obsidian-plugin-e2e@file:` path local, dificultando reproducao em checkout limpo ou CI pipeline. Nao existe workflow de CI versionado no repo.
+
+**Acoes planejadas:**
+
+1. **GitHub Actions pra unit tests** (baixo esforço):
+   - `.github/workflows/test.yml` com `npm ci && npm run build && npm test`
+   - Roda em push/PR, ~30s
+
+2. **Publicar obsidian-plugin-e2e no npm** (medio esforço):
+   - Substitui `file:` reference por versao npm
+   - Qualquer checkout limpo instala sem path local
+   - Prerequisito: o pacote precisa de README, LICENSE, e versao estavel
+
+3. **GitHub Actions pra e2e** (alto esforço):
+   - Precisa de display virtual (xvfb) pra Obsidian headless
+   - Download de Obsidian no CI (~200MB, cacheavel)
+   - Screenshots baseline versionados no repo (ja feito)
+   - Complexo mas valioso pra visual regression em PRs
+
+**Prioridade:** Item 1 (unit CI) e quick win pra fazer junto com a publicacao no Community Plugins. Itens 2-3 sao pra quando o projeto tiver colaboradores.
+
 **Decisao atual:** Manter separado. A duplicacao e barata (~350 LOC) e a clareza compensa. Revisitar se:
 - Adicionar um terceiro engine de media (ex: podcast com chapters) — ai a duplicacao vira tripla e justifica
 - Precisar fazer mudanca significativa em ambas as views simultaneamente — ai a dor de manter sincronizado justifica
