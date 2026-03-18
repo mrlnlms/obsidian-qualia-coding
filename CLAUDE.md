@@ -79,7 +79,7 @@ src/
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
 - `npm run test` — 1263 testes em 39 suites (Vitest + jsdom)
-- `npm run test:e2e` — 49 testes e2e em 15 specs (wdio + Obsidian real)
+- `npm run test:e2e` — 65 testes e2e em 18 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView
 - Type guards compartilhados em `markerResolvers.ts`

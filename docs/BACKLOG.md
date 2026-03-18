@@ -564,12 +564,16 @@ return createStandaloneViewWrapper(standalone) as any
 | video-view | 3 | Video player + timeline |
 | **Total** | **49** | **15 specs** |
 
-### O que NAO esta coberto (baixo risco)
+| code-form-modal | 8 | CodeFormModal (Add Code) |
+| code-browser-modal | 5 | CodeBrowserModal (All Codes) |
+| column-toggle-modal | 3 | ColumnToggleModal (CSV) |
+| **Total** | **65** | **18 specs** |
+
+### O que NAO esta coberto (baixissimo risco)
 
 | Categoria | Modulos | Razao |
 |-----------|---------|-------|
-| Modais | codeBrowserModal, codeFormModal | Interacao de trigger complexa — baixo risco |
 | Config sections (12 modes) | renderOptionsSection | DOM puro, sem logica |
 | CM6 internals | markerStateField, selectionMenuField, hoverBridge | Reativos, testados indiretamente via e2e |
 
-Todos os engines (markdown, PDF, image, CSV, audio, video) e views (analytics, board, explorer, settings) tem baseline visual.
+Todos os engines (markdown, PDF, image, CSV, audio, video), views (analytics, board, explorer, settings) e modais (form, browser, column toggle) tem baseline visual.
