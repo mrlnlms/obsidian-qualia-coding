@@ -9,3 +9,5 @@ docs/pm/claudecode-sessions/
 docs/archive/
 coverage/
 .claude/
+test/screenshots/actual/
+test/screenshots/diff/
