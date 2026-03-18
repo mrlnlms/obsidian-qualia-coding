@@ -69,4 +69,13 @@ export const SELECTORS = {
   handleOverlay: ".codemarker-handle-overlay",
   handleSvg: ".codemarker-handle-svg",
   explorer: ".codemarker-explorer",
+  hoverTooltip: ".cm-tooltip",
+  codingMenu: ".codemarker-coding-menu",
+  analyticsView: ".codemarker-analytics-view",
+  analyticsToolbar: ".codemarker-analytics-toolbar",
+  analyticsChart: ".codemarker-chart-container",
+  configPanel: ".codemarker-config-panel",
+  codeExplorer: ".codemarker-code-explorer",
+  codeDetail: ".codemarker-detail-panel",
+  treeItem: ".tree-item-self",
 } as const;
