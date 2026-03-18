@@ -70,7 +70,10 @@ src/
 └── analytics/               # Engine Analytics (Chart.js + Fabric.js)
     ├── data/                # 6 computation engines
     ├── board/               # Research Board
-    │   ├── boardTypes.ts        # Tipos do board
+    │   ├── boardTypes.ts        # Tipos do board (discriminated union + type guards)
+    │   ├── boardNodeHelpers.ts  # Factories compartilhadas (cardBg, textbox, badges, theme)
+    │   ├── boardNodes.ts        # Barrel re-export dos 6 node types
+    │   ├── nodes/               # 1 arquivo por node type (sticky, snapshot, excerpt, etc.)
     │   └── fabricExtensions.d.ts # Type declarations Fabric.js
     └── views/               # Analytics views (modular)
         ├── analyticsView.ts         # AnalyticsView class (~340 LOC): lifecycle, toolbar, footer

@@ -25,6 +25,9 @@ src/
       statsHelpers.ts        — applyFilters compartilhado
     board/
       boardTypes.ts          — discriminated union: StickyNode, SnapshotNode, ExcerptNode, etc.
+      boardNodeHelpers.ts    — factories compartilhadas (cardBg, textbox, badges, theme, assignNodeProps)
+      boardNodes.ts          — barrel re-export dos 6 node types
+      nodes/                 — 1 arquivo por node type (stickyNode, snapshotNode, excerptNode, etc.)
       fabricExtensions.d.ts  — ambient types para Fabric.js (Canvas, Rect, etc. + FabricObject methods)
     views/
       analyticsView.ts       — classe AnalyticsView (~340 LOC): lifecycle, toolbar, footer
@@ -67,7 +70,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1225 testes em 36 suites (Vitest + jsdom)
+- `npm run test` — 1239 testes em 37 suites (Vitest + jsdom)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView
 - Type guards compartilhados em `markerResolvers.ts`
