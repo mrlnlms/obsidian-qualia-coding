@@ -677,11 +677,6 @@ Harness e2e: `obsidian-e2e-visual-test-kit` ([GitHub](https://github.com/mrlnlms
 
 **Decisao atual:** Manter separado. A duplicacao e barata (~350 LOC) e a clareza compensa.
 
-**Tentativa de unificacao (2026-03-18):** MediaView generica foi implementada mas causou edge case com heranca de ItemView no Obsidian — video/audio views nao carregavam corretamente quando herdavam de MediaView em vez de ItemView direto. Arquivos de referencia mantidos em `src/media/mediaView.ts` e `src/media/mediaViewConfig.ts` (nao commitados). Investigar se e questao de timing/lifecycle do Obsidian com classes intermediarias.
-
-Revisitar se:
-- Adicionar um terceiro engine de media (ex: podcast com chapters) — ai a duplicacao vira tripla e justifica
-- Precisar fazer mudanca significativa em ambas as views simultaneamente — ai a dor de manter sincronizado justifica
-- Descobrir a causa do edge case de heranca (pode ser que Obsidian espera extends ItemView direto)
+**FEITO (2026-03-18):** Unificado via composicao. `MediaViewCore` (357 LOC) contem toda a logica compartilhada. `AudioView` (53 LOC) e `VideoView` (54 LOC) sao thin wrappers que herdam direto de `ItemView` e delegam pro core. Heranca intermediaria (`extends MediaView extends ItemView`) nao funciona com Obsidian — composicao resolve.
 
 **Nota:** A consolidacao que vale ja foi feita (MediaCodingModel + 5 modulos compartilhados em media/). O que resta e duplicacao de view/UI, nao de logica.

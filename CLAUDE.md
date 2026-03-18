@@ -26,8 +26,8 @@ src/
     columnToggleModal.ts     — Modal de settings de colunas + CommentCellEditor + styles
     csvHeaderInjection.ts    — MutationObserver para injetar botoes nos headers AG Grid
   image/                     — Image coding (fabric.js, zoom/pan per-file)
-  audio/                     — Audio engine (wavesurfer.js) — extends MediaCodingModel
-  video/                     — Video engine — extends MediaCodingModel
+  audio/                     — Audio engine — thin wrapper (~53 LOC) via MediaViewCore
+  video/                     — Video engine — thin wrapper (~54 LOC) via MediaViewCore
   analytics/                 — Charts e word clouds (chart.js)
     data/
       statsEngine.ts         — barrel re-export (6 modulos: frequency, cooccurrence, evolution, sequential, inferential, textAnalysis)
@@ -47,6 +47,8 @@ src/
         modeRegistry.ts      — Record<ViewMode, ModeEntry> declarativo (render, options, exportCSV, label)
         *Mode.ts             — 19 mode modules (1 por visualizacao, ~150-400 LOC cada)
   media/
+    mediaViewCore.ts         — logica compartilhada audio/video via composicao (transport, zoom, regions)
+    mediaViewConfig.ts       — interface de configuracao (video element, CSS prefix, popover)
     mediaCodingModel.ts      — base class generica para audio/video models
     mediaCodingMenu.ts       — popover compartilhado audio/video
     mediaSidebarAdapter.ts   — sidebar adapter compartilhado audio/video (extends BaseSidebarAdapter)
