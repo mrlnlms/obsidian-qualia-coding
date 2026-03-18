@@ -5,8 +5,8 @@ import type { ConsolidatedData, UnifiedMarker, UnifiedCode } from '../../src/ana
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-function makeMarker(id: string, codes: string[], source: UnifiedMarker['source'] = 'markdown'): UnifiedMarker {
-	return { id, source, file: 'f1', codes };
+function makeMarker(id: string, codes: string[]): UnifiedMarker {
+	return { id, source: 'markdown', file: 'f1', codes };
 }
 
 function makeCode(name: string, color: string = '#6200EE'): UnifiedCode {
@@ -27,17 +27,15 @@ function allCodeNames(result: ClusterResult): string[] {
 	return result.clusters.flatMap(c => c.codeNames).sort();
 }
 
-// ── NOTE on cooccurrence behavior ────────────────────────────────
-// clusterCodeCards passes sources:[] to calculateCooccurrence, which
-// filters out all markers. As a result, the cooc matrix is always empty,
-// all pairwise Jaccard distances are 1, and the dendrogram root has
-// distance=1. The fallback `maxDist = root.distance || 1` yields 1.
-// Clustering is thus controlled purely by cutRatio:
-//   cutRatio >= 1 → cutDistance >= 1 → all in one cluster
-//   cutRatio < 1  → cutDistance < 1  → each code in its own cluster
-// (since all merge distances in the dendrogram equal 1)
-
 // ── clusterCodeCards ─────────────────────────────────────────────
+// The function derives active sources from data.sources, computes
+// co-occurrence via calculateCooccurrence, builds a Jaccard distance
+// matrix, then uses buildDendrogram + cutDendrogram to cluster.
+// When Jaccard distance = 0 (perfect co-occurrence), root.distance = 0,
+// maxDist = 0 || 1 = 1, cutDistance = cutRatio * 1. Since root.distance
+// (0) <= any cutDistance >= 0, all codes merge into one cluster.
+// When Jaccard distance = 1 (no co-occurrence), root.distance = 1,
+// maxDist = 1, cutDistance = cutRatio. Codes split when cutRatio < 1.
 
 describe('clusterCodeCards', () => {
 	// --- Basic / single-code scenarios ---
@@ -66,17 +64,85 @@ describe('clusterCodeCards', () => {
 		expect(result.clusters[0].color).toBe('#888');
 	});
 
-	it('single code returns its color directly (not averaged)', () => {
+	it('single code returns its color directly (not averaged to rgba)', () => {
 		const data = makeData(
 			[makeMarker('m1', ['A'])],
 			[makeCode('A', '#FF0000')],
 		);
 		const result = clusterCodeCards(['A'], ['#FF0000'], data);
-		// Early return path returns raw color, not rgba
 		expect(result.clusters[0].color).toBe('#FF0000');
 	});
 
-	// --- cutRatio controls clustering (all distances are 1) ---
+	// --- Co-occurrence driven clustering ---
+
+	it('two codes that co-occur strongly stay in the same cluster', () => {
+		const markers = [
+			makeMarker('m1', ['A', 'B']),
+			makeMarker('m2', ['A', 'B']),
+			makeMarker('m3', ['A', 'B']),
+		];
+		const data = makeData(markers, [makeCode('A'), makeCode('B')]);
+		const result = clusterCodeCards(['A', 'B'], ['#FF0000', '#00FF00'], data, 0.5);
+		expect(result.clusters).toHaveLength(1);
+		expect(result.clusters[0].codeNames).toContain('A');
+		expect(result.clusters[0].codeNames).toContain('B');
+	});
+
+	it('two codes that never co-occur are separate at low cutRatio', () => {
+		const markers = [
+			makeMarker('m1', ['A']),
+			makeMarker('m2', ['B']),
+		];
+		const data = makeData(markers, [makeCode('A'), makeCode('B')]);
+		const result = clusterCodeCards(['A', 'B'], ['#FF0000', '#00FF00'], data, 0.3);
+		expect(result.clusters.length).toBe(2);
+	});
+
+	it('three codes: A-B co-occur, C alone → 2 clusters', () => {
+		const markers = [
+			makeMarker('m1', ['A', 'B']),
+			makeMarker('m2', ['A', 'B']),
+			makeMarker('m3', ['C']),
+		];
+		const data = makeData(markers, [makeCode('A'), makeCode('B'), makeCode('C')]);
+		const result = clusterCodeCards(['A', 'B', 'C'], ['#FF0000', '#00FF00', '#0000FF'], data, 0.5);
+		expect(result.clusters.length).toBe(2);
+		const clusterWithA = result.clusters.find(c => c.codeNames.includes('A'))!;
+		expect(clusterWithA.codeNames).toContain('B');
+		const clusterWithC = result.clusters.find(c => c.codeNames.includes('C'))!;
+		expect(clusterWithC.codeNames).toEqual(['C']);
+	});
+
+	it('all codes co-occur equally → single cluster at any cutRatio', () => {
+		const markers = [
+			makeMarker('m1', ['A', 'B', 'C']),
+			makeMarker('m2', ['A', 'B', 'C']),
+		];
+		const data = makeData(markers, [makeCode('A'), makeCode('B'), makeCode('C')]);
+		const result = clusterCodeCards(['A', 'B', 'C'], ['#F00', '#0F0', '#00F'], data, 0.5);
+		expect(result.clusters).toHaveLength(1);
+	});
+
+	// --- cutRatio extremes ---
+
+	it('cutRatio=0 with perfect co-occurrence keeps codes together (distance=0)', () => {
+		const markers = [
+			makeMarker('m1', ['A', 'B']),
+		];
+		const data = makeData(markers, [makeCode('A'), makeCode('B')]);
+		const result = clusterCodeCards(['A', 'B'], ['#FF0000', '#00FF00'], data, 0);
+		expect(result.clusters.length).toBe(1);
+	});
+
+	it('cutRatio=0 with no co-occurrence separates codes', () => {
+		const markers = [
+			makeMarker('m1', ['A']),
+			makeMarker('m2', ['B']),
+		];
+		const data = makeData(markers, [makeCode('A'), makeCode('B')]);
+		const result = clusterCodeCards(['A', 'B'], ['#FF0000', '#00FF00'], data, 0);
+		expect(result.clusters.length).toBe(2);
+	});
 
 	it('cutRatio=1 merges all codes into one cluster', () => {
 		const markers = [
@@ -90,48 +156,6 @@ describe('clusterCodeCards', () => {
 		expect(result.clusters[0].codeNames).toContain('B');
 	});
 
-	it('cutRatio=0 with perfect co-occurrence keeps codes together (distance=0)', () => {
-		const markers = [
-			makeMarker('m1', ['A', 'B']),
-		];
-		const data = makeData(markers, [makeCode('A'), makeCode('B')]);
-		const result = clusterCodeCards(['A', 'B'], ['#FF0000', '#00FF00'], data, 0);
-		// Jaccard distance = 0, cutDistance = 0 → same cluster (0 <= 0)
-		expect(result.clusters.length).toBe(1);
-	});
-
-	it('cutRatio=0 with no co-occurrence separates codes', () => {
-		const markers = [
-			makeMarker('m1', ['A']),
-			makeMarker('m2', ['B']),
-		];
-		const data = makeData(markers, [makeCode('A'), makeCode('B')]);
-		const result = clusterCodeCards(['A', 'B'], ['#FF0000', '#00FF00'], data, 0);
-		// Jaccard distance = 1, cutDistance = 0 → separate clusters
-		expect(result.clusters.length).toBe(2);
-	});
-
-	it('default cutRatio (0.5) separates codes when all distances are 1', () => {
-		const markers = [
-			makeMarker('m1', ['A']),
-			makeMarker('m2', ['B']),
-		];
-		const data = makeData(markers, [makeCode('A'), makeCode('B')]);
-		const result = clusterCodeCards(['A', 'B'], ['#FF0000', '#00FF00'], data);
-		// cutRatio=0.5 → cutDistance=0.5 < 1 → separate
-		expect(result.clusters.length).toBe(2);
-	});
-
-	it('perfect co-occurrence with any cutRatio stays together (distance=0)', () => {
-		const markers = [
-			makeMarker('m1', ['A', 'B', 'C']),
-		];
-		const data = makeData(markers, [makeCode('A'), makeCode('B'), makeCode('C')]);
-		const result = clusterCodeCards(['A', 'B', 'C'], ['#F00', '#0F0', '#00F'], data, 0.5);
-		// All Jaccard distances = 0, so all codes stay in 1 cluster regardless of cutRatio
-		expect(result.clusters.length).toBe(1);
-	});
-
 	it('cutRatio=1 with three codes → one cluster', () => {
 		const markers = [
 			makeMarker('m1', ['A']),
@@ -142,6 +166,17 @@ describe('clusterCodeCards', () => {
 		const result = clusterCodeCards(['A', 'B', 'C'], ['#F00', '#0F0', '#00F'], data, 1);
 		expect(result.clusters).toHaveLength(1);
 		expect(result.clusters[0].codeNames.sort()).toEqual(['A', 'B', 'C']);
+	});
+
+	// --- Codes not in cooccurrence data ---
+
+	it('codes not in cooccurrence data get max distance → separate', () => {
+		const data = makeData(
+			[makeMarker('m1', ['other'])],
+			[makeCode('other')],
+		);
+		const result = clusterCodeCards(['X', 'Y'], ['#F00', '#0F0'], data, 0.3);
+		expect(result.clusters.length).toBe(2);
 	});
 
 	// --- Structural guarantees ---
@@ -184,7 +219,6 @@ describe('clusterCodeCards', () => {
 			makeMarker('m3', ['C']),
 		];
 		const data = makeData(markers, [makeCode('A'), makeCode('B'), makeCode('C')]);
-		// cutRatio=0 → each code alone → each cluster has one color averaged to rgba
 		const result = clusterCodeCards(['A', 'B', 'C'], ['#FF0000', '#00FF00', '#0000FF'], data, 0);
 		for (const cluster of result.clusters) {
 			expect(cluster.color).toMatch(/^rgba\(\d{1,3},\d{1,3},\d{1,3},0\.12\)$/);
@@ -194,8 +228,10 @@ describe('clusterCodeCards', () => {
 	// --- averageColor (tested indirectly via cluster.color) ---
 
 	it('single-color cluster produces rgba with that color at 0.12 opacity', () => {
-		const data = makeData([makeMarker('m1', ['A']), makeMarker('m2', ['B'])], [makeCode('A'), makeCode('B')]);
-		// cutRatio=0 → separate clusters, each with one color
+		const data = makeData(
+			[makeMarker('m1', ['A']), makeMarker('m2', ['B'])],
+			[makeCode('A'), makeCode('B')],
+		);
 		const result = clusterCodeCards(['A', 'B'], ['#FF0000', '#00FF00'], data, 0);
 		const clusterA = result.clusters.find(c => c.codeNames.includes('A'))!;
 		expect(clusterA.color).toBe('rgba(255,0,0,0.12)');
@@ -205,10 +241,8 @@ describe('clusterCodeCards', () => {
 
 	it('two colors merged → averaged rgb at 0.12 opacity', () => {
 		const data = makeData([], [makeCode('A'), makeCode('B')]);
-		// cutRatio=1 → single cluster with averaged color
 		const result = clusterCodeCards(['A', 'B'], ['#FF0000', '#0000FF'], data, 1);
 		expect(result.clusters).toHaveLength(1);
-		// Average of (255,0,0) and (0,0,255) = (128,0,128)
 		expect(result.clusters[0].color).toBe('rgba(128,0,128,0.12)');
 	});
 
@@ -216,15 +250,13 @@ describe('clusterCodeCards', () => {
 		const data = makeData([], [makeCode('R'), makeCode('B')]);
 		const result = clusterCodeCards(['R', 'B'], ['#FF0000', '#0000FF'], data, 1);
 		expect(result.clusters).toHaveLength(1);
-		const color = result.clusters[0].color;
-		expect(color).toBe('rgba(128,0,128,0.12)');
+		expect(result.clusters[0].color).toBe('rgba(128,0,128,0.12)');
 	});
 
 	it('three colors averaged correctly', () => {
 		const data = makeData([], [makeCode('A'), makeCode('B'), makeCode('C')]);
 		const result = clusterCodeCards(['A', 'B', 'C'], ['#FF0000', '#00FF00', '#0000FF'], data, 1);
 		expect(result.clusters).toHaveLength(1);
-		// Average of (255,0,0), (0,255,0), (0,0,255) = (85,85,85)
 		expect(result.clusters[0].color).toBe('rgba(85,85,85,0.12)');
 	});
 
@@ -234,13 +266,11 @@ describe('clusterCodeCards', () => {
 		const data = makeData([], [makeCode('A'), makeCode('B')]);
 		const result = clusterCodeCards(['A', 'B'], ['#FF8800', '#007744'], data, 1);
 		expect(result.clusters).toHaveLength(1);
-		// (255+0)/2=128, (136+119)/2=128, (0+68)/2=34
 		expect(result.clusters[0].color).toBe('rgba(128,128,34,0.12)');
 	});
 
 	it('#RGB shorthand format is parsed correctly', () => {
 		const data = makeData([], [makeCode('A'), makeCode('B')]);
-		// #F00 = (255,0,0), #00F = (0,0,255)
 		const result = clusterCodeCards(['A', 'B'], ['#F00', '#00F'], data, 1);
 		expect(result.clusters).toHaveLength(1);
 		expect(result.clusters[0].color).toBe('rgba(128,0,128,0.12)');
@@ -250,7 +280,6 @@ describe('clusterCodeCards', () => {
 		const data = makeData([], [makeCode('A'), makeCode('B')]);
 		const result = clusterCodeCards(['A', 'B'], ['FF0000', '00FF00'], data, 1);
 		expect(result.clusters).toHaveLength(1);
-		// (255+0)/2=128, (0+255)/2=128, (0+0)/2=0
 		expect(result.clusters[0].color).toBe('rgba(128,128,0,0.12)');
 	});
 
@@ -280,7 +309,6 @@ describe('clusterCodeCards', () => {
 		const data = makeData(markers, codeObjs);
 		const result = clusterCodeCards(codeNames, colors, data, 0.3);
 		expect(allCodeNames(result)).toEqual([...codeNames].sort());
-		// IDs should be sequential
 		const ids = result.clusters.map(c => c.id).sort((a, b) => a - b);
 		for (let i = 0; i < ids.length; i++) {
 			expect(ids[i]).toBe(i);
@@ -296,35 +324,40 @@ describe('clusterCodeCards', () => {
 		expect(result.clusters[0].codeNames.length).toBe(12);
 	});
 
+	it('all markers have all codes (perfect co-occurrence) → one cluster', () => {
+		const codes = ['A', 'B', 'C', 'D'];
+		const markers = [
+			makeMarker('m1', codes),
+			makeMarker('m2', codes),
+			makeMarker('m3', codes),
+		];
+		const data = makeData(markers, codes.map(c => makeCode(c)));
+		const result = clusterCodeCards(codes, ['#F00', '#0F0', '#00F', '#FF0'], data, 0.5);
+		expect(result.clusters).toHaveLength(1);
+		expect(result.clusters[0].codeNames.sort()).toEqual([...codes].sort());
+	});
+
 	it('no markers at all → all codes separate at cutRatio<1', () => {
 		const data = makeData([], [makeCode('A'), makeCode('B'), makeCode('C')]);
 		const result = clusterCodeCards(['A', 'B', 'C'], ['#F00', '#0F0', '#00F'], data, 0.3);
 		expect(result.clusters.length).toBe(3);
 	});
 
-	it('codes not in cooccurrence data get max distance → separate', () => {
-		const data = makeData(
-			[makeMarker('m1', ['other'])],
-			[makeCode('other')],
-		);
-		const result = clusterCodeCards(['X', 'Y'], ['#F00', '#0F0'], data, 0.3);
+	it('default cutRatio is 0.5', () => {
+		const markers = [
+			makeMarker('m1', ['A']),
+			makeMarker('m2', ['B']),
+		];
+		const data = makeData(markers, [makeCode('A'), makeCode('B')]);
+		const result = clusterCodeCards(['A', 'B'], ['#FF0000', '#00FF00'], data);
+		// No co-occurrence → distance=1, cutDistance=0.5 < 1 → separate
 		expect(result.clusters.length).toBe(2);
-	});
-
-	it('buildDendrogram returns null for empty distMatrix → fallback cluster', () => {
-		// This shouldn't happen in practice since length < 2 is handled earlier,
-		// but if somehow n >= 2 but buildDendrogram returns null, it falls back
-		// We can't trigger this path easily, so test the normal fallback for single code
-		const data = makeData([], []);
-		const result = clusterCodeCards(['onlyOne'], ['#ABC'], data);
-		expect(result.clusters).toHaveLength(1);
-		expect(result.clusters[0].codeNames).toEqual(['onlyOne']);
 	});
 
 	// --- Result structure ---
 
 	it('result has clusters array with id, codeNames, color fields', () => {
-		const data = makeData([makeMarker('m1', ['A'])], [makeCode('A')]);
+		const data = makeData([makeMarker('m1', ['A']), makeMarker('m2', ['B'])], [makeCode('A'), makeCode('B')]);
 		const result = clusterCodeCards(['A', 'B'], ['#F00', '#0F0'], data, 0);
 		for (const cluster of result.clusters) {
 			expect(cluster).toHaveProperty('id');
@@ -337,7 +370,10 @@ describe('clusterCodeCards', () => {
 	});
 
 	it('each cluster codeNames is a non-empty array (when codes provided)', () => {
-		const data = makeData([], [makeCode('A'), makeCode('B')]);
+		const data = makeData(
+			[makeMarker('m1', ['A']), makeMarker('m2', ['B'])],
+			[makeCode('A'), makeCode('B')],
+		);
 		const result = clusterCodeCards(['A', 'B'], ['#F00', '#0F0'], data, 0);
 		for (const cluster of result.clusters) {
 			expect(cluster.codeNames.length).toBeGreaterThan(0);
