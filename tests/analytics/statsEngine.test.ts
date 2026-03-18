@@ -20,6 +20,7 @@ import type {
 	SourceType,
 } from '../../src/analytics/data/dataTypes';
 import type { ExtractedSegment } from '../../src/analytics/data/textExtractor';
+import { applyFilters } from '../../src/analytics/data/statsHelpers';
 
 function createFilters(overrides: Partial<FilterConfig> = {}): FilterConfig {
 	return {
@@ -892,5 +893,183 @@ describe('calculateDocumentCodeMatrix (expanded)', () => {
 		const codeBIdx = result.codes.indexOf('B');
 		expect(result.matrix[fileIdx][codeAIdx]).toBe(1);
 		expect(result.matrix[fileIdx][codeBIdx]).toBe(1);
+	});
+});
+
+// ── applyFilters (direct) ────────────────────────────────────
+
+describe('applyFilters (direct)', () => {
+	const markers: UnifiedMarker[] = [
+		{ id: 'm1', source: 'markdown', file: 'f1', codes: ['A', 'B'] },
+		{ id: 'm2', source: 'pdf', file: 'f2', codes: ['B'] },
+		{ id: 'm3', source: 'image', file: 'f3', codes: ['C'] },
+	];
+	const data: ConsolidatedData = {
+		markers,
+		codes: [],
+		sources: { markdown: true, csv: false, image: true, pdf: true, audio: false, video: false },
+		lastUpdated: 0,
+	};
+
+	it('returns all markers with default filters', () => {
+		const result = applyFilters(data, createFilters());
+		expect(result).toHaveLength(3);
+	});
+
+	it('excludeCodes removes marker only when ALL its codes are excluded', () => {
+		// m1 has ['A', 'B'] — excluding only 'A' should NOT remove it (B survives)
+		const result = applyFilters(data, createFilters({ excludeCodes: ['A'] }));
+		expect(result.map(m => m.id)).toContain('m1');
+	});
+
+	it('excludeCodes removes marker when all codes are excluded', () => {
+		// m1 has ['A', 'B'] — excluding both should remove it
+		const result = applyFilters(data, createFilters({ excludeCodes: ['A', 'B'] }));
+		expect(result.map(m => m.id)).not.toContain('m1');
+		// m2 has ['B'] — excluded
+		expect(result.map(m => m.id)).not.toContain('m2');
+		// m3 has ['C'] — survives
+		expect(result.map(m => m.id)).toContain('m3');
+	});
+
+	it('codes filter keeps marker if ANY code matches', () => {
+		const result = applyFilters(data, createFilters({ codes: ['A'] }));
+		// m1 has A+B → kept (A matches)
+		expect(result.map(m => m.id)).toContain('m1');
+		// m2 has B only → excluded
+		expect(result.map(m => m.id)).not.toContain('m2');
+	});
+
+	it('source filter is strict', () => {
+		const result = applyFilters(data, createFilters({ sources: ['markdown'] }));
+		expect(result).toHaveLength(1);
+		expect(result[0].id).toBe('m1');
+	});
+});
+
+// ── calculateTextStats (expanded) ────────────────────────────
+
+describe('calculateTextStats (expanded)', () => {
+	it('segment with multiple codes counts for each code', () => {
+		const segments: ExtractedSegment[] = [
+			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A', 'B'], text: 'hello world' },
+		];
+		const result = calculateTextStats(segments, new Map());
+		expect(result.codes).toHaveLength(2);
+		expect(result.codes.find(c => c.code === 'A')!.totalWords).toBe(2);
+		expect(result.codes.find(c => c.code === 'B')!.totalWords).toBe(2);
+	});
+
+	it('computes avgCharsPerSegment', () => {
+		const segments: ExtractedSegment[] = [
+			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'abcdefghij' }, // 10 chars
+			{ markerId: 'm2', source: 'markdown', file: 'f1', codes: ['A'], text: 'abcdefghijklmnopqrst' }, // 20 chars
+		];
+		const result = calculateTextStats(segments, new Map());
+		expect(result.codes[0].avgCharsPerSegment).toBe(15); // (10+20)/2
+	});
+
+	it('computes avgWordsPerSegment', () => {
+		const segments: ExtractedSegment[] = [
+			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'one two' },
+			{ markerId: 'm2', source: 'markdown', file: 'f1', codes: ['A'], text: 'three four five six' },
+		];
+		const result = calculateTextStats(segments, new Map());
+		// 6 words / 2 segments = 3.0
+		expect(result.codes[0].avgWordsPerSegment).toBe(3);
+	});
+
+	it('global TTR counts unique words across codes', () => {
+		const segments: ExtractedSegment[] = [
+			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'the cat' },
+			{ markerId: 'm2', source: 'markdown', file: 'f1', codes: ['B'], text: 'the dog' },
+		];
+		const result = calculateTextStats(segments, new Map());
+		// global: "the cat the dog" → 4 total, 3 unique (the, cat, dog)
+		expect(result.global.totalWords).toBe(4);
+		expect(result.global.uniqueWords).toBe(3);
+		expect(result.global.ttr).toBeCloseTo(0.75, 2);
+	});
+
+	it('sorts codes by totalWords descending', () => {
+		const segments: ExtractedSegment[] = [
+			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['B'], text: 'one' },
+			{ markerId: 'm2', source: 'markdown', file: 'f1', codes: ['A'], text: 'one two three' },
+		];
+		const result = calculateTextStats(segments, new Map());
+		expect(result.codes[0].code).toBe('A');
+		expect(result.codes[1].code).toBe('B');
+	});
+
+	it('strips punctuation and numbers from tokens', () => {
+		const segments: ExtractedSegment[] = [
+			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'hello, world! 42 test.' },
+		];
+		const result = calculateTextStats(segments, new Map());
+		// "hello", "world", "test" — commas/excl/numbers/periods are separators
+		expect(result.codes[0].totalWords).toBe(3);
+	});
+});
+
+// ── calculateChiSquare (math validation) ─────────────────────
+
+describe('calculateChiSquare (math validation)', () => {
+	it('perfectly even distribution yields high pValue (not significant)', () => {
+		// Equal distribution of code A across markdown and pdf
+		const markers: UnifiedMarker[] = [];
+		for (let i = 0; i < 20; i++) {
+			markers.push(makeMarker(`ma${i}`, 'markdown', 'f1', ['A']));
+			markers.push(makeMarker(`mp${i}`, 'pdf', 'f2', ['A']));
+		}
+		const data = createTestData(markers, [makeCode('A')]);
+		const result = calculateChiSquare(data, createFilters(), 'source');
+		const entry = result.entries.find(e => e.code === 'A');
+		expect(entry).toBeDefined();
+		expect(entry!.chiSquare).toBe(0);
+		expect(entry!.pValue).toBeGreaterThan(0.05);
+		expect(entry!.significant).toBe(false);
+	});
+
+	it('extreme skew yields low pValue (significant)', () => {
+		// Code A only in markdown, code B provides baseline in pdf
+		const markers: UnifiedMarker[] = [];
+		for (let i = 0; i < 30; i++) {
+			markers.push(makeMarker(`ma${i}`, 'markdown', 'f1', ['A']));
+			markers.push(makeMarker(`mb${i}`, 'pdf', 'f2', ['B']));
+		}
+		const data = createTestData(markers, [makeCode('A'), makeCode('B')]);
+		const result = calculateChiSquare(data, createFilters(), 'source');
+		const entryA = result.entries.find(e => e.code === 'A');
+		expect(entryA).toBeDefined();
+		expect(entryA!.pValue).toBeLessThan(0.05);
+		expect(entryA!.significant).toBe(true);
+	});
+
+	it('cramersV is between 0 and 1', () => {
+		const markers = [
+			makeMarker('m1', 'markdown', 'f1', ['A']),
+			makeMarker('m2', 'pdf', 'f2', ['A']),
+			makeMarker('m3', 'pdf', 'f2', ['B']),
+		];
+		const data = createTestData(markers, [makeCode('A'), makeCode('B')]);
+		const result = calculateChiSquare(data, createFilters(), 'source');
+		for (const e of result.entries) {
+			expect(e.cramersV).toBeGreaterThanOrEqual(0);
+			expect(e.cramersV).toBeLessThanOrEqual(1);
+		}
+	});
+
+	it('entries sorted by pValue ascending', () => {
+		const markers: UnifiedMarker[] = [];
+		for (let i = 0; i < 20; i++) {
+			markers.push(makeMarker(`ma${i}`, 'markdown', 'f1', ['A'])); // A only in md
+			markers.push(makeMarker(`mb${i}`, 'pdf', 'f2', ['B']));     // B only in pdf
+			markers.push(makeMarker(`mc${i}`, i % 2 === 0 ? 'markdown' : 'pdf', i % 2 === 0 ? 'f1' : 'f2', ['C'])); // C even
+		}
+		const data = createTestData(markers, [makeCode('A'), makeCode('B'), makeCode('C')]);
+		const result = calculateChiSquare(data, createFilters(), 'source');
+		for (let i = 1; i < result.entries.length; i++) {
+			expect(result.entries[i].pValue).toBeGreaterThanOrEqual(result.entries[i - 1].pValue);
+		}
 	});
 });
