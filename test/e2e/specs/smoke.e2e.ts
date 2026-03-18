@@ -1,4 +1,4 @@
-import { openFile, waitForPlugin, waitForElement, getActiveFile } from "obsidian-plugin-e2e";
+import { openFile, waitForPlugin, waitForElement, getActiveFile } from "obsidian-e2e-visual-test-kit";
 
 describe("smoke test", () => {
   it("Obsidian loads and plugin is available", async () => {

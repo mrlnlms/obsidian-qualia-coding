@@ -1,6 +1,6 @@
 import {
   openFile, waitForElement, checkComponent,
-} from "obsidian-plugin-e2e";
+} from "obsidian-e2e-visual-test-kit";
 
 describe("image view", () => {
   before(async () => {

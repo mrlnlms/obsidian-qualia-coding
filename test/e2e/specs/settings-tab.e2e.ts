@@ -1,6 +1,6 @@
 import {
   waitForElement, assertDomState,
-} from "obsidian-plugin-e2e";
+} from "obsidian-e2e-visual-test-kit";
 
 describe("settings tab", () => {
   before(async () => {

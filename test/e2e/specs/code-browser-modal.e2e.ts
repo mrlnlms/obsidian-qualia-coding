@@ -1,6 +1,6 @@
 import {
   waitForElement, assertDomState, assertInnerHTML, checkComponent,
-} from "obsidian-plugin-e2e";
+} from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData } from "../helpers/qualia.js";
 
 describe("code browser modal", () => {

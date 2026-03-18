@@ -1,6 +1,6 @@
 import {
   openFile, checkComponent,
-} from "obsidian-plugin-e2e";
+} from "obsidian-e2e-visual-test-kit";
 
 describe("audio view", () => {
   before(async () => {

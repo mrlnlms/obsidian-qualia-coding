@@ -1,4 +1,4 @@
-import { createConfig } from "obsidian-plugin-e2e";
+import { createConfig } from "obsidian-e2e-visual-test-kit";
 
 export const config = createConfig({
   pluginId: "qualia-coding",

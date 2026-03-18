@@ -1,6 +1,6 @@
 import {
   openFile, waitForElement, assertDomState, checkComponent,
-} from "obsidian-plugin-e2e";
+} from "obsidian-e2e-visual-test-kit";
 
 describe("column toggle modal (CSV)", () => {
   before(async () => {

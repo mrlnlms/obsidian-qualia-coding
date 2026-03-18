@@ -1,7 +1,7 @@
 import {
   openFile, focusEditor, waitForElement, executeCommand,
   assertDomState, checkComponent,
-} from "obsidian-plugin-e2e";
+} from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData, mkMarker, SELECTORS } from "../helpers/qualia.js";
 
 describe("code explorer sidebar", () => {

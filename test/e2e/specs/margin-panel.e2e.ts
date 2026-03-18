@@ -5,7 +5,7 @@ import {
   checkComponent,
   assertDomState,
   hoverElement,
-} from "obsidian-plugin-e2e";
+} from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData, mkMarker, SELECTORS } from "../helpers/qualia.js";
 
 describe("margin panel", () => {

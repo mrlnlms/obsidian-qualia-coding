@@ -1,6 +1,6 @@
 import {
   openFile, focusEditor, waitForElement, hoverElement, assertDomState, checkComponent,
-} from "obsidian-plugin-e2e";
+} from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData, mkMarker, SELECTORS } from "../helpers/qualia.js";
 
 describe("handle overlay", () => {

@@ -1,4 +1,4 @@
-import { waitForPlugin } from "obsidian-plugin-e2e";
+import { waitForPlugin } from "obsidian-e2e-visual-test-kit";
 
 /**
  * Inject markers and code definitions into the Qualia Coding plugin.

@@ -40,7 +40,7 @@
     "esbuild": "^0.19.0",
     "jsdom": "^29.0.0",
     "obsidian": "^1.12.3",
-    "obsidian-plugin-e2e": "file:../../../../obsidian-plugin-e2e",
+    "obsidian-e2e-visual-test-kit": "github:mrlnlms/obsidian-e2e-visual-test-kit",
     "typescript": "^5.0.0",
     "vitest": "^4.1.0",
     "wdio-obsidian-reporter": "^2.4.0",
