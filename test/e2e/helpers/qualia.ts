@@ -1,13 +1,42 @@
 import { waitForPlugin } from "obsidian-plugin-e2e";
 
-export async function injectQualiaData(data: Record<string, unknown>): Promise<void> {
+/**
+ * Inject markers and code definitions into the Qualia Coding plugin.
+ * Writes directly to dataManager sections, then reloads the markdown model.
+ */
+export async function injectQualiaData(opts: {
+  markers?: Record<string, unknown[]>;
+  codeDefinitions?: Array<{ name: string; color: string; description?: string }>;
+}): Promise<void> {
   await waitForPlugin("qualia-coding");
-  await browser.execute((d: Record<string, unknown>) => {
+  await browser.execute((o: typeof opts) => {
     const plugin = (window as any).app.plugins.plugins["qualia-coding"];
-    plugin.saveData({ ...plugin.settings, ...d });
+    const dm = plugin.dataManager;
+
+    // Inject code definitions into registry
+    if (o.codeDefinitions) {
+      for (const def of o.codeDefinitions) {
+        plugin.sharedRegistry.create(def.name, def.color, def.description ?? "");
+      }
+    }
+
+    // Inject markers into markdown section
+    if (o.markers) {
+      const mdData = dm.section("markdown");
+      mdData.markers = o.markers;
+      dm.setSection("markdown", mdData);
+    }
+
+    // Reload markdown model to pick up new markers
     plugin.markdownModel?.loadMarkers();
-  }, data);
-  await browser.pause(2000);
+    // Trigger CM6 decoration update
+    if (plugin.updateFileMarkersEffect) {
+      for (const fileId of Object.keys(o.markers ?? {})) {
+        plugin.markdownModel?.updateMarkersForFile(fileId);
+      }
+    }
+  }, opts);
+  await browser.pause(3000);
 }
 
 export function mkMarker(
