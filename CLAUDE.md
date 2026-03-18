@@ -12,6 +12,7 @@ src/
     baseSidebarAdapter.ts    — base class para TODOS os sidebar adapters (listeners, hover, deleteCode, updateMarkerFields)
     markerResolvers.ts       — type guards (isPdfMarker etc.) + getMarkerLabel + shortenPath
     baseCodingMenu.ts        — helpers compartilhados de menu (createActionItem, applyThemeColors)
+    drawToolbarFactory.ts    — factory compartilhada de toolbar drawing (PDF + Image)
     ...                      — DataManager, CodeDefinitionRegistry, settings, types
   markdown/                  — CodeMirror 6 engine para markdown
     cm6/

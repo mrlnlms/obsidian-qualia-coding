@@ -645,7 +645,7 @@ Harness e2e: `obsidian-e2e-visual-test-kit` ([GitHub](https://github.com/mrlnlms
 
 **Dependencias:** Nenhuma. Independente da hierarquia de codigos.
 
-**Prioridade:** Media — fazer apos hierarquia de codigos. Bom candidato pra quando for adicionar novas formas.
+**FEITO (2026-03-18):** Toolbar factory implementada em `src/core/drawToolbarFactory.ts`. PDF (107 → 42 LOC) e Image (180 → 127 LOC) usam a mesma factory com `DRAW_TOOL_BUTTONS` de `shapeTypes.ts`. Adicionar forma nova = 1 entry no catalogo. Renderers especificos de cada engine permanecem separados (Fabric.js vs DOM overlays).
 
 ### Unificacao Audio/Video View — avaliar (proposto 2026-03-18)
 
