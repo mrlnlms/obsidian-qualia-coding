@@ -782,6 +782,39 @@ Padrões estabelecidos durante o refactor de unificação:
 
 Este documento consolida:
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
+---
+
+## Obsidian View Inheritance — Composition over Inheritance
+
+### Gotcha: ItemView heranca intermediaria nao funciona
+
+**Problema:** Tentar `AudioView extends MediaView extends ItemView` (heranca de 3 niveis) faz com que o Obsidian nao carregue a view corretamente — aparece o player padrao em vez da view customizada. Build e tsc passam, mas no runtime a view nao registra.
+
+**Causa provavel:** O Obsidian espera que views herdem diretamente de `ItemView`. Heranca intermediaria pode confundir o sistema de registro de views ou o esbuild pode otimizar a cadeia de forma inesperada.
+
+**Solucao:** Usar composicao em vez de heranca. A view herda direto de `ItemView` e delega logica compartilhada pra uma classe helper (sem heranca):
+
+```typescript
+// ERRADO — nao funciona no Obsidian
+class MediaView extends ItemView { /* logica compartilhada */ }
+class AudioView extends MediaView { /* config */ }
+
+// CERTO — funciona
+class MediaViewCore { /* logica compartilhada, SEM heranca */ }
+class AudioView extends ItemView {
+  private core = new MediaViewCore(this.app, plugin, model, config);
+  // delegates: setState → core.loadMedia(), onClose → core.cleanup()
+}
+```
+
+**Resultado:** AudioView (387 → 53 LOC), VideoView (393 → 54 LOC), MediaViewCore (357 LOC). ~287 LOC eliminadas.
+
+**Regra:** Em plugins Obsidian, NUNCA usar heranca intermediaria de ItemView/FileView. Usar composicao pra compartilhar logica entre views.
+
+---
+
+## References
+
 - `memory/visual-testing.md` — CM6 rendering lessons, visual testing traps
 - `docs/markdown/DEVELOPMENT.md` — dark mode breakthrough, bug fixes
 - `docs/pdf/CLAUDE.md` — PDF coordinate system, DOM hierarchy
