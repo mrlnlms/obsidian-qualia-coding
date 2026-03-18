@@ -25,6 +25,7 @@ export interface CardBgOptions {
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
+  shadowColor?: string;
 }
 
 export function createCardBg(opts: CardBgOptions): Rect {
@@ -35,7 +36,7 @@ export function createCardBg(opts: CardBgOptions): Rect {
     rx: opts.rx ?? 6,
     ry: opts.ry ?? 6,
     shadow: new Shadow({
-      color: "rgba(0,0,0,0.15)",
+      color: opts.shadowColor ?? "rgba(0,0,0,0.15)",
       blur: opts.shadowBlur ?? 6,
       offsetX: opts.shadowOffsetX ?? 1,
       offsetY: opts.shadowOffsetY ?? 2,
