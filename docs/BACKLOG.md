@@ -671,9 +671,9 @@ Harness e2e: pacote reutilizavel `obsidian-plugin-e2e` em `~/Desktop/obsidian-pl
 
 | Item | Status |
 |------|--------|
-| GitHub Actions unit CI | **FEITO** — `.github/workflows/ci.yml` (build + 1269 tests em push/PR) |
-| Package reproducibility | **FEITO** — `github:mrlnlms/obsidian-e2e-visual-test-kit` (checkout limpo funciona) |
-| GitHub Actions e2e | **BACKLOG** — precisa xvfb + Obsidian headless. Fazer quando tiver colaboradores |
+| GitHub Actions unit CI | **FEITO** — `.github/workflows/ci.yml` job `unit-tests` |
+| Package reproducibility | **FEITO** — `github:mrlnlms/obsidian-e2e-visual-test-kit` |
+| GitHub Actions e2e | **FEITO** — job `e2e-tests` com xvfb + cache Obsidian |
 
 **Decisao atual:** Manter separado. A duplicacao e barata (~350 LOC) e a clareza compensa. Revisitar se:
 - Adicionar um terceiro engine de media (ex: podcast com chapters) — ai a duplicacao vira tripla e justifica
