@@ -72,10 +72,9 @@ src/
 - `demo/` — vault de teste com arquivos de cada tipo
 - Abrir no Obsidian: vault path = `demo/`
 - `demo/.obsidian/plugins/qualia-coding/main.js` e commitado (quem clona precisa)
-- Apos build ou mudanca em manifest/styles, SEMPRE copiar:
+- Apos build ou mudanca em manifest/styles, copiar manualmente:
   `cp -p main.js manifest.json styles.css demo/.obsidian/plugins/qualia-coding/`
-- O esbuild tem plugin `copyToDemo` que copia `main.js` automaticamente no dev/build.
-  `manifest.json` e `styles.css` precisam de copia manual quando alterados.
+- NAO existe plugin copyToDemo no esbuild — copia e manual.
 
 ## Convencoes
 

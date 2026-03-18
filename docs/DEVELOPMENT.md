@@ -39,7 +39,7 @@ npm run dev      # esbuild watch mode (hot reload com hot-reload plugin)
 
 ```
 src/
-├── main.ts                  # Entry point (~105 LOC) — registra engines, monta sidebar, auto-persist registry
+├── main.ts                  # Entry point (~180 LOC) — registra engines, sidebar, cross-engine navigation, auto-persist
 ├── core/                    # Infraestrutura compartilhada
 │   ├── types.ts             # BaseMarker, SidebarModelInterface, CodeDefinition
 │   ├── dataManager.ts       # Cache in-memory + debounced save
@@ -55,6 +55,11 @@ src/
 │   ├── baseCodeDetailView.ts     # Base class do detail
 │   ├── baseSidebarAdapter.ts     # Base class para sidebar adapters
 │   ├── markerResolvers.ts        # Type guards e resolvers centralizados
+│   ├── drawToolbarFactory.ts     # Factory compartilhada toolbar drawing (PDF + Image)
+│   ├── shapeTypes.ts             # DrawMode, ShapeType, DRAW_TOOL_BUTTONS catalog
+│   ├── detailListRenderer.ts     # Renderer modo lista do detail view
+│   ├── detailCodeRenderer.ts     # Renderer modo code do detail view
+│   ├── detailMarkerRenderer.ts   # Renderer modo marker do detail view
 │   └── settingTab.ts        # Settings
 ├── markdown/                # Engine markdown (CM6)
 ├── pdf/                     # Engine PDF (DOM/SVG)
@@ -63,10 +68,15 @@ src/
 ├── audio/                   # Engine Audio (WaveSurfer)
 ├── video/                   # Engine Video (WaveSurfer)
 ├── obsidian-internals.d.ts   # Type declarations para APIs internas do Obsidian
-├── media/                   # Shared audio+video (waveformRenderer, regionRenderer)
+├── media/                   # Shared audio+video
+│   ├── mediaViewCore.ts         # Logica compartilhada via composicao (transport, zoom, regions)
+│   ├── mediaViewConfig.ts       # Interface de configuracao (video element, CSS prefix, popover)
 │   ├── mediaCodingModel.ts      # Model compartilhado audio+video
 │   ├── mediaSidebarAdapter.ts   # Sidebar adapter compartilhado
-│   └── mediaCodingMenu.ts       # Menu de codificação compartilhado
+│   ├── mediaCodingMenu.ts       # Menu de codificação compartilhado
+│   ├── waveformRenderer.ts      # Wrapper WaveSurfer.js
+│   ├── regionRenderer.ts        # Renderizacao de regioes
+│   └── formatTime.ts            # Helper de formatacao de tempo
 └── analytics/               # Engine Analytics (Chart.js + Fabric.js)
     ├── data/                # 6 computation engines
     ├── board/               # Research Board
@@ -105,8 +115,8 @@ src/
             └── overlapMode.ts       # Code overlap matrix
 ```
 
-### Regra: `main.ts` é orquestrador leve (~100 LOC)
-Não implementa lógica de engine — apenas registra, conecta e limpa. Cada engine exporta `registerXxxEngine()` que retorna `EngineRegistration<Model>` com `{ cleanup, model }`. O main.ts destructura o model diretamente — sem non-null assertions. O registry persiste automaticamente via `onMutate` callback.
+### Regra: `main.ts` é orquestrador leve (~180 LOC)
+Nao implementa logica de engine — registra engines, monta sidebar unificada, conecta listeners cross-engine (label-click, code-click, rename propagation) e limpa. Cada engine exporta `registerXxxEngine()` que retorna `EngineRegistration<Model>` com `{ cleanup, model }`. O main.ts destructura o model diretamente — sem non-null assertions. O registry persiste automaticamente via `onMutate` callback.
 
 ```typescript
 // Padrão de registro de engine
@@ -301,20 +311,20 @@ Abrir arquivo **antes** de injetar dados = decorations vazias.
 3. **Autonomous fix cycle** (7 passos) — cria test, reproduz bug, fixa, valida com before/after
 
 ### Config & Commands
-- Config: `wdio.conf.mts`
+- Config: `wdio.conf.mts` (usa `obsidian-e2e-visual-test-kit` de `github:mrlnlms/obsidian-e2e-visual-test-kit`)
 - Commands:
   ```bash
-  npm run build && npm run test:visual
-  npm run test:visual:update  # regenerate baselines
-  npx wdio run wdio.conf.mts --spec test/specs/SPECIFIC.ts
+  npm run test:e2e                                          # roda todos os 18 specs
+  npm run test:e2e -- --spec test/e2e/specs/smoke.e2e.ts   # spec especifico
+  npm run test:visual:update                                # regenera baselines
   ```
 
 ### Test Vault & Baselines
-- Test vault: `test/vaults/visual-test/` with `Sample Coded.md`
-- Baselines: `test/screenshots/baseline/desktop_chrome/`
-- Light mode config: `appearance.json: { "baseFontSize": 16, "theme": "moonstone" }`
-- Resolution-dependent — mudança de vault/appearance/máquina invalida tudo
-- Armazenar separadamente por resolução de tela
+- Test vault: `test/e2e/vaults/visual/` com fixtures (md, csv, pdf, png, mp3, mp4)
+- Baselines: `test/screenshots/baseline/` (commitados — referencia visual)
+- `test/screenshots/actual/` e `test/screenshots/diff/` sao gitignored (artefatos de run)
+- Resolution-dependent — mesma maquina pra baseline e comparacao
+- CI roda so smoke test (Linux rendering difere de macOS)
 
 ### Test Catalog
 
