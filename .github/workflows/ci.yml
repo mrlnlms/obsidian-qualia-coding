@@ -47,7 +47,7 @@ jobs:
           path: .obsidian-cache
           key: obsidian-${{ runner.os }}
 
-      - name: E2E visual tests (Obsidian + xvfb)
+      - name: E2E smoke tests (Obsidian + xvfb)
         uses: coactions/setup-xvfb@v1
         with:
-          run: npm run test:e2e
+          run: npx wdio run wdio.conf.mts --spec test/e2e/specs/smoke.e2e.ts
