@@ -16,6 +16,10 @@ src/
   markdown/                  — CodeMirror 6 engine para markdown
   pdf/                       — PDF viewer + coding (fabric.js)
   csv/                       — CSV/Parquet engine (ag-grid, papaparse, hyparquet)
+    csvCodingView.ts         — FileView orquestrador (~210 LOC): grid setup, lifecycle
+    segmentEditor.ts         — CM6 split panel: open/close, marker sync, label alignment
+    columnToggleModal.ts     — Modal de settings de colunas + CommentCellEditor + styles
+    csvHeaderInjection.ts    — MutationObserver para injetar botoes nos headers AG Grid
   image/                     — Image coding (fabric.js, zoom/pan per-file)
   audio/                     — Audio engine (wavesurfer.js) — extends MediaCodingModel
   video/                     — Video engine — extends MediaCodingModel
@@ -70,7 +74,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1239 testes em 37 suites (Vitest + jsdom)
+- `npm run test` — 1248 testes em 39 suites (Vitest + jsdom)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView
 - Type guards compartilhados em `markerResolvers.ts`
