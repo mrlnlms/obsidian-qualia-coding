@@ -4,16 +4,18 @@ import type { AnalyticsViewContext, ViewMode } from "./analyticsViewContext";
 import { MODE_REGISTRY } from "./modes/modeRegistry";
 
 export function renderSourcesSection(ctx: AnalyticsViewContext): void {
-  const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+  if (!ctx.configPanelEl || !ctx.data) return;
+
+  const section = ctx.configPanelEl.createDiv({ cls: "codemarker-config-section" });
   section.createDiv({ cls: "codemarker-config-section-title", text: "Sources" });
 
   const sources: Array<{ label: string; keys: SourceType[]; active: boolean }> = [
-    { label: "Markdown", keys: ["markdown"], active: ctx.data!.sources.markdown },
-    { label: "CSV", keys: ["csv-segment", "csv-row"], active: ctx.data!.sources.csv },
-    { label: "Image", keys: ["image"], active: ctx.data!.sources.image },
-    { label: "PDF", keys: ["pdf"], active: ctx.data!.sources.pdf },
-    { label: "Audio", keys: ["audio"], active: ctx.data!.sources.audio },
-    { label: "Video", keys: ["video"], active: ctx.data!.sources.video },
+    { label: "Markdown", keys: ["markdown"], active: ctx.data.sources.markdown },
+    { label: "CSV", keys: ["csv-segment", "csv-row"], active: ctx.data.sources.csv },
+    { label: "Image", keys: ["image"], active: ctx.data.sources.image },
+    { label: "PDF", keys: ["pdf"], active: ctx.data.sources.pdf },
+    { label: "Audio", keys: ["audio"], active: ctx.data.sources.audio },
+    { label: "Video", keys: ["video"], active: ctx.data.sources.video },
   ];
 
   for (const src of sources) {
@@ -27,7 +29,7 @@ export function renderSourcesSection(ctx: AnalyticsViewContext): void {
 
     // Count
     if (src.active) {
-      const count = ctx.data!.markers.filter((m) => src.keys.includes(m.source)).length;
+      const count = ctx.data.markers.filter((m) => src.keys.includes(m.source)).length;
       row.createSpan({ cls: "codemarker-config-count", text: `(${count})` });
     }
 
@@ -48,7 +50,9 @@ export function renderSourcesSection(ctx: AnalyticsViewContext): void {
 }
 
 export function renderViewModeSection(ctx: AnalyticsViewContext): void {
-  const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+  if (!ctx.configPanelEl) return;
+
+  const section = ctx.configPanelEl.createDiv({ cls: "codemarker-config-section" });
   section.createDiv({ cls: "codemarker-config-section-title", text: "View" });
 
   for (const [value, entry] of Object.entries(MODE_REGISTRY) as [ViewMode, typeof MODE_REGISTRY[ViewMode]][]) {
@@ -74,7 +78,9 @@ export function renderViewModeSection(ctx: AnalyticsViewContext): void {
 }
 
 export function renderCodesSection(ctx: AnalyticsViewContext): void {
-  const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+  if (!ctx.configPanelEl || !ctx.data) return;
+
+  const section = ctx.configPanelEl.createDiv({ cls: "codemarker-config-section" });
   section.createDiv({ cls: "codemarker-config-section-title", text: "Codes" });
 
   // Select all / Deselect all
@@ -83,7 +89,7 @@ export function renderCodesSection(ctx: AnalyticsViewContext): void {
   const deselectAll = actions.createSpan({ cls: "codemarker-config-action", text: "Deselect All" });
 
   selectAll.addEventListener("click", () => {
-    ctx.enabledCodes = new Set(ctx.data!.codes.map((c) => c.name));
+    ctx.enabledCodes = new Set((ctx.data?.codes ?? []).map((c) => c.name));
     renderCodesSection(ctx);
     ctx.scheduleUpdate();
   });
@@ -154,7 +160,9 @@ function renderCodesList(ctx: AnalyticsViewContext, container: HTMLElement): voi
 }
 
 export function renderMinFreqSection(ctx: AnalyticsViewContext): void {
-  const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
+  if (!ctx.configPanelEl) return;
+
+  const section = ctx.configPanelEl.createDiv({ cls: "codemarker-config-section" });
   section.createDiv({ cls: "codemarker-config-section-title", text: "Min frequency" });
 
   const row = section.createDiv({ cls: "codemarker-config-row" });
