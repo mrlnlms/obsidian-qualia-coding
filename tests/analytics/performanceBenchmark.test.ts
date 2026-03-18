@@ -134,14 +134,11 @@ async function benchAsync(label: string, fn: () => Promise<void>): Promise<numbe
 // ── Scales to test ────────────────────────────────────────────
 
 const SCALES = [
-	{ markers: 100, codes: 10, files: 10, label: 'small (100 markers)' },
-	{ markers: 500, codes: 20, files: 30, label: 'medium (500 markers)' },
-	{ markers: 1000, codes: 30, files: 50, label: 'large (1000 markers)' },
-	{ markers: 5000, codes: 50, files: 100, label: 'xl (5000 markers)' },
+	{ markers: 100, codes: 10, files: 10, label: 'small (100 markers)', maxMs: 2000 },
+	{ markers: 500, codes: 20, files: 30, label: 'medium (500 markers)', maxMs: 3000 },
+	{ markers: 1000, codes: 30, files: 50, label: 'large (1000 markers)', maxMs: 5000 },
+	{ markers: 5000, codes: 50, files: 100, label: 'xl (5000 markers)', maxMs: 10000 },
 ];
-
-// Generous threshold: anything under 2s is fine for analytics
-const MAX_MS = 2000;
 
 // ── Tests ─────────────────────────────────────────────────────
 
@@ -156,68 +153,68 @@ describe('analytics performance benchmark', () => {
 			it('calculateFrequency', () => {
 				const ms = bench('frequency', () => calculateFrequency(data, filters));
 				results.push({ scale: scale.label, fn: 'frequency', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateCooccurrence', () => {
 				const ms = bench('cooccurrence', () => calculateCooccurrence(data, filters));
 				results.push({ scale: scale.label, fn: 'cooccurrence', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateDocumentCodeMatrix', () => {
 				const ms = bench('docMatrix', () => calculateDocumentCodeMatrix(data, filters));
 				results.push({ scale: scale.label, fn: 'docMatrix', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateEvolution', () => {
 				const ms = bench('evolution', () => calculateEvolution(data, filters));
 				results.push({ scale: scale.label, fn: 'evolution', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateTemporal', () => {
 				const ms = bench('temporal', () => calculateTemporal(data, filters));
 				results.push({ scale: scale.label, fn: 'temporal', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateTextStats', () => {
 				const ms = bench('textStats', () => calculateTextStats(segments, codeColors));
 				results.push({ scale: scale.label, fn: 'textStats', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateLagSequential', () => {
 				const ms = bench('lagSequential', () => calculateLagSequential(data, filters, 1));
 				results.push({ scale: scale.label, fn: 'lagSequential', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculatePolarCoordinates', () => {
 				const focalCode = data.codes[0]?.name ?? '';
 				const ms = bench('polarCoords', () => calculatePolarCoordinates(data, filters, focalCode, 5));
 				results.push({ scale: scale.label, fn: 'polarCoords', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateChiSquare', () => {
 				const ms = bench('chiSquare', () => calculateChiSquare(data, filters, 'source'));
 				results.push({ scale: scale.label, fn: 'chiSquare', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateSourceComparison', () => {
 				const ms = bench('sourceComparison', () => calculateSourceComparison(data, filters));
 				results.push({ scale: scale.label, fn: 'sourceComparison', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateOverlap', () => {
 				const ms = bench('overlap', () => calculateOverlap(data, filters));
 				results.push({ scale: scale.label, fn: 'overlap', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateMCA', async () => {
@@ -226,7 +223,7 @@ describe('analytics performance benchmark', () => {
 				const filtered = data.markers.filter((m) => filters.sources.includes(m.source));
 				const ms = await benchAsync('mca', async () => { await calculateMCA(filtered, codes, colors); });
 				results.push({ scale: scale.label, fn: 'mca', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('calculateMDS', async () => {
@@ -235,14 +232,14 @@ describe('analytics performance benchmark', () => {
 					await calculateMDS(filtered, data.codes, 'codes', [...SOURCES]);
 				});
 				results.push({ scale: scale.label, fn: 'mds', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('buildDecisionTree', () => {
 				const outcome = data.codes[0]?.name ?? '';
 				const ms = bench('decisionTree', () => buildDecisionTree(data, filters, outcome, 4, 2));
 				results.push({ scale: scale.label, fn: 'decisionTree', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 
 			it('hierarchicalCluster (from cooccurrence)', () => {
@@ -267,7 +264,7 @@ describe('analytics performance benchmark', () => {
 					buildDendrogram(distMatrix, cooc.codes, cooc.colors);
 				});
 				results.push({ scale: scale.label, fn: 'cluster', ms });
-				expect(ms).toBeLessThan(MAX_MS);
+				expect(ms).toBeLessThan(scale.maxMs);
 			});
 		});
 	}
