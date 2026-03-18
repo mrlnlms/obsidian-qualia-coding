@@ -23,8 +23,8 @@ export class PdfCodingModel {
 	private shapes: PdfShapeMarker[] = [];
 	private undoStack: UndoEntry[] = [];
 	private suppressUndo = false;
-	private listeners: ChangeListener[] = [];
-	private hoverListeners: HoverListener[] = [];
+	private listeners = new Set<ChangeListener>();
+	private hoverListeners = new Set<HoverListener>();
 	private hoverMarkerId: string | null = null;
 	private hoverCodeName: string | null = null;
 
@@ -54,11 +54,11 @@ export class PdfCodingModel {
 	}
 
 	onChange(fn: ChangeListener): void {
-		this.listeners.push(fn);
+		this.listeners.add(fn);
 	}
 
 	offChange(fn: ChangeListener): void {
-		this.listeners = this.listeners.filter(l => l !== fn);
+		this.listeners.delete(fn);
 	}
 
 	// ── Hover state (bidirectional highlight ↔ sidebar) ──
@@ -73,11 +73,11 @@ export class PdfCodingModel {
 	getHoverMarkerId(): string | null { return this.hoverMarkerId; }
 
 	onHoverChange(fn: HoverListener): void {
-		this.hoverListeners.push(fn);
+		this.hoverListeners.add(fn);
 	}
 
 	offHoverChange(fn: HoverListener): void {
-		this.hoverListeners = this.hoverListeners.filter(l => l !== fn);
+		this.hoverListeners.delete(fn);
 	}
 
 	// ── File rename tracking ──
