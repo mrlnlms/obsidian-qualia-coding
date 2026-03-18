@@ -517,6 +517,23 @@ export class CodeMarkerModel {
 		this.plugin.dataManager.markDirty();
 	}
 
+	renameCode(oldName: string, newName: string) {
+		const allMarkers = this.getAllMarkers();
+		const affectedFiles = new Set<string>();
+		for (const marker of allMarkers) {
+			const idx = marker.codes.indexOf(oldName);
+			if (idx >= 0) {
+				marker.codes[idx] = newName;
+				marker.updatedAt = Date.now();
+				affectedFiles.add(marker.fileId);
+			}
+		}
+		this.saveMarkers();
+		for (const fileId of affectedFiles) {
+			this.updateMarkersForFile(fileId);
+		}
+	}
+
 	deleteCode(codeName: string) {
 		const def = this.registry.getByName(codeName);
 		if (!def) return;

@@ -68,6 +68,10 @@ export class UnifiedModelAdapter implements SidebarModelInterface {
 		return false;
 	}
 
+	renameCode(oldName: string, newName: string): void {
+		for (const m of this.models) m.renameCode(oldName, newName);
+	}
+
 	deleteCode(codeName: string): void {
 		for (const m of this.models) m.deleteCode(codeName);
 	}

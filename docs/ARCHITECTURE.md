@@ -240,8 +240,9 @@ CSV tem batch mode especial para codificar múltiplas linhas visíveis de uma ve
 Instância única compartilhada entre todos os 7 engines:
 - 12 cores auto-palette (alta contrast, safe em light/dark)
 - Palette categórica (não gradiente) — cada cor é visualmente distinta
-- Referências por ID previnem problemas com rename de códigos
-- Auto-persistence via `onMutate` callback — qualquer mutação (add, rename, delete, recolor) dispara save automaticamente, sem necessidade de chamada manual pelo engine
+- Markers referenciam códigos por **nome** (`codes: string[]`), não por ID — nomes são a identidade em QDA
+- Rename propagation via `onRenamed` callback: quando `registry.update()` muda um nome, `unifiedModel.renameCode(oldName, newName)` atualiza todos os markers de todos os engines
+- Auto-persistence via `onMutate` callback — qualquer mutação (add, rename, delete, recolor) dispara save automaticamente
 
 ### 5.2 DataManager
 
@@ -555,13 +556,12 @@ interface QDAProject {
       board.json     — per-project Research Board (optional)
 ```
 
-### Inheritance Model — Codes Shared by Reference
+### Inheritance Model — Codes Shared by Name
 
-- **Global codes** live in `data.json` under `registry[]`. Every project can reference them by `id`.
-- **Project-scoped codes** have `scope: projectId` and are only visible within that project.
-- When `activeProject` is `null`, the user operates in "global mode" — all codes and segments across all projects are visible.
-- Renaming a global code propagates to all projects that reference it (single source of truth via `CodeDefinitionRegistry`).
-- Deleting a global code cascades: removes from all project codebooks and unlinks from all segments.
+- **Global codes** live in `data.json` under `registry.definitions`. Markers reference them by **name** (`codes: string[]`).
+- **Why names, not IDs:** In QDA, code names ARE the identity — researchers think in terms of "Emotion", "Theme", not UUIDs. Names are human-readable in the data file and across engines.
+- **Rename propagation:** When a code name changes via `registry.update()`, the `onRenamed` callback triggers `unifiedModel.renameCode(oldName, newName)` which updates all markers across all 6 engines.
+- **Delete cascades:** `deleteCode(name)` removes the code from all markers and deletes the definition. Markers left with no codes are also removed.
 
 ---
 

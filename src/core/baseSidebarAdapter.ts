@@ -110,6 +110,17 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 		this.notifyAfterFieldUpdate();
 	}
 
+	/** Rename a code across all markers. */
+	renameCode(oldName: string, newName: string): void {
+		for (const m of this.model.getAllMarkers()) {
+			const idx = m.codes.indexOf(oldName);
+			if (idx >= 0) {
+				m.codes[idx] = newName;
+			}
+		}
+		this.saveMarkers();
+	}
+
 	/** Remove a code from all markers and delete its definition. PDF overrides for shapes. */
 	deleteCode(codeName: string): void {
 		for (const m of this.model.getAllMarkers()) {

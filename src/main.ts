@@ -96,6 +96,11 @@ export default class QualiaCodingPlugin extends Plugin {
 			[mdModel as unknown as SidebarModelInterface, pdfAdapter, imageAdapter, csvAdapter, audioAdapter, videoAdapter],
 		);
 
+		// Propagate code renames to all markers across all engines
+		this.sharedRegistry.setOnRenamed((oldName, newName) => {
+			unifiedModel.renameCode(oldName, newName);
+		});
+
 		// Register unified sidebar views (single set for ALL engines)
 		this.registerView(CODE_EXPLORER_VIEW_TYPE, (leaf) =>
 			new UnifiedCodeExplorerView(leaf, unifiedModel, mdModel));

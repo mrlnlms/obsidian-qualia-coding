@@ -896,3 +896,43 @@ describe('setCodeDescription / getCodeDescription', () => {
 		expect(model.getCodeDescription('MyCode')).toBe('');
 	});
 });
+
+// ── 30. renameCode ──
+
+describe('renameCode', () => {
+	it('renames code in all markers', () => {
+		registry.create('OldName');
+		model.addMarkerDirect('f1', {
+			markerType: 'markdown', id: 'm1', fileId: 'f1',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 10 } },
+			color: '#6200EE', codes: ['OldName'], createdAt: 1, updatedAt: 1,
+		});
+		model.addMarkerDirect('f2', {
+			markerType: 'markdown', id: 'm2', fileId: 'f2',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 10 } },
+			color: '#6200EE', codes: ['OldName', 'Other'], createdAt: 1, updatedAt: 1,
+		});
+
+		model.renameCode('OldName', 'NewName');
+
+		const m1 = model.getMarkerById('m1');
+		const m2 = model.getMarkerById('m2');
+		expect(m1?.codes).toEqual(['NewName']);
+		expect(m2?.codes).toContain('NewName');
+		expect(m2?.codes).toContain('Other');
+		expect(m2?.codes).not.toContain('OldName');
+	});
+
+	it('does nothing when code not found in markers', () => {
+		registry.create('A');
+		model.addMarkerDirect('f1', {
+			markerType: 'markdown', id: 'm1', fileId: 'f1',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 10 } },
+			color: '#6200EE', codes: ['A'], createdAt: 1, updatedAt: 1,
+		});
+
+		model.renameCode('NonExistent', 'Whatever');
+
+		expect(model.getMarkerById('m1')?.codes).toEqual(['A']);
+	});
+});

@@ -27,10 +27,16 @@ export class CodeDefinitionRegistry {
 	private nameIndex: Map<string, string> = new Map(); // name → id
 	private nextPaletteIndex: number = 0;
 	private onMutate: (() => void) | null = null;
+	private onRenamed: ((oldName: string, newName: string) => void) | null = null;
 
 	/** Register a callback invoked on every mutation (create/update/delete). Used by DataManager for auto-persist. */
 	setOnMutate(fn: () => void): void {
 		this.onMutate = fn;
+	}
+
+	/** Register a callback invoked when a code name changes. Used to propagate renames to markers. */
+	setOnRenamed(fn: (oldName: string, newName: string) => void): void {
+		this.onRenamed = fn;
 	}
 
 	// --- CRUD ---
@@ -76,9 +82,11 @@ export class CodeDefinitionRegistry {
 		if (!def) return false;
 
 		if (changes.name !== undefined && changes.name !== def.name) {
-			this.nameIndex.delete(def.name);
+			const oldName = def.name;
+			this.nameIndex.delete(oldName);
 			def.name = changes.name;
 			this.nameIndex.set(def.name, def.id);
+			this.onRenamed?.(oldName, changes.name);
 		}
 		if (changes.color !== undefined) {
 			def.color = changes.color;

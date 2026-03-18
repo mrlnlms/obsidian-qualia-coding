@@ -129,6 +129,24 @@ export class PdfSidebarAdapter extends BaseSidebarAdapter {
 		return false;
 	}
 
+	renameCode(oldName: string, newName: string): void {
+		for (const m of this.model.getAllMarkers()) {
+			const idx = m.codes.indexOf(oldName);
+			if (idx >= 0) {
+				m.codes[idx] = newName;
+				m.updatedAt = Date.now();
+			}
+		}
+		for (const s of this.model.getAllShapes()) {
+			const idx = s.codes.indexOf(oldName);
+			if (idx >= 0) {
+				s.codes[idx] = newName;
+				s.updatedAt = Date.now();
+			}
+		}
+		this.saveMarkers();
+	}
+
 	deleteCode(codeName: string): void {
 		for (const m of this.model.getAllMarkers()) {
 			if (m.codes.includes(codeName)) {

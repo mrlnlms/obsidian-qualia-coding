@@ -325,3 +325,47 @@ describe('getColorForCodes', () => {
     expect(registry.getColorForCodes([])).toBeNull();
   });
 });
+
+// ── onRenamed callback ───────────────────────────────────────
+
+describe('onRenamed callback', () => {
+  it('fires when a code name changes via update()', () => {
+    const def = registry.create('Emotion');
+    const onRenamed = vi.fn();
+    registry.setOnRenamed(onRenamed);
+
+    registry.update(def.id, { name: 'Feeling' });
+
+    expect(onRenamed).toHaveBeenCalledWith('Emotion', 'Feeling');
+  });
+
+  it('does not fire when only color changes', () => {
+    const def = registry.create('Emotion');
+    const onRenamed = vi.fn();
+    registry.setOnRenamed(onRenamed);
+
+    registry.update(def.id, { color: '#FF0000' });
+
+    expect(onRenamed).not.toHaveBeenCalled();
+  });
+
+  it('does not fire when name is same', () => {
+    const def = registry.create('Emotion');
+    const onRenamed = vi.fn();
+    registry.setOnRenamed(onRenamed);
+
+    registry.update(def.id, { name: 'Emotion' });
+
+    expect(onRenamed).not.toHaveBeenCalled();
+  });
+
+  it('updates nameIndex after rename', () => {
+    const def = registry.create('Emotion');
+    registry.setOnRenamed(vi.fn());
+
+    registry.update(def.id, { name: 'Feeling' });
+
+    expect(registry.getByName('Feeling')).toBeDefined();
+    expect(registry.getByName('Emotion')).toBeUndefined();
+  });
+});
