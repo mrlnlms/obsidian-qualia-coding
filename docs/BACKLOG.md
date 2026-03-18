@@ -386,6 +386,7 @@ Ganho de manutenibilidade alcancado:
 | Merge 7→1 (d7eb286, 2026-03-02) | 29.074 | 4.143 | 33.217 | 106 | 5.907 (analyticsView) | 0 |
 | Porting complete v45 (6a0bb35, 2026-03-07) | 29.329 | 4.139 | 33.468 | 106 | 5.907 (analyticsView) | 0 |
 | Pos-refactor + split + testes (2026-03-17) | 28.415 | 4.026 | 32.441 | 135 | ~250 (frequency.ts) | 1214 |
+| Pos-refactor final + e2e (2026-03-18) | 28.590 | 4.026 | 32.616 | 150 | 672 (marginPanel) | 1290 (1263 unit + 27 e2e) |
 
 *CSS estimado: soma dos 7 styles.css individuais antes da dedup.
 
@@ -396,7 +397,9 @@ Ganho de manutenibilidade alcancado:
 | **LOC (src/*.ts)** | 38.067 | 28.415 | **-9.652 (-25.4%)** |
 | **CSS** | ~4.500 | 4.026 | **-474 (-10.5%)** |
 | **Maior arquivo** | 11.147 | ~250 | **-97.8%** |
-| **Testes** | 0 | 1214 | +1214 |
+| **Testes unitarios** | 0 | 1263 | +1263 |
+| **Testes e2e** | 0 | 27 | +27 |
+| **Total testes** | 0 | 1290 | +1290 |
 | **as any** | 222+ | 4 | -99% |
 | **@ts-ignore** | 44+ | 3 | -93% |
 | **tsc errors** | 82 | 0 | -100% |
@@ -484,16 +487,74 @@ return createStandaloneViewWrapper(standalone) as any
 
 ---
 
-## Testes pendentes — analytics modes (2026-03-17)
+## Cobertura de testes (2026-03-18)
 
-Cobertura atual: 1214 testes, 36 suites. ~73% das funcoes analytics testadas. Gaps restantes:
+### Visao geral
 
-| Categoria | Funcoes | Testavel jsdom? | Prioridade |
-|-----------|---------|----------------|------------|
-| export\*CSV (11 modes) | exportLagCSV, exportPolarCSV, exportChiSquareCSV, exportDendrogramCSV, exportMDSCSV, exportACMCSV, exportDecisionTreeCSV, exportSourceComparisonCSV, exportOverlapCSV, exportTextStatsCSV, exportWordCloudCSV, exportTemporalCSV | Sim — produzem CSV via Blob | Alta — logica pura |
-| renderOptions sections (12 modes) | renderLagOptionsSection, renderPolarOptionsSection, renderChiSquareOptionsSection, renderDendrogramOptionsSection, renderMDSOptionsSection, renderACMOptionsSection, renderDecisionTreeOptionsSection, renderSourceComparisonOptionsSection, renderWordCloudOptionsSection, renderGraphOptionsSection, renderMatrixSortSection, renderEvolutionFileSection | Sim — criam DOM | Media |
-| textRetrievalMode logic | formatLocation, formatAudioTime (internas, nao exportadas) | Sim se exportar | Alta — logica pura |
-| render\*Chart/View (19 modes) | renderFrequencyChart, renderNetworkGraph, etc. | Parcial — Canvas2D/Chart.js | Baixa — melhor como visual test |
-| renderMini\* (17 funcoes) | renderMiniFrequency, renderMiniCooccurrence, etc. | Nao — Canvas2D null em jsdom | Baixa |
+| Camada | Testes | Suites/Specs | O que cobre |
+|--------|--------|-------------|-------------|
+| Vitest + jsdom | 1263 | 39 suites | Logica pura: models, engines, helpers, resolvers, registry |
+| wdio + Obsidian (e2e) | 27 | 8 specs | UI real: editor, sidebar, analytics, hover, screenshots |
+| **Total** | **1290** | **47** | |
 
-**Estrategia:** export\*CSV primeiro (maior ROI), depois renderOptions sections. Render chart/mini sao melhores candidatos pra visual testing (/ui-inspect).
+### Cobertura unitaria (Vitest) — o que esta coberto
+
+| Modulo | Status | Testes |
+|--------|--------|--------|
+| core/dataManager | Coberto | load, section, setSection, persistence |
+| core/codeDefinitionRegistry | Coberto | CRUD, palette, mutation callbacks |
+| core/markerResolvers | Coberto | type guards, getMarkerLabel, shortenPath |
+| core/baseSidebarAdapter | Coberto | deletion, code updates, marker fields |
+| core/fileInterceptor | Coberto | rules, matching, helpers puros |
+| markdown/codeMarkerModel | Coberto | CRUD markers, listeners, hover, migration |
+| markdown/markerPositionUtils | Coberto | offsetToPos, classify nesting/overlap |
+| pdf/pdfCodingModel | Coberto | CRUD, shapes, undo, listeners (Set) |
+| pdf/highlightGeometry | Coberto | rect merging, edge cases |
+| image/codingModel | Coberto | CRUD, deletion, hover, listeners |
+| csv/codingModel | Coberto | segment/row markers, caching |
+| media/mediaCodingModel | Coberto | file CRUD, markers, cleanup |
+| media/formatTime | Coberto | edge cases, formatting |
+| media/mediaSidebarAdapter | Coberto | hover, display, grouping |
+| analytics/statsEngine (6 modulos) | Coberto | frequency, cooccurrence, evolution, sequential, inferential, textAnalysis |
+| analytics/statsHelpers | Coberto | applyFilters (direto + via frequency) |
+| analytics/textExtractor | Coberto | segmentation, ranges |
+| analytics/wordFrequency | Coberto | frequency, filtering |
+| analytics/dataConsolidator | Coberto | marker consolidation, filtering |
+| analytics/clusterEngine | Coberto | hierarchical clustering, dendrograms |
+| analytics/decisionTreeEngine | Coberto | tree construction, Gini |
+| analytics/mcaEngine | Coberto | MCA, eigenvalues |
+| analytics/mdsEngine | Coberto | MDS, distance preservation |
+| analytics/boardTypes | Coberto | type guards, node validation |
+| analytics/boardNodes | Coberto | 6 node factories, round-trip |
+| analytics/boardClusters | Coberto | clustering por co-ocorrencia |
+| analytics/chartHelpers | Coberto | colors, matrix, divergent |
+| analytics modes (19) | Parcial | via viewModes, renderChart, renderMini, exportCSV |
+
+### Cobertura e2e (wdio) — componentes UI
+
+| Spec | Testes | Componente | Tipo de validacao |
+|------|--------|-----------|-------------------|
+| smoke | 3 | Plugin lifecycle | Plugin carrega, arquivo abre, editor visivel |
+| margin-panel | 4 | Margin panel CM6 | DOM structure + screenshot + hover |
+| highlights | 4 | CM6 decorations | Highlight spans, nested markers, screenshot |
+| handle-overlay | 3 | SVG drag handles | Container, handles no hover, screenshot |
+| hover-interaction | 3 | Hover sync | Editor↔margin bar sync, clear on leave |
+| code-explorer | 4 | Sidebar tree | View renderiza, tree items, code names, screenshot |
+| analytics-frequency | 3 | Chart.js bar chart | View, toolbar, chart screenshot |
+| analytics-dashboard | 3 | Dashboard KPIs | KPI cards, marker count, screenshot |
+
+### O que NAO esta coberto (e por que)
+
+| Categoria | Modulos | Razao |
+|-----------|---------|-------|
+| PDF rendering | highlightRenderer, drawInteraction, dragHandles | Precisa de fixture PDF no vault — fase 2 |
+| Image canvas | fabricCanvas, regionDrawing, regionLabels | Precisa de fixture imagem — fase 2 |
+| Audio/Video | waveformRenderer, regionRenderer | Precisa de fixtures media — fase 2 |
+| CSV grid | csvCodingView, codingCellRenderer | Precisa de fixture CSV — fase 2 |
+| Board view | boardCanvas, boardDrawing, boardArrows | Fabric.js complexo — fase 2 |
+| Modais | codeBrowserModal, codeFormModal | Interacao complexa — fase 2 |
+| Settings tab | settingTab | Baixa prioridade |
+| Config sections (12 modes) | renderOptionsSection | DOM puro, baixo risco |
+| CM6 internals | markerStateField, selectionMenuField, hoverBridge | Reativos, testados indiretamente via e2e |
+
+**Fase 2 (quando necessario):** Adicionar fixtures (PDF, CSV, imagem, audio) ao vault de teste e criar specs e2e correspondentes. O harness `obsidian-plugin-e2e` ja suporta — so falta as fixtures e os specs.
