@@ -4,7 +4,7 @@
  */
 
 export type ShapeType = 'rect' | 'ellipse' | 'polygon';
-export type DrawMode = 'select' | 'rect' | 'ellipse' | 'polygon';
+export type DrawMode = 'select' | 'rect' | 'ellipse' | 'polygon' | 'freeform';
 
 // ── Normalized coordinates ──
 
@@ -48,4 +48,5 @@ export const DRAW_TOOL_BUTTONS: DrawToolButtonSpec[] = [
 	{ mode: 'rect', icon: 'square', tooltip: 'Rectangle', shortcut: 'R' },
 	{ mode: 'ellipse', icon: 'circle', tooltip: 'Ellipse', shortcut: 'E' },
 	{ mode: 'polygon', icon: 'pentagon', tooltip: 'Polygon', shortcut: 'P' },
+	{ mode: 'freeform', icon: 'pencil', tooltip: 'Freeform', shortcut: 'F' },
 ];
