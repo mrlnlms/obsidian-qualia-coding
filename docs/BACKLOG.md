@@ -543,18 +543,32 @@ return createStandaloneViewWrapper(standalone) as any
 | analytics-frequency | 3 | Chart.js bar chart | View, toolbar, chart screenshot |
 | analytics-dashboard | 3 | Dashboard KPIs | KPI cards, marker count, screenshot |
 
-### O que NAO esta coberto (e por que)
+### Cobertura e2e completa (atualizada 2026-03-18)
+
+| Spec | Testes | Componente |
+|------|--------|-----------|
+| smoke | 3 | Plugin lifecycle |
+| margin-panel | 4 | Margin panel CM6 |
+| highlights | 4 | CM6 decorations |
+| handle-overlay | 3 | SVG drag handles |
+| hover-interaction | 3 | Hover sync |
+| code-explorer | 4 | Sidebar tree |
+| analytics-frequency | 3 | Chart.js bar chart |
+| analytics-dashboard | 3 | Dashboard KPIs |
+| csv-grid | 4 | ag-grid rendering |
+| board-view | 3 | Fabric.js canvas |
+| settings-tab | 3 | Plugin settings |
+| **Total** | **37** | **11 specs** |
+
+### O que NAO esta coberto (fase 2)
 
 | Categoria | Modulos | Razao |
 |-----------|---------|-------|
-| PDF rendering | highlightRenderer, drawInteraction, dragHandles | Precisa de fixture PDF no vault — fase 2 |
-| Image canvas | fabricCanvas, regionDrawing, regionLabels | Precisa de fixture imagem — fase 2 |
-| Audio/Video | waveformRenderer, regionRenderer | Precisa de fixtures media — fase 2 |
-| CSV grid | csvCodingView, codingCellRenderer | Precisa de fixture CSV — fase 2 |
-| Board view | boardCanvas, boardDrawing, boardArrows | Fabric.js complexo — fase 2 |
-| Modais | codeBrowserModal, codeFormModal | Interacao complexa — fase 2 |
-| Settings tab | settingTab | Baixa prioridade |
+| PDF rendering | highlightRenderer, drawInteraction, dragHandles | Precisa de fixture PDF no vault |
+| Image canvas | fabricCanvas, regionDrawing, regionLabels | Precisa de fixture imagem |
+| Audio/Video | waveformRenderer, regionRenderer | Precisa de fixtures media |
+| Modais | codeBrowserModal, codeFormModal | Interacao de trigger complexa |
 | Config sections (12 modes) | renderOptionsSection | DOM puro, baixo risco |
 | CM6 internals | markerStateField, selectionMenuField, hoverBridge | Reativos, testados indiretamente via e2e |
 
-**Fase 2 (quando necessario):** Adicionar fixtures (PDF, CSV, imagem, audio) ao vault de teste e criar specs e2e correspondentes. O harness `obsidian-plugin-e2e` ja suporta — so falta as fixtures e os specs.
+**Fase 2 (quando necessario):** Adicionar fixtures (PDF, imagem, audio) ao vault de teste e criar specs e2e correspondentes. O harness `obsidian-plugin-e2e` ja suporta — so falta as fixtures e os specs.
