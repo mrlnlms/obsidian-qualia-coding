@@ -646,3 +646,29 @@ Harness e2e: pacote reutilizavel `obsidian-plugin-e2e` em `~/Desktop/obsidian-pl
 **Dependencias:** Nenhuma. Independente da hierarquia de codigos.
 
 **Prioridade:** Media — fazer apos hierarquia de codigos. Bom candidato pra quando for adicionar novas formas.
+
+### Unificacao Audio/Video View — avaliar (proposto 2026-03-18)
+
+**Contexto:** `audioView.ts` (387 LOC) e `videoView.ts` (393 LOC) sao ~95% identicos. A base compartilhada ja existe em `media/` (mediaCodingModel, waveformRenderer, regionRenderer, mediaCodingMenu, mediaSidebarAdapter — 987 LOC). A diferenca real entre as views e ~20 LOC:
+
+| Aspecto | Audio | Video |
+|---------|-------|-------|
+| Media element | Nenhum (WaveSurfer renderiza) | `<video>` element com controls |
+| WaveSurfer init | `renderer.create(el, url)` | `renderer.create(el, videoElement)` |
+| Settings extras | — | `videoFit: 'contain' \| 'cover'` |
+| Icone | `audio-lines` | `video` |
+
+**Opcao A — Manter separado (status quo):**
+- Pro: cada view e autocontida, legivel de cima a baixo
+- Con: ~350 LOC duplicadas, mudanca num precisa ser replicada no outro
+
+**Opcao B — Unificar em MediaView generica:**
+- Pro: elimina ~350 LOC de duplicacao, mudanca aplica nos dois automaticamente
+- Con: adiciona complexidade (conditionals `if hasVideo`, generics, ou config object)
+- Risco: abstracoes de media player tendem a acumular edge cases (fullscreen, PiP, codec handling)
+
+**Decisao atual:** Manter separado. A duplicacao e barata (~350 LOC) e a clareza compensa. Revisitar se:
+- Adicionar um terceiro engine de media (ex: podcast com chapters) — ai a duplicacao vira tripla e justifica
+- Precisar fazer mudanca significativa em ambas as views simultaneamente — ai a dor de manter sincronizado justifica
+
+**Nota:** A consolidacao que vale ja foi feita (MediaCodingModel + 5 modulos compartilhados em media/). O que resta e duplicacao de view/UI, nao de logica.
