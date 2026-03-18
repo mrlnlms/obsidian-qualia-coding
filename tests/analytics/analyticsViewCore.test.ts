@@ -157,6 +157,14 @@ vi.mock('../../src/analytics/views/modes/overlapMode', () => ({
 	exportOverlapCSV: vi.fn(),
 }));
 
+// Mock configSections (shared config panel sections)
+vi.mock('../../src/analytics/views/configSections', () => ({
+	renderSourcesSection: vi.fn(),
+	renderViewModeSection: vi.fn(),
+	renderCodesSection: vi.fn(),
+	renderMinFreqSection: vi.fn(),
+}));
+
 // Mock statsEngine to avoid real calculations during export tests
 vi.mock('../../src/analytics/data/statsEngine', () => ({
 	calculateFrequency: vi.fn(() => []),
@@ -168,6 +176,7 @@ vi.mock('../../src/analytics/data/statsEngine', () => ({
 import { AnalyticsView, ANALYTICS_VIEW_TYPE } from '../../src/analytics/views/analyticsView';
 
 // Re-import mocked modules so we can assert on them
+import { renderSourcesSection, renderViewModeSection, renderCodesSection, renderMinFreqSection } from '../../src/analytics/views/configSections';
 import { renderDashboard } from '../../src/analytics/views/modes/dashboardMode';
 import { renderFrequencyChart, renderSortSection, renderGroupSection } from '../../src/analytics/views/modes/frequencyMode';
 import { renderCooccurrenceMatrix, renderDisplaySection, renderCooccSortSection } from '../../src/analytics/views/modes/cooccurrenceMode';
@@ -547,6 +556,24 @@ describe('renderConfigPanel dispatch', () => {
 		view.viewMode = 'text-retrieval';
 		view.renderConfigPanel();
 		expect(view.configPanelEl!.style.display).toBe('none');
+	});
+
+	it('shows config panel with base filters for temporal (no mode-specific options)', () => {
+		view.viewMode = 'temporal';
+		view.renderConfigPanel();
+		expect(view.configPanelEl!.style.display).toBe('');
+		expect(renderSourcesSection).toHaveBeenCalledWith(view);
+		expect(renderViewModeSection).toHaveBeenCalledWith(view);
+		expect(renderCodesSection).toHaveBeenCalledWith(view);
+		expect(renderMinFreqSection).toHaveBeenCalledWith(view);
+	});
+
+	it('shows config panel with base filters for text-stats (no mode-specific options)', () => {
+		view.viewMode = 'text-stats';
+		view.renderConfigPanel();
+		expect(view.configPanelEl!.style.display).toBe('');
+		expect(renderSourcesSection).toHaveBeenCalledWith(view);
+		expect(renderCodesSection).toHaveBeenCalledWith(view);
 	});
 
 	it('shows config panel for frequency mode', () => {

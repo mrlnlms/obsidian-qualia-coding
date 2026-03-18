@@ -230,7 +230,7 @@ export class AnalyticsView extends ItemView {
     this.configPanelEl.empty();
 
     const entry = MODE_REGISTRY[this.viewMode];
-    if (!entry.renderOptions) {
+    if (entry.canExport === false) {
       this.configPanelEl.style.display = "none";
       return;
     }
@@ -238,7 +238,7 @@ export class AnalyticsView extends ItemView {
 
     renderSourcesSection(this);
     renderViewModeSection(this);
-    entry.renderOptions(this);
+    if (entry.renderOptions) entry.renderOptions(this);
     renderCodesSection(this);
     renderMinFreqSection(this);
   }
