@@ -115,7 +115,6 @@ A freeform canvas for synthesizing findings:
 
 | Doc | Question it answers |
 |-----|---------------------|
-| [`CLAUDE.md`](CLAUDE.md) | How does the code work right now? (AI context) |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Why is it built this way? |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | What's planned but not yet built? (includes market research gaps) |
 | [`docs/research/`](docs/research/) | Competitive benchmark, technical evaluation, product brainstorm |

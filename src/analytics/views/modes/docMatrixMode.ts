@@ -32,6 +32,24 @@ export function renderMatrixSortSection(ctx: AnalyticsViewContext): void {
   }
 }
 
+export function exportDocMatrixCSV(ctx: AnalyticsViewContext, date: string): void {
+  if (!ctx.data) return;
+  const filters = ctx.buildFilterConfig();
+  const result = calculateDocumentCodeMatrix(ctx.data, filters);
+
+  const rows: string[][] = [["file", ...result.codes]];
+  for (let fi = 0; fi < result.files.length; fi++) {
+    rows.push([result.files[fi]!, ...result.matrix[fi]!.map(String)]);
+  }
+  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.download = `codemarker-doc-matrix-${date}.csv`;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 export function renderDocCodeMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 

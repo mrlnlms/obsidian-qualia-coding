@@ -27,6 +27,28 @@ export function renderEvolutionFileSection(ctx: AnalyticsViewContext): void {
   });
 }
 
+export function exportEvolutionCSV(ctx: AnalyticsViewContext, date: string): void {
+  if (!ctx.data) return;
+  const filters = ctx.buildFilterConfig();
+  const result = calculateEvolution(ctx.data, filters);
+
+  const pts = ctx.evolutionFile
+    ? result.points.filter((p) => p.file === ctx.evolutionFile)
+    : result.points;
+
+  const rows: string[][] = [["file", "code", "position", "fromLine", "toLine"]];
+  for (const p of pts) {
+    rows.push([p.file, p.code, p.position.toFixed(4), String(p.fromLine), String(p.toLine)]);
+  }
+  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.download = `codemarker-evolution-${date}.csv`;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 export function renderEvolutionChart(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 

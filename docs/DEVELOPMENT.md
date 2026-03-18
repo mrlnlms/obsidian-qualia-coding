@@ -73,18 +73,20 @@ src/
     │   ├── boardTypes.ts        # Tipos do board
     │   └── fabricExtensions.d.ts # Type declarations Fabric.js
     └── views/               # Analytics views (modular)
-        ├── analyticsView.ts         # Core (~800 LOC): lifecycle, dispatchers, config panels
+        ├── analyticsView.ts         # AnalyticsView class (~340 LOC): lifecycle, toolbar, footer
         ├── analyticsViewContext.ts   # Interface AnalyticsViewContext + type aliases
+        ├── configSections.ts        # Config panel sections (sources, viewMode, codes, minFreq)
         ├── boardView.ts             # Research Board view
         ├── shared/
         │   └── chartHelpers.ts      # heatmapColor, computeDisplayMatrix, divergentColor, etc.
-        └── modes/                   # 19 mode modules (1 por visualizacao)
+        └── modes/                   # 19 mode modules + registry
+            ├── modeRegistry.ts      # Record<ViewMode, ModeEntry> — declarative mode dispatch
             ├── dashboardMode.ts     # Dashboard + mini thumbnails
-            ├── frequencyMode.ts     # Frequency bars + sort/group options
-            ├── cooccurrenceMode.ts  # Co-occurrence matrix + display/sort
-            ├── graphMode.ts         # Network graph (force-directed)
-            ├── docMatrixMode.ts     # Document-Code matrix
-            ├── evolutionMode.ts     # Code evolution (positional)
+            ├── frequencyMode.ts     # Frequency bars + sort/group options + exportCSV
+            ├── cooccurrenceMode.ts  # Co-occurrence matrix + display/sort + exportCSV
+            ├── graphMode.ts         # Network graph (force-directed) + exportCSV
+            ├── docMatrixMode.ts     # Document-Code matrix + exportCSV
+            ├── evolutionMode.ts     # Code evolution (positional) + exportCSV
             ├── textRetrievalMode.ts # Text retrieval + navigation
             ├── wordCloudMode.ts     # Word cloud (chartjs-chart-wordcloud)
             ├── acmMode.ts           # MCA Biplot

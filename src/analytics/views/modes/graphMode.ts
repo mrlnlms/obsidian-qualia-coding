@@ -38,6 +38,28 @@ export function renderGraphOptionsSection(ctx: AnalyticsViewContext): void {
   });
 }
 
+export function exportGraphCSV(ctx: AnalyticsViewContext, date: string): void {
+  if (!ctx.data) return;
+  const filters = ctx.buildFilterConfig();
+  const result = calculateCooccurrence(ctx.data, filters);
+
+  const rows = [["source", "target", "weight"]];
+  for (let i = 0; i < result.codes.length; i++) {
+    for (let j = i + 1; j < result.codes.length; j++) {
+      if (result.matrix[i]![j]! > 0) {
+        rows.push([result.codes[i]!, result.codes[j]!, String(result.matrix[i]![j]!)]);
+      }
+    }
+  }
+  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.download = `codemarker-graph-${date}.csv`;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 export function renderNetworkGraph(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 

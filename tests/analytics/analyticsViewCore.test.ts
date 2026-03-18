@@ -73,23 +73,28 @@ vi.mock('../../src/analytics/views/modes/frequencyMode', () => ({
 	renderFrequencyChart: vi.fn(),
 	renderSortSection: vi.fn(),
 	renderGroupSection: vi.fn(),
+	exportFrequencyCSV: vi.fn(),
 }));
 vi.mock('../../src/analytics/views/modes/cooccurrenceMode', () => ({
 	renderCooccurrenceMatrix: vi.fn(),
 	renderDisplaySection: vi.fn(),
 	renderCooccSortSection: vi.fn(),
+	exportCooccurrenceCSV: vi.fn(),
 }));
 vi.mock('../../src/analytics/views/modes/graphMode', () => ({
 	renderNetworkGraph: vi.fn(),
 	renderGraphOptionsSection: vi.fn(),
+	exportGraphCSV: vi.fn(),
 }));
 vi.mock('../../src/analytics/views/modes/docMatrixMode', () => ({
 	renderDocCodeMatrix: vi.fn(),
 	renderMatrixSortSection: vi.fn(),
+	exportDocMatrixCSV: vi.fn(),
 }));
 vi.mock('../../src/analytics/views/modes/evolutionMode', () => ({
 	renderEvolutionChart: vi.fn(),
 	renderEvolutionFileSection: vi.fn(),
+	exportEvolutionCSV: vi.fn(),
 }));
 vi.mock('../../src/analytics/views/modes/textRetrievalMode', () => ({
 	renderTextRetrieval: vi.fn(),

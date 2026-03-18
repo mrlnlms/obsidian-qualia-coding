@@ -224,6 +224,34 @@ async function renderBarChart(ctx: AnalyticsViewContext, results: FrequencyResul
   renderFrequencyCodeList(ctx, results);
 }
 
+export function exportFrequencyCSV(ctx: AnalyticsViewContext, date: string): void {
+  if (!ctx.data) return;
+  const filters = ctx.buildFilterConfig();
+  const results = calculateFrequency(ctx.data, filters);
+
+  const rows = [["code", "total", "markdown", "csv_segment", "csv_row", "image", "pdf", "audio", "video"]];
+  for (const r of results) {
+    rows.push([
+      r.code,
+      String(r.total),
+      String(r.bySource.markdown),
+      String(r.bySource["csv-segment"]),
+      String(r.bySource["csv-row"]),
+      String(r.bySource.image),
+      String(r.bySource.pdf),
+      String(r.bySource.audio),
+      String(r.bySource.video),
+    ]);
+  }
+  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.download = `codemarker-frequency-${date}.csv`;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 function renderFrequencyCodeList(ctx: AnalyticsViewContext, results: FrequencyResult[]): void {
   if (!ctx.chartContainer || !ctx.data) return;
 

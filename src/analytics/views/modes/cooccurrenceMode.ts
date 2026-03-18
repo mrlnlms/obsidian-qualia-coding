@@ -126,6 +126,24 @@ export function reorderCooccurrence(ctx: AnalyticsViewContext, result: Cooccurre
   result.maxValue = maxValue;
 }
 
+export function exportCooccurrenceCSV(ctx: AnalyticsViewContext, date: string): void {
+  if (!ctx.data) return;
+  const filters = ctx.buildFilterConfig();
+  const result = calculateCooccurrence(ctx.data, filters);
+
+  const rows: string[][] = [["", ...result.codes]];
+  for (let i = 0; i < result.codes.length; i++) {
+    rows.push([result.codes[i]!, ...result.matrix[i]!.map(String)]);
+  }
+  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.download = `codemarker-cooccurrence-${date}.csv`;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 

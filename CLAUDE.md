@@ -27,10 +27,13 @@ src/
       boardTypes.ts          — discriminated union: StickyNode, SnapshotNode, ExcerptNode, etc.
       fabricExtensions.d.ts  — ambient types para Fabric.js (Canvas, Rect, etc. + FabricObject methods)
     views/
-      analyticsView.ts       — core (~800 LOC): lifecycle, dispatchers, config panels
+      analyticsView.ts       — classe AnalyticsView (~340 LOC): lifecycle, toolbar, footer
       analyticsViewContext.ts — interface AnalyticsViewContext + type aliases (ViewMode, etc.)
+      configSections.ts      — config panel sections compartilhadas (sources, viewMode, codes, minFreq)
       shared/chartHelpers.ts — heatmapColor, computeDisplayMatrix, divergentColor, SOURCE_COLORS
-      modes/                 — 19 mode modules (1 por visualizacao, ~150-400 LOC cada)
+      modes/
+        modeRegistry.ts      — Record<ViewMode, ModeEntry> declarativo (render, options, exportCSV, label)
+        *Mode.ts             — 19 mode modules (1 por visualizacao, ~150-400 LOC cada)
   media/
     mediaCodingModel.ts      — base class generica para audio/video models
     mediaCodingMenu.ts       — popover compartilhado audio/video
@@ -64,7 +67,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1214 testes em 36 suites (Vitest + jsdom)
+- `npm run test` — 1225 testes em 36 suites (Vitest + jsdom)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView
 - Type guards compartilhados em `markerResolvers.ts`
