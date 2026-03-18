@@ -1,21 +1,21 @@
-import { setIcon } from "obsidian";
-import { FabricCanvasState, fitToContainer, zoomBy } from "../canvas/fabricCanvas";
+/**
+ * Image coding toolbar.
+ * Uses the shared drawToolbarFactory for mode buttons (consistent UX with PDF).
+ * Adds image-specific zoom controls.
+ */
 
-export type ToolMode = "select" | "rect" | "ellipse" | "freeform";
+import { setIcon } from "obsidian";
+import { type FabricCanvasState, fitToContainer, zoomBy } from "../canvas/fabricCanvas";
+import { DRAW_TOOL_BUTTONS, type DrawMode } from "../../core/shapeTypes";
+import { createDrawToolbar, type DrawToolbarHandle } from "../../core/drawToolbarFactory";
+
+export type ToolMode = DrawMode;
 
 export interface ToolbarState {
   el: HTMLElement;
   activeMode: ToolMode;
   onModeChange: ((mode: ToolMode) => void) | null;
   destroy(): void;
-}
-
-interface ToolButton {
-  id: string;
-  icon: string;
-  title: string;
-  mode?: ToolMode;
-  action?: () => void;
 }
 
 export interface ToolbarCallbacks {
@@ -34,52 +34,18 @@ export function createToolbar(
     el,
     activeMode: "select",
     onModeChange: null,
-    destroy() {
-      el.remove();
-    },
+    destroy() { el.remove(); },
   };
 
-  // --- Tool mode buttons ---
-  const modeButtons: ToolButton[] = [
-    { id: "select", icon: "mouse-pointer", title: "Select (V)", mode: "select" },
-    { id: "rect", icon: "square", title: "Rectangle (R)", mode: "rect" },
-    { id: "ellipse", icon: "circle", title: "Ellipse (E)", mode: "ellipse" },
-    { id: "freeform", icon: "pencil", title: "Freeform (F)", mode: "freeform" },
-  ];
-
-  const modeGroup = el.createDiv({ cls: "codemarker-toolbar-group" });
-  const modeEls = new Map<string, HTMLElement>();
-
-  for (const btn of modeButtons) {
-    const btnEl = modeGroup.createDiv({
-      cls: "codemarker-toolbar-btn",
-      attr: { "aria-label": btn.title, title: btn.title },
-    });
-    setIcon(btnEl, btn.icon);
-
-    if (btn.mode === toolbarState.activeMode) {
-      btnEl.addClass("is-active");
-    }
-
-    modeEls.set(btn.id, btnEl);
-
-    btnEl.addEventListener("click", () => {
-      if (!btn.mode) return;
-      toolbarState.activeMode = btn.mode;
-      // Update active state
-      modeEls.forEach((el, id) => {
-        el.toggleClass("is-active", id === btn.id);
-      });
-      toolbarState.onModeChange?.(btn.mode);
-    });
-  }
-
-  // --- Separator ---
-  el.createDiv({ cls: "codemarker-toolbar-separator" });
-
-  // --- Action buttons ---
-  const actionButtons: ToolButton[] = [
-    { id: "delete", icon: "trash-2", title: "Delete selected (Del)", action: () => {
+  // Mode buttons via shared factory (select, rect, ellipse, freeform — no polygon for image)
+  const drawHandle = createDrawToolbar(el, DRAW_TOOL_BUTTONS, {
+    modes: ['select', 'rect', 'ellipse', 'freeform'],
+    containerClass: 'codemarker-toolbar-group',
+    onModeChange: (mode) => {
+      toolbarState.activeMode = mode;
+      toolbarState.onModeChange?.(mode);
+    },
+    onDelete: () => {
       if (callbacks.onDelete) {
         callbacks.onDelete();
       } else {
@@ -90,23 +56,14 @@ export function createToolbar(
           fabricState.canvas.requestRenderAll();
         }
       }
-    }},
-  ];
+    },
+    enableKeyboard: false, // We handle keyboard below (includes zoom shortcuts)
+  });
 
-  const actionGroup = el.createDiv({ cls: "codemarker-toolbar-group" });
-  for (const btn of actionButtons) {
-    const btnEl = actionGroup.createDiv({
-      cls: "codemarker-toolbar-btn",
-      attr: { "aria-label": btn.title, title: btn.title },
-    });
-    setIcon(btnEl, btn.icon);
-    btnEl.addEventListener("click", () => btn.action?.());
-  }
-
-  // --- Separator ---
+  // Separator
   el.createDiv({ cls: "codemarker-toolbar-separator" });
 
-  // --- Zoom buttons ---
+  // Zoom buttons (image-specific)
   const zoomGroup = el.createDiv({ cls: "codemarker-toolbar-group" });
 
   const zoomInBtn = zoomGroup.createDiv({
@@ -130,41 +87,41 @@ export function createToolbar(
   setIcon(fitBtn, "maximize");
   fitBtn.addEventListener("click", () => { fitToContainer(fabricState); callbacks.onViewChanged?.(); });
 
-  // --- Keyboard shortcuts ---
+  // Keyboard shortcuts (mode + zoom combined)
   const onKeyDown = (e: KeyboardEvent) => {
-    // Don't capture when typing in inputs
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-    switch (e.key.toLowerCase()) {
-      case "v":
-        modeEls.get("select")?.click();
+    // Mode shortcuts from catalog
+    for (const spec of DRAW_TOOL_BUTTONS) {
+      if (e.key.toLowerCase() === spec.shortcut.toLowerCase() && ['select', 'rect', 'ellipse', 'freeform'].includes(spec.mode)) {
+        toolbarState.activeMode = spec.mode;
+        toolbarState.onModeChange?.(spec.mode);
+        drawHandle.setActiveMode(spec.mode);
+        return;
+      }
+    }
+
+    switch (e.key) {
+      case "Delete":
+      case "Backspace": {
+        const active = fabricState.canvas.getActiveObjects();
+        if (active.length > 0) {
+          if (callbacks.onDelete) { callbacks.onDelete(); }
+          else {
+            active.forEach((obj) => fabricState.canvas.remove(obj));
+            fabricState.canvas.discardActiveObject();
+            fabricState.canvas.requestRenderAll();
+          }
+        }
         break;
-      case "r":
-        modeEls.get("rect")?.click();
-        break;
-      case "e":
-        modeEls.get("ellipse")?.click();
-        break;
-      case "f":
-        modeEls.get("freeform")?.click();
-        break;
-      case "delete":
-      case "backspace":
-        actionButtons[0]?.action?.();
-        break;
+      }
       case "=":
       case "+":
-        zoomBy(fabricState, 1.25);
-        callbacks.onViewChanged?.();
-        break;
+        zoomBy(fabricState, 1.25); callbacks.onViewChanged?.(); break;
       case "-":
-        zoomBy(fabricState, 0.8);
-        callbacks.onViewChanged?.();
-        break;
+        zoomBy(fabricState, 0.8); callbacks.onViewChanged?.(); break;
       case "0":
-        fitToContainer(fabricState);
-        callbacks.onViewChanged?.();
-        break;
+        fitToContainer(fabricState); callbacks.onViewChanged?.(); break;
     }
   };
 
@@ -173,6 +130,7 @@ export function createToolbar(
   const origDestroy = toolbarState.destroy;
   toolbarState.destroy = () => {
     window.removeEventListener("keydown", onKeyDown);
+    drawHandle.destroy();
     origDestroy();
   };
 
