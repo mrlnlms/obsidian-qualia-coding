@@ -23,6 +23,8 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
     ctx.data.sources.csv,
     ctx.data.sources.image,
     ctx.data.sources.pdf,
+    ctx.data.sources.audio,
+    ctx.data.sources.video,
   ].filter(Boolean).length;
   const mostUsedCode = freq.length > 0 ? freq[0]!.code : "\u2014";
   const avgCodesPerMarker = filtered.length > 0
