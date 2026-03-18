@@ -558,17 +558,18 @@ return createStandaloneViewWrapper(standalone) as any
 | csv-grid | 4 | ag-grid rendering |
 | board-view | 3 | Fabric.js canvas |
 | settings-tab | 3 | Plugin settings |
-| **Total** | **37** | **11 specs** |
+| pdf-view | 3 | PDF pages + pdfjs |
+| image-view | 3 | Image canvas Fabric.js |
+| audio-view | 3 | WaveSurfer waveform |
+| video-view | 3 | Video player + timeline |
+| **Total** | **49** | **15 specs** |
 
-### O que NAO esta coberto (fase 2)
+### O que NAO esta coberto (baixo risco)
 
 | Categoria | Modulos | Razao |
 |-----------|---------|-------|
-| PDF rendering | highlightRenderer, drawInteraction, dragHandles | Precisa de fixture PDF no vault |
-| Image canvas | fabricCanvas, regionDrawing, regionLabels | Precisa de fixture imagem |
-| Audio/Video | waveformRenderer, regionRenderer | Precisa de fixtures media |
-| Modais | codeBrowserModal, codeFormModal | Interacao de trigger complexa |
-| Config sections (12 modes) | renderOptionsSection | DOM puro, baixo risco |
+| Modais | codeBrowserModal, codeFormModal | Interacao de trigger complexa — baixo risco |
+| Config sections (12 modes) | renderOptionsSection | DOM puro, sem logica |
 | CM6 internals | markerStateField, selectionMenuField, hoverBridge | Reativos, testados indiretamente via e2e |
 
-**Fase 2 (quando necessario):** Adicionar fixtures (PDF, imagem, audio) ao vault de teste e criar specs e2e correspondentes. O harness `obsidian-plugin-e2e` ja suporta — so falta as fixtures e os specs.
+Todos os engines (markdown, PDF, image, CSV, audio, video) e views (analytics, board, explorer, settings) tem baseline visual.
