@@ -18,6 +18,7 @@ src/
       markerViewPlugin.ts    — ViewPlugin orquestrador (~326 LOC): hover, selection, lifecycle
       handleOverlayRenderer.ts — SVG drag handles: create, position, render cycle (requestMeasure)
       dragManager.ts         — ciclo de vida do drag: start, move (throttled), end, position update
+      marginPanelLayout.ts   — layout algorithm puro: assignColumns, resolveLabels (reutilizavel)
   pdf/                       — PDF viewer + coding (fabric.js)
   csv/                       — CSV/Parquet engine (ag-grid, papaparse, hyparquet)
     csvCodingView.ts         — FileView orquestrador (~210 LOC): grid setup, lifecycle
