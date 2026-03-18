@@ -602,3 +602,47 @@ Testar esses modulos diretamente seria testar o mecanismo de delivery quando ja 
 ```
 
 Harness e2e: pacote reutilizavel `obsidian-plugin-e2e` em `~/Desktop/obsidian-plugin-e2e/` — funciona com qualquer plugin Obsidian.
+
+---
+
+## Feature backlog
+
+### Shape Catalog compartilhado PDF + Image (proposto 2026-03-18)
+
+**Problema:** PDF e Image tem toolbars de drawing independentes com formas hardcoded. Adicionar uma forma nova (ex: estrela) requer mudar ambos os engines separadamente, sem garantia de consistencia visual.
+
+**Proposta:** Catalogo centralizado de shapes + toolbar generica, com renderer especifico por engine.
+
+```
+┌─ Shape Catalog (compartilhado) ────────────────────┐
+│  ShapeDefinition[]                                  │
+│  [rect, circle, star, arrow, freehand, ...]         │
+│  Cada shape: type, icon, label, geometry metadata   │
+├─────────────────────────────────────────────────────┤
+│  Toolbar generica                                   │
+│  Renderiza botoes a partir do catalogo              │
+│  onSelect(shape) → delega pro engine                │
+├─────────────────┬───────────────────────────────────┤
+│  PDF renderer   │  Image renderer                   │
+│  SVG/DOM overlay│  Fabric.js objects                 │
+│  coords % page  │  coords px canvas                 │
+└─────────────────┴───────────────────────────────────┘
+```
+
+**Ganhos:**
+- Consistencia de UX — toolbar identica nos dois engines
+- Feature velocity — nova forma = 1 catalog entry + 1 renderer por engine
+- Extensibilidade — futuro whiteboard/slides ganha catalogo inteiro
+- Testabilidade — catalogo e toolbar sao logica pura, testavel em unit
+- Customizacao — base pra "formas favoritas" ou formas custom
+
+**Escopo:**
+1. `src/shared/shapeDefinitions.ts` — catalogo + interface ShapeDefinition
+2. `src/shared/shapeToolbar.ts` — toolbar generica que renderiza a partir do catalogo
+3. `src/pdf/pdfShapeRenderer.ts` — renderer PDF (SVG/DOM) pra cada shape
+4. `src/image/canvas/fabricShapeRenderer.ts` — renderer Image (Fabric) pra cada shape
+5. Migrar toolbars atuais (drawToolbar.ts, imageToolbar.ts) pro novo sistema
+
+**Dependencias:** Nenhuma. Independente da hierarquia de codigos.
+
+**Prioridade:** Media — fazer apos hierarquia de codigos. Bom candidato pra quando for adicionar novas formas.
