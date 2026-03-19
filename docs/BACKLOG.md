@@ -494,6 +494,8 @@ const def = (defaults as any)[key];        // dynamic key access
 | 3 `as any` PDF viewer | Nao (API interna Obsidian) | Permanente |
 | 3 `as any` dataManager deepMerge | Nao (type gymnastics generica) | Permanente |
 | ~~Reorganizacao naming csv/ + image/~~ | ~~—~~ | ~~FEITO (2026-03-19) — csv prefixado, image aplainado (5 subpastas → flat)~~ |
+| ~~markdown/index.ts dedup~~ | ~~—~~ | ~~FEITO (2026-03-19) — `openMenuFromEditorSelection()` elimina 3x duplicacao (275→220 LOC)~~ |
+| ~~ARCHITECTURE.md §5.3 drift~~ | ~~—~~ | ~~FEITO (2026-03-19) — EngineCleanup como funcao, main.ts ~180 LOC~~ |
 
 ---
 
