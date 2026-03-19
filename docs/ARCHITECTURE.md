@@ -257,15 +257,23 @@ Instância única compartilhada entre todos os 7 engines:
 
 Cada engine exporta `registerXxxEngine()` que retorna `EngineRegistration<Model>`:
 ```typescript
+type EngineCleanup = () => void | Promise<void>;
+
 interface EngineRegistration<M> {
-  cleanup: { destroy(): void };
+  cleanup: EngineCleanup;
   model: M;
 }
 ```
 
-`main.ts` orquestra: registra todos os engines, coleta cleanup + model references, chama `destroy()` no `onunload()`. Models são passados ao `UnifiedModelAdapter` para a sidebar unificada.
+`main.ts` (~180 LOC) é o único ponto que conhece todos os engines. Responsabilidades:
+- Bootstrap: DataManager, CodeDefinitionRegistry, auto-persist via onMutate
+- Registro dos 7 engines (cada um retorna cleanup + model)
+- Montagem do UnifiedModelAdapter com adapters de todos os engines
+- Cross-engine navigation (label-click, code-click → sidebar detail)
+- Sidebar view registration (Code Explorer, Code Detail)
+- Cleanup reverso no onunload
 
-**Regra**: `main.ts` deve ficar ~15 LOC. Se crescer, mover lógica para os engines.
+Não deve implementar lógica de engine — apenas coordenar.
 
 ### 5.4 Shared Files
 
