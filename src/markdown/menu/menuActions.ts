@@ -1,6 +1,9 @@
 import { Notice } from 'obsidian';
+import type { EditorView } from '@codemirror/view';
 import { CodeMarkerModel, Marker } from '../models/codeMarkerModel';
 import { SelectionSnapshot } from './menuTypes';
+import type { MenuController } from './menuController';
+import { setSelectionPreviewEffect } from '../cm6/markerStateField';
 
 /**
  * Resolve which single marker the menu is operating on.
@@ -84,4 +87,31 @@ export function getCodesAtSelection(
 	const marker = getTargetMarker(model, snapshot);
 	if (!marker) return [];
 	return [...marker.codes];
+}
+
+/**
+ * Open the coding menu for the current editor selection.
+ * Shared by: command, context menu, ribbon button.
+ */
+export function openMenuFromEditorSelection(
+	editorView: EditorView,
+	fileId: string,
+	selection: string,
+	menuController: MenuController,
+): void {
+	const sel = editorView.state.selection.main;
+	const snapshot: SelectionSnapshot = {
+		from: sel.from,
+		to: sel.to,
+		text: selection,
+		fileId,
+	};
+	editorView.dispatch({
+		effects: setSelectionPreviewEffect.of({ from: sel.from, to: sel.to }),
+	});
+	const coords = editorView.coordsAtPos(sel.from);
+	menuController.openMenu(editorView, snapshot, {
+		x: coords?.left ?? 0,
+		y: coords?.top ?? 0,
+	});
 }

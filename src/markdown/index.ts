@@ -10,6 +10,7 @@ import { createHoverMenuExtension } from './cm6/hoverMenuExtension';
 import { createMarginPanelExtension } from './cm6/marginPanelExtension';
 import { createHoverBridge } from './cm6/hoverBridge';
 import { MenuController } from './menu/menuController';
+import { openMenuFromEditorSelection } from './menu/menuActions';
 import { CODE_EXPLORER_VIEW_TYPE } from '../core/unifiedExplorerView';
 import { CODE_DETAIL_VIEW_TYPE } from '../core/unifiedDetailView';
 import { BaseCodeDetailView } from '../core/baseCodeDetailView';
@@ -117,31 +118,11 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 		editorCallback: (editor, markdownView) => {
 			if (!(markdownView instanceof MarkdownView)) return;
 			if (!markdownView.file) return;
-
 			const selection = editor.getSelection();
 			if (!selection?.trim()) return;
-
 			const editorView = editor.cm;
 			if (!editorView) return;
-
-			const sel = editorView.state.selection.main;
-			const snapshot = {
-				from: sel.from,
-				to: sel.to,
-				text: selection,
-				fileId: markdownView.file.path,
-			};
-
-			// Dispatch selection preview before opening menu
-			editorView.dispatch({
-				effects: setSelectionPreviewEffect.of({ from: sel.from, to: sel.to })
-			});
-
-			const coords = editorView.coordsAtPos(sel.from);
-			menuController.openMenu(editorView, snapshot, {
-				x: coords?.left ?? 0,
-				y: coords?.top ?? 0,
-			});
+			openMenuFromEditorSelection(editorView, markdownView.file.path, selection, menuController);
 		},
 	});
 
@@ -200,24 +181,7 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 					.onClick(() => {
 						const editorView = editor.cm;
 						if (!editorView) return;
-
-						const sel = editorView.state.selection.main;
-						const snapshot = {
-							from: sel.from,
-							to: sel.to,
-							text: selection,
-							fileId: markdownView.file!.path,
-						};
-
-						editorView.dispatch({
-							effects: setSelectionPreviewEffect.of({ from: sel.from, to: sel.to })
-						});
-
-						const coords = editorView.coordsAtPos(sel.from);
-						menuController.openMenu(editorView, snapshot, {
-							x: coords?.left ?? 0,
-							y: coords?.top ?? 0,
-						});
+						openMenuFromEditorSelection(editorView, markdownView.file!.path, selection, menuController);
 					});
 			});
 		})
@@ -228,31 +192,12 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 		if (!model.getSettings().showRibbonButton) return;
 		const markdownView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!markdownView?.file) return;
-
 		const editor = markdownView.editor;
 		const selection = editor.getSelection();
 		if (!selection?.trim()) return;
-
 		const editorView = editor.cm;
 		if (!editorView) return;
-
-		const sel = editorView.state.selection.main;
-		const snapshot = {
-			from: sel.from,
-			to: sel.to,
-			text: selection,
-			fileId: markdownView.file.path,
-		};
-
-		editorView.dispatch({
-			effects: setSelectionPreviewEffect.of({ from: sel.from, to: sel.to })
-		});
-
-		const coords = editorView.coordsAtPos(sel.from);
-		menuController.openMenu(editorView, snapshot, {
-			x: coords?.left ?? 0,
-			y: coords?.top ?? 0,
-		});
+		openMenuFromEditorSelection(editorView, markdownView.file.path, selection, menuController);
 	});
 
 	// File rename tracking (centralized)
