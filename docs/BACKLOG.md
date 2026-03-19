@@ -493,7 +493,7 @@ const def = (defaults as any)[key];        // dynamic key access
 | ~~Media save timing redundante~~ | ~~—~~ | ~~FEITO (2026-03-19) — removido debounce 500ms, DM cuida~~ |
 | 3 `as any` PDF viewer | Nao (API interna Obsidian) | Permanente |
 | 3 `as any` dataManager deepMerge | Nao (type gymnastics generica) | Permanente |
-| Reorganizacao de pastas PDF | Sim (15 flat → subpastas por concern) | Planejar com calma |
+| ~~Reorganizacao naming csv/ + image/~~ | ~~—~~ | ~~FEITO (2026-03-19) — csv prefixado, image aplainado (5 subpastas → flat)~~ |
 
 ---
 

@@ -22,11 +22,22 @@ src/
       marginPanelLayout.ts   — layout algorithm puro: assignColumns, resolveLabels (reutilizavel)
   pdf/                       — PDF viewer + coding (fabric.js)
   csv/                       — CSV/Parquet engine (ag-grid, papaparse, hyparquet)
+    csvCodingModel.ts        — model CRUD para markers de segmento e row
+    csvCodingTypes.ts        — SegmentMarker, RowMarker, CsvMarker
     csvCodingView.ts         — FileView orquestrador (~210 LOC): grid setup, lifecycle
+    csvCodingMenu.ts         — popovers de codificacao (cell + batch)
+    csvCodingCellRenderer.ts — cell renderer AG Grid: tag chips + action button
     segmentEditor.ts         — CM6 split panel: open/close, marker sync, label alignment
     columnToggleModal.ts     — Modal de settings de colunas + CommentCellEditor + styles
     csvHeaderInjection.ts    — MutationObserver para injetar botoes nos headers AG Grid
   image/                     — Image coding (fabric.js, zoom/pan per-file)
+    imageCodingModel.ts      — model CRUD para ImageMarkers + persistence
+    imageCodingTypes.ts      — ImageMarker, RegionShape, NormalizedCoords
+    imageCodingMenu.ts       — lifecycle wrapper do coding popover
+    imageToolbar.ts          — toolbar de drawing (usa drawToolbarFactory compartilhada)
+    regionHighlight.ts       — hover glow effect nas regioes
+    regionLabels.ts          — labels de codigo sobre regioes
+    canvas/                  — Fabric.js canvas, drawing, zoom/pan (4 arquivos)
   audio/                     — Audio engine — thin wrapper (~53 LOC) via MediaViewCore
   video/                     — Video engine — thin wrapper (~54 LOC) via MediaViewCore
   analytics/                 — Charts e word clouds (chart.js)
