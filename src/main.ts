@@ -22,7 +22,7 @@ import { registerVideoEngine } from './video';
 import { registerAnalyticsEngine } from './analytics';
 import { setupFileInterceptor } from './core/fileInterceptor';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
-import type { ImageCodingModel } from './image/models/codingModel';
+import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
 import type { AudioCodingModel } from './audio/audioCodingModel';
 import type { VideoCodingModel } from './video/videoCodingModel';

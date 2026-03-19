@@ -2,7 +2,7 @@ import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import type { CodeMarkerSettings } from '../markdown/models/settings';
 import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
-import type { ImageMarker } from '../image/models/codingTypes';
+import type { ImageMarker } from '../image/imageCodingTypes';
 import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
 import type { AudioFile } from '../audio/audioCodingTypes';
 import type { VideoFile } from '../video/videoCodingTypes';

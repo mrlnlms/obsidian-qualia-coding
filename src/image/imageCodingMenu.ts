@@ -4,13 +4,13 @@
  */
 
 import type { App } from 'obsidian';
-import type { ImageCodingModel } from '../models/codingModel';
+import type { ImageCodingModel } from './imageCodingModel';
 import {
 	openCodingPopover,
 	type CodingPopoverAdapter,
 	type CodingPopoverOptions,
 	type CodingPopoverHandle,
-} from '../../core/codingPopover';
+} from '../core/codingPopover';
 
 export interface CodingMenuCallbacks {
 	onCodesChanged: (markerId: string) => void;

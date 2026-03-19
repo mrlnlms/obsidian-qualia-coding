@@ -9,8 +9,8 @@
  */
 
 import { Rect, Ellipse, Polygon, Point, FabricObject, Canvas } from 'fabric';
-import type { ImageCodingModel } from '../models/codingModel';
-import type { ImageMarker, NormalizedRect, NormalizedPolygon, NormalizedCoords } from '../models/codingTypes';
+import type { ImageCodingModel } from '../imageCodingModel';
+import type { ImageMarker, NormalizedRect, NormalizedPolygon, NormalizedCoords } from '../imageCodingTypes';
 import type { FabricCanvasState } from './fabricCanvas';
 
 /** Marker color when no codes assigned */

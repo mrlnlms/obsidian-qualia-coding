@@ -6,7 +6,7 @@ import { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
-import { ImageCodingModel } from './models/codingModel';
+import { ImageCodingModel } from './imageCodingModel';
 import { ImageCodingView, IMAGE_CODING_VIEW_TYPE } from './views/imageView';
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'avif', 'svg']);

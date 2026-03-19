@@ -7,7 +7,7 @@
 
 import { FabricText, FabricObject, Canvas } from "fabric";
 import type { RegionManager } from "../canvas/regionManager";
-import type { ImageCodingModel } from "../models/codingModel";
+import type { ImageCodingModel } from "../imageCodingModel";
 
 export class RegionLabels {
   private canvas: Canvas;

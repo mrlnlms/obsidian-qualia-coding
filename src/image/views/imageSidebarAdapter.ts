@@ -3,8 +3,8 @@
  */
 
 import type { BaseMarker } from '../../core/types';
-import type { ImageCodingModel } from '../models/codingModel';
-import type { ImageMarker } from '../models/codingTypes';
+import type { ImageCodingModel } from '../imageCodingModel';
+import type { ImageMarker } from '../imageCodingTypes';
 import { BaseSidebarAdapter } from '../../core/baseSidebarAdapter';
 
 export interface ImageBaseMarker extends BaseMarker {

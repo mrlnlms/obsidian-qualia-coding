@@ -1,6 +1,6 @@
 import { ItemView, TFile, WorkspaceLeaf } from 'obsidian';
 import type QualiaCodingPlugin from '../../main';
-import type { ImageCodingModel } from '../models/codingModel';
+import type { ImageCodingModel } from '../imageCodingModel';
 import {
 	type FabricCanvasState,
 	setupFabricCanvas,
@@ -10,7 +10,7 @@ import { type RegionDrawingState, setupRegionDrawing } from '../canvas/regionDra
 import { type ZoomPanCleanup, setupZoomPanControls } from '../canvas/zoomPanControls';
 import { type ToolbarState, createToolbar } from '../toolbar/imageToolbar';
 import { RegionManager } from '../canvas/regionManager';
-import { CodingMenu } from '../menu/codingMenu';
+import { CodingMenu } from '../imageCodingMenu';
 import { RegionLabels } from '../labels/regionLabels';
 import { type RegionHighlightState, setupRegionHighlight } from '../highlight/regionHighlight';
 

@@ -2,9 +2,9 @@
  * ImageCodingModel — CRUD for ImageMarkers + persistence via DataManager.
  */
 
-import type { DataManager } from '../../core/dataManager';
-import type { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
-import type { ImageMarker, RegionShape, NormalizedCoords } from './codingTypes';
+import type { DataManager } from '../core/dataManager';
+import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { ImageMarker, RegionShape, NormalizedCoords } from './imageCodingTypes';
 
 export type ChangeListener = () => void;
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ImageCodingModel } from '../../src/image/models/codingModel';
+import { ImageCodingModel } from '../../src/image/imageCodingModel';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
-import type { NormalizedCoords } from '../../src/image/models/codingTypes';
+import type { NormalizedCoords } from '../../src/image/imageCodingTypes';
 
 // ── Mock DataManager ──
 
