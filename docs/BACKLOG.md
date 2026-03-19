@@ -729,6 +729,22 @@ BoardView e ImageView agora expõem `waitUntilReady()` que resolve quando o `onO
 | Docs: image "aplainado" impreciso (canvas/ e views/ ainda existem) | Corrigido para "parcialmente aplainado" |
 | Docs: métricas de testes desatualizadas (1263 → 1280 unit) | Adicionada entrada 2026-03-19 na tabela histórica |
 
+### Bugs encontrados pelo Codex — rodada 10 (2026-03-19) — FEITOS
+
+| Bug | Fix |
+|-----|-----|
+| Rename não atualiza codeName no detail view já aberto | `qualia:code-renamed` event + handler que atualiza `this.codeName` + `updateHeader()` |
+| Registry mutations (cor/desc) não propagam para outros leaves de sidebar | `qualia:registry-changed` event disparado no `onMutate` do registry. Explorer e Detail escutam e refresham |
+| Board clustering usa cache stale | Documentado como by-design: analytics data é snapshot, refresh é manual. Mesmo comportamento de todos os charts |
+
+### Padrão emergente: `qualia:registry-changed` + `qualia:code-renamed` events (2026-03-19)
+
+Registry mutations agora disparam 2 events:
+- `qualia:registry-changed` — qualquer mutação (create/update/delete). Sidebar views refresham.
+- `qualia:code-renamed` — rename específico com `{oldName, newName}`. Detail view atualiza `codeName` armazenado.
+
+Ambos complementam `qualia:clear-all`. Juntos, os 3 events cobrem todas as operações globais que afetam views abertas.
+
 ### Bugs encontrados pelo Codex — rodada 9 (2026-03-19) — TODOS FEITOS
 
 | Bug | Fix |

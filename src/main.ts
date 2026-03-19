@@ -50,8 +50,10 @@ export default class QualiaCodingPlugin extends Plugin {
 		);
 
 		// Auto-persist registry on any mutation (create/update/delete code)
+		// Also notify sidebar views to refresh (rename, color, description changes)
 		this.sharedRegistry.setOnMutate(() => {
 			this.dataManager.setSection('registry', this.sharedRegistry.toJSON());
+			document.dispatchEvent(new Event('qualia:registry-changed'));
 		});
 
 		this.addSettingTab(new QualiaSettingTab(this.app, this));
@@ -97,9 +99,12 @@ export default class QualiaCodingPlugin extends Plugin {
 			[mdModel, pdfAdapter, imageAdapter, csvAdapter, audioAdapter, videoAdapter],
 		);
 
-		// Propagate code renames to all markers across all engines
+		// Propagate code renames to all markers across all engines + notify views
 		this.sharedRegistry.setOnRenamed((oldName, newName) => {
 			unifiedModel.renameCode(oldName, newName);
+			document.dispatchEvent(new CustomEvent('qualia:code-renamed', {
+				detail: { oldName, newName },
+			}));
 		});
 
 		// Register unified sidebar views (single set for ALL engines)

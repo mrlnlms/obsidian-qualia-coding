@@ -29,6 +29,7 @@ export abstract class BaseCodeExplorerView extends ItemView {
 	private searchTimeout: ReturnType<typeof setTimeout> | null = null;
 	private boundRenderTree = () => this.renderTree();
 	private boundApplyHover = () => this.applyHoverToItems();
+	private boundRegistryRefresh = () => this.renderTree();
 
 	// Persistent DOM zones (survive across data refreshes)
 	private toolbarEl: HTMLElement | null = null;
@@ -56,6 +57,7 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		this.contentEl.addClass('codemarker-explorer');
 		this.model.onChange(this.boundRenderTree);
 		this.model.onHoverChange(this.boundApplyHover);
+		document.addEventListener('qualia:registry-changed', this.boundRegistryRefresh);
 		this.renderShell();
 		this.renderTree();
 	}
@@ -63,6 +65,7 @@ export abstract class BaseCodeExplorerView extends ItemView {
 	async onClose() {
 		this.model.offChange(this.boundRenderTree);
 		this.model.offHoverChange(this.boundApplyHover);
+		document.removeEventListener('qualia:registry-changed', this.boundRegistryRefresh);
 		this.contentEl.empty();
 	}
 

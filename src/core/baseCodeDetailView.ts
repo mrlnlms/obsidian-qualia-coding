@@ -30,6 +30,14 @@ export abstract class BaseCodeDetailView extends ItemView {
 	private searchQuery = '';
 	private boundRefresh = () => this.refreshCurrentMode();
 	private boundApplyHover = () => this.applyHoverToItems();
+	private boundRegistryRefresh = () => this.refreshCurrentMode();
+	private boundRenameHandler = (e: Event) => {
+		const { oldName, newName } = (e as CustomEvent<{ oldName: string; newName: string }>).detail;
+		if (this.codeName === oldName) {
+			this.codeName = newName;
+			this.leaf.updateHeader?.();
+		}
+	};
 
 	// Persistent DOM for list mode (search survives refreshes)
 	private listSearchWrap: HTMLElement | null = null;
@@ -61,12 +69,16 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.contentEl.addClass('codemarker-detail-panel');
 		this.model.onChange(this.boundRefresh);
 		this.model.onHoverChange(this.boundApplyHover);
+		document.addEventListener('qualia:registry-changed', this.boundRegistryRefresh);
+		document.addEventListener('qualia:code-renamed', this.boundRenameHandler);
 		this.refreshCurrentMode();
 	}
 
 	async onClose() {
 		this.model.offChange(this.boundRefresh);
 		this.model.offHoverChange(this.boundApplyHover);
+		document.removeEventListener('qualia:registry-changed', this.boundRegistryRefresh);
+		document.removeEventListener('qualia:code-renamed', this.boundRenameHandler);
 		this.contentEl.empty();
 	}
 
