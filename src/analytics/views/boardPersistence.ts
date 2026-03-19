@@ -8,14 +8,19 @@ import { isBoardNode } from "../board/boardTypes";
 
 const BOARD_FILE = ".obsidian/plugins/qualia-coding/board.json";
 
+const BOARD_DIR = ".obsidian/plugins/qualia-coding";
+
 export async function saveBoard(canvas: Canvas, adapter: DataAdapter): Promise<void> {
   const data = serializeBoard(canvas);
   const json = JSON.stringify(data, null, 2);
   try {
     await adapter.write(BOARD_FILE, json);
   } catch {
-    // Directory might not exist yet, try creating
+    // Directory might not exist yet — create and retry
     try {
+      if (!(await adapter.exists(BOARD_DIR))) {
+        await adapter.mkdir(BOARD_DIR);
+      }
       await adapter.write(BOARD_FILE, json);
     } catch {
       console.warn("Failed to save board");
