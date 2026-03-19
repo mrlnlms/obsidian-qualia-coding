@@ -273,9 +273,17 @@ interface EngineRegistration<M> {
 - Sidebar view registration (Code Explorer, Code Detail)
 - Cleanup reverso no onunload
 
-Não deve implementar lógica de engine — apenas coordenar.
+Não deve implementar lógica de engine — apenas coordenar. O acoplamento é intencional — um plugin com 7 engines precisa de exatamente 1 ponto que conhece todos. Reavaliar se ultrapassar ~250 LOC.
 
-### 5.4 Shared Files
+### 5.4 dataConsolidator — ponto único de normalização
+
+`analytics/data/dataConsolidator.ts` (~311 LOC) converte 6 formatos engine-specific em `UnifiedMarker[]`. Cada engine tem um bloco independente (~40 LOC). É o único lugar que conhece todos os formatos — isso é feature (consistência cross-engine), não fragilidade. Alternativas (cada engine auto-normaliza, visitor pattern) espalhariam a lógica sem ganho. Protegido por testes unitários.
+
+### 5.5 analyticsView — state management sem framework
+
+`analyticsView.ts` (~338 LOC) gerencia ~20 campos de estado organizados por concern. Cada mode module recebe o ctx via interface tipada (`AnalyticsViewContext`), sem acessar o view direto. A statefulness é custo inerente de UI sem framework. Se o state crescer além de ~25 campos, agrupar em sub-objetos por concern (ex: `wordCloudState: { lang, minLength, maxWords }`).
+
+### 5.6 Shared Files
 
 ```
 src/

@@ -493,6 +493,9 @@ const def = (defaults as any)[key];        // dynamic key access
 | ~~Media save timing redundante~~ | ~~—~~ | ~~FEITO (2026-03-19) — removido debounce 500ms, DM cuida~~ |
 | 3 `as any` PDF viewer | Nao (API interna Obsidian) | Permanente |
 | 3 `as any` dataManager deepMerge | Nao (type gymnastics generica) | Permanente |
+| main.ts acoplamento | Monitorar — reavaliar se > ~250 LOC | Intencional (182 LOC hoje) |
+| analyticsView.ts state bag | Monitorar — agrupar em sub-objetos se > ~25 campos | OK hoje (~20 campos, 338 LOC) |
+| dataConsolidator.ts ponto unico | Manter — by design, protegido por testes | 311 LOC, 6 blocos independentes |
 | ~~Reorganizacao naming csv/ + image/~~ | ~~—~~ | ~~FEITO (2026-03-19) — csv prefixado, image aplainado (5 subpastas → flat)~~ |
 | ~~markdown/index.ts dedup~~ | ~~—~~ | ~~FEITO (2026-03-19) — `openMenuFromEditorSelection()` elimina 3x duplicacao (275→220 LOC)~~ |
 | ~~ARCHITECTURE.md §5.3 drift~~ | ~~—~~ | ~~FEITO (2026-03-19) — EngineCleanup como funcao, main.ts ~180 LOC~~ |
