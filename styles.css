@@ -358,27 +358,6 @@
    Code Explorer — tree view (CodeExplorerView)
    ======================================== */
 
-/* Double-line icon: two triangles stacked */
-.codemarker-icon-double {
-	position: relative;
-}
-
-.codemarker-icon-double .svg-icon {
-	transform: scale(0.7) translateY(-3px);
-}
-
-.codemarker-icon-double::after {
-	content: '';
-	position: absolute;
-	bottom: 2px;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 10px;
-	height: 1.5px;
-	background-color: currentColor;
-	border-radius: 1px;
-}
-
 /* Search wrap (explorer toolbar + detail list) */
 .codemarker-explorer-search-wrap {
 	flex: 1;
