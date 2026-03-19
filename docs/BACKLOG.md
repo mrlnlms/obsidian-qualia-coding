@@ -630,15 +630,19 @@ Guard adicionado no `update()` — retorna `false` se `changes.name` já existe 
 
 `clearBoard(adapter)` adicionado em `boardPersistence.ts` — remove `board.json`. Chamado no callback do Clear All em `markdown/index.ts` junto com `clearAllSections()`. Texto do modal atualizado para incluir "Research Board". 3 testes adicionados.
 
-### Trade-off: fileInterceptor destrói multi-pane (`fileInterceptor.ts:117`)
+### Bug de UX: fileInterceptor destrói leaf ao abrir arquivo duplicado (`fileInterceptor.ts:117`)
 
-**Severidade**: Médio (limitação de UX)
+**Severidade**: Alto (quebra comportamento nativo do Obsidian)
 
-Quando o arquivo já está aberto em uma leaf do target view type, o interceptor faz `leaf.detach()` e foca na leaf existente. Isso impede abrir o mesmo arquivo em dois painéis lado a lado — workflow comum no Obsidian para comparação.
+O interceptor faz `leaf.detach()` quando o arquivo já está aberto em outra leaf do target view type. Isso **quebra o workflow nativo** de abrir o mesmo arquivo em painéis lado a lado — comportamento esperado da plataforma que o plugin não deveria impedir.
 
-**Contexto**: A decisão simplifica coordenação (evita dois models disputando o mesmo arquivo). Mas sacrifica um padrão de uso legítimo de power users.
+**Referência**: O plugin mirror-notes resolve isso com o padrão **viewId por pane via WeakMap** (`domInjector.ts:23-36`). Conceito central:
+1. Cada pane recebe um `viewId` estável via `WeakMap<HTMLElement, string>` — cleanup automático quando leaf fecha
+2. Todo estado (cache, DOM, overrides) é isolado por `viewId + filePath` — múltiplas views do mesmo arquivo não colidem
+3. Eventos usam `iterateAllLeaves()` sem deduplicação — processa todas as leaves independentemente
+4. Plugin nunca destrói leaves — lifecycle é responsabilidade do Obsidian
 
-**Ação**: Revisitar quando multi-pane for prioridade. Alternativa: permitir múltiplas views read-only, com uma só "ativa" para edição.
+**Ação**: Remover o bloco `leaf.detach()` e adaptar os engines para suportar múltiplas views do mesmo arquivo com state isolado por viewId. Exige que cada CodingModel aceite múltiplos listeners (um por view) sem conflito.
 
 ### Gap: CI não executa coverage gates — FEITO (2026-03-19)
 
@@ -727,6 +731,22 @@ A §3.3 do ARCHITECTURE.md documenta drag-and-drop reorder, merge codes, inline 
 **Proposta**: Cache incremental por engine — cada engine mantém versão consolidada dos seus markers, invalidada por mutation. `dataConsolidator` monta o array final a partir dos caches, sem reconsolidar do zero. Benefício colateral: analytics refresh instantâneo para mutations locais (ex: adicionar 1 código não reprocessa 5000 markers).
 
 **Quando**: Antes de migração de persistência. Este é o próximo passo de arquitetura que dá retorno sem mudar o modelo de dados.
+
+### Board: snapshot vs live-linked (proposto Codex 2026-03-19)
+
+**Problema**: O Research Board captura dados no momento da criação dos nós (snapshot puro). Excerpt nodes, code cards e chart snapshots nunca atualizam se os markers ou códigos mudam depois. Resultado: board pode mostrar dados stale — contagens erradas em code cards, excerpts de markers que foram editados ou deletados, charts desatualizados.
+
+**Opções**:
+
+| Modo | Comportamento | Complexidade |
+|------|--------------|-------------|
+| **Snapshot (status quo)** | Captura no momento da criação, nunca atualiza | Zero — já funciona |
+| **Live-linked** | Nós referenciam markers/códigos por ID, re-renderizam quando dados mudam | Alta — requer subscriptions, invalidation, layout rebuild |
+| **Refresh on open** | Snapshot com re-sync quando o board é aberto | Média — reconcilia dados stale no load, sem subscriptions contínuas |
+
+**Recomendação**: "Refresh on open" é o sweet spot — resolve drift sem a complexidade de live subscriptions. Ao abrir o board, reconciliar: remover nós cujo marker/código não existe mais, atualizar contagens de code cards, marcar chart snapshots como "(stale)" se os dados mudaram.
+
+**Dependências**: Nenhuma. Independente de hierarquia e incremental cache.
 
 **Decisao atual:** Manter separado. A duplicacao e barata (~350 LOC) e a clareza compensa.
 
