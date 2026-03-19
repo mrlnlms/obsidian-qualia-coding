@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { CsvCodingModel } from '../../src/csv/codingModel';
+import { CsvCodingModel } from '../../src/csv/csvCodingModel';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 
 // ── Mock DataManager ──

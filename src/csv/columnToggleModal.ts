@@ -1,8 +1,8 @@
 
 import { Modal, Setting } from 'obsidian';
 import type { GridApi, ColDef } from 'ag-grid-community';
-import { codingCellRenderer, sourceTagBtnRenderer } from './codingCellRenderer';
-import type { CsvCodingModel } from './codingModel';
+import { codingCellRenderer, sourceTagBtnRenderer } from './csvCodingCellRenderer';
+import type { CsvCodingModel } from './csvCodingModel';
 
 // Minimal interface to avoid circular import with csvCodingView
 export interface CsvViewRef {

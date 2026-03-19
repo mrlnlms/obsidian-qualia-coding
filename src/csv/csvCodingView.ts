@@ -7,7 +7,7 @@ import { ColumnToggleModal } from './columnToggleModal';
 import { injectHeaderButtons } from './csvHeaderInjection';
 import { SegmentEditor } from './segmentEditor';
 import type QualiaCodingPlugin from '../main';
-import type { CsvCodingModel } from './codingModel';
+import type { CsvCodingModel } from './csvCodingModel';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 

@@ -6,7 +6,7 @@ import { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { registerFileRename } from '../core/fileInterceptor';
-import { CsvCodingModel } from './codingModel';
+import { CsvCodingModel } from './csvCodingModel';
 import { CsvCodingView, CSV_CODING_VIEW_TYPE } from './csvCodingView';
 
 export { CSV_CODING_VIEW_TYPE };

@@ -1,8 +1,8 @@
 
 import { setIcon } from 'obsidian';
 import type { GridApi, ColDef } from 'ag-grid-community';
-import { openBatchCodingPopover } from './codingMenu';
-import type { CsvCodingModel } from './codingModel';
+import { openBatchCodingPopover } from './csvCodingMenu';
+import type { CsvCodingModel } from './csvCodingModel';
 
 export interface HeaderInjectionContext {
 	gridApi: GridApi | null;

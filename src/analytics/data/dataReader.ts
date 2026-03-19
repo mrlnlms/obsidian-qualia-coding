@@ -2,7 +2,7 @@ import type { DataManager } from "../../core/dataManager";
 import type { CodeDefinition } from "../../core/types";
 import type { Marker } from "../../markdown/models/codeMarkerModel";
 import type { CodeMarkerSettings } from "../../markdown/models/settings";
-import type { SegmentMarker, RowMarker } from "../../csv/codingTypes";
+import type { SegmentMarker, RowMarker } from "../../csv/csvCodingTypes";
 import type { ImageMarker } from "../../image/models/codingTypes";
 import type { PdfMarker, PdfShapeMarker } from "../../pdf/pdfCodingTypes";
 import type { AudioFile } from "../../audio/audioCodingTypes";

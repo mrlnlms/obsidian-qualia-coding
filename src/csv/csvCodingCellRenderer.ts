@@ -1,9 +1,9 @@
 import { setIcon } from 'obsidian';
 import type { App } from 'obsidian';
-import type { CsvCodingModel } from './codingModel';
+import type { CsvCodingModel } from './csvCodingModel';
 import type { GridApi } from 'ag-grid-community';
 import type { CsvViewRef } from './columnToggleModal';
-import { openCsvCodingPopover } from './codingMenu';
+import { openCsvCodingPopover } from './csvCodingMenu';
 
 /** Cell renderer for cod-seg and cod-frow columns — tag chips + action button */
 export function codingCellRenderer(params: any): HTMLElement {

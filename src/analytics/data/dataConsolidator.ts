@@ -6,7 +6,7 @@ import type {
   ConsolidatedData,
 } from "./dataTypes";
 import type { Marker } from "../../markdown/models/codeMarkerModel";
-import type { SegmentMarker, RowMarker } from "../../csv/codingTypes";
+import type { SegmentMarker, RowMarker } from "../../csv/csvCodingTypes";
 import type { ImageMarker } from "../../image/models/codingTypes";
 import type { PdfMarker } from "../../pdf/pdfCodingTypes";
 import type { AudioFile } from "../../audio/audioCodingTypes";

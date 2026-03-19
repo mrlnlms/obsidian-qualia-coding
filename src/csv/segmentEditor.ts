@@ -9,8 +9,8 @@ import { createHoverMenuExtension } from '../markdown/cm6/hoverMenuExtension';
 import { createMarginPanelExtension } from '../markdown/cm6/marginPanelExtension';
 import { registerStandaloneEditor, unregisterStandaloneEditor } from '../markdown/cm6/utils/viewLookupUtils';
 import type { Marker, CodeMarkerModel } from '../markdown/models/codeMarkerModel';
-import type { SegmentMarker } from './codingTypes';
-import type { CsvCodingModel } from './codingModel';
+import type { SegmentMarker } from './csvCodingTypes';
+import type { CsvCodingModel } from './csvCodingModel';
 import type { GridApi } from 'ag-grid-community';
 
 export interface SegmentEditorContext {

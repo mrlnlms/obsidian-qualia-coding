@@ -3,8 +3,8 @@
  */
 
 import type { BaseMarker } from '../../core/types';
-import type { CsvCodingModel } from '../codingModel';
-import type { CsvMarker } from '../codingTypes';
+import type { CsvCodingModel } from '../csvCodingModel';
+import type { CsvMarker } from '../csvCodingTypes';
 import { BaseSidebarAdapter } from '../../core/baseSidebarAdapter';
 
 export interface CsvBaseMarker extends BaseMarker {

@@ -7,7 +7,7 @@
  */
 
 import type { App } from 'obsidian';
-import type { CsvCodingModel } from './codingModel';
+import type { CsvCodingModel } from './csvCodingModel';
 import type { GridApi } from 'ag-grid-community';
 import {
 	openCodingPopover,
