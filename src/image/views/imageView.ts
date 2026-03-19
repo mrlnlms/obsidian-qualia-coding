@@ -8,11 +8,11 @@ import {
 } from '../canvas/fabricCanvas';
 import { type RegionDrawingState, setupRegionDrawing } from '../canvas/regionDrawing';
 import { type ZoomPanCleanup, setupZoomPanControls } from '../canvas/zoomPanControls';
-import { type ToolbarState, createToolbar } from '../toolbar/imageToolbar';
+import { type ToolbarState, createToolbar } from '../imageToolbar';
 import { RegionManager } from '../canvas/regionManager';
 import { CodingMenu } from '../imageCodingMenu';
-import { RegionLabels } from '../labels/regionLabels';
-import { type RegionHighlightState, setupRegionHighlight } from '../highlight/regionHighlight';
+import { RegionLabels } from '../regionLabels';
+import { type RegionHighlightState, setupRegionHighlight } from '../regionHighlight';
 
 export const IMAGE_CODING_VIEW_TYPE = 'qualia-image-coding';
 

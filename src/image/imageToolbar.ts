@@ -5,9 +5,9 @@
  */
 
 import { setIcon } from "obsidian";
-import { type FabricCanvasState, fitToContainer, zoomBy } from "../canvas/fabricCanvas";
-import { DRAW_TOOL_BUTTONS, type DrawMode } from "../../core/shapeTypes";
-import { createDrawToolbar, type DrawToolbarHandle } from "../../core/drawToolbarFactory";
+import { type FabricCanvasState, fitToContainer, zoomBy } from "./canvas/fabricCanvas";
+import { DRAW_TOOL_BUTTONS, type DrawMode } from "../core/shapeTypes";
+import { createDrawToolbar, type DrawToolbarHandle } from "../core/drawToolbarFactory";
 
 export type ToolMode = DrawMode;
 

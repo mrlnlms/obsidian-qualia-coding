@@ -10,9 +10,9 @@
  */
 
 import { FabricObject, Canvas, Shadow } from "fabric";
-import type { FabricCanvasState } from "../canvas/fabricCanvas";
-import type { RegionManager } from "../canvas/regionManager";
-import type { ImageCodingModel } from "../imageCodingModel";
+import type { FabricCanvasState } from "./canvas/fabricCanvas";
+import type { RegionManager } from "./canvas/regionManager";
+import type { ImageCodingModel } from "./imageCodingModel";
 
 const HOVER_SHADOW_COLOR = "rgba(59, 130, 246, 0.6)";
 const HOVER_SHADOW_BLUR = 12;

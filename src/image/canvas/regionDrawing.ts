@@ -1,5 +1,5 @@
 import { Canvas, Rect, Ellipse, Polygon, Point, FabricObject } from "fabric";
-import type { ToolMode } from "../toolbar/imageToolbar";
+import type { ToolMode } from "../imageToolbar";
 import type { FabricCanvasState } from "./fabricCanvas";
 
 /** Default visual style for new regions (used before codes are assigned) */
