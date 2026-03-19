@@ -320,10 +320,10 @@ Expandido (2026-03-17): `deleteCode()` e `updateMarkerFields()` movidos para Bas
 |---------|--------|----------|
 | `analytics/views/analyticsView.ts` | ~~5.907~~ 798 | FEITO — split em 19 mode modules + shared helpers (2026-03-17) |
 | ~~`analytics/data/statsEngine.ts`~~ | ~~949~~ | FEITO — split em 6 modulos (2026-03-17) |
-| `analytics/board/boardNodes.ts` | 825 | 91 `as any` (Fabric.js) |
-| `csv/csvCodingView.ts` | 801 | Grid + parser + editor + markers misturados |
+| ~~`analytics/board/boardNodes.ts`~~ | ~~825~~ 14 | FEITO — barrel re-export, split em 6 arquivos em `nodes/` (2026-03-17) |
+| ~~`csv/csvCodingView.ts`~~ | ~~801~~ 210 | FEITO — orquestrador puro, subsistemas extraidos (model, menu, cellRenderer, headerInjection, segmentEditor) |
 | `markdown/cm6/markerViewPlugin.ts` | 706 | Render + drag + hover + DOM overlay |
-| `markdown/cm6/marginPanelExtension.ts` | 674 | Labels + positioning + collapse |
+| `markdown/cm6/marginPanelExtension.ts` | ~~674~~ 548 | Labels + positioning + hover. Layout puro ja extraido em `marginPanelLayout.ts` (129 LOC). Candidatos: position math (~50), hover state (~90), DOM render (~90) |
 
 ---
 
