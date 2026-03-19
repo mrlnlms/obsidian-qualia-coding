@@ -47,6 +47,10 @@ export class BoardView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    // Reset lifecycle state for reopen
+    this.readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
+    this.cleared = false;
+
     try {
       const { contentEl } = this;
       contentEl.empty();

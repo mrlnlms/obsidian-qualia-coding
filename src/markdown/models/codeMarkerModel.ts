@@ -534,6 +534,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		for (const fileId of affectedFiles) {
 			this.updateMarkersForFile(fileId);
 		}
+		this._notifyChange();
 	}
 
 	deleteCode(codeName: string) {

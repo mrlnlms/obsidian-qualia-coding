@@ -729,7 +729,15 @@ BoardView e ImageView agora expõem `waitUntilReady()` que resolve quando o `onO
 | Docs: image "aplainado" impreciso (canvas/ e views/ ainda existem) | Corrigido para "parcialmente aplainado" |
 | Docs: métricas de testes desatualizadas (1263 → 1280 unit) | Adicionada entrada 2026-03-19 na tabela histórica |
 
-Rodada 8 do Codex não encontrou bugs reais adicionais além deste. **Superfície convergiu.**
+### Bugs encontrados pelo Codex — rodada 9 (2026-03-19) — TODOS FEITOS
+
+| Bug | Fix |
+|-----|-----|
+| Registry mutations (rename/color/description) não atualizam sidebar | `renameCode()` em baseSidebarAdapter e pdfSidebarAdapter agora chama `notifyAfterFieldUpdate()`. Markdown `renameCode()` chama `_notifyChange()` |
+| ImageView race: close durante await não invalida load | `cleanup()` incrementa `loadGeneration`. Stale return desmonta `fabricState` criado durante await |
+| BoardView readyPromise one-shot + cleared não reseta no reopen | `onOpen()` recria `readyPromise` e reseta `cleared = false` |
+
+**Rodada 9 do Codex: 3 bugs de lifecycle/UI. Total geral: 36 bugs corrigidos.**
 
 ### Observação: singleton leaf por engine (Codex rodada 3)
 

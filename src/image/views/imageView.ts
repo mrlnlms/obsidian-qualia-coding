@@ -85,9 +85,13 @@ export class ImageCodingView extends ItemView {
 		const imageUrl = this.app.vault.getResourcePath(file);
 
 		try {
-			this.fabricState = await setupFabricCanvas(container, imageUrl);
-			// Stale load — a newer loadImage was called while we awaited
-			if (thisGeneration !== this.loadGeneration) return;
+			const fabricState = await setupFabricCanvas(container, imageUrl);
+			// Stale load — a newer loadImage or cleanup was called while we awaited
+			if (thisGeneration !== this.loadGeneration) {
+				teardownFabricCanvas(fabricState);
+				return;
+			}
+			this.fabricState = fabricState;
 			const canvas = this.fabricState.canvas;
 
 			// Region manager
@@ -236,6 +240,8 @@ export class ImageCodingView extends ItemView {
 	}
 
 	private cleanup(): void {
+		// Invalidate any pending async loadImage
+		this.loadGeneration++;
 		if (this.clearAllHandler) {
 			document.removeEventListener('qualia:clear-all', this.clearAllHandler);
 			this.clearAllHandler = null;

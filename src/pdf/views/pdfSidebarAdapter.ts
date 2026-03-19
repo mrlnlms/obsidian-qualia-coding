@@ -145,6 +145,7 @@ export class PdfSidebarAdapter extends BaseSidebarAdapter {
 			}
 		}
 		this.saveMarkers();
+		this.notifyAfterFieldUpdate();
 	}
 
 	deleteCode(codeName: string): void {
