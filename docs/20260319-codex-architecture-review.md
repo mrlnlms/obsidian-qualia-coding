@@ -122,10 +122,23 @@ O consolidator ja esta protegido por testes unitarios que cobrem cada engine iso
 
 ## Resumo de acoes
 
-| Ponto | Decisao | Razao |
-|-------|---------|-------|
-| ARCHITECTURE.md drift | **CORRIGIR** | Docs defasados vs implementacao real |
+| Ponto | Decisao | Status |
+|-------|---------|--------|
+| ARCHITECTURE.md drift | **CORRIGIR** | FEITO (2026-03-19) — §5.3 atualizado |
 | main.ts coupling | Manter | 182 LOC e enxuto para 7 engines |
-| markdown/index.ts duplicacao | **CORRIGIR** | Pattern selection→menu duplicado 4x (~80 LOC redundantes) |
+| markdown/index.ts duplicacao | **CORRIGIR** | FEITO (2026-03-19) — `openMenuFromEditorSelection()`, 275→220 LOC |
 | analyticsView.ts stateful | Monitorar | 338 LOC e razoavel; reavaliar se state > 25 campos |
 | dataConsolidator.ts fragility | Manter | By design; protegido por testes |
+
+---
+
+## Feedback adicional do Codex (pos-correcoes)
+
+O Codex sugeriu como proximos passos:
+
+1. **Reduzir responsabilidade de main.ts**
+2. **Quebrar estado/renderizacao de analyticsView.ts antes que expansao dos modos torne caro**
+
+**Posicao:** ambos sao riscos futuros legitimos, nao problemas atuais. main.ts com 182 LOC e analyticsView com 338 LOC (pos-split de 19 modes) estao em tamanhos saudaveis. Atacar preventivamente seria over-engineering. Os triggers para reavaliar:
+- **main.ts:** se ultrapassar ~250 LOC (ex: novo engine, nova sidebar)
+- **analyticsView:** se state ultrapassar ~25 campos (agrupar em sub-objetos por concern)
