@@ -842,7 +842,7 @@ body.codemarker-pdf-dragging .codemarker-pdf-handle.codemarker-pdf-handle-visibl
 	border-radius: 2px;
 	transition: background-color 0.2s ease;
 	position: relative;
-	color: inherit !important;
+	color: inherit;
 	mix-blend-mode: multiply;
 }
 
@@ -1013,7 +1013,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
    ======================================== */
 
 .codemarker-selection-preview {
-	background-color: var(--text-selection) !important;
+	background-color: var(--text-selection);
 	border-radius: 2px;
 }
 
@@ -1033,8 +1033,8 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	padding: var(--size-4-1) var(--size-4-2);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-s);
-	background-color: var(--background-primary) !important;
-	color: var(--text-normal) !important;
+	background-color: var(--background-primary);
+	color: var(--text-normal);
 	font-size: var(--font-ui-small);
 	outline: none;
 }
@@ -1981,26 +1981,29 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 
 /* ── Region Labels ── */
 .codemarker-media-region-label {
-  font-size: 10px;
-  padding: 1px 4px;
-  white-space: nowrap;
-  pointer-events: none;
-  color: var(--text-normal);
-  text-shadow: 0 0 2px var(--background-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: calc(100% - 8px);
-  display: block;
-}
-
-.codemarker-media-region-label.is-clickable {
-  pointer-events: auto;
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 4px;
+  overflow: visible;
   position: relative;
   z-index: 10;
+  width: max-content;
 }
 
-.codemarker-media-region-label.is-clickable:hover {
+.codemarker-media-chip {
+  font-size: 12px;
+  white-space: nowrap;
+  text-shadow: 0 0 3px var(--background-primary), 0 0 3px var(--background-primary);
+  pointer-events: none;
+}
+
+.codemarker-media-chip-interactive {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.codemarker-media-chip-interactive:hover {
   color: var(--text-accent);
   text-decoration: underline;
 }
@@ -2220,7 +2223,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
    ======================================== */
 
 .codemarker-media-region-hovered {
-  opacity: 0.75 !important;
+  opacity: 0.75;
   box-shadow: 0 0 0 2px var(--interactive-accent);
 }
 
@@ -2837,7 +2840,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
    ======================================== */
 
 .codemarker-video-region-hovered {
-  opacity: 0.75 !important;
+  opacity: 0.75;
   box-shadow: 0 0 0 2px var(--interactive-accent);
 }
 

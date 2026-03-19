@@ -45,26 +45,13 @@ export class MediaRegionRenderer {
 			content.className = 'codemarker-media-region-label';
 			content.title = marker.codes.join(', ') + '\n' + formatTime(marker.from) + ' – ' + formatTime(marker.to);
 
-			const cs = content.style;
-			cs.display = 'flex';
-			cs.flexDirection = 'column';
-			cs.gap = '1px';
-			cs.padding = '2px 4px';
-			cs.overflow = 'visible';
-			cs.position = 'relative';
-			cs.zIndex = '10';
-			cs.width = 'max-content';
-
 			for (const codeName of marker.codes) {
 				const chip = document.createElement('span');
 				chip.textContent = codeName;
-				chip.style.fontSize = '12px';
-				chip.style.whiteSpace = 'nowrap';
-				chip.style.textShadow = '0 0 3px var(--background-primary), 0 0 3px var(--background-primary)';
+				chip.className = 'codemarker-media-chip';
 
 				if (this.onNavigate) {
-					chip.style.pointerEvents = 'auto';
-					chip.style.cursor = 'pointer';
+					chip.classList.add('codemarker-media-chip-interactive');
 					const nav = this.onNavigate;
 					const mid = marker.id;
 					chip.addEventListener('click', (e) => {
@@ -73,16 +60,10 @@ export class MediaRegionRenderer {
 					});
 					chip.addEventListener('mouseenter', () => {
 						this.model.setHoverState(mid, codeName);
-						chip.style.color = 'var(--text-accent)';
-						chip.style.textDecoration = 'underline';
 					});
 					chip.addEventListener('mouseleave', () => {
 						this.model.setHoverState(null, null);
-						chip.style.color = '';
-						chip.style.textDecoration = '';
 					});
-				} else {
-					chip.style.pointerEvents = 'none';
 				}
 
 				content.appendChild(chip);
