@@ -61,12 +61,13 @@ export class CodeDefinitionRegistry {
 		const existing = this.getByName(name);
 		if (existing) return existing;
 
+		const assignedColor = color || this.consumeNextPaletteColor();
 		const def: CodeDefinition = {
 			id: this.generateId(),
 			name,
-			color: color || this.consumeNextPaletteColor(),
+			color: assignedColor,
 			description: description || undefined,
-			paletteIndex: this.nextPaletteIndex - 1,
+			paletteIndex: color ? -1 : this.nextPaletteIndex - 1,
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		};

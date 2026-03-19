@@ -42,6 +42,18 @@ describe('create', () => {
     const def = registry.create('Desc', undefined, 'A description');
     expect(def.description).toBe('A description');
   });
+
+  it('assigns correct paletteIndex for auto-color', () => {
+    const def = registry.create('AutoColor');
+    expect(def.paletteIndex).toBe(0);
+    const def2 = registry.create('AutoColor2');
+    expect(def2.paletteIndex).toBe(1);
+  });
+
+  it('assigns -1 paletteIndex for manual color', () => {
+    const def = registry.create('ManualColor', '#FF0000');
+    expect(def.paletteIndex).toBe(-1);
+  });
 });
 
 // ── getById / getByName ──────────────────────────────────────

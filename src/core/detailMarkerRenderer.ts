@@ -120,9 +120,13 @@ function renderColorSection(
 		cls: 'codemarker-detail-color-input',
 		attr: { type: 'color', value: currentColor },
 	});
+	let refreshSuspended = false;
 	swatch.addEventListener('click', (e) => {
 		e.stopPropagation();
-		callbacks.suspendRefresh();
+		if (!refreshSuspended) {
+			callbacks.suspendRefresh();
+			refreshSuspended = true;
+		}
 		colorInput.click();
 	});
 	colorInput.addEventListener('input', () => {
@@ -130,9 +134,10 @@ function renderColorSection(
 		resetBtn.style.display = '';
 		model.updateMarkerFields(marker.id, { colorOverride: colorInput.value });
 	});
-	colorInput.addEventListener('change', () => {
-		callbacks.resumeRefresh();
-	});
+	// Resume on both change and blur — change may not fire if picker is cancelled on some platforms
+	const doResume = () => { if (refreshSuspended) { refreshSuspended = false; callbacks.resumeRefresh(); } };
+	colorInput.addEventListener('change', doResume);
+	colorInput.addEventListener('blur', doResume);
 
 	const resetBtn = colorRow.createEl('button', {
 		cls: 'codemarker-detail-color-reset',

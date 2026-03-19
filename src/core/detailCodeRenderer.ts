@@ -47,9 +47,13 @@ export function renderCodeDetail(
 			cls: 'codemarker-detail-color-input',
 			attr: { type: 'color', value: color },
 		});
+		let refreshSuspended = false;
 		swatch.addEventListener('click', (e) => {
 			e.stopPropagation();
-			callbacks.suspendRefresh();
+			if (!refreshSuspended) {
+				callbacks.suspendRefresh();
+				refreshSuspended = true;
+			}
 			colorInput.click();
 		});
 		colorInput.addEventListener('input', () => {
@@ -57,7 +61,6 @@ export function renderCodeDetail(
 			swatch.style.backgroundColor = newColor;
 			model.registry.update(def.id, { color: newColor });
 			model.saveMarkers();
-			// Update decorations for all files with markers using this code
 			const affectedFiles = new Set(
 				model.getAllMarkers()
 					.filter(m => m.codes.includes(codeName))
@@ -67,9 +70,10 @@ export function renderCodeDetail(
 				model.updateDecorations(fileId);
 			}
 		});
-		colorInput.addEventListener('change', () => {
-			callbacks.resumeRefresh();
-		});
+		// Resume on both change and blur — change may not fire if picker is cancelled on some platforms
+		const doResume = () => { if (refreshSuspended) { refreshSuspended = false; callbacks.resumeRefresh(); } };
+		colorInput.addEventListener('change', doResume);
+		colorInput.addEventListener('blur', doResume);
 	}
 
 	header.createSpan({ text: codeName, cls: 'codemarker-detail-title' });

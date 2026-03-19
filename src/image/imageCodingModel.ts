@@ -190,6 +190,13 @@ export class ImageCodingModel {
 				changed = true;
 			}
 		}
+		// Migrate per-file view state (zoom/pan)
+		const states = this.settings.fileStates;
+		if (states && states[oldPath]) {
+			states[newPath] = states[oldPath];
+			delete states[oldPath];
+			changed = true;
+		}
 		if (changed) this.notify();
 	}
 

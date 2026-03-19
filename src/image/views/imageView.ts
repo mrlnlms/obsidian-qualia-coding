@@ -28,6 +28,7 @@ export class ImageCodingView extends ItemView {
 	private regionLabels: RegionLabels | null = null;
 	private regionHighlight: RegionHighlightState | null = null;
 	private currentFile: TFile | null = null;
+	private clearAllHandler: (() => void) | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: QualiaCodingPlugin, model: ImageCodingModel) {
 		super(leaf);
@@ -175,6 +176,13 @@ export class ImageCodingView extends ItemView {
 				vt[5] = savedView.panY;
 				c.requestRenderAll();
 			}
+			// Listen for Clear All — wipe canvas regions so they don't persist visually
+			this.clearAllHandler = () => {
+				this.cleanup();
+				this.contentEl.empty();
+				this.contentEl.createDiv({ cls: 'codemarker-image-error', text: 'All markers cleared. Reopen file to continue.' });
+			};
+			document.addEventListener('qualia:clear-all', this.clearAllHandler);
 		} catch (e) {
 			container.createDiv({
 				cls: 'codemarker-image-error',
@@ -215,6 +223,10 @@ export class ImageCodingView extends ItemView {
 	}
 
 	private cleanup(): void {
+		if (this.clearAllHandler) {
+			document.removeEventListener('qualia:clear-all', this.clearAllHandler);
+			this.clearAllHandler = null;
+		}
 		this.codingMenu?.destroy();
 		this.codingMenu = null;
 		this.regionHighlight?.destroy();

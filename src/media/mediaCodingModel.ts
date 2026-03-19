@@ -255,6 +255,12 @@ export class MediaCodingModel<
 			for (const m of file.markers) {
 				m.fileId = newPath;
 			}
+			// Migrate per-file view state (zoom, lastPosition)
+			const states = this.settings.fileStates;
+			if (states[oldPath]) {
+				states[newPath] = states[oldPath];
+				delete states[oldPath];
+			}
 			this.notify();
 		}
 	}

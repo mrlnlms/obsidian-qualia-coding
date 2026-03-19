@@ -21,6 +21,7 @@ export class BoardView extends ItemView {
   private arrowSourceObj: import("fabric").FabricObject | null = null; // first node clicked in arrow mode
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private toolbarApi: { setActiveTool: (tool: BoardTool) => void } | null = null;
+  private clearAllHandler: (() => void) | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: AnalyticsPluginAPI) {
     super(leaf);
@@ -81,9 +82,22 @@ export class BoardView extends ItemView {
     if (this.canvasState) {
       await loadBoard(this.canvasState.canvas, this.app.vault.adapter);
     }
+
+    // Listen for Clear All Markers — wipe canvas so onClose/autosave don't recreate board.json
+    this.clearAllHandler = () => {
+      if (this.saveTimer) clearTimeout(this.saveTimer);
+      if (this.canvasState) {
+        this.canvasState.canvas.clear();
+      }
+    };
+    document.addEventListener('qualia:clear-all', this.clearAllHandler);
   }
 
   async onClose(): Promise<void> {
+    if (this.clearAllHandler) {
+      document.removeEventListener('qualia:clear-all', this.clearAllHandler);
+      this.clearAllHandler = null;
+    }
     if (this.saveTimer) clearTimeout(this.saveTimer);
     if (this.canvasState) {
       await saveBoard(this.canvasState.canvas, this.app.vault.adapter);

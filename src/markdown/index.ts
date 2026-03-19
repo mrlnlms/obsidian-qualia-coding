@@ -166,6 +166,8 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 						// Image uses DataManager getters — clearAllSections handles it
 						await plugin.dataManager.clearAllSections();
 						await clearBoard(plugin.app.vault.adapter);
+						// Notify open views to clear live state (board canvas, image regions)
+						document.dispatchEvent(new Event('qualia:clear-all'));
 						modal.close();
 					}));
 			modal.open();
