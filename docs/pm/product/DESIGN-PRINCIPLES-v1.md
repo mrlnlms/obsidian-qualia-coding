@@ -1,6 +1,6 @@
 # Qualia Coding — Design Principles (v1)
 
-> **Nota:** Este documento é a v1, reverse-engineered pré-refactor de março 2026. A versão evoluída está em [DESIGN-PRINCIPLES-v2.md](DESIGN-PRINCIPLES-v2.md).
+> **Nota:** Este documento é a v1, reverse-engineered pré-refactor de março 2026. A versão evoluída está em [DESIGN-PRINCIPLES.md](DESIGN-PRINCIPLES.md).
 
 > Reverse-engineered from ~28K LOC across 7 engines. Every principle here is documented because it already EXISTS in the codebase — not aspirational. Evidence traces to specific files and patterns.
 >
