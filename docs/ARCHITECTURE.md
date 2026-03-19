@@ -212,10 +212,11 @@ Elementos renderizados fora do DOM do Obsidian (CM6 tooltips, WaveSurfer, Fabric
 
 | Evento | Payload | Ação |
 |--------|---------|------|
-| `codemarker-pdf:navigate` | `{file, page, markerId}` | Scroll to page + flash highlight |
-| `codemarker-image:navigate` | `{file, markerId}` | Pan to region + flash glow |
-| `codemarker-csv:navigate` | `{file, row, column}` | `ensureIndexVisible` + `flashCells` |
-| `codemarker-audio:seek` / `codemarker-video:seek` | `{file, seekTo}` | Seek waveform + play |
+| `qualia-pdf:navigate` | `{file, page, markerId}` | Scroll to page + flash highlight |
+| `qualia-image:navigate` | `{file, markerId}` | Pan to region + flash glow |
+| `qualia-csv:navigate` | `{file, row, column}` | `ensureIndexVisible` + `flashCells` |
+| `qualia-audio:navigate` / `qualia-video:navigate` | `{file, seekTo}` | Seek waveform + play |
+| `qualia:clear-all` | (none) | Board/Image/Analytics views clear live state |
 
 ### 4.7 openCodingPopover()
 
@@ -331,12 +332,20 @@ Canvas Fabric.js para síntese de findings:
 
 ```
 src/analytics/board/
-  boardCanvas.ts        — Fabric.js canvas lifecycle, pan/zoom, grid snap, serialization
+  boardCanvas.ts        — Fabric.js canvas lifecycle, pan/zoom, grid snap
   boardNodes.ts         — Node factory: createSticky, createExcerpt, createCodeCard, etc.
+  boardNodeHelpers.ts   — Shared node helpers (cardBg, textbox, badges, theme)
   boardArrows.ts        — Arrow creation (Line + Triangle), connection tracking by boardId
   boardToolbar.ts       — Toolbar UI: add node buttons, zoom controls, export
-  boardSerializer.ts    — board.json read/write, migration from legacy paths
-  boardInteractions.ts  — Selection, multi-select, context menu, keyboard shortcuts
+  boardData.ts          — Serialization/deserialization of board state
+  boardDrawing.ts       — Freehand drawing mode
+  boardClusters.ts      — Code card clustering by co-occurrence
+  boardTypes.ts         — Discriminated union types for board nodes
+  fabricExtensions.d.ts — Ambient types for Fabric.js custom properties
+src/analytics/views/
+  boardView.ts          — ItemView lifecycle, canvas events, drag & drop
+  boardPersistence.ts   — board.json read/write/clear via DataAdapter
+  boardContextMenu.ts   — Right-click context menu for board nodes
 ```
 
 ### Per-Node-Type Details

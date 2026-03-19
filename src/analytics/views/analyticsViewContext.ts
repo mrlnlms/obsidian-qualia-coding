@@ -87,8 +87,12 @@ export interface AnalyticsViewContext {
   trSegments: ExtractedSegment[];
   trCollapsed: Set<string>;
 
+  // Render generation — async modes check this to detect stale renders
+  renderGeneration: number;
+
   // Methods exposed to mode modules
   buildFilterConfig(): FilterConfig;
   scheduleUpdate(): void;
   renderConfigPanel(): void;
+  isRenderCurrent(generation: number): boolean;
 }

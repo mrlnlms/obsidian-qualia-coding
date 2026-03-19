@@ -144,8 +144,10 @@ function createMockCtx(overrides: Partial<AnalyticsViewContext> = {}): Analytics
 			excludeCodes: [],
 			minFrequency: 0,
 		}),
+		renderGeneration: 0,
 		scheduleUpdate: vi.fn(),
 		renderConfigPanel: vi.fn(),
+		isRenderCurrent: (gen: number) => gen === 0,
 		...overrides,
 	} as AnalyticsViewContext;
 }

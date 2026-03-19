@@ -218,6 +218,11 @@ export class PdfCodingModel {
 
 	// ── Undo ──
 
+	/** Filter codes against current registry — removes names that were renamed or deleted since snapshot. */
+	private reconcileCodes(codes: string[]): string[] {
+		return codes.filter(c => this.registry.getByName(c) !== undefined);
+	}
+
 	undo(): boolean {
 		const entry = this.undoStack.pop();
 		if (!entry) return false;
@@ -226,19 +231,21 @@ export class PdfCodingModel {
 			case 'addCode': {
 				const marker = this.findMarkerById(entry.markerId);
 				if (marker) {
-					marker.codes = entry.data.codes;
+					marker.codes = this.reconcileCodes(entry.data.codes);
 					marker.updatedAt = Date.now();
 				}
 				break;
 			}
 			case 'removeCode':
 			case 'removeAllCodes': {
+				const reconciledCodes = this.reconcileCodes(entry.data.codes);
+				if (reconciledCodes.length === 0) break; // All codes were deleted — nothing to restore
 				let marker = this.findMarkerById(entry.markerId);
 				if (!marker) {
-					// Marker was deleted — restore it
-					this.markers.push({ ...entry.data });
+					// Marker was deleted — restore it with reconciled codes
+					this.markers.push({ ...entry.data, codes: reconciledCodes });
 				} else {
-					marker.codes = entry.data.codes;
+					marker.codes = reconciledCodes;
 					marker.updatedAt = Date.now();
 				}
 				break;

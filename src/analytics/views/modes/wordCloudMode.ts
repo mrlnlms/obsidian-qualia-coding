@@ -72,18 +72,21 @@ export function renderWordCloud(ctx: AnalyticsViewContext, filters: FilterConfig
   }
 
   const loadingEl = ctx.chartContainer.createDiv({ cls: "codemarker-wc-loading", text: "Extracting text..." });
-  loadAndRenderWordCloud(ctx, filtered, loadingEl);
+  const gen = ctx.renderGeneration;
+  loadAndRenderWordCloud(ctx, filtered, loadingEl, gen);
 }
 
 async function loadAndRenderWordCloud(
   ctx: AnalyticsViewContext,
   markers: UnifiedMarker[],
   loadingEl: HTMLElement,
+  generation: number,
 ): Promise<void> {
   if (!ctx.chartContainer) return;
 
   const extractor = new TextExtractor(ctx.plugin.app.vault);
   const segments = await extractor.extractBatch(markers);
+  if (!ctx.isRenderCurrent(generation)) return;
   loadingEl.remove();
 
   const results = calculateWordFrequencies(segments, {

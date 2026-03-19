@@ -59,13 +59,15 @@ export function renderMDSMap(ctx: AnalyticsViewContext, filters: FilterConfig): 
   }
 
   const loadingEl = ctx.chartContainer.createDiv({ cls: "codemarker-wc-loading", text: "Computing MDS..." });
-  loadAndRenderMDS(ctx, filtered, loadingEl);
+  const gen = ctx.renderGeneration;
+  loadAndRenderMDS(ctx, filtered, loadingEl, gen);
 }
 
 async function loadAndRenderMDS(
   ctx: AnalyticsViewContext,
   markers: UnifiedMarker[],
   loadingEl: HTMLElement,
+  generation: number,
 ): Promise<void> {
   if (!ctx.chartContainer || !ctx.data) return;
 
@@ -75,6 +77,7 @@ async function loadAndRenderMDS(
     ctx.mdsMode,
     Array.from(ctx.enabledSources),
   );
+  if (!ctx.isRenderCurrent(generation)) return;
   loadingEl.remove();
 
   if (!result) {

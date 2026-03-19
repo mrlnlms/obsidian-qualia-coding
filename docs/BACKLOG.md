@@ -701,6 +701,17 @@ BoardView e ImageView agora expõem `waitUntilReady()` que resolve quando o `onO
 | Docs: sync mitigation otimista | §7 atualizado: lost update (não só stale read), sem reconciliação em runtime |
 | Docs: waitUntilReady drift narrativo | §7 clarifica two-phase (polling + promise) e error paths |
 
+### Bugs encontrados pelo Codex — rodada 6 (2026-03-19) — TODOS FEITOS
+
+| Bug | Fix |
+|-----|-----|
+| Text Retrieval navega audio/video com evento errado (`codemarker-*:seek` vs `qualia-*:navigate`) | Corrigido para `qualia-audio:navigate` / `qualia-video:navigate` + removido types obsoletos |
+| Analytics async render race — troca rápida de mode injeta gráfico stale | `renderGeneration` counter + `isRenderCurrent()` guard em 4 modes async (wordCloud, textRetrieval, MDS, temporal) |
+| Frequency mode omite video no dataset e tooltip (mas exportCSV inclui) | Adicionado dataset Video + tooltip entry |
+| PDF undo restaura code names que foram renomeados/deletados | `reconcileCodes()` filtra contra registry atual antes de restaurar |
+| Docs: tabela de eventos com nomes `codemarker-*` obsoletos | Atualizado para `qualia-*` + adicionado `qualia:clear-all` |
+| Docs: board file architecture com arquivos inexistentes | Atualizado para refletir estrutura real (boardData, boardDrawing, boardClusters, boardPersistence, etc.) |
+
 ### Observação: singleton leaf por engine (Codex rodada 3)
 
 Helpers manuais (`openImageCodingView`, `openAudioCodingView`, etc.) sempre reutilizam `leaves[0]` mesmo para arquivos diferentes. É outra face do mesmo problema do `leaf.detach()` no fileInterceptor — ambos assumem "uma leaf por engine". Documentado junto no item de multi-pane acima. Fix coordenado quando multi-pane for atacado.

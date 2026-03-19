@@ -175,9 +175,11 @@ function createMockCtx(overrides: Partial<AnalyticsViewContext> = {}): Analytics
 		trGroupBy: 'code',
 		trSegments: [],
 		trCollapsed: new Set(),
+		renderGeneration: 0,
 		buildFilterConfig: () => createFilters(),
 		scheduleUpdate: vi.fn(),
 		renderConfigPanel: vi.fn(),
+		isRenderCurrent: (gen: number) => gen === 0,
 		...overrides,
 	} as AnalyticsViewContext;
 }

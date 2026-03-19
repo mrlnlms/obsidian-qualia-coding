@@ -57,17 +57,20 @@ export function renderTextRetrieval(ctx: AnalyticsViewContext, filters: FilterCo
   // Show loading
   const loadingEl = contentEl.createDiv({ cls: "codemarker-tr-loading", text: "Extracting text..." });
 
-  loadAndRenderSegments(ctx, filtered, contentEl, loadingEl);
+  const gen = ctx.renderGeneration;
+  loadAndRenderSegments(ctx, filtered, contentEl, loadingEl, gen);
 }
 
 async function loadAndRenderSegments(
   ctx: AnalyticsViewContext,
   markers: UnifiedMarker[],
   container: HTMLElement,
-  loadingEl: HTMLElement
+  loadingEl: HTMLElement,
+  generation: number,
 ): Promise<void> {
   const extractor = new TextExtractor(ctx.plugin.app.vault);
   ctx.trSegments = await extractor.extractBatch(markers);
+  if (!ctx.isRenderCurrent(generation)) return;
   loadingEl.remove();
   renderSegments(ctx, container, ctx.trSegments);
 }
@@ -358,7 +361,7 @@ function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): vo
   const file = seg.file;
   if (seg.source === "audio") {
     const seekTo = seg.meta?.audioFrom ?? 0;
-    ctx.plugin.app.workspace.trigger('codemarker-audio:seek', {
+    ctx.plugin.app.workspace.trigger('qualia-audio:navigate', {
       file: seg.file,
       seekTo,
     });
@@ -366,7 +369,7 @@ function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): vo
   }
   if (seg.source === "video") {
     const seekTo = seg.meta?.videoFrom ?? 0;
-    ctx.plugin.app.workspace.trigger('codemarker-video:seek', {
+    ctx.plugin.app.workspace.trigger('qualia-video:navigate', {
       file: seg.file,
       seekTo,
     });

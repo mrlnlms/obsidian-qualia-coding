@@ -147,6 +147,11 @@ async function renderBarChart(ctx: AnalyticsViewContext, results: FrequencyResul
         data: results.map((r) => r.bySource.audio),
         backgroundColor: "#AB47BC",
       },
+      {
+        label: "Video",
+        data: results.map((r) => r.bySource.video),
+        backgroundColor: "#7E57C2",
+      },
     ].filter((ds) => ds.data.some((v: number) => v > 0));
   } else if (ctx.groupMode === "file") {
     // Collect all files
@@ -197,6 +202,7 @@ async function renderBarChart(ctx: AnalyticsViewContext, results: FrequencyResul
                 if (r!.bySource.image > 0) parts.push(`Img: ${r!.bySource.image}`);
                 if (r!.bySource.pdf > 0) parts.push(`PDF: ${r!.bySource.pdf}`);
                 if (r!.bySource.audio > 0) parts.push(`Audio: ${r!.bySource.audio}`);
+                if (r!.bySource.video > 0) parts.push(`Video: ${r!.bySource.video}`);
                 return parts.join(", ");
               }
               return "";

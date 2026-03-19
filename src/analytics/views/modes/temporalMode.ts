@@ -5,6 +5,7 @@ import type { AnalyticsViewContext } from "../analyticsViewContext";
 
 export async function renderTemporalChart(ctx: AnalyticsViewContext, filters: FilterConfig): Promise<void> {
   if (!ctx.chartContainer || !ctx.data) return;
+  const generation = ctx.renderGeneration;
 
   const result = calculateTemporal(ctx.data, filters);
 
@@ -19,6 +20,7 @@ export async function renderTemporalChart(ctx: AnalyticsViewContext, filters: Fi
   const { Chart, registerables } = await import("chart.js");
   Chart.register(...registerables);
   await import("chartjs-adapter-date-fns");
+  if (!ctx.isRenderCurrent(generation)) return;
 
   const wrapper = ctx.chartContainer.createDiv();
   wrapper.style.height = "500px";

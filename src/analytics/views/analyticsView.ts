@@ -28,6 +28,7 @@ export class AnalyticsView extends ItemView {
   minFrequency = 1;
   codeSearch = "";
   private clearAllHandler: (() => void) | null = null;
+  renderGeneration = 0;
   matrixSortMode: MatrixSortMode = "alpha";
   cooccSortMode: CooccSortMode = "alpha";
   evolutionFile = "";  // "" = all files
@@ -280,8 +281,14 @@ export class AnalyticsView extends ItemView {
   private updateChart(): void {
     if (!this.chartContainer || !this.data) return;
     this.chartContainer.empty();
+    this.renderGeneration++;
     MODE_REGISTRY[this.viewMode].render(this, this.buildFilterConfig());
     this.updateFooter();
+  }
+
+  /** Check if the current render is still valid (not superseded by a newer updateChart call). */
+  isRenderCurrent(generation: number): boolean {
+    return generation === this.renderGeneration;
   }
 
   // ─── Footer ───
