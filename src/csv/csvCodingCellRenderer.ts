@@ -136,7 +136,7 @@ export function sourceTagBtnRenderer(params: any): HTMLElement {
 		const row = params.node?.rowIndex ?? params.rowIndex ?? 0;
 		const file: string = params.file ?? '';
 		const csvView: CsvViewRef | undefined = params.csvView;
-		const cellText: string = params.value ?? '';
+		const cellText: string = params.value != null ? String(params.value) : '';
 
 		if (csvView) {
 			const sourceColumn = segField.replace(/_cod-seg$/, '');

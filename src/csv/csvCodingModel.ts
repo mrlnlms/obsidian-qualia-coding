@@ -197,8 +197,9 @@ export class CsvCodingModel {
 	getMarkerText(marker: CsvMarker): string | null {
 		const rows = this.rowDataCache.get(marker.fileId);
 		if (!rows || !rows[marker.row]) return null;
-		const cellText = rows[marker.row]![marker.column] ?? null;
-		if (!cellText) return null;
+		const rawValue = rows[marker.row]![marker.column];
+		if (rawValue == null) return null;
+		const cellText = String(rawValue);
 		if ('from' in marker && 'to' in marker) {
 			return cellText.substring(marker.from, marker.to);
 		}

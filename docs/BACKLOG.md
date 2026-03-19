@@ -375,7 +375,7 @@ Expandido (2026-03-17): `deleteCode()` e `updateMarkerFields()` movidos para Bas
 | dashboardMode 13x `(ctx as any).renderMini*` | Imports diretos — **bug fix: thumbnails estavam em branco** | FEITO (2026-03-19) |
 | Media save timing redundante (500ms + 500ms DM) | Removido debounce do model, DM 500ms unico | FEITO (2026-03-19) |
 | DEVELOPMENT.md Node.js version | "18+" → "20.19+ ou 22.12+" (match package.json) | FEITO (2026-03-19) |
-| vitest.config.ts coverage threshold | Nenhum → v8 thresholds (60/50/55/60) | FEITO (2026-03-19) |
+| vitest.config.ts coverage threshold | Nenhum → v8 thresholds (30/25/30/30 — piso real, ajustado de 60/50/55/60 após verificação) | FEITO (2026-03-19) |
 
 Ganho de manutenibilidade alcancado:
 - Menu: 1 sistema unificado para TODOS os engines (codingPopover.ts + externalContainer para CM6)
@@ -711,6 +711,14 @@ BoardView e ImageView agora expõem `waitUntilReady()` que resolve quando o `onO
 | PDF undo restaura code names que foram renomeados/deletados | `reconcileCodes()` filtra contra registry atual antes de restaurar |
 | Docs: tabela de eventos com nomes `codemarker-*` obsoletos | Atualizado para `qualia-*` + adicionado `qualia:clear-all` |
 | Docs: board file architecture com arquivos inexistentes | Atualizado para refletir estrutura real (boardData, boardDrawing, boardClusters, boardPersistence, etc.) |
+
+### Bugs encontrados pelo Codex — rodada 7 (2026-03-19) — TODOS FEITOS
+
+| Bug | Fix |
+|-----|-----|
+| Parquet non-string cells crash em segment editor e sidebar | `String()` coercion em `csvCodingCellRenderer.ts:139` e `csvCodingModel.ts:200` |
+| CSV chip click é no-op (`qualia:reveal-detail` sem listener) | csv/index.ts agora dispara `codemarker:label-click` (evento real do main.ts) + removido dead event type |
+| Docs: threshold de coverage desatualizado no BACKLOG (60/50 vs 30/25 real) | Corrigido para refletir valor real |
 
 ### Observação: singleton leaf por engine (Codex rodada 3)
 

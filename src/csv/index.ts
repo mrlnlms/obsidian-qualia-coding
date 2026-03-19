@@ -70,10 +70,9 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	});
 	plugin.registerEvent(navRef);
 
-	// Detail event from cell renderer chips
+	// Detail event from cell renderer chips → open sidebar detail panel
 	const detailRef = plugin.app.workspace.on('qualia-csv:detail', (data: { markerId: string; codeName: string }) => {
-		// Reveal the detail sidebar with this marker
-		plugin.app.workspace.trigger('qualia:reveal-detail', data);
+		document.dispatchEvent(new CustomEvent('codemarker:label-click', { detail: data }));
 	});
 	plugin.registerEvent(detailRef);
 
