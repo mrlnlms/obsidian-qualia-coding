@@ -22,6 +22,12 @@ Qualitative research tools treat coding as a management task: import, tag, expor
 
 Qualia Coding is built on a different premise: **coding is thinking**, and thinking should happen where your research already lives. Your coded data connects to your literature notes, your memos, your emerging theory — through the same graph, the same backlinks, the same vault.
 
+### Grounded in Mixed Analysis Theory
+
+The analytics engine is not a dashboard bolted onto a tagging tool. It is informed by **mixed analysis** — the analytical techniques that operate across the qualitative-quantitative boundary (Onwuegbuzie & Combs, 2010). Each of the 19 ViewModes maps to a level of the DIME model (Descriptive, Inferential, Measurement, Exploratory), operationalizing crossover analysis where quantitative techniques apply to qualitative coded data.
+
+MCA biplots, chi-square tests, lag sequential analysis, CHAID decision trees, polar coordinates — these are not common in QDA tools. No free or commercial tool offers them built-in. The theoretical grounding comes from a 60-source literature review consolidated in a [design story](docs/pm/product/DESIGN-STORY.md) that traces how mixed analysis theory shaped every design decision.
+
 ---
 
 ## 7 Coding Engines
@@ -42,31 +48,50 @@ All seven engines share the same codes, the same sidebar, and the same coding po
 
 ---
 
-## Built-in Analytics (17 Views)
+## Built-in Analytics (19 Views)
 
-No need to export to R or SPSS. Qualia includes a full analytics engine with 17 interactive views:
+No need to export to R or SPSS. Qualia includes a full analytics engine with 19 interactive views, organized by analytical depth:
 
+### Descriptive
 | View | What it shows |
 |------|--------------|
 | Dashboard | Overview of all codes across all engines |
 | Frequency Bars | Code distribution across documents |
-| Co-occurrence Matrix | Which codes appear together (5 modes: absolute, %, Jaccard, Dice, presence) |
-| Network Graph | Force-directed code relationship visualization |
-| Document-Code Matrix | Codes per document heatmap |
-| Code Evolution | How codes change over time/sequence |
-| Text Retrieval | Search and retrieve all segments for a code |
 | Word Cloud | Term frequency with stop words (EN + PT) |
-| **MCA Biplot** | Multiple Correspondence Analysis via SVD |
-| **MDS Map** | Multidimensional Scaling (Torgerson + Kruskal) |
-| **Lag Sequential Analysis** | Temporal code sequences (Sackett 1979) |
-| **Polar Coordinates** | Prospective/retrospective analysis (Zinn angles) |
-| **CHAID Decision Tree** | Chi-square splits with Bonferroni correction |
-| Temporal Analysis | Time-based patterns |
-| Text Statistics | Readability, complexity metrics |
-| Dendrogram + Silhouette | Hierarchical clustering with quality assessment |
-| Chi-Square Tests | Statistical independence testing |
+| Text Statistics | Readability, lexical richness (TTR) |
+| Text Retrieval | Search and retrieve all segments for a code |
 
-**5 views are exclusive to Qualia** — no QDA tool (free or paid) offers MCA, MDS, Lag Sequential, Polar Coordinates, or CHAID built-in.
+### Inferential
+| View | What it shows |
+|------|--------------|
+| Chi-Square Tests | Statistical independence testing |
+| **Lag Sequential Analysis** | Temporal code sequences with z-scores (Sackett, 1979) |
+
+### Measurement (Crossover Analysis)
+| View | What it shows |
+|------|--------------|
+| **MCA Biplot** | Multiple Correspondence Analysis via SVD — codes and documents projected onto 2D space |
+| **MDS Map** | Multidimensional Scaling (Jaccard distance → Torgerson/Kruskal projection) |
+| Co-occurrence Matrix | Which codes appear together (5 modes: absolute, %, Jaccard, Dice, presence) |
+| Document-Code Matrix | The inter-respondent matrix — codes per document heatmap |
+
+### Exploratory
+| View | What it shows |
+|------|--------------|
+| **CHAID Decision Tree** | Chi-square splits with Bonferroni correction |
+| **Polar Coordinates** | Prospective/retrospective activation/inhibition (Zinn angles) |
+| Dendrogram + Silhouette | Hierarchical clustering with quality assessment |
+
+### Visualization & Navigation
+| View | What it shows |
+|------|--------------|
+| Network Graph | Force-directed code relationship visualization |
+| Code Evolution | How codes change over sequence position |
+| Temporal Analysis | Time-based patterns (timestamps) |
+| Source Comparison | Cross-media triangulation — compare coding across text, PDF, audio, video, image |
+| Code Overlap | Spatial co-localization of codes within documents |
+
+**5 views are exclusive to Qualia** — no QDA tool (free or paid) offers MCA, MDS, Lag Sequential, Polar Coordinates, or CHAID built-in. Quality metrics (Kruskal stress, explained inertia, p-values, silhouette scores) are always visible — the researcher evaluates methodological adequacy, not just the chart.
 
 `[SCREENSHOT: MCA biplot with code labels positioned on the plot]`
 
@@ -108,7 +133,7 @@ New codes automatically receive distinct colors from a perceptually balanced pal
 | Price | Free | $118-1,800/yr | $51-670/yr | EUR 253-1,440/yr | Free |
 | Inside Obsidian | Yes | No | No | No | Yes |
 | Data types | 7 | 5 | 6 | 6 | 1 (MD only) |
-| Built-in analytics | 17 views | Limited | Basic | Some | None |
+| Built-in analytics | 19 views | Limited | Basic | Some | None |
 | MCA / MDS / LSA / CHAID | Yes | No | No | No | No |
 | Research Board | Yes | No | No | Partial | No |
 | CSV / Parquet coding | Yes | No | No | No | No |
@@ -186,6 +211,14 @@ MIT
 
 ## Acknowledgments
 
-Qualia Coding is grounded in mixed methods research methodology (Sandelowski, Onwuegbuzie, Creswell, Saldana). The margin bars feature is inspired by MAXQDA's visual coding overview. The Research Board draws from Fabric.js and concept mapping traditions.
+### Theoretical Foundations
+
+Qualia Coding's analytics engine is grounded in **mixed analysis theory** — specifically the crossover mixed analysis framework (Onwuegbuzie & Combs, 2010), the quantitization-qualitization continuum (Sandelowski, Voils & Knafl, 2009), and the DIME analytical model. The theoretical research draws from ~60 sources consolidated into a personal literature review, with the *Routledge Reviewer's Guide to Mixed Methods Analysis* (Onwuegbuzie & Johnson, 2021) as a pivotal reference. For the full design journey, see the [Design Story](docs/pm/product/DESIGN-STORY.md).
+
+### Design References
+
+- **MAXQDA** — Margin panel with column allocation and label collision avoidance. The visual benchmark for professional QDA interaction.
+- **Dovetail** — Popover-based coding menu with two-mode logic and progressive disclosure.
+- **CodeMirror 6** — The decoration API that made "notes stay clean" technically feasible.
 
 Built by a researcher, for researchers.
