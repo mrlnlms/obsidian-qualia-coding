@@ -83,9 +83,10 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			plugin.app.workspace.setActiveLeaf(existingLeaf);
 			(existingLeaf.view as ImageCodingView).highlightRegion(data.markerId);
 		} else {
-			openImageCodingView(plugin, file).then((view) => {
+			openImageCodingView(plugin, file).then(async (view) => {
 				if (view) {
-					setTimeout(() => view.highlightRegion(data.markerId), 200);
+					await view.waitUntilReady();
+					view.highlightRegion(data.markerId);
 				}
 			});
 		}

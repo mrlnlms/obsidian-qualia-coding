@@ -648,6 +648,45 @@ O interceptor faz `leaf.detach()` quando o arquivo já está aberto em outra lea
 
 CI agora roda `npx vitest run --coverage`. Thresholds ajustados para piso real (30/25/30/30) — qualquer regressão quebra o build. E2E mantém só smoke no CI (screenshots diferem entre OS).
 
+### Bugs encontrados na varredura interna (2026-03-19) — TODOS FEITOS
+
+| Bug | Fix |
+|-----|-----|
+| PDF shapes invisíveis em analytics | `dataConsolidator.ts` agora processa `pdfData.shapes` (+2 testes) |
+| Clear All não limpa models em memória (PDF, CSV, Media) | `clearAll()` adicionado em PDF/Media, chamado no callback |
+| Orphan markers `codes:[]` no deleteCode | `baseSidebarAdapter.deleteCode()` limpa markers vazios após loop |
+| PDF memo perdido em nova seleção | `setMemo` re-query marker via `getMarkers()` em vez de closure stale |
+| Media memo: notify em vez de save | `mediaCodingMenu.ts` agora chama `model.save()` |
+| Popover listeners vazam no document | `createPopover` usa Map de handles ativos, chama `close()` antes de recriar |
+
+### Bugs encontrados pelo Codex — rodada 3 (2026-03-19) — TODOS FEITOS
+
+| Bug | Fix |
+|-----|-----|
+| Clear All com Board view aberta — autosave recriava board.json | BoardView escuta `qualia:clear-all`, limpa canvas e cancela timer |
+| Clear All com Image view aberta — regiões visíveis após clear | ImageView escuta `qualia:clear-all`, chama cleanup() |
+| Clear All não sincroniza AnalyticsView aberta | AnalyticsView escuta `qualia:clear-all`, zera dados e re-renderiza |
+| Board addToBoard race — canvasState null durante onOpen | `waitUntilReady()` promise resolve após onOpen completo |
+| Image navigation timeout 200ms — falha em máquinas lentas | `waitUntilReady()` promise em ImageView, substitui setTimeout |
+| migrateFilePath não atualiza fileStates (Image zoom/pan) | `migrateFilePath()` agora migra `settings.fileStates` |
+| migrateFilePath não atualiza fileStates (Media zoom/lastPosition) | `migrateFilePath()` agora migra `settings.fileStates` |
+| Color picker cancel deixa refresh suspenso | Listener em `blur` como fallback além de `change` |
+| paletteIndex -1 em cor manual | Atribuição explícita: `-1` para manual, `nextPaletteIndex - 1` para auto (+2 testes) |
+| Markdown persiste buckets vazios por arquivo | `removeMarker()` deleta entry do Map quando array fica vazio |
+| Media mantém files[] vazios após último marker | `removeMarker()` remove file container quando markers fica vazio |
+
+### Padrão emergente: evento `qualia:clear-all` (2026-03-19)
+
+Três views (Board, Image, Analytics) precisavam reagir ao Clear All para limpar state em memória. Em vez de acoplar o comando a cada view, adotamos um custom event `qualia:clear-all` disparado no callback do Clear All. Cada view escuta e faz cleanup independente. Pattern reutilizável para futuras operações globais (ex: import/restore).
+
+### Padrão emergente: `waitUntilReady()` promise (2026-03-19)
+
+BoardView e ImageView agora expõem `waitUntilReady()` que resolve quando o `onOpen`/`loadImage` completa (canvas inicializado, dados carregados). Substitui polling por instanceof e setTimeout fixo. Pattern aplicável a qualquer view que tenha setup assíncrono.
+
+### Observação: singleton leaf por engine (Codex rodada 3)
+
+Helpers manuais (`openImageCodingView`, `openAudioCodingView`, etc.) sempre reutilizam `leaves[0]` mesmo para arquivos diferentes. É outra face do mesmo problema do `leaf.detach()` no fileInterceptor — ambos assumem "uma leaf por engine". Documentado junto no item de multi-pane acima. Fix coordenado quando multi-pane for atacado.
+
 ### Observação: sidebar superdocumentada vs capacidade atual
 
 A §3.3 do ARCHITECTURE.md documenta drag-and-drop reorder, merge codes, inline rename, export e hierarquia como justificativa para sidebar. No código atual, o explorer entrega colapso, busca e refresh; o detail entrega cor, descrição e delete. A decisão não está errada (sidebar é o investimento certo para essas features futuras), mas a documentação está à frente da implementação. Manter em mente ao priorizar features.

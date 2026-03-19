@@ -22,6 +22,11 @@ export class BoardView extends ItemView {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private toolbarApi: { setActiveTool: (tool: BoardTool) => void } | null = null;
   private clearAllHandler: (() => void) | null = null;
+  private readyResolve: (() => void) | null = null;
+  private readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
+
+  /** Resolves when onOpen completes and canvasState is ready. */
+  waitUntilReady(): Promise<void> { return this.readyPromise; }
 
   constructor(leaf: WorkspaceLeaf, plugin: AnalyticsPluginAPI) {
     super(leaf);
@@ -91,6 +96,8 @@ export class BoardView extends ItemView {
       }
     };
     document.addEventListener('qualia:clear-all', this.clearAllHandler);
+
+    this.readyResolve?.();
   }
 
   async onClose(): Promise<void> {

@@ -29,6 +29,11 @@ export class ImageCodingView extends ItemView {
 	private regionHighlight: RegionHighlightState | null = null;
 	private currentFile: TFile | null = null;
 	private clearAllHandler: (() => void) | null = null;
+	private readyResolve: (() => void) | null = null;
+	private readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
+
+	/** Resolves when loadImage completes and canvas is ready. */
+	waitUntilReady(): Promise<void> { return this.readyPromise; }
 
 	constructor(leaf: WorkspaceLeaf, plugin: QualiaCodingPlugin, model: ImageCodingModel) {
 		super(leaf);
@@ -66,6 +71,7 @@ export class ImageCodingView extends ItemView {
 
 	async loadImage(file: TFile): Promise<void> {
 		this.cleanup();
+		this.readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
 		this.currentFile = file;
 		this.leaf.updateHeader?.();
 
@@ -176,6 +182,8 @@ export class ImageCodingView extends ItemView {
 				vt[5] = savedView.panY;
 				c.requestRenderAll();
 			}
+			this.readyResolve?.();
+
 			// Listen for Clear All — wipe canvas regions so they don't persist visually
 			this.clearAllHandler = () => {
 				this.cleanup();

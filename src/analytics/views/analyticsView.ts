@@ -27,6 +27,7 @@ export class AnalyticsView extends ItemView {
   enabledCodes = new Set<string>();
   minFrequency = 1;
   codeSearch = "";
+  private clearAllHandler: (() => void) | null = null;
   matrixSortMode: MatrixSortMode = "alpha";
   cooccSortMode: CooccSortMode = "alpha";
   evolutionFile = "";  // "" = all files
@@ -107,9 +108,21 @@ export class AnalyticsView extends ItemView {
       this.enabledCodes = new Set(this.data.codes.map((c) => c.name));
     }
     this.renderView();
+
+    // Sync on Clear All Markers — reload empty data
+    this.clearAllHandler = () => {
+      this.data = null;
+      this.enabledCodes.clear();
+      this.renderView();
+    };
+    document.addEventListener('qualia:clear-all', this.clearAllHandler);
   }
 
   async onClose(): Promise<void> {
+    if (this.clearAllHandler) {
+      document.removeEventListener('qualia:clear-all', this.clearAllHandler);
+      this.clearAllHandler = null;
+    }
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     this.contentEl.empty();
   }

@@ -21,8 +21,8 @@ export interface AnalyticsPluginAPI {
 }
 
 /**
- * Poll workspace until the BoardView is ready (max 20 × 25ms = 500ms).
- * Exported for testability — called internally by the analytics API methods.
+ * Wait for BoardView to be fully ready (canvas initialized, board loaded).
+ * Polls for the view instance, then awaits its readiness promise.
  */
 export async function waitForBoardView(
   workspace: { getLeavesOfType(type: string): Array<{ view: unknown }> },
@@ -32,7 +32,9 @@ export async function waitForBoardView(
   for (let i = 0; i < 20; i++) {
     const leaves = workspace.getLeavesOfType(BOARD_VIEW_TYPE);
     if (leaves.length > 0 && leaves[0]!.view instanceof BoardView) {
-      return leaves[0]!.view as BoardView;
+      const view = leaves[0]!.view as BoardView;
+      await view.waitUntilReady();
+      return view;
     }
     await new Promise((r) => setTimeout(r, 25));
   }

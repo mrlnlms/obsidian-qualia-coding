@@ -5,6 +5,7 @@ vi.mock('../../src/analytics/views/boardView', () => {
 	class BoardView {
 		addSnapshot = vi.fn();
 		addKpiCard = vi.fn();
+		waitUntilReady = vi.fn().mockResolvedValue(undefined);
 	}
 	return { BOARD_VIEW_TYPE: 'codemarker-board', BoardView };
 });

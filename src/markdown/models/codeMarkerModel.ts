@@ -449,6 +449,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 			const index = markers.findIndex(m => m.id === markerId);
 			if (index >= 0) {
 				markers.splice(index, 1);
+				if (markers.length === 0) this.markers.delete(fileId);
 				this.saveMarkers();
 				this.updateMarkersForFile(fileId);
 				return true;

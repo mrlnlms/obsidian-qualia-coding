@@ -450,10 +450,11 @@ Reavaliável apenas se Obsidian mudar seu sistema de carregamento de plugins par
 | **Leaf view DOM without framework** | Verbose imperative UI code; hard to maintain | Base classes (`BaseCodeExplorerView`, `BaseCodeDetailView`) with abstract methods; eventual extraction to shared components |
 | **Analytics concentration** (Codex) | 62 arquivos, ~11.800 LOC — maior fatia do sistema, ponto provável de regressão e lentidão | Split em 19 mode modules (feito); monitorar crescimento; lazy imports para Chart.js/svd-js |
 | **data.json com vaults grandes** (Codex) | Persistência monolítica pode virar gargalo com centenas de markers densos | JSON suficiente para volume QDA típico; caminho de migração mantido aberto (§3.4) |
-| **Registry rename collision** (Codex) | `update()` renomeia sem verificar se `changes.name` já existe — `nameIndex` aponta para último ID, `definitions` fica com duas entries de mesmo nome. Causa: códigos "fantasma", contagens duplicadas em `getAll()`, `getByName()` inconsistente | **Bug confirmado — sem mitigação atual.** Requer guard em `update()` antes do rename (rejeitar ou merge) |
-| **Clear All Markers não limpa Board** (Codex) | `clearAllSections()` limpa `data.json` mas `board.json` continua intacto — snapshots, excerpts e code cards apontam para dados apagados | **Gap confirmado.** Board precisa de `clearBoard()` chamado junto, ou warning explícito no modal |
-| **FileInterceptor destrói multi-pane** (Codex) | `leaf.detach()` na L117 impede abrir mesmo arquivo em dois painéis — quebra workflow nativo do Obsidian | Bug de UX. Referência de solução: mirror-notes usa viewId por pane via WeakMap (state isolado, sem leaf.detach). Ver BACKLOG.md |
-| **CI coverage abaixo da narrativa** (Codex) | `npm test` roda `vitest run` sem `--coverage`, thresholds não viram gate real. CI e2e roda só `smoke.e2e.ts`, não a suíte visual completa | Pipeline funcional mas proteção automatizada menor que docs sugerem. Fix: `vitest run --coverage` no CI + expandir specs e2e |
+| **Registry rename collision** (Codex) | ~~`update()` sem guard~~ | **FEITO** — guard rejeita rename se nome existe (+4 testes) |
+| **Clear All Markers lifecycle** (Codex) | ~~Board, Image, Analytics, models em memória não limpavam~~ | **FEITO** — evento `qualia:clear-all` + `clearAll()` nos models + `clearBoard()` |
+| **FileInterceptor destrói multi-pane** (Codex) | `leaf.detach()` + singleton leaf por engine — quebra workflow nativo | Bug de UX. Ref: mirror-notes viewId pattern. Ver BACKLOG.md |
+| **CI coverage** (Codex) | ~~thresholds não eram gate real~~ | **FEITO** — `vitest run --coverage` no CI, thresholds 30/25/30/30 |
+| **View readiness** (Codex) | Polling/timeout em vez de contrato explícito — race conditions em Board e Image | **FEITO** — `waitUntilReady()` promise em BoardView e ImageView |
 
 ---
 
@@ -726,9 +727,24 @@ Também observou que a sidebar está **superdocumentada para capacidade não mat
 
 O próximo gargalo provável não é `data.json` — é memória e recomputação em dados tabulares/analytics. CSV/Parquet é lido inteiro em memória, duplicado em `rowDataCache`, e analytics reconsolida tudo para array unificado via `dataConsolidator`. Para vaults médios funciona; para pesquisa pesada, risco de pressão de heap e latência de refresh. Codex sugere incremental refresh/cache por engine como próximo passo de arquitetura, antes de migração de persistência.
 
-### Leitura final do Codex
+### Achados da terceira análise — lifecycle assíncrono (2026-03-19)
 
-> O projeto está em um estágio sólido, com arquitetura coerente, boa separação entre núcleo e engines, e disciplina de testes real. O que mais merece atenção daqui para frente não é "organizar melhor o básico", e sim **controlar crescimento de analytics, tamanho do bundle e custo da persistência monolítica**.
+Na terceira passagem, o Codex focou em **transições entre views vivas e comandos globais**:
+
+1. **Board addToBoard race** — `waitForBoardView()` considerava view pronta ao encontrar instanceof, mas `canvasState` ainda era null durante `onOpen()`. **Fix: `waitUntilReady()` promise.**
+2. **Clear All não sincronizava AnalyticsView** — view mostrava dados apagados até reopen. **Fix: escuta `qualia:clear-all`.**
+3. **Image navigation timeout 200ms** — falha silenciosa em máquinas lentas. **Fix: `waitUntilReady()` promise substitui setTimeout.**
+4. **migrateFilePath não migrava fileStates** — zoom/pan perdido em Image, zoom/lastPosition perdido em Media. **Fix: migra `settings.fileStates` no rename.**
+5. **Color picker cancel suspende refresh** — `resumeRefresh()` só no `change` event. **Fix: listener em `blur` como fallback.**
+6. **Lixo estrutural** — buckets vazios em Markdown, file containers vazios em Media. **Fix: cleanup no `removeMarker()`.**
+
+**Diagnóstico do Codex**: "A arquitetura está sólida em repouso; o que vaza são transições." Recomendou transformar lifecycle em infraestrutura compartilhada: view ready promise, evento global de invalidation, cleanup de containers vazios.
+
+**Padrões adotados**: `qualia:clear-all` event (3 views escutam) e `waitUntilReady()` promise (Board + Image). Ambos reutilizáveis para futuras views/operações.
+
+### Leitura final do Codex (consolidada após 3 rodadas)
+
+> O projeto está em um estágio sólido, com arquitetura coerente, boa separação entre núcleo e engines, e disciplina de testes real. O core (registry, adapters, DataManager, models) está acima da média para plugins Obsidian. Os pontos frágeis são fluxos imperativos de lifecycle: comandos globais vs views abertas, readiness assíncrona, rename com state auxiliar, e listeners em caminhos alternativos (cancel, blur, close). Após 3 rodadas e 20 fixes, a superfície de bugs convergiu significativamente.
 
 ---
 

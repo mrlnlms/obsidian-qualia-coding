@@ -170,10 +170,12 @@ export class MediaCodingModel<
 	}
 
 	removeMarker(markerId: string): boolean {
-		for (const f of this.files) {
+		for (let i = 0; i < this.files.length; i++) {
+			const f = this.files[i]!;
 			const idx = f.markers.findIndex((m) => m.id === markerId);
 			if (idx >= 0) {
 				f.markers.splice(idx, 1);
+				if (f.markers.length === 0) this.files.splice(i, 1);
 				this.notify();
 				return true;
 			}
