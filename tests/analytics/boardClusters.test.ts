@@ -6,7 +6,7 @@ import type { ConsolidatedData, UnifiedMarker, UnifiedCode } from '../../src/ana
 // ── Helpers ──────────────────────────────────────────────────────
 
 function makeMarker(id: string, codes: string[]): UnifiedMarker {
-	return { id, source: 'markdown', file: 'f1', codes };
+	return { id, source: 'markdown', fileId: 'f1', codes };
 }
 
 function makeCode(name: string, color: string = '#6200EE'): UnifiedCode {

@@ -68,7 +68,7 @@ function generateData(markerCount: number, codeCount: number, fileCount: number)
 		markers.push({
 			id: `m_${i}`,
 			source,
-			file: files[fileIdx]!,
+			fileId: files[fileIdx]!,
 			codes: markerCodes,
 			meta: {
 				fromLine,
@@ -91,7 +91,7 @@ function generateData(markerCount: number, codeCount: number, fileCount: number)
 	const segments: ExtractedSegment[] = markers.map((m) => ({
 		markerId: m.id,
 		source: m.source,
-		file: m.file,
+		fileId: m.fileId,
 		codes: m.codes,
 		text: `This is synthetic text content for marker ${m.id} with some words for statistics.`,
 		fromLine: m.meta?.fromLine,

@@ -4,7 +4,7 @@ export type SourceType = "markdown" | "csv-segment" | "csv-row" | "image" | "pdf
 export interface UnifiedMarker {
   id: string;
   source: SourceType;
-  file: string;
+  fileId: string;
   codes: string[];
   meta?: {
     row?: number;
@@ -81,7 +81,7 @@ export interface EvolutionResult {
   points: Array<{
     code: string;
     color: string;
-    file: string;
+    fileId: string;
     position: number;
     fromLine: number;
     toLine: number;

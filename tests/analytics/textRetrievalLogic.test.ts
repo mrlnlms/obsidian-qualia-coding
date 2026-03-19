@@ -5,7 +5,7 @@ import type { ExtractedSegment } from "../../src/analytics/data/textExtractor";
 function seg(overrides: Partial<ExtractedSegment> & Pick<ExtractedSegment, "source">): ExtractedSegment {
   return {
     markerId: "test",
-    file: "test.md",
+    fileId: "test.md",
     codes: [],
     text: "",
     ...overrides,

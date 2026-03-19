@@ -73,8 +73,8 @@ import { calculateTextStats } from '../../src/analytics/data/statsEngine';
 
 // ── Helpers ──
 
-function makeMarker(id: string, source: SourceType, file: string, codes: string[], meta?: UnifiedMarker['meta']): UnifiedMarker {
-	return { id, source, file, codes, meta };
+function makeMarker(id: string, source: SourceType, fileId: string, codes: string[], meta?: UnifiedMarker['meta']): UnifiedMarker {
+	return { id, source, fileId, codes, meta };
 }
 
 function makeCode(name: string, color: string = '#6200EE'): UnifiedCode {
@@ -86,7 +86,7 @@ function createTestData(markers: UnifiedMarker[] = [], codes: UnifiedCode[] = []
 		markers,
 		codes,
 		sources: ['markdown'],
-		files: [...new Set(markers.map(m => m.file))],
+		files: [...new Set(markers.map(m => m.fileId))],
 	};
 }
 
@@ -466,7 +466,7 @@ describe('exportACMCSV', () => {
 	it('produces correct CSV after async MCA', async () => {
 		vi.mocked(calculateMCA).mockResolvedValue({
 			codePoints: [{ name: 'A', x: 0.5, y: -0.3, color: '#f00' }],
-			markerPoints: [{ id: 'm1', x: 0.1, y: 0.2, file: 'f.md', codes: ['A', 'B'], color: '#f00' }],
+			markerPoints: [{ id: 'm1', x: 0.1, y: 0.2, fileId: 'f.md', codes: ['A', 'B'], color: '#f00' }],
 			inertia: [60, 30],
 		} as any);
 		const ctx = createMockCtx();

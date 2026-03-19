@@ -178,7 +178,7 @@ async function renderACMChart(ctx: AnalyticsViewContext, result: MCAResult): Pro
                 return `${cp!.name} (${cp!.x.toFixed(2)}, ${cp!.y.toFixed(2)})`;
               } else {
                 const mp = result.markerPoints[idx];
-                return `${mp!.file} [${mp!.codes.slice(0, 3).join(", ")}]`;
+                return `${mp!.fileId} [${mp!.codes.slice(0, 3).join(", ")}]`;
               }
             },
           },
@@ -312,7 +312,7 @@ export function exportACMCSV(ctx: AnalyticsViewContext, date: string): void {
       rows.push(["code", `"${cp.name}"`, cp.x.toFixed(4), cp.y.toFixed(4), "", ""]);
     }
     for (const mp of result.markerPoints) {
-      rows.push(["marker", `"${mp.id}"`, mp.x.toFixed(4), mp.y.toFixed(4), `"${mp.file}"`, `"${mp.codes.join("; ")}"`]);
+      rows.push(["marker", `"${mp.id}"`, mp.x.toFixed(4), mp.y.toFixed(4), `"${mp.fileId}"`, `"${mp.codes.join("; ")}"`]);
     }
     const csvContent = rows.map((r) => r.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: "text/csv" });

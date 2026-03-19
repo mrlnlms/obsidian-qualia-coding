@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { buildDecisionTree } from '../../src/analytics/data/decisionTreeEngine';
 import type { ConsolidatedData, FilterConfig, UnifiedMarker, UnifiedCode } from '../../src/analytics/data/dataTypes';
 
-function mkMarker(id: string, codes: string[], file = 'f.md'): UnifiedMarker {
-	return { id, source: 'markdown', file, codes };
+function mkMarker(id: string, codes: string[], fileId = 'f.md'): UnifiedMarker {
+	return { id, source: 'markdown', fileId, codes };
 }
 
 function mkData(markers: UnifiedMarker[], codeNames: string[]): ConsolidatedData {
@@ -124,8 +124,8 @@ describe('buildDecisionTree', () => {
 
 	it('filters markers by source', () => {
 		const markers = [
-			{ id: 'm1', source: 'markdown' as const, file: 'f.md', codes: ['Outcome'] },
-			{ id: 'm2', source: 'image' as const, file: 'f.png', codes: [] },
+			{ id: 'm1', source: 'markdown' as const, fileId: 'f.md', codes: ['Outcome'] },
+			{ id: 'm2', source: 'image' as const, fileId: 'f.png', codes: [] },
 		];
 		const data = mkData(markers, ['Outcome']);
 		const filtersOnlyMd: FilterConfig = { ...defaultFilters, sources: ['markdown'] };

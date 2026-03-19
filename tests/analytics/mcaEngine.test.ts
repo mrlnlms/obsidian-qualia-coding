@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { calculateMCA } from '../../src/analytics/data/mcaEngine';
 import type { UnifiedMarker } from '../../src/analytics/data/dataTypes';
 
-function mkMarker(id: string, codes: string[], file = 'f.md'): UnifiedMarker {
-	return { id, source: 'markdown', file, codes };
+function mkMarker(id: string, codes: string[], fileId = 'f.md'): UnifiedMarker {
+	return { id, source: 'markdown', fileId, codes };
 }
 
 describe('calculateMCA', () => {

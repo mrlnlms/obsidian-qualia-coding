@@ -5,7 +5,7 @@ import type { UnifiedMarker, SourceType } from "./dataTypes";
 export interface ExtractedSegment {
   markerId: string;
   source: SourceType;
-  file: string;
+  fileId: string;
   codes: string[];
   text: string;
   fromLine?: number;
@@ -27,9 +27,9 @@ export class TextExtractor {
     // Group by file to minimize reads
     const byFile = new Map<string, UnifiedMarker[]>();
     for (const m of markers) {
-      const list = byFile.get(m.file) || [];
+      const list = byFile.get(m.fileId) || [];
       list.push(m);
-      byFile.set(m.file, list);
+      byFile.set(m.fileId, list);
     }
 
     // Read all files once
@@ -51,7 +51,7 @@ export class TextExtractor {
       results.push({
         markerId: m.id,
         source: m.source,
-        file: m.file,
+        fileId: m.fileId,
         codes: m.codes,
         text,
         fromLine: m.meta?.fromLine,
@@ -90,7 +90,7 @@ export class TextExtractor {
   }
 
   private extractMarkdown(m: UnifiedMarker): string {
-    const content = this.fileCache.get(m.file) ?? "";
+    const content = this.fileCache.get(m.fileId) ?? "";
     if (!content) return "";
     const lines = content.split("\n");
     const fromLine = m.meta?.fromLine ?? 0;
@@ -121,7 +121,7 @@ export class TextExtractor {
   }
 
   private extractCsvSegment(m: UnifiedMarker): string {
-    const content = this.fileCache.get(m.file) ?? "";
+    const content = this.fileCache.get(m.fileId) ?? "";
     if (!content) return "";
     const row = m.meta?.row;
     const column = m.meta?.column;
@@ -145,7 +145,7 @@ export class TextExtractor {
   }
 
   private extractCsvRow(m: UnifiedMarker): string {
-    const content = this.fileCache.get(m.file) ?? "";
+    const content = this.fileCache.get(m.fileId) ?? "";
     if (!content) return "";
     const row = m.meta?.row;
     const column = m.meta?.column;

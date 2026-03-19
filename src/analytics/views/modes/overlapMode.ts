@@ -26,7 +26,7 @@ export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterCo
 
   // Meta info
   const meta = ctx.chartContainer.createDiv({ cls: "codemarker-overlap-meta" });
-  const fileCount = new Set(ctx.data.markers.filter((m) => filters.sources.includes(m.source)).map((m) => m.file)).size;
+  const fileCount = new Set(ctx.data.markers.filter((m) => filters.sources.includes(m.source)).map((m) => m.fileId)).size;
   meta.textContent = `${result.totalPairsChecked} marker pairs checked across ${fileCount} files`;
 
   // Reorder using co-occurrence sort logic (same interface)

@@ -68,8 +68,8 @@ import { renderSortSection, renderGroupSection } from '../../src/analytics/views
 
 // ── Helpers (from statsEngine.test.ts pattern) ──
 
-function makeMarker(id: string, source: SourceType, file: string, codes: string[], meta?: UnifiedMarker['meta']): UnifiedMarker {
-	return { id, source, file, codes, meta };
+function makeMarker(id: string, source: SourceType, fileId: string, codes: string[], meta?: UnifiedMarker['meta']): UnifiedMarker {
+	return { id, source, fileId, codes, meta };
 }
 
 function makeCode(name: string, color: string = '#6200EE', description?: string): UnifiedCode {

@@ -146,8 +146,8 @@ export function calculateOverlap(
       if (m.source === "image") skippedSet.add("image");
       continue;
     }
-    let list = byFile.get(m.file);
-    if (!list) { list = []; byFile.set(m.file, list); }
+    let list = byFile.get(m.fileId);
+    if (!list) { list = []; byFile.set(m.fileId, list); }
     list.push(m);
   }
 

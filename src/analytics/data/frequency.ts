@@ -32,7 +32,7 @@ export function calculateFrequency(
       }
       entry.total++;
       entry.bySource[m.source]++;
-      entry.byFile[m.file] = (entry.byFile[m.file] ?? 0) + 1;
+      entry.byFile[m.fileId] = (entry.byFile[m.fileId] ?? 0) + 1;
     }
   }
 
@@ -82,7 +82,7 @@ export function calculateDocumentCodeMatrix(
   const fileSet = new Set<string>();
   for (const m of markers) {
     if (m.codes.some((c) => codes.includes(c))) {
-      fileSet.add(m.file);
+      fileSet.add(m.fileId);
     }
   }
   const files = Array.from(fileSet).sort();
@@ -92,7 +92,7 @@ export function calculateDocumentCodeMatrix(
   const matrix: number[][] = Array.from({ length: files.length }, () => new Array(codes.length).fill(0));
 
   for (const m of markers) {
-    const fi = fileIndex.get(m.file);
+    const fi = fileIndex.get(m.fileId);
     if (fi == null) continue;
     for (const code of m.codes) {
       const ci = codeIndex.get(code);

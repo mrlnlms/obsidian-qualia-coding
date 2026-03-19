@@ -44,8 +44,8 @@ export function calculateLagSequential(
 
   const byFile = new Map<string, UnifiedMarker[]>();
   for (const m of markers) {
-    let list = byFile.get(m.file);
-    if (!list) { list = []; byFile.set(m.file, list); }
+    let list = byFile.get(m.fileId);
+    if (!list) { list = []; byFile.set(m.fileId, list); }
     list.push(m);
   }
 

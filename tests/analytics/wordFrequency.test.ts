@@ -6,7 +6,7 @@ function makeSeg(text: string, codes: string[] = ['code1'], source: 'markdown' |
   return {
     markerId: 'seg-1',
     source,
-    file: 'file.md',
+    fileId: 'file.md',
     codes,
     text,
   };

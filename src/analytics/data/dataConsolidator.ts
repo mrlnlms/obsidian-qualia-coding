@@ -74,7 +74,7 @@ export function consolidate(
         markers.push({
           id: m.id ?? "",
           source: "markdown",
-          file: m.fileId ?? fileId,
+          fileId: m.fileId ?? fileId,
           codes,
           ...(Object.keys(meta).length > 0 ? { meta } : {}),
         });
@@ -99,7 +99,7 @@ export function consolidate(
         markers.push({
           id: m.id ?? "",
           source: "csv-segment",
-          file: m.fileId ?? "",
+          fileId: m.fileId ?? "",
           codes,
           meta: {
             row: m.row, column: m.column, fromLine: m.row, toLine: m.row,
@@ -118,7 +118,7 @@ export function consolidate(
         markers.push({
           id: m.id ?? "",
           source: "csv-row",
-          file: m.fileId ?? "",
+          fileId: m.fileId ?? "",
           codes,
           meta: { row: m.row, column: m.column, fromLine: m.row, toLine: m.row, ...(m.createdAt != null ? { createdAt: m.createdAt } : {}) },
         });
@@ -148,7 +148,7 @@ export function consolidate(
       markers.push({
         id: m.id ?? "",
         source: "image",
-        file: m.fileId ?? "",
+        fileId: m.fileId ?? "",
         codes,
         meta: imgMeta,
       });
@@ -170,7 +170,7 @@ export function consolidate(
       markers.push({
         id: m.id ?? "",
         source: "pdf",
-        file: m.fileId ?? "",
+        fileId: m.fileId ?? "",
         codes,
         meta: {
           page: m.page,
@@ -189,7 +189,7 @@ export function consolidate(
         markers.push({
           id: s.id ?? "",
           source: "pdf",
-          file: s.fileId ?? "",
+          fileId: s.fileId ?? "",
           codes,
           meta: {
             page: s.page,
@@ -219,7 +219,7 @@ export function consolidate(
         markers.push({
           id: m.id ?? "",
           source: "audio",
-          file: af.path ?? "",
+          fileId: af.path ?? "",
           codes,
           meta: {
             audioFrom: m.from,
@@ -247,7 +247,7 @@ export function consolidate(
         markers.push({
           id: m.id ?? "",
           source: "video",
-          file: vf.path ?? "",
+          fileId: vf.path ?? "",
           codes,
           meta: {
             videoFrom: m.from,

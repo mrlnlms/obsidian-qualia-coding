@@ -112,8 +112,8 @@ function makeCode(name: string, color = '#6200EE'): UnifiedCode {
 	return { name, color, sources: ['markdown'] };
 }
 
-function makeMarker(id: string, source: SourceType, file: string, codes: string[], meta?: UnifiedMarker['meta']): UnifiedMarker {
-	return { id, source, file, codes, meta };
+function makeMarker(id: string, source: SourceType, fileId: string, codes: string[], meta?: UnifiedMarker['meta']): UnifiedMarker {
+	return { id, source, fileId, codes, meta };
 }
 
 function createTestData(): ConsolidatedData {

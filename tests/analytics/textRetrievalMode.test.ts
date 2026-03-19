@@ -6,7 +6,7 @@ import type { SourceType } from '../../src/analytics/data/dataTypes';
 function makeSeg(source: SourceType, overrides: Partial<ExtractedSegment> = {}): ExtractedSegment {
 	return {
 		id: 'seg-1',
-		file: 'test.md',
+		fileId: 'test.md',
 		source,
 		codes: ['A'],
 		text: 'sample text',

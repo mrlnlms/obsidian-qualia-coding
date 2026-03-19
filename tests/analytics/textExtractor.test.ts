@@ -7,11 +7,11 @@ import type { UnifiedMarker, SourceType } from '../../src/analytics/data/dataTyp
 function makeMarker(
 	id: string,
 	source: SourceType,
-	file: string,
+	fileId: string,
 	codes: string[],
 	meta?: UnifiedMarker['meta'],
 ): UnifiedMarker {
-	return { id, source, file, codes, meta };
+	return { id, source, fileId, codes, meta };
 }
 
 // ── Mock vault + file contents ───────────────────────────────────

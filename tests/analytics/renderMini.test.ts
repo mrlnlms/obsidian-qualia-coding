@@ -164,8 +164,8 @@ function makeEvolution(): EvolutionResult {
 		codes: ['A', 'B'],
 		colors: ['#f00', '#0f0'],
 		points: [
-			{ code: 'A', color: '#f00', file: 'f.md', position: 0.2, fromLine: 1, toLine: 5, markerId: 'm1' },
-			{ code: 'B', color: '#0f0', file: 'f.md', position: 0.7, fromLine: 10, toLine: 15, markerId: 'm2' },
+			{ code: 'A', color: '#f00', fileId: 'f.md', position: 0.2, fromLine: 1, toLine: 5, markerId: 'm1' },
+			{ code: 'B', color: '#0f0', fileId: 'f.md', position: 0.7, fromLine: 10, toLine: 15, markerId: 'm2' },
 		],
 		files: ['f.md'],
 	};
@@ -175,7 +175,7 @@ function createMockCtx(overrides = {}): any {
 	return {
 		plugin: { app: { vault: {} } },
 		data: {
-			markers: [{ id: 'm1', source: 'markdown', file: 'f.md', codes: ['A'] }],
+			markers: [{ id: 'm1', source: 'markdown', fileId: 'f.md', codes: ['A'] }],
 			codes: [
 				{ name: 'A', color: '#f00', sources: ['markdown'] },
 				{ name: 'B', color: '#0f0', sources: ['markdown'] },
@@ -403,9 +403,9 @@ describe('renderMini* functions', () => {
 			const mockCtx = createMockCtx({
 				data: {
 					markers: [
-						{ id: 'm1', source: 'markdown', file: 'f.md', codes: ['A', 'B'] },
-						{ id: 'm2', source: 'markdown', file: 'f.md', codes: ['B'] },
-						{ id: 'm3', source: 'markdown', file: 'g.md', codes: ['A'] },
+						{ id: 'm1', source: 'markdown', fileId: 'f.md', codes: ['A', 'B'] },
+						{ id: 'm2', source: 'markdown', fileId: 'f.md', codes: ['B'] },
+						{ id: 'm3', source: 'markdown', fileId: 'g.md', codes: ['A'] },
 					],
 					codes: [
 						{ name: 'A', color: '#f00', sources: ['markdown'] },

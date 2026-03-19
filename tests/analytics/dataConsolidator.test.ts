@@ -107,7 +107,7 @@ describe('consolidate', () => {
     const result = consolidate(null, null, null, null, null, videoData);
     expect(result.markers.length).toBe(1);
     expect(result.markers[0]!.source).toBe('video');
-    expect(result.markers[0]!.file).toBe('video.mp4');
+    expect(result.markers[0]!.fileId).toBe('video.mp4');
   });
 
   // ── Code definitions ───────────────────────────────────────
@@ -279,8 +279,8 @@ describe('consolidate', () => {
     };
     const result = consolidate(null, null, null, null, audioData);
     expect(result.markers.length).toBe(3);
-    expect(result.markers.filter(m => m.file === 'track1.mp3')).toHaveLength(2);
-    expect(result.markers.filter(m => m.file === 'track2.mp3')).toHaveLength(1);
+    expect(result.markers.filter(m => m.fileId === 'track1.mp3')).toHaveLength(2);
+    expect(result.markers.filter(m => m.fileId === 'track2.mp3')).toHaveLength(1);
     expect(result.sources.audio).toBe(true);
   });
 
@@ -334,8 +334,8 @@ describe('consolidate', () => {
     };
     const result = consolidate(null, null, null, null, null, videoData);
     expect(result.markers.length).toBe(3);
-    expect(result.markers.filter(m => m.file === 'clip1.mp4')).toHaveLength(1);
-    expect(result.markers.filter(m => m.file === 'clip2.mp4')).toHaveLength(2);
+    expect(result.markers.filter(m => m.fileId === 'clip1.mp4')).toHaveLength(1);
+    expect(result.markers.filter(m => m.fileId === 'clip2.mp4')).toHaveLength(2);
     expect(result.sources.video).toBe(true);
   });
 

@@ -85,10 +85,10 @@ async function computeFilesMDS(
   const fileCodes = new Map<string, Set<string>>();
   const fileMarkerCount = new Map<string, number>();
   for (const m of markers) {
-    let s = fileCodes.get(m.file);
-    if (!s) { s = new Set(); fileCodes.set(m.file, s); }
+    let s = fileCodes.get(m.fileId);
+    if (!s) { s = new Set(); fileCodes.set(m.fileId, s); }
     for (const c of m.codes) s.add(c);
-    fileMarkerCount.set(m.file, (fileMarkerCount.get(m.file) ?? 0) + 1);
+    fileMarkerCount.set(m.fileId, (fileMarkerCount.get(m.fileId) ?? 0) + 1);
   }
 
   const files = Array.from(fileCodes.keys());

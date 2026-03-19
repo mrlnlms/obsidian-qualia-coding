@@ -93,7 +93,7 @@ function renderSegments(ctx: AnalyticsViewContext, container: HTMLElement, segme
     ? segments.filter((s) =>
         s.codes.some((c) => c.toLowerCase().includes(query)) ||
         s.text.toLowerCase().includes(query) ||
-        s.file.toLowerCase().includes(query)
+        s.fileId.toLowerCase().includes(query)
       )
     : segments;
 
@@ -129,9 +129,9 @@ function renderSegments(ctx: AnalyticsViewContext, container: HTMLElement, segme
     // Group by file
     const byFile = new Map<string, ExtractedSegment[]>();
     for (const seg of filtered) {
-      const list = byFile.get(seg.file) || [];
+      const list = byFile.get(seg.fileId) || [];
       list.push(seg);
-      byFile.set(seg.file, list);
+      byFile.set(seg.fileId, list);
     }
     const sortedFiles = Array.from(byFile.keys()).sort();
     for (const file of sortedFiles) {
@@ -264,7 +264,7 @@ function renderSegmentCard(
   cardHeader.createDiv({ cls: `codemarker-tr-source-badge ${badgeCls}`, text: badgeText });
 
   // File link
-  const basename = seg.file.split("/").pop() ?? seg.file;
+  const basename = seg.fileId.split("/").pop() ?? seg.fileId;
   const fileLink = cardHeader.createDiv({ cls: "codemarker-tr-file-link", text: basename });
   fileLink.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -300,7 +300,7 @@ function renderSegmentCard(
     e.stopPropagation();
     const loc = formatLocation(seg);
     const colors = seg.codes.map((c) => codeColorMap.get(c) ?? "#6200EE");
-    ctx.plugin.addExcerptToBoard(seg.text, seg.file, seg.source, loc, seg.codes, colors);
+    ctx.plugin.addExcerptToBoard(seg.text, seg.fileId, seg.source, loc, seg.codes, colors);
     new Notice("Added excerpt to Research Board");
   });
 
@@ -358,11 +358,11 @@ export function formatLocation(seg: ExtractedSegment): string {
 }
 
 function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): void {
-  const file = seg.file;
+  const file = seg.fileId;
   if (seg.source === "audio") {
     const seekTo = seg.meta?.audioFrom ?? 0;
     ctx.plugin.app.workspace.trigger('qualia-audio:navigate', {
-      file: seg.file,
+      file: seg.fileId,
       seekTo,
     });
     return;
@@ -370,7 +370,7 @@ function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): vo
   if (seg.source === "video") {
     const seekTo = seg.meta?.videoFrom ?? 0;
     ctx.plugin.app.workspace.trigger('qualia-video:navigate', {
-      file: seg.file,
+      file: seg.fileId,
       seekTo,
     });
     return;

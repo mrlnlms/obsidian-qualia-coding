@@ -30,10 +30,10 @@ export function calculateEvolution(
   const maxLineByFile = new Map<string, number>();
   for (const m of markers) {
     if (m.meta?.fromLine == null) continue;
-    const cur = maxLineByFile.get(m.file) ?? 0;
+    const cur = maxLineByFile.get(m.fileId) ?? 0;
     const toLine = m.meta.toLine ?? m.meta.fromLine;
-    if (toLine > cur) maxLineByFile.set(m.file, toLine);
-    if (m.meta.fromLine > cur) maxLineByFile.set(m.file, Math.max(m.meta.fromLine, toLine));
+    if (toLine > cur) maxLineByFile.set(m.fileId, toLine);
+    if (m.meta.fromLine > cur) maxLineByFile.set(m.fileId, Math.max(m.meta.fromLine, toLine));
   }
 
   const points: EvolutionResult["points"] = [];
@@ -41,16 +41,16 @@ export function calculateEvolution(
 
   for (const m of markers) {
     if (m.meta?.fromLine == null) continue;
-    const maxLine = maxLineByFile.get(m.file) ?? 1;
+    const maxLine = maxLineByFile.get(m.fileId) ?? 1;
     const position = maxLine > 0 ? m.meta.fromLine / maxLine : 0;
 
     for (const code of m.codes) {
       if (!codeSet.has(code)) continue;
-      fileSet.add(m.file);
+      fileSet.add(m.fileId);
       points.push({
         code,
         color: codeColors.get(code) ?? "#6200EE",
-        file: m.file,
+        fileId: m.fileId,
         position: Math.min(1, Math.max(0, position)),
         fromLine: m.meta.fromLine,
         toLine: m.meta.toLine ?? m.meta.fromLine,

@@ -39,7 +39,7 @@ export function calculateChiSquare(
 
   const catSet = new Set<string>();
   for (const m of markers) {
-    catSet.add(groupBy === "source" ? m.source : m.file);
+    catSet.add(groupBy === "source" ? m.source : m.fileId);
   }
   const categories = Array.from(catSet).sort();
   const catIndex = new Map(categories.map((c, i) => [c, i]));
@@ -51,7 +51,7 @@ export function calculateChiSquare(
 
   const markersPerCat = new Array(K).fill(0);
   for (const m of markers) {
-    const ci = catIndex.get(groupBy === "source" ? m.source : m.file);
+    const ci = catIndex.get(groupBy === "source" ? m.source : m.fileId);
     if (ci != null) markersPerCat[ci]++;
   }
 
@@ -73,7 +73,7 @@ export function calculateChiSquare(
     const present = new Array(K).fill(0);
     for (const m of markers) {
       if (!m.codes.includes(code)) continue;
-      const ci = catIndex.get(groupBy === "source" ? m.source : m.file);
+      const ci = catIndex.get(groupBy === "source" ? m.source : m.fileId);
       if (ci != null) present[ci]++;
     }
 

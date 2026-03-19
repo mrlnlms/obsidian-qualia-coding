@@ -16,7 +16,7 @@ export interface MCACodePoint {
 
 export interface MCAMarkerPoint {
   id: string;
-  file: string;
+  fileId: string;
   source: SourceType;
   codes: string[];
   x: number;
@@ -174,7 +174,7 @@ export async function calculateMCA(
 
     markerPoints.push({
       id: marker.id,
-      file: marker.file,
+      fileId: marker.fileId,
       source: marker.source,
       codes: marker.codes,
       x,

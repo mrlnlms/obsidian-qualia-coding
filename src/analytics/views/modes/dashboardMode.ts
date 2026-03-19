@@ -28,7 +28,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
 
   const totalMarkers = filtered.length;
   const totalCodes = ctx.data.codes.length;
-  const totalFiles = new Set(filtered.map((m) => m.file)).size;
+  const totalFiles = new Set(filtered.map((m) => m.fileId)).size;
   const activeSources = [
     ctx.data.sources.markdown,
     ctx.data.sources.csv,

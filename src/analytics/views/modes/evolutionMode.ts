@@ -33,12 +33,12 @@ export function exportEvolutionCSV(ctx: AnalyticsViewContext, date: string): voi
   const result = calculateEvolution(ctx.data, filters);
 
   const pts = ctx.evolutionFile
-    ? result.points.filter((p) => p.file === ctx.evolutionFile)
+    ? result.points.filter((p) => p.fileId === ctx.evolutionFile)
     : result.points;
 
   const rows: string[][] = [["file", "code", "position", "fromLine", "toLine"]];
   for (const p of pts) {
-    rows.push([p.file, p.code, p.position.toFixed(4), String(p.fromLine), String(p.toLine)]);
+    rows.push([p.fileId, p.code, p.position.toFixed(4), String(p.fromLine), String(p.toLine)]);
   }
   const csvContent = rows.map((r) => r.join(",")).join("\n");
   const blob = new Blob([csvContent], { type: "text/csv" });
@@ -56,7 +56,7 @@ export function renderEvolutionChart(ctx: AnalyticsViewContext, filters: FilterC
 
   // Filter by selected file
   const points = ctx.evolutionFile
-    ? result.points.filter((p) => p.file === ctx.evolutionFile)
+    ? result.points.filter((p) => p.fileId === ctx.evolutionFile)
     : result.points;
 
   if (points.length === 0) {
@@ -174,7 +174,7 @@ export function renderEvolutionChart(ctx: AnalyticsViewContext, filters: FilterC
       const dy = my - dp.y;
       if (dx * dx + dy * dy <= 64) { // 8px radius hit area
         const p = dp.point;
-        const basename = p.file.split("/").pop() ?? p.file;
+        const basename = p.fileId.split("/").pop() ?? p.fileId;
         const lineInfo = p.fromLine === p.toLine
           ? `line ${p.fromLine}`
           : `lines ${p.fromLine}-${p.toLine}`;

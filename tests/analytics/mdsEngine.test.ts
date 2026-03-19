@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { calculateMDS } from '../../src/analytics/data/mdsEngine';
 import type { UnifiedMarker, UnifiedCode, SourceType } from '../../src/analytics/data/dataTypes';
 
-function mkMarker(id: string, codes: string[], file: string, source: SourceType = 'markdown'): UnifiedMarker {
-	return { id, source, file, codes };
+function mkMarker(id: string, codes: string[], fileId: string, source: SourceType = 'markdown'): UnifiedMarker {
+	return { id, source, fileId, codes };
 }
 
 function mkCode(name: string, color = '#6200EE'): UnifiedCode {

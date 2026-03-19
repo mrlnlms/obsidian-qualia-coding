@@ -32,8 +32,8 @@ function createFilters(overrides: Partial<FilterConfig> = {}): FilterConfig {
 	};
 }
 
-function makeMarker(id: string, source: SourceType, file: string, codes: string[], meta?: UnifiedMarker['meta']): UnifiedMarker {
-	return { id, source, file, codes, meta };
+function makeMarker(id: string, source: SourceType, fileId: string, codes: string[], meta?: UnifiedMarker['meta']): UnifiedMarker {
+	return { id, source, fileId, codes, meta };
 }
 
 function makeCode(name: string, color: string = '#6200EE'): UnifiedCode {
@@ -346,7 +346,7 @@ describe('calculateTextStats', () => {
 
 	it('counts words and characters', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'hello world foo' },
+			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'hello world foo' },
 		];
 		const colors = new Map([['A', '#AAA']]);
 		const result = calculateTextStats(segments, colors);
@@ -359,7 +359,7 @@ describe('calculateTextStats', () => {
 
 	it('calculates TTR (type-token ratio)', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'the the the cat' },
+			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'the the the cat' },
 		];
 		const result = calculateTextStats(segments, new Map());
 		// 4 total words, 2 unique (the, cat)
@@ -370,7 +370,7 @@ describe('calculateTextStats', () => {
 
 	it('skips image source segments', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'image', file: 'f1', codes: ['A'], text: 'should be skipped' },
+			{ markerId: 'm1', source: 'image', fileId: 'f1', codes: ['A'], text: 'should be skipped' },
 		];
 		const result = calculateTextStats(segments, new Map());
 		expect(result.codes).toEqual([]);
@@ -378,8 +378,8 @@ describe('calculateTextStats', () => {
 
 	it('computes global stats across codes', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'hello world' },
-			{ markerId: 'm2', source: 'markdown', file: 'f1', codes: ['B'], text: 'foo bar' },
+			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'hello world' },
+			{ markerId: 'm2', source: 'markdown', fileId: 'f1', codes: ['B'], text: 'foo bar' },
 		];
 		const result = calculateTextStats(segments, new Map());
 		expect(result.global.totalSegments).toBe(2);
@@ -388,7 +388,7 @@ describe('calculateTextStats', () => {
 
 	it('handles segments with empty text', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: '' },
+			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['A'], text: '' },
 		];
 		const result = calculateTextStats(segments, new Map());
 		expect(result.codes).toEqual([]);
@@ -900,9 +900,9 @@ describe('calculateDocumentCodeMatrix (expanded)', () => {
 
 describe('applyFilters (direct)', () => {
 	const markers: UnifiedMarker[] = [
-		{ id: 'm1', source: 'markdown', file: 'f1', codes: ['A', 'B'] },
-		{ id: 'm2', source: 'pdf', file: 'f2', codes: ['B'] },
-		{ id: 'm3', source: 'image', file: 'f3', codes: ['C'] },
+		{ id: 'm1', source: 'markdown', fileId: 'f1', codes: ['A', 'B'] },
+		{ id: 'm2', source: 'pdf', fileId: 'f2', codes: ['B'] },
+		{ id: 'm3', source: 'image', fileId: 'f3', codes: ['C'] },
 	];
 	const data: ConsolidatedData = {
 		markers,
@@ -952,7 +952,7 @@ describe('applyFilters (direct)', () => {
 describe('calculateTextStats (expanded)', () => {
 	it('segment with multiple codes counts for each code', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A', 'B'], text: 'hello world' },
+			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['A', 'B'], text: 'hello world' },
 		];
 		const result = calculateTextStats(segments, new Map());
 		expect(result.codes).toHaveLength(2);
@@ -962,8 +962,8 @@ describe('calculateTextStats (expanded)', () => {
 
 	it('computes avgCharsPerSegment', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'abcdefghij' }, // 10 chars
-			{ markerId: 'm2', source: 'markdown', file: 'f1', codes: ['A'], text: 'abcdefghijklmnopqrst' }, // 20 chars
+			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'abcdefghij' }, // 10 chars
+			{ markerId: 'm2', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'abcdefghijklmnopqrst' }, // 20 chars
 		];
 		const result = calculateTextStats(segments, new Map());
 		expect(result.codes[0].avgCharsPerSegment).toBe(15); // (10+20)/2
@@ -971,8 +971,8 @@ describe('calculateTextStats (expanded)', () => {
 
 	it('computes avgWordsPerSegment', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'one two' },
-			{ markerId: 'm2', source: 'markdown', file: 'f1', codes: ['A'], text: 'three four five six' },
+			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'one two' },
+			{ markerId: 'm2', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'three four five six' },
 		];
 		const result = calculateTextStats(segments, new Map());
 		// 6 words / 2 segments = 3.0
@@ -981,8 +981,8 @@ describe('calculateTextStats (expanded)', () => {
 
 	it('global TTR counts unique words across codes', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'the cat' },
-			{ markerId: 'm2', source: 'markdown', file: 'f1', codes: ['B'], text: 'the dog' },
+			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'the cat' },
+			{ markerId: 'm2', source: 'markdown', fileId: 'f1', codes: ['B'], text: 'the dog' },
 		];
 		const result = calculateTextStats(segments, new Map());
 		// global: "the cat the dog" → 4 total, 3 unique (the, cat, dog)
@@ -993,8 +993,8 @@ describe('calculateTextStats (expanded)', () => {
 
 	it('sorts codes by totalWords descending', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['B'], text: 'one' },
-			{ markerId: 'm2', source: 'markdown', file: 'f1', codes: ['A'], text: 'one two three' },
+			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['B'], text: 'one' },
+			{ markerId: 'm2', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'one two three' },
 		];
 		const result = calculateTextStats(segments, new Map());
 		expect(result.codes[0].code).toBe('A');
@@ -1003,7 +1003,7 @@ describe('calculateTextStats (expanded)', () => {
 
 	it('strips punctuation and numbers from tokens', () => {
 		const segments: ExtractedSegment[] = [
-			{ markerId: 'm1', source: 'markdown', file: 'f1', codes: ['A'], text: 'hello, world! 42 test.' },
+			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'hello, world! 42 test.' },
 		];
 		const result = calculateTextStats(segments, new Map());
 		// "hello", "world", "test" — commas/excl/numbers/periods are separators
