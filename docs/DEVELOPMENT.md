@@ -310,6 +310,14 @@ Abrir arquivo **antes** de injetar dados = decorations vazias.
 2. **Diagnostic mode** (6 passos) — identifica trigger pattern de bugs intermitentes
 3. **Autonomous fix cycle** (7 passos) — cria test, reproduz bug, fixa, valida com before/after
 
+### Cache compartilhado do Obsidian
+`wdio-obsidian-service` baixa uma copia do Obsidian pra rodar testes (~400MB). Por padrao fica em `.obsidian-cache/` relativo ao projeto. Pra evitar duplicatas entre plugins, a env var `OBSIDIAN_CACHE` aponta pra um diretorio compartilhado:
+```bash
+# .zshrc
+export OBSIDIAN_CACHE="$HOME/.cache/obsidian-e2e"
+```
+Todos os plugins usam a mesma copia. Se precisar resetar: `rm -rf ~/.cache/obsidian-e2e`.
+
 ### Config & Commands
 - Config: `wdio.conf.mts` (usa `obsidian-e2e-visual-test-kit` de `github:mrlnlms/obsidian-e2e-visual-test-kit`)
 - Commands:
