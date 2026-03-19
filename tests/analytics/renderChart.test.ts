@@ -106,6 +106,12 @@ document.createElement = function (tag: string, options?: ElementCreationOptions
 	return el;
 } as typeof document.createElement;
 
+// ── Async helper ──
+
+async function flushPromises(): Promise<void> {
+	await new Promise((r) => setTimeout(r, 0));
+}
+
 // ── Helpers ──
 
 function makeCode(name: string, color = '#6200EE'): UnifiedCode {
@@ -217,9 +223,13 @@ describe('renderFrequencyChart', () => {
 		const ctx = createMockCtx();
 		renderFrequencyChart(ctx, createFilters());
 		// renderBarChart is async internally, wait for it
-		await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
+		await flushPromises(); await flushPromises();
 		expect(ChartMock).toHaveBeenCalledOnce();
-		expect(ChartMock.mock.calls[0][1].type).toBe('bar');
+		const [, config] = ChartMock.mock.calls[0]!;
+		expect(config.type).toBe('bar');
+		expect(config.data.labels).toBeDefined();
+		expect(config.data.datasets).toBeDefined();
+		expect(config.data.datasets.length).toBeGreaterThan(0);
 	});
 });
 
@@ -290,8 +300,11 @@ describe('renderWordCloud', () => {
 		] as any);
 		const ctx = createMockCtx();
 		renderWordCloud(ctx, createFilters());
-		await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
+		await flushPromises(); await flushPromises();
 		expect(ChartMock).toHaveBeenCalledOnce();
-		expect(ChartMock.mock.calls[0][1].type).toBe('wordCloud');
+		const [, config] = ChartMock.mock.calls[0]!;
+		expect(config.type).toBe('wordCloud');
+		expect(config.data.labels).toBeDefined();
+		expect(config.data.datasets).toBeDefined();
 	});
 });
