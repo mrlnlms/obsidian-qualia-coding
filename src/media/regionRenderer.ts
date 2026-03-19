@@ -1,11 +1,12 @@
 import type { WaveformRenderer } from './waveformRenderer';
 import type { MediaMarker, MediaCodingModelLike } from './mediaTypes';
+import type { Region } from "wavesurfer.js/dist/plugins/regions";
 import { formatTime } from './formatTime';
 
 export class MediaRegionRenderer {
 	private renderer: WaveformRenderer;
 	private model: MediaCodingModelLike;
-	private markerToRegion: Map<string, any> = new Map();
+	private markerToRegion: Map<string, Region> = new Map();
 	private regionToMarker: Map<string, string> = new Map();
 	private onNavigate: ((markerId: string, codeName: string) => void) | null = null;
 	private hoverListener: (() => void) | null = null;
@@ -137,9 +138,8 @@ export class MediaRegionRenderer {
 
 	private applyHoverToRegions(markerId: string | null): void {
 		for (const [mid, region] of this.markerToRegion) {
-			const el: HTMLElement | undefined = region.element;
-			if (!el) continue;
-			el.classList.toggle('codemarker-media-region-hovered', markerId === mid);
+			if (!region.element) continue;
+			region.element.classList.toggle('codemarker-media-region-hovered', markerId === mid);
 		}
 	}
 
@@ -147,7 +147,7 @@ export class MediaRegionRenderer {
 		return this.regionToMarker.get(regionId);
 	}
 
-	getRegionForMarker(markerId: string): any | undefined {
+	getRegionForMarker(markerId: string): Region | undefined {
 		return this.markerToRegion.get(markerId);
 	}
 
@@ -206,8 +206,8 @@ export class MediaRegionRenderer {
 
 		for (const [mid, lane] of laneMap) {
 			const region = this.markerToRegion.get(mid);
-			const el: HTMLElement | undefined = region?.element;
-			if (!el) continue;
+			if (!region?.element) continue;
+			const el = region.element;
 			const pct = 100 / totalLanes;
 			el.style.top = `${lane * pct}%`;
 			el.style.height = `${pct}%`;

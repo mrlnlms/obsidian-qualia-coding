@@ -122,7 +122,7 @@ export class MediaViewCore {
           ...(states[this.currentFile.path] ?? { lastPosition: 0 }),
           zoom: val,
         };
-        this.model.scheduleSave();
+        this.model.save();
       }
     });
 
@@ -352,6 +352,6 @@ export class MediaViewCore {
       ...(states[this.currentFile.path] ?? { zoom: this.model.settings.defaultZoom }),
       lastPosition: scroll,
     };
-    this.model.scheduleSave();
+    this.model.save();
   }
 }

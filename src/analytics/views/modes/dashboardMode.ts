@@ -1,9 +1,20 @@
-
 import { setIcon, Notice } from "obsidian";
 import type { FilterConfig, CooccurrenceResult, DocCodeMatrixResult, EvolutionResult, FrequencyResult } from "../../data/dataTypes";
 import { calculateFrequency, calculateCooccurrence, calculateDocumentCodeMatrix, calculateEvolution, calculateLagSequential, calculateOverlap, calculateTemporal } from "../../data/statsEngine";
 import type { AnalyticsViewContext, ViewMode } from "../analyticsViewContext";
 import { heatmapColor } from "../shared/chartHelpers";
+import { renderMiniWordCloud } from "./wordCloudMode";
+import { renderMiniACM } from "./acmMode";
+import { renderMiniMDS } from "./mdsMode";
+import { renderMiniTemporal } from "./temporalMode";
+import { renderMiniTextStats } from "./textStatsMode";
+import { renderMiniDendrogram } from "./dendrogramMode";
+import { renderMiniLag } from "./lagSequentialMode";
+import { renderMiniPolar } from "./polarMode";
+import { renderMiniChiSquare } from "./chiSquareMode";
+import { renderMiniDecisionTree } from "./decisionTreeMode";
+import { renderMiniSourceComparison } from "./sourceComparisonMode";
+import { renderMiniMatrix } from "./overlapMode";
 
 export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
@@ -99,70 +110,70 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
     {
       mode: "word-cloud",
       title: "Word Cloud",
-      render: (c) => (ctx as any).renderMiniWordCloud(c, freq),
+      render: (c) => renderMiniWordCloud(c, freq),
     },
     {
       mode: "acm",
       title: "MCA Biplot",
-      render: (c) => (ctx as any).renderMiniACM(c, filters),
+      render: (c) => renderMiniACM(c, ctx, filters),
     },
     {
       mode: "mds",
       title: "MDS Map",
-      render: (c) => (ctx as any).renderMiniMDS(c, freq),
+      render: (c) => renderMiniMDS(c, freq),
     },
     {
       mode: "temporal",
       title: "Temporal Analysis",
       render: (c) => {
         const temporal = calculateTemporal(ctx.data!, filters);
-        (ctx as any).renderMiniTemporal(c, temporal);
+        renderMiniTemporal(c, temporal);
       },
     },
     {
       mode: "text-stats",
       title: "Text Statistics",
-      render: (c) => (ctx as any).renderMiniTextStats(c, freq),
+      render: (c) => renderMiniTextStats(c, freq),
     },
     {
       mode: "dendrogram",
       title: "Dendrogram",
-      render: (c) => (ctx as any).renderMiniDendrogram(c, filters),
+      render: (c) => renderMiniDendrogram(ctx, c, filters),
     },
     {
       mode: "lag-sequential",
       title: "Lag Sequential",
       render: (c) => {
         const lag = calculateLagSequential(ctx.data!, filters, 1);
-        (ctx as any).renderMiniLag(c, lag);
+        renderMiniLag(c, lag);
       },
     },
     {
       mode: "polar-coords",
       title: "Polar Coordinates",
-      render: (c) => (ctx as any).renderMiniPolar(c, filters),
+      render: (c) => renderMiniPolar(ctx, c, filters),
     },
     {
       mode: "chi-square",
       title: "Chi-Square Tests",
-      render: (c) => (ctx as any).renderMiniChiSquare(c, filters),
+      render: (c) => renderMiniChiSquare(ctx, c, filters),
     },
     {
       mode: "decision-tree",
       title: "Decision Tree",
-      render: (c) => (ctx as any).renderMiniDecisionTree(c, filters),
+      render: (c) => renderMiniDecisionTree(ctx, c, filters),
     },
     {
       mode: "source-comparison",
       title: "Source Comparison",
-      render: (c) => (ctx as any).renderMiniSourceComparison(c, freq),
+      render: (c) => renderMiniSourceComparison(ctx, c, freq),
     },
     {
       mode: "code-overlap",
       title: "Code Overlap",
       render: (c) => {
         const overlap = calculateOverlap(ctx.data!, filters);
-        (ctx as any).renderMiniMatrix(c, overlap.codes, overlap.colors, overlap.matrix, overlap.maxValue);
+        renderMiniMatrix(ctx, c, overlap.codes, overlap.colors, overlap.matrix, overlap.maxValue);
       },
     },
   ];

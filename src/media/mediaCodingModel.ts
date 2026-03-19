@@ -24,7 +24,6 @@ export class MediaCodingModel<
 
 	private changeListeners: Set<() => void> = new Set();
 	private hoverListeners: Set<() => void> = new Set();
-	private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 	private hoveredMarkerId: string | null = null;
 	private hoveredCodeName: string | null = null;
@@ -57,13 +56,8 @@ export class MediaCodingModel<
 		});
 	}
 
-	scheduleSave(): void {
-		if (this.saveTimer) clearTimeout(this.saveTimer);
-		this.saveTimer = setTimeout(() => this.save(), 500);
-	}
-
 	notify(): void {
-		this.scheduleSave();
+		this.save();
 		for (const fn of this.changeListeners) fn();
 	}
 

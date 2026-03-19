@@ -369,10 +369,19 @@ Expandido (2026-03-17): `deleteCode()` e `updateMarkerFields()` movidos para Bas
 | renderMini* tests (17 funcoes Canvas2D) | +34 testes com mock de getContext("2d") | FEITO (2026-03-17) |
 | renderChart tests (5 funcoes Chart.js) | +13 testes com mock de Chart constructor | FEITO (2026-03-17) |
 
+| WaveSurfer Region types (waveformRenderer + regionRenderer) | `any` → `Region` import tipado | FEITO (2026-03-19) |
+| Chart.js wordCloud `as any` | Module augmentation via `import type {}` | FEITO (2026-03-19) |
+| viewLookupUtils `as any` | Interface `StandaloneEditor` tipada | FEITO (2026-03-19) |
+| dashboardMode 13x `(ctx as any).renderMini*` | Imports diretos — **bug fix: thumbnails estavam em branco** | FEITO (2026-03-19) |
+| Media save timing redundante (500ms + 500ms DM) | Removido debounce do model, DM 500ms unico | FEITO (2026-03-19) |
+| DEVELOPMENT.md Node.js version | "18+" → "20.19+ ou 22.12+" (match package.json) | FEITO (2026-03-19) |
+| vitest.config.ts coverage threshold | Nenhum → v8 thresholds (60/50/55/60) | FEITO (2026-03-19) |
+
 Ganho de manutenibilidade alcancado:
 - Menu: 1 sistema unificado para TODOS os engines (codingPopover.ts + externalContainer para CM6)
 - Audio/Video: corrigir bug em 1 model base, nao 2
 - Sidebar: 1 adapter base (BaseSidebarAdapter), listeners unificados
+- Dashboard: 12 thumbnails agora renderizam corretamente (eram silenciosamente quebrados)
 
 ---
 
@@ -400,7 +409,7 @@ Ganho de manutenibilidade alcancado:
 | **Testes unitarios** | 0 | 1263 | +1263 |
 | **Testes e2e** | 0 | 27 | +27 |
 | **Total testes** | 0 | 1290 | +1290 |
-| **as any** | 222+ | 4 | -99% |
+| **as any** | 222+ | 6 (3 PDF internal + 3 deepMerge) | -97% |
 | **@ts-ignore** | 44+ | 3 | -93% |
 | **tsc errors** | 82 | 0 | -100% |
 
@@ -415,7 +424,7 @@ Ganho de manutenibilidade alcancado:
 - Types: nomes consistentes (fileId, memo, removeMarker, colorOverride)
 - Type guards: 1 lugar (markerResolvers.ts), nao duplicados
 - CSS: 1 namespace (codemarker-popover), zero duplicacao
-- Type safety: 222 → 4 `as any`, 44 → 3 `@ts-ignore`
+- Type safety: 222 → 6 `as any` (3 PDF internal API + 3 deepMerge generics — todos ineliminaveis), 44 → 3 `@ts-ignore`
 - Testes: 1214 testes em 36 suites (Vitest + jsdom), cobrindo core, analytics (exportCSV sync+async, renderMini, renderChart, modes, statsEngine), media, engine models, fileInterceptor
 - Registry: auto-persist via onMutate callback em create/update/delete/clear
 - Engine registration: retorno explicito {cleanup, model} — zero non-null assertions no main.ts
@@ -425,7 +434,7 @@ Ganho de manutenibilidade alcancado:
 
 ---
 
-## 6 `as any` restantes — APIs externas sem tipos
+## 6 `as any` restantes — fronteiras com APIs externas
 
 ### PDF Obsidian internal viewer API (3 instancias) — `src/pdf/index.ts`
 
@@ -434,31 +443,28 @@ view.viewer as any                          // acessa PDF.js viewer interno do O
 (leaf.view as any)                          // acessa propriedades de PdfView nao exportadas
 ```
 
-**Eliminavel?** NAO facilmente. O Obsidian nao exporta tipos do PDF viewer. O `pdfTypings.d.ts` ja cobre parcialmente, mas a API interna muda entre versoes do Obsidian. **Sugestao: manter e documentar como "Obsidian internal API".**
+**Eliminavel?** NAO. O Obsidian nao exporta tipos do PDF viewer. O `pdfTypings.d.ts` ja cobre parcialmente, mas a API interna muda entre versoes do Obsidian. Manter como "Obsidian internal API".
 
-### WaveSurfer event type (1 instancia) — `src/media/waveformRenderer.ts`
-
-```
-this.ws?.on(event as any, callback)         // wavesurfer nao tipa eventos como union
-```
-
-**Eliminavel?** SIM, com module augmentation para WaveSurfer (similar ao que fizemos com Fabric.js). **Sugestao: fazer quando mexer no waveform renderer.**
-
-### Chart.js wordCloud plugin (1 instancia) — `src/analytics/views/modes/wordCloudMode.ts`
+### dataManager deepMerge (3 instancias) — `src/core/dataManager.ts`
 
 ```
-type: "wordCloud" as any                    // chartjs-chart-wordcloud nao registra tipo
+const result = { ...defaults } as any;     // generic type manipulation
+const val = (persisted as any)[key];       // dynamic key access
+const def = (defaults as any)[key];        // dynamic key access
 ```
 
-**Eliminavel?** SIM, com `declare module 'chart.js' { ... }` para registrar o tipo wordCloud. **Sugestao: fazer quando mexer no analytics.**
+**Eliminavel?** NAO de forma pratica. Funcao utilitaria generica que opera com `Partial<T>` e chaves dinamicas. Qualquer alternativa (`unknown` + assertions) seria equivalente.
 
-### viewLookupUtils duck-type (1 instancia) — `src/markdown/cm6/utils/viewLookupUtils.ts`
+### Eliminados (2026-03-19)
 
-```
-return createStandaloneViewWrapper(standalone) as any
-```
-
-**Eliminavel?** SIM, tipando o retorno da funcao wrapper. **Sugestao: fazer quando mexer no viewLookup.**
+| Item | Fix aplicado |
+|------|-------------|
+| ~~WaveSurfer Region types~~ | Import `Region` de `wavesurfer.js/dist/plugins/regions` — `addRegion(): Region`, `getRegionById(): Region`, callback tipado |
+| ~~Chart.js wordCloud~~ | `import type {} from "chartjs-chart-wordcloud"` forca module augmentation — `type: "wordCloud"` sem cast |
+| ~~viewLookupUtils duck-type~~ | Interface `StandaloneEditor` com `cm`, `posToOffset`, `offsetToPos`, `getRange` |
+| ~~regionRenderer Map<string, any>~~ | `Map<string, Region>` + `getRegionForMarker(): Region` |
+| ~~dashboardMode 13x `(ctx as any)`~~ | Imports diretos das 12 funcoes `renderMini*` dos mode modules — **thumbnails estavam quebrados (silenciados por try/catch)** |
+| ~~tooltipCtx: any~~ | `TooltipItem<'wordCloud'>` |
 
 ---
 
@@ -479,11 +485,15 @@ return createStandaloneViewWrapper(standalone) as any
 | Item | Eliminavel? | Quando |
 |------|------------|--------|
 | ~~analyticsView.ts split~~ | ~~—~~ | ~~FEITO (2026-03-17)~~ |
-| statsEngine.ts split | — | Quando mexer em analytics |
+| ~~statsEngine.ts split~~ | ~~—~~ | ~~FEITO (2026-03-17)~~ |
+| ~~WaveSurfer `as any`~~ | ~~—~~ | ~~FEITO (2026-03-19)~~ |
+| ~~Chart.js wordCloud `as any`~~ | ~~—~~ | ~~FEITO (2026-03-19)~~ |
+| ~~viewLookupUtils `as any`~~ | ~~—~~ | ~~FEITO (2026-03-19)~~ |
+| ~~dashboardMode 13x `as any`~~ | ~~—~~ | ~~FEITO (2026-03-19) — bug fix, thumbnails estavam em branco~~ |
+| ~~Media save timing redundante~~ | ~~—~~ | ~~FEITO (2026-03-19) — removido debounce 500ms, DM cuida~~ |
 | 3 `as any` PDF viewer | Nao (API interna Obsidian) | Permanente |
-| 1 `as any` WaveSurfer event | Sim (module augmentation) | Quando mexer em waveform |
-| 1 `as any` Chart.js wordCloud | Sim (module augmentation) | Quando mexer em analytics |
-| 1 `as any` viewLookupUtils | Sim (tipar retorno) | Quando mexer em viewLookup |
+| 3 `as any` dataManager deepMerge | Nao (type gymnastics generica) | Permanente |
+| Reorganizacao de pastas PDF | Sim (15 flat → subpastas por concern) | Planejar com calma |
 
 ---
 

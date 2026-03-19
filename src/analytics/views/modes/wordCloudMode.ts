@@ -1,9 +1,11 @@
-
 import { Notice } from "obsidian";
 import type { FilterConfig, UnifiedMarker, FrequencyResult } from "../../data/dataTypes";
 import { TextExtractor } from "../../data/textExtractor";
 import { calculateWordFrequencies, type WordFrequencyResult } from "../../data/wordFrequency";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
+import type { TooltipItem } from "chart.js";
+// Force chartjs-chart-wordcloud module augmentation (registers 'wordCloud' in ChartTypeRegistry)
+import type {} from "chartjs-chart-wordcloud";
 
 export function renderWordCloudOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -128,7 +130,7 @@ async function renderWordCloudChart(ctx: AnalyticsViewContext, results: WordFreq
   });
 
   new Chart(canvas, {
-    type: "wordCloud" as any,
+    type: "wordCloud",
     data: {
       labels: results.map((r) => r.word),
       datasets: [{
@@ -149,7 +151,7 @@ async function renderWordCloudChart(ctx: AnalyticsViewContext, results: WordFreq
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (tooltipCtx: any) => {
+            label: (tooltipCtx: TooltipItem<'wordCloud'>) => {
               const idx = tooltipCtx.dataIndex;
               const r = results[idx];
               return `${r!.word}: ${r!.count} (${r!.codes.slice(0, 3).join(", ")})`;

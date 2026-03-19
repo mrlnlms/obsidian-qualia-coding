@@ -5,6 +5,7 @@ import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 import TimelinePlugin from "wavesurfer.js/dist/plugins/timeline.esm.js";
 // @ts-ignore
 import MinimapPlugin from "wavesurfer.js/dist/plugins/minimap.esm.js";
+import type { Region } from "wavesurfer.js/dist/plugins/regions";
 
 export class WaveformRenderer {
   private ws: WaveSurfer | null = null;
@@ -118,7 +119,7 @@ export class WaveformRenderer {
     return this.regionsPlugin;
   }
 
-  addRegion(params: { id: string; start: number; end: number; color: string; content?: HTMLElement }): any {
+  addRegion(params: { id: string; start: number; end: number; color: string; content?: HTMLElement }): Region | null {
     if (!this.regionsPlugin) return null;
     return this.regionsPlugin.addRegion(params);
   }
@@ -127,10 +128,10 @@ export class WaveformRenderer {
     this.regionsPlugin?.clearRegions();
   }
 
-  getRegionById(id: string): any | undefined {
+  getRegionById(id: string): Region | undefined {
     if (!this.regionsPlugin) return undefined;
     const regions = this.regionsPlugin.getRegions();
-    return regions.find((r: any) => r.id === id);
+    return regions.find((r: Region) => r.id === id);
   }
 
   // ── Playback ──

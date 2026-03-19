@@ -7,7 +7,7 @@
 ## 1. Setup & Build
 
 ### Pré-requisitos
-- Node.js 18+
+- Node.js 20.19+ ou 22.12+
 - npm
 
 ### Instalação

@@ -1,6 +1,14 @@
 import { EditorView } from "@codemirror/view";
 import { App, MarkdownView } from "obsidian";
 
+/** Minimal editor subset needed by CodeMarkerModel for standalone EditorViews (CSV segment editors). */
+interface StandaloneEditor {
+	cm: EditorView;
+	posToOffset(pos: { line: number; ch: number }): number;
+	offsetToPos(offset: number): { line: number; ch: number };
+	getRange(from: { line: number; ch: number }, to: { line: number; ch: number }): string;
+}
+
 // ── Standalone editor registry (for CSV segment editors, etc.) ──
 
 const standaloneByFileId = new Map<string, EditorView>();
@@ -71,7 +79,7 @@ export function findFileIdForEditorView(editorView: EditorView, app: App): strin
  * Create a minimal wrapper that looks like a MarkdownView for standalone EditorViews.
  * Used by CodeMarkerModel methods that need view.editor.
  */
-function createStandaloneViewWrapper(editorView: EditorView): { editor: any } {
+function createStandaloneViewWrapper(editorView: EditorView): { editor: StandaloneEditor } {
 	return {
 		editor: {
 			cm: editorView,
