@@ -19,8 +19,12 @@ export class HandleOverlayRenderer {
 	readonly overlayEl: HTMLDivElement;
 	private handleElements = new Map<string, SVGSVGElement>();
 	private _lastFontSize = 0;
+	private scrollDOM: HTMLElement;
+	private originalPosition: string;
 
 	constructor(private model: CodeMarkerModel, scrollDOM: HTMLElement) {
+		this.scrollDOM = scrollDOM;
+		this.originalPosition = scrollDOM.style.position;
 		this.overlayEl = document.createElement('div');
 		this.overlayEl.className = 'codemarker-handle-overlay';
 		this.overlayEl.style.position = 'absolute';
@@ -158,6 +162,7 @@ export class HandleOverlayRenderer {
 	destroy(): void {
 		this.handleElements.clear();
 		this.overlayEl.remove();
+		this.scrollDOM.style.position = this.originalPosition;
 	}
 
 	// ─── Private rendering ────────────────────────────────────
