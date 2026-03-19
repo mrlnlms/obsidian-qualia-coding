@@ -13,6 +13,7 @@ import { MenuController } from './menu/menuController';
 import { openMenuFromEditorSelection } from './menu/menuActions';
 import { CODE_EXPLORER_VIEW_TYPE } from '../core/unifiedExplorerView';
 import { CODE_DETAIL_VIEW_TYPE } from '../core/unifiedDetailView';
+import { clearBoard } from '../analytics/views/boardPersistence';
 import { BaseCodeDetailView } from '../core/baseCodeDetailView';
 import { registerFileRename } from '../core/fileInterceptor';
 
@@ -148,7 +149,7 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 			const modal = new Modal(plugin.app);
 			modal.titleEl.setText('Clear All Markers');
 			modal.contentEl.createEl('p', {
-				text: 'This will permanently delete ALL markers and code definitions from all sources (markdown, CSV, image, PDF, audio, video).',
+				text: 'This will permanently delete ALL markers, code definitions, and the Research Board from all sources (markdown, CSV, image, PDF, audio, video).',
 			});
 			new Setting(modal.contentEl)
 				.addButton(btn => btn.setButtonText('Cancel').onClick(() => modal.close()))
@@ -159,6 +160,7 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 						registry.clear();
 						model.clearAllMarkers();
 						await plugin.dataManager.clearAllSections();
+						await clearBoard(plugin.app.vault.adapter);
 						modal.close();
 					}));
 			modal.open();

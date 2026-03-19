@@ -23,6 +23,17 @@ export async function saveBoard(canvas: Canvas, adapter: DataAdapter): Promise<v
   }
 }
 
+/** Delete board.json — used by Clear All Markers to wipe board data alongside data.json. */
+export async function clearBoard(adapter: DataAdapter): Promise<void> {
+  try {
+    if (await adapter.exists(BOARD_FILE)) {
+      await adapter.remove(BOARD_FILE);
+    }
+  } catch {
+    console.warn("Failed to clear board");
+  }
+}
+
 export async function loadBoard(canvas: Canvas, adapter: DataAdapter): Promise<void> {
   try {
     const raw = await adapter.read(BOARD_FILE);

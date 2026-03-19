@@ -620,6 +620,36 @@ Harness e2e: `obsidian-e2e-visual-test-kit` ([GitHub](https://github.com/mrlnlms
 
 ---
 
+## Bugs e gaps encontrados pelo Codex (2026-03-19)
+
+### Bug: Registry rename collision (`codeDefinitionRegistry.ts:80`) — FEITO (2026-03-19)
+
+Guard adicionado no `update()` — retorna `false` se `changes.name` já existe no `nameIndex`. 4 testes adicionados cobrindo: rejeição, consistência do index, não disparo de callbacks.
+
+### Gap: Clear All Markers não limpa Research Board — FEITO (2026-03-19)
+
+`clearBoard(adapter)` adicionado em `boardPersistence.ts` — remove `board.json`. Chamado no callback do Clear All em `markdown/index.ts` junto com `clearAllSections()`. Texto do modal atualizado para incluir "Research Board". 3 testes adicionados.
+
+### Trade-off: fileInterceptor destrói multi-pane (`fileInterceptor.ts:117`)
+
+**Severidade**: Médio (limitação de UX)
+
+Quando o arquivo já está aberto em uma leaf do target view type, o interceptor faz `leaf.detach()` e foca na leaf existente. Isso impede abrir o mesmo arquivo em dois painéis lado a lado — workflow comum no Obsidian para comparação.
+
+**Contexto**: A decisão simplifica coordenação (evita dois models disputando o mesmo arquivo). Mas sacrifica um padrão de uso legítimo de power users.
+
+**Ação**: Revisitar quando multi-pane for prioridade. Alternativa: permitir múltiplas views read-only, com uma só "ativa" para edição.
+
+### Gap: CI não executa coverage gates — FEITO (2026-03-19)
+
+CI agora roda `npx vitest run --coverage`. Thresholds ajustados para piso real (30/25/30/30) — qualquer regressão quebra o build. E2E mantém só smoke no CI (screenshots diferem entre OS).
+
+### Observação: sidebar superdocumentada vs capacidade atual
+
+A §3.3 do ARCHITECTURE.md documenta drag-and-drop reorder, merge codes, inline rename, export e hierarquia como justificativa para sidebar. No código atual, o explorer entrega colapso, busca e refresh; o detail entrega cor, descrição e delete. A decisão não está errada (sidebar é o investimento certo para essas features futuras), mas a documentação está à frente da implementação. Manter em mente ao priorizar features.
+
+---
+
 ## Feature backlog
 
 ### Shape Catalog compartilhado PDF + Image (proposto 2026-03-18)
@@ -689,6 +719,14 @@ Harness e2e: `obsidian-e2e-visual-test-kit` ([GitHub](https://github.com/mrlnlms
 | GitHub Actions unit CI | **FEITO** — `.github/workflows/ci.yml` job `unit-tests` |
 | Package reproducibility | **FEITO** — `github:mrlnlms/obsidian-e2e-visual-test-kit` |
 | GitHub Actions e2e | **FEITO** — job `e2e-tests` com xvfb + cache Obsidian |
+
+### Incremental refresh/cache por engine (proposto Codex 2026-03-19)
+
+**Problema**: O gargalo futuro mais provável não é `data.json` — é memória e recomputação. CSV/Parquet é lido inteiro em memória (`csvCodingView.ts`), duplicado em `rowDataCache`, e analytics reconsolida tudo via `dataConsolidator.ts` em array unificado a cada refresh. Para vaults médios funciona; para pesquisa pesada (centenas de arquivos codificados, milhares de markers), risco de pressão de heap e latência.
+
+**Proposta**: Cache incremental por engine — cada engine mantém versão consolidada dos seus markers, invalidada por mutation. `dataConsolidator` monta o array final a partir dos caches, sem reconsolidar do zero. Benefício colateral: analytics refresh instantâneo para mutations locais (ex: adicionar 1 código não reprocessa 5000 markers).
+
+**Quando**: Antes de migração de persistência. Este é o próximo passo de arquitetura que dá retorno sem mudar o modelo de dados.
 
 **Decisao atual:** Manter separado. A duplicacao e barata (~350 LOC) e a clareza compensa.
 

@@ -22,8 +22,8 @@ jobs:
       - name: Build (tsc + esbuild)
         run: npm run build
 
-      - name: Unit tests (Vitest)
-        run: npm test
+      - name: Unit tests + coverage gate (Vitest)
+        run: npx vitest run --coverage
 
   e2e-tests:
     runs-on: ubuntu-latest

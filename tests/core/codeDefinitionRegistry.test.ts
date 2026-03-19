@@ -121,6 +121,48 @@ describe('update', () => {
     const def = registry.create('Ok');
     expect(registry.update(def.id, { color: '#111' })).toBe(true);
   });
+
+  it('rejects rename when target name already exists', () => {
+    const a = registry.create('Emotion');
+    const b = registry.create('Theme');
+    const result = registry.update(a.id, { name: 'Theme' });
+    expect(result).toBe(false);
+    // Both definitions should remain unchanged
+    expect(registry.getById(a.id)!.name).toBe('Emotion');
+    expect(registry.getById(b.id)!.name).toBe('Theme');
+    // nameIndex should still point to original
+    expect(registry.getByName('Theme')!.id).toBe(b.id);
+    expect(registry.getByName('Emotion')!.id).toBe(a.id);
+  });
+
+  it('does not fire onRenamed when rename collides', () => {
+    registry.create('Emotion');
+    registry.create('Theme');
+    const onRenamed = vi.fn();
+    registry.setOnRenamed(onRenamed);
+    const emotion = registry.getByName('Emotion')!;
+    registry.update(emotion.id, { name: 'Theme' });
+    expect(onRenamed).not.toHaveBeenCalled();
+  });
+
+  it('does not fire onMutate when rename collides', () => {
+    registry.create('Emotion');
+    registry.create('Theme');
+    const onMutate = vi.fn();
+    registry.setOnMutate(onMutate);
+    const emotion = registry.getByName('Emotion')!;
+    registry.update(emotion.id, { name: 'Theme' });
+    expect(onMutate).not.toHaveBeenCalled();
+  });
+
+  it('getAll returns correct count after rejected rename', () => {
+    registry.create('A');
+    registry.create('B');
+    const a = registry.getByName('A')!;
+    registry.update(a.id, { name: 'B' });
+    expect(registry.getAll()).toHaveLength(2);
+    expect(registry.getAll().map(d => d.name).sort()).toEqual(['A', 'B']);
+  });
 });
 
 // ── delete ───────────────────────────────────────────────────

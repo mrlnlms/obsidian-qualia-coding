@@ -82,6 +82,10 @@ export class CodeDefinitionRegistry {
 		if (!def) return false;
 
 		if (changes.name !== undefined && changes.name !== def.name) {
+			// Reject rename if target name already exists (prevents ghost codes)
+			const collision = this.nameIndex.get(changes.name);
+			if (collision !== undefined) return false;
+
 			const oldName = def.name;
 			this.nameIndex.delete(oldName);
 			def.name = changes.name;

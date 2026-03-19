@@ -448,6 +448,12 @@ Reavaliável apenas se Obsidian mudar seu sistema de carregamento de plugins par
 | **Mobile sidebar behavior** | Sidebar collapses differently on mobile Obsidian | Desktop-only target (v1.5.0+); mobile support deferred |
 | **vault.adapter vs loadData concurrency** | Stale reads if another plugin writes simultaneously; caching divergence | Single DataManager instance; debounced saves; `flushPendingSave()` on unload |
 | **Leaf view DOM without framework** | Verbose imperative UI code; hard to maintain | Base classes (`BaseCodeExplorerView`, `BaseCodeDetailView`) with abstract methods; eventual extraction to shared components |
+| **Analytics concentration** (Codex) | 62 arquivos, ~11.800 LOC — maior fatia do sistema, ponto provável de regressão e lentidão | Split em 19 mode modules (feito); monitorar crescimento; lazy imports para Chart.js/svd-js |
+| **data.json com vaults grandes** (Codex) | Persistência monolítica pode virar gargalo com centenas de markers densos | JSON suficiente para volume QDA típico; caminho de migração mantido aberto (§3.4) |
+| **Registry rename collision** (Codex) | `update()` renomeia sem verificar se `changes.name` já existe — `nameIndex` aponta para último ID, `definitions` fica com duas entries de mesmo nome. Causa: códigos "fantasma", contagens duplicadas em `getAll()`, `getByName()` inconsistente | **Bug confirmado — sem mitigação atual.** Requer guard em `update()` antes do rename (rejeitar ou merge) |
+| **Clear All Markers não limpa Board** (Codex) | `clearAllSections()` limpa `data.json` mas `board.json` continua intacto — snapshots, excerpts e code cards apontam para dados apagados | **Gap confirmado.** Board precisa de `clearBoard()` chamado junto, ou warning explícito no modal |
+| **FileInterceptor destrói multi-pane** (Codex) | `leaf.detach()` na L117 impede abrir mesmo arquivo em dois painéis — sacrifica workflow comparativo do Obsidian | Trade-off intencional que simplifica coordenação, mas limita power users. Revisitar quando multi-pane for prioridade |
+| **CI coverage abaixo da narrativa** (Codex) | `npm test` roda `vitest run` sem `--coverage`, thresholds não viram gate real. CI e2e roda só `smoke.e2e.ts`, não a suíte visual completa | Pipeline funcional mas proteção automatizada menor que docs sugerem. Fix: `vitest run --coverage` no CI + expandir specs e2e |
 
 ---
 
@@ -681,6 +687,48 @@ interface QDAProject {
 | 3 | Phantom markers in CSV segment editor — `addMarkerDirect()` not cleaned on cell close | High | CSV | Fixed (cleanup in `onCellEditorClose`) |
 | 4 | Missing `updatedAt` field in audio/video markers — analytics time-series broken | Medium | Audio/Video | Fixed (added `updatedAt` to `MediaMarker`) |
 | 5 | Race condition in sidebar refresh — `notify()` triggered before `save()` completed | Low | All | Fixed (await save before notify) |
+
+---
+
+## 13. Avaliação Externa (Codex, 2026-03-19)
+
+> Análise independente feita pelo Codex sobre o estado do projeto.
+
+### Visão geral
+
+O projeto é um plugin de análise qualitativa para Obsidian com **escopo incomum para um plugin desktop**: 6 engines de anotação por formato, sidebar unificada e uma camada forte de analytics. A arquitetura central está bem pensada: o bootstrap em `src/main.ts` é simples, registra engines independentes e conecta tudo por um registro compartilhado (`CodeDefinitionRegistry`) e um adaptador unificado (`UnifiedModelAdapter`). A persistência via `DataManager` é direta e previsível, o que reduz complexidade operacional.
+
+Em termos de porte, a base já é relevante: 163 arquivos TypeScript em `src/`, com maior concentração em analytics (62 arquivos, ~11.800 linhas). O bundle compilado `main.js` está em torno de 2.1 MB.
+
+### Pontos fortes identificados
+
+1. **Modelo unificado como melhor decisão**: `CodeDefinitionRegistry` centraliza identidade e cor dos códigos, e `UnifiedModelAdapter` consolida operações sem forçar um engine "saber demais" sobre o outro — boa base para evoluir sem reescrever.
+2. **Maturidade de engenharia acima da média para plugin Obsidian**: testes unitários (Vitest), testes E2E/visuais (wdio), suíte completa passando (39 suites, 1269+ testes). Documentação de produto, arquitetura e roadmap consistente com o código — reduz risco de conhecimento tácito.
+
+### Riscos e gargalos
+
+1. **Concentração de complexidade em analytics** — maior fatia do sistema, ponto mais provável de regressão, lentidão e dificuldade de manutenção.
+2. **Bundle monolítico** — qualquer crescimento futuro em gráficos, board ou mídia impacta tempo de carga e depuração. (Mitigação documentada na §3.10: limitação da plataforma Obsidian, não do plugin.)
+3. **Persistência única em `data.json`** — simples e bom para velocidade de desenvolvimento, mas pode virar gargalo com vaults grandes, histórico denso de marcações ou analytics pesadas. Não é erro agora; é limite arquitetural previsível. (Mitigação documentada na §3.4: JSON suficiente para volume QDA, caminho de migração mantido aberto.)
+
+### Achados novos da segunda análise (com docs)
+
+Na segunda passagem, lendo ARCHITECTURE.md e BACKLOG.md antes de analisar código, o Codex encontrou 4 itens não mapeados:
+
+1. **Bug: rename collision no registry** — `update()` em `codeDefinitionRegistry.ts:80` renomeia sem verificar se o nome destino já existe. Resultado: duas definitions com mesmo nome, `nameIndex` inconsistente, códigos fantasma. **Confirmado no código — sem teste cobrindo.**
+2. **Gap: Clear All Markers não limpa Board** — `clearAllSections()` zera `data.json` mas `board.json` persiste. Snapshots e code cards ficam apontando para dados inexistentes. Modal promete wipe global mas não entrega.
+3. **Trade-off questionável: fileInterceptor `leaf.detach()`** — destrói a leaf quando arquivo já está aberto em outra view do target type. Impede workflow multi-pane (comparar mesmo artefato em painéis lado a lado).
+4. **CI abaixo da narrativa** — `npm test` não roda coverage (thresholds são decorativos), CI e2e executa só smoke spec.
+
+Também observou que a sidebar está **superdocumentada para capacidade não materializada** — drag-and-drop reorder, merge, export, hierarquia ainda não existem no código, embora a decisão de sidebar esteja justificada como investimento futuro.
+
+### Oportunidade identificada: incremental refresh/cache por engine
+
+O próximo gargalo provável não é `data.json` — é memória e recomputação em dados tabulares/analytics. CSV/Parquet é lido inteiro em memória, duplicado em `rowDataCache`, e analytics reconsolida tudo para array unificado via `dataConsolidator`. Para vaults médios funciona; para pesquisa pesada, risco de pressão de heap e latência de refresh. Codex sugere incremental refresh/cache por engine como próximo passo de arquitetura, antes de migração de persistência.
+
+### Leitura final do Codex
+
+> O projeto está em um estágio sólido, com arquitetura coerente, boa separação entre núcleo e engines, e disciplina de testes real. O que mais merece atenção daqui para frente não é "organizar melhor o básico", e sim **controlar crescimento de analytics, tamanho do bundle e custo da persistência monolítica**.
 
 ---
 
