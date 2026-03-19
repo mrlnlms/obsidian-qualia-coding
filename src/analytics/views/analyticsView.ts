@@ -172,19 +172,10 @@ export class AnalyticsView extends ItemView {
     const empty = container.createDiv({ cls: "codemarker-analytics-empty" });
 
     if (!this.data || (!this.data.sources.markdown && !this.data.sources.csv && !this.data.sources.image && !this.data.sources.pdf && !this.data.sources.audio && !this.data.sources.video)) {
-      empty.createEl("h3", { text: "No CodeMarker data found" });
-      const p = empty.createEl("p");
-      p.innerHTML = [
-        "Install and use one or more CodeMarker plugins to start coding:",
-        "&bull; obsidian-codemarker-v2 (Markdown)",
-        "&bull; obsidian-codemarker-csv (CSV)",
-        "&bull; obsidian-codemarker-image (Image)",
-        "&bull; obsidian-codemarker-pdf (PDF)",
-        "&bull; obsidian-codemarker-audio (Audio)",
-        "&bull; obsidian-codemarker-video (Video)",
-        "",
-        "Then return here to visualize your analysis.",
-      ].join("<br>");
+      empty.createEl("h3", { text: "No coding data found" });
+      empty.createEl("p", {
+        text: "Start coding your documents (markdown, PDF, CSV, images, audio or video), then return here to visualize your analysis.",
+      });
     } else {
       empty.createEl("h3", { text: "No coding data yet" });
       empty.createEl("p", {
