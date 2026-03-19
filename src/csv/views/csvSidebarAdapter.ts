@@ -21,6 +21,8 @@ function markerToBase(m: CsvMarker, model: CsvCodingModel): CsvBaseMarker {
 		id: m.id,
 		fileId: m.fileId,
 		codes: m.codes,
+		memo: m.memo,
+		colorOverride: m.colorOverride,
 		createdAt: m.createdAt,
 		updatedAt: m.updatedAt,
 		rowIndex: m.row,

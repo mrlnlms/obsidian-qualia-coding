@@ -396,6 +396,7 @@ Ganho de manutenibilidade alcancado:
 | Porting complete v45 (6a0bb35, 2026-03-07) | 29.329 | 4.139 | 33.468 | 106 | 5.907 (analyticsView) | 0 |
 | Pos-refactor + split + testes (2026-03-17) | 28.415 | 4.026 | 32.441 | 135 | ~250 (frequency.ts) | 1214 |
 | Pos-refactor final + e2e (2026-03-18) | 28.590 | 4.026 | 32.616 | 150 | 672 (marginPanel) | 1290 (1263 unit + 27 e2e) |
+| Pos-Codex bug hunt (2026-03-19) | ~28.700 | 4.026 | ~32.700 | 150 | 672 (marginPanel) | 1345 (1280 unit + 65 e2e) |
 
 *CSS estimado: soma dos 7 styles.css individuais antes da dedup.
 
@@ -496,7 +497,7 @@ const def = (defaults as any)[key];        // dynamic key access
 | main.ts acoplamento | Monitorar — reavaliar se > ~250 LOC | Intencional (182 LOC hoje) |
 | analyticsView.ts state bag | Monitorar — agrupar em sub-objetos se > ~25 campos | OK hoje (~20 campos, 338 LOC) |
 | dataConsolidator.ts ponto unico | Manter — by design, protegido por testes | 311 LOC, 6 blocos independentes |
-| ~~Reorganizacao naming csv/ + image/~~ | ~~—~~ | ~~FEITO (2026-03-19) — csv prefixado, image aplainado (5 subpastas → flat)~~ |
+| ~~Reorganizacao naming csv/ + image/~~ | ~~—~~ | ~~FEITO (2026-03-19) — csv prefixado, image parcialmente aplainado (models/menu/toolbar → flat, canvas/ e views/ mantidas)~~ |
 | ~~markdown/index.ts dedup~~ | ~~—~~ | ~~FEITO (2026-03-19) — `openMenuFromEditorSelection()` elimina 3x duplicacao (275→220 LOC)~~ |
 | ~~ARCHITECTURE.md §5.3 drift~~ | ~~—~~ | ~~FEITO (2026-03-19) — EngineCleanup como funcao, main.ts ~180 LOC~~ |
 
@@ -719,6 +720,16 @@ BoardView e ImageView agora expõem `waitUntilReady()` que resolve quando o `onO
 | Parquet non-string cells crash em segment editor e sidebar | `String()` coercion em `csvCodingCellRenderer.ts:139` e `csvCodingModel.ts:200` |
 | CSV chip click é no-op (`qualia:reveal-detail` sem listener) | csv/index.ts agora dispara `codemarker:label-click` (evento real do main.ts) + removido dead event type |
 | Docs: threshold de coverage desatualizado no BACKLOG (60/50 vs 30/25 real) | Corrigido para refletir valor real |
+
+### Bugs encontrados pelo Codex — rodada 8/final (2026-03-19) — FEITO
+
+| Bug | Fix |
+|-----|-----|
+| CSV sidebar adapter não passava memo/colorOverride ao BaseMarker | Adicionado `memo: m.memo, colorOverride: m.colorOverride` em `csvSidebarAdapter.ts:markerToBase()` |
+| Docs: image "aplainado" impreciso (canvas/ e views/ ainda existem) | Corrigido para "parcialmente aplainado" |
+| Docs: métricas de testes desatualizadas (1263 → 1280 unit) | Adicionada entrada 2026-03-19 na tabela histórica |
+
+Rodada 8 do Codex não encontrou bugs reais adicionais além deste. **Superfície convergiu.**
 
 ### Observação: singleton leaf por engine (Codex rodada 3)
 
