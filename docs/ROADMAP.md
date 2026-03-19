@@ -263,6 +263,9 @@ interface QDAProject {
 - Z-index mínimo 10 para ficar acima de bars/labels
 - UX precisa de grip dots ou indicador visual mais forte
 
+**Dependência: scrollDOM stacking context** (audit 2026-03-19):
+O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para drag handles de markers. O resize handle precisa coexistir no mesmo container. Análise completa com escala de z-index proposta e pré-requisitos está em `BACKLOG.md § z-index conflicts + análise de stacking no scrollDOM`. Os dois itens devem ser atacados na mesma sessão.
+
 **Alternativas**:
 - CSS native `resize: horizontal` no panel
 - Setting numérico no settings tab em vez de drag interativo

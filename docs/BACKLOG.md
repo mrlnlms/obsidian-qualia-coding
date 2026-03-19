@@ -955,7 +955,7 @@ Apenas 7 arquivos `.ts` usam `aria-label`. Faltam em:
 
 **Acao**: Adicionar texto visivel ou `aria-label` nos badges.
 
-#### z-index conflicts (5 colisoes)
+#### z-index conflicts (5 colisoes) + analise de stacking no scrollDOM
 
 | Colisao | Linhas | Valores | Risco |
 |---------|--------|---------|-------|
@@ -963,9 +963,55 @@ Apenas 7 arquivos `.ts` usam `aria-label`. Faltam em:
 | Popover vs CSV tooltip | 1411/1466 | ambos z:9999 | Medio (podem co-existir) |
 | Audio vs Video popover | 2019/2394 | ambos z:1000 | Baixo (nunca simultaneos) |
 | Image menu vs heatmap tooltip | 1575/3131 | ambos z:100 | Baixo (views diferentes) |
-| handleOverlayRenderer inline | TS:33 | z:10000 | OK (intencional, acima de tudo) |
+| handleOverlayRenderer inline | TS:33 | z:10000+ | Ver analise abaixo |
 
-**Acao**: Definir escala de z-index (popover=9999, overlay=1000, panel=100, content=10). Ajustar CSV tooltip para z:9998.
+##### handleOverlayRenderer — stacking context no scrollDOM do editor
+
+O `handleOverlayRenderer.ts` cria um overlay `<div>` dentro do `scrollDOM` do CM6 com `z-index: 10000`. Cada handle SVG individual recebe `z-index: 10000 + index` (escala com numero de markers). Este e o z-index mais alto do plugin inteiro.
+
+**Anatomia do scrollDOM (markdown editor):**
+```
+scrollDOM (position: relative — setado pelo handleOverlayRenderer)
+├── .cm-content (texto do editor)
+├── .cm-layer (decorations, highlights)
+├── .codemarker-margin-panel (z-index: 1 via CSS)
+├── .codemarker-handle-overlay (z-index: 10000, pointer-events: none)
+│   ├── SVG handle (z: 10001, pointer-events: auto quando shouldShow)
+│   ├── SVG handle (z: 10002, ...)
+│   └── ...
+└── [futuro: resize handle do margin panel — precisa viver aqui tambem]
+```
+
+**Problemas conhecidos:**
+
+1. **Popover (z:9999) fica ABAIXO dos handles (z:10000+)**. Quando o coding popover abre sobre um marker, os drag handles ficam visualmente por cima. Handles tem `pointer-events: none` no container, entao cliques passam pro popover, mas visualmente fica sujo. Fix: ou baixar o z do overlay, ou subir o z do popover, ou esconder handles durante popover aberto.
+
+2. **Escalabilidade**: Com 500 markers, o handle z-index chega em 10500. Nao e problema pratico (nenhum outro elemento compete nessa faixa), mas e um pattern fragil — um z-index "infinito" que depende de nenhum outro ultrapassar.
+
+3. **Relacao com Margin Panel Resize Handle (ROADMAP #18)**: O POC stashed do resize handle precisa viver no mesmo `scrollDOM`. Anotacoes do POC dizem "z-index minimo 10". O resize handle precisa ficar ABAIXO dos drag handles (nao interferir no hover) mas ACIMA do margin panel content (para ser clicavel na borda). Faixa segura: z:100-999.
+
+4. **`scrollDOM.style.position = 'relative'`** (line 34): O handleOverlayRenderer MODIFICA o scrollDOM do CM6. Se o CM6 mudar internamente o position do scrollDOM em versao futura do Obsidian, ou se outro plugin fizer o mesmo, o overlay quebra. `destroy()` nao reverte essa mudanca — o scrollDOM fica com `position: relative` permanente.
+
+**Escala de z-index proposta para o scrollDOM:**
+
+| Camada | z-index | Elemento |
+|--------|---------|----------|
+| Content | auto | .cm-content, .cm-layer |
+| Margin panel | 1 | .codemarker-margin-panel |
+| Resize handle (futuro) | 100 | Borda direita do margin panel |
+| Drag handles overlay | 1000 | .codemarker-handle-overlay |
+| Drag handles individuais | 1000+i | SVG handles |
+| Popover | 2000 | .codemarker-popover (requer subir de 9999 global → 2000 local) |
+
+**Quando atacar**: Junto com o Resize Handle (ROADMAP #18). Os dois itens compartilham o mesmo contexto (scrollDOM stacking) e devem ser resolvidos na mesma sessao.
+
+**Pre-requisitos para a sessao:**
+- Validar com Obsidian aberto se `scrollDOM.style.position = 'relative'` nao quebra nada (testar com themes diferentes, split panes, mobile preview)
+- Decidir se `destroy()` deve reverter o position do scrollDOM
+- Testar com 50+ markers pra verificar handle stacking visual
+- Ter screenshots baseline para regressao
+
+**Acao global de z-index (fora do scrollDOM)**: Definir escala padrao para o plugin (popover=9999, engine overlay=1000, panel=100, content=10). Ajustar CSV tooltip para z:9998 pra nao colidir com popover.
 
 #### !important overuse (74 instancias)
 
@@ -1023,4 +1069,4 @@ Proxima sessao de testes deve focar em:
 | Test gaps (sidebar adapters, modes) | Medio | FEITO (2026-03-19) — +220 testes |
 | !important overuse (74 → 66) | Baixo | FEITO (2026-03-19) — 6 removidos (safe) |
 | Inline styles estaticos (regionRenderer) | Baixo | FEITO (2026-03-19) — 15 migrados para 3 CSS classes |
-| Responsive design | Baixo | MONITORAR (desktop-only) |
+| ~~Responsive design~~ | ~~Baixo~~ | REMOVIDO — desktop-only, sem plano de mobile |
