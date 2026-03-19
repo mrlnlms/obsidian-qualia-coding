@@ -51,10 +51,12 @@
 
 ### 3. Memo Universal (Saldaña Ch.14)
 
-- Adicionar `memo?: string` a `SegmentMarker` e `RowMarker` (CSV)
-- UI: textarea expandível no popover ou coluna de comentário
-- Integração com Analytic Memo View no Analytics
-- Áudio e Vídeo já têm memo; Markdown e PDF não
+**Status**: Implementado. `memo?: string` está presente em BaseMarker (todos os engines). UI de memo no popover funciona para todos os tipos. O que falta é apenas a integração com Analytic Memo View (analytics) — feature futura separada.
+
+- ~~Adicionar `memo?: string` a `SegmentMarker` e `RowMarker` (CSV)~~ — FEITO
+- ~~Áudio e Vídeo já têm memo; Markdown e PDF não~~ — FEITO (todos têm memo agora)
+- UI: textarea expandível no popover ou coluna de comentário — FEITO (popover)
+- Integração com Analytic Memo View no Analytics — PENDENTE
 
 ### 4. Code → Theme Hierarchy (Saldaña Ch.14)
 

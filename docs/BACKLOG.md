@@ -369,6 +369,13 @@ Expandido (2026-03-17): `deleteCode()` e `updateMarkerFields()` movidos para Bas
 | renderMini* tests (17 funcoes Canvas2D) | +34 testes com mock de getContext("2d") | FEITO (2026-03-17) |
 | renderChart tests (5 funcoes Chart.js) | +13 testes com mock de Chart constructor | FEITO (2026-03-17) |
 
+| `UnifiedMarker.file` → `fileId` naming convention | Rename em 14 src + 16 test files (~50 refs) | FEITO (2026-03-19) |
+| ROADMAP memo universal | Secao atualizada — memo ja implementado em todos os engines | FEITO (2026-03-19) |
+| Audit completo codebase (6 eixos) | 7 falsos positivos lifecycle, CSS/a11y gaps documentados | FEITO (2026-03-19) |
+| CSS hardcoded colors (5 theme-unsafe) | `var(--text-normal)` e `var(--background-primary)` substituem hex | FEITO (2026-03-19) |
+| Focus-visible styles (12 seletores) | Regra global com `box-shadow` var(--interactive-accent) | FEITO (2026-03-19) |
+| aria-labels (drawToolbar, analytics, detailView) | Labels descritivos em botoes interativos | FEITO (2026-03-19) |
+| DT distribution bars title attributes | Tooltip com % e contagem em barras de distribuicao | FEITO (2026-03-19) |
 | WaveSurfer Region types (waveformRenderer + regionRenderer) | `any` → `Region` import tipado | FEITO (2026-03-19) |
 | Chart.js wordCloud `as any` | Module augmentation via `import type {}` | FEITO (2026-03-19) |
 | viewLookupUtils `as any` | Interface `StandaloneEditor` tipada | FEITO (2026-03-19) |
@@ -397,6 +404,7 @@ Ganho de manutenibilidade alcancado:
 | Pos-refactor + split + testes (2026-03-17) | 28.415 | 4.026 | 32.441 | 135 | ~250 (frequency.ts) | 1214 |
 | Pos-refactor final + e2e (2026-03-18) | 28.590 | 4.026 | 32.616 | 150 | 672 (marginPanel) | 1290 (1263 unit + 27 e2e) |
 | Pos-Codex bug hunt (2026-03-19) | ~28.700 | 4.026 | ~32.700 | 150 | 672 (marginPanel) | 1345 (1280 unit + 65 e2e) |
+| Pos-audit codebase (2026-03-19) | ~28.700 | 4.026 | ~32.700 | 150 | 672 (marginPanel) | 1348 (1283 unit + 65 e2e) |
 
 *CSS estimado: soma dos 7 styles.css individuais antes da dedup.
 
@@ -509,9 +517,9 @@ const def = (defaults as any)[key];        // dynamic key access
 
 | Camada | Testes | Suites/Specs | O que cobre |
 |--------|--------|-------------|-------------|
-| Vitest + jsdom | 1.263 | 39 suites | Logica pura: models, engines, helpers, resolvers, registry |
+| Vitest + jsdom | 1.283 | 40 suites | Logica pura: models, engines, helpers, resolvers, registry |
 | wdio + Obsidian (e2e) | 65 | 18 specs | UI real: editor, sidebar, analytics, media views, modais, screenshots |
-| **Total** | **1.328** | **57** | |
+| **Total** | **1.348** | **58** | |
 
 ### Evolucao
 
@@ -521,6 +529,7 @@ const def = (defaults as any)[key];        // dynamic key access
 | Pos-refactor (2026-03-17) | 1.214 | 0 | 1.214 |
 | Pos-test coverage expansion (2026-03-18 manha) | 1.263 | 0 | 1.263 |
 | Pos-e2e harness + specs (2026-03-18 tarde) | 1.263 | 65 | 1.328 |
+| Pos-audit codebase (2026-03-19) | 1.283 | 65 | 1.348 |
 
 ### Cobertura unitaria (Vitest + jsdom) — 32 modulos de logica pura
 
@@ -864,3 +873,148 @@ A §3.3 do ARCHITECTURE.md documenta drag-and-drop reorder, merge codes, inline 
 **FEITO (2026-03-18):** Unificado via composicao. `MediaViewCore` (357 LOC) contem toda a logica compartilhada. `AudioView` (53 LOC) e `VideoView` (54 LOC) sao thin wrappers que herdam direto de `ItemView` e delegam pro core. Heranca intermediaria (`extends MediaView extends ItemView`) nao funciona com Obsidian — composicao resolve.
 
 **Nota:** A consolidacao que vale ja foi feita (MediaCodingModel + 5 modulos compartilhados em media/). O que resta e duplicacao de view/UI, nao de logica.
+
+---
+
+## Audit completo do codebase (2026-03-19)
+
+### Metodologia
+
+Code review em 6 eixos paralelos: naming conventions, docs vs code, type safety/bugs, test coverage, CSS/UI, event lifecycle. Cada eixo auditou todo o `src/` (~28.700 LOC, 150 arquivos).
+
+### Fix aplicado: `UnifiedMarker.file` → `fileId` — FEITO (2026-03-19)
+
+Unica violacao de naming convention encontrada. `UnifiedMarker.file` em `dataTypes.ts:7` e `EvolutionResult.points[].file` renomeados para `fileId`. Tambem `ExtractedSegment.file` e `MCAMarkerPoint.file`. ~50 usos atualizados em 14 arquivos src + 16 test files. Zero erros tsc, 1283 testes passam.
+
+### Fix aplicado: ROADMAP memo universal — FEITO (2026-03-19)
+
+Secao "Memo Universal" do ROADMAP marcava como futuro algo ja implementado. Atualizado para refletir que `memo?: string` esta em BaseMarker (todos os engines), popover funciona. Unico pendente: integracao com Analytic Memo View.
+
+### Lifecycle bugs reportados vs realidade
+
+O audit reportou 7 "lifecycle leaks" como criticos/altos. Apos verificacao manual do codigo, **todos sao falsos positivos**:
+
+| Bug reportado | Por que NAO e bug |
+|---------------|-------------------|
+| regionRenderer chip listeners leak | `removeRegion()` chama `region.remove()` que remove o DOM element — listeners sao GC'd. `clear()` chama `clearRegions()`. Seguro. |
+| mediaViewCore changeListener accumulation | `loadMedia()` faz `offChange(changeListener)` nas linhas 54-56 ANTES de registrar novo no `ready`. Se `loadMedia` e chamado antes de `ready` disparar, `renderer.destroy()` mata o WaveSurfer e o callback velho nunca executa. Seguro. |
+| imageView race condition | Ja corrigido na rodada 4 e 9 do Codex: generation counter (`loadGeneration`) detecta loads stale. `cleanup()` incrementa counter. |
+| document listener leak em main.ts | `onunload()` faz cleanup de todos os engines via `EngineRegistration.cleanup()`. Hot-reload chama onunload → onload. Seguro. |
+| baseCodeDetailView listener doubling | Obsidian garante simetria `onOpen/onClose`. Bound methods sao campos de instancia (referencia estavel). Mesmo se `onOpen` fosse chamado 2x, `boundRefresh` e a mesma referencia. |
+| analyticsView duplicate listeners | Mesma razao: simetria `onOpen/onClose`. Handler reference e estavel (`this.clearAllHandler`). |
+| csvCodingView MutationObserver duplication | `FileView.onUnloadFile()` sempre chamado antes de `onLoadFile()` para novo arquivo. Observer desconectado em `onUnloadFile`. |
+
+**Licao**: Agentes de audit tendem a reportar patterns teoricamente arriscados sem verificar se guards existem. Verificacao manual e essencial.
+
+### CSS e Acessibilidade — gaps reais
+
+#### Hardcoded colors (14 instancias)
+
+| Linha | Seletor | Cor | Fix proposto |
+|-------|---------|-----|-------------|
+| 797/801 | `.codemarker-pdf-handle circle` | `#ffffff`/`#000000` | Usar `var(--text-on-accent)` |
+| 1012/1016 | `.codemarker-circle` | `#ffffff`/`#000000` | Idem |
+| 2274 | `.codemarker-video-player` | `#000` | Usar `var(--background-primary)` |
+| 3413-3443 | `.codemarker-tr-source-badge.is-*` | 7 cores Material | Manter (semantica fixa por source type) |
+| 3808-3841 | `.codemarker-dt-pred-badge` | `#4CAF50`/`#F44336` | Manter + adicionar texto "Positive"/"Negative" |
+
+**Acao**: Corrigir os 5 primeiros (theme-unsafe). Os badges por source type e decision tree sao intencionais (cor semantica fixa), mas precisam de texto alternativo.
+
+#### Missing focus styles (~30 botoes interativos)
+
+Nenhum toolbar button tem `:focus-visible`. Botoes afetados:
+- `.codemarker-toolbar-btn` (PDF, Image)
+- `.codemarker-explorer-toolbar .clickable-icon`
+- `.codemarker-audio-play-btn`, `.codemarker-video-play-btn`
+- `.csv-tag-chip`
+- `.codemarker-detail-chip`, `.codemarker-detail-reveal-link`
+
+**Acao**: Adicionar regra global `[class*="codemarker-"] button:focus-visible, [class*="codemarker-"] .clickable-icon:focus-visible { box-shadow: 0 0 0 2px var(--interactive-accent); outline: none; }`.
+
+#### Missing aria-labels (~50 elementos)
+
+Apenas 7 arquivos `.ts` usam `aria-label`. Faltam em:
+- Toolbar buttons (PDF draw tools, analytics config)
+- Explorer toolbar icons
+- Detail view back button, close button
+- Board toolbar buttons
+- Menu toggle buttons
+
+**Acao**: Passar por todos os `createDiv/createEl` que criam botoes interativos e adicionar `attr: { 'aria-label': '...' }`.
+
+#### Color-only indicators (sem texto alternativo)
+
+- Decision Tree badges `is-positive`/`is-negative`: verde/vermelho sem texto
+- Source badges `is-markdown`/`is-csv`/etc.: cor unica por tipo
+
+**Acao**: Adicionar texto visivel ou `aria-label` nos badges.
+
+#### z-index conflicts (5 colisoes)
+
+| Colisao | Linhas | Valores | Risco |
+|---------|--------|---------|-------|
+| PDF highlight vs margin panel | 412/711 | ambos z:3 | Baixo (sibling, nao overlap) |
+| Popover vs CSV tooltip | 1411/1466 | ambos z:9999 | Medio (podem co-existir) |
+| Audio vs Video popover | 2019/2394 | ambos z:1000 | Baixo (nunca simultaneos) |
+| Image menu vs heatmap tooltip | 1575/3131 | ambos z:100 | Baixo (views diferentes) |
+| handleOverlayRenderer inline | TS:33 | z:10000 | OK (intencional, acima de tudo) |
+
+**Acao**: Definir escala de z-index (popover=9999, overlay=1000, panel=100, content=10). Ajustar CSV tooltip para z:9998.
+
+#### !important overuse (74 instancias)
+
+Maioria em sizing de handles (linhas 858-917) e cell styling CSV (1262-1298). Muitos defensivos contra AG Grid. Nao e urgente — monitorar.
+
+#### Inline styles (417 instancias)
+
+Concentrados em `marginPanelExtension.ts` (~50) e `handleOverlayRenderer.ts` (~20). Muitos sao calculo dinamico de posicao (necessarios). Os estaticos (fontSize, padding, colors) poderiam migrar para CSS classes.
+
+**Acao**: Baixa prioridade. Migrar os ~15 inline styles estaticos para classes CSS quando tocar nesses arquivos.
+
+#### Responsive design
+
+Zero `@media` queries para telas menores. Config panel fixo em `width: 250px`. Obsidian mobile nao e target (plugin desktop-only), mas tablet seria util.
+
+**Acao**: Baixa prioridade. Adicionar breakpoint `@media (max-width: 600px)` para config panel quando mobile for target.
+
+### Cobertura de testes — gaps identificados
+
+#### Camada critica sem testes unitarios
+
+| Modulo | LOC | Risco | Por que nao tem teste |
+|--------|-----|-------|----------------------|
+| `markerViewPlugin.ts` | 326 | Alto | CM6 ViewPlugin depende de EditorView real |
+| 5 sidebar adapters (PDF, CSV, Image, Audio, Video) | ~700 total | Alto | BaseSidebarAdapter testado, mas subclasses nao |
+| 17/19 analytics modes | ~4000 total | Medio | Chart.js mock dificil; 2 modes testados (dashboard, textRetrieval) |
+| 6 menus/popovers | ~600 total | Medio | DOM interativo dificil de testar em jsdom |
+| 8 analytics data functions | ~800 total | Medio | Parcialmente cobertos via statsEngine barrel tests |
+
+#### Weak test patterns encontrados
+
+1. **Double `setTimeout(0)` em renderChart.test.ts**: Pode causar race. Preferir `vi.advanceTimersByTime()`.
+2. **Chart.js mock vazio**: Verifica apenas `Chart.toHaveBeenCalledOnce()`, nunca valida config/data/options.
+3. **Sem edge cases**: Nenhum teste com arrays vazios, null values, ou datasets grandes.
+
+#### Recomendacao
+
+Proxima sessao de testes deve focar em:
+1. Sidebar adapter subclasses (PDF dual text/shape, CSV segment/row)
+2. Analytics data functions diretas (frequency, cooccurrence — sem mock de Chart.js)
+3. Edge cases nos models existentes (vazio, 1000+ markers, caracteres especiais)
+
+### Consolidado geral — items do audit
+
+| Item | Severidade | Status |
+|------|-----------|--------|
+| `UnifiedMarker.file` → `fileId` | Naming violation | FEITO (2026-03-19) |
+| ROADMAP memo universal desatualizado | Doc drift | FEITO (2026-03-19) |
+| 7 lifecycle "leaks" reportados | Falsos positivos | Verificado — NAO sao bugs |
+| CSS hardcoded colors (5 theme-unsafe) | Medio | FEITO (2026-03-19) |
+| Missing focus styles (~30 botoes) | Alto (a11y) | FEITO (2026-03-19) |
+| Missing aria-labels (~50 elementos) | Alto (a11y) | FEITO (2026-03-19) |
+| Color-only indicators (DT distribution bars) | Alto (a11y) | FEITO (2026-03-19) |
+| z-index conflicts | Baixo | PENDENTE |
+| Test gaps (sidebar adapters, modes) | Medio | PENDENTE |
+| !important overuse | Baixo | MONITORAR |
+| Inline styles estaticos | Baixo | MONITORAR |
+| Responsive design | Baixo | MONITORAR (desktop-only) |
