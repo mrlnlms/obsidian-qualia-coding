@@ -47,6 +47,7 @@ export function createDrawToolbar(
     btn.className = 'clickable-icon';
     setIcon(btn, spec.icon);
     setTooltip(btn, `${spec.tooltip} (${spec.shortcut})`);
+    btn.setAttribute('aria-label', spec.tooltip);
 
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -64,6 +65,7 @@ export function createDrawToolbar(
     deleteBtn.className = 'clickable-icon';
     setIcon(deleteBtn, 'trash-2');
     setTooltip(deleteBtn, 'Delete selected (Del)');
+    deleteBtn.setAttribute('aria-label', 'Delete selected');
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       config.onDelete!();

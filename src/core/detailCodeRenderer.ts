@@ -265,6 +265,7 @@ function renderDeleteCodeButton(
 /** Render the back-navigation button. Exported for use by marker renderer too. */
 export function renderBackButton(container: HTMLElement, label?: string, callback?: () => void) {
 	const back = container.createDiv({ cls: 'codemarker-detail-back' });
+	back.setAttribute('aria-label', `Back to ${label ?? 'All Codes'}`);
 	const icon = back.createSpan();
 	setIcon(icon, 'arrow-left');
 	back.createSpan({ text: label ?? 'All Codes' });

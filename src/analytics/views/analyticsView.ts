@@ -187,6 +187,7 @@ export class AnalyticsView extends ItemView {
     const refreshBtn = empty.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
     setIcon(refreshBtn, "refresh-cw");
     refreshBtn.createSpan({ text: "Refresh" });
+    refreshBtn.setAttribute("aria-label", "Refresh data");
     refreshBtn.addEventListener("click", async () => {
       this.data = await this.plugin.loadConsolidatedData();
       if (this.data) {
@@ -202,6 +203,7 @@ export class AnalyticsView extends ItemView {
     const refreshBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
     setIcon(refreshBtn, "refresh-cw");
     refreshBtn.createSpan({ text: "Refresh" });
+    refreshBtn.setAttribute("aria-label", "Refresh data");
     refreshBtn.addEventListener("click", async () => {
       this.data = await this.plugin.loadConsolidatedData();
       if (this.data) {
@@ -215,16 +217,19 @@ export class AnalyticsView extends ItemView {
     const pngBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
     setIcon(pngBtn, "image");
     pngBtn.createSpan({ text: "Export PNG" });
+    pngBtn.setAttribute("aria-label", "Export chart as PNG");
     pngBtn.addEventListener("click", () => this.exportPNG());
 
     const csvBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
     setIcon(csvBtn, "file-spreadsheet");
     csvBtn.createSpan({ text: "Export CSV" });
+    csvBtn.setAttribute("aria-label", "Export data as CSV");
     csvBtn.addEventListener("click", () => this.exportCSV());
 
     const boardBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
     setIcon(boardBtn, "layout-dashboard");
     boardBtn.createSpan({ text: "Add to Board" });
+    boardBtn.setAttribute("aria-label", "Add chart to Research Board");
     boardBtn.addEventListener("click", () => this.addToBoard());
   }
 

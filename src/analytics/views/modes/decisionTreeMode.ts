@@ -140,9 +140,12 @@ export function renderTreeNode(
   // Distribution bar
   const distBar = card.createDiv({ cls: "codemarker-dt-dist-bar" });
   const posPct = node.n > 0 ? (node.nPositive / node.n) * 100 : 0;
+  const negPct = 100 - posPct;
   const posSegment = distBar.createDiv({ cls: "codemarker-dt-dist-pos" });
   posSegment.style.width = `${posPct}%`;
   posSegment.style.backgroundColor = result.outcomeColor;
+  posSegment.title = `Present: ${posPct.toFixed(1)}% (${node.nPositive}/${node.n})`;
+  distBar.title = `Present: ${posPct.toFixed(1)}% · Absent: ${negPct.toFixed(1)}%`;
 
   // Split info
   if (node.split) {

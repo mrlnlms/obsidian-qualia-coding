@@ -792,13 +792,9 @@ body.codemarker-pdf-drawing .codemarker-pdf-draw-layer {
   transform-origin: center;
 }
 
-/* Stroke for contrast — color overridden by theme, width set proportionally in JS */
-.theme-dark .codemarker-pdf-handle circle {
-  stroke: #ffffff !important;
-}
-
-.theme-light .codemarker-pdf-handle circle {
-  stroke: #000000 !important;
+/* Stroke for contrast — width set proportionally in JS */
+.codemarker-pdf-handle circle {
+  stroke: var(--text-normal) !important;
 }
 
 /* Hover effects */
@@ -1008,12 +1004,8 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	background: none !important;
 }
 
-.theme-dark .codemarker-circle {
-	stroke: #ffffff !important;
-}
-
-.theme-light .codemarker-circle {
-	stroke: #000000 !important;
+.codemarker-circle {
+	stroke: var(--text-normal) !important;
 }
 
 /* ========================================
@@ -2271,7 +2263,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 .codemarker-video-player {
 	flex: 1;
 	min-height: 120px;
-	background: #000;
+	background: var(--background-primary);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -4023,4 +4015,22 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 
 .codemarker-freq-row-dragging {
   opacity: 0.5;
+}
+
+/* ── Accessibility: focus-visible ── */
+.codemarker-toolbar-btn:focus-visible,
+.codemarker-explorer-toolbar .clickable-icon:focus-visible,
+.codemarker-audio-play-btn:focus-visible,
+.codemarker-video-play-btn:focus-visible,
+.codemarker-audio-speed-btn:focus-visible,
+.codemarker-video-speed-btn:focus-visible,
+.csv-tag-chip:focus-visible,
+.codemarker-detail-chip:focus-visible,
+.codemarker-detail-reveal-link:focus-visible,
+.codemarker-kpi-board-btn:focus-visible,
+.codemarker-config-btn:focus-visible,
+.codemarker-menu-toggle:focus-visible {
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+  outline: none;
+  border-radius: var(--radius-s);
 }
