@@ -48,6 +48,14 @@ export class PdfCodingModel {
 		});
 	}
 
+	/** Clear all in-memory markers and shapes. Called by Clear All Markers. */
+	clearAll(): void {
+		this.markers = [];
+		this.shapes = [];
+		this.undoStack = [];
+		this.notify();
+	}
+
 	notify(): void {
 		this.save();
 		for (const fn of this.listeners) fn();
@@ -164,7 +172,7 @@ export class PdfCodingModel {
 		marker.updatedAt = Date.now();
 
 		if (marker.codes.length === 0 && !keepIfEmpty) {
-			this.deleteMarker(markerId);
+			this.removeMarker(markerId);
 		}
 		this.notify();
 	}
@@ -367,11 +375,13 @@ export class PdfCodingModel {
 		return `${shapeNames[shape.shape] || shape.shape} — Page ${shape.page}`;
 	}
 
-	// ── Private ──
-
-	private deleteMarker(id: string): void {
+	removeMarker(id: string): boolean {
+		const before = this.markers.length;
 		this.markers = this.markers.filter(m => m.id !== id);
+		return this.markers.length < before;
 	}
+
+	// ── Private ──
 
 	private generateId(): string {
 		return Date.now().toString(36) + Math.random().toString(36).substring(2);

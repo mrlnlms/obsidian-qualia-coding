@@ -203,6 +203,35 @@ describe('consolidate', () => {
     expect(result.markers[0]!.meta?.pdfText).toBe('');
   });
 
+  it('consolidates PDF shapes from pdfData.shapes array', () => {
+    const pdfData = {
+      markers: [],
+      shapes: [
+        { id: 'sh1', fileId: 'doc.pdf', page: 3, shape: 'rect', coords: {}, codes: ['shapeA'], createdAt: 1700000000, updatedAt: 1700000000 },
+        { id: 'sh2', fileId: 'doc.pdf', page: 5, shape: 'ellipse', coords: {}, codes: ['shapeB'], createdAt: 1700000001, updatedAt: 1700000001 },
+      ],
+    };
+    const result = consolidate(null, null, null, pdfData);
+    expect(result.markers).toHaveLength(2);
+    expect(result.markers[0]!.source).toBe('pdf');
+    expect(result.markers[0]!.codes).toEqual(['shapeA']);
+    expect(result.markers[0]!.meta?.page).toBe(3);
+    expect(result.markers[0]!.meta?.pdfText).toBe('[rect region]');
+    expect(result.markers[1]!.meta?.pdfText).toBe('[ellipse region]');
+    expect(result.markers[0]!.meta?.createdAt).toBe(1700000000);
+  });
+
+  it('skips PDF shapes with empty codes', () => {
+    const pdfData = {
+      markers: [],
+      shapes: [
+        { id: 'sh3', fileId: 'doc.pdf', page: 1, shape: 'rect', coords: {}, codes: [] },
+      ],
+    };
+    const result = consolidate(null, null, null, pdfData);
+    expect(result.markers).toHaveLength(0);
+  });
+
   it('consolidates PDF marker with createdAt in meta', () => {
     const pdfData = {
       markers: [

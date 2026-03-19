@@ -159,6 +159,11 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 					.onClick(async () => {
 						registry.clear();
 						model.clearAllMarkers();
+						plugin.pdfModel?.clearAll();
+						plugin.csvModel?.clearAllMarkers();
+						plugin.audioModel?.clearAll();
+						plugin.videoModel?.clearAll();
+						// Image uses DataManager getters — clearAllSections handles it
 						await plugin.dataManager.clearAllSections();
 						await clearBoard(plugin.app.vault.adapter);
 						modal.close();

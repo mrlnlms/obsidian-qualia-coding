@@ -16,13 +16,17 @@ export interface PopoverHandle {
 	close: () => void;
 }
 
+// Track active popover handles by class name to ensure proper cleanup
+const activePopovers = new Map<string, PopoverHandle>();
+
 /**
  * Creates a themed popover container attached to document.body.
  * Returns the container element and a close() function that removes it
  * and cleans up outside-click / Escape listeners.
  */
 export function createPopover(className: string): PopoverHandle {
-	document.querySelector(`.${className}`)?.remove();
+	// Close previous popover properly (removes document listeners)
+	activePopovers.get(className)?.close();
 
 	const container = document.createElement('div');
 	container.className = `menu ${className}`;
@@ -37,6 +41,7 @@ export function createPopover(className: string): PopoverHandle {
 		container.remove();
 		if (outsideHandler) document.removeEventListener('mousedown', outsideHandler);
 		if (escHandler) document.removeEventListener('keydown', escHandler);
+		activePopovers.delete(className);
 	};
 
 	outsideHandler = (e: MouseEvent) => {
@@ -53,7 +58,9 @@ export function createPopover(className: string): PopoverHandle {
 		document.addEventListener('keydown', escHandler!);
 	}, 10);
 
-	return { container, close };
+	const handle = { container, close };
+	activePopovers.set(className, handle);
+	return handle;
 }
 
 // ── Code input ───────────────────────────────────────────────

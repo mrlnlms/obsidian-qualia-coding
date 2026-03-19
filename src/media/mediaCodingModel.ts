@@ -56,6 +56,12 @@ export class MediaCodingModel<
 		});
 	}
 
+	/** Clear all in-memory files/markers. Called by Clear All Markers. */
+	clearAll(): void {
+		this.files = [];
+		this.notify();
+	}
+
 	notify(): void {
 		this.save();
 		for (const fn of this.changeListeners) fn();

@@ -20,6 +20,7 @@ export interface AdapterModel {
 	getHoverMarkerId(): string | null;
 	getAllMarkers(): Array<{ id: string; codes: string[] }>;
 	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty?: boolean): void;
+	removeMarker(id: string): boolean;
 	findMarkerById(id: string): { memo?: string; colorOverride?: string; updatedAt: number } | undefined | null;
 }
 
@@ -126,6 +127,12 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 		for (const m of this.model.getAllMarkers()) {
 			if (m.codes.includes(codeName)) {
 				this.model.removeCodeFromMarker(m.id, codeName, true);
+			}
+		}
+		// Clean up orphan markers left with no codes
+		for (const m of this.model.getAllMarkers()) {
+			if (m.codes.length === 0) {
+				this.model.removeMarker(m.id);
 			}
 		}
 		const def = this.registry.getByName(codeName);

@@ -62,13 +62,24 @@ export function openPdfCodingPopover(
 		removeCode: (name) => {
 			for (const m of getMarkers()) model.removeCodeFromMarker(m.id, name, true);
 		},
-		getMemo: () => existingMarker?.memo ?? '',
+		getMemo: () => {
+			const m = hoverMarkerId
+				? model.findMarkerById(hoverMarkerId)
+				: model.findExistingMarker(
+					firstResult.file, firstResult.page,
+					firstResult.beginIndex, firstResult.beginOffset,
+					firstResult.endIndex, firstResult.endOffset,
+				);
+			return m?.memo ?? '';
+		},
 		setMemo: (value) => {
-			if (existingMarker) {
-				existingMarker.memo = value || undefined;
-				existingMarker.updatedAt = Date.now();
-				model.save();
+			// Re-query marker — it may have been lazily created after addCode
+			const markers = getMarkers();
+			for (const m of markers) {
+				m.memo = value || undefined;
+				m.updatedAt = Date.now();
 			}
+			model.save();
 		},
 		save: () => model.save(),
 		onRefresh: onHighlightRefresh,

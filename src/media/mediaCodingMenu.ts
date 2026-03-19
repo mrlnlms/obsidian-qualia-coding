@@ -63,7 +63,7 @@ export function openMediaCodingPopover(
 			const m = getMarker();
 			m.memo = value || undefined;
 			m.updatedAt = Date.now();
-			model.notify();
+			model.save();
 		},
 		save: () => model.save(),
 		onRefresh: () => {

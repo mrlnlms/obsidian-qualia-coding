@@ -8,7 +8,7 @@ import type {
 import type { Marker } from "../../markdown/models/codeMarkerModel";
 import type { SegmentMarker, RowMarker } from "../../csv/csvCodingTypes";
 import type { ImageMarker } from "../../image/imageCodingTypes";
-import type { PdfMarker } from "../../pdf/pdfCodingTypes";
+import type { PdfMarker, PdfShapeMarker } from "../../pdf/pdfCodingTypes";
 import type { AudioFile } from "../../audio/audioCodingTypes";
 import type { VideoFile } from "../../video/videoCodingTypes";
 import type { CodeDefinition } from "../../core/types";
@@ -31,6 +31,7 @@ interface ImageEngineData {
 
 interface PdfEngineData {
   markers: PdfMarker[];
+  shapes?: PdfShapeMarker[];
   registry?: { definitions: Record<string, CodeDefinition> };
 }
 
@@ -179,6 +180,26 @@ export function consolidate(
           ...(m.createdAt != null ? { createdAt: m.createdAt } : {}),
         },
       });
+    }
+    // ── PDF shapes (rectangle, ellipse, polygon region markers) ──
+    if (Array.isArray(pdfData.shapes)) {
+      for (const s of pdfData.shapes) {
+        const codes = extractCodes(s.codes);
+        if (codes.length === 0) continue;
+        markers.push({
+          id: s.id ?? "",
+          source: "pdf",
+          file: s.fileId ?? "",
+          codes,
+          meta: {
+            page: s.page,
+            fromLine: s.page,
+            toLine: s.page,
+            pdfText: `[${s.shape} region]`,
+            ...(s.createdAt != null ? { createdAt: s.createdAt } : {}),
+          },
+        });
+      }
     }
     const pdfDefs = pdfData.registry?.definitions;
     if (pdfDefs) {
