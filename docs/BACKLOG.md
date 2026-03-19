@@ -683,6 +683,14 @@ Três views (Board, Image, Analytics) precisavam reagir ao Clear All para limpar
 
 BoardView e ImageView agora expõem `waitUntilReady()` que resolve quando o `onOpen`/`loadImage` completa (canvas inicializado, dados carregados). Substitui polling por instanceof e setTimeout fixo. Pattern aplicável a qualquer view que tenha setup assíncrono.
 
+### Bugs encontrados pelo Codex — rodada 4 (2026-03-19) — TODOS FEITOS
+
+| Bug | Fix |
+|-----|-----|
+| Board onClose salva após clear-all — recria board.json | Flag `cleared` impede save no onClose e scheduleSave |
+| waitUntilReady nunca resolve no error path — trava chamadores | BoardView usa try/finally, ImageView resolve no catch |
+| Image view race em troca rápida de arquivo | Generation counter (`loadGeneration`) detecta loads stale após await |
+
 ### Observação: singleton leaf por engine (Codex rodada 3)
 
 Helpers manuais (`openImageCodingView`, `openAudioCodingView`, etc.) sempre reutilizam `leaves[0]` mesmo para arquivos diferentes. É outra face do mesmo problema do `leaf.detach()` no fileInterceptor — ambos assumem "uma leaf por engine". Documentado junto no item de multi-pane acima. Fix coordenado quando multi-pane for atacado.

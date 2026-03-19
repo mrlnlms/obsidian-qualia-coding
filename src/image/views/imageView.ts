@@ -31,6 +31,7 @@ export class ImageCodingView extends ItemView {
 	private clearAllHandler: (() => void) | null = null;
 	private readyResolve: (() => void) | null = null;
 	private readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
+	private loadGeneration = 0;
 
 	/** Resolves when loadImage completes and canvas is ready. */
 	waitUntilReady(): Promise<void> { return this.readyPromise; }
@@ -72,6 +73,7 @@ export class ImageCodingView extends ItemView {
 	async loadImage(file: TFile): Promise<void> {
 		this.cleanup();
 		this.readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
+		const thisGeneration = ++this.loadGeneration;
 		this.currentFile = file;
 		this.leaf.updateHeader?.();
 
@@ -84,6 +86,8 @@ export class ImageCodingView extends ItemView {
 
 		try {
 			this.fabricState = await setupFabricCanvas(container, imageUrl);
+			// Stale load — a newer loadImage was called while we awaited
+			if (thisGeneration !== this.loadGeneration) return;
 			const canvas = this.fabricState.canvas;
 
 			// Region manager
@@ -196,6 +200,7 @@ export class ImageCodingView extends ItemView {
 				cls: 'codemarker-image-error',
 				text: 'Failed to load image: ' + (e as Error).message,
 			});
+			this.readyResolve?.();
 		}
 	}
 

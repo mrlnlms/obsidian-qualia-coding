@@ -22,6 +22,7 @@ export class BoardView extends ItemView {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private toolbarApi: { setActiveTool: (tool: BoardTool) => void } | null = null;
   private clearAllHandler: (() => void) | null = null;
+  private cleared = false;
   private readyResolve: (() => void) | null = null;
   private readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
 
@@ -46,58 +47,61 @@ export class BoardView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("codemarker-board-view");
+    try {
+      const { contentEl } = this;
+      contentEl.empty();
+      contentEl.addClass("codemarker-board-view");
 
-    // Toolbar
-    const toolbarResult = createBoardToolbar(contentEl, {
-      onToolChange: (tool) => this.setTool(tool),
-      onAction: (action) => this.handleAction(action),
-    });
-    this.toolbarApi = toolbarResult;
+      // Toolbar
+      const toolbarResult = createBoardToolbar(contentEl, {
+        onToolChange: (tool) => this.setTool(tool),
+        onAction: (action) => this.handleAction(action),
+      });
+      this.toolbarApi = toolbarResult;
 
-    // Canvas container
-    const canvasContainer = contentEl.createDiv({ cls: "codemarker-board-canvas-container" });
-    canvasContainer.tabIndex = 0;
+      // Canvas container
+      const canvasContainer = contentEl.createDiv({ cls: "codemarker-board-canvas-container" });
+      canvasContainer.tabIndex = 0;
 
-    // Small delay to let container get layout dimensions
-    await new Promise((r) => setTimeout(r, 50));
+      // Small delay to let container get layout dimensions
+      await new Promise((r) => setTimeout(r, 50));
 
-    // Prevent Obsidian from intercepting right-click on canvas
-    canvasContainer.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
+      // Prevent Obsidian from intercepting right-click on canvas
+      canvasContainer.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
 
-    this.canvasState = setupBoardCanvas(canvasContainer);
-    this.setupCanvasEvents();
+      this.canvasState = setupBoardCanvas(canvasContainer);
+      this.setupCanvasEvents();
 
-    // Drag & drop from Frequency code list
-    canvasContainer.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-    });
-    canvasContainer.addEventListener("drop", (e) => {
-      e.preventDefault();
-      this.handleDrop(e);
-    });
+      // Drag & drop from Frequency code list
+      canvasContainer.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      });
+      canvasContainer.addEventListener("drop", (e) => {
+        e.preventDefault();
+        this.handleDrop(e);
+      });
 
-    // Load saved board
-    if (this.canvasState) {
-      await loadBoard(this.canvasState.canvas, this.app.vault.adapter);
-    }
-
-    // Listen for Clear All Markers — wipe canvas so onClose/autosave don't recreate board.json
-    this.clearAllHandler = () => {
-      if (this.saveTimer) clearTimeout(this.saveTimer);
+      // Load saved board
       if (this.canvasState) {
-        this.canvasState.canvas.clear();
+        await loadBoard(this.canvasState.canvas, this.app.vault.adapter);
       }
-    };
-    document.addEventListener('qualia:clear-all', this.clearAllHandler);
 
-    this.readyResolve?.();
+      // Listen for Clear All Markers — wipe canvas so onClose/autosave don't recreate board.json
+      this.clearAllHandler = () => {
+        this.cleared = true;
+        if (this.saveTimer) clearTimeout(this.saveTimer);
+        if (this.canvasState) {
+          this.canvasState.canvas.clear();
+        }
+      };
+      document.addEventListener('qualia:clear-all', this.clearAllHandler);
+    } finally {
+      this.readyResolve?.();
+    }
   }
 
   async onClose(): Promise<void> {
@@ -106,7 +110,7 @@ export class BoardView extends ItemView {
       this.clearAllHandler = null;
     }
     if (this.saveTimer) clearTimeout(this.saveTimer);
-    if (this.canvasState) {
+    if (this.canvasState && !this.cleared) {
       await saveBoard(this.canvasState.canvas, this.app.vault.adapter);
     }
     teardownBoardCanvas(this.canvasState);
@@ -510,9 +514,10 @@ export class BoardView extends ItemView {
   }
 
   private scheduleSave(): void {
+    if (this.cleared) return;
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
-      if (this.canvasState) {
+      if (this.canvasState && !this.cleared) {
         saveBoard(this.canvasState.canvas, this.app.vault.adapter);
       }
     }, 2000);
