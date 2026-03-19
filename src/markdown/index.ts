@@ -1,4 +1,4 @@
-import { MarkdownView, Modal, Setting } from 'obsidian';
+import { MarkdownView, Modal, Notice, Setting } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { CodeMarkerModel } from './models/codeMarkerModel';
@@ -165,9 +165,12 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 						plugin.videoModel?.clearAll();
 						// Image uses DataManager getters — clearAllSections handles it
 						await plugin.dataManager.clearAllSections();
-						await clearBoard(plugin.app.vault.adapter);
+						const boardCleared = await clearBoard(plugin.app.vault.adapter);
 						// Notify open views to clear live state (board canvas, image regions)
 						document.dispatchEvent(new Event('qualia:clear-all'));
+						if (!boardCleared) {
+							new Notice('Warning: Research Board file could not be deleted. It may reappear on next open.');
+						}
 						modal.close();
 					}));
 			modal.open();

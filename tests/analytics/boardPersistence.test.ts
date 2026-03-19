@@ -29,6 +29,6 @@ describe('clearBoard', () => {
 			exists: vi.fn().mockResolvedValue(true),
 			remove: vi.fn().mockRejectedValue(new Error('permission denied')),
 		} as unknown as DataAdapter;
-		await expect(clearBoard(adapter)).resolves.toBeUndefined();
+		await expect(clearBoard(adapter)).resolves.toBe(false);
 	});
 });

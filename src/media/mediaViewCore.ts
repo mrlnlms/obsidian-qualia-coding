@@ -27,6 +27,7 @@ export class MediaViewCore {
   private speedIndex: number = 2;
   private timeInterval: ReturnType<typeof setInterval> | null = null;
   private changeListener: (() => void) | null = null;
+  private cssChangeRef: EventRef | null = null;
 
   constructor(
     private app: App,
@@ -155,8 +156,10 @@ export class MediaViewCore {
       if (this.speedBtn) this.speedBtn.textContent = rate + '×';
     });
 
-    // Theme change listener
-    registerEvent(this.app.workspace.on('css-change', () => this.renderer.applyThemeColors()));
+    // Theme change listener (remove previous to avoid accumulation on file switch)
+    if (this.cssChangeRef) this.app.workspace.offref(this.cssChangeRef);
+    this.cssChangeRef = this.app.workspace.on('css-change', () => this.renderer.applyThemeColors());
+    registerEvent(this.cssChangeRef);
 
     // Create WaveSurfer — audio: URL only, video: video element as media source
     const url = this.app.vault.getResourcePath(file);

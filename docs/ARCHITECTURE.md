@@ -446,7 +446,7 @@ Reavaliável apenas se Obsidian mudar seu sistema de carregamento de plugins par
 | **Empty Code Explorer (onboarding)** | New users see empty sidebar, unclear next step | Placeholder message with "Create your first code" CTA + sample workflow |
 | **Plugin conflicts (Highlighter, Comments, PDF++)** | CSS collisions, event interception, DOM mutation | Strict CSS namespacing (`codemarker-` prefix); feature detection over version checks; no monkey-patching |
 | **Mobile sidebar behavior** | Sidebar collapses differently on mobile Obsidian | Desktop-only target (v1.5.0+); mobile support deferred |
-| **vault.adapter vs loadData concurrency** | Stale reads if another plugin writes simultaneously; caching divergence | Single DataManager instance; debounced saves; `flushPendingSave()` on unload |
+| **vault.adapter vs loadData concurrency** | `loadData()` só no bootstrap, depois tudo em memória. Sync externo (Dropbox, iCloud, Git) pode sobrescrever `data.json` em runtime → lost update (não só stale read). Limitação da plataforma: toda a API `loadData/saveData` do Obsidian funciona assim. | Single DataManager instance; debounced saves; `flushPendingSave()` on unload. **Não reconcilia mudanças externas em runtime.** Reavaliável com `vault.on('raw')` se necessário. |
 | **Leaf view DOM without framework** | Verbose imperative UI code; hard to maintain | Base classes (`BaseCodeExplorerView`, `BaseCodeDetailView`) with abstract methods; eventual extraction to shared components |
 | **Analytics concentration** (Codex) | 62 arquivos, ~11.800 LOC — maior fatia do sistema, ponto provável de regressão e lentidão | Split em 19 mode modules (feito); monitorar crescimento; lazy imports para Chart.js/svd-js |
 | **data.json com vaults grandes** (Codex) | Persistência monolítica pode virar gargalo com centenas de markers densos | JSON suficiente para volume QDA típico; caminho de migração mantido aberto (§3.4) |
@@ -454,7 +454,7 @@ Reavaliável apenas se Obsidian mudar seu sistema de carregamento de plugins par
 | **Clear All Markers lifecycle** (Codex) | ~~Board, Image, Analytics, models em memória não limpavam~~ | **FEITO** — evento `qualia:clear-all` + `clearAll()` nos models + `clearBoard()` |
 | **FileInterceptor destrói multi-pane** (Codex) | `leaf.detach()` + singleton leaf por engine — quebra workflow nativo | Bug de UX. Ref: mirror-notes viewId pattern. Ver BACKLOG.md |
 | **CI coverage** (Codex) | ~~thresholds não eram gate real~~ | **FEITO** — `vitest run --coverage` no CI, thresholds 30/25/30/30 |
-| **View readiness** (Codex) | Polling/timeout em vez de contrato explícito — race conditions em Board e Image | **FEITO** — `waitUntilReady()` promise em BoardView e ImageView |
+| **View readiness** (Codex) | Race conditions em Board e Image por falta de contrato de readiness | **FEITO** — Two-phase: polling descobre a view (max 500ms), `waitUntilReady()` promise garante que canvas/dados estão prontos. Error paths resolvem via `try/finally` (Board) e `catch` (Image). Load race em Image prevenido por generation counter. |
 
 ---
 

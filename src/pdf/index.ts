@@ -28,6 +28,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	const observers = new Map<PDFViewerChild, PdfPageObserver>();
 	const drawInteractions = new Map<PDFViewerChild, DrawInteraction>();
 	const drawToolbars = new Map<PDFViewerChild, DrawToolbar>();
+	const childListeners = new Map<PDFViewerChild, Array<{ el: HTMLElement; type: string; fn: EventListener }>>();
 
 	// ── Helper functions ──
 
@@ -124,6 +125,10 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			const trackMouse = (e: MouseEvent) => { lastMousePos = { x: e.clientX, y: e.clientY }; };
 			child.containerEl.addEventListener('mousemove', trackMouse);
 			child.containerEl.addEventListener('mouseup', trackMouse);
+			const listeners: Array<{ el: HTMLElement; type: string; fn: EventListener }> = [
+				{ el: child.containerEl, type: 'mousemove', fn: trackMouse as EventListener },
+				{ el: child.containerEl, type: 'mouseup', fn: trackMouse as EventListener },
+			];
 
 			// Create draw interaction and toolbar
 			const drawInteraction = new DrawInteraction(child, model, {
@@ -225,6 +230,8 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 				}, 50);
 			};
 			container.addEventListener('mouseup', mouseupHandler);
+			listeners.push({ el: container, type: 'mouseup', fn: mouseupHandler as EventListener });
+			childListeners.set(child, listeners);
 		});
 	}
 
@@ -293,6 +300,13 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 				toolbar.unmount();
 			}
 			drawToolbars.clear();
+
+			for (const [, entries] of childListeners) {
+				for (const { el, type, fn } of entries) {
+					el.removeEventListener(type, fn);
+				}
+			}
+			childListeners.clear();
 		},
 		model,
 	};

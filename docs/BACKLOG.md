@@ -691,6 +691,16 @@ BoardView e ImageView agora expõem `waitUntilReady()` que resolve quando o `onO
 | waitUntilReady nunca resolve no error path — trava chamadores | BoardView usa try/finally, ImageView resolve no catch |
 | Image view race em troca rápida de arquivo | Generation counter (`loadGeneration`) detecta loads stale após await |
 
+### Bugs encontrados pelo Codex — rodada 5 (2026-03-19) — TODOS FEITOS
+
+| Bug | Fix |
+|-----|-----|
+| PDF hot-reload vaza mousemove/mouseup listeners | `childListeners` Map rastreia listeners por child, cleanup remove todos |
+| Media css-change listener acumula a cada troca de arquivo | `offref()` do anterior antes de registrar novo |
+| Clear All falha parcial — board.json sobrevive silenciosamente | `clearBoard()` retorna boolean, Notice avisa usuário se falhar |
+| Docs: sync mitigation otimista | §7 atualizado: lost update (não só stale read), sem reconciliação em runtime |
+| Docs: waitUntilReady drift narrativo | §7 clarifica two-phase (polling + promise) e error paths |
+
 ### Observação: singleton leaf por engine (Codex rodada 3)
 
 Helpers manuais (`openImageCodingView`, `openAudioCodingView`, etc.) sempre reutilizam `leaves[0]` mesmo para arquivos diferentes. É outra face do mesmo problema do `leaf.detach()` no fileInterceptor — ambos assumem "uma leaf por engine". Documentado junto no item de multi-pane acima. Fix coordenado quando multi-pane for atacado.
