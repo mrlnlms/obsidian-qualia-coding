@@ -376,6 +376,10 @@ Expandido (2026-03-17): `deleteCode()` e `updateMarkerFields()` movidos para Bas
 | Focus-visible styles (12 seletores) | Regra global com `box-shadow` var(--interactive-accent) | FEITO (2026-03-19) |
 | aria-labels (drawToolbar, analytics, detailView) | Labels descritivos em botoes interativos | FEITO (2026-03-19) |
 | DT distribution bars title attributes | Tooltip com % e contagem em barras de distribuicao | FEITO (2026-03-19) |
+| Sidebar adapter tests (PDF/CSV/Image) | 89 testes: markerToBase, deleteCode, renameCode, updateMarkerFields | FEITO (2026-03-19) |
+| Analytics data function tests (7 modulos) | 131 testes: frequency, cooccurrence, evolution, sequential, inferential, textAnalysis, statsHelpers | FEITO (2026-03-19) |
+| !important cleanup (74 → 66) | 6 removidos (highlight inherit, selection preview, menu input, region hover) | FEITO (2026-03-19) |
+| Inline styles → CSS (regionRenderer) | 15 inline styles → 3 CSS classes (media-chip, chip-interactive, region-label update) | FEITO (2026-03-19) |
 | WaveSurfer Region types (waveformRenderer + regionRenderer) | `any` → `Region` import tipado | FEITO (2026-03-19) |
 | Chart.js wordCloud `as any` | Module augmentation via `import type {}` | FEITO (2026-03-19) |
 | viewLookupUtils `as any` | Interface `StandaloneEditor` tipada | FEITO (2026-03-19) |
@@ -405,6 +409,7 @@ Ganho de manutenibilidade alcancado:
 | Pos-refactor final + e2e (2026-03-18) | 28.590 | 4.026 | 32.616 | 150 | 672 (marginPanel) | 1290 (1263 unit + 27 e2e) |
 | Pos-Codex bug hunt (2026-03-19) | ~28.700 | 4.026 | ~32.700 | 150 | 672 (marginPanel) | 1345 (1280 unit + 65 e2e) |
 | Pos-audit codebase (2026-03-19) | ~28.700 | 4.026 | ~32.700 | 150 | 672 (marginPanel) | 1348 (1283 unit + 65 e2e) |
+| Pos-audit final (2026-03-19) | ~28.700 | 4.010 | ~32.710 | 160 | 672 (marginPanel) | 1568 (1503 unit + 65 e2e) |
 
 *CSS estimado: soma dos 7 styles.css individuais antes da dedup.
 
@@ -517,9 +522,9 @@ const def = (defaults as any)[key];        // dynamic key access
 
 | Camada | Testes | Suites/Specs | O que cobre |
 |--------|--------|-------------|-------------|
-| Vitest + jsdom | 1.283 | 40 suites | Logica pura: models, engines, helpers, resolvers, registry |
+| Vitest + jsdom | 1.503 | 50 suites | Logica pura: models, engines, helpers, resolvers, registry, sidebar adapters, analytics data |
 | wdio + Obsidian (e2e) | 65 | 18 specs | UI real: editor, sidebar, analytics, media views, modais, screenshots |
-| **Total** | **1.348** | **58** | |
+| **Total** | **1.568** | **68** | |
 
 ### Evolucao
 
@@ -530,6 +535,7 @@ const def = (defaults as any)[key];        // dynamic key access
 | Pos-test coverage expansion (2026-03-18 manha) | 1.263 | 0 | 1.263 |
 | Pos-e2e harness + specs (2026-03-18 tarde) | 1.263 | 65 | 1.328 |
 | Pos-audit codebase (2026-03-19) | 1.283 | 65 | 1.348 |
+| Pos-audit tests + cleanup (2026-03-19) | 1.503 | 65 | 1.568 |
 
 ### Cobertura unitaria (Vitest + jsdom) — 32 modulos de logica pura
 
@@ -1014,7 +1020,7 @@ Proxima sessao de testes deve focar em:
 | Missing aria-labels (~50 elementos) | Alto (a11y) | FEITO (2026-03-19) |
 | Color-only indicators (DT distribution bars) | Alto (a11y) | FEITO (2026-03-19) |
 | z-index conflicts | Baixo | PENDENTE |
-| Test gaps (sidebar adapters, modes) | Medio | PENDENTE |
-| !important overuse | Baixo | MONITORAR |
-| Inline styles estaticos | Baixo | MONITORAR |
+| Test gaps (sidebar adapters, modes) | Medio | FEITO (2026-03-19) — +220 testes |
+| !important overuse (74 → 66) | Baixo | FEITO (2026-03-19) — 6 removidos (safe) |
+| Inline styles estaticos (regionRenderer) | Baixo | FEITO (2026-03-19) — 15 migrados para 3 CSS classes |
 | Responsive design | Baixo | MONITORAR (desktop-only) |
