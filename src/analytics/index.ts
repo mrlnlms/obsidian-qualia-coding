@@ -6,6 +6,7 @@ import { BOARD_VIEW_TYPE, BoardView } from "./views/boardView";
 import { readAllData } from "./data/dataReader";
 import { consolidate } from "./data/dataConsolidator";
 import type { ConsolidatedData } from "./data/dataTypes";
+import type { ConsolidationCache } from './data/consolidationCache';
 
 /**
  * Interface the analytics views use to access plugin functionality.
@@ -43,23 +44,23 @@ export async function waitForBoardView(
   return null;
 }
 
-export function registerAnalyticsEngine(plugin: QualiaCodingPlugin): () => void {
+export function registerAnalyticsEngine(plugin: QualiaCodingPlugin, cache?: ConsolidationCache): () => void {
   const api: AnalyticsPluginAPI = {
     app: plugin.app,
     registry: plugin.sharedRegistry,
     data: null,
 
     async loadConsolidatedData(): Promise<ConsolidatedData> {
-      const raw = readAllData(plugin.dataManager);
-      api.data = consolidate(
-        raw.markdown,
-        raw.csv,
-        raw.image,
-        raw.pdf,
-        raw.audio,
-        raw.video,
-      );
-      return api.data;
+      if (cache) {
+        api.data = await cache.getData(() => readAllData(plugin.dataManager));
+      } else {
+        const raw = readAllData(plugin.dataManager);
+        api.data = consolidate(
+          raw.markdown, raw.csv, raw.image,
+          raw.pdf, raw.audio, raw.video,
+        );
+      }
+      return api.data!;
     },
 
     async addChartToBoard(title: string, dataUrl: string, viewMode: string): Promise<void> {

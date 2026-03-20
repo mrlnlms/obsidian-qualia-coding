@@ -20,6 +20,7 @@ import { registerCsvEngine } from './csv';
 import { registerAudioEngine } from './audio';
 import { registerVideoEngine } from './video';
 import { registerAnalyticsEngine } from './analytics';
+import { ConsolidationCache } from './analytics/data/consolidationCache';
 import { setupFileInterceptor } from './core/fileInterceptor';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
@@ -78,7 +79,9 @@ export default class QualiaCodingPlugin extends Plugin {
 		const video = registerVideoEngine(this);
 		this.cleanups.push(video.cleanup);
 
-		this.cleanups.push(registerAnalyticsEngine(this));
+		// Consolidation cache — per-engine dirty tracking
+		const consolidationCache = new ConsolidationCache();
+		this.cleanups.push(registerAnalyticsEngine(this, consolidationCache));
 
 		// Single active-leaf-change listener for file-open interception
 		setupFileInterceptor(this);
@@ -90,6 +93,18 @@ export default class QualiaCodingPlugin extends Plugin {
 		const csvModel = csv.model;
 		const audioModel = audio.model;
 		const videoModel = video.model;
+
+		// Wire engine models → consolidation cache invalidation
+		mdModel.onChange(() => consolidationCache.invalidateEngine('markdown'));
+		pdfModel.onChange(() => consolidationCache.invalidateEngine('pdf'));
+		imageModel.onChange(() => consolidationCache.invalidateEngine('image'));
+		csvModel.onChange(() => consolidationCache.invalidateEngine('csv'));
+		audioModel.onChange(() => consolidationCache.invalidateEngine('audio'));
+		videoModel.onChange(() => consolidationCache.invalidateEngine('video'));
+
+		// Registry mutations → invalidate codes
+		this.sharedRegistry.addOnMutate(() => consolidationCache.invalidateRegistry());
+
 		const pdfAdapter = new PdfSidebarAdapter(pdfModel);
 		const imageAdapter = new ImageSidebarAdapter(imageModel);
 		const csvAdapter = new CsvSidebarAdapter(csvModel);
