@@ -171,8 +171,8 @@ describe('onChange / offChange', () => {
 		const adapter = new UnifiedModelAdapter(registry, [model1, model2]);
 		const fn = vi.fn();
 		adapter.onChange(fn);
-		expect(model1.onChange).toHaveBeenCalledWith(fn);
-		expect(model2.onChange).toHaveBeenCalledWith(fn);
+		expect(model1.onChange).toHaveBeenCalledTimes(1);
+		expect(model2.onChange).toHaveBeenCalledTimes(1);
 	});
 
 	it('propagates offChange to all models', () => {
@@ -180,9 +180,10 @@ describe('onChange / offChange', () => {
 		const model2 = createMockModel([]);
 		const adapter = new UnifiedModelAdapter(registry, [model1, model2]);
 		const fn = vi.fn();
+		adapter.onChange(fn);
 		adapter.offChange(fn);
-		expect(model1.offChange).toHaveBeenCalledWith(fn);
-		expect(model2.offChange).toHaveBeenCalledWith(fn);
+		expect(model1.offChange).toHaveBeenCalledTimes(1);
+		expect(model2.offChange).toHaveBeenCalledTimes(1);
 	});
 });
 
@@ -252,5 +253,165 @@ describe('empty adapter (no models)', () => {
 		expect(adapter.getHoverMarkerId()).toBeNull();
 		expect(adapter.getHoverMarkerIds()).toEqual([]);
 		expect(adapter.removeMarker('x')).toBe(false);
+	});
+});
+
+// ── cache ─────────────────────────────────────────────────────
+
+function createMockModelWithListeners(markers: BaseMarker[]): SidebarModelInterface & { triggerChange(): void } {
+	const listeners = new Set<() => void>();
+	return {
+		registry: new CodeDefinitionRegistry(),
+		getAllMarkers: () => markers,
+		getMarkerById: (id: string) => markers.find(m => m.id === id) ?? null,
+		getAllFileIds: () => [...new Set(markers.map(m => m.fileId))],
+		getMarkersForFile: (fid: string) => markers.filter(m => m.fileId === fid),
+		saveMarkers: vi.fn(),
+		updateMarkerFields: vi.fn(),
+		updateDecorations: vi.fn(),
+		removeMarker: vi.fn(() => true),
+		deleteCode: vi.fn(),
+		setHoverState: vi.fn(),
+		getHoverMarkerId: () => null,
+		getHoverMarkerIds: () => [],
+		onChange: (fn: () => void) => { listeners.add(fn); },
+		offChange: (fn: () => void) => { listeners.delete(fn); },
+		onHoverChange: vi.fn(),
+		offHoverChange: vi.fn(),
+		triggerChange() { for (const fn of listeners) fn(); },
+	};
+}
+
+describe('cache', () => {
+	it('getAllMarkers returns correct data on first call', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1')]);
+		const m2 = createMockModelWithListeners([makeMarker('b', 'f2')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1, m2]);
+		adapter.onChange(vi.fn());
+		const result = adapter.getAllMarkers();
+		expect(result).toHaveLength(2);
+		expect(result.map(r => r.id).sort()).toEqual(['a', 'b']);
+	});
+
+	it('second call without change returns same array reference', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1]);
+		adapter.onChange(vi.fn());
+		const first = adapter.getAllMarkers();
+		const second = adapter.getAllMarkers();
+		expect(first).toBe(second);
+	});
+
+	it('after model change, getAllMarkers returns new array', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1]);
+		adapter.onChange(vi.fn());
+		const first = adapter.getAllMarkers();
+		m1.triggerChange();
+		const second = adapter.getAllMarkers();
+		expect(first).not.toBe(second);
+	});
+
+	it('getMarkersForFile returns correct markers', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1'), makeMarker('b', 'f2')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1]);
+		adapter.onChange(vi.fn());
+		const result = adapter.getMarkersForFile('f1');
+		expect(result).toHaveLength(1);
+		expect(result[0].id).toBe('a');
+	});
+
+	it('getMarkersForFile uses cache (same reference)', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1]);
+		adapter.onChange(vi.fn());
+		const first = adapter.getMarkersForFile('f1');
+		const second = adapter.getMarkersForFile('f1');
+		expect(first).toBe(second);
+	});
+
+	it('getAllFileIds returns deduped list from index', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1'), makeMarker('b', 'f1')]);
+		const m2 = createMockModelWithListeners([makeMarker('c', 'f2')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1, m2]);
+		adapter.onChange(vi.fn());
+		const ids = adapter.getAllFileIds();
+		expect(ids).toHaveLength(2);
+		expect(ids).toContain('f1');
+		expect(ids).toContain('f2');
+	});
+
+	it('multiple changes before query = 1 rebuild', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1')]);
+		const spy = vi.spyOn(m1, 'getAllMarkers');
+		const adapter = new UnifiedModelAdapter(registry, [m1]);
+		adapter.onChange(vi.fn());
+		m1.triggerChange();
+		m1.triggerChange();
+		m1.triggerChange();
+		adapter.getAllMarkers();
+		// 1 call from rebuild (not 3)
+		expect(spy).toHaveBeenCalledTimes(1);
+	});
+
+	it('change in 1 engine invalidates everything', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1')]);
+		const m2 = createMockModelWithListeners([makeMarker('b', 'f2')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1, m2]);
+		adapter.onChange(vi.fn());
+		const firstAll = adapter.getAllMarkers();
+		const firstFile = adapter.getMarkersForFile('f1');
+		m2.triggerChange();
+		const secondAll = adapter.getAllMarkers();
+		const secondFile = adapter.getMarkersForFile('f1');
+		expect(firstAll).not.toBe(secondAll);
+		expect(firstFile).not.toBe(secondFile);
+	});
+
+	it('getMarkersForFile for unknown fileId returns []', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1]);
+		adapter.onChange(vi.fn());
+		expect(adapter.getMarkersForFile('nonexistent')).toEqual([]);
+	});
+
+	it('cache works with 0 markers', () => {
+		const m1 = createMockModelWithListeners([]);
+		const adapter = new UnifiedModelAdapter(registry, [m1]);
+		adapter.onChange(vi.fn());
+		expect(adapter.getAllMarkers()).toEqual([]);
+		expect(adapter.getAllFileIds()).toEqual([]);
+		expect(adapter.getMarkerById('x')).toBeNull();
+	});
+
+	it('getMarkerById returns marker via index', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1'), makeMarker('b', 'f2')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1]);
+		adapter.onChange(vi.fn());
+		const marker = adapter.getMarkerById('b');
+		expect(marker).not.toBeNull();
+		expect(marker!.id).toBe('b');
+	});
+
+	it('getMarkerById returns null for unknown id', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1]);
+		adapter.onChange(vi.fn());
+		expect(adapter.getMarkerById('nonexistent')).toBeNull();
+	});
+
+	it('offChange removes listener correctly (wrapper identity preserved)', () => {
+		const m1 = createMockModelWithListeners([makeMarker('a', 'f1')]);
+		const adapter = new UnifiedModelAdapter(registry, [m1]);
+		const fn = vi.fn();
+		adapter.onChange(fn);
+		// trigger should call fn
+		m1.triggerChange();
+		expect(fn).toHaveBeenCalledTimes(1);
+		// remove listener
+		adapter.offChange(fn);
+		fn.mockClear();
+		m1.triggerChange();
+		expect(fn).not.toHaveBeenCalled();
 	});
 });

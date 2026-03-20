@@ -13,33 +13,48 @@ export class UnifiedModelAdapter implements SidebarModelInterface {
 	readonly registry: CodeDefinitionRegistry;
 	private models: SidebarModelInterface[];
 
+	private dirty = true;
+	private cachedMarkers: BaseMarker[] = [];
+	private cachedFileIndex = new Map<string, BaseMarker[]>();
+	private cachedIdIndex = new Map<string, BaseMarker>();
+	private wrappedListeners = new Map<() => void, () => void>();
+
 	constructor(registry: CodeDefinitionRegistry, models: SidebarModelInterface[]) {
 		this.registry = registry;
 		this.models = models;
 	}
 
+	private rebuild(): void {
+		this.cachedMarkers = this.models.flatMap(m => m.getAllMarkers());
+		this.cachedFileIndex = new Map();
+		this.cachedIdIndex = new Map();
+		for (const marker of this.cachedMarkers) {
+			const list = this.cachedFileIndex.get(marker.fileId);
+			if (list) list.push(marker);
+			else this.cachedFileIndex.set(marker.fileId, [marker]);
+			this.cachedIdIndex.set(marker.id, marker);
+		}
+		this.dirty = false;
+	}
+
 	getAllMarkers(): BaseMarker[] {
-		return this.models.flatMap(m => m.getAllMarkers());
+		if (this.dirty) this.rebuild();
+		return this.cachedMarkers;
 	}
 
 	getMarkerById(id: string): BaseMarker | null {
-		for (const m of this.models) {
-			const marker = m.getMarkerById(id);
-			if (marker) return marker;
-		}
-		return null;
+		if (this.dirty) this.rebuild();
+		return this.cachedIdIndex.get(id) ?? null;
 	}
 
 	getAllFileIds(): string[] {
-		const ids = new Set<string>();
-		for (const m of this.models) {
-			for (const id of m.getAllFileIds()) ids.add(id);
-		}
-		return [...ids];
+		if (this.dirty) this.rebuild();
+		return Array.from(this.cachedFileIndex.keys());
 	}
 
 	getMarkersForFile(fileId: string): BaseMarker[] {
-		return this.models.flatMap(m => m.getMarkersForFile(fileId));
+		if (this.dirty) this.rebuild();
+		return this.cachedFileIndex.get(fileId) ?? [];
 	}
 
 	saveMarkers(): void {
@@ -114,11 +129,19 @@ export class UnifiedModelAdapter implements SidebarModelInterface {
 	}
 
 	onChange(fn: () => void): void {
-		for (const m of this.models) m.onChange(fn);
+		const wrapped = () => {
+			this.dirty = true;
+			fn();
+		};
+		this.wrappedListeners.set(fn, wrapped);
+		for (const m of this.models) m.onChange(wrapped);
 	}
 
 	offChange(fn: () => void): void {
-		for (const m of this.models) m.offChange(fn);
+		const wrapped = this.wrappedListeners.get(fn);
+		if (!wrapped) return;
+		this.wrappedListeners.delete(fn);
+		for (const m of this.models) m.offChange(wrapped);
 	}
 
 	onHoverChange(fn: () => void): void {
