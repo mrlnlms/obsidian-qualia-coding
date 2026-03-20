@@ -22,12 +22,19 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
   const dashboard = ctx.chartContainer.createDiv({ cls: "codemarker-dashboard" });
 
   // ── KPIs ──
-  const filtered = ctx.data.markers.filter((m) => filters.sources.includes(m.source));
+  const enabledCodes = ctx.enabledCodes;
+  const filtered = ctx.data.markers.filter((m) =>
+    filters.sources.includes(m.source) &&
+    m.codes.some((c) => enabledCodes.has(c))
+  ).map(m => ({
+    ...m,
+    codes: m.codes.filter(c => enabledCodes.has(c)),
+  }));
   const freq = calculateFrequency(ctx.data, filters);
   freq.sort((a, b) => b.total - a.total);
 
   const totalMarkers = filtered.length;
-  const totalCodes = ctx.data.codes.length;
+  const totalCodes = ctx.data.codes.filter(c => enabledCodes.has(c.name)).length;
   const totalFiles = new Set(filtered.map((m) => m.fileId)).size;
   const activeSources = [
     ctx.data.sources.markdown,
