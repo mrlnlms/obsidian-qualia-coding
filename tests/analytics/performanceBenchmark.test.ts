@@ -26,6 +26,7 @@ import { calculateMCA } from '../../src/analytics/data/mcaEngine';
 import { calculateMDS } from '../../src/analytics/data/mdsEngine';
 import { buildDecisionTree } from '../../src/analytics/data/decisionTreeEngine';
 import { hierarchicalCluster, buildDendrogram } from '../../src/analytics/data/clusterEngine';
+import { consolidate } from '../../src/analytics/data/dataConsolidator';
 import type { ConsolidatedData, FilterConfig, UnifiedMarker, UnifiedCode, SourceType } from '../../src/analytics/data/dataTypes';
 import type { ExtractedSegment } from '../../src/analytics/data/textExtractor';
 
@@ -268,6 +269,29 @@ describe('analytics performance benchmark', () => {
 			});
 		});
 	}
+
+	describe('consolidation cache vs full', () => {
+		it('cache hit is near-zero', async () => {
+			const { ConsolidationCache } = await import('../../src/analytics/data/consolidationCache');
+			const cache = new ConsolidationCache();
+			const fixture = {
+				markdown: { markers: {}, settings: {} as any, codeDefinitions: {} },
+				csv: { segmentMarkers: [], rowMarkers: [], registry: { definitions: {} } },
+				image: { markers: [], settings: { autoOpenImages: false, fileStates: {} }, registry: { definitions: {} } },
+				pdf: { markers: [], shapes: [], registry: { definitions: {} } },
+				audio: { files: [], settings: {}, codeDefinitions: { definitions: {} } },
+				video: { files: [], settings: {}, codeDefinitions: { definitions: {} } },
+			};
+			// Prime cache
+			await cache.getData(() => fixture as any);
+			// Measure cache hit
+			const start = performance.now();
+			await cache.getData(() => fixture as any);
+			const ms = performance.now() - start;
+			console.log(`cache hit (no dirty): ${ms.toFixed(3)}ms`);
+			expect(ms).toBeLessThan(1); // should be sub-millisecond
+		});
+	});
 
 	// Print summary table at the end
 	it('prints benchmark summary', () => {
