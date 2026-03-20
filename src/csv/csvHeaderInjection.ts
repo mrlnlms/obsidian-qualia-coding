@@ -66,6 +66,7 @@ export function injectHeaderButtons(wrapper: HTMLElement, ctx: HeaderInjectionCo
 			const col = ctx.gridApi?.getColumn(colId);
 			const colDef = col ? col.getColDef() : null;
 			const isWrapped = colDef?.wrapText ?? true;
+			wrapBtn.dataset.wrapped = String(isWrapped);
 			wrapBtn.style.opacity = isWrapped ? '0.8' : '0.3';
 
 			wrapBtn.addEventListener('click', (e) => {
@@ -76,9 +77,11 @@ export function injectHeaderButtons(wrapper: HTMLElement, ctx: HeaderInjectionCo
 				const def = colDefs.find((c) => (c as ColDef).field === colId) as ColDef | undefined;
 				if (!def) return;
 				const nowWrapped = def.wrapText ?? true;
-				(def as ColDef).wrapText = !nowWrapped;
-				(def as ColDef).autoHeight = !nowWrapped;
-				(def as ColDef).cellClass = !nowWrapped ? 'csv-comment-cell' : 'csv-comment-cell-nowrap';
+				const nextWrapped = !nowWrapped;
+				(def as ColDef).wrapText = nextWrapped;
+				(def as ColDef).autoHeight = nextWrapped;
+				(def as ColDef).cellClass = nextWrapped ? 'csv-comment-cell' : 'csv-comment-cell-nowrap';
+				wrapBtn.dataset.wrapped = String(nextWrapped);
 				ctx.gridApi.setGridOption('columnDefs', colDefs);
 			});
 
