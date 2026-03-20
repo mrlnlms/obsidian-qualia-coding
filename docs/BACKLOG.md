@@ -73,7 +73,7 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
 | V1 | Alta | `csvCodingCellRenderer.ts:14,136`, `csvCodingMenu.ts:106` | node.rowIndex e display index. Apos sort, codigos vao pra linha errada |
-| V2 | Baixa | `csvHeaderInjection.ts:69,106` | btn.dataset.wrapped nunca setado. Opacity sempre reseta |
+| ~~V2~~ | ~~FEITO~~ | `csvHeaderInjection.ts` | ~~btn.dataset.wrapped setado na criacao e no toggle~~ |
 
 ---
 
@@ -85,8 +85,8 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 | A2 | Media | Chart.js instances | frequencyMode, wordCloudMode, acmMode, mdsMode, temporalMode — new Chart() sem destroy(). Leak em sessoes longas |
 | A3 | Media | `textExtractor.ts:177` | parseCsv() simplificado nao suporta multiline quoted fields. Desloca row em Text Retrieval/Word Cloud/Text Stats |
 | A4 | Media | `textExtractor.ts:35,80` | Markers Parquet relidos via vault.read() como texto. Lixo binario no Analytics |
-| A5 | Baixa | `chiSquareMode.ts:161` | Mini view: top-5 por p-value, reordena por Cramer's V dentro. Deveria sort-then-slice |
-| A6 | Baixa | `baseCodeExplorerView.ts:235-237,314` | Footer: contagem de segmentos nao filtra com search ativa |
+| ~~A5~~ | ~~FEITO~~ | `chiSquareMode.ts` | ~~sort por Cramers V antes de slice~~ |
+| ~~A6~~ | ~~FEITO~~ | `baseCodeExplorerView.ts` | ~~footer conta segmentos do codeIndex filtrado~~ |
 
 **A3+A4 solucao**: Usar PapaParse (ja e dep) no textExtractor e detectar extensao .parquet pra hyparquet.
 
@@ -99,8 +99,8 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 | S1 | Media | `textRetrievalMode.ts:360` | navigateToSegment incompleto: CSV/Image/PDF caem em openLinkText generico |
 | S2 | Media | `decisionTreeMode.ts:94` | "View in Text Retrieval" nao foca subconjunto — cai no TR geral |
 | S3 | Media | `textRetrievalMode.ts:378,382` | Navegacao markdown: getLeaf() nao garante a leaf correta com multiplas tabs |
-| S4 | Media | `unifiedModelAdapter.ts:75-77` | deleteCode delega pra 6 sub-models, cada um chama saveMarkers(). 6 saves redundantes |
-| S5 | Baixa | `baseCodeExplorerView.ts:29`, `detailListRenderer.ts:40-48` | searchTimeout nao cancelado em onClose() |
+| ~~S4~~ | ~~N/A~~ | `unifiedModelAdapter.ts` | ~~Nao e bug: DataManager.markDirty() debounce 500ms colapsa 6 saves em 1 escrita. Documentado~~ |
+| ~~S5~~ | ~~FEITO~~ | `baseCodeExplorerView.ts`, `detailListRenderer.ts` | ~~searchTimeout cancelado no onClose + cleanup retornado por renderListShell~~ |
 
 ---
 
