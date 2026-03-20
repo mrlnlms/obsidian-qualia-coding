@@ -600,9 +600,12 @@ describe('isPositionBefore', () => {
 		expect(model.isPositionBefore({ line: 3, ch: 0 }, { line: 2, ch: 0 })).toBe(false);
 	});
 
-	it('returns true when same line, ch is before or equal', () => {
+	it('returns true when same line, ch is strictly before', () => {
 		expect(model.isPositionBefore({ line: 1, ch: 3 }, { line: 1, ch: 5 })).toBe(true);
-		expect(model.isPositionBefore({ line: 1, ch: 5 }, { line: 1, ch: 5 })).toBe(true);
+	});
+
+	it('returns false when same line, ch is equal (strict <)', () => {
+		expect(model.isPositionBefore({ line: 1, ch: 5 }, { line: 1, ch: 5 })).toBe(false);
 	});
 
 	it('returns false when same line, ch is after', () => {

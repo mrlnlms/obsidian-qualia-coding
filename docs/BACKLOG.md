@@ -50,8 +50,8 @@
 | C1 | Media | z-index stacking | handles z:10000 vs popover z:9999. Escala proposta no item abaixo |
 | C2 | Media | `handleOverlayRenderer.ts:27,38` + `marginPanelExtension.ts:40` | Ambos setam scrollDOM position=relative. destroy() de um quebra o outro |
 | C3 | Media | `markerPositionUtils.ts:94-96` | ch sem clamp ao tamanho da linha. Offset sangra pra proxima linha |
-| C4 | Media | `codeMarkerModel.ts:540-563` | deleteCode: N saves/rebuilds em vez de batch |
-| C5 | Baixa | `codeMarkerModel.ts:481-491` | isPositionBefore/After: posicoes iguais satisfazem ambos. Markers de largura zero |
+| ~~C4~~ | ~~FEITO~~ | `codeMarkerModel.ts` | ~~deleteCode: batch save — mutacao in-place + 1 save no final~~ |
+| ~~C5~~ | ~~FEITO~~ | `codeMarkerModel.ts` | ~~isPositionBefore strict < (nao ambiguo pra posicoes iguais)~~ |
 | C6 | — | `marginPanelExtension.ts` 548 LOC | Candidato a split (position math, hover, DOM render) |
 
 **Escala z-index proposta (C1):**
@@ -81,7 +81,7 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
-| A1 | Media | `dendrogramMode.ts:42` | "Files" mode dead code. Radio button sem efeito — render sempre usa calculateCooccurrence |
+| ~~A1~~ | ~~FEITO~~ | `dendrogramMode.ts` | ~~dead code Files mode removido + dendrogramMode removido do context~~ |
 | A2 | Media | Chart.js instances | frequencyMode, wordCloudMode, acmMode, mdsMode, temporalMode — new Chart() sem destroy(). Leak em sessoes longas |
 | A3 | Media | `textExtractor.ts:177` | parseCsv() simplificado nao suporta multiline quoted fields. Desloca row em Text Retrieval/Word Cloud/Text Stats |
 | A4 | Media | `textExtractor.ts:35,80` | Markers Parquet relidos via vault.read() como texto. Lixo binario no Analytics |
