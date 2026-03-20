@@ -1,0 +1,163 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`consolidator refactor — snapshot parity > consolidate() output matches snapshot 1`] = `
+{
+  "codes": [
+    {
+      "color": "#FF0000",
+      "description": undefined,
+      "name": "Alpha",
+      "sources": [
+        "markdown",
+        "csv-segment",
+        "image",
+        "pdf",
+        "audio",
+        "video",
+      ],
+    },
+    {
+      "color": "#00FF00",
+      "description": undefined,
+      "name": "Beta",
+      "sources": [
+        "markdown",
+        "csv-segment",
+        "image",
+        "pdf",
+        "audio",
+        "video",
+        "csv-row",
+      ],
+    },
+  ],
+  "markers": [
+    {
+      "codes": [
+        "Alpha",
+        "Beta",
+      ],
+      "fileId": "note.md",
+      "id": "m1",
+      "meta": {
+        "createdAt": 1000,
+        "fromCh": 0,
+        "fromLine": 0,
+        "toCh": 10,
+        "toLine": 1,
+      },
+      "source": "markdown",
+    },
+    {
+      "codes": [
+        "Alpha",
+      ],
+      "fileId": "data.csv",
+      "id": "c1",
+      "meta": {
+        "column": "col1",
+        "createdAt": 2000,
+        "fromCh": 0,
+        "fromLine": 0,
+        "row": 0,
+        "toCh": 5,
+        "toLine": 0,
+      },
+      "source": "csv-segment",
+    },
+    {
+      "codes": [
+        "Beta",
+      ],
+      "fileId": "data.csv",
+      "id": "c2",
+      "meta": {
+        "column": "col2",
+        "createdAt": 3000,
+        "fromLine": 1,
+        "row": 1,
+        "toLine": 1,
+      },
+      "source": "csv-row",
+    },
+    {
+      "codes": [
+        "Alpha",
+      ],
+      "fileId": "img.png",
+      "id": "i1",
+      "meta": {
+        "createdAt": 4000,
+        "fromLine": 0,
+        "regionType": "rect",
+        "toLine": 100,
+      },
+      "source": "image",
+    },
+    {
+      "codes": [
+        "Alpha",
+      ],
+      "fileId": "doc.pdf",
+      "id": "p1",
+      "meta": {
+        "createdAt": 5000,
+        "fromLine": 0,
+        "page": 0,
+        "pdfText": "hello",
+        "toLine": 0,
+      },
+      "source": "pdf",
+    },
+    {
+      "codes": [
+        "Beta",
+      ],
+      "fileId": "doc.pdf",
+      "id": "p2",
+      "meta": {
+        "createdAt": 6000,
+        "fromLine": 1,
+        "page": 1,
+        "pdfText": "[rect region]",
+        "toLine": 1,
+      },
+      "source": "pdf",
+    },
+    {
+      "codes": [
+        "Alpha",
+      ],
+      "fileId": "clip.mp3",
+      "id": "a1",
+      "meta": {
+        "audioFrom": 0,
+        "audioTo": 5,
+        "createdAt": 7000,
+      },
+      "source": "audio",
+    },
+    {
+      "codes": [
+        "Beta",
+      ],
+      "fileId": "clip.mp4",
+      "id": "v1",
+      "meta": {
+        "createdAt": 8000,
+        "videoFrom": 0,
+        "videoTo": 10,
+      },
+      "source": "video",
+    },
+  ],
+  "sources": {
+    "audio": true,
+    "csv": true,
+    "image": true,
+    "markdown": true,
+    "pdf": true,
+    "video": true,
+  },
+}
+`;

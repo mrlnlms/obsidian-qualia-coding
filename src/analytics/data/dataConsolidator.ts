@@ -4,6 +4,7 @@ import type {
   UnifiedMarker,
   UnifiedCode,
   ConsolidatedData,
+  EngineType,
 } from "./dataTypes";
 import type { Marker } from "../../markdown/models/codeMarkerModel";
 import type { SegmentMarker, RowMarker } from "../../csv/csvCodingTypes";
@@ -13,53 +14,50 @@ import type { AudioFile } from "../../audio/audioCodingTypes";
 import type { VideoFile } from "../../video/videoCodingTypes";
 import type { CodeDefinition } from "../../core/types";
 
-interface MarkdownEngineData {
+export interface MarkdownEngineData {
   markers: Record<string, Marker[]>;
   codeDefinitions?: Record<string, CodeDefinition>;
 }
 
-interface CsvEngineData {
+export interface CsvEngineData {
   segmentMarkers: SegmentMarker[];
   rowMarkers: RowMarker[];
   registry?: { definitions: Record<string, CodeDefinition> };
 }
 
-interface ImageEngineData {
+export interface ImageEngineData {
   markers: ImageMarker[];
   registry?: { definitions: Record<string, CodeDefinition> };
 }
 
-interface PdfEngineData {
+export interface PdfEngineData {
   markers: PdfMarker[];
   shapes?: PdfShapeMarker[];
   registry?: { definitions: Record<string, CodeDefinition> };
 }
 
-interface AudioEngineData {
+export interface AudioEngineData {
   files: AudioFile[];
   codeDefinitions?: { definitions: Record<string, CodeDefinition> };
 }
 
-interface VideoEngineData {
+export interface VideoEngineData {
   files: VideoFile[];
   codeDefinitions?: { definitions: Record<string, CodeDefinition> };
 }
 
-export function consolidate(
-  markdownData: MarkdownEngineData | null,
-  csvData: CsvEngineData | null,
-  imageData: ImageEngineData | null,
-  pdfData: PdfEngineData | null = null,
-  audioData: AudioEngineData | null = null,
-  videoData: VideoEngineData | null = null,
-): ConsolidatedData {
-  const markers: UnifiedMarker[] = [];
-  const codeMap = new Map<string, { color: string; description?: string; sources: Set<SourceType> }>();
+export interface EngineSlice {
+  markers: UnifiedMarker[];
+  hasData: boolean;
+}
 
-  // ── Markdown ──
-  const hasMd = markdownData?.markers != null;
-  if (hasMd) {
-    const mdMarkers = markdownData.markers;
+// ── Per-engine consolidation functions ──
+
+export function consolidateMarkdown(data: MarkdownEngineData | null): EngineSlice {
+  const hasData = data?.markers != null;
+  const markers: UnifiedMarker[] = [];
+  if (hasData) {
+    const mdMarkers = data.markers;
     for (const [fileId, fileMarkers] of Object.entries(mdMarkers)) {
       if (!Array.isArray(fileMarkers)) continue;
       for (const m of fileMarkers) {
@@ -80,20 +78,17 @@ export function consolidate(
         });
       }
     }
-    // Code definitions
-    if (markdownData.codeDefinitions) {
-      for (const def of Object.values(markdownData.codeDefinitions)) {
-        mergeDef(codeMap, def.name, def.color, def.description, "markdown");
-      }
-    }
   }
+  return { markers, hasData };
+}
 
-  // ── CSV ──
-  const hasCsv = csvData?.segmentMarkers != null || csvData?.rowMarkers != null;
-  if (hasCsv) {
+export function consolidateCsv(data: CsvEngineData | null): EngineSlice {
+  const hasData = data?.segmentMarkers != null || data?.rowMarkers != null;
+  const markers: UnifiedMarker[] = [];
+  if (hasData) {
     // Segment markers
-    if (Array.isArray(csvData.segmentMarkers)) {
-      for (const m of csvData.segmentMarkers) {
+    if (Array.isArray(data.segmentMarkers)) {
+      for (const m of data.segmentMarkers) {
         const codes = extractCodes(m.codes);
         if (codes.length === 0) continue;
         markers.push({
@@ -111,8 +106,8 @@ export function consolidate(
       }
     }
     // Row markers
-    if (Array.isArray(csvData.rowMarkers)) {
-      for (const m of csvData.rowMarkers) {
+    if (Array.isArray(data.rowMarkers)) {
+      for (const m of data.rowMarkers) {
         const codes = extractCodes(m.codes);
         if (codes.length === 0) continue;
         markers.push({
@@ -124,19 +119,15 @@ export function consolidate(
         });
       }
     }
-    // Registry
-    const csvDefs = csvData.registry?.definitions;
-    if (csvDefs) {
-      for (const def of Object.values(csvDefs)) {
-        mergeDef(codeMap, def.name, def.color, def.description, "csv-segment");
-      }
-    }
   }
+  return { markers, hasData };
+}
 
-  // ── Image ──
-  const hasImg = Array.isArray(imageData?.markers);
-  if (hasImg) {
-    for (const m of imageData.markers) {
+export function consolidateImage(data: ImageEngineData | null): EngineSlice {
+  const hasData = Array.isArray(data?.markers);
+  const markers: UnifiedMarker[] = [];
+  if (hasData) {
+    for (const m of data!.markers) {
       const codes = extractCodes(m.codes);
       if (codes.length === 0) continue;
       const imgMeta: NonNullable<UnifiedMarker["meta"]> = { regionType: m.shape };
@@ -153,18 +144,15 @@ export function consolidate(
         meta: imgMeta,
       });
     }
-    const imgDefs = imageData.registry?.definitions;
-    if (imgDefs) {
-      for (const def of Object.values(imgDefs)) {
-        mergeDef(codeMap, def.name, def.color, def.description, "image");
-      }
-    }
   }
+  return { markers, hasData };
+}
 
-  // ── PDF ──
-  const hasPdf = Array.isArray(pdfData?.markers);
-  if (hasPdf) {
-    for (const m of pdfData.markers) {
+export function consolidatePdf(data: PdfEngineData | null): EngineSlice {
+  const hasData = Array.isArray(data?.markers);
+  const markers: UnifiedMarker[] = [];
+  if (hasData) {
+    for (const m of data!.markers) {
       const codes = extractCodes(m.codes);
       if (codes.length === 0) continue;
       markers.push({
@@ -181,9 +169,9 @@ export function consolidate(
         },
       });
     }
-    // ── PDF shapes (rectangle, ellipse, polygon region markers) ──
-    if (Array.isArray(pdfData.shapes)) {
-      for (const s of pdfData.shapes) {
+    // PDF shapes (rectangle, ellipse, polygon region markers)
+    if (Array.isArray(data!.shapes)) {
+      for (const s of data!.shapes) {
         const codes = extractCodes(s.codes);
         if (codes.length === 0) continue;
         markers.push({
@@ -201,18 +189,15 @@ export function consolidate(
         });
       }
     }
-    const pdfDefs = pdfData.registry?.definitions;
-    if (pdfDefs) {
-      for (const def of Object.values(pdfDefs)) {
-        mergeDef(codeMap, def.name, def.color, def.description, "pdf");
-      }
-    }
   }
+  return { markers, hasData };
+}
 
-  // ── Audio ──
-  const hasAudio = Array.isArray(audioData?.files);
-  if (hasAudio) {
-    for (const af of audioData.files) {
+export function consolidateAudio(data: AudioEngineData | null): EngineSlice {
+  const hasData = Array.isArray(data?.files);
+  const markers: UnifiedMarker[] = [];
+  if (hasData) {
+    for (const af of data!.files) {
       for (const m of af.markers) {
         const codes = extractCodes(m.codes);
         if (codes.length === 0) continue;
@@ -229,18 +214,15 @@ export function consolidate(
         });
       }
     }
-    const audioDefs = audioData.codeDefinitions?.definitions;
-    if (audioDefs) {
-      for (const def of Object.values(audioDefs)) {
-        mergeDef(codeMap, def.name, def.color, def.description, "audio");
-      }
-    }
   }
+  return { markers, hasData };
+}
 
-  // ── Video ──
-  const hasVideo = Array.isArray(videoData?.files);
-  if (hasVideo) {
-    for (const vf of videoData.files) {
+export function consolidateVideo(data: VideoEngineData | null): EngineSlice {
+  const hasData = Array.isArray(data?.files);
+  const markers: UnifiedMarker[] = [];
+  if (hasData) {
+    for (const vf of data!.files) {
       for (const m of vf.markers) {
         const codes = extractCodes(m.codes);
         if (codes.length === 0) continue;
@@ -257,16 +239,42 @@ export function consolidate(
         });
       }
     }
-    const videoDefs = videoData.codeDefinitions?.definitions;
-    if (videoDefs) {
-      for (const def of Object.values(videoDefs)) {
-        mergeDef(codeMap, def.name, def.color, def.description, "video");
+  }
+  return { markers, hasData };
+}
+
+// ── Engine → SourceType mapping for definitions ──
+
+const ENGINE_DEF_SOURCE: Record<EngineType, SourceType> = {
+  markdown: "markdown",
+  csv: "csv-segment",
+  image: "image",
+  pdf: "pdf",
+  audio: "audio",
+  video: "video",
+};
+
+// ── Code consolidation ──
+
+export function consolidateCodes(
+  allMarkers: UnifiedMarker[],
+  definitions: Record<string, CodeDefinition>,
+  activeEngines: EngineType[],
+): UnifiedCode[] {
+  const codeMap = new Map<string, { color: string; description?: string; sources: Set<SourceType> }>();
+
+  // Merge definitions for each active engine
+  if (definitions) {
+    for (const engine of activeEngines) {
+      const source = ENGINE_DEF_SOURCE[engine];
+      for (const def of Object.values(definitions)) {
+        mergeDef(codeMap, def.name, def.color, def.description, source);
       }
     }
   }
 
-  // Also discover codes that appear in markers but not in definitions
-  for (const m of markers) {
+  // Discover codes that appear in markers but not in definitions
+  for (const m of allMarkers) {
     for (const code of m.codes) {
       if (!codeMap.has(code)) {
         codeMap.set(code, { color: "#6200EE", sources: new Set([m.source]) });
@@ -287,22 +295,61 @@ export function consolidate(
   }
   codes.sort((a, b) => a.name.localeCompare(b.name));
 
+  return codes;
+}
+
+// ── Main consolidate (thin composition) ──
+
+export function consolidate(
+  markdownData: MarkdownEngineData | null,
+  csvData: CsvEngineData | null,
+  imageData: ImageEngineData | null,
+  pdfData: PdfEngineData | null = null,
+  audioData: AudioEngineData | null = null,
+  videoData: VideoEngineData | null = null,
+): ConsolidatedData {
+  const md = consolidateMarkdown(markdownData);
+  const csv = consolidateCsv(csvData);
+  const img = consolidateImage(imageData);
+  const pdf = consolidatePdf(pdfData);
+  const aud = consolidateAudio(audioData);
+  const vid = consolidateVideo(videoData);
+  const markers = [...md.markers, ...csv.markers, ...img.markers, ...pdf.markers, ...aud.markers, ...vid.markers];
+
+  const defs = markdownData?.codeDefinitions
+    ?? csvData?.registry?.definitions
+    ?? imageData?.registry?.definitions
+    ?? pdfData?.registry?.definitions
+    ?? audioData?.codeDefinitions?.definitions
+    ?? videoData?.codeDefinitions?.definitions
+    ?? {};
+
+  const activeEngines: EngineType[] = [];
+  if (md.hasData) activeEngines.push('markdown');
+  if (csv.hasData) activeEngines.push('csv');
+  if (img.hasData) activeEngines.push('image');
+  if (pdf.hasData) activeEngines.push('pdf');
+  if (aud.hasData) activeEngines.push('audio');
+  if (vid.hasData) activeEngines.push('video');
+
+  const codes = consolidateCodes(markers, defs, activeEngines);
+
   return {
     markers,
     codes,
     sources: {
-      markdown: hasMd,
-      csv: hasCsv,
-      image: hasImg,
-      pdf: hasPdf,
-      audio: hasAudio,
-      video: hasVideo,
+      markdown: md.hasData,
+      csv: csv.hasData,
+      image: img.hasData,
+      pdf: pdf.hasData,
+      audio: aud.hasData,
+      video: vid.hasData,
     },
     lastUpdated: Date.now(),
   };
 }
 
-function extractCodes(raw: unknown): string[] {
+export function extractCodes(raw: unknown): string[] {
   if (!raw) return [];
   if (Array.isArray(raw)) {
     // Could be string[] or {name: string}[]
@@ -311,7 +358,7 @@ function extractCodes(raw: unknown): string[] {
   return [];
 }
 
-function mergeDef(
+export function mergeDef(
   map: Map<string, { color: string; description?: string; sources: Set<SourceType> }>,
   name: string,
   color: string,
