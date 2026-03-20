@@ -161,7 +161,7 @@ describe('update', () => {
     registry.create('Emotion');
     registry.create('Theme');
     const onMutate = vi.fn();
-    registry.setOnMutate(onMutate);
+    registry.addOnMutate(onMutate);
     const emotion = registry.getByName('Emotion')!;
     registry.update(emotion.id, { name: 'Theme' });
     expect(onMutate).not.toHaveBeenCalled();
@@ -318,7 +318,7 @@ describe('syncPaletteIndex', () => {
 describe('onMutate', () => {
   it('calls callback on create', () => {
     const fn = vi.fn();
-    registry.setOnMutate(fn);
+    registry.addOnMutate(fn);
     registry.create('A');
     expect(fn).toHaveBeenCalledTimes(1);
   });
@@ -326,7 +326,7 @@ describe('onMutate', () => {
   it('calls callback on update', () => {
     const def = registry.create('A');
     const fn = vi.fn();
-    registry.setOnMutate(fn);
+    registry.addOnMutate(fn);
     registry.update(def.id, { color: '#000' });
     expect(fn).toHaveBeenCalledTimes(1);
   });
@@ -334,14 +334,14 @@ describe('onMutate', () => {
   it('calls callback on delete', () => {
     const def = registry.create('A');
     const fn = vi.fn();
-    registry.setOnMutate(fn);
+    registry.addOnMutate(fn);
     registry.delete(def.id);
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it('does not call callback when delete fails', () => {
     const fn = vi.fn();
-    registry.setOnMutate(fn);
+    registry.addOnMutate(fn);
     registry.delete('nope');
     expect(fn).not.toHaveBeenCalled();
   });
@@ -350,7 +350,7 @@ describe('onMutate', () => {
     registry.create('A');
     registry.create('B');
     const fn = vi.fn();
-    registry.setOnMutate(fn);
+    registry.addOnMutate(fn);
     registry.clear();
     expect(fn).toHaveBeenCalledTimes(1);
     expect(registry.getAll()).toEqual([]);

@@ -52,7 +52,7 @@ export default class QualiaCodingPlugin extends Plugin {
 
 		// Auto-persist registry on any mutation (create/update/delete code)
 		// Also notify sidebar views to refresh (rename, color, description changes)
-		this.sharedRegistry.setOnMutate(() => {
+		this.sharedRegistry.addOnMutate(() => {
 			this.dataManager.setSection('registry', this.sharedRegistry.toJSON());
 			document.dispatchEvent(new Event('qualia:registry-changed'));
 		});

@@ -26,12 +26,17 @@ export class CodeDefinitionRegistry {
 	private definitions: Map<string, CodeDefinition> = new Map();
 	private nameIndex: Map<string, string> = new Map(); // name → id
 	private nextPaletteIndex: number = 0;
-	private onMutate: (() => void) | null = null;
+	private onMutateListeners: Set<() => void> = new Set();
 	private onRenamed: ((oldName: string, newName: string) => void) | null = null;
 
-	/** Register a callback invoked on every mutation (create/update/delete). Used by DataManager for auto-persist. */
-	setOnMutate(fn: () => void): void {
-		this.onMutate = fn;
+	/** Register a callback invoked on every mutation (create/update/delete). */
+	addOnMutate(fn: () => void): void {
+		this.onMutateListeners.add(fn);
+	}
+
+	/** Unregister a previously registered mutation callback. */
+	removeOnMutate(fn: () => void): void {
+		this.onMutateListeners.delete(fn);
 	}
 
 	/** Register a callback invoked when a code name changes. Used to propagate renames to markers. */
@@ -74,7 +79,7 @@ export class CodeDefinitionRegistry {
 
 		this.definitions.set(def.id, def);
 		this.nameIndex.set(def.name, def.id);
-		this.onMutate?.();
+		for (const fn of this.onMutateListeners) fn();
 		return def;
 	}
 
@@ -100,7 +105,7 @@ export class CodeDefinitionRegistry {
 			def.description = changes.description || undefined;
 		}
 		def.updatedAt = Date.now();
-		this.onMutate?.();
+		for (const fn of this.onMutateListeners) fn();
 		return true;
 	}
 
@@ -110,7 +115,7 @@ export class CodeDefinitionRegistry {
 
 		this.nameIndex.delete(def.name);
 		this.definitions.delete(id);
-		this.onMutate?.();
+		for (const fn of this.onMutateListeners) fn();
 		return true;
 	}
 
@@ -119,7 +124,7 @@ export class CodeDefinitionRegistry {
 		this.definitions.clear();
 		this.nameIndex.clear();
 		this.nextPaletteIndex = 0;
-		this.onMutate?.();
+		for (const fn of this.onMutateListeners) fn();
 	}
 
 	// --- Palette ---
