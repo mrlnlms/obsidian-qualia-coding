@@ -134,7 +134,6 @@ function makeCtx(data: ConsolidatedData): AnalyticsViewContext {
 		acmShowCodeLabels: false,
 		mdsMode: 'classic',
 		mdsShowLabels: false,
-		dendrogramMode: 'codes',
 		dendrogramCutDistance: 0.5,
 		lagValue: 1,
 		tsSort: { col: 'code', asc: true },

@@ -56,7 +56,6 @@ export interface AnalyticsViewContext {
   mdsShowLabels: boolean;
 
   // Dendrogram state
-  dendrogramMode: "codes" | "files";
   dendrogramCutDistance: number;
 
   // Lag Sequential state

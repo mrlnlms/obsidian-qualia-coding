@@ -7,20 +7,6 @@ import type { AnalyticsViewContext } from "../analyticsViewContext";
 import { buildCsv } from "../shared/chartHelpers";
 
 export function renderDendrogramOptionsSection(ctx: AnalyticsViewContext): void {
-  const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
-  section.createDiv({ cls: "codemarker-config-section-title", text: "Mode" });
-
-  for (const [value, label] of [["codes", "Codes"], ["files", "Files"]] as const) {
-    const row = section.createDiv({ cls: "codemarker-config-row" });
-    const radio = row.createEl("input", { type: "radio" });
-    radio.name = "dendrogramMode";
-    radio.value = value;
-    radio.checked = ctx.dendrogramMode === value;
-    row.createSpan({ text: label });
-    radio.addEventListener("change", () => { ctx.dendrogramMode = value; ctx.scheduleUpdate(); });
-    row.addEventListener("click", (e) => { if (e.target !== radio) { radio.checked = true; radio.dispatchEvent(new Event("change")); } });
-  }
-
   // Cut distance slider
   const cutSection = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
   cutSection.createDiv({ cls: "codemarker-config-section-title", text: `Cut Distance: ${ctx.dendrogramCutDistance.toFixed(2)}` });

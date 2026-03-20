@@ -48,7 +48,6 @@ export class AnalyticsView extends ItemView {
   mdsShowLabels = true;
 
   // Dendrogram state
-  dendrogramMode: "codes" | "files" = "codes";
   dendrogramCutDistance = 0.5;
 
   // Lag Sequential state

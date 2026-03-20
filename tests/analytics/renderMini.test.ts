@@ -188,7 +188,6 @@ function createMockCtx(overrides = {}): any {
 		polarFocalCode: 'A',
 		polarMaxLag: 3,
 		chiGroupBy: 'source',
-		dendrogramMode: 'codes',
 		dendrogramCutDistance: 0.5,
 		dtOutcomeCode: 'A',
 		dtMaxDepth: 3,

@@ -337,7 +337,6 @@ describe('AnalyticsView instantiation', () => {
 
 	it('initializes dendrogram defaults', () => {
 		const view = createView();
-		expect(view.dendrogramMode).toBe('codes');
 		expect(view.dendrogramCutDistance).toBe(0.5);
 	});
 

@@ -175,7 +175,6 @@ function createMockCtx(overrides: Partial<AnalyticsViewContext> = {}): Analytics
 		acmShowCodeLabels: true,
 		mdsMode: 'codes',
 		mdsShowLabels: true,
-		dendrogramMode: 'codes',
 		dendrogramCutDistance: 0.5,
 		lagValue: 1,
 		tsSort: { col: 'code', asc: true },
@@ -553,20 +552,6 @@ describe('renderDendrogramOptionsSection', () => {
 		ctx = createMockCtx({ viewMode: 'dendrogram' });
 	});
 
-	it('creates a section with title "Mode"', () => {
-		renderDendrogramOptionsSection(ctx);
-		const titles = ctx.configPanelEl!.querySelectorAll('.codemarker-config-section-title');
-		expect(titles[0]!.textContent).toBe('Mode');
-	});
-
-	it('creates 2 radio buttons for codes/files mode', () => {
-		renderDendrogramOptionsSection(ctx);
-		const radios = ctx.configPanelEl!.querySelectorAll('input[type="radio"]');
-		expect(radios).toHaveLength(2);
-		const values = Array.from(radios).map((r) => (r as HTMLInputElement).value);
-		expect(values).toEqual(['codes', 'files']);
-	});
-
 	it('creates a range slider for cut distance', () => {
 		renderDendrogramOptionsSection(ctx);
 		const slider = ctx.configPanelEl!.querySelector('input[type="range"]') as HTMLInputElement;
@@ -579,7 +564,7 @@ describe('renderDendrogramOptionsSection', () => {
 	it('displays cut distance value in section title', () => {
 		renderDendrogramOptionsSection(ctx);
 		const titles = ctx.configPanelEl!.querySelectorAll('.codemarker-config-section-title');
-		expect(titles[1]!.textContent).toBe('Cut Distance: 0.50');
+		expect(titles[0]!.textContent).toBe('Cut Distance: 0.50');
 	});
 
 	it('changing slider updates dendrogramCutDistance and calls scheduleUpdate', () => {
@@ -597,15 +582,7 @@ describe('renderDendrogramOptionsSection', () => {
 		slider.value = '0.33';
 		slider.dispatchEvent(new Event('input'));
 		const titles = ctx.configPanelEl!.querySelectorAll('.codemarker-config-section-title');
-		expect(titles[1]!.textContent).toBe('Cut Distance: 0.33');
-	});
-
-	it('changing radio updates dendrogramMode and calls scheduleUpdate', () => {
-		renderDendrogramOptionsSection(ctx);
-		const radio = ctx.configPanelEl!.querySelector('input[value="files"]') as HTMLInputElement;
-		radio.dispatchEvent(new Event('change'));
-		expect(ctx.dendrogramMode).toBe('files');
-		expect(ctx.scheduleUpdate).toHaveBeenCalledTimes(1);
+		expect(titles[0]!.textContent).toBe('Cut Distance: 0.33');
 	});
 });
 

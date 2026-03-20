@@ -121,7 +121,6 @@ function createMockCtx(overrides: Partial<AnalyticsViewContext> = {}): Analytics
 		acmShowCodeLabels: true,
 		mdsMode: 'codes',
 		mdsShowLabels: true,
-		dendrogramMode: 'codes',
 		dendrogramCutDistance: 0.5,
 		lagValue: 1,
 		tsSort: { col: 'code', asc: true },
