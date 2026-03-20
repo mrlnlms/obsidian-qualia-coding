@@ -215,7 +215,7 @@ Elementos renderizados fora do DOM do Obsidian (CM6 tooltips, WaveSurfer, Fabric
 | `qualia-pdf:navigate` | — | **Não implementado** — PDF abre via `#page=N`, sem scroll a marker específico |
 | `qualia-image:navigate` | `{file, markerId}` | Pan to region + flash glow |
 | `qualia-csv:navigate` | `{file, row, column}` | `ensureIndexVisible` + `flashCells` |
-| `qualia-audio:navigate` / `qualia-video:navigate` | `{file, seekTo}` | Seek waveform + play |
+| `qualia-audio:navigate` / `qualia-video:navigate` | `{file, seekTo}` | Seek waveform (sem play automático) |
 | `qualia:clear-all` | (none) | Board/Image/Analytics views clear live state |
 
 ### 4.7 openCodingPopover()

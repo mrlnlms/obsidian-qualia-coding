@@ -4,6 +4,21 @@
 
 ---
 
+## Text Retrieval navigateToSegment incompleto
+
+**Severidade**: Media
+
+`textRetrievalMode.ts:360` — `navigateToSegment()` so usa navegacao especifica pra audio e video. Para CSV (segment/row), Image e PDF, cai em `openLinkText(file, "", "tab")` generico, descartando metadados ja disponiveis no segmento (row, column, markerId, page).
+
+**Resultado**: clique no Text Retrieval abre o arquivo mas nao leva ao alvo — CSV nao vai pra linha, Image nao destaca regiao, PDF nao abre na pagina.
+
+**Acao**: Dispatch de eventos especificos por engine com payload correto:
+- CSV: `qualia-csv:navigate` com `{file, row}`
+- Image: `qualia-image:navigate` com `{file, markerId}`
+- PDF: depende de implementar `qualia-pdf:navigate` (item abaixo)
+
+---
+
 ## PDF navigate nao foca marker especifico
 
 Navegacao de PDF da sidebar abre a pagina via `#page=N` generico, mas descarta o `markerId`. Nao ha scroll nem flash do highlight/shape especifico. O evento `qualia-pdf:navigate` documentado no ARCHITECTURE.md nao existe no codigo.
