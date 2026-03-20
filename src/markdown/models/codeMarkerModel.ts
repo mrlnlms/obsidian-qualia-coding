@@ -481,7 +481,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 	isPositionBefore(pos1: { line: number; ch: number }, pos2: { line: number; ch: number }): boolean {
 		if (pos1.line < pos2.line) return true;
 		if (pos1.line > pos2.line) return false;
-		return pos1.ch <= pos2.ch;
+		return pos1.ch < pos2.ch;
 	}
 
 	isPositionAfter(pos1: { line: number; ch: number }, pos2: { line: number; ch: number }): boolean {
@@ -541,17 +541,21 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		const def = this.registry.getByName(codeName);
 		if (!def) return;
 
-		// Remove code from all markers; delete markers left with no codes
-		const allMarkers = this.getAllMarkers();
+		// Remove code from all markers; delete markers left with no codes.
+		// Do all mutations first, then save once (avoid N saves via removeMarker).
 		const affectedFiles = new Set<string>();
-		for (const marker of allMarkers) {
-			const idx = marker.codes.indexOf(codeName);
-			if (idx < 0) continue;
-			marker.codes.splice(idx, 1);
-			affectedFiles.add(marker.fileId);
-			if (marker.codes.length === 0) {
-				this.removeMarker(marker.id);
+		for (const [fileId, markers] of this.markers.entries()) {
+			for (let i = markers.length - 1; i >= 0; i--) {
+				const marker = markers[i];
+				const idx = marker.codes.indexOf(codeName);
+				if (idx < 0) continue;
+				marker.codes.splice(idx, 1);
+				affectedFiles.add(fileId);
+				if (marker.codes.length === 0) {
+					markers.splice(i, 1);
+				}
 			}
+			if (markers.length === 0) this.markers.delete(fileId);
 		}
 
 		this.registry.delete(def.id);
@@ -560,6 +564,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		for (const fileId of affectedFiles) {
 			this.updateMarkersForFile(fileId);
 		}
+		this._notifyChange();
 	}
 
 	setCodeDescription(codeName: string, description: string) {
