@@ -73,6 +73,7 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		this.model.offHoverChange(this.boundApplyHover);
 		document.removeEventListener('qualia:registry-changed', this.scheduleRefresh);
 		if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+		if (this.searchTimeout) { clearTimeout(this.searchTimeout); this.searchTimeout = null; }
 		this.contentEl.empty();
 	}
 
@@ -239,9 +240,6 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		this.fileNodes = [];
 
 		const fullIndex = this.buildCodeIndex();
-		const totalSegments = Array.from(fullIndex.values()).reduce(
-			(sum, fileMap) => sum + Array.from(fileMap.values()).reduce((s, arr) => s + arr.length, 0), 0
-		);
 
 		if (fullIndex.size === 0) {
 			this.treeZone.createEl('p', {
@@ -252,6 +250,9 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		}
 
 		const codeIndex = this.filterCodeIndex(fullIndex);
+		const totalSegments = Array.from(codeIndex.values()).reduce(
+			(sum, fileMap) => sum + Array.from(fileMap.values()).reduce((s, arr) => s + arr.length, 0), 0
+		);
 
 		const resultsEl = this.treeZone.createDiv({ cls: 'search-results-container' });
 
