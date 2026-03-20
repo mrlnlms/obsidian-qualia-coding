@@ -238,10 +238,15 @@ export function renderMiniACM(canvas: HTMLCanvasElement, ctx: AnalyticsViewConte
   const H = canvas.height;
   const isDark = document.body.classList.contains("theme-dark");
 
-  // Quick sync MCA computation for thumbnail — use full data
-  const codes = ctx.data.codes.map((c) => c.name);
-  const colors = ctx.data.codes.map((c) => c.color);
-  const filtered = ctx.data.markers.filter((m) => filters.sources.includes(m.source));
+  // Quick sync MCA computation for thumbnail — respect enabledCodes
+  const enabledCodes = ctx.enabledCodes;
+  const enabledDefs = ctx.data.codes.filter((c) => enabledCodes.has(c.name));
+  const codes = enabledDefs.map((c) => c.name);
+  const colors = enabledDefs.map((c) => c.color);
+  const filtered = ctx.data.markers.filter((m) =>
+    filters.sources.includes(m.source) &&
+    m.codes.some((c) => enabledCodes.has(c))
+  ).map(m => ({ ...m, codes: m.codes.filter(c => enabledCodes.has(c)) }));
 
   if (filtered.length < 2 || codes.length < 2) {
     canvasCtx.fillStyle = isDark ? "#b0b0b0" : "#888";
