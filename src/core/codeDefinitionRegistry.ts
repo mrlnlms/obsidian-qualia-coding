@@ -175,8 +175,12 @@ export class CodeDefinitionRegistry {
 		if (data?.definitions) {
 			for (const id in data.definitions) {
 				const def = data.definitions[id] as CodeDefinition;
+				// Garante consistencia entre key do JSON e def.id.
+				// Se alguem editar data.json manualmente e mudar a key sem
+				// atualizar def.id, o nameIndex apontaria pra um ID inexistente.
+				def.id = id;
 				registry.definitions.set(id, def);
-				registry.nameIndex.set(def.name, def.id);
+				registry.nameIndex.set(def.name, id);
 			}
 		}
 		if (typeof data?.nextPaletteIndex === 'number') {
