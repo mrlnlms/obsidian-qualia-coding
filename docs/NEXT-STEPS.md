@@ -65,7 +65,7 @@
 |------|------|-------------|-----|
 | Projects + Workspace | Feature | **Alta** | ROADMAP #13 |
 | Export (CSV, JSON, QDPX, PNG) | Feature | Media-Alta | ROADMAP #15 |
-| Intercoder Reliability (kappa/alpha) | Gap estrategico | Media | BACKLOG §Gaps |
+| Intercoder Reliability (kappa/alpha) | Gap estrategico | Media | ROADMAP §Gaps |
 
 ---
 

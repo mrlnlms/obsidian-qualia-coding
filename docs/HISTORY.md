@@ -444,6 +444,97 @@ Alguns arquivos foram adaptados de projetos open-source:
 
 ---
 
+## Consolidacao tecnica (2026-03-07 a 2026-03-19)
+
+> Items originalmente no BACKLOG.md, movidos para ca apos resolucao.
+
+### Metricas de evolucao
+
+| Metrica | 7 plugins | Pos-consolidacao | Delta |
+|---------|-----------|-----------------|-------|
+| **LOC (src/*.ts)** | 38.067 | ~28.700 | **-25%** |
+| **CSS** | ~4.500 | 4.010 | **-11%** |
+| **Maior arquivo** | 11.147 | ~250 | **-98%** |
+| **Testes** | 0 | 1.568 (1503 unit + 65 e2e) | +1.568 |
+| **as any** | 222+ | 6 | **-97%** |
+| **@ts-ignore** | 44+ | 3 | **-93%** |
+| **tsc errors** | 82 | 0 | **-100%** |
+
+### Refactors executados (57 commits, ~1.360 LOC eliminadas)
+
+- Menu consolidation: 3 niveis (helpers → adapter → audio+video merge) — 1 sistema para todos os engines
+- Audio/Video merge: 2 models identicos → MediaCodingModel + MediaViewCore (composicao)
+- analyticsView split: 5.907 LOC → 798 + 19 mode modules
+- statsEngine split: 951 → 6 modulos + barrel
+- boardNodes split: 825 → 14 (barrel) + 6 arquivos em nodes/
+- csvCodingView split: 801 → 210 (orquestrador puro)
+- Dead code: ~293 LOC eliminadas (views substituidas pelas unified)
+- CSS: namespace unificado (codemarker-popover), classes orfas removidas
+- BaseSidebarAdapter: base class para todos os sidebar adapters
+- Type safety: `as any` 222→6, `@ts-ignore` 44→3, 82→0 erros tsc
+- Naming: `file`→`fileId`, `note`→`memo`, `deleteMarker`→`removeMarker`, `colorOverride` em todos os tipos
+- Registry: auto-persist via onMutate callback
+- Engine registration: retorno explicito `{cleanup, model}`
+- Fabric.js: `fabricExtensions.d.ts` + `boardTypes.ts` (discriminated union)
+- drawToolbarFactory: catalogo compartilhado PDF + Image
+
+### Bugs corrigidos (36 bugs em 10 rodadas de audit + Codex)
+
+- Registry rename collision
+- Clear All nao limpava Board/Image/Analytics/models em memoria
+- PDF shapes invisiveis em analytics
+- Orphan markers `codes:[]` no deleteCode
+- PDF memo perdido em nova selecao
+- Media memo: notify em vez de save
+- Popover listeners vazam no document
+- Board autosave recriava board.json apos clear
+- Image view race em troca rapida de arquivo
+- Board addToBoard race (canvasState null)
+- Image navigation timeout (200ms → waitUntilReady promise)
+- migrateFilePath nao atualizava fileStates (Image + Media)
+- Color picker cancel deixa refresh suspenso
+- paletteIndex -1 em cor manual
+- Markdown persiste buckets vazios
+- Media mantem files[] vazios apos ultimo marker
+- PDF hot-reload vaza listeners
+- Media css-change listener acumula
+- Text Retrieval navegava audio/video com evento errado
+- Analytics async render race (troca rapida de mode)
+- Frequency mode omitia video
+- PDF undo restaura code names renomeados/deletados
+- Parquet non-string cells crash
+- CSV chip click era no-op
+- CSV sidebar adapter nao passava memo/colorOverride
+- Rename nao atualizava codeName no detail view
+- Registry mutations nao propagavam para sidebar
+- Board readyPromise one-shot + cleared nao resetava
+- ImageView race close durante await
+- dashboardMode thumbnails em branco (silenciado por try/catch)
+
+### Acessibilidade e CSS (audit 2026-03-19)
+
+- 5 hardcoded colors → CSS variables (theme-safe)
+- Focus-visible styles em ~30 botoes interativos
+- aria-labels em drawToolbar, analytics, detailView
+- DT distribution bars: title attributes com % e contagem
+- !important: 74 → 66 (6 removidos safe)
+- Inline styles: 15 migrados para 3 CSS classes (regionRenderer)
+
+### Suite de testes (0 → 1.568)
+
+- Vitest + jsdom: 1.503 testes em 50 suites (32 modulos de logica pura)
+- wdio + Obsidian: 65 testes em 18 specs (6 engines + analytics + sidebar + modais)
+- CI: GitHub Actions com unit + coverage gate + e2e smoke via xvfb
+- Harness e2e: `obsidian-e2e-visual-test-kit` (repo publico)
+
+### Patterns emergentes
+
+- `qualia:clear-all` event — views limpam state em memoria independentemente
+- `qualia:registry-changed` + `qualia:code-renamed` — sidebar views refresham
+- `waitUntilReady()` promise — substitui polling em views com setup assincrono
+
+---
+
 ## Fontes
 
 Este documento consolida:
