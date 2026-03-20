@@ -44,10 +44,14 @@ export function renderACMBiplot(ctx: AnalyticsViewContext, filters: FilterConfig
     return def?.color ?? "#888888";
   });
 
+  const enabledCodesSet = ctx.enabledCodes;
   const filtered = ctx.data.markers.filter((m) =>
     filters.sources.includes(m.source) &&
     m.codes.some((c) => !filters.excludeCodes.includes(c))
-  );
+  ).map(m => ({
+    ...m,
+    codes: m.codes.filter(c => enabledCodesSet.has(c)),
+  })).filter(m => m.codes.length > 0);
 
   if (filtered.length < 2 || enabledCodeNames.length < 2) {
     ctx.chartContainer.createDiv({
@@ -298,10 +302,14 @@ export function exportACMCSV(ctx: AnalyticsViewContext, date: string): void {
     return def?.color ?? "#888888";
   });
 
+  const enabledCodesSet = ctx.enabledCodes;
   const filtered = ctx.data.markers.filter((m) =>
     filters.sources.includes(m.source) &&
     m.codes.some((c) => !filters.excludeCodes.includes(c))
-  );
+  ).map(m => ({
+    ...m,
+    codes: m.codes.filter(c => enabledCodesSet.has(c)),
+  })).filter(m => m.codes.length > 0);
 
   new Notice("Computing MCA for export...");
   calculateMCA(filtered, codes, colors).then((result) => {

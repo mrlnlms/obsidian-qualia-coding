@@ -29,6 +29,16 @@
 
 ---
 
+## PDF childListeners leak em cleanupOrphanedObservers
+
+**Severidade**: Media
+
+`pdf/index.ts:50,234` — `cleanupOrphanedObservers()` remove observer, drawInteraction e toolbar, mas nao limpa entradas de `childListeners`. Listeners de mousemove/mouseup continuam referenciados no Map pra viewers orfaos ate unload completo.
+
+**Acao**: Limpar `childListeners` no cleanup de observers orfaos.
+
+---
+
 ## PDF hover/popover state global entre views
 
 **Severidade**: Media
