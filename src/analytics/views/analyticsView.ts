@@ -202,7 +202,9 @@ export class AnalyticsView extends ItemView {
     refreshBtn.addEventListener("click", async () => {
       this.data = await this.plugin.loadConsolidatedData();
       if (this.data) {
+        // Reset all filters on empty-state refresh
         this.enabledCodes = new Set(this.data.codes.map((c) => c.name));
+        this.disabledCodes.clear();
       }
       this.renderView();
     });
@@ -218,8 +220,18 @@ export class AnalyticsView extends ItemView {
     refreshBtn.addEventListener("click", async () => {
       this.data = await this.plugin.loadConsolidatedData();
       if (this.data) {
+        // Only add genuinely new codes, respect disabled
+        const knownCodes = new Set([...this.enabledCodes, ...this.disabledCodes]);
         for (const c of this.data.codes) {
-          if (!this.enabledCodes.has(c.name)) this.enabledCodes.add(c.name);
+          if (!knownCodes.has(c.name)) this.enabledCodes.add(c.name);
+        }
+        // Remove codes that no longer exist
+        const currentNames = new Set(this.data.codes.map(c => c.name));
+        for (const name of this.enabledCodes) {
+          if (!currentNames.has(name)) this.enabledCodes.delete(name);
+        }
+        for (const name of this.disabledCodes) {
+          if (!currentNames.has(name)) this.disabledCodes.delete(name);
         }
       }
       this.renderView();

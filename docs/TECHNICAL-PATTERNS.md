@@ -643,7 +643,7 @@ Ambos fazem `flushPendingSave()` no `onunload()`.
 
 ### 6.3 Cross-Page Selection (PDF)
 
-Seleções que cruzam páginas no PDF devem ser detectadas e bloqueadas (`detectCrossPageSelection()`). Markers cross-page criariam dados inválidos.
+Seleções que cruzam páginas no PDF são divididas em múltiplos `PdfSelectionResult` (um por página) e o popover suporta markers cross-page. A implementação anterior bloqueava essas seleções, mas o comportamento atual permite codificação cross-page com split automático.
 
 ### 6.4 Synthetic Data em Testes
 

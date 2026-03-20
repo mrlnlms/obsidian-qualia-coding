@@ -12,8 +12,9 @@ export function renderDecisionTreeOptionsSection(ctx: AnalyticsViewContext): voi
   // Outcome code dropdown
   section.createDiv({ cls: "codemarker-config-sublabel", text: "Outcome Code" });
   const select = section.createEl("select", { cls: "codemarker-config-select" });
-  const codes = ctx.data.codes.map((c) => c.name).sort();
+  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
   if (!ctx.dtOutcomeCode && codes.length > 0) ctx.dtOutcomeCode = codes[0]!;
+  if (ctx.dtOutcomeCode && !ctx.enabledCodes.has(ctx.dtOutcomeCode)) ctx.dtOutcomeCode = codes[0] ?? "";
   for (const code of codes) {
     const opt = select.createEl("option", { text: code, value: code });
     if (code === ctx.dtOutcomeCode) opt.selected = true;
@@ -45,8 +46,9 @@ export function renderDecisionTreeView(ctx: AnalyticsViewContext, filters: Filte
   if (!ctx.data || !ctx.chartContainer) return;
   const container = ctx.chartContainer;
 
-  const codes = ctx.data.codes.map((c) => c.name).sort();
+  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
   if (!ctx.dtOutcomeCode && codes.length > 0) ctx.dtOutcomeCode = codes[0]!;
+  if (ctx.dtOutcomeCode && !ctx.enabledCodes.has(ctx.dtOutcomeCode)) ctx.dtOutcomeCode = codes[0] ?? "";
 
   const result = buildDecisionTree(ctx.data, filters, ctx.dtOutcomeCode, ctx.dtMaxDepth, 2);
 
