@@ -12,8 +12,7 @@
 | Margin Panel Customization (left/right, espessura) | Feature | Baixa-Media | ROADMAP #11 |
 | Margin Panel Resize Handle | Feature | Media | ROADMAP #17 |
 | z-index scrollDOM stacking | Debt | Atacar com #16/#17 | BACKLOG §z-index |
-| `markerViewPlugin.ts` 706 LOC | Debt | Split futuro | BACKLOG §Arquivos grandes |
-| `marginPanelExtension.ts` 548 LOC | Debt | Split futuro | BACKLOG §Arquivos grandes |
+| `marginPanelExtension.ts` 548 LOC | Debt | Split futuro (sessao conjunta mirror-notes) | BACKLOG §Arquivos grandes |
 
 ---
 
