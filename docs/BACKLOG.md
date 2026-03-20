@@ -1003,7 +1003,10 @@ scrollDOM (position: relative — setado pelo handleOverlayRenderer)
 | Drag handles individuais | 1000+i | SVG handles |
 | Popover | 2000 | .codemarker-popover (requer subir de 9999 global → 2000 local) |
 
-**Quando atacar**: Junto com o Resize Handle (ROADMAP #18). Os dois itens compartilham o mesmo contexto (scrollDOM stacking) e devem ser resolvidos na mesma sessao.
+**Quando atacar**: Junto com Per-Code Decorations (ROADMAP #17) e/ou Resize Handle (ROADMAP #18). Os três itens compartilham o mesmo contexto (scrollDOM stacking):
+- **#17**: N layers de `Decoration.mark()` com opacity blending — handles (z:10000) precisam ficar acima de todas as camadas de highlight
+- **#18**: Resize handle no scrollDOM — precisa coexistir com handles e decorations
+- Resolver o z-index stacking antes (ou junto) evita retrabalho.
 
 **Pre-requisitos para a sessao:**
 - Validar com Obsidian aberto se `scrollDOM.style.position = 'relative'` nao quebra nada (testar com themes diferentes, split panes, mobile preview)
@@ -1065,7 +1068,7 @@ Proxima sessao de testes deve focar em:
 | Missing focus styles (~30 botoes) | Alto (a11y) | FEITO (2026-03-19) |
 | Missing aria-labels (~50 elementos) | Alto (a11y) | FEITO (2026-03-19) |
 | Color-only indicators (DT distribution bars) | Alto (a11y) | FEITO (2026-03-19) |
-| z-index conflicts | Baixo | PENDENTE |
+| z-index conflicts (scrollDOM stacking) | Baixo | PENDENTE — atacar com #17 (Per-Code Decorations) e/ou #18 (Resize Handle) |
 | Test gaps (sidebar adapters, modes) | Medio | FEITO (2026-03-19) — +220 testes |
 | !important overuse (74 → 66) | Baixo | FEITO (2026-03-19) — 6 removidos (safe) |
 | Inline styles estaticos (regionRenderer) | Baixo | FEITO (2026-03-19) — 15 migrados para 3 CSS classes |
