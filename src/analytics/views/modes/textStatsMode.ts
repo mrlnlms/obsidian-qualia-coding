@@ -17,19 +17,22 @@ export function renderTextStats(ctx: AnalyticsViewContext, filters: FilterConfig
     return;
   }
 
+  const generation = ctx.renderGeneration;
   const loadingEl = ctx.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "Extracting text..." });
-  loadAndRenderTextStats(ctx, filtered, loadingEl);
+  loadAndRenderTextStats(ctx, filtered, loadingEl, generation);
 }
 
 export async function loadAndRenderTextStats(
   ctx: AnalyticsViewContext,
   markers: UnifiedMarker[],
   loadingEl: HTMLElement,
+  generation?: number,
 ): Promise<void> {
   if (!ctx.chartContainer || !ctx.data) return;
 
   const extractor = new TextExtractor(ctx.plugin.app.vault);
   const segments = await extractor.extractBatch(markers);
+  if (generation !== undefined && !ctx.isRenderCurrent(generation)) return;
   loadingEl.remove();
 
   const codeColors = new Map(ctx.data.codes.map((c) => [c.name, c.color]));

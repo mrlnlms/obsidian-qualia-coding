@@ -19,6 +19,26 @@
 
 ---
 
+## PDF pageObserver timer leak no teardown
+
+**Severidade**: Media
+
+`pageObserver.ts:68` — handler de `pagerendered` agenda `setTimeout(100)` que `stop()` nao cancela. Se a view fechar logo apos zoom/rerender, o callback executa apos teardown e pode recriar highlights numa observer ja parada.
+
+**Acao**: Guardar timer IDs e cancelar em `stop()`.
+
+---
+
+## PDF hover/popover state global entre views
+
+**Severidade**: Media
+
+`highlightRenderer.ts:105` e `drawLayer.ts:24` — estado de hover/popover (timers, currentHoverMarkerId, currentHoverShapeId) e global ao modulo. Com duas PDF views abertas, hover numa pane cancela/fecha popover da outra.
+
+**Acao**: Isolar state por observer/view. Relacionado ao bug do fileInterceptor (multi-pane).
+
+---
+
 ## PDF navigate nao foca marker especifico
 
 Navegacao de PDF da sidebar abre a pagina via `#page=N` generico, mas descarta o `markerId`. Nao ha scroll nem flash do highlight/shape especifico. O evento `qualia-pdf:navigate` documentado no ARCHITECTURE.md nao existe no codigo.

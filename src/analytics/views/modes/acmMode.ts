@@ -57,8 +57,9 @@ export function renderACMBiplot(ctx: AnalyticsViewContext, filters: FilterConfig
     return;
   }
 
+  const generation = ctx.renderGeneration;
   const loadingEl = ctx.chartContainer.createDiv({ cls: "codemarker-wc-loading", text: "Computing MCA..." });
-  loadAndRenderACM(ctx, filtered, enabledCodeNames, enabledColors, loadingEl);
+  loadAndRenderACM(ctx, filtered, enabledCodeNames, enabledColors, loadingEl, generation);
 }
 
 async function loadAndRenderACM(
@@ -67,10 +68,12 @@ async function loadAndRenderACM(
   codes: string[],
   colors: string[],
   loadingEl: HTMLElement,
+  generation: number,
 ): Promise<void> {
   if (!ctx.chartContainer) return;
 
   const result = await calculateMCA(markers, codes, colors);
+  if (!ctx.isRenderCurrent(generation)) return;
   loadingEl.remove();
 
   if (!result) {
