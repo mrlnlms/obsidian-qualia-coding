@@ -72,7 +72,7 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
-| V1 | Alta | `csvCodingCellRenderer.ts:14,136`, `csvCodingMenu.ts:106` | node.rowIndex e display index. Apos sort, codigos vao pra linha errada |
+| ~~V1~~ | ~~FEITO~~ | `csvCodingCellRenderer.ts`, `csvCodingMenu.ts` | ~~node.sourceRowIndex em vez de node.rowIndex — estavel apos sort~~ |
 | ~~V2~~ | ~~FEITO~~ | `csvHeaderInjection.ts` | ~~btn.dataset.wrapped setado na criacao e no toggle~~ |
 
 ---
@@ -83,8 +83,8 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 |---|-----------|---------|----------|
 | ~~A1~~ | ~~FEITO~~ | `dendrogramMode.ts` | ~~dead code Files mode removido + dendrogramMode removido do context~~ |
 | ~~A2~~ | ~~FEITO~~ | Chart.js instances | ~~ctx.activeChartInstance destroy antes de recriar + onClose cleanup~~ |
-| A3 | Media | `textExtractor.ts:177` | parseCsv() simplificado nao suporta multiline quoted fields. Desloca row em Text Retrieval/Word Cloud/Text Stats |
-| A4 | Media | `textExtractor.ts:35,80` | Markers Parquet relidos via vault.read() como texto. Lixo binario no Analytics |
+| ~~A3~~ | ~~FEITO~~ | `textExtractor.ts` | ~~parseCsv substituido por PapaParse (multiline, quotes, CRLF)~~ |
+| ~~A4~~ | ~~FEITO~~ | `textExtractor.ts` | ~~skip .parquet em extractBatch — sem leitura binaria~~ |
 | ~~A5~~ | ~~FEITO~~ | `chiSquareMode.ts` | ~~sort por Cramers V antes de slice~~ |
 | ~~A6~~ | ~~FEITO~~ | `baseCodeExplorerView.ts` | ~~footer conta segmentos do codeIndex filtrado~~ |
 
