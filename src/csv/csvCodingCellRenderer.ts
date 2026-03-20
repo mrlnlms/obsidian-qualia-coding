@@ -11,7 +11,7 @@ export function codingCellRenderer(params: any): HTMLElement {
 	wrapper.className = 'csv-cod-seg-cell';
 
 	const field: string = params.colDef.field;
-	const row: number = params.node?.rowIndex ?? params.rowIndex ?? 0;
+	const row: number = params.node?.sourceRowIndex ?? params.rowIndex ?? 0;
 	const model: CsvCodingModel | undefined = params.model;
 	const gridApi: GridApi | undefined = params.gridApi;
 	const file: string = params.file ?? '';
@@ -133,7 +133,7 @@ export function sourceTagBtnRenderer(params: any): HTMLElement {
 	btn.addEventListener('click', (e) => {
 		e.stopPropagation();
 		const segField: string = params.codSegField;
-		const row = params.node?.rowIndex ?? params.rowIndex ?? 0;
+		const row = params.node?.sourceRowIndex ?? params.rowIndex ?? 0;
 		const file: string = params.file ?? '';
 		const csvView: CsvViewRef | undefined = params.csvView;
 		const cellText: string = params.value != null ? String(params.value) : '';

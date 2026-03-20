@@ -103,10 +103,10 @@ export function openBatchCodingPopover(
 	const savedRect = anchorRect ?? anchorEl.getBoundingClientRect();
 	const pos = { x: savedRect.left, y: savedRect.bottom + 4 };
 
-	// Collect visible (filtered) row indices
+	// Collect stable (data) row indices — sourceRowIndex is unaffected by sort/filter
 	const filteredRows: number[] = [];
 	gridApi.forEachNodeAfterFilterAndSort(node => {
-		if (node.rowIndex != null) filteredRows.push(node.rowIndex);
+		filteredRows.push(node.sourceRowIndex);
 	});
 
 	// "Active" = codes present in ALL visible rows
