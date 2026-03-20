@@ -119,10 +119,11 @@ export function renderCodesSection(ctx: AnalyticsViewContext): void {
 function renderCodesList(ctx: AnalyticsViewContext, container: HTMLElement): void {
   container.empty();
 
-  // Count frequency for display
+  // Count frequency for display (respecting enabled sources)
   const freq = new Map<string, number>();
   if (ctx.data) {
     for (const m of ctx.data.markers) {
+      if (!ctx.enabledSources.has(m.source)) continue;
       for (const c of m.codes) {
         freq.set(c, (freq.get(c) ?? 0) + 1);
       }

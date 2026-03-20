@@ -10,6 +10,7 @@ export class MediaRegionRenderer {
 	private regionToMarker: Map<string, string> = new Map();
 	private onNavigate: ((markerId: string, codeName: string) => void) | null = null;
 	private hoverListener: (() => void) | null = null;
+	isRestoring = false;
 
 	constructor(renderer: WaveformRenderer, model: MediaCodingModelLike) {
 		this.renderer = renderer;
@@ -23,9 +24,11 @@ export class MediaRegionRenderer {
 	restoreRegions(filePath: string): void {
 		this.clear();
 		const markers = this.model.getMarkersForFile(filePath);
+		this.isRestoring = true;
 		for (const marker of markers) {
 			this.renderMarkerRegion(marker);
 		}
+		this.isRestoring = false;
 		this.applyLanes(markers);
 		this.renderMinimapMarkers(markers);
 	}

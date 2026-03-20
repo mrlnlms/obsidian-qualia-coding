@@ -37,6 +37,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 
 			// Handle overlay renderer
 			private renderer: HandleOverlayRenderer;
+			private identifyAttempts = 0;
 
 			constructor(view: EditorView) {
 				this.instanceId = Math.random().toString(36).substr(2, 9);
@@ -99,10 +100,12 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 			}
 
 			private identifyAndSendFileId(view: EditorView, retryCount = 0) {
+				this.identifyAttempts++;
 				const fileId = findFileIdForEditorView(view, model.plugin.app);
 
 				if (fileId) {
 					this.fileId = fileId;
+					this.identifyAttempts = 0;
 
 					requestAnimationFrame(() => {
 						try {
@@ -138,7 +141,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 
 			update(update: ViewUpdate) {
 				if (!this.fileId || !this.fileIdSent) {
-					if (!this.pendingIdentify) {
+					if (!this.pendingIdentify && this.identifyAttempts < 20) {
 						this.pendingIdentify = true;
 						setTimeout(() => {
 							this.pendingIdentify = false;

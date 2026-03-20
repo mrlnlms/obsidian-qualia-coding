@@ -83,7 +83,7 @@ export class DragManager {
 			const newPosConverted = targetView.editor.offsetToPos(newPos);
 			if (!newPosConverted) return;
 
-			const updatedMarker = { ...marker };
+			const updatedMarker = { ...marker, range: { from: { ...marker.range.from }, to: { ...marker.range.to } } };
 
 			if (type === 'start') {
 				if (this.model.isPositionBefore(newPosConverted, marker.range.to) ||

@@ -37,7 +37,10 @@ export function openCsvCodingPopover(
 
 	const adapter: CodingPopoverAdapter = {
 		registry: model.registry,
-		getActiveCodes: () => existingMarker ? [...existingMarker.codes] : [],
+		getActiveCodes: () => {
+			const current = model.getRowMarkersForCell(file, row, column)[0];
+			return current ? [...current.codes] : [];
+		},
 		addCode: (name) => {
 			const m = getMarker();
 			model.addCodeToMarker(m.id, name);

@@ -230,6 +230,7 @@ export class MediaViewCore {
     const regionsPlugin = this.renderer.getRegionsPlugin();
     if (regionsPlugin) {
       regionsPlugin.on('region-created', (region: any) => {
+        if (this.regionRenderer?.isRestoring) return;
         if (this.regionRenderer?.getMarkerIdForRegion(region.id)) return;
         const filePath = this.currentFile?.path;
         if (!filePath) return;

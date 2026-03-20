@@ -216,11 +216,16 @@ function renderCodeDescription(
 		attr: { placeholder: 'Add a description...', rows: '2' },
 	});
 	textarea.value = def?.description ?? '';
+	let descSaveTimer: ReturnType<typeof setTimeout> | null = null;
 	textarea.addEventListener('input', () => {
 		if (!def) return;
-		const val = textarea.value.trim() || undefined;
-		model.registry.update(def.id, { description: val });
-		model.saveMarkers();
+		if (descSaveTimer) clearTimeout(descSaveTimer);
+		descSaveTimer = setTimeout(() => {
+			descSaveTimer = null;
+			const val = textarea.value.trim() || undefined;
+			model.registry.update(def.id, { description: val });
+			model.saveMarkers();
+		}, 500);
 	});
 	textarea.addEventListener('focus', () => {
 		callbacks.suspendRefresh();

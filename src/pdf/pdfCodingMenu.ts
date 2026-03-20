@@ -55,7 +55,16 @@ export function openPdfCodingPopover(
 
 	const adapter: CodingPopoverAdapter = {
 		registry: model.registry,
-		getActiveCodes: () => existingMarker ? [...existingMarker.codes] : [],
+		getActiveCodes: () => {
+			const current = hoverMarkerId
+				? model.findMarkerById(hoverMarkerId)
+				: model.findExistingMarker(
+					firstResult.file, firstResult.page,
+					firstResult.beginIndex, firstResult.beginOffset,
+					firstResult.endIndex, firstResult.endOffset,
+				);
+			return current ? [...current.codes] : [];
+		},
 		addCode: (name) => {
 			for (const m of getMarkers()) model.addCodeToMarker(m.id, name);
 		},

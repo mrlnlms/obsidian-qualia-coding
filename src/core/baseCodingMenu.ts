@@ -36,8 +36,10 @@ export function createPopover(className: string): PopoverHandle {
 
 	let outsideHandler: ((e: MouseEvent) => void) | null = null;
 	let escHandler: ((e: KeyboardEvent) => void) | null = null;
+	let listenTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const close = () => {
+		if (listenTimer) { clearTimeout(listenTimer); listenTimer = null; }
 		container.remove();
 		if (outsideHandler) document.removeEventListener('mousedown', outsideHandler);
 		if (escHandler) document.removeEventListener('keydown', escHandler);
@@ -53,7 +55,8 @@ export function createPopover(className: string): PopoverHandle {
 
 	document.body.appendChild(container);
 
-	setTimeout(() => {
+	listenTimer = setTimeout(() => {
+		listenTimer = null;
 		document.addEventListener('mousedown', outsideHandler!);
 		document.addEventListener('keydown', escHandler!);
 	}, 10);

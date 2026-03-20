@@ -4,6 +4,87 @@
 
 ---
 
+## Audit 2026-03-20 — Claude Code + Codex (items novos)
+
+> Items descobertos na sessao de audit com Claude Code e Codex em 2026-03-20. Marcados com **[FIX RAPIDO]** quando corrigiveis com ~10 LOC.
+
+### Alta
+
+**1. Media region-created race com restoreRegions** — **[FIX RAPIDO]**
+`mediaViewCore.ts:230-245` + `regionRenderer.ts:73-84`. Handler de `region-created` registrado antes do ready. `restoreRegions` chama `addRegion()` que dispara `region-created` sincronamente. `regionToMarker` ainda nao populado → handler trata markers restaurados como regioes novas do usuario. Popovers espurios.
+**Acao**: Setar flag `isRestoring` antes de restoreRegions, checar no handler.
+
+### Media
+
+**3. createPopover setTimeout leak** — **[FIX RAPIDO]**
+`baseCodingMenu.ts:40-59`. Se `close()` chamado dentro de 10ms, setTimeout dispara e registra mousedown/keydown no document que nunca serao removidos. Cada open/close rapido vaza 2 listeners globais.
+**Acao**: Guardar timer ID, cancelar em close().
+
+**4/5. CSV e PDF getActiveCodes closure stale** — **[FIX RAPIDO]**
+`csvCodingMenu.ts:35,40` e `pdfCodingMenu.ts:58`. `existingMarker` capturado uma vez ao abrir popover. Para celulas/selecoes novas, getActiveCodes retorna [] mesmo apos codigos serem adicionados.
+**Acao**: Re-query marker no getActiveCodes em vez de closure.
+
+**6. Image regionHighlight — origStroke corrompido por hover concorrente**
+`regionHighlight.ts:40-41,59-65`. Variaveis compartilhadas `origStrokeWidth`/`origShadow`. Hover simultaneo em shapes diferentes corrompe valores originais permanentemente.
+**Acao**: Armazenar orig values por shape (Map ou propriedade no objeto).
+
+**7. Image setMode("select") torna labels selecionaveis**
+`regionDrawing.ts:307-310`. `forEachObject()` seta `selectable=true` em TODOS objetos incluindo labels.
+**Acao**: Filtrar por tipo (excluir labels).
+
+**8. PDF drawLayer timers module-level**
+`drawLayer.ts:25-26`. `shapeHoverTimer`/`currentHoverShapeId` globais. `stop()` nao limpa. Timer pendente dispara em elementos destruidos.
+**Acao**: Limpar timers em stop(). Relacionado ao item "PDF hover/popover state global".
+
+**9. BaseSidebarAdapter.setHoverState ignora hoveredIds**
+`baseSidebarAdapter.ts:76-78`. Aceita (markerId, codeName) mas descarta `hoveredIds?`. Multi-marker hover funciona pra markdown (model direto) mas quebra em PDF/CSV/Image/Audio/Video.
+**Acao**: Propagar hoveredIds pelo adapter.
+
+**10. Markdown dragManager shallow copy** — **[FIX RAPIDO]**
+`dragManager.ts:86-98`. `{ ...marker }` e shallow — `range` e referencia compartilhada. Mutacoes em `updatedMarker.range` alteram marker original.
+**Acao**: Deep copy do range: `{ ...marker, range: { from: {...marker.range.from}, to: {...marker.range.to} } }`.
+
+**11. Analytics configSections contagens ignoram enabledSources** — **[FIX RAPIDO]**
+`configSections.ts:123-130`. Sidebar mostra frequencias de `ctx.data.markers` sem filtrar por enabledSources.
+**Acao**: Filtrar markers por enabledSources antes de contar.
+
+**12. Markdown deleteCode — N saves/rebuilds em vez de 1**
+`codeMarkerModel.ts:540-563`. removeMarker() chamado por marker vazio, cada um dispara save + decoration rebuild. 20 markers = 20 saves.
+**Acao**: Batch — coletar IDs, remover em lote, save/rebuild uma vez.
+
+**13. markerViewPlugin retry storm em preview mode** — **[FIX RAPIDO]**
+`markerViewPlugin.ts:139-148`. Se fileId nunca encontrado, cada update inicia cadeia de 5 retries. `pendingIdentify` resetado no callback permite reinicio.
+**Acao**: Adicionar max total retries ou backoff exponencial.
+
+### Baixa
+
+**14. codeDefinitionRegistry.fromJSON key vs def.id mismatch**
+`codeDefinitionRegistry.ts:170-175`. Dados persistidos com mismatch ficam inacessiveis.
+
+**15. Image zoomPanControls pan end simplificado**
+`zoomPanControls.ts:82-88`. Condicao simplifica pra `e.button === 0 || 1`. Space+drag para ao soltar mouse.
+
+**16. Explorer footer contagem nao filtra com search**
+`baseCodeExplorerView.ts:235-237,314`. Footer mostra segmentos totais, nao filtrados pela busca ativa.
+
+**17. detailCodeRenderer description salva sem debounce** — **[FIX RAPIDO]**
+`detailCodeRenderer.ts:219-224`. registry.update() + save a cada keystroke. Disco por caractere.
+**Acao**: Debounce 500ms.
+
+**18. CSV csvHeaderInjection wrap toggle opacity**
+`csvHeaderInjection.ts:69,106`. `btn.dataset.wrapped` nunca setado. Opacity sempre reseta.
+
+**19. PDF removeMarker nao chama notify()**
+`pdfCodingModel.ts:385-389`. Chamada direta nao persiste nem notifica.
+
+**20. chiSquareMode mini sort-then-slice**
+`chiSquareMode.ts:161`. Top-5 por p-value, reordena por Cramer's V dentro. Se intencao e top-5 por V, deveria sort-then-slice.
+
+**21. Markdown isPositionBefore/After — iguais satisfazem ambos**
+`codeMarkerModel.ts:481-491`. `<=`/`>=` nas comparacoes de ch. Posicoes iguais criam markers de largura zero.
+
+---
+
 ## Decision Tree "View in Text Retrieval" nao foca subconjunto
 
 **Severidade**: Media
