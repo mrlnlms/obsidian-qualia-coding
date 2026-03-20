@@ -124,7 +124,9 @@
 
 **Status**: Data model completo proposto, não implementado.
 
-**Conceito**: Global workspace como "state zero" — usuário codifica livremente. Projetos são criados depois para organizar subsets de dados.
+**Reflexão (2026-03-19)**: O data model abaixo reinventa gerenciamento de projetos dentro de um plugin que vive dentro de um app de organização. O Obsidian já tem o core plugin **Workspaces** (salva/restaura layout de panes). A alternativa nativa seria: 1 vault = 1 projeto, ou scoping por pasta (plugin lê só arquivos dentro de uma pasta selecionada). Integrar com Workspaces em vez de criar infraestrutura paralela. Reavaliar o data model quando for atacar — o conceito é válido, a implementação proposta não.
+
+**Conceito original**: Global workspace como "state zero" — usuário codifica livremente. Projetos são criados depois para organizar subsets de dados.
 
 **Data model proposto**:
 ```typescript
@@ -244,9 +246,12 @@ O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para dra
 
 ### 19. Analytical Memos
 
+**Reflexão (2026-03-19)**: Construir sistema de memos dentro de um plugin que vive dentro de um app de notas é irônico. O Obsidian É o app de memos. Alternativa nativa: "Convert to Note" que cria arquivo markdown no vault com template de memo analítico (código referenciado, data, tipo de reflexão). O pesquisador escreve no Obsidian normalmente. Tangencia a ideia de pesquisa de "convert to note" como feature sintética. Reavaliar abordagem quando for atacar.
+
+**Conceito original**:
 - Memos em códigos, documentos e relações entre códigos
 - Separados dos `memo` de markers — são reflexões analíticas
-- View dedicada no sidebar
+- ~~View dedicada no sidebar~~ → provavelmente desnecessário
 
 ---
 
