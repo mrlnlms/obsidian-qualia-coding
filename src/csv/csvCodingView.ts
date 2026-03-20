@@ -153,18 +153,7 @@ export class CsvCodingView extends FileView {
 			domLayout: 'normal',
 		});
 
-		// Listen for navigation events from sidebar views
-		const navHandler = (detail: any) => {
-			if (!this.gridApi || detail?.file !== file.path) return;
-			this.gridApi.ensureIndexVisible(detail.row, 'middle');
-			const rowNode = this.gridApi.getDisplayedRowAtIndex(detail.row);
-			if (rowNode) {
-				this.gridApi.flashCells({ rowNodes: [rowNode], fadeDuration: 1500 });
-			}
-		};
-		this.registerEvent(
-			this.app.workspace.on('qualia-csv:navigate', navHandler)
-		);
+		// Navigation is handled via navigateToRow() called directly from csv/index.ts
 
 		// Inject custom header buttons via MutationObserver
 		const headerRoot = wrapper.querySelector('.ag-header');
@@ -174,6 +163,17 @@ export class CsvCodingView extends FileView {
 			inject();
 			this.headerObserver = new MutationObserver(inject);
 			this.headerObserver.observe(headerRoot, { childList: true, subtree: true });
+		}
+	}
+
+	// ─── Navigation ─────────────────────────────────────────
+
+	navigateToRow(row: number) {
+		if (!this.gridApi) return;
+		this.gridApi.ensureIndexVisible(row, 'middle');
+		const rowNode = this.gridApi.getDisplayedRowAtIndex(row);
+		if (rowNode) {
+			this.gridApi.flashCells({ rowNodes: [rowNode], fadeDuration: 1500 });
 		}
 	}
 
