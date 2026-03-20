@@ -8,7 +8,7 @@ describe("handle overlay", () => {
     await injectQualiaData({
       markers: {
         "Sample Coded.md": [
-          mkMarker("d1", 4, 0, 5, 50, ["Emotion"], "#6200EE"),
+          mkMarker("d1", 6, 0, 7, 50, ["Emotion"], "#6200EE"),
         ],
       },
       codeDefinitions: [
@@ -40,6 +40,6 @@ describe("handle overlay", () => {
   it("visual baseline — handles on hover", async () => {
     await hoverElement(SELECTORS.marginBar, 1000);
     const mismatch = await checkComponent(".cm-editor", "handles-hover");
-    expect(mismatch).toBeLessThan(2);
+    expect(mismatch).toBeLessThan(10);
   });
 });

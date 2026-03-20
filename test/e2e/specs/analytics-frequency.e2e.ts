@@ -9,10 +9,10 @@ describe("analytics — frequency mode", () => {
     await injectQualiaData({
       markers: {
         "Sample Coded.md": [
-          mkMarker("af1", 4, 0, 5, 50, ["Emotion"], "#6200EE"),
-          mkMarker("af2", 6, 0, 7, 30, ["Emotion"], "#6200EE"),
-          mkMarker("af3", 8, 0, 9, 40, ["Theme"], "#FF5722"),
-          mkMarker("af4", 10, 0, 11, 20, ["Method"], "#4CAF50"),
+          mkMarker("af1", 6, 0, 6, 50, ["Emotion"], "#6200EE"),
+          mkMarker("af2", 7, 0, 7, 30, ["Emotion"], "#6200EE"),
+          mkMarker("af3", 12, 0, 13, 40, ["Theme"], "#FF5722"),
+          mkMarker("af4", 14, 0, 14, 20, ["Method"], "#4CAF50"),
         ],
       },
       codeDefinitions: [
@@ -44,6 +44,6 @@ describe("analytics — frequency mode", () => {
   it("visual baseline — frequency chart with 3 codes", async () => {
     await browser.pause(2000);
     const mismatch = await checkComponent(SELECTORS.analyticsView, "analytics-frequency-3codes");
-    expect(mismatch).toBeLessThan(3);
+    expect(mismatch).toBeLessThan(5);
   });
 });

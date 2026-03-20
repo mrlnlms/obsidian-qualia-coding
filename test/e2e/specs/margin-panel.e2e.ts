@@ -12,8 +12,8 @@ describe("margin panel", () => {
   before(async () => {
     const markers = {
       "Sample Coded.md": [
-        mkMarker("m1", 4, 0, 5, 50, ["Emotion"], "#6200EE"),
-        mkMarker("m2", 8, 0, 9, 40, ["Theme"], "#FF5722"),
+        mkMarker("m1", 6, 0, 7, 50, ["Emotion"], "#6200EE"),
+        mkMarker("m2", 12, 0, 13, 40, ["Theme"], "#FF5722"),
       ],
     };
     const codeDefinitions = [

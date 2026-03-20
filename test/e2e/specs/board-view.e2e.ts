@@ -9,8 +9,8 @@ describe("board view", () => {
     await injectQualiaData({
       markers: {
         "Sample Coded.md": [
-          mkMarker("bv1", 4, 0, 5, 50, ["Emotion"], "#6200EE"),
-          mkMarker("bv2", 8, 0, 9, 40, ["Theme"], "#FF5722"),
+          mkMarker("bv1", 6, 0, 7, 50, ["Emotion"], "#6200EE"),
+          mkMarker("bv2", 12, 0, 13, 40, ["Theme"], "#FF5722"),
         ],
       },
       codeDefinitions: [

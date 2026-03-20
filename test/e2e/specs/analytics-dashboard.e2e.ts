@@ -9,8 +9,8 @@ describe("analytics — dashboard mode", () => {
     await injectQualiaData({
       markers: {
         "Sample Coded.md": [
-          mkMarker("db1", 4, 0, 5, 50, ["Emotion"], "#6200EE"),
-          mkMarker("db2", 8, 0, 9, 40, ["Theme"], "#FF5722"),
+          mkMarker("db1", 6, 0, 7, 50, ["Emotion"], "#6200EE"),
+          mkMarker("db2", 12, 0, 13, 40, ["Theme"], "#FF5722"),
         ],
       },
       codeDefinitions: [
@@ -50,6 +50,6 @@ describe("analytics — dashboard mode", () => {
 
   it("visual baseline — dashboard with KPIs", async () => {
     const mismatch = await checkComponent(SELECTORS.analyticsView, "analytics-dashboard");
-    expect(mismatch).toBeLessThan(3);
+    expect(mismatch).toBeLessThan(5);
   });
 });

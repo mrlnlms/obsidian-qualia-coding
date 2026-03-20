@@ -9,8 +9,8 @@ describe("code explorer sidebar", () => {
     await injectQualiaData({
       markers: {
         "Sample Coded.md": [
-          mkMarker("ex1", 4, 0, 5, 50, ["Emotion"], "#6200EE"),
-          mkMarker("ex2", 8, 0, 9, 40, ["Emotion"], "#6200EE"),
+          mkMarker("ex1", 6, 0, 7, 50, ["Emotion"], "#6200EE"),
+          mkMarker("ex2", 7, 0, 8, 30, ["Emotion"], "#6200EE"),
           mkMarker("ex3", 12, 0, 13, 30, ["Theme"], "#FF5722"),
         ],
       },

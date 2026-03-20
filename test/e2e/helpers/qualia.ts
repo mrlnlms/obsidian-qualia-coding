@@ -13,9 +13,10 @@ export async function injectQualiaData(opts: {
     const plugin = (window as any).app.plugins.plugins["qualia-coding"];
     const dm = plugin.dataManager;
 
-    // Clear existing data to prevent accumulation between runs
+    // Clear existing markers but preserve settings
     plugin.sharedRegistry.clear();
-    dm.setSection("markdown", { markers: {} });
+    const existingSection = dm.section("markdown");
+    dm.setSection("markdown", { ...existingSection, markers: {} });
 
     // Inject code definitions into registry
     if (o.codeDefinitions) {
