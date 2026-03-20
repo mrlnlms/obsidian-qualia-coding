@@ -14,13 +14,14 @@ export interface ListRendererCallbacks {
 
 /**
  * Render the full list mode shell: header, search input, and content zone.
- * Returns references to the search wrap and content zone for incremental updates.
+ * Returns references to the search wrap and content zone for incremental updates,
+ * plus a cleanup function that cancels any pending search timeout.
  */
 export function renderListShell(
 	container: HTMLElement,
 	model: SidebarModelInterface,
 	callbacks: ListRendererCallbacks,
-): { listSearchWrap: HTMLElement | null; listContentZone: HTMLElement | null } {
+): { listSearchWrap: HTMLElement | null; listContentZone: HTMLElement | null; cleanup: () => void } {
 	container.empty();
 
 	const codes = model.registry.getAll();
@@ -32,7 +33,7 @@ export function renderListShell(
 
 	if (codes.length === 0) {
 		container.createEl('p', { text: 'No codes yet.', cls: 'codemarker-detail-empty' });
-		return { listSearchWrap: null, listContentZone: null };
+		return { listSearchWrap: null, listContentZone: null, cleanup: () => {} };
 	}
 
 	// Search input (persistent — focus preserved across data refreshes)
@@ -50,7 +51,11 @@ export function renderListShell(
 	// Content zone (replaced on search/data refresh, search input stays)
 	const listContentZone = container.createDiv();
 
-	return { listSearchWrap, listContentZone };
+	const cleanup = () => {
+		if (searchTimeout) { clearTimeout(searchTimeout); searchTimeout = null; }
+	};
+
+	return { listSearchWrap, listContentZone, cleanup };
 }
 
 /**

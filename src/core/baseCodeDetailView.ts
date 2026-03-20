@@ -48,6 +48,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	// Persistent DOM for list mode (search survives refreshes)
 	private listSearchWrap: HTMLElement | null = null;
 	private listContentZone: HTMLElement | null = null;
+	private listShellCleanup: (() => void) | null = null;
 	private listMode = false;
 
 	constructor(leaf: WorkspaceLeaf, model: SidebarModelInterface) {
@@ -86,6 +87,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		document.removeEventListener('qualia:registry-changed', this.scheduleRefresh);
 		document.removeEventListener('qualia:code-renamed', this.boundRenameHandler);
 		if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+		if (this.listShellCleanup) { this.listShellCleanup(); this.listShellCleanup = null; }
 		this.contentEl.empty();
 	}
 
@@ -144,6 +146,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		const result = renderListShell(this.contentEl, this.model, this.listCallbacks());
 		this.listSearchWrap = result.listSearchWrap;
 		this.listContentZone = result.listContentZone;
+		this.listShellCleanup = result.cleanup;
 		if (this.listContentZone) {
 			renderListContent(this.listContentZone, this.model, this.searchQuery, this.listCallbacks());
 		}
@@ -172,6 +175,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.listMode = false;
 		this.listSearchWrap = null;
 		this.listContentZone = null;
+		if (this.listShellCleanup) { this.listShellCleanup(); this.listShellCleanup = null; }
 
 		if (!this.codeName) return;
 
@@ -196,6 +200,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.listMode = false;
 		this.listSearchWrap = null;
 		this.listContentZone = null;
+		if (this.listShellCleanup) { this.listShellCleanup(); this.listShellCleanup = null; }
 
 		if (!this.markerId || !this.codeName) return;
 
