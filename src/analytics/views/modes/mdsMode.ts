@@ -134,7 +134,7 @@ async function renderMDSChart(ctx: AnalyticsViewContext, result: MDSResult): Pro
   const showLabels = ctx.mdsShowLabels;
   const pts = result.points;
 
-  new Chart(canvas, {
+  ctx.activeChartInstance = new Chart(canvas, {
     type: "scatter",
     data: {
       datasets: [{

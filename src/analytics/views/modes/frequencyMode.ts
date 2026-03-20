@@ -176,7 +176,7 @@ async function renderBarChart(ctx: AnalyticsViewContext, results: FrequencyResul
     ];
   }
 
-  new Chart(canvas, {
+  ctx.activeChartInstance = new Chart(canvas, {
     type: "bar",
     data: { labels, datasets },
     options: {

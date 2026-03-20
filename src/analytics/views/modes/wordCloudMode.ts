@@ -133,7 +133,7 @@ async function renderWordCloudChart(ctx: AnalyticsViewContext, results: WordFreq
     return "#888888";
   });
 
-  new Chart(canvas, {
+  ctx.activeChartInstance = new Chart(canvas, {
     type: "wordCloud",
     data: {
       labels: results.map((r) => r.word),

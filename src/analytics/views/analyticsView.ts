@@ -83,6 +83,7 @@ export class AnalyticsView extends ItemView {
   chartContainer: HTMLElement | null = null;
   configPanelEl: HTMLElement | null = null;
   footerEl: HTMLElement | null = null;
+  activeChartInstance: import("chart.js").Chart | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: AnalyticsPluginAPI) {
@@ -126,6 +127,10 @@ export class AnalyticsView extends ItemView {
       this.clearAllHandler = null;
     }
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    if (this.activeChartInstance) {
+      this.activeChartInstance.destroy();
+      this.activeChartInstance = null;
+    }
     this.contentEl.empty();
   }
 
@@ -298,6 +303,10 @@ export class AnalyticsView extends ItemView {
 
   private updateChart(): void {
     if (!this.chartContainer || !this.data) return;
+    if (this.activeChartInstance) {
+      this.activeChartInstance.destroy();
+      this.activeChartInstance = null;
+    }
     this.chartContainer.empty();
     this.renderGeneration++;
     MODE_REGISTRY[this.viewMode].render(this, this.buildFilterConfig());

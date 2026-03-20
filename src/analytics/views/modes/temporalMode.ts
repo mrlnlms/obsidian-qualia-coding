@@ -44,7 +44,7 @@ export async function renderTemporalChart(ctx: AnalyticsViewContext, filters: Fi
     tension: 0.2,
   }));
 
-  new Chart(canvas, {
+  ctx.activeChartInstance = new Chart(canvas, {
     type: "line",
     data: { datasets },
     options: {

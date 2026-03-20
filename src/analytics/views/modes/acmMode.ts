@@ -156,7 +156,7 @@ async function renderACMChart(ctx: AnalyticsViewContext, result: MCAResult): Pro
     return n.toFixed(2);
   };
 
-  new Chart(canvas, {
+  ctx.activeChartInstance = new Chart(canvas, {
     type: "scatter",
     data: { datasets },
     options: {

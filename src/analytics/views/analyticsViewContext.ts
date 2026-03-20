@@ -90,6 +90,9 @@ export interface AnalyticsViewContext {
   // Render generation — async modes check this to detect stale renders
   renderGeneration: number;
 
+  // Active Chart.js instance — modes set this after creating a chart so it can be destroyed before the next render
+  activeChartInstance: import("chart.js").Chart | null;
+
   // Methods exposed to mode modules
   buildFilterConfig(): FilterConfig;
   scheduleUpdate(): void;
