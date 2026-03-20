@@ -56,12 +56,24 @@ export class DataManager {
 		}, 500);
 	}
 
+	private flushRetries = 0;
+
 	async flush(): Promise<void> {
 		if (this.saving) { this.dirtyAfterSave = true; return; }
 		this.saving = true;
 		try {
 			if (this.saveTimer !== null) { window.clearTimeout(this.saveTimer); this.saveTimer = null; }
 			await this.plugin.saveData(this.data);
+			this.flushRetries = 0;
+		} catch (e) {
+			console.error('QualiaCoding: flush failed', e);
+			this.flushRetries++;
+			if (this.flushRetries >= 3) {
+				console.error('QualiaCoding: flush failed 3 times, giving up');
+				this.flushRetries = 0;
+				this.saving = false;
+				return;
+			}
 		} finally {
 			this.saving = false;
 			if (this.dirtyAfterSave) { this.dirtyAfterSave = false; await this.flush(); }

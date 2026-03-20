@@ -48,7 +48,8 @@ export const createHoverBridge = (model: CodeMarkerModel) => {
 							// Avoid feedback loop: if model already matches, skip
 							const modelIds = model.getHoverMarkerIds();
 							if (model.getHoverMarkerId() === markerId
-								&& modelIds.length === ids.length) continue;
+								&& modelIds.length === ids.length
+								&& modelIds.every((id, i) => id === ids[i])) continue;
 
 							// Find the code name for the primary marker
 							let codeName: string | null = null;

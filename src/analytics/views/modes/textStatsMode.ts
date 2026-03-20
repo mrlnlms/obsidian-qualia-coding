@@ -158,12 +158,18 @@ export function renderMiniTextStats(canvas: HTMLCanvasElement, freq: FrequencyRe
 export function exportTextStatsCSV(ctx: AnalyticsViewContext, date: string): void {
   if (!ctx.data) return;
 
-  const filtered = ctx.data.markers.filter((m) => ctx.enabledSources.has(m.source) && m.codes.some((c) => ctx.enabledCodes.has(c)));
+  const enabledCodes = ctx.enabledCodes;
+  const filtered = ctx.data.markers.filter((m) => ctx.enabledSources.has(m.source) && m.codes.some((c) => enabledCodes.has(c)));
   const loadAndExport = async () => {
     const extractor = new TextExtractor(ctx.plugin.app.vault);
     const segments = await extractor.extractBatch(filtered);
+    // Filter segment codes to only enabled (same as render)
+    const filteredSegments = segments.map(s => ({
+      ...s,
+      codes: s.codes.filter(c => enabledCodes.has(c)),
+    })).filter(s => s.codes.length > 0);
     const codeColors = new Map(ctx.data!.codes.map((c) => [c.name, c.color]));
-    const result = calculateTextStats(segments, codeColors);
+    const result = calculateTextStats(filteredSegments, codeColors);
 
     const rows: string[][] = [["code", "segments", "total_words", "unique_words", "ttr", "avg_words_per_segment", "avg_chars_per_segment"]];
     for (const e of result.codes) {

@@ -36,14 +36,16 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
   const totalMarkers = filtered.length;
   const totalCodes = ctx.data.codes.filter(c => enabledCodes.has(c.name)).length;
   const totalFiles = new Set(filtered.map((m) => m.fileId)).size;
-  const activeSources = [
-    ctx.data.sources.markdown,
-    ctx.data.sources.csv,
-    ctx.data.sources.image,
-    ctx.data.sources.pdf,
-    ctx.data.sources.audio,
-    ctx.data.sources.video,
-  ].filter(Boolean).length;
+  const enabledSources = ctx.enabledSources;
+  const sourceEntries: [string, boolean][] = [
+    ['markdown', !!ctx.data.sources.markdown],
+    ['csv-segment', !!ctx.data.sources.csv],
+    ['image', !!ctx.data.sources.image],
+    ['pdf', !!ctx.data.sources.pdf],
+    ['audio', !!ctx.data.sources.audio],
+    ['video', !!ctx.data.sources.video],
+  ];
+  const activeSources = sourceEntries.filter(([key, has]) => has && enabledSources.has(key as any)).length;
   const mostUsedCode = freq.length > 0 ? freq[0]!.code : "\u2014";
   const avgCodesPerMarker = filtered.length > 0
     ? (filtered.reduce((s, m) => s + m.codes.length, 0) / filtered.length).toFixed(1)

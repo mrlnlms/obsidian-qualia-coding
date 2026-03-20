@@ -115,6 +115,128 @@ Layout puro ja extraido em `marginPanelLayout.ts` (129 LOC). Candidatos a split:
 
 ---
 
+## CSV rowIndex vs sourceRowIndex — codigos vao pra linha errada apos sort
+
+**Severidade**: Alta
+
+`csvCodingCellRenderer.ts:14,136` e `csvCodingMenu.ts:106` — usam `node.rowIndex` (display index) que muda com sort/filter. Model armazena row como indice original. Apos sort, tag chips aparecem na linha errada e codigos novos sao salvos com row index incorreto.
+
+**Acao**: Usar `node.sourceRowIndex` ou identificador baseado no dado.
+
+---
+
+## Dendrogram "Files" mode dead code
+
+**Severidade**: Media
+
+`dendrogramMode.ts:42` — options panel oferece "Codes"/"Files" radio, mas render/mini/export sempre usam `calculateCooccurrence()` sem checar `ctx.dendrogramMode`. Selecionar "Files" nao tem efeito.
+
+**Acao**: Implementar files mode ou remover radio button.
+
+---
+
+## Chart.js instances leak — nunca destroyed
+
+**Severidade**: Media
+
+`frequencyMode.ts:179`, `wordCloudMode.ts:135`, `acmMode.ts:158`, `mdsMode.ts:136`, `temporalMode.ts:46` — `new Chart()` criado a cada render sem `.destroy()`. `chartContainer.empty()` remove DOM mas Chart.js mantem resize observers e animation frames. Acumula em sessoes longas.
+
+**Acao**: Guardar referencia ao Chart e chamar `.destroy()` antes de recriar.
+
+---
+
+## markerPositionUtils ch sem clamping
+
+**Severidade**: Media
+
+`markerPositionUtils.ts:94-96` — `line.from + ch` sem clamp ao tamanho da linha. Se linha encolheu apos criacao do marker, offset sangra pra proxima linha. `marginPanelExtension.ts:290-295` ja tem clamp — inconsistencia.
+
+**Acao**: Aplicar `Math.min(ch, line.length)` como no marginPanel.
+
+---
+
+## scrollDOM position conflict entre handle overlay e margin panel
+
+**Severidade**: Media
+
+`handleOverlayRenderer.ts:27,38,165` e `marginPanelExtension.ts:40` — ambos setam `scrollDOM.style.position = 'relative'`. So handleOverlay `destroy()` restaura valor original. Se destruir antes do marginPanel, reseta pra '' e quebra panel.
+
+**Acao**: Atacar junto com z-index stacking (item acima).
+
+---
+
+## PDF setMemo nao chama notify — sidebar nao atualiza
+
+**Severidade**: Media
+
+`pdfCodingMenu.ts:75-83` (text) e `:151-155` (shapes) — `setMemo` persiste via `model.save()` mas nao dispara change listeners. Memo atualizado nao aparece na sidebar ate outra operacao.
+
+**Acao**: Chamar `notify()` apos save.
+
+---
+
+## Image keyboard handlers globais — conflito multi-view
+
+**Severidade**: Media
+
+`imageToolbar.ts:128` e `zoomPanControls.ts:97-98` — `window.addEventListener("keydown")` global. Com duas image views em split, teclas ativam em ambas.
+
+**Acao**: Filtrar por view ativa ou usar event delegation no container.
+
+---
+
+## Image region labels desalinham apos zoom/pan
+
+**Severidade**: Media
+
+`regionLabels.ts` — nenhum handler de zoom/pan chama `refreshAll()`. Labels posicionados via `getBoundingRect()` na criacao. Apos zoom/pan, ficam desalinhados das shapes.
+
+**Acao**: Chamar `refreshAll()` no after:render do canvas.
+
+---
+
+## baseSidebarAdapter deleteCode itera array enquanto muta
+
+**Severidade**: Media
+
+`baseSidebarAdapter.ts:128-138` — segundo loop chama `removeMarker()` pra markers vazios enquanto itera `getAllMarkers()`. Se retorna referencia viva, splice pula elementos.
+
+**Acao**: Coletar IDs primeiro, depois remover.
+
+---
+
+## searchTimeout leaks em explorer/detail views
+
+**Severidade**: Baixa
+
+`baseCodeExplorerView.ts:29` e `detailListRenderer.ts:40-48` — timeouts nao cancelados em `onClose()`. Callback dispara em view destruida.
+
+---
+
+## unifiedModelAdapter deleteCode — 6 saves redundantes
+
+**Severidade**: Baixa
+
+`unifiedModelAdapter.ts:75-77` — delega pra 6 sub-models, cada um chama `saveMarkers()`.
+
+---
+
+## PDF highlightGeometry pageY no-op
+
+**Severidade**: Baixa
+
+`highlightGeometry.ts:213-214` — `+pageY - pageY` e no-op. Para PDFs com viewBox[1] != 0 (paginas cropadas), posicao vertical fica errada.
+
+---
+
+## PDF drawInteraction keyboard nao filtra contenteditable
+
+**Severidade**: Baixa
+
+`drawInteraction.ts:260-266` — so filtra INPUT/TEXTAREA, nao contenteditable.
+
+---
+
 ## 6 `as any` restantes — fronteiras com APIs externas
 
 | Local | Instancias | Eliminavel? |

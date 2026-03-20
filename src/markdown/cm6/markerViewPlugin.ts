@@ -134,11 +134,17 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 				return findSmallestMarkerAtPos(pos, this.fileId, model, view, model.plugin.app);
 			}
 
+			private pendingIdentify = false;
+
 			update(update: ViewUpdate) {
 				if (!this.fileId || !this.fileIdSent) {
-					setTimeout(() => {
-						this.identifyAndSendFileId(update.view);
-					}, 0);
+					if (!this.pendingIdentify) {
+						this.pendingIdentify = true;
+						setTimeout(() => {
+							this.pendingIdentify = false;
+							this.identifyAndSendFileId(update.view);
+						}, 0);
+					}
 				}
 
 				// When text changes, schedule a debounced save of synced positions

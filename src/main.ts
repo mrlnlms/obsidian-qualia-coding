@@ -179,7 +179,9 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.app.workspace.detachLeavesOfType(CODE_DETAIL_VIEW_TYPE);
 
 		for (let i = this.cleanups.length - 1; i >= 0; i--) {
-			await this.cleanups[i]!();
+			try { await this.cleanups[i]!(); } catch (e) {
+				console.error(`QualiaCoding: cleanup[${i}] failed`, e);
+			}
 		}
 		// Persist shared registry back to DataManager
 		this.dataManager.setSection('registry', this.sharedRegistry.toJSON());
