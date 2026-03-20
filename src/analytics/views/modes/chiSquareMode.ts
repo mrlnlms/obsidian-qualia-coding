@@ -159,7 +159,7 @@ export function renderMiniChiSquare(ctx: AnalyticsViewContext, canvas: HTMLCanva
   canvasCtx.fillRect(0, 0, W, H);
 
   // Top 5 codes by Cramér's V
-  const top = result.entries.slice(0, 5).sort((a, b) => b.cramersV - a.cramersV);
+  const top = [...result.entries].sort((a, b) => b.cramersV - a.cramersV).slice(0, 5);
   if (top.length === 0) return;
 
   const maxV = Math.max(...top.map((e) => e.cramersV), 0.01);
