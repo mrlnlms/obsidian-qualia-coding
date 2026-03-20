@@ -301,6 +301,45 @@ describe('TextExtractor', () => {
 		});
 	});
 
+	// ── Multiline quoted fields (A3) ────────────────────────────
+
+	describe('multiline quoted fields (A3)', () => {
+		it('extracts cell from CSV with multiline quoted field', async () => {
+			fileContents.set('d.csv', 'col\n"hello\nworld"');
+			const result = await extractor.extractBatch([
+				makeMarker('m1', 'csv-segment', 'd.csv', ['A'], { row: 0, column: 'col' }),
+			]);
+			expect(result[0].text).toBe('hello\nworld');
+		});
+
+		it('row-join works when other columns have multiline quoted fields', async () => {
+			fileContents.set('d.csv', 'a,b\n"line1\nline2",val');
+			const result = await extractor.extractBatch([
+				makeMarker('m1', 'csv-row', 'd.csv', ['A'], { row: 0, column: 'b' }),
+			]);
+			expect(result[0].text).toBe('val');
+		});
+	});
+
+	// ── Parquet binary skip (A4) ─────────────────────────────────
+
+	describe('parquet binary skip (A4)', () => {
+		it('does not call vault.read for .parquet files', async () => {
+			const result = await extractor.extractBatch([
+				makeMarker('m1', 'csv-row', 'data.parquet', ['A'], { row: 0, column: 'name' }),
+			]);
+			expect(mockVault.adapter.read).not.toHaveBeenCalled();
+			expect(result[0].text).toBe('');
+		});
+
+		it('returns empty string for csv-segment on .parquet file', async () => {
+			const result = await extractor.extractBatch([
+				makeMarker('m1', 'csv-segment', 'data.parquet', ['A'], { row: 0, column: 'text' }),
+			]);
+			expect(result[0].text).toBe('');
+		});
+	});
+
 	// ── Segment metadata pass-through ────────────────────────────
 
 	describe('segment metadata pass-through', () => {

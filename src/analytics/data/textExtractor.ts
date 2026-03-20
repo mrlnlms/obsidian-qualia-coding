@@ -1,4 +1,5 @@
 
+import Papa from "papaparse";
 import type { Vault } from "obsidian";
 import type { UnifiedMarker, SourceType } from "./dataTypes";
 
@@ -32,14 +33,18 @@ export class TextExtractor {
       byFile.set(m.fileId, list);
     }
 
-    // Read all files once
+    // Read all files once (skip .parquet — binary format, vault.read returns garbage)
     for (const file of byFile.keys()) {
       if (!this.fileCache.has(file)) {
-        try {
-          const content = await this.vault.adapter.read(file);
-          this.fileCache.set(file, content);
-        } catch {
+        if (file.endsWith(".parquet")) {
           this.fileCache.set(file, "");
+        } else {
+          try {
+            const content = await this.vault.adapter.read(file);
+            this.fileCache.set(file, content);
+          } catch {
+            this.fileCache.set(file, "");
+          }
         }
       }
     }
@@ -171,60 +176,13 @@ export class TextExtractor {
 }
 
 /**
- * Simple CSV parser with quoted-field support.
- * Returns array of rows, each row is array of field strings.
+ * CSV parser using PapaParse — supports quoted fields, multiline values, CRLF.
+ * Returns array of rows, each row is array of field strings (header row first).
  */
 function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let i = 0;
-  const len = text.length;
-
-  while (i < len) {
-    const row: string[] = [];
-    // Parse one row
-    while (i < len) {
-      if (text[i] === '"') {
-        // Quoted field
-        i++; // skip opening quote
-        let field = "";
-        while (i < len) {
-          if (text[i] === '"') {
-            if (i + 1 < len && text[i + 1] === '"') {
-              field += '"';
-              i += 2;
-            } else {
-              i++; // skip closing quote
-              break;
-            }
-          } else {
-            field += text[i];
-            i++;
-          }
-        }
-        row.push(field);
-      } else {
-        // Unquoted field
-        let field = "";
-        while (i < len && text[i] !== ',' && text[i] !== '\n' && text[i] !== '\r') {
-          field += text[i];
-          i++;
-        }
-        row.push(field);
-      }
-
-      if (i < len && text[i] === ',') {
-        i++; // skip comma, continue row
-      } else {
-        break; // end of row
-      }
-    }
-
-    // Skip line endings
-    if (i < len && text[i] === '\r') i++;
-    if (i < len && text[i] === '\n') i++;
-
-    rows.push(row);
-  }
-
-  return rows;
+  const result = Papa.parse<string[]>(text, {
+    header: false,
+    skipEmptyLines: false,
+  });
+  return result.data as string[][];
 }
