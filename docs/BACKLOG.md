@@ -4,6 +4,14 @@
 
 ---
 
+## PDF navigate nao foca marker especifico
+
+Navegacao de PDF da sidebar abre a pagina via `#page=N` generico, mas descarta o `markerId`. Nao ha scroll nem flash do highlight/shape especifico. O evento `qualia-pdf:navigate` documentado no ARCHITECTURE.md nao existe no codigo.
+
+**Acao**: Implementar `qualia-pdf:navigate` com scroll to page + flash do marker. Requer acesso ao PDF.js viewer interno pra posicionar no marker.
+
+---
+
 ## Bug: fileInterceptor destroi leaf ao abrir arquivo duplicado
 
 **Severidade**: Alto (quebra comportamento nativo do Obsidian)
