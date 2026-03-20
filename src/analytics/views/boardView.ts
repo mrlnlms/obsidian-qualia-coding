@@ -11,6 +11,7 @@ import { clusterCodeCards } from "../board/boardClusters";
 import { isArrowLineNode, isArrowHeadNode, isBoardNode, type CodeCardNode } from "../board/boardTypes";
 import { showBoardContextMenu } from "./boardContextMenu";
 import { saveBoard, loadBoard } from "./boardPersistence";
+import { reconcileBoard, buildSummary, hasChanges } from "../board/boardReconciler";
 
 export const BOARD_VIEW_TYPE = "codemarker-board";
 
@@ -92,6 +93,22 @@ export class BoardView extends ItemView {
       // Load saved board
       if (this.canvasState) {
         await loadBoard(this.canvasState.canvas, this.app.vault.adapter);
+      }
+
+      // Reconcile stale data
+      if (this.canvasState) {
+        const data = await this.plugin.loadConsolidatedData();
+        const result = reconcileBoard(
+          this.canvasState.canvas,
+          this.plugin.registry,
+          data,
+          this.app,
+        );
+        if (hasChanges(result)) {
+          this.canvasState.canvas.renderAll();
+          this.scheduleSave();
+          new Notice(buildSummary(result));
+        }
       }
 
       // Listen for Clear All Markers — wipe canvas so onClose/autosave don't recreate board.json
