@@ -82,7 +82,7 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
 | ~~A1~~ | ~~FEITO~~ | `dendrogramMode.ts` | ~~dead code Files mode removido + dendrogramMode removido do context~~ |
-| A2 | Media | Chart.js instances | frequencyMode, wordCloudMode, acmMode, mdsMode, temporalMode — new Chart() sem destroy(). Leak em sessoes longas |
+| ~~A2~~ | ~~FEITO~~ | Chart.js instances | ~~ctx.activeChartInstance destroy antes de recriar + onClose cleanup~~ |
 | A3 | Media | `textExtractor.ts:177` | parseCsv() simplificado nao suporta multiline quoted fields. Desloca row em Text Retrieval/Word Cloud/Text Stats |
 | A4 | Media | `textExtractor.ts:35,80` | Markers Parquet relidos via vault.read() como texto. Lixo binario no Analytics |
 | ~~A5~~ | ~~FEITO~~ | `chiSquareMode.ts` | ~~sort por Cramers V antes de slice~~ |
