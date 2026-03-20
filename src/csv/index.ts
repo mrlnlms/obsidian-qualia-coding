@@ -55,7 +55,7 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	plugin.registerEvent(fileMenuRef);
 
 	// Navigation event from sidebar — open view + scroll to row
-	const navRef = plugin.app.workspace.on('qualia-csv:navigate', async (data: { file: string; row: number }) => {
+	const navRef = plugin.app.workspace.on('qualia-csv:navigate', async (data: { file: string; row: number; column?: string }) => {
 		const file = plugin.app.vault.getAbstractFileByPath(data.file);
 		if (!(file instanceof TFile)) return;
 
@@ -64,12 +64,12 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 
 		if (existingLeaf) {
 			plugin.app.workspace.setActiveLeaf(existingLeaf);
-			(existingLeaf.view as CsvCodingView).navigateToRow(data.row);
+			(existingLeaf.view as CsvCodingView).navigateToRow(data.row, data.column);
 		} else {
 			const view = await openCsvCodingView(plugin, file);
 			if (view) {
 				await view.waitUntilReady();
-				view.navigateToRow(data.row);
+				view.navigateToRow(data.row, data.column);
 			}
 		}
 	});

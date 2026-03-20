@@ -177,12 +177,17 @@ export class CsvCodingView extends FileView {
 		return this.readyPromise;
 	}
 
-	navigateToRow(row: number) {
+	navigateToRow(row: number, column?: string) {
 		if (!this.gridApi) return;
 		this.gridApi.ensureIndexVisible(row, 'middle');
 		const rowNode = this.gridApi.getDisplayedRowAtIndex(row);
 		if (rowNode) {
-			this.gridApi.flashCells({ rowNodes: [rowNode], fadeDuration: 1500 });
+			const flashOpts: { rowNodes: any[]; fadeDuration: number; columns?: string[] } = {
+				rowNodes: [rowNode],
+				fadeDuration: 1500,
+			};
+			if (column) flashOpts.columns = [column];
+			this.gridApi.flashCells(flashOpts);
 		}
 	}
 
