@@ -67,11 +67,9 @@ export function registerCsvEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			(existingLeaf.view as CsvCodingView).navigateToRow(data.row);
 		} else {
 			const view = await openCsvCodingView(plugin, file);
-			// Wait for onLoadFile to complete before scrolling
 			if (view) {
-				setTimeout(() => {
-					view.navigateToRow(data.row);
-				}, 500);
+				await view.waitUntilReady();
+				view.navigateToRow(data.row);
 			}
 		}
 	});

@@ -64,6 +64,8 @@ export class CsvCodingView extends FileView {
 	private headerObserver: MutationObserver | null = null;
 	gridWrapper: HTMLElement | null = null;
 	private segmentEditor: SegmentEditor;
+	private readyResolve: (() => void) | null = null;
+	private readyPromise: Promise<void> = new Promise(r => { this.readyResolve = r; });
 
 	get markdownModel() { return this.plugin.markdownModel!; }
 
@@ -153,7 +155,8 @@ export class CsvCodingView extends FileView {
 			domLayout: 'normal',
 		});
 
-		// Navigation is handled via navigateToRow() called directly from csv/index.ts
+		// Signal readiness for callers awaiting waitUntilReady()
+		this.readyResolve?.();
 
 		// Inject custom header buttons via MutationObserver
 		const headerRoot = wrapper.querySelector('.ag-header');
@@ -167,6 +170,10 @@ export class CsvCodingView extends FileView {
 	}
 
 	// ─── Navigation ─────────────────────────────────────────
+
+	waitUntilReady(): Promise<void> {
+		return this.readyPromise;
+	}
 
 	navigateToRow(row: number) {
 		if (!this.gridApi) return;
@@ -192,6 +199,8 @@ export class CsvCodingView extends FileView {
 	}
 
 	async onUnloadFile(): Promise<void> {
+		// Reset readiness for next file load
+		this.readyPromise = new Promise(r => { this.readyResolve = r; });
 		this.closeSegmentEditor();
 		if (this.file) {
 			this.csvModel.rowDataCache.delete(this.file.path);
