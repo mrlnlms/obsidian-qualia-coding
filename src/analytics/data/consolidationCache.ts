@@ -4,11 +4,20 @@ import type { AllEngineData } from './dataReader';
 import {
 	consolidateMarkdown, consolidateCsv, consolidateImage,
 	consolidatePdf, consolidateAudio, consolidateVideo,
-	consolidateCodes,
+	consolidateCodes, findDefinitions,
 	type EngineSlice,
 } from './dataConsolidator';
 
 const ALL_ENGINES: EngineType[] = ['markdown', 'csv', 'image', 'pdf', 'audio', 'video'];
+
+const ENGINE_FNS: Record<EngineType, (data: AllEngineData) => EngineSlice> = {
+	markdown: (d) => consolidateMarkdown(d.markdown),
+	csv: (d) => consolidateCsv(d.csv),
+	image: (d) => consolidateImage(d.image),
+	pdf: (d) => consolidatePdf(d.pdf),
+	audio: (d) => consolidateAudio(d.audio),
+	video: (d) => consolidateVideo(d.video),
+};
 
 export class ConsolidationCache {
 	private cachedData: ConsolidatedData | null = null;
@@ -42,17 +51,8 @@ export class ConsolidationCache {
 
 		const raw = readFn();
 
-		const engineFns: Record<EngineType, (data: AllEngineData) => EngineSlice> = {
-			markdown: (d) => consolidateMarkdown(d.markdown),
-			csv: (d) => consolidateCsv(d.csv),
-			image: (d) => consolidateImage(d.image),
-			pdf: (d) => consolidatePdf(d.pdf),
-			audio: (d) => consolidateAudio(d.audio),
-			video: (d) => consolidateVideo(d.video),
-		};
-
 		for (const engine of this.dirtyEngines) {
-			this.engineSlices.set(engine, engineFns[engine](raw));
+			this.engineSlices.set(engine, ENGINE_FNS[engine](raw));
 		}
 
 		const markers: UnifiedMarker[] = [];
@@ -61,23 +61,14 @@ export class ConsolidationCache {
 			if (slice) markers.push(...slice.markers);
 		}
 
-		let codes: UnifiedCode[];
-		if (this.registryDirty || this.dirtyEngines.size > 0) {
-			const defs = raw.markdown?.codeDefinitions
-				?? raw.csv?.registry?.definitions
-				?? raw.image?.registry?.definitions
-				?? raw.pdf?.registry?.definitions
-				?? raw.audio?.codeDefinitions?.definitions
-				?? raw.video?.codeDefinitions?.definitions
-				?? {};
-			const activeEngines: EngineType[] = [];
-			for (const engine of ALL_ENGINES) {
-				if (this.engineSlices.get(engine)?.hasData) activeEngines.push(engine);
-			}
-			codes = consolidateCodes(markers, defs, activeEngines);
-		} else {
-			codes = this.cachedData!.codes;
+		// codes[] always rebuilds when anything is dirty — codes depend on both
+		// registry definitions and codes discovered in markers (see spec §Merge parcial item 5)
+		const defs = findDefinitions(raw);
+		const activeEngines: EngineType[] = [];
+		for (const engine of ALL_ENGINES) {
+			if (this.engineSlices.get(engine)?.hasData) activeEngines.push(engine);
 		}
+		const codes = consolidateCodes(markers, defs, activeEngines);
 
 		const sources = {
 			markdown: this.engineSlices.get('markdown')?.hasData ?? false,

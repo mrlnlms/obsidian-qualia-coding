@@ -298,6 +298,26 @@ export function consolidateCodes(
   return codes;
 }
 
+// ── Shared helper: find definitions from AllEngineData ──
+
+/** Extract shared code definitions from any available engine in AllEngineData. */
+export function findDefinitions(raw: {
+  markdown?: { codeDefinitions?: Record<string, CodeDefinition> } | null;
+  csv?: { registry?: { definitions: Record<string, CodeDefinition> } } | null;
+  image?: { registry?: { definitions: Record<string, CodeDefinition> } } | null;
+  pdf?: { registry?: { definitions: Record<string, CodeDefinition> } } | null;
+  audio?: { codeDefinitions?: { definitions: Record<string, CodeDefinition> } } | null;
+  video?: { codeDefinitions?: { definitions: Record<string, CodeDefinition> } } | null;
+}): Record<string, CodeDefinition> {
+  return raw.markdown?.codeDefinitions
+    ?? raw.csv?.registry?.definitions
+    ?? raw.image?.registry?.definitions
+    ?? raw.pdf?.registry?.definitions
+    ?? raw.audio?.codeDefinitions?.definitions
+    ?? raw.video?.codeDefinitions?.definitions
+    ?? {};
+}
+
 // ── Main consolidate (thin composition) ──
 
 export function consolidate(
@@ -316,13 +336,14 @@ export function consolidate(
   const vid = consolidateVideo(videoData);
   const markers = [...md.markers, ...csv.markers, ...img.markers, ...pdf.markers, ...aud.markers, ...vid.markers];
 
-  const defs = markdownData?.codeDefinitions
-    ?? csvData?.registry?.definitions
-    ?? imageData?.registry?.definitions
-    ?? pdfData?.registry?.definitions
-    ?? audioData?.codeDefinitions?.definitions
-    ?? videoData?.codeDefinitions?.definitions
-    ?? {};
+  const defs = findDefinitions({
+    markdown: markdownData,
+    csv: csvData,
+    image: imageData,
+    pdf: pdfData,
+    audio: audioData,
+    video: videoData,
+  });
 
   const activeEngines: EngineType[] = [];
   if (md.hasData) activeEngines.push('markdown');
