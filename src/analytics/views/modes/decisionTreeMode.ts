@@ -3,6 +3,7 @@ import { Notice } from "obsidian";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { FilterConfig } from "../../data/dataTypes";
 import { buildDecisionTree, type DecisionTreeNode, type DecisionTreeResult } from "../../data/decisionTreeEngine";
+import { buildCsv } from "../shared/chartHelpers";
 
 export function renderDecisionTreeOptionsSection(ctx: AnalyticsViewContext): void {
   if (!ctx.data) return;
@@ -276,7 +277,7 @@ export function exportDecisionTreeCSV(ctx: AnalyticsViewContext, date: string): 
   }
   collectNodes(result.root);
 
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-decision-tree-${date}.csv`;

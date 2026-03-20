@@ -115,6 +115,16 @@ Layout puro ja extraido em `marginPanelLayout.ts` (129 LOC). Candidatos a split:
 
 ---
 
+## textExtractor parseCsv nao suporta multiline e Parquet
+
+**Severidade**: Media
+
+`textExtractor.ts:177` — `parseCsv()` simplificado nao suporta quebras de linha dentro de campos quoted. Desloca row+1 em Text Retrieval/Word Cloud/Text Stats quando ha celulas multiline. Alem disso, markers de Parquet chegam como csv-segment/csv-row mas sao relidos via `vault.adapter.read()` como texto, gerando lixo binario.
+
+**Acao**: Usar PapaParse no textExtractor (ja e dependencia do CSV engine) e detectar extensao .parquet pra usar hyparquet.
+
+---
+
 ## CSV rowIndex vs sourceRowIndex — codigos vao pra linha errada apos sort
 
 **Severidade**: Alta

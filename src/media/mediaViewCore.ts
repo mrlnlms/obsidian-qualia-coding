@@ -17,6 +17,8 @@ export class MediaViewCore {
   private readyResolve: (() => void) | null = null;
   private readyPromise: Promise<void> = new Promise(r => { this.readyResolve = r; });
   private regionRenderer: MediaRegionRenderer | null = null;
+  private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private keydownEl: HTMLElement | null = null;
   private currentFile: TFile | null = null;
   private videoElement: HTMLVideoElement | null = null;
   private waveformEl: HTMLElement | null = null;
@@ -287,9 +289,14 @@ export class MediaViewCore {
     this.renderer.on('finish', () => this.updatePlayIcon());
     this.renderer.on('seeking', () => this.updateTimeDisplay());
 
+    // Remove previous keydown handler (prevents accumulation on file switch)
+    if (this.keydownHandler && this.keydownEl) {
+      this.keydownEl.removeEventListener('keydown', this.keydownHandler);
+    }
+
     // Keyboard shortcuts
     contentEl.tabIndex = 0;
-    contentEl.addEventListener('keydown', (e: KeyboardEvent) => {
+    this.keydownHandler = (e: KeyboardEvent) => {
       switch (e.key) {
         case ' ':
           e.preventDefault();
@@ -307,10 +314,17 @@ export class MediaViewCore {
           this.updateTimeDisplay();
           break;
       }
-    });
+    };
+    contentEl.addEventListener('keydown', this.keydownHandler);
+    this.keydownEl = contentEl;
   }
 
   cleanup(): void {
+    if (this.keydownHandler && this.keydownEl) {
+      this.keydownEl.removeEventListener('keydown', this.keydownHandler);
+      this.keydownHandler = null;
+      this.keydownEl = null;
+    }
     this.saveScrollPosition();
     this.stopTimeUpdates();
     if (this.changeListener) {

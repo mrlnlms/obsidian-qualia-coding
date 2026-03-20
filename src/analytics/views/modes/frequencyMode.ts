@@ -3,7 +3,7 @@ import { setIcon, Notice } from "obsidian";
 import type { FilterConfig, FrequencyResult } from "../../data/dataTypes";
 import { calculateFrequency } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { generateFileColors } from "../shared/chartHelpers";
+import { generateFileColors , buildCsv } from "../shared/chartHelpers";
 
 export function renderSortSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -249,7 +249,7 @@ export function exportFrequencyCSV(ctx: AnalyticsViewContext, date: string): voi
       String(r.bySource.video),
     ]);
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-frequency-${date}.csv`;

@@ -226,7 +226,7 @@ describe('exportTemporalCSV', () => {
 		const rows = csvRows(csv);
 		expect(rows[0]).toEqual(['code', 'date', 'cumulative_count']);
 		expect(rows).toHaveLength(3); // header + 2 data rows
-		expect(rows[1]![0]).toBe('"A"');
+		expect(rows[1]![0]).toBe('A');
 		expect(rows[1]![2]).toBe('1');
 		expect(rows[2]![2]).toBe('3');
 		expect(clickSpy).toHaveBeenCalledOnce();
@@ -546,7 +546,7 @@ describe('exportWordCloudCSV', () => {
 		const rows = csvRows(csv);
 		expect(rows[0]).toEqual(['word', 'count', 'codes']);
 		expect(rows).toHaveLength(3);
-		expect(rows[1]![0]).toBe('"hello"');
+		expect(rows[1]![0]).toBe('hello');
 		expect(rows[1]![1]).toBe('5');
 		expect(clickSpy).toHaveBeenCalledOnce();
 	});
@@ -574,7 +574,7 @@ describe('exportTextStatsCSV', () => {
 		const rows = csvRows(csv);
 		expect(rows[0]).toEqual(['code', 'segments', 'total_words', 'unique_words', 'ttr', 'avg_words_per_segment', 'avg_chars_per_segment']);
 		expect(rows).toHaveLength(2);
-		expect(rows[1]![0]).toBe('"A"');
+		expect(rows[1]![0]).toBe('A');
 		expect(clickSpy).toHaveBeenCalledOnce();
 	});
 });

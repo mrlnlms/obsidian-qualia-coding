@@ -1,6 +1,6 @@
 import type { FilterConfig, LagResult } from "../../data/dataTypes";
 import { calculateLagSequential } from "../../data/statsEngine";
-import { divergentColor, isDivergentLight } from "../shared/chartHelpers";
+import { divergentColor, isDivergentLight , buildCsv } from "../shared/chartHelpers";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 
 export function renderLagOptionsSection(ctx: AnalyticsViewContext): void {
@@ -210,8 +210,8 @@ export function exportLagCSV(ctx: AnalyticsViewContext, date: string): void {
   for (let i = 0; i < result.codes.length; i++) {
     for (let j = 0; j < result.codes.length; j++) {
       rows.push([
-        `"${result.codes[i]}"`,
-        `"${result.codes[j]}"`,
+        result.codes[i]!,
+        result.codes[j]!,
         String(result.transitions[i]![j]!),
         String(result.expected[i]![j]!),
         String(result.zScores[i]![j]!),
@@ -219,7 +219,7 @@ export function exportLagCSV(ctx: AnalyticsViewContext, date: string): void {
       ]);
     }
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-lag-sequential-${date}.csv`;

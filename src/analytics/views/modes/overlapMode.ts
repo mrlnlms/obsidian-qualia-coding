@@ -2,7 +2,7 @@
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { FilterConfig, CooccurrenceResult, OverlapResult } from "../../data/dataTypes";
 import { calculateOverlap } from "../../data/statsEngine";
-import { heatmapColor, isLightColor, computeDisplayMatrix } from "../shared/chartHelpers";
+import { heatmapColor, isLightColor, computeDisplayMatrix , buildCsv } from "../shared/chartHelpers";
 import { reorderCooccurrence } from "./cooccurrenceMode";
 
 export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {
@@ -204,7 +204,7 @@ export function exportOverlapCSV(ctx: AnalyticsViewContext, date: string): void 
   for (let i = 0; i < result.codes.length; i++) {
     rows.push([result.codes[i]!, ...result.matrix[i]!.map(String)]);
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-code-overlap-${date}.csv`;

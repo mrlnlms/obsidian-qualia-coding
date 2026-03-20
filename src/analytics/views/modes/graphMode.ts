@@ -2,7 +2,7 @@
 import type { FilterConfig } from "../../data/dataTypes";
 import { calculateCooccurrence, calculateFrequency } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { isLightColor } from "../shared/chartHelpers";
+import { isLightColor , buildCsv } from "../shared/chartHelpers";
 
 export function renderGraphOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -51,7 +51,7 @@ export function exportGraphCSV(ctx: AnalyticsViewContext, date: string): void {
       }
     }
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-graph-${date}.csv`;

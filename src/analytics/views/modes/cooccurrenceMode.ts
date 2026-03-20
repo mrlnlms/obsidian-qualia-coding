@@ -3,7 +3,7 @@ import type { FilterConfig, CooccurrenceResult } from "../../data/dataTypes";
 import { calculateCooccurrence } from "../../data/statsEngine";
 import { hierarchicalCluster } from "../../data/clusterEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { heatmapColor, isLightColor, computeDisplayMatrix } from "../shared/chartHelpers";
+import { heatmapColor, isLightColor, computeDisplayMatrix , buildCsv } from "../shared/chartHelpers";
 
 export function renderDisplaySection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -135,7 +135,7 @@ export function exportCooccurrenceCSV(ctx: AnalyticsViewContext, date: string): 
   for (let i = 0; i < result.codes.length; i++) {
     rows.push([result.codes[i]!, ...result.matrix[i]!.map(String)]);
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-cooccurrence-${date}.csv`;

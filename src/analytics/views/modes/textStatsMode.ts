@@ -3,6 +3,7 @@ import type { FilterConfig, FrequencyResult, UnifiedMarker } from "../../data/da
 import { calculateTextStats } from "../../data/statsEngine";
 import { TextExtractor } from "../../data/textExtractor";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
+import { buildCsv } from "../shared/chartHelpers";
 
 export function renderTextStats(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
@@ -173,9 +174,9 @@ export function exportTextStatsCSV(ctx: AnalyticsViewContext, date: string): voi
 
     const rows: string[][] = [["code", "segments", "total_words", "unique_words", "ttr", "avg_words_per_segment", "avg_chars_per_segment"]];
     for (const e of result.codes) {
-      rows.push([`"${e.code}"`, String(e.segmentCount), String(e.totalWords), String(e.uniqueWords), String(e.ttr), String(e.avgWordsPerSegment), String(e.avgCharsPerSegment)]);
+      rows.push([e.code, String(e.segmentCount), String(e.totalWords), String(e.uniqueWords), String(e.ttr), String(e.avgWordsPerSegment), String(e.avgCharsPerSegment)]);
     }
-    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const csvContent = buildCsv(rows);
     const blob = new Blob([csvContent], { type: "text/csv" });
     const link = document.createElement("a");
     link.download = `codemarker-text-stats-${date}.csv`;

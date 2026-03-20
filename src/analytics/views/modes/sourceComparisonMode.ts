@@ -3,7 +3,7 @@ import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { FilterConfig, SourceComparisonResult, SourceType } from "../../data/dataTypes";
 import type { FrequencyResult } from "../../data/dataTypes";
 import { calculateSourceComparison } from "../../data/statsEngine";
-import { SOURCE_COLORS } from "../shared/chartHelpers";
+import { SOURCE_COLORS , buildCsv } from "../shared/chartHelpers";
 
 export function renderSourceComparisonOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -303,7 +303,7 @@ export function exportSourceComparisonCSV(ctx: AnalyticsViewContext, date: strin
       ...allSources.map((s) => String(e.bySourcePctOfSrc[s])),
     ]);
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-source-comparison-${date}.csv`;

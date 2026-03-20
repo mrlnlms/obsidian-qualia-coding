@@ -6,6 +6,7 @@ import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { TooltipItem } from "chart.js";
 // Force chartjs-chart-wordcloud module augmentation (registers 'wordCloud' in ChartTypeRegistry)
 import type {} from "chartjs-chart-wordcloud";
+import { buildCsv } from "../shared/chartHelpers";
 
 export function renderWordCloudOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -223,9 +224,9 @@ export function exportWordCloudCSV(ctx: AnalyticsViewContext, date: string): voi
 
     const rows: string[][] = [["word", "count", "codes"]];
     for (const r of results) {
-      rows.push([`"${r.word}"`, String(r.count), `"${r.codes.join("; ")}"`]);
+      rows.push([r.word, String(r.count), r.codes.join("; ")]);
     }
-    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const csvContent = buildCsv(rows);
     const blob = new Blob([csvContent], { type: "text/csv" });
     const link = document.createElement("a");
     link.download = `codemarker-wordcloud-${date}.csv`;

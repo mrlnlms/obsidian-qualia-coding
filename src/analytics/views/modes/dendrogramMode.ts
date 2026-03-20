@@ -4,6 +4,7 @@ import { calculateCooccurrence } from "../../data/statsEngine";
 import { buildDendrogram, cutDendrogram, calculateSilhouette, type DendrogramNode } from "../../data/clusterEngine";
 import type { SilhouetteResult } from "../../data/clusterEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
+import { buildCsv } from "../shared/chartHelpers";
 
 export function renderDendrogramOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -403,9 +404,9 @@ export function exportDendrogramCSV(ctx: AnalyticsViewContext, date: string): vo
 
   const rows: string[][] = [["name", "cluster", "silhouette_score"]];
   for (const s of sil.scores) {
-    rows.push([`"${s.name}"`, String(s.cluster), String(s.score)]);
+    rows.push([s.name, String(s.cluster), String(s.score)]);
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-dendrogram-${date}.csv`;

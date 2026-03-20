@@ -2,6 +2,7 @@ import { Notice } from "obsidian";
 import type { FilterConfig, TemporalResult } from "../../data/dataTypes";
 import { calculateTemporal } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
+import { buildCsv } from "../shared/chartHelpers";
 
 export async function renderTemporalChart(ctx: AnalyticsViewContext, filters: FilterConfig): Promise<void> {
   if (!ctx.chartContainer || !ctx.data) return;
@@ -151,10 +152,10 @@ export function exportTemporalCSV(ctx: AnalyticsViewContext, date: string): void
   const rows: string[][] = [["code", "date", "cumulative_count"]];
   for (const s of result.series) {
     for (const p of s.points) {
-      rows.push([`"${s.code}"`, new Date(p.date).toISOString(), String(p.count)]);
+      rows.push([s.code, new Date(p.date).toISOString(), String(p.count)]);
     }
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-temporal-${date}.csv`;

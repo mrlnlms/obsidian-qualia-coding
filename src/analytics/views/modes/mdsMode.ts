@@ -3,6 +3,7 @@ import { Notice } from "obsidian";
 import type { FilterConfig, UnifiedMarker, FrequencyResult } from "../../data/dataTypes";
 import { calculateMDS, type MDSResult } from "../../data/mdsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
+import { buildCsv } from "../shared/chartHelpers";
 
 export function renderMDSOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -303,9 +304,9 @@ export function exportMDSCSV(ctx: AnalyticsViewContext, date: string): void {
 
     const rows: string[][] = [["name", "dim1", "dim2", "size", "mode"]];
     for (const p of result.points) {
-      rows.push([`"${p.name}"`, p.x.toFixed(4), p.y.toFixed(4), String(p.size), result.mode]);
+      rows.push([p.name, p.x.toFixed(4), p.y.toFixed(4), String(p.size), result.mode]);
     }
-    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const csvContent = buildCsv(rows);
     const blob = new Blob([csvContent], { type: "text/csv" });
     const link = document.createElement("a");
     link.download = `codemarker-mds-${date}.csv`;

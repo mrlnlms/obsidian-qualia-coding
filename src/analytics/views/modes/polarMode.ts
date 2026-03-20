@@ -1,6 +1,7 @@
 import type { FilterConfig, PolarCoordResult } from "../../data/dataTypes";
 import { calculatePolarCoordinates } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
+import { buildCsv } from "../shared/chartHelpers";
 
 export function renderPolarOptionsSection(ctx: AnalyticsViewContext): void {
   if (!ctx.data) return;
@@ -264,7 +265,7 @@ export function exportPolarCSV(ctx: AnalyticsViewContext, date: string): void {
   for (const v of result.vectors) {
     rows.push([result.focalCode, v.code, String(v.zProspective), String(v.zRetrospective), String(v.radius), String(v.angle), String(v.quadrant), v.significant ? "yes" : "no"]);
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-polar-coords-${date}.csv`;

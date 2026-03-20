@@ -3,6 +3,7 @@ import { Notice } from "obsidian";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { FilterConfig, ChiSquareResult } from "../../data/dataTypes";
 import { calculateChiSquare } from "../../data/statsEngine";
+import { buildCsv } from "../shared/chartHelpers";
 
 export function renderChiSquareOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -186,7 +187,7 @@ export function exportChiSquareCSV(ctx: AnalyticsViewContext, date: string): voi
   for (const e of result.entries) {
     rows.push([e.code, String(e.chiSquare), String(e.df), String(e.pValue), String(e.cramersV), e.significant ? "yes" : "no"]);
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-chi-square-${date}.csv`;

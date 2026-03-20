@@ -2,6 +2,7 @@
 import type { FilterConfig, EvolutionResult } from "../../data/dataTypes";
 import { calculateEvolution } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
+import { buildCsv } from "../shared/chartHelpers";
 
 export function renderEvolutionFileSection(ctx: AnalyticsViewContext): void {
   if (!ctx.data) return;
@@ -40,7 +41,7 @@ export function exportEvolutionCSV(ctx: AnalyticsViewContext, date: string): voi
   for (const p of pts) {
     rows.push([p.fileId, p.code, p.position.toFixed(4), String(p.fromLine), String(p.toLine)]);
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-evolution-${date}.csv`;

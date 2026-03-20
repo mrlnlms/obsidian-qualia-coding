@@ -2,7 +2,7 @@
 import type { FilterConfig } from "../../data/dataTypes";
 import { calculateDocumentCodeMatrix } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { heatmapColor, isLightColor } from "../shared/chartHelpers";
+import { heatmapColor, isLightColor , buildCsv } from "../shared/chartHelpers";
 
 export function renderMatrixSortSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -41,7 +41,7 @@ export function exportDocMatrixCSV(ctx: AnalyticsViewContext, date: string): voi
   for (let fi = 0; fi < result.files.length; fi++) {
     rows.push([result.files[fi]!, ...result.matrix[fi]!.map(String)]);
   }
-  const csvContent = rows.map((r) => r.join(",")).join("\n");
+  const csvContent = buildCsv(rows);
   const blob = new Blob([csvContent], { type: "text/csv" });
   const link = document.createElement("a");
   link.download = `codemarker-doc-matrix-${date}.csv`;

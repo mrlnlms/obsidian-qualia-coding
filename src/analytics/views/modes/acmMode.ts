@@ -3,6 +3,7 @@ import { Notice } from "obsidian";
 import type { FilterConfig, UnifiedMarker } from "../../data/dataTypes";
 import { calculateMCA, type MCAResult } from "../../data/mcaEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
+import { buildCsv } from "../shared/chartHelpers";
 
 export function renderACMOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -325,12 +326,12 @@ export function exportACMCSV(ctx: AnalyticsViewContext, date: string): void {
 
     const rows: string[][] = [["type", "name", "dim1", "dim2", "file", "codes"]];
     for (const cp of result.codePoints) {
-      rows.push(["code", `"${cp.name}"`, cp.x.toFixed(4), cp.y.toFixed(4), "", ""]);
+      rows.push(["code", cp.name, cp.x.toFixed(4), cp.y.toFixed(4), "", ""]);
     }
     for (const mp of result.markerPoints) {
-      rows.push(["marker", `"${mp.id}"`, mp.x.toFixed(4), mp.y.toFixed(4), `"${mp.fileId}"`, `"${mp.codes.join("; ")}"`]);
+      rows.push(["marker", mp.id, mp.x.toFixed(4), mp.y.toFixed(4), mp.fileId, mp.codes.join("; ")]);
     }
-    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const csvContent = buildCsv(rows);
     const blob = new Blob([csvContent], { type: "text/csv" });
     const link = document.createElement("a");
     link.download = `codemarker-mca-${date}.csv`;

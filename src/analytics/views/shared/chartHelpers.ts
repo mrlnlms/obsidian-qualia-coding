@@ -111,6 +111,19 @@ export function isDivergentLight(z: number, maxZ: number, isDark: boolean): bool
   return intensity < 0.5;
 }
 
+/** RFC 4180 CSV escaping: quote fields containing comma, quote, or newline */
+function escapeCsvField(field: string): string {
+  if (field.includes(',') || field.includes('"') || field.includes('\n') || field.includes('\r')) {
+    return '"' + field.replace(/"/g, '""') + '"';
+  }
+  return field;
+}
+
+/** Build RFC 4180 compliant CSV string from rows of string values */
+export function buildCsv(rows: string[][]): string {
+  return rows.map(r => r.map(escapeCsvField).join(',')).join('\n');
+}
+
 export const SOURCE_COLORS: Record<string, string> = {
   markdown: "#42A5F5",
   "csv-segment": "#66BB6A",
