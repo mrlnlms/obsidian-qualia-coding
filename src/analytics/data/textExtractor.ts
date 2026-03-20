@@ -84,8 +84,9 @@ export class TextExtractor {
 
   private formatAudioTime(seconds: number): string {
     if (!isFinite(seconds) || seconds < 0) return "0:00.0";
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+    const rounded = Math.round(seconds * 10) / 10;
+    const m = Math.floor(rounded / 60);
+    const s = rounded % 60;
     return `${m}:${s.toFixed(1).padStart(4, "0")}`;
   }
 

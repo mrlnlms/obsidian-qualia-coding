@@ -223,21 +223,23 @@ Agrupamento geral:
 | PDF Coding | `codemarker-pdf-coding` | `qualia-pdf-coding` |
 | PDF Explorer | `codemarker-pdf-explorer` | `qualia-pdf-explorer` |
 | PDF Detail | `codemarker-pdf-detail` | `qualia-pdf-detail` |
-| CSV Coding | `codemarker-csv-coding` | `qualia-csv-coding` |
+| CSV Coding | `codemarker-csv-coding` | `qualia-csv` |
 | Image Coding | `codemarker-image-coding` | `qualia-image-coding` |
-| Audio Coding | `codemarker-audio-coding` | `qualia-audio-coding` |
-| Video Coding | `codemarker-video-coding` | `qualia-video-coding` |
-| Analytics | `codemarker-analytics` | `qualia-analytics` |
+| Audio Coding | `codemarker-audio-coding` | `qualia-audio-view` |
+| Video Coding | `codemarker-video-coding` | `qualia-video-view` |
+| Analytics | `codemarker-analytics` | `codemarker-analytics` |
+
+> **Nota:** IDs acima refletem o estado atual do codigo. Alguns mudaram novamente apos o merge.
 
 ### Custom Events (Rename Audit)
 
-| Old | New |
-|-----|-----|
-| `codemarker-pdf:navigate` | (kept) |
-| `codemarker-image:navigate` | (kept) |
-| `codemarker-csv:navigate` | (kept) |
-| `codemarker-audio:seek` | (kept) |
-| `codemarker-video:seek` | (kept) |
+| Old | Current |
+|-----|---------|
+| `codemarker-pdf:navigate` | `qualia-pdf:navigate` (nao implementado) |
+| `codemarker-image:navigate` | `qualia-image:navigate` |
+| `codemarker-csv:navigate` | `qualia-csv:navigate` |
+| `codemarker-audio:seek` | `qualia-audio:navigate` |
+| `codemarker-video:seek` | `qualia-video:navigate` |
 
 ### Lazy Loading Target Sizes (from MERGE-PLAN)
 

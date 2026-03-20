@@ -33,10 +33,8 @@ describe("formatAudioTime", () => {
     expect(formatAudioTime(0.1)).toBe("0:00.1");
   });
 
-  it("truncates sub-decisecond precision (59.95 rounds to 59.9)", () => {
-    // 59.95 % 60 = 59.95, toFixed(1) = "60.0" — actually rolls over
-    // Let's just verify the output is stable
-    expect(formatAudioTime(59.95)).toBe("0:60.0");
+  it("handles minute boundary correctly (59.95 rounds to 1:00.0)", () => {
+    expect(formatAudioTime(59.95)).toBe("1:00.0");
   });
 
   it("returns 0:00.0 for negative", () => {
