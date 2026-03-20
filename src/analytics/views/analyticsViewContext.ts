@@ -35,6 +35,7 @@ export interface AnalyticsViewContext {
   minEdgeWeight: number;
   enabledSources: Set<SourceType>;
   enabledCodes: Set<string>;
+  disabledCodes: Set<string>;
   minFrequency: number;
   codeSearch: string;
   matrixSortMode: MatrixSortMode;

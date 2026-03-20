@@ -90,10 +90,12 @@ export function renderCodesSection(ctx: AnalyticsViewContext): void {
 
   selectAll.addEventListener("click", () => {
     ctx.enabledCodes = new Set((ctx.data?.codes ?? []).map((c) => c.name));
+    ctx.disabledCodes.clear();
     renderCodesSection(ctx);
     ctx.scheduleUpdate();
   });
   deselectAll.addEventListener("click", () => {
+    for (const name of ctx.enabledCodes) ctx.disabledCodes.add(name);
     ctx.enabledCodes.clear();
     renderCodesSection(ctx);
     ctx.scheduleUpdate();
@@ -146,8 +148,13 @@ function renderCodesList(ctx: AnalyticsViewContext, container: HTMLElement): voi
     });
 
     cb.addEventListener("change", () => {
-      if (cb.checked) ctx.enabledCodes.add(code.name);
-      else ctx.enabledCodes.delete(code.name);
+      if (cb.checked) {
+        ctx.enabledCodes.add(code.name);
+        ctx.disabledCodes.delete(code.name);
+      } else {
+        ctx.enabledCodes.delete(code.name);
+        ctx.disabledCodes.add(code.name);
+      }
       ctx.scheduleUpdate();
     });
     row.addEventListener("click", (e) => {

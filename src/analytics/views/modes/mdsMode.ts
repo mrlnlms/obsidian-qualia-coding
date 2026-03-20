@@ -58,9 +58,24 @@ export function renderMDSMap(ctx: AnalyticsViewContext, filters: FilterConfig): 
     return;
   }
 
+  // Filter marker codes to only include enabled codes
+  const enabledCodes = ctx.enabledCodes;
+  const filteredWithCodes = filtered.map(m => ({
+    ...m,
+    codes: m.codes.filter(c => enabledCodes.has(c)),
+  })).filter(m => m.codes.length > 0);
+
+  if (filteredWithCodes.length < 3) {
+    ctx.chartContainer.createDiv({
+      cls: "codemarker-analytics-empty",
+      text: "MDS requires at least 3 entities with data.",
+    });
+    return;
+  }
+
   const loadingEl = ctx.chartContainer.createDiv({ cls: "codemarker-wc-loading", text: "Computing MDS..." });
   const gen = ctx.renderGeneration;
-  loadAndRenderMDS(ctx, filtered, loadingEl, gen);
+  loadAndRenderMDS(ctx, filteredWithCodes, loadingEl, gen);
 }
 
 async function loadAndRenderMDS(

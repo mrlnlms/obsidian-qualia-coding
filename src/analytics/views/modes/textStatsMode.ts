@@ -35,8 +35,15 @@ export async function loadAndRenderTextStats(
   if (generation !== undefined && !ctx.isRenderCurrent(generation)) return;
   loadingEl.remove();
 
+  // Filter segment codes to only include enabled codes (multi-code segments may carry excluded codes)
+  const enabledCodes = ctx.enabledCodes;
+  const filteredSegments = segments.map(s => ({
+    ...s,
+    codes: s.codes.filter(c => enabledCodes.has(c)),
+  })).filter(s => s.codes.length > 0);
+
   const codeColors = new Map(ctx.data.codes.map((c) => [c.name, c.color]));
-  const result = calculateTextStats(segments, codeColors);
+  const result = calculateTextStats(filteredSegments, codeColors);
 
   if (result.codes.length === 0) {
     ctx.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "No text data available." });

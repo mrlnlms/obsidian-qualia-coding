@@ -25,6 +25,7 @@ export class AnalyticsView extends ItemView {
   minEdgeWeight = 1;
   enabledSources = new Set<SourceType>(["markdown", "csv-segment", "csv-row", "image", "pdf", "audio", "video"]);
   enabledCodes = new Set<string>();
+  disabledCodes = new Set<string>();
   minFrequency = 1;
   codeSearch = "";
   private clearAllHandler: (() => void) | null = null;
@@ -131,11 +132,20 @@ export class AnalyticsView extends ItemView {
   onDataRefreshed(): void {
     this.data = this.plugin.data;
     if (this.data) {
-      // Keep existing enabled codes, add any new ones
+      // Only add codes that are genuinely new (not seen before)
+      const knownCodes = new Set([...this.enabledCodes, ...this.disabledCodes]);
       for (const c of this.data.codes) {
-        if (!this.enabledCodes.has(c.name)) {
+        if (!knownCodes.has(c.name)) {
           this.enabledCodes.add(c.name);
         }
+      }
+      // Remove codes that no longer exist from both sets
+      const currentNames = new Set(this.data.codes.map(c => c.name));
+      for (const name of this.enabledCodes) {
+        if (!currentNames.has(name)) this.enabledCodes.delete(name);
+      }
+      for (const name of this.disabledCodes) {
+        if (!currentNames.has(name)) this.disabledCodes.delete(name);
       }
     }
     this.renderView();
