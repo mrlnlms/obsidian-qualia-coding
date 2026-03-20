@@ -345,6 +345,47 @@ Todos os plugins usam a mesma copia. Se precisar resetar: `rm -rf ~/.cache/obsid
 
 ---
 
+## 5b. Cobertura manual — modulos sem testes unitarios
+
+Modulos abaixo nao tem testes unitarios dedicados porque dependem de APIs reais (CM6 EditorView, Chart.js canvas, DOM interativo). A cobertura e feita por testes e2e e validacao manual. Este checklist serve de roteiro quando mexer nesses modulos.
+
+### markerViewPlugin (CM6 ViewPlugin — 326 LOC)
+
+Coberto indiretamente por: `highlights.e2e.ts`, `hover-interaction.e2e.ts`, `handle-overlay.e2e.ts`
+
+- [ ] Hover em highlight adiciona classe `codemarker-margin-hovered` na margin bar
+- [ ] Hover em margin bar adiciona classe no highlight correspondente
+- [ ] Selecao de texto abre popover de codificacao
+- [ ] Drag handles reposicionam marker (start e end)
+- [ ] FileId e identificado corretamente ao abrir arquivo
+- [ ] Preview mode nao causa erros (plugin desativa gracefully)
+
+### Analytics modes (15/19 sem teste unitario)
+
+Cobertos indiretamente por: `analytics-dashboard.e2e.ts`, `analytics-frequency.e2e.ts`
+
+- [ ] Trocar de mode via toolbar renderiza o chart correto
+- [ ] Filtrar codigos atualiza o chart (nenhum codigo desabilitado aparece)
+- [ ] Filtrar sources atualiza o chart
+- [ ] Export CSV gera arquivo valido (abrir no Excel/Sheets)
+- [ ] Thumbnails no dashboard refletem o mesmo filtro dos charts
+- [ ] Trocar de mode rapidamente nao mostra chart stale (renderGeneration guard)
+
+### Menus e popovers (6 modulos — ~600 LOC)
+
+Cobertos indiretamente por: interacao manual no Obsidian
+
+- [ ] Popover de codificacao abre ao selecionar texto (markdown)
+- [ ] Popover de codificacao abre ao clicar em celula (CSV)
+- [ ] Popover abre ao selecionar regiao (PDF, Image)
+- [ ] Popover abre ao selecionar regiao no waveform (Audio, Video)
+- [ ] Toggle de codigo no popover adiciona/remove codigo do marker
+- [ ] Memo textarea salva ao sair do popover
+- [ ] Clicar fora do popover fecha ele
+- [ ] Escape fecha o popover
+
+---
+
 ## 6. Obsidian Native Components — Quick Reference
 
 ### Inputs

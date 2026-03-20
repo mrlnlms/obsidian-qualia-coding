@@ -123,23 +123,10 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 
 ---
 
-## 10. Test gaps
-
-| Modulo | LOC | Risco | Motivo |
-|--------|-----|-------|--------|
-| `markerViewPlugin.ts` | 326 | Alto | CM6 ViewPlugin — coberto via e2e |
-| 15/19 analytics modes | ~3500 | Medio | Chart.js mock dificil; 4 modes testados |
-| 6 menus/popovers | ~600 | Medio | DOM interativo — coberto via e2e |
-
----
-
-## 11. Propostas tecnicas
+## 10. Propostas tecnicas
 
 ### Incremental refresh/cache por engine
 Cache por engine invalidado por mutation. `dataConsolidator` monta array final dos caches. Retorno sem mudar modelo de dados.
 
 ### Board: snapshot vs live-linked
 Recomendacao: "Refresh on open" — reconcilia ao abrir (remove orfaos, atualiza contagens, marca stale). Sem live subscriptions.
-
-### PDF navigate com foco em marker
-`qualia-pdf:navigate` nao implementado. Sidebar abre pagina via `#page=N` sem scroll ao marker. Requer acesso ao PDF.js viewer interno.
