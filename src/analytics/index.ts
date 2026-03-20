@@ -1,5 +1,6 @@
 import type { App } from "obsidian";
 import type QualiaCodingPlugin from "../main";
+import type { CodeDefinitionRegistry } from "../core/codeDefinitionRegistry";
 import { ANALYTICS_VIEW_TYPE, AnalyticsView } from "./views/analyticsView";
 import { BOARD_VIEW_TYPE, BoardView } from "./views/boardView";
 import { readAllData } from "./data/dataReader";
@@ -12,6 +13,7 @@ import type { ConsolidatedData } from "./data/dataTypes";
  */
 export interface AnalyticsPluginAPI {
   app: App;
+  registry: CodeDefinitionRegistry;
   data: ConsolidatedData | null;
   loadConsolidatedData(): Promise<ConsolidatedData>;
   addChartToBoard(title: string, dataUrl: string, viewMode: string): Promise<void>;
@@ -44,6 +46,7 @@ export async function waitForBoardView(
 export function registerAnalyticsEngine(plugin: QualiaCodingPlugin): () => void {
   const api: AnalyticsPluginAPI = {
     app: plugin.app,
+    registry: plugin.sharedRegistry,
     data: null,
 
     async loadConsolidatedData(): Promise<ConsolidatedData> {
