@@ -128,5 +128,5 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 ### Incremental refresh/cache por engine
 Cache por engine invalidado por mutation. `dataConsolidator` monta array final dos caches. Retorno sem mudar modelo de dados.
 
-### Board: snapshot vs live-linked
-Recomendacao: "Refresh on open" — reconcilia ao abrir (remove orfaos, atualiza contagens, marca stale). Sem live subscriptions.
+### ~~Board: snapshot vs live-linked~~ — FEITO (2026-03-20)
+Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abrir: atualiza cores/nomes/contagens, marca orfaos, remove arrows invalidas. Notice informativo.
