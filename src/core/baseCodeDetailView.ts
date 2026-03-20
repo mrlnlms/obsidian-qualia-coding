@@ -28,9 +28,15 @@ export abstract class BaseCodeDetailView extends ItemView {
 		return this.model.getAutoRevealOnSegmentClick?.() ?? true;
 	}
 	private searchQuery = '';
-	private boundRefresh = () => this.refreshCurrentMode();
+	private rafId: number | null = null;
+	private scheduleRefresh = () => {
+		if (this.rafId !== null) return;
+		this.rafId = requestAnimationFrame(() => {
+			this.rafId = null;
+			this.refreshCurrentMode();
+		});
+	};
 	private boundApplyHover = () => this.applyHoverToItems();
-	private boundRegistryRefresh = () => this.refreshCurrentMode();
 	private boundRenameHandler = (e: Event) => {
 		const { oldName, newName } = (e as CustomEvent<{ oldName: string; newName: string }>).detail;
 		if (this.codeName === oldName) {
@@ -67,18 +73,19 @@ export abstract class BaseCodeDetailView extends ItemView {
 
 	async onOpen() {
 		this.contentEl.addClass('codemarker-detail-panel');
-		this.model.onChange(this.boundRefresh);
+		this.model.onChange(this.scheduleRefresh);
 		this.model.onHoverChange(this.boundApplyHover);
-		document.addEventListener('qualia:registry-changed', this.boundRegistryRefresh);
+		document.addEventListener('qualia:registry-changed', this.scheduleRefresh);
 		document.addEventListener('qualia:code-renamed', this.boundRenameHandler);
 		this.refreshCurrentMode();
 	}
 
 	async onClose() {
-		this.model.offChange(this.boundRefresh);
+		this.model.offChange(this.scheduleRefresh);
 		this.model.offHoverChange(this.boundApplyHover);
-		document.removeEventListener('qualia:registry-changed', this.boundRegistryRefresh);
+		document.removeEventListener('qualia:registry-changed', this.scheduleRefresh);
 		document.removeEventListener('qualia:code-renamed', this.boundRenameHandler);
+		if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
 		this.contentEl.empty();
 	}
 
@@ -176,8 +183,8 @@ export abstract class BaseCodeDetailView extends ItemView {
 			showCodeDetail: (c) => this.showCodeDetail(c),
 			setContext: (mid, c) => this.setContext(mid, c),
 			autoRevealOnSegmentClick: this.autoRevealOnSegmentClick,
-			suspendRefresh: () => this.model.offChange(this.boundRefresh),
-			resumeRefresh: () => this.model.onChange(this.boundRefresh),
+			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
+			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
 		});
 	}
 
@@ -199,8 +206,8 @@ export abstract class BaseCodeDetailView extends ItemView {
 			showList: () => this.showList(),
 			showCodeDetail: (c) => this.showCodeDetail(c),
 			renderCustomSection: (el, m) => this.renderCustomSection(el, m),
-			suspendRefresh: () => this.model.offChange(this.boundRefresh),
-			resumeRefresh: () => this.model.onChange(this.boundRefresh),
+			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
+			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
 		});
 	}
 

@@ -27,9 +27,15 @@ export abstract class BaseCodeExplorerView extends ItemView {
 	private collapseFilesBtn: HTMLElement | null = null;
 	private searchQuery = '';
 	private searchTimeout: ReturnType<typeof setTimeout> | null = null;
-	private boundRenderTree = () => this.renderTree();
+	private rafId: number | null = null;
+	private scheduleRefresh = () => {
+		if (this.rafId !== null) return;
+		this.rafId = requestAnimationFrame(() => {
+			this.rafId = null;
+			this.renderTree();
+		});
+	};
 	private boundApplyHover = () => this.applyHoverToItems();
-	private boundRegistryRefresh = () => this.renderTree();
 
 	// Persistent DOM zones (survive across data refreshes)
 	private toolbarEl: HTMLElement | null = null;
@@ -55,17 +61,18 @@ export abstract class BaseCodeExplorerView extends ItemView {
 
 	async onOpen() {
 		this.contentEl.addClass('codemarker-explorer');
-		this.model.onChange(this.boundRenderTree);
+		this.model.onChange(this.scheduleRefresh);
 		this.model.onHoverChange(this.boundApplyHover);
-		document.addEventListener('qualia:registry-changed', this.boundRegistryRefresh);
+		document.addEventListener('qualia:registry-changed', this.scheduleRefresh);
 		this.renderShell();
 		this.renderTree();
 	}
 
 	async onClose() {
-		this.model.offChange(this.boundRenderTree);
+		this.model.offChange(this.scheduleRefresh);
 		this.model.offHoverChange(this.boundApplyHover);
-		document.removeEventListener('qualia:registry-changed', this.boundRegistryRefresh);
+		document.removeEventListener('qualia:registry-changed', this.scheduleRefresh);
+		if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
 		this.contentEl.empty();
 	}
 
