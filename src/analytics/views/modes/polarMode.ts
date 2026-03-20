@@ -10,8 +10,8 @@ export function renderPolarOptionsSection(ctx: AnalyticsViewContext): void {
   // Focal code dropdown
   const focalLabel = section.createDiv({ cls: "codemarker-config-sublabel", text: "Focal Code" });
   const select = section.createEl("select", { cls: "codemarker-config-select" });
-  const codes = ctx.data.codes.map((c) => c.name).sort();
-  if (!ctx.polarFocalCode && codes.length > 0) ctx.polarFocalCode = codes[0]!;
+  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
+  if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = codes[0] ?? "";
   for (const code of codes) {
     const opt = select.createEl("option", { text: code, value: code });
     if (code === ctx.polarFocalCode) opt.selected = true;
@@ -45,8 +45,8 @@ export function renderPolarCoordinates(ctx: AnalyticsViewContext, filters: Filte
   const container = ctx.chartContainer;
 
   // Ensure focal code is set
-  const codes = ctx.data.codes.map((c) => c.name).sort();
-  if (!ctx.polarFocalCode && codes.length > 0) ctx.polarFocalCode = codes[0]!;
+  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
+  if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = codes[0] ?? "";
 
   const result = calculatePolarCoordinates(ctx.data, filters, ctx.polarFocalCode, ctx.polarMaxLag);
   if (result.vectors.length === 0) {
@@ -201,7 +201,7 @@ export function renderPolarCoordinates(ctx: AnalyticsViewContext, filters: Filte
 
 export function renderMiniPolar(ctx: AnalyticsViewContext, canvas: HTMLCanvasElement, filters: FilterConfig): void {
   if (!ctx.data) return;
-  const codes = ctx.data.codes.map((c) => c.name).sort();
+  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
   const focal = codes[0] ?? "";
   if (!focal) return;
   const result = calculatePolarCoordinates(ctx.data, filters, focal, 5);
@@ -256,8 +256,8 @@ export function renderMiniPolar(ctx: AnalyticsViewContext, canvas: HTMLCanvasEle
 export function exportPolarCSV(ctx: AnalyticsViewContext, date: string): void {
   if (!ctx.data) return;
   const filters = ctx.buildFilterConfig();
-  const codes = ctx.data.codes.map((c) => c.name).sort();
-  if (!ctx.polarFocalCode && codes.length > 0) ctx.polarFocalCode = codes[0]!;
+  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
+  if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = codes[0] ?? "";
   const result = calculatePolarCoordinates(ctx.data, filters, ctx.polarFocalCode, ctx.polarMaxLag);
 
   const rows: string[][] = [["focal", "conditioned", "z_prospective", "z_retrospective", "radius", "angle", "quadrant", "significant"]];

@@ -169,7 +169,7 @@ export function renderTreeNode(
 
 export function renderMiniDecisionTree(ctx: AnalyticsViewContext, canvas: HTMLCanvasElement, filters: FilterConfig): void {
   if (!ctx.data) return;
-  const codes = ctx.data.codes.map((c) => c.name).sort();
+  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
   const outcome = codes[0] ?? "";
   if (!outcome) return;
   const result = buildDecisionTree(ctx.data, filters, outcome, 3, 2);
@@ -250,8 +250,8 @@ export function renderMiniDecisionTree(ctx: AnalyticsViewContext, canvas: HTMLCa
 export function exportDecisionTreeCSV(ctx: AnalyticsViewContext, date: string): void {
   if (!ctx.data) return;
   const filters = ctx.buildFilterConfig();
-  const codes = ctx.data.codes.map((c) => c.name).sort();
-  if (!ctx.dtOutcomeCode && codes.length > 0) ctx.dtOutcomeCode = codes[0]!;
+  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
+  if (!ctx.dtOutcomeCode || !ctx.enabledCodes.has(ctx.dtOutcomeCode)) ctx.dtOutcomeCode = codes[0] ?? "";
   const result = buildDecisionTree(ctx.data, filters, ctx.dtOutcomeCode, ctx.dtMaxDepth, 2);
 
   const rows: string[][] = [["node_id", "depth", "n", "n_positive", "n_negative", "prediction", "accuracy", "correct", "errors", "split_predictor", "split_chi_square", "split_p_value", "is_leaf"]];
