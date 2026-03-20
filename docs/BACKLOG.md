@@ -128,11 +128,5 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 ### Incremental refresh/cache por engine
 Cache por engine invalidado por mutation. `dataConsolidator` monta array final dos caches. Retorno sem mudar modelo de dados.
 
-### Explorer/Detail view cache por engine
-
-**Problema:** `UnifiedModelAdapter.getAllMarkers()` + `BaseCodeExplorerView.renderTree()` re-renderizam em cascata quando qualquer engine muda. Com milhares de markers, rebuild da tree DOM pode ficar pesado.
-
-**Solucao proposta:** mesma pattern do `ConsolidationCache` — cache por engine no `UnifiedModelAdapter`, dirty flag nos listeners, rebuild parcial da tree. Atacar quando benchmark mostrar gargalo.
-
 ### ~~Board: snapshot vs live-linked~~ — FEITO (2026-03-20)
 Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abrir: atualiza cores/nomes/contagens, marca orfaos, remove arrows invalidas. Notice informativo.
