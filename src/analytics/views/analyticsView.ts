@@ -115,6 +115,7 @@ export class AnalyticsView extends ItemView {
     this.clearAllHandler = () => {
       this.data = null;
       this.enabledCodes.clear();
+      this.disabledCodes.clear();
       this.renderView();
     };
     document.addEventListener('qualia:clear-all', this.clearAllHandler);

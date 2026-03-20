@@ -4,6 +4,16 @@
 
 ---
 
+## Decision Tree "View in Text Retrieval" nao foca subconjunto
+
+**Severidade**: Media
+
+`decisionTreeMode.ts:94` — botao "View in Text Retrieval" na error analysis so troca `ctx.viewMode` e mostra Notice. Nao passa `markerIds` nem `trSearch` pra focar os markers misclassified do no. Usuario cai no Text Retrieval geral.
+
+**Acao**: Passar IDs dos markers do errorLeaf via `ctx.trSearch` ou filtro dedicado antes de trocar de modo.
+
+---
+
 ## Text Retrieval navigateToSegment incompleto
 
 **Severidade**: Media
