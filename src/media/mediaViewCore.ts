@@ -14,6 +14,8 @@ const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
  */
 export class MediaViewCore {
   readonly renderer: WaveformRenderer;
+  private readyResolve: (() => void) | null = null;
+  private readyPromise: Promise<void> = new Promise(r => { this.readyResolve = r; });
   private regionRenderer: MediaRegionRenderer | null = null;
   private currentFile: TFile | null = null;
   private videoElement: HTMLVideoElement | null = null;
@@ -40,6 +42,8 @@ export class MediaViewCore {
 
   get file(): TFile | null { return this.currentFile; }
 
+  waitUntilReady(): Promise<void> { return this.readyPromise; }
+
   getState(): Record<string, unknown> {
     return { file: this.currentFile?.path ?? '' };
   }
@@ -49,6 +53,7 @@ export class MediaViewCore {
     file: TFile,
     registerEvent: (ref: EventRef) => void,
   ): Promise<void> {
+    this.readyPromise = new Promise(r => { this.readyResolve = r; });
     this.saveScrollPosition();
     this.stopTimeUpdates();
     if (this.changeListener) {
@@ -181,6 +186,7 @@ export class MediaViewCore {
 
     // When ready, restore regions, zoom, and update display
     this.renderer.on('ready', () => {
+      this.readyResolve?.();
       loadingEl.remove();
       this.updateTimeDisplay();
       this.startTimeUpdates();

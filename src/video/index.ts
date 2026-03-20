@@ -98,6 +98,7 @@ async function openVideoAndSeek(plugin: QualiaCodingPlugin, _model: VideoCodingM
 		const state = view.getState();
 		if (state.file === filePath) {
 			plugin.app.workspace.revealLeaf(leaf);
+			await view.core.waitUntilReady();
 			view.renderer.seekTo(seekTo);
 			view.renderer.setScrollTime(seekTo);
 			return;
@@ -115,8 +116,7 @@ async function openVideoAndSeek(plugin: QualiaCodingPlugin, _model: VideoCodingM
 	plugin.app.workspace.revealLeaf(leaf);
 
 	const view = leaf.view as VideoView;
-	view.renderer.on('ready', () => {
-		view.renderer.seekTo(seekTo);
-		view.renderer.setScrollTime(seekTo);
-	});
+	await view.core.waitUntilReady();
+	view.renderer.seekTo(seekTo);
+	view.renderer.setScrollTime(seekTo);
 }

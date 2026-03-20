@@ -7,7 +7,7 @@ import { openVideoCodingPopover } from './videoCodingMenu';
 export const VIDEO_VIEW_TYPE = 'qualia-video-view';
 
 export class VideoView extends ItemView {
-  private core: MediaViewCore;
+  readonly core: MediaViewCore;
 
   constructor(leaf: WorkspaceLeaf, plugin: QualiaCodingPlugin, model: VideoCodingModel) {
     super(leaf);

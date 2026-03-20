@@ -99,6 +99,7 @@ async function openAudioAndSeek(plugin: QualiaCodingPlugin, _model: AudioCodingM
 		const state = view.getState();
 		if (state.file === filePath) {
 			plugin.app.workspace.revealLeaf(leaf);
+			await view.core.waitUntilReady();
 			view.renderer.seekTo(seekTo);
 			view.renderer.setScrollTime(seekTo);
 			return;
@@ -117,8 +118,7 @@ async function openAudioAndSeek(plugin: QualiaCodingPlugin, _model: AudioCodingM
 	plugin.app.workspace.revealLeaf(leaf);
 
 	const view = leaf.view as AudioView;
-	view.renderer.on('ready', () => {
-		view.renderer.seekTo(seekTo);
-		view.renderer.setScrollTime(seekTo);
-	});
+	await view.core.waitUntilReady();
+	view.renderer.seekTo(seekTo);
+	view.renderer.setScrollTime(seekTo);
 }

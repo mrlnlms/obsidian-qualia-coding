@@ -7,7 +7,7 @@ import { openAudioCodingPopover } from './audioCodingMenu';
 export const AUDIO_VIEW_TYPE = 'qualia-audio-view';
 
 export class AudioView extends ItemView {
-  private core: MediaViewCore;
+  readonly core: MediaViewCore;
 
   constructor(leaf: WorkspaceLeaf, plugin: QualiaCodingPlugin, model: AudioCodingModel) {
     super(leaf);
