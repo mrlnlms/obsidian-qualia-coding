@@ -104,11 +104,11 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 
 ---
 
-## 8. Core / Registry
+## 8. ~~Core / Registry~~ — FEITO (2026-03-20)
 
-| # | Severidade | Arquivo | Problema |
-|---|-----------|---------|----------|
-| R1 | Baixa | `codeDefinitionRegistry.ts:170-175` | fromJSON: mismatch key vs def.id torna definicao inacessivel |
+| # | Status | Problema |
+|---|--------|----------|
+| ~~R1~~ | FEITO | fromJSON: corrigido — `def.id = id` garante consistencia entre key JSON e campo interno |
 
 ---
 
