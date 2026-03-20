@@ -988,7 +988,7 @@ scrollDOM (position: relative — setado pelo handleOverlayRenderer)
 
 2. **Escalabilidade**: Com 500 markers, o handle z-index chega em 10500. Nao e problema pratico (nenhum outro elemento compete nessa faixa), mas e um pattern fragil — um z-index "infinito" que depende de nenhum outro ultrapassar.
 
-3. **Relacao com Margin Panel Resize Handle (ROADMAP #18)**: O POC stashed do resize handle precisa viver no mesmo `scrollDOM`. Anotacoes do POC dizem "z-index minimo 10". O resize handle precisa ficar ABAIXO dos drag handles (nao interferir no hover) mas ACIMA do margin panel content (para ser clicavel na borda). Faixa segura: z:100-999.
+3. **Relacao com Margin Panel Resize Handle (ROADMAP #17)**: O POC stashed do resize handle precisa viver no mesmo `scrollDOM`. Anotacoes do POC dizem "z-index minimo 10". O resize handle precisa ficar ABAIXO dos drag handles (nao interferir no hover) mas ACIMA do margin panel content (para ser clicavel na borda). Faixa segura: z:100-999.
 
 4. **`scrollDOM.style.position = 'relative'`** (line 34): O handleOverlayRenderer MODIFICA o scrollDOM do CM6. Se o CM6 mudar internamente o position do scrollDOM em versao futura do Obsidian, ou se outro plugin fizer o mesmo, o overlay quebra. `destroy()` nao reverte essa mudanca — o scrollDOM fica com `position: relative` permanente.
 
@@ -1003,7 +1003,7 @@ scrollDOM (position: relative — setado pelo handleOverlayRenderer)
 | Drag handles individuais | 1000+i | SVG handles |
 | Popover | 2000 | .codemarker-popover (requer subir de 9999 global → 2000 local) |
 
-**Quando atacar**: Junto com Per-Code Decorations (ROADMAP #17) e/ou Resize Handle (ROADMAP #18). Os três itens compartilham o mesmo contexto (scrollDOM stacking):
+**Quando atacar**: Junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (ROADMAP #17). Os três itens compartilham o mesmo contexto (scrollDOM stacking):
 - **#17**: N layers de `Decoration.mark()` com opacity blending — handles (z:10000) precisam ficar acima de todas as camadas de highlight
 - **#18**: Resize handle no scrollDOM — precisa coexistir com handles e decorations
 - Resolver o z-index stacking antes (ou junto) evita retrabalho.
@@ -1068,7 +1068,7 @@ Proxima sessao de testes deve focar em:
 | Missing focus styles (~30 botoes) | Alto (a11y) | FEITO (2026-03-19) |
 | Missing aria-labels (~50 elementos) | Alto (a11y) | FEITO (2026-03-19) |
 | Color-only indicators (DT distribution bars) | Alto (a11y) | FEITO (2026-03-19) |
-| z-index conflicts (scrollDOM stacking) | Baixo | PENDENTE — atacar com #17 (Per-Code Decorations) e/ou #18 (Resize Handle) |
+| z-index conflicts (scrollDOM stacking) | Baixo | PENDENTE — atacar com #16 (Per-Code Decorations) e/ou #17 (Resize Handle) |
 | Test gaps (sidebar adapters, modes) | Medio | FEITO (2026-03-19) — +220 testes |
 | !important overuse (74 → 66) | Baixo | FEITO (2026-03-19) — 6 removidos (safe) |
 | Inline styles estaticos (regionRenderer) | Baixo | FEITO (2026-03-19) — 15 migrados para 3 CSS classes |

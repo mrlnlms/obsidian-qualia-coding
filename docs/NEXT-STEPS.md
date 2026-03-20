@@ -8,10 +8,10 @@
 
 | Item | Tipo | Complexidade | Ref |
 |------|------|-------------|-----|
-| Per-Code Decorations (N highlights por marker) | Feature | Media | ROADMAP #17 |
+| Per-Code Decorations (N highlights por marker) | Feature | Media | ROADMAP #16 |
 | Margin Panel Customization (left/right, espessura) | Feature | Baixa-Media | ROADMAP #11 |
-| Margin Panel Resize Handle | Feature | Media | ROADMAP #18 |
-| z-index scrollDOM stacking | Debt | Atacar com #17/#18 | BACKLOG §z-index |
+| Margin Panel Resize Handle | Feature | Media | ROADMAP #17 |
+| z-index scrollDOM stacking | Debt | Atacar com #16/#17 | BACKLOG §z-index |
 | `markerViewPlugin.ts` 706 LOC | Debt | Split futuro | BACKLOG §Arquivos grandes |
 | `marginPanelExtension.ts` 548 LOC | Debt | Split futuro | BACKLOG §Arquivos grandes |
 
@@ -38,7 +38,7 @@
 | Code × Metadata | Feature | Media | ROADMAP #9 |
 | Code Overlap Analysis (textual) | Feature | Media | ROADMAP #10 |
 | Analytic Memo View (integracao) | Feature | Media | ROADMAP #3 |
-| Analytical Memos (reflexoes) | Feature | Media | ROADMAP #20 |
+| Analytical Memos (reflexoes) | Feature | Media | ROADMAP #19 |
 
 ---
 
@@ -56,7 +56,7 @@
 | Item | Tipo | Complexidade | Ref |
 |------|------|-------------|-----|
 | Parquet evolucao (lazy loading, pagination) | Feature | Media | ROADMAP #2 |
-| Case Variables por Documento | Feature | Media | ROADMAP #19 |
+| Case Variables por Documento | Feature | Media | ROADMAP #18 |
 
 ---
 
@@ -65,8 +65,7 @@
 | Item | Tipo | Complexidade | Ref |
 |------|------|-------------|-----|
 | Projects + Workspace | Feature | **Alta** | ROADMAP #13 |
-| Leaf View Layout | Feature | Alta (pos-#13) | ROADMAP #15 |
-| Export (CSV, JSON, QDPX, PNG) | Feature | Media-Alta | ROADMAP #16 |
+| Export (CSV, JSON, QDPX, PNG) | Feature | Media-Alta | ROADMAP #15 |
 | Intercoder Reliability (kappa/alpha) | Gap estrategico | Media | BACKLOG §Gaps |
 
 ---

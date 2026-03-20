@@ -192,40 +192,7 @@ interface QDAProject {
 - Chip visual diferenciado (e.g., badge "HIGH" ao lado do código)
 - Filtro no Analytics por magnitude dentro de um código
 
-### 15. Leaf View Layout
-
-**Proposta** (para quando Projects existir):
-
-```
-┌──────────────┬──────────────────────────────────┐
-│  CODEBOOK    │  TABS                            │
-│  TREE        │  ┌────────┬────────┬───────────┐ │
-│              │  │ Text   │ Co-occ │ Doc View  │ │
-│  [project    │  │ Retr.  │ Matrix │           │ │
-│   selector]  │  │        │        │           │ │
-│              │  │        │        │           │ │
-│  ▸ Category  │  │        │        │           │ │
-│    ▸ Code A  │  │        │        │           │ │
-│    ▸ Code B  │  │        │        │           │ │
-│              │  └────────┴────────┴───────────┘ │
-│              ├──────────────────────────────────│
-│              │  BOTTOM PANEL                     │
-│              │  memo + propriedades do código    │
-│              │  selecionado + estatísticas       │
-│              │  rápidas                          │
-│              ├──────────────────────────────────│
-│              │  STATUS BAR                       │
-└──────────────┴──────────────────────────────────┘
-```
-
-- Left sidebar: codebook tree com project selector
-- Central: tabs (text retrieval, co-occurrence matrix, document view)
-- Bottom panel: memo + propriedades do código selecionado + estatísticas rápidas
-- Status bar
-- Event system pub/sub para reatividade
-- Implementation: ItemView API, event system pub/sub
-
-### 16. Export
+### 15. Export
 
 | Formato | Escopo |
 |---------|--------|
@@ -234,7 +201,7 @@ interface QDAProject {
 | REFI-QDA (QDPX) | Interoperabilidade com ATLAS.ti, NVivo, MAXQDA |
 | PNG/PDF (Dashboard) | Composite de todas as visualizações |
 
-### 17. Per-Code Decorations (Phase 3 original)
+### 16. Per-Code Decorations (Phase 3 original)
 
 **Conceito**: 1 `Decoration.mark()` por **código** no marker (não por marker). Marker com 3 códigos = 3 decorations overlapping com opacity blending.
 
@@ -252,7 +219,7 @@ interface QDAProject {
 
 **D alone is most pragmatic starting point** — already partially implemented, minimal UI surface.
 
-### 18. Margin Panel Resize Handle
+### 17. Margin Panel Resize Handle
 
 **POC feita e stashed** (não integrada).
 
@@ -270,12 +237,12 @@ O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para dra
 - CSS native `resize: horizontal` no panel
 - Setting numérico no settings tab em vez de drag interativo
 
-### 19. Case Variables por Documento
+### 18. Case Variables por Documento
 
 - Metadados atribuídos a documentos inteiros (gênero do participante, data da entrevista, etc.)
 - Cruzamento com códigos no Analytics (Code × Variable)
 
-### 20. Analytical Memos
+### 19. Analytical Memos
 
 - Memos em códigos, documentos e relações entre códigos
 - Separados dos `memo` de markers — são reflexões analíticas
@@ -291,9 +258,9 @@ O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para dra
 
 | Gap | Por que importa | Items do roadmap relacionados |
 |-----|----------------|-------------------------------|
-| **Case/Document Variables** | Sem metadata por documento, não dá pra cruzar codes × demographics — o workflow core de mixed methods "joint display". Todos os concorrentes (NVivo, ATLAS.ti, MAXQDA, Dedoose) têm isso. | #19 Case Variables, #9 Code × Metadata |
-| **REFI-QDA (QDPX) Export/Import** | Padrão XML de interoperabilidade entre CAQDAS tools. Crítico para credibilidade acadêmica e portabilidade. NVivo, ATLAS.ti, MAXQDA, Dedoose, Quirkos, Taguette suportam. | #16 Export |
-| **Export CSV/Excel** | Pesquisadores esperam exportar code frequencies, co-occurrence, Doc-Code Matrix pra rodar stats próprias. Todos os concorrentes exportam pra Excel/SPSS. | #16 Export |
+| **Case/Document Variables** | Sem metadata por documento, não dá pra cruzar codes × demographics — o workflow core de mixed methods "joint display". Todos os concorrentes (NVivo, ATLAS.ti, MAXQDA, Dedoose) têm isso. | #18 Case Variables, #9 Code × Metadata |
+| **REFI-QDA (QDPX) Export/Import** | Padrão XML de interoperabilidade entre CAQDAS tools. Crítico para credibilidade acadêmica e portabilidade. NVivo, ATLAS.ti, MAXQDA, Dedoose, Quirkos, Taguette suportam. | #15 Export |
+| **Export CSV/Excel** | Pesquisadores esperam exportar code frequencies, co-occurrence, Doc-Code Matrix pra rodar stats próprias. Todos os concorrentes exportam pra Excel/SPSS. | #15 Export |
 | **Intercoder Reliability** | Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de rigor. NVivo, ATLAS.ti, MAXQDA, Dedoose, QualCoder oferecem. | Novo item (não listado) |
 
 ### Diferenciais confirmados pela pesquisa
