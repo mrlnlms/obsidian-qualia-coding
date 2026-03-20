@@ -358,27 +358,6 @@
    Code Explorer — tree view (CodeExplorerView)
    ======================================== */
 
-/* Double-line icon: two triangles stacked */
-.codemarker-icon-double {
-	position: relative;
-}
-
-.codemarker-icon-double .svg-icon {
-	transform: scale(0.7) translateY(-3px);
-}
-
-.codemarker-icon-double::after {
-	content: '';
-	position: absolute;
-	bottom: 2px;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 10px;
-	height: 1.5px;
-	background-color: currentColor;
-	border-radius: 1px;
-}
-
 /* Search wrap (explorer toolbar + detail list) */
 .codemarker-explorer-search-wrap {
 	flex: 1;
@@ -792,13 +771,9 @@ body.codemarker-pdf-drawing .codemarker-pdf-draw-layer {
   transform-origin: center;
 }
 
-/* Stroke for contrast — color overridden by theme, width set proportionally in JS */
-.theme-dark .codemarker-pdf-handle circle {
-  stroke: #ffffff !important;
-}
-
-.theme-light .codemarker-pdf-handle circle {
-  stroke: #000000 !important;
+/* Stroke for contrast — width set proportionally in JS */
+.codemarker-pdf-handle circle {
+  stroke: var(--text-normal) !important;
 }
 
 /* Hover effects */
@@ -846,7 +821,7 @@ body.codemarker-pdf-dragging .codemarker-pdf-handle.codemarker-pdf-handle-visibl
 	border-radius: 2px;
 	transition: background-color 0.2s ease;
 	position: relative;
-	color: inherit !important;
+	color: inherit;
 	mix-blend-mode: multiply;
 }
 
@@ -1008,12 +983,8 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	background: none !important;
 }
 
-.theme-dark .codemarker-circle {
-	stroke: #ffffff !important;
-}
-
-.theme-light .codemarker-circle {
-	stroke: #000000 !important;
+.codemarker-circle {
+	stroke: var(--text-normal) !important;
 }
 
 /* ========================================
@@ -1021,7 +992,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
    ======================================== */
 
 .codemarker-selection-preview {
-	background-color: var(--text-selection) !important;
+	background-color: var(--text-selection);
 	border-radius: 2px;
 }
 
@@ -1041,8 +1012,8 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	padding: var(--size-4-1) var(--size-4-2);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-s);
-	background-color: var(--background-primary) !important;
-	color: var(--text-normal) !important;
+	background-color: var(--background-primary);
+	color: var(--text-normal);
 	font-size: var(--font-ui-small);
 	outline: none;
 }
@@ -1989,26 +1960,29 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 
 /* ── Region Labels ── */
 .codemarker-media-region-label {
-  font-size: 10px;
-  padding: 1px 4px;
-  white-space: nowrap;
-  pointer-events: none;
-  color: var(--text-normal);
-  text-shadow: 0 0 2px var(--background-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: calc(100% - 8px);
-  display: block;
-}
-
-.codemarker-media-region-label.is-clickable {
-  pointer-events: auto;
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 4px;
+  overflow: visible;
   position: relative;
   z-index: 10;
+  width: max-content;
 }
 
-.codemarker-media-region-label.is-clickable:hover {
+.codemarker-media-chip {
+  font-size: 12px;
+  white-space: nowrap;
+  text-shadow: 0 0 3px var(--background-primary), 0 0 3px var(--background-primary);
+  pointer-events: none;
+}
+
+.codemarker-media-chip-interactive {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.codemarker-media-chip-interactive:hover {
   color: var(--text-accent);
   text-decoration: underline;
 }
@@ -2228,7 +2202,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
    ======================================== */
 
 .codemarker-media-region-hovered {
-  opacity: 0.75 !important;
+  opacity: 0.75;
   box-shadow: 0 0 0 2px var(--interactive-accent);
 }
 
@@ -2271,7 +2245,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 .codemarker-video-player {
 	flex: 1;
 	min-height: 120px;
-	background: #000;
+	background: var(--background-primary);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -2845,7 +2819,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
    ======================================== */
 
 .codemarker-video-region-hovered {
-  opacity: 0.75 !important;
+  opacity: 0.75;
   box-shadow: 0 0 0 2px var(--interactive-accent);
 }
 
@@ -4023,4 +3997,22 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 
 .codemarker-freq-row-dragging {
   opacity: 0.5;
+}
+
+/* ── Accessibility: focus-visible ── */
+.codemarker-toolbar-btn:focus-visible,
+.codemarker-explorer-toolbar .clickable-icon:focus-visible,
+.codemarker-audio-play-btn:focus-visible,
+.codemarker-video-play-btn:focus-visible,
+.codemarker-audio-speed-btn:focus-visible,
+.codemarker-video-speed-btn:focus-visible,
+.csv-tag-chip:focus-visible,
+.codemarker-detail-chip:focus-visible,
+.codemarker-detail-reveal-link:focus-visible,
+.codemarker-kpi-board-btn:focus-visible,
+.codemarker-config-btn:focus-visible,
+.codemarker-menu-toggle:focus-visible {
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+  outline: none;
+  border-radius: var(--radius-s);
 }

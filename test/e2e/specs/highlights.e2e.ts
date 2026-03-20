@@ -1,7 +1,7 @@
 import {
   openFile, focusEditor, waitForElement, checkComponent, assertDomState,
 } from "obsidian-e2e-visual-test-kit";
-import { injectQualiaData, mkMarker, SELECTORS } from "../helpers/qualia.js";
+import { injectQualiaData, refreshEditorDecorations, mkMarker, SELECTORS } from "../helpers/qualia.js";
 
 describe("editor highlights", () => {
   before(async () => {
@@ -21,7 +21,7 @@ describe("editor highlights", () => {
     });
     await openFile("Sample Coded.md");
     await focusEditor();
-    await browser.pause(2000);
+    await refreshEditorDecorations(["Sample Coded.md"]);
   });
 
   it("renders highlight decorations on coded text", async () => {

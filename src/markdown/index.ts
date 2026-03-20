@@ -3,7 +3,7 @@ import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { CodeMarkerModel } from './models/codeMarkerModel';
 import { EditorView } from '@codemirror/view';
-import { createMarkerStateField, updateFileMarkersEffect, setSelectionPreviewEffect } from './cm6/markerStateField';
+import { createMarkerStateField, updateFileMarkersEffect, setFileIdEffect, setSelectionPreviewEffect } from './cm6/markerStateField';
 import { createSelectionMenuField, showCodingMenuEffect } from './cm6/selectionMenuField';
 import { createMarkerViewPlugin, SELECTION_EVENT, SelectionEventDetail } from './cm6/markerViewPlugin';
 import { createHoverMenuExtension } from './cm6/hoverMenuExtension';
@@ -32,6 +32,7 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 
 	// Expose model + effect on plugin for settings tab and cross-engine access
 	plugin.updateFileMarkersEffect = updateFileMarkersEffect;
+	plugin.setFileIdEffect = setFileIdEffect;
 	plugin.markdownModel = model;
 
 	// Create menu controller

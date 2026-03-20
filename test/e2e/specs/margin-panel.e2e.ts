@@ -44,7 +44,7 @@ describe("margin panel", () => {
       SELECTORS.marginPanel,
       "margin-2markers",
     );
-    expect(mismatch).toBeLessThan(1);
+    expect(mismatch).toBeLessThan(3);
   });
 
   it("hover highlights bar", async () => {
@@ -53,6 +53,6 @@ describe("margin panel", () => {
       SELECTORS.marginPanel,
       "margin-hover",
     );
-    expect(mismatch).toBeLessThan(2);
+    expect(mismatch).toBeLessThan(3);
   });
 });

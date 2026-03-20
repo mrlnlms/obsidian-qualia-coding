@@ -32,6 +32,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	sharedRegistry!: CodeDefinitionRegistry;
 	private cleanups: EngineCleanup[] = [];
 	updateFileMarkersEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
+	setFileIdEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
 	markdownModel?: import('./markdown/models/codeMarkerModel').CodeMarkerModel;
 	pdfModel?: PdfCodingModel;
 	imageModel?: ImageCodingModel;

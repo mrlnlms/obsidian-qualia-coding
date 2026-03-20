@@ -13,6 +13,10 @@ export async function injectQualiaData(opts: {
     const plugin = (window as any).app.plugins.plugins["qualia-coding"];
     const dm = plugin.dataManager;
 
+    // Clear existing data to prevent accumulation between runs
+    plugin.sharedRegistry.clear();
+    dm.setSection("markdown", { markers: {} });
+
     // Inject code definitions into registry
     if (o.codeDefinitions) {
       for (const def of o.codeDefinitions) {
@@ -29,14 +33,41 @@ export async function injectQualiaData(opts: {
 
     // Reload markdown model to pick up new markers
     plugin.markdownModel?.loadMarkers();
-    // Trigger CM6 decoration update
-    if (plugin.updateFileMarkersEffect) {
-      for (const fileId of Object.keys(o.markers ?? {})) {
-        plugin.markdownModel?.updateMarkersForFile(fileId);
+  }, opts);
+  await browser.pause(1000);
+}
+
+/**
+ * Force CM6 to rebuild decorations for all injected marker files.
+ * Call AFTER openFile + focusEditor — dispatches setFileIdEffect + updateFileMarkersEffect
+ * directly to the EditorView, bypassing the ViewPlugin's async identification.
+ */
+export async function refreshEditorDecorations(fileIds: string[]): Promise<void> {
+  await browser.execute((ids: string[]) => {
+    const plugin = (window as any).app.plugins.plugins["qualia-coding"];
+
+    for (const fileId of ids) {
+      const leaves = plugin.app.workspace.getLeavesOfType("markdown");
+      for (const leaf of leaves) {
+        const view = leaf.view as any;
+        if (view.file?.path === fileId && view.editor?.cm) {
+          const editorView = view.editor.cm;
+          const effects: any[] = [];
+          if (plugin.setFileIdEffect) {
+            effects.push(plugin.setFileIdEffect.of({ fileId }));
+          }
+          if (plugin.updateFileMarkersEffect) {
+            effects.push(plugin.updateFileMarkersEffect.of({ fileId }));
+          }
+          if (effects.length > 0) {
+            editorView.dispatch({ effects });
+          }
+          break;
+        }
       }
     }
-  }, opts);
-  await browser.pause(3000);
+  }, fileIds);
+  await browser.pause(1000);
 }
 
 export function mkMarker(
