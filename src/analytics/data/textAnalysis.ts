@@ -8,9 +8,26 @@ export function calculateTextStats(
   segments: ExtractedSegment[],
   codeColors: Map<string, string>,
 ): TextStatsResult {
+  // Filter usable segments once
+  const usable = segments.filter(s => s.text && s.source !== "image");
+
+  // Compute global stats from unique segments (not per-code)
+  const globalWords: string[] = [];
+  const globalUniqueSet = new Set<string>();
+  let globalCharCount = 0;
+
+  for (const seg of usable) {
+    const tokens = seg.text.toLowerCase().split(TOKEN_RE).filter((t) => t.length > 0);
+    for (const t of tokens) {
+      globalWords.push(t);
+      globalUniqueSet.add(t);
+    }
+    globalCharCount += seg.text.length;
+  }
+
+  // Group by code for per-code stats
   const byCode = new Map<string, ExtractedSegment[]>();
-  for (const seg of segments) {
-    if (!seg.text || seg.source === "image") continue;
+  for (const seg of usable) {
     for (const code of seg.codes) {
       let list = byCode.get(code);
       if (!list) { list = []; byCode.set(code, list); }
@@ -19,10 +36,6 @@ export function calculateTextStats(
   }
 
   const codes: TextStatsResult["codes"] = [];
-  const globalWords: string[] = [];
-  const globalUniqueSet = new Set<string>();
-  let globalSegCount = 0;
-  let globalCharCount = 0;
 
   for (const [code, segs] of byCode) {
     const allWords: string[] = [];
@@ -34,8 +47,6 @@ export function calculateTextStats(
       for (const t of tokens) {
         allWords.push(t);
         uniqueSet.add(t);
-        globalWords.push(t);
-        globalUniqueSet.add(t);
       }
       totalChars += seg.text.length;
     }
@@ -54,9 +65,6 @@ export function calculateTextStats(
       ttr: totalWords > 0 ? Math.round((uniqueWords / totalWords) * 1000) / 1000 : 0,
       avgCharsPerSegment: segCount > 0 ? Math.round(totalChars / segCount) : 0,
     });
-
-    globalSegCount += segCount;
-    globalCharCount += totalChars;
   }
 
   codes.sort((a, b) => b.totalWords - a.totalWords);
@@ -64,7 +72,7 @@ export function calculateTextStats(
   return {
     codes,
     global: {
-      totalSegments: globalSegCount,
+      totalSegments: usable.length,
       totalWords: globalWords.length,
       uniqueWords: globalUniqueSet.size,
       ttr: globalWords.length > 0 ? Math.round((globalUniqueSet.size / globalWords.length) * 1000) / 1000 : 0,

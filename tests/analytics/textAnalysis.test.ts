@@ -178,6 +178,18 @@ describe('calculateTextStats', () => {
 		expect(codeB.totalWords).toBe(3);
 	});
 
+	it('multi-code segment counts once in global stats', () => {
+		const res = calculateTextStats(
+			[mkSegment({ codes: ['a', 'b'], text: 'shared text here' })],
+			new Map(),
+		);
+		// 1 segment with 2 codes — global should count it once, not twice
+		expect(res.global.totalSegments).toBe(1);
+		expect(res.global.totalWords).toBe(3);
+		// Per-code still counts for each
+		expect(res.codes).toHaveLength(2);
+	});
+
 	it('codes are sorted by totalWords descending', () => {
 		const res = calculateTextStats(
 			[

@@ -214,8 +214,9 @@ export class MediaViewCore {
       }
     });
 
-    // Error state
+    // Error state — also resolve readiness so callers don't hang
     this.renderer.on('error', (err: Error) => {
+      this.readyResolve?.();
       loadingEl?.remove();
       this.waveformEl!.createDiv({
         cls: `${prefix}-error`,

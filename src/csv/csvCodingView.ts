@@ -97,15 +97,17 @@ export class CsvCodingView extends FileView {
 		} catch (e) {
 			contentEl.empty();
 			contentEl.createEl('p', { text: `Error: ${(e as Error).message}` });
+			this.readyResolve?.();
 			return;
 		}
 
-		if (this.file !== file) return;
+		if (this.file !== file) { this.readyResolve?.(); return; }
 		contentEl.empty();
 
 		const { headers, rows } = result;
 		if (headers.length === 0) {
 			contentEl.createEl('p', { text: 'No columns found.' });
+			this.readyResolve?.();
 			return;
 		}
 
