@@ -171,6 +171,8 @@ QualiaData {
 - Delega writes para o engine owner via type detection
 - Type guards via `markerType` discriminante: `isPdfMarker()`, `isImageMarker()`, `isCsvMarker()`, `isAudioMarker()`, `isVideoMarker()`
 - Um único `UnifiedCodeExplorerView` + `UnifiedCodeDetailView` para todos os formatos
+- **Cache com dirty flag**: `getAllMarkers()`, `getMarkersForFile()`, `getMarkerById()`, `getAllFileIds()` retornam dados cacheados. Dirty flag global invalidado no wrapper do `onChange`. Indices `Map<fileId>` e `Map<id>` construidos em `rebuild()` — `getMarkersForFile` e `getMarkerById` são O(1)
+- **Views com rAF debounce**: Explorer e Detail usam `scheduleRefresh` com `requestAnimationFrame` para coalescer mudanças rápidas em 1 rebuild DOM
 
 ### 4.2 Phantom Marker Prevention
 
@@ -276,9 +278,11 @@ interface EngineRegistration<M> {
 
 Não deve implementar lógica de engine — apenas coordenar. O acoplamento é intencional — um plugin com 7 engines precisa de exatamente 1 ponto que conhece todos. Reavaliar se ultrapassar ~250 LOC.
 
-### 5.4 dataConsolidator — ponto único de normalização
+### 5.4 dataConsolidator + ConsolidationCache — consolidação com cache incremental
 
-`analytics/data/dataConsolidator.ts` (~311 LOC) converte 6 formatos engine-specific em `UnifiedMarker[]`. Cada engine tem um bloco independente (~40 LOC). É o único lugar que conhece todos os formatos — isso é feature (consistência cross-engine), não fragilidade. Alternativas (cada engine auto-normaliza, visitor pattern) espalhariam a lógica sem ganho. Protegido por testes unitários.
+`analytics/data/dataConsolidator.ts` expõe 6 funções puras por engine (`consolidateMarkdown`, `consolidateCsv`, etc.) + `consolidateCodes` + `consolidate()` como composição. Cada função retorna `EngineSlice { markers, hasData }`. É o único lugar que conhece todos os formatos — isso é feature (consistência cross-engine), não fragilidade.
+
+`analytics/data/consolidationCache.ts` (`ConsolidationCache`) envolve o consolidator com cache por engine. Dirty flags por engine (`Set<EngineType>`) + `registryDirty` como dimensão separada. Quando um engine muda, só ele é reprocessado — os demais mantêm cache. Wiring no `main.ts` via `invalidateEngine()` nos `onChange` dos models e `invalidateRegistry()` no `addOnMutate` do registry.
 
 ### 5.5 analyticsView — state management sem framework
 
@@ -732,9 +736,13 @@ Na segunda passagem, lendo ARCHITECTURE.md e BACKLOG.md antes de analisar códig
 
 Também observou que a sidebar está **superdocumentada para capacidade não materializada** — drag-and-drop reorder, merge, export, hierarquia ainda não existem no código, embora a decisão de sidebar esteja justificada como investimento futuro.
 
-### Oportunidade identificada: incremental refresh/cache por engine
+### ~~Oportunidade identificada: incremental refresh/cache por engine~~ — FEITO (2026-03-20)
 
-O próximo gargalo provável não é `data.json` — é memória e recomputação em dados tabulares/analytics. CSV/Parquet é lido inteiro em memória, duplicado em `rowDataCache`, e analytics reconsolida tudo para array unificado via `dataConsolidator`. Para vaults médios funciona; para pesquisa pesada, risco de pressão de heap e latência de refresh. Codex sugere incremental refresh/cache por engine como próximo passo de arquitetura, antes de migração de persistência.
+Implementado em duas camadas:
+1. **`ConsolidationCache`** (`analytics/data/consolidationCache.ts`) — cache por engine no pipeline analytics. Dirty flags por engine (`Set<EngineType>`) + `registryDirty`. Só reprocessa engines sujos. Cache hit: ~0.002ms.
+2. **`UnifiedModelAdapter` cache** (`core/unifiedModelAdapter.ts`) — dirty flag global + indices `Map<fileId>` e `Map<id>` nas sidebar views. `getMarkersForFile` de O(n×m) para O(1). Views Explorer/Detail com debounce `requestAnimationFrame`.
+
+O gargalo remanescente é CSV/Parquet em memória (`rowDataCache`), que continua lido inteiro. Atacar se aparecer como problema real em vaults pesados.
 
 ### Achados da terceira análise — lifecycle assíncrono (2026-03-19)
 

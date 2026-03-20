@@ -42,6 +42,9 @@ src/
   video/                     — Video engine — thin wrapper (~54 LOC) via MediaViewCore
   analytics/                 — Charts e word clouds (chart.js)
     data/
+      consolidationCache.ts  — cache incremental por engine (dirty flags + merge parcial)
+      dataConsolidator.ts    — 6 funcoes puras por engine + consolidateCodes + consolidate() como composicao
+      dataReader.ts          — readAllData(DataManager) → AllEngineData
       statsEngine.ts         — barrel re-export (6 modulos: frequency, cooccurrence, evolution, sequential, inferential, textAnalysis)
       statsHelpers.ts        — applyFilters compartilhado
     board/
@@ -92,7 +95,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1517 testes em 51 suites (Vitest + jsdom)
+- `npm run test` — 1546 testes em 54 suites (Vitest + jsdom)
 - `npm run test:e2e` — 65 testes e2e em 18 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView

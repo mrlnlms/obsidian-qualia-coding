@@ -125,8 +125,8 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 
 ## 10. Propostas tecnicas
 
-### Incremental refresh/cache por engine
-Cache por engine invalidado por mutation. `dataConsolidator` monta array final dos caches. Retorno sem mudar modelo de dados.
+### ~~Incremental refresh/cache por engine~~ — FEITO (2026-03-20)
+Implementado em duas camadas: `ConsolidationCache` (analytics pipeline, dirty flags por engine + registry) e cache com indices no `UnifiedModelAdapter` (sidebar views, dirty flag global + Map por fileId/id). Views Explorer/Detail com debounce rAF via `scheduleRefresh`.
 
 ### ~~Board: snapshot vs live-linked~~ — FEITO (2026-03-20)
 Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abrir: atualiza cores/nomes/contagens, marca orfaos, remove arrows invalidas. Notice informativo.
