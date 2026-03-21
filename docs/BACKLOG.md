@@ -16,6 +16,7 @@
 | ~~P6~~ | ~~FEITO~~ | `pdfCodingModel.ts` | ~~removeMarker() agora chama notify() (com silent flag pra chamadas internas)~~ |
 | P7 | Baixa | `highlightGeometry.ts:213-214` | +pageY - pageY e no-op. PDFs com viewBox[1] != 0 (cropadas) ficam com posicao vertical errada |
 | P8 | Baixa | `drawInteraction.ts:260-266` | Keyboard handler so filtra INPUT/TEXTAREA, nao contenteditable |
+| P9 | Baixa | `pdfCodingModel.ts:186-198` | removeAllCodesFromMarker dispara N notify() (1 por code). Batch com suppressNotify otimizaria |
 
 ---
 
@@ -99,6 +100,7 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 | S1 | Media | `textRetrievalMode.ts:360` | navigateToSegment incompleto: CSV/Image/PDF caem em openLinkText generico |
 | S2 | Media | `decisionTreeMode.ts:94` | "View in Text Retrieval" nao foca subconjunto — cai no TR geral |
 | ~~S3~~ | ~~FEITO~~ | `textRetrievalMode.ts` | ~~Navegacao markdown: getLeavesOfType + find por file path~~ |
+| S6 | Baixa | `textRetrievalMode.ts:383` | Com 2+ leaves do mesmo arquivo, find pode pegar leaf antiga em vez da recem-aberta por openLinkText |
 | ~~S4~~ | ~~N/A~~ | `unifiedModelAdapter.ts` | ~~Nao e bug: DataManager.markDirty() debounce 500ms colapsa 6 saves em 1 escrita. Documentado~~ |
 | ~~S5~~ | ~~FEITO~~ | `baseCodeExplorerView.ts`, `detailListRenderer.ts` | ~~searchTimeout cancelado no onClose + cleanup retornado por renderListShell~~ |
 
