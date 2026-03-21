@@ -394,7 +394,7 @@ function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): vo
       ws.trigger('qualia-image:navigate', { file, markerId: seg.markerId });
       return;
     case "pdf": {
-      const page = seg.meta?.page ?? 0;
+      const page = seg.meta?.page ?? 1;
       const tfile = ctx.plugin.app.vault.getAbstractFileByPath(file);
       if (!tfile) return;
       // Reuse existing PDF leaf or open in new tab

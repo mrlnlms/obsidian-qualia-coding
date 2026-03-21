@@ -99,6 +99,7 @@ export function renderDecisionTreeView(ctx: AnalyticsViewContext, filters: Filte
         // Switch to text-retrieval mode filtered to this node's error markers
         ctx.trMarkerFilter = new Set(leaf.markerIds);
         ctx.viewMode = "text-retrieval";
+        ctx.renderConfigPanel();
         ctx.scheduleUpdate();
         new Notice(`Showing ${leaf.errors} misclassified markers from node #${leaf.nodeId}.`);
       });
