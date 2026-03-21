@@ -11,7 +11,7 @@ import { openPdfCodingPopover, openShapeCodingPopover } from './pdfCodingMenu';
 import { renderSelectionPreview } from './highlightRenderer';
 import type { PDFViewerChild } from './pdfTypings';
 import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
-import { getPdfViewState, type PdfViewState } from './pdfViewState';
+import { getPdfViewState, destroyPdfViewState, type PdfViewState } from './pdfViewState';
 
 export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistration<PdfCodingModel> {
 	// Use shared registry from plugin (single instance for all engines)
@@ -74,6 +74,9 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 					}
 					childListeners.delete(child);
 				}
+
+				// Destroy PdfViewState (cancel pending hover/shape timers)
+				destroyPdfViewState(child.containerEl);
 			}
 		}
 	}
@@ -305,6 +308,18 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			leaf.openFile(tfile, {
 				eState: { subpath: `#page=${data.page}` },
 			});
+
+			// Re-render highlights after navigation (viewer may have re-rendered pages)
+			setTimeout(() => {
+				const view = leaf.view as any;
+				if (view?.getViewType?.() === 'pdf' && view.viewer) {
+					instrumentPdfView(view);
+					// Refresh all observers for this viewer's children
+					for (const [, obs] of observers) {
+						obs.refreshAll();
+					}
+				}
+			}, 300);
 		})
 	);
 
@@ -333,10 +348,11 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			}
 			drawToolbars.clear();
 
-			for (const [, entries] of childListeners) {
+			for (const [child, entries] of childListeners) {
 				for (const { el, type, fn } of entries) {
 					el.removeEventListener(type, fn);
 				}
+				destroyPdfViewState(child.containerEl);
 			}
 			childListeners.clear();
 		},
