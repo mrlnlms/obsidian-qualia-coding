@@ -92,8 +92,10 @@ function collectMarkersAtPos(
 			let startOffset: number, endOffset: number;
 
 			try {
-				startOffset = view.state.doc.line(marker.range.from.line + 1).from + marker.range.from.ch;
-				endOffset = view.state.doc.line(marker.range.to.line + 1).from + marker.range.to.ch;
+				const fromLine = view.state.doc.line(marker.range.from.line + 1);
+				const toLine = view.state.doc.line(marker.range.to.line + 1);
+				startOffset = fromLine.from + Math.min(marker.range.from.ch, fromLine.to - fromLine.from);
+				endOffset = toLine.from + Math.min(marker.range.to.ch, toLine.to - toLine.from);
 			} catch {
 				const targetView = getViewForFile(fileId, app);
 				if (!targetView?.editor) continue;
