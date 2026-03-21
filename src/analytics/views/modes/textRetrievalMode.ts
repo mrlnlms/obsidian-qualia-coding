@@ -40,20 +40,6 @@ export function renderTextRetrieval(ctx: AnalyticsViewContext, filters: FilterCo
 
   const contentEl = container.createDiv({ cls: "codemarker-tr-content" });
 
-  // Show filter banner if viewing a subset from another mode
-  if (ctx.trMarkerFilter) {
-    const banner = container.insertBefore(
-      createDiv({ cls: "codemarker-tr-filter-banner" }),
-      contentEl,
-    );
-    banner.createSpan({ text: `Filtered: ${ctx.trMarkerFilter.size} markers` });
-    const clearBtn = banner.createEl("button", { text: "Show all", cls: "codemarker-tr-filter-clear" });
-    clearBtn.addEventListener("click", () => {
-      ctx.trMarkerFilter = null;
-      ctx.scheduleUpdate();
-    });
-  }
-
   // Filter markers per current filters (+ optional marker ID filter from other modes)
   let filtered = ctx.data.markers.filter((m) =>
     filters.sources.includes(m.source) &&
@@ -61,6 +47,20 @@ export function renderTextRetrieval(ctx: AnalyticsViewContext, filters: FilterCo
   );
   if (ctx.trMarkerFilter) {
     filtered = filtered.filter((m) => ctx.trMarkerFilter!.has(m.id));
+  }
+
+  // Show filter banner with actual count after all filters applied
+  if (ctx.trMarkerFilter) {
+    const banner = container.insertBefore(
+      createDiv({ cls: "codemarker-tr-filter-banner" }),
+      contentEl,
+    );
+    banner.createSpan({ text: `Filtered: ${filtered.length} markers` });
+    const clearBtn = banner.createEl("button", { text: "Show all", cls: "codemarker-tr-filter-clear" });
+    clearBtn.addEventListener("click", () => {
+      ctx.trMarkerFilter = null;
+      ctx.scheduleUpdate();
+    });
   }
 
   if (filtered.length === 0) {
@@ -408,12 +408,8 @@ function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): vo
     }
     case "markdown": {
       // Reuse existing leaf or open in new tab, then scroll to segment
-      let existingLeaf: import("obsidian").WorkspaceLeaf | undefined;
-      ws.iterateAllLeaves(leaf => {
-        if (!existingLeaf && (leaf.view as any).file?.path === file) {
-          existingLeaf = leaf;
-        }
-      });
+      const existingLeaf = ws.getLeavesOfType("markdown")
+        .find(l => l.view instanceof MarkdownView && l.view.file?.path === file);
 
       const openPromise = existingLeaf
         ? (ws.setActiveLeaf(existingLeaf, { focus: true }), Promise.resolve())
