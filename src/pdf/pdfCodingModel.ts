@@ -189,12 +189,9 @@ export class PdfCodingModel {
 
 		this.pushUndo({ type: 'removeAllCodes', markerId, data: { ...marker, codes: [...marker.codes] } });
 
-		// Suppress individual undo entries from removeCodeFromMarker
-		this.suppressUndo = true;
-		for (const code of [...marker.codes]) {
-			this.removeCodeFromMarker(markerId, code);
-		}
-		this.suppressUndo = false;
+		// Direct removal — single notify instead of N
+		this.removeMarker(markerId, true);
+		this.notify();
 	}
 
 	// ── Range update (drag resize) ──

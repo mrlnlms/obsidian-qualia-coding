@@ -862,3 +862,56 @@ describe('getAllCodes', () => {
 		expect(codes.map(c => c.name)).toContain('Beta');
 	});
 });
+
+// ── removeAllCodesFromMarker ──
+
+describe('removeAllCodesFromMarker', () => {
+	it('removes marker and notifies once', () => {
+		const m = createMarkerVia(model);
+		model.addCodeToMarker(m.id, 'CodeA');
+		model.addCodeToMarker(m.id, 'CodeB');
+		model.addCodeToMarker(m.id, 'CodeC');
+
+		const listener = vi.fn();
+		model.onChange(listener);
+		listener.mockClear();
+
+		model.removeAllCodesFromMarker(m.id);
+
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(model.findMarkerById(m.id)).toBeUndefined();
+	});
+
+	it('is undoable as single operation', () => {
+		const m = createMarkerVia(model);
+		model.addCodeToMarker(m.id, 'CodeA');
+		model.addCodeToMarker(m.id, 'CodeB');
+
+		model.removeAllCodesFromMarker(m.id);
+		expect(model.findMarkerById(m.id)).toBeUndefined();
+
+		model.undo();
+		const restored = model.findMarkerById(m.id);
+		expect(restored).toBeDefined();
+		expect(restored!.codes).toEqual(['CodeA', 'CodeB']);
+	});
+
+	it('no-ops on nonexistent marker', () => {
+		const listener = vi.fn();
+		model.onChange(listener);
+		listener.mockClear();
+
+		model.removeAllCodesFromMarker('nonexistent');
+		expect(listener).not.toHaveBeenCalled();
+	});
+
+	it('no-ops on marker with no codes', () => {
+		const m = createMarkerVia(model);
+		const listener = vi.fn();
+		model.onChange(listener);
+		listener.mockClear();
+
+		model.removeAllCodesFromMarker(m.id);
+		expect(listener).not.toHaveBeenCalled();
+	});
+});
