@@ -232,10 +232,13 @@ export class DrawInteraction {
 	}
 
 	private handleKeyDown(e: KeyboardEvent): void {
+		// Don't intercept if user is typing in an editable element
+		const target = e.target as HTMLElement;
+		if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
+			|| target.contentEditable === 'true') return;
+
 		// Delete key → remove selected shape
 		if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedShapeId && this.mode === 'select') {
-			// Don't intercept if user is typing in an input
-			if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
 			e.preventDefault();
 			this.deleteSelectedShape();
 			return;
@@ -257,7 +260,6 @@ export class DrawInteraction {
 		}
 
 		// Keyboard shortcuts for modes
-		if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
 		switch (e.key.toLowerCase()) {
 			case 'v': this.setMode('select'); break;
 			case 'r': this.setMode('rect'); break;
