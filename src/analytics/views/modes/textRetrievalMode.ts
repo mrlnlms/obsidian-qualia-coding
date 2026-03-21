@@ -376,11 +376,22 @@ function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): vo
     });
     return;
   }
-  ctx.plugin.app.workspace.openLinkText(file, "", "tab").then(() => {
-    // Try to scroll to line for markdown files
+  // Reuse existing leaf if the file is already open, otherwise open in new tab
+  let existingLeaf: import("obsidian").WorkspaceLeaf | undefined;
+  ctx.plugin.app.workspace.iterateAllLeaves(leaf => {
+    if (!existingLeaf && (leaf.view as any).file?.path === file) {
+      existingLeaf = leaf;
+    }
+  });
+
+  const openPromise = existingLeaf
+    ? (ctx.plugin.app.workspace.setActiveLeaf(existingLeaf, { focus: true }), Promise.resolve())
+    : ctx.plugin.app.workspace.openLinkText(file, "", "tab");
+
+  openPromise.then(() => {
+    // Scroll to segment position for markdown files
     if (seg.source === "markdown" && seg.fromLine != null) {
       setTimeout(() => {
-        // openLinkText activates the leaf it opens — getActiveViewOfType gets it directly
         const view = ctx.plugin.app.workspace.getActiveViewOfType(MarkdownView);
         if (view && view.file?.path === file) {
           const editor = view.editor;
