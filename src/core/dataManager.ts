@@ -74,6 +74,13 @@ export class DataManager {
 				this.saving = false;
 				return;
 			}
+			// Retry after backoff
+			this.saving = false;
+			this.saveTimer = window.setTimeout(() => {
+				this.saveTimer = null;
+				void this.flush();
+			}, 1000 * this.flushRetries);
+			return;
 		} finally {
 			this.saving = false;
 			if (this.dirtyAfterSave) { this.dirtyAfterSave = false; await this.flush(); }
