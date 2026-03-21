@@ -39,6 +39,22 @@
 
 **Status**: Suporte básico já implementado (`hyparquet` + `parseTabularFile()` + `registerExtensions(['csv', 'parquet'])`). Ver `HISTORY.md` para detalhes da implementação.
 
+**Problema atual**: Lê arquivo inteiro pra memória. Datasets grandes (ex: export Qualtrics 2M rows) crasham o Obsidian (~500MB-2GB de memória, main thread bloqueada).
+
+**Arquitetura necessária (lazy loading)**:
+1. **Metadata-only open**: hyparquet lê só metadata/schema (~1KB) ao abrir. Primeira visualização instantânea
+2. **AG Grid Server-Side Row Model**: virtualiza rows — só renderiza viewport. Datasource adapter mapeia "AG Grid page request" → "hyparquet row group range"
+3. **Row group mapping**: Row groups têm tamanho variável (ex: 20 groups de 100k). Adapter precisa calcular offset interno
+4. **Column projection**: `hyparquet({ columns: ['col1', 'col2'] })` decodifica só colunas visíveis. Integrar com column toggle existente
+5. **Web Worker**: Decodificação de row group (200-500ms pra 100k rows) deve sair da main thread
+6. **Cache**: LRU de 2-3 row groups em memória (~50MB total vs 500MB+)
+
+**Limitações conhecidas**:
+- Sort/filter global requer ler todos os dados — com Server-Side Row Model, sort ficaria limitado aos dados carregados (hyparquet não tem query engine)
+- Coding markers referenciam `row: N` — rows não carregadas precisam de resolução lazy no sidebar
+
+**Estimativa**: 2-3 sessões (POC → datasource adapter → polish + column projection + cache)
+
 **O que falta** (evolução do Parquet existente):
 - Lazy loading com `rowStart`/`rowEnd` do hyparquet (row group pagination) para datasets 100k+
 - AG Grid Server-Side Row Model for 100k+ rows
@@ -65,18 +81,13 @@
 - Filter by theme in CSV coding columns
 - Distinct from `parentId` hierarchy — this is a flat grouping tag
 
-### 5. FuzzySuggestModal para "Add Existing Code"
+### ~~5. FuzzySuggestModal para "Add Existing Code"~~ — FEITO (2026-03-21)
 
-**Status**: Stub existente nos action buttons do menu ("coming soon").
+`CodeBrowserModal` migrado de `Modal` + `SearchComponent` para `FuzzySuggestModal<CodeDefinition>` nativo. Fuzzy matching, keyboard navigation, swatch de cor. 22 LOC.
 
-**Implementação**: ~30 LOC usando `FuzzySuggestModal<CodeDefinition>` do Obsidian API.
-- Busca fuzzy por nome de código
-- Mostra cor como swatch ao lado do nome
-- Complementa o popover de toggle — para quando há muitos códigos
+### ~~6. Quick Switcher de Códigos~~ — FEITO (2026-03-21)
 
-### 6. Quick Switcher de Códigos
-
-**Comando**: `Cmd+Shift+C` — abre `SuggestModal<CodeDefinition>` para aplicar código rapidamente à seleção atual.
+Comando `quick-code`: seleciona texto → abre fuzzy modal → aplica código. Reutiliza `CodeBrowserModal` + `addCodeAction`. Hotkey configurável (sugestão: `Cmd+Shift+C`).
 
 ### 7. Toggle Visibility por Código
 
