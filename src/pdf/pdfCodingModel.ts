@@ -177,7 +177,7 @@ export class PdfCodingModel {
 		marker.updatedAt = Date.now();
 
 		if (marker.codes.length === 0 && !keepIfEmpty) {
-			this.removeMarker(markerId);
+			this.removeMarker(markerId, true);
 		}
 		this.notify();
 	}
@@ -387,10 +387,12 @@ export class PdfCodingModel {
 		return `${shapeNames[shape.shape] || shape.shape} — Page ${shape.page}`;
 	}
 
-	removeMarker(id: string): boolean {
+	removeMarker(id: string, silent = false): boolean {
 		const before = this.markers.length;
 		this.markers = this.markers.filter(m => m.id !== id);
-		return this.markers.length < before;
+		const removed = this.markers.length < before;
+		if (removed && !silent) this.notify();
+		return removed;
 	}
 
 	// ── Private ──

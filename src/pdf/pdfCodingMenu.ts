@@ -90,7 +90,7 @@ export function openPdfCodingPopover(
 				m.memo = value || undefined;
 				m.updatedAt = Date.now();
 			}
-			model.save();
+			model.notify();
 		},
 		save: () => model.save(),
 		onRefresh: onHighlightRefresh,
