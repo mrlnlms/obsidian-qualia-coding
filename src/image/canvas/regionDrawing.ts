@@ -1,6 +1,7 @@
 import { Canvas, Rect, Ellipse, Polygon, Point, FabricObject } from "fabric";
 import type { ToolMode } from "../imageToolbar";
 import type { FabricCanvasState } from "./fabricCanvas";
+import { isQualiaLabel } from "../regionLabels";
 
 /** Default visual style for new regions (used before codes are assigned) */
 const REGION_FILL = "rgba(59, 130, 246, 0.2)";
@@ -307,7 +308,7 @@ export function setupRegionDrawing(
     // Labels are tagged non-interactive at creation — skip them
     if (newMode === "select") {
       canvas.forEachObject((obj) => {
-        if ((obj as any)._qlabel) return;
+        if (isQualiaLabel(obj)) return;
         obj.selectable = true;
         obj.evented = true;
       });

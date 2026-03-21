@@ -9,6 +9,11 @@ import { FabricText, FabricObject, Canvas } from "fabric";
 import type { RegionManager } from "./canvas/regionManager";
 import type { ImageCodingModel } from "./imageCodingModel";
 
+/** Check if a Fabric object is a Qualia label (non-interactive text overlay). */
+export function isQualiaLabel(obj: FabricObject): boolean {
+  return '_qlabel' in obj;
+}
+
 export class RegionLabels {
   private canvas: Canvas;
   private model: ImageCodingModel;
