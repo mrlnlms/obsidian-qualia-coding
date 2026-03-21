@@ -12,116 +12,139 @@ Além disso, 4 módulos usam state global de módulo (timers, IDs, listeners) qu
 |---------|-------------|-------|
 | `pdf/highlightRenderer.ts` | `hoverOpenTimer`, `hoverCloseTimer`, `currentHoverMarkerId` | Crítico |
 | `pdf/drawLayer.ts` | `shapeHoverTimer`, `currentHoverShapeId` | Crítico |
+| `pdf/highlightRenderer.ts:299,347` + `drawLayer.ts:105` | `document.querySelector('.codemarker-popover')` global | Crítico |
 | `image/imageToolbar.ts` | `window.addEventListener("keydown")` | Alto |
-| `image/canvas/zoomPanControls.ts` | 4 listeners em `window` | Médio |
-| `core/baseSidebarAdapter.ts` + models | `hoverMarkerId` single-value | Alto |
+| `image/canvas/zoomPanControls.ts` | `window.addEventListener("keydown/keyup")` | Médio |
+| `core/baseSidebarAdapter.ts` + models (PDF, Image, CSV, Media) | `hoverMarkerId` single-value | Alto |
 
-Audio/video/CSV/markdown já têm state por instância — zero trabalho.
+Audio/video/CSV/markdown já têm state por instância — zero trabalho estrutural.
 
-## Abordagem: State Object por View
+## Abordagem: State Object por View via WeakMap
 
-Criar um state object por engine (struct flat) que agrupa todo o estado per-view. Factory cria, destrutor limpa. Lookup via `getViewId(containerEl)` + registry central.
+Criar um state object por engine (struct flat) que agrupa todo o estado per-view. Armazenado em `WeakMap<HTMLElement, State>` — GC automático quando pane fecha. Sem IDs string, sem registry central.
 
 ### Alternativas descartadas
 
-- **Map por módulo (Mirror Notes literal):** Polui assinaturas com `viewId` em toda função. Maps soltos em vários arquivos, cleanup manual.
-- **State no próprio View:** Acopla módulos ao FileView do Obsidian. Dificulta testes unitários. Views já são grandes.
+- **viewId string + Map central:** Indireção desnecessária. `WeakMap<HTMLElement, State>` é mais direto e não precisa de cleanup manual.
+- **Map por módulo (Mirror Notes literal):** Polui assinaturas com `viewId` em toda função. Maps soltos em vários arquivos.
+- **State no próprio View:** Acopla módulos ao FileView do Obsidian. Dificulta testes unitários.
 
 ## Design
 
-### 1. Infraestrutura Core — `src/core/viewId.ts`
-
-```typescript
-const viewIds = new WeakMap<HTMLElement, string>();
-let counter = 0;
-
-export function getViewId(containerEl: HTMLElement): string {
-  let id = viewIds.get(containerEl);
-  if (!id) { id = `v${counter++}`; viewIds.set(containerEl, id); }
-  return id;
-}
-```
-
-- WeakMap = GC automático quando pane fecha (containerEl sai do DOM)
-- Counter monotônico, nunca reseta (evita colisão)
-- Reutilizável por qualquer engine
-
-### 2. PDF State — `src/pdf/pdfViewState.ts`
+### 1. PDF State — `src/pdf/pdfViewState.ts`
 
 ```typescript
 export interface PdfViewState {
+  // highlightRenderer globals
   hoverOpenTimer: ReturnType<typeof setTimeout> | null;
   hoverCloseTimer: ReturnType<typeof setTimeout> | null;
   currentHoverMarkerId: string | null;
+  // drawLayer globals
   shapeHoverTimer: ReturnType<typeof setTimeout> | null;
   currentHoverShapeId: string | null;
+  // scoped container for popover queries
+  containerEl: HTMLElement;
 }
 
-export function createPdfViewState(): PdfViewState {
-  return {
-    hoverOpenTimer: null,
-    hoverCloseTimer: null,
-    currentHoverMarkerId: null,
-    shapeHoverTimer: null,
-    currentHoverShapeId: null,
-  };
+const pdfStates = new WeakMap<HTMLElement, PdfViewState>();
+
+export function getPdfViewState(containerEl: HTMLElement): PdfViewState {
+  let state = pdfStates.get(containerEl);
+  if (!state) {
+    state = {
+      hoverOpenTimer: null,
+      hoverCloseTimer: null,
+      currentHoverMarkerId: null,
+      shapeHoverTimer: null,
+      currentHoverShapeId: null,
+      containerEl,
+    };
+    pdfStates.set(containerEl, state);
+  }
+  return state;
 }
 
-export function destroyPdfViewState(state: PdfViewState): void {
+export function destroyPdfViewState(containerEl: HTMLElement): void {
+  const state = pdfStates.get(containerEl);
+  if (!state) return;
   if (state.hoverOpenTimer) clearTimeout(state.hoverOpenTimer);
   if (state.hoverCloseTimer) clearTimeout(state.hoverCloseTimer);
   if (state.shapeHoverTimer) clearTimeout(state.shapeHoverTimer);
-  state.currentHoverMarkerId = null;
-  state.currentHoverShapeId = null;
+  pdfStates.delete(containerEl);
 }
 ```
 
-**Impacto nos módulos:**
-- `highlightRenderer.ts` — `cancelHoverPopover()`, `startHoverCloseTimer()`, `cancelHoverCloseTimer()`, `attachLayerHoverTracking()` recebem `state: PdfViewState` em vez de acessar `let` do módulo
-- `drawLayer.ts` — `renderDrawLayerForPage()` recebe `state: PdfViewState`
-- O caller (pdf/index.ts ou view) faz `getViewId(containerEl)` → lookup → passa state
+**WeakMap keyed por `containerEl`** — a pane do Obsidian. GC automático quando pane fecha.
 
-### 3. Image State — `src/image/imageViewState.ts`
+**Impacto nos módulos:**
+
+- `highlightRenderer.ts` — `cancelHoverPopover(state)`, `startHoverCloseTimer(state)`, `cancelHoverCloseTimer(state)`, `attachLayerHoverTracking(..., state)` recebem `PdfViewState` em vez de acessar `let` do módulo. Os 3 `let` globais são removidos.
+- `drawLayer.ts` — `renderDrawLayerForPage(..., state)` recebe `PdfViewState`. Os 2 `let` globais são removidos. As chamadas importadas de `highlightRenderer` (`cancelHoverPopover`, `startHoverCloseTimer`, `cancelHoverCloseTimer`) passam o mesmo `state` recebido.
+- **Popover queries** — `document.querySelector('.codemarker-popover')` (3 ocorrências) troca para `state.containerEl.querySelector('.codemarker-popover')`. Cada pane só vê seu próprio popover.
+- O caller (PDF view/index) faz `getPdfViewState(containerEl)` no mount e `destroyPdfViewState(containerEl)` no close.
+
+### 2. Image State — `src/image/imageViewState.ts`
 
 ```typescript
 export interface ImageViewState {
   keydownHandler: ((e: KeyboardEvent) => void) | null;
   keyupHandler: ((e: KeyboardEvent) => void) | null;
-  containerEl: HTMLElement | null;
+  containerEl: HTMLElement;
 }
 
-export function createImageViewState(): ImageViewState {
-  return { keydownHandler: null, keyupHandler: null, containerEl: null };
+const imageStates = new WeakMap<HTMLElement, ImageViewState>();
+
+export function getImageViewState(containerEl: HTMLElement): ImageViewState {
+  let state = imageStates.get(containerEl);
+  if (!state) {
+    state = { keydownHandler: null, keyupHandler: null, containerEl };
+    imageStates.set(containerEl, state);
+  }
+  return state;
 }
 
-export function destroyImageViewState(state: ImageViewState): void {
-  if (state.containerEl && state.keydownHandler) {
+export function destroyImageViewState(containerEl: HTMLElement): void {
+  const state = imageStates.get(containerEl);
+  if (!state) return;
+  if (state.keydownHandler) {
     state.containerEl.removeEventListener('keydown', state.keydownHandler);
   }
-  if (state.containerEl && state.keyupHandler) {
+  if (state.keyupHandler) {
     state.containerEl.removeEventListener('keyup', state.keyupHandler);
   }
-  state.keydownHandler = null;
-  state.keyupHandler = null;
-  state.containerEl = null;
+  imageStates.delete(containerEl);
 }
 ```
 
 **Impacto nos módulos:**
-- `imageToolbar.ts` — troca `window.addEventListener("keydown", onKeyDown)` por `containerEl.addEventListener("keydown", onKeyDown)`. Guarda refs no state.
-- `zoomPanControls.ts` — keydown/keyup → `containerEl`. Mouse move/up ficam em `window` (precisa capturar drag fora do container) mas guardam ref no state pra cleanup.
 
-### 4. Sidebar Hover — `Set<string>` nos models
+- `imageToolbar.ts` — troca `window.addEventListener("keydown", onKeyDown)` por `containerEl.addEventListener("keydown", onKeyDown)`. Guarda ref no state.
+- `zoomPanControls.ts` — apenas keydown/keyup migram para `containerEl`. Mouse move/up continuam em `window` (precisa capturar drag fora do container). O `destroy()` existente do `ZoomPanCleanup` já limpa os mouse listeners — sem mudança nessa parte.
 
-Cada engine model troca `hoverMarkerId: string | null` por `hoveredMarkerIds: Set<string>`:
+**Focus management (obrigatório):** `containerEl` precisa receber eventos de teclado. Adicionar `containerEl.tabIndex = -1` (focável via JS mas não via Tab) no setup de cada engine. Quando a pane é ativada (`active-leaf-change`), chamar `containerEl.focus()` para garantir que atalhos funcionem na pane correta.
 
-- `setHoverState(markerId, codeName)` → adiciona ao Set
-- `clearHoverState(markerId)` → remove do Set
-- `baseSidebarAdapter.getHoverMarkerIds()` → retorna `[...set]`
+### 3. Sidebar Hover — alinhar com pattern do Markdown
 
-Cada pane chama set/clear independente. Sem viewId necessário nesta camada.
+O markdown engine já suporta multi-marker hover:
 
-### 5. fileInterceptor — remover bloqueio
+```typescript
+// codeMarkerModel.ts — pattern existente
+setHoverState(markerId: string | null, codeName: string | null, hoveredIds?: string[]): void;
+getHoverMarkerIds(): string[];
+```
+
+Os outros models (PDF, Image, CSV, Media) guardam `hoverMarkerId: string | null` (single). A mudança é alinhar todos ao pattern do markdown:
+
+- Adicionar `_hoveredMarkerIds: string[]` nos 4 models restantes
+- `setHoverState(markerId, codeName, hoveredIds?)` → guarda o array (ou `[markerId]` se `hoveredIds` não fornecido)
+- `getHoverMarkerIds()` → retorna o array
+- `getHoverMarkerId()` → continua retornando o primeiro (backward-compatible)
+
+A interface `CodingModel` em `core/types.ts:55` já aceita `hoveredIds?: string[]`. Os models só não implementam.
+
+`baseSidebarAdapter.getHoverMarkerIds()` hoje faz `id ? [id] : []`. Após a mudança, delegará direto ao model.
+
+### 4. fileInterceptor — remover bloqueio
 
 Remover o bloco linhas 110-119 de `fileInterceptor.ts`:
 
@@ -140,33 +163,45 @@ O `leaf.setViewState()` na linha 122 continua — faz a interceptação de tipo 
 
 ## Sequência de Implementação
 
-1. `src/core/viewId.ts` — getViewId()
-2. `src/pdf/pdfViewState.ts` — struct + create/destroy
-3. `src/pdf/highlightRenderer.ts` — trocar 3 lets → receber PdfViewState
-4. `src/pdf/drawLayer.ts` — trocar 2 lets → receber PdfViewState
-5. `src/image/imageViewState.ts` — struct + create/destroy
-6. `src/image/imageToolbar.ts` — window → containerEl para keydown
-7. `src/image/canvas/zoomPanControls.ts` — window → containerEl para keydown/keyup
-8. `src/core/baseSidebarAdapter.ts` + models — hoverMarkerId → Set
-9. `src/core/fileInterceptor.ts` — remover bloco leaf.detach()
-10. Testes — unit tests pra viewId, state objects, sidebar hover Set
+A ordem garante que state está isolado ANTES de remover o gate:
+
+1. `src/pdf/pdfViewState.ts` — WeakMap + struct + get/destroy
+2. `src/pdf/highlightRenderer.ts` — trocar 3 `let` globals → receber `PdfViewState`. Escopar 2× `document.querySelector` → `state.containerEl.querySelector`
+3. `src/pdf/drawLayer.ts` — trocar 2 `let` globals → receber `PdfViewState`. Escopar 1× `document.querySelector`. Passar state nas chamadas importadas do `highlightRenderer`
+4. PDF view/index — `getPdfViewState(containerEl)` no mount, `destroyPdfViewState(containerEl)` no close
+5. `src/image/imageViewState.ts` — WeakMap + struct + get/destroy
+6. `src/image/imageToolbar.ts` — `window` → `containerEl` para keydown
+7. `src/image/canvas/zoomPanControls.ts` — `window` → `containerEl` para keydown/keyup apenas
+8. Image view/index — `getImageViewState(containerEl)` no mount, `destroyImageViewState` no close. `containerEl.tabIndex = -1` + focus no `active-leaf-change`
+9. Models (PDF, Image, CSV, Media) — adicionar `_hoveredMarkerIds: string[]`, alinhar `setHoverState`/`getHoverMarkerIds` com pattern markdown
+10. `src/core/fileInterceptor.ts` — remover bloco `leaf.detach()` (linhas 110-119)
+11. Testes — unit tests para state objects, sidebar hover, e fileInterceptor sem detach
 
 ## O que NÃO muda
 
 - Audio/video/CSV/markdown — já têm state por instância
 - `registerFileIntercept` / `registerFileRename` — API continua igual
-- Nenhum engine novo, nenhuma abstração além dos 2 state objects
+- `zoomPanControls.ts` mouse listeners — já limpos pelo `destroy()` existente
+- `regionHighlight.ts` — já safe (closure per-instance, confirmado)
 
 ## Performance
 
-- Lookup: `Map.get(viewId)` por evento de hover/keydown — O(1)
-- Memória: objetos flat com 3-5 campos, GC quando view fecha
+- Lookup: `WeakMap.get(containerEl)` por evento — O(1)
+- Memória: objetos flat com 5-6 campos, GC automático via WeakMap
 - Zero overhead vs estado global atual
+
+## Riscos e mitigações
+
+| Risco | Mitigação |
+|-------|-----------|
+| Keyboard silently breaks após mover de `window` → `containerEl` | `tabIndex = -1` + `focus()` no `active-leaf-change`. Testar manualmente com duas panes |
+| Popover query pega elemento da pane errada | Escopar ao `containerEl` (3 ocorrências explícitas no spec) |
+| Migração parcial expõe bugs | Gate (`leaf.detach()`) só sai no passo 10, após toda isolação |
 
 ## Backlog items resolvidos
 
 - **M1** — leaf.detach() removido, multi-pane funciona
-- **M2** — sidebar hover multi-marker via Set
+- **M2** — sidebar hover multi-marker via array (alinhado com markdown)
 - **M3** — P2/I4 resolvidos (mesma raiz)
 - **P2** — PDF hover state isolado por view
 - **P3** — PDF shape hover timers isolados por view
