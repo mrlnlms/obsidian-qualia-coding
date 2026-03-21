@@ -546,7 +546,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		const affectedFiles = new Set<string>();
 		for (const [fileId, markers] of this.markers.entries()) {
 			for (let i = markers.length - 1; i >= 0; i--) {
-				const marker = markers[i];
+				const marker = markers[i]!;
 				const idx = marker.codes.indexOf(codeName);
 				if (idx < 0) continue;
 				marker.codes.splice(idx, 1);
