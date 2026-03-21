@@ -125,11 +125,11 @@ export function createToolbar(
     }
   };
 
-  window.addEventListener("keydown", onKeyDown);
+  parent.addEventListener("keydown", onKeyDown);
 
   const origDestroy = toolbarState.destroy;
   toolbarState.destroy = () => {
-    window.removeEventListener("keydown", onKeyDown);
+    parent.removeEventListener("keydown", onKeyDown);
     drawHandle.destroy();
     origDestroy();
   };
