@@ -13,8 +13,9 @@ export interface ZoomPanCallbacks {
   onViewChanged?: () => void;
 }
 
-export function setupZoomPanControls(state: FabricCanvasState, callbacks?: ZoomPanCallbacks): ZoomPanCleanup {
+export function setupZoomPanControls(state: FabricCanvasState, callbacks?: ZoomPanCallbacks, keyboardEl?: HTMLElement): ZoomPanCleanup {
   const { canvas, container } = state;
+  const kbEl = keyboardEl ?? container;
   let isPanning = false;
   let lastPanX = 0;
   let lastPanY = 0;
@@ -94,8 +95,8 @@ export function setupZoomPanControls(state: FabricCanvasState, callbacks?: ZoomP
   container.addEventListener("mousedown", onMouseDown);
   window.addEventListener("mousemove", onMouseMove);
   window.addEventListener("mouseup", onMouseUp);
-  window.addEventListener("keydown", onKeyDown);
-  window.addEventListener("keyup", onKeyUp);
+  kbEl.addEventListener("keydown", onKeyDown);
+  kbEl.addEventListener("keyup", onKeyUp);
 
   return {
     destroy() {
@@ -103,8 +104,8 @@ export function setupZoomPanControls(state: FabricCanvasState, callbacks?: ZoomP
       container.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
+      kbEl.removeEventListener("keydown", onKeyDown);
+      kbEl.removeEventListener("keyup", onKeyUp);
     },
   };
 }

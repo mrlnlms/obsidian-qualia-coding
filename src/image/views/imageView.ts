@@ -178,7 +178,7 @@ export class ImageCodingView extends ItemView {
 			// Zoom/pan controls (with per-file state persistence)
 			this.zoomPanCleanup = setupZoomPanControls(this.fabricState, {
 				onViewChanged: saveView,
-			});
+			}, contentEl);
 
 			// Restore saved view state (zoom/pan) if available
 			const savedView = this.model.getFileViewState(file.path);
