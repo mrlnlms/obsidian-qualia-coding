@@ -36,16 +36,20 @@ export function setupRegionHighlight(
   // Guard to avoid feedback loop: canvas hover → model → canvas
   let suppressModelHover = false;
 
-  // Store original values to restore on mouse out
-  let origStrokeWidth: number = 0;
-  let origShadow: Shadow | string | null = null;
+  // Store original values per shape to avoid corruption on concurrent hover
+  const origValues = new WeakMap<FabricObject, { strokeWidth: number; shadow: Shadow | string | null }>();
 
   function applyHoverEffect(shape: FabricObject): void {
-    origStrokeWidth = (shape.strokeWidth ?? 2);
-    origShadow = shape.shadow;
+    if (!origValues.has(shape)) {
+      origValues.set(shape, {
+        strokeWidth: shape.strokeWidth ?? 2,
+        shadow: shape.shadow,
+      });
+    }
+    const orig = origValues.get(shape)!;
 
     shape.set({
-      strokeWidth: origStrokeWidth + 2,
+      strokeWidth: orig.strokeWidth + 2,
       shadow: new Shadow({
         color: HOVER_SHADOW_COLOR,
         blur: HOVER_SHADOW_BLUR,
@@ -57,10 +61,13 @@ export function setupRegionHighlight(
   }
 
   function removeHoverEffect(shape: FabricObject): void {
+    const orig = origValues.get(shape);
+    if (!orig) return;
     shape.set({
-      strokeWidth: origStrokeWidth,
-      shadow: origShadow ?? null,
+      strokeWidth: orig.strokeWidth,
+      shadow: orig.shadow ?? null,
     });
+    origValues.delete(shape);
     canvas.requestRenderAll();
   }
 
