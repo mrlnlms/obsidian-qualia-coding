@@ -59,11 +59,10 @@ export class UnifiedCodeDetailView extends BaseCodeDetailView {
 
 	async navigateToMarker(marker: BaseMarker): Promise<void> {
 		if (isPdfMarker(marker)) {
-			const file = this.app.vault.getAbstractFileByPath(marker.fileId);
-			if (file instanceof TFile) {
-				const leaf = this.app.workspace.getLeaf(false);
-				leaf.openFile(file, { eState: { subpath: `#page=${marker.page}` } });
-			}
+			this.app.workspace.trigger('qualia-pdf:navigate', {
+				file: marker.fileId,
+				page: marker.page,
+			});
 			return;
 		}
 		if (isImageMarker(marker)) {

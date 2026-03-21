@@ -393,19 +393,9 @@ function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): vo
     case "image":
       ws.trigger('qualia-image:navigate', { file, markerId: seg.markerId });
       return;
-    case "pdf": {
-      const page = seg.meta?.page ?? 1;
-      const tfile = ctx.plugin.app.vault.getAbstractFileByPath(file);
-      if (!tfile) return;
-      // Reuse existing PDF leaf or open in new tab
-      const pdfLeaf = ws.getLeavesOfType("pdf")
-        .find(l => (l.view as any).file?.path === file);
-      const leaf = pdfLeaf ?? ws.getLeaf("tab");
-      leaf.openFile(tfile as import("obsidian").TFile, {
-        eState: { subpath: `#page=${page}` },
-      });
+    case "pdf":
+      ws.trigger('qualia-pdf:navigate', { file, page: seg.meta?.page ?? 1 });
       return;
-    }
     case "markdown": {
       // Reuse existing leaf or open in new tab, then scroll to segment
       const existingLeaf = ws.getLeavesOfType("markdown")

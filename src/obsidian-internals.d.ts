@@ -27,11 +27,13 @@ declare module 'obsidian' {
 		on(name: 'qualia-audio:navigate', callback: (data: { file: string; seekTo: number }) => void): EventRef;
 		on(name: 'qualia-image:navigate', callback: (data: { file: string; markerId: string }) => void): EventRef;
 		on(name: 'qualia-video:navigate', callback: (data: { file: string; seekTo: number }) => void): EventRef;
+		on(name: 'qualia-pdf:navigate', callback: (data: { file: string; page: number }) => void): EventRef;
 
 		trigger(name: 'qualia-csv:navigate', data: { file: string; row: number; column?: string }): void;
 		trigger(name: 'qualia-csv:detail', data: { markerId: string; codeName: string }): void;
 		trigger(name: 'qualia-audio:navigate', data: { file: string; seekTo: number }): void;
 		trigger(name: 'qualia-image:navigate', data: { file: string; markerId: string }): void;
 		trigger(name: 'qualia-video:navigate', data: { file: string; seekTo: number }): void;
+		trigger(name: 'qualia-pdf:navigate', data: { file: string; page: number }): void;
 	}
 }

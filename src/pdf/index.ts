@@ -282,6 +282,23 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 		})
 	);
 
+	// Navigate event from analytics/sidebar → open PDF and go to page
+	plugin.registerEvent(
+		plugin.app.workspace.on('qualia-pdf:navigate', (data: { file: string; page: number }) => {
+			const tfile = plugin.app.vault.getAbstractFileByPath(data.file);
+			if (!(tfile instanceof TFile)) return;
+
+			// Reuse existing PDF leaf or open in new tab
+			const pdfLeaf = plugin.app.workspace.getLeavesOfType('pdf')
+				.find(l => (l.view as any).file?.path === data.file);
+			const leaf = pdfLeaf ?? plugin.app.workspace.getLeaf('tab');
+
+			leaf.openFile(tfile, {
+				eState: { subpath: `#page=${data.page}` },
+			});
+		})
+	);
+
 	// File rename tracking (centralized)
 	registerFileRename({
 		extensions: new Set(['pdf']),
