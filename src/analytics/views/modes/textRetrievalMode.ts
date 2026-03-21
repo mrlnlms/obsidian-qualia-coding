@@ -360,50 +360,70 @@ export function formatLocation(seg: ExtractedSegment): string {
 
 function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): void {
   const file = seg.fileId;
-  if (seg.source === "audio") {
-    const seekTo = seg.meta?.audioFrom ?? 0;
-    ctx.plugin.app.workspace.trigger('qualia-audio:navigate', {
-      file: seg.fileId,
-      seekTo,
-    });
-    return;
-  }
-  if (seg.source === "video") {
-    const seekTo = seg.meta?.videoFrom ?? 0;
-    ctx.plugin.app.workspace.trigger('qualia-video:navigate', {
-      file: seg.fileId,
-      seekTo,
-    });
-    return;
-  }
-  // Reuse existing leaf if the file is already open, otherwise open in new tab
-  let existingLeaf: import("obsidian").WorkspaceLeaf | undefined;
-  ctx.plugin.app.workspace.iterateAllLeaves(leaf => {
-    if (!existingLeaf && (leaf.view as any).file?.path === file) {
-      existingLeaf = leaf;
-    }
-  });
+  const ws = ctx.plugin.app.workspace;
 
-  const openPromise = existingLeaf
-    ? (ctx.plugin.app.workspace.setActiveLeaf(existingLeaf, { focus: true }), Promise.resolve())
-    : ctx.plugin.app.workspace.openLinkText(file, "", "tab");
-
-  openPromise.then(() => {
-    // Scroll to segment position for markdown files
-    if (seg.source === "markdown" && seg.fromLine != null) {
-      setTimeout(() => {
-        const view = ctx.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-        if (view && view.file?.path === file) {
-          const editor = view.editor;
-          if (editor?.setCursor) {
-            editor.setCursor({ line: seg.fromLine ?? 0, ch: seg.fromCh ?? 0 });
-            editor.scrollIntoView(
-              { from: { line: seg.fromLine ?? 0, ch: 0 }, to: { line: seg.toLine ?? seg.fromLine ?? 0, ch: 0 } },
-              true
-            );
-          }
+  switch (seg.source) {
+    case "audio":
+      ws.trigger('qualia-audio:navigate', { file, seekTo: seg.meta?.audioFrom ?? 0 });
+      return;
+    case "video":
+      ws.trigger('qualia-video:navigate', { file, seekTo: seg.meta?.videoFrom ?? 0 });
+      return;
+    case "csv-segment":
+    case "csv-row":
+      ws.trigger('qualia-csv:navigate', { file, row: seg.meta?.row ?? 0, column: seg.meta?.column });
+      return;
+    case "image":
+      ws.trigger('qualia-image:navigate', { file, markerId: seg.markerId });
+      return;
+    case "pdf": {
+      const page = seg.meta?.page ?? 0;
+      const tfile = ctx.plugin.app.vault.getAbstractFileByPath(file);
+      if (!tfile) return;
+      // Reuse existing PDF leaf or open in new tab
+      let pdfLeaf: import("obsidian").WorkspaceLeaf | undefined;
+      ws.iterateAllLeaves(leaf => {
+        if (!pdfLeaf && (leaf.view as any).file?.path === file) {
+          pdfLeaf = leaf;
         }
-      }, 200);
+      });
+      const leaf = pdfLeaf ?? ws.getLeaf("tab");
+      leaf.openFile(tfile as import("obsidian").TFile, {
+        eState: { subpath: `#page=${page + 1}` },
+      });
+      return;
     }
-  });
+    case "markdown": {
+      // Reuse existing leaf or open in new tab, then scroll to segment
+      let existingLeaf: import("obsidian").WorkspaceLeaf | undefined;
+      ws.iterateAllLeaves(leaf => {
+        if (!existingLeaf && (leaf.view as any).file?.path === file) {
+          existingLeaf = leaf;
+        }
+      });
+
+      const openPromise = existingLeaf
+        ? (ws.setActiveLeaf(existingLeaf, { focus: true }), Promise.resolve())
+        : ws.openLinkText(file, "", "tab");
+
+      openPromise.then(() => {
+        if (seg.fromLine != null) {
+          setTimeout(() => {
+            const view = ws.getActiveViewOfType(MarkdownView);
+            if (view && view.file?.path === file) {
+              const editor = view.editor;
+              if (editor?.setCursor) {
+                editor.setCursor({ line: seg.fromLine ?? 0, ch: seg.fromCh ?? 0 });
+                editor.scrollIntoView(
+                  { from: { line: seg.fromLine ?? 0, ch: 0 }, to: { line: seg.toLine ?? seg.fromLine ?? 0, ch: 0 } },
+                  true,
+                );
+              }
+            }
+          }, 200);
+        }
+      });
+      return;
+    }
+  }
 }

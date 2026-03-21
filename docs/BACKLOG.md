@@ -97,7 +97,7 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
-| S1 | Media | `textRetrievalMode.ts:360` | navigateToSegment incompleto: CSV/Image/PDF caem em openLinkText generico |
+| ~~S1~~ | ~~FEITO~~ | `textRetrievalMode.ts` | ~~navigateToSegment agora dispara eventos por engine: csv, image, pdf (#page), audio, video~~ |
 | S2 | Media | `decisionTreeMode.ts:94` | "View in Text Retrieval" nao foca subconjunto — cai no TR geral |
 | ~~S3~~ | ~~FEITO~~ | `textRetrievalMode.ts` | ~~Navegacao markdown: getLeavesOfType + find por file path~~ |
 | ~~S6~~ | ~~FEITO~~ | `textRetrievalMode.ts` | ~~getActiveViewOfType(MarkdownView) + file path guard em vez de find~~ |
