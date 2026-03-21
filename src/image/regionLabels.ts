@@ -52,6 +52,7 @@ export class RegionLabels {
         selectable: false,
         evented: false,
       });
+      (label as any)._qlabel = true;
       this.canvas.add(label);
       this.labels.set(markerId, label);
     }

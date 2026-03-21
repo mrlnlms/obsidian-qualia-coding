@@ -303,11 +303,20 @@ export function setupRegionDrawing(
 
     mode = newMode;
 
-    // In select mode, objects are interactive
-    canvas.forEachObject((obj) => {
-      obj.selectable = newMode === "select";
-      obj.evented = newMode === "select";
-    });
+    // In select mode, region shapes are interactive
+    // Labels are tagged non-interactive at creation — skip them
+    if (newMode === "select") {
+      canvas.forEachObject((obj) => {
+        if ((obj as any)._qlabel) return;
+        obj.selectable = true;
+        obj.evented = true;
+      });
+    } else {
+      canvas.forEachObject((obj) => {
+        obj.selectable = false;
+        obj.evented = false;
+      });
+    }
 
     if (newMode === "select") {
       canvas.defaultCursor = "default";
