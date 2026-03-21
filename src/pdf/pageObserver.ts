@@ -33,6 +33,7 @@ export class PdfPageObserver {
 	private hoverListener: ((markerId: string | null, codeName: string | null) => void) | null = null;
 	private textLayerRenderedHandler: ((data: any) => void) | null = null;
 	private pageRenderedHandler: ((data: any) => void) | null = null;
+	private pageRenderTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
 	private started = false;
 
 	// Overlay for margin panels (lives outside the scroll container so labels aren't clipped)
@@ -71,8 +72,14 @@ export class PdfPageObserver {
 		// Listen for page re-render (zoom changes)
 		this.pageRenderedHandler = (data: any) => {
 			const pageNumber: number = data.pageNumber;
-			// Small delay to let text layer rebuild after zoom
-			setTimeout(() => this.renderPage(pageNumber), 100);
+			// Cancel previous timeout for same page (zoom may fire multiple times)
+			const prev = this.pageRenderTimeouts.get(pageNumber);
+			if (prev) clearTimeout(prev);
+			const id = setTimeout(() => {
+				this.pageRenderTimeouts.delete(pageNumber);
+				this.renderPage(pageNumber);
+			}, 100);
+			this.pageRenderTimeouts.set(pageNumber, id);
 		};
 		this.child.pdfViewer.eventBus.on('pagerendered', this.pageRenderedHandler);
 
@@ -117,6 +124,12 @@ export class PdfPageObserver {
 			this.child.pdfViewer?.eventBus?.off('pagerendered', this.pageRenderedHandler);
 			this.pageRenderedHandler = null;
 		}
+
+		// Cancel all pending page render timeouts
+		for (const id of this.pageRenderTimeouts.values()) {
+			clearTimeout(id);
+		}
+		this.pageRenderTimeouts.clear();
 
 		// Clear all highlight layers + overlay
 		this.clearAll();
