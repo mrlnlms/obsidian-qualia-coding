@@ -82,7 +82,7 @@ export function setupZoomPanControls(state: FabricCanvasState, callbacks?: ZoomP
 
   const onMouseUp = (e: MouseEvent) => {
     if (!isPanning) return;
-    if ((e.button === 0 && !spaceDown) || e.button === 1 || e.button === 0) {
+    if (e.button === 0 || e.button === 1) {
       isPanning = false;
       container.style.cursor = spaceDown ? "grab" : "";
       callbacks?.onViewChanged?.();
