@@ -380,14 +380,9 @@ function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): vo
     // Try to scroll to line for markdown files
     if (seg.source === "markdown" && seg.fromLine != null) {
       setTimeout(() => {
-        // Find the leaf that has this file open (not just any active leaf)
-        const leaves = ctx.plugin.app.workspace.getLeavesOfType("markdown");
-        const leaf = leaves.find(l => {
-          const view = l.view;
-          return view instanceof MarkdownView && view.file?.path === file;
-        });
-        const view = leaf?.view;
-        if (view instanceof MarkdownView) {
+        // openLinkText activates the leaf it opens — getActiveViewOfType gets it directly
+        const view = ctx.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view && view.file?.path === file) {
           const editor = view.editor;
           if (editor?.setCursor) {
             editor.setCursor({ line: seg.fromLine ?? 0, ch: seg.fromCh ?? 0 });
