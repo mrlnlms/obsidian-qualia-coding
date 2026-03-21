@@ -65,6 +65,15 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 					toolbar.unmount();
 					drawToolbars.delete(child);
 				}
+
+				// Clean up DOM event listeners to prevent leaks
+				const entries = childListeners.get(child);
+				if (entries) {
+					for (const { el, type, fn } of entries) {
+						el.removeEventListener(type, fn);
+					}
+					childListeners.delete(child);
+				}
 			}
 		}
 	}
