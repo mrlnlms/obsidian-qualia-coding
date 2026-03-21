@@ -1,17 +1,15 @@
-import { App, Modal, SearchComponent } from 'obsidian';
+import { App, FuzzySuggestModal, type FuzzyMatch } from 'obsidian';
 import type { CodeDefinition } from './types';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 
 /**
- * Modal that lists all code definitions for browsing / selection.
- * Includes a search filter. Calls `onSelect(codeName)` when user picks a code.
+ * Fuzzy search modal for browsing and selecting code definitions.
+ * Uses Obsidian's native FuzzySuggestModal for familiar UX and fuzzy matching.
  */
-export class CodeBrowserModal extends Modal {
+export class CodeBrowserModal extends FuzzySuggestModal<CodeDefinition> {
 	private registry: CodeDefinitionRegistry;
-	private onSelect: (codeName: string) => void;
+	private onSelectCode: (codeName: string) => void;
 	private onDismiss?: () => void;
-	private searchQuery = '';
-	private listEl: HTMLElement | null = null;
 
 	constructor(
 		app: App,
@@ -21,72 +19,32 @@ export class CodeBrowserModal extends Modal {
 	) {
 		super(app);
 		this.registry = registry;
-		this.onSelect = onSelect;
+		this.onSelectCode = onSelect;
 		this.onDismiss = onDismiss;
+		this.setPlaceholder('Search codes...');
 	}
 
-	onOpen() {
-		this.modalEl.addClass('codemarker-code-browser');
-		const { contentEl } = this;
-		contentEl.empty();
-
-		contentEl.createEl('h3', { text: 'All Codes' });
-
-		// Search
-		const searchWrap = contentEl.createDiv('codemarker-code-browser-search');
-		new SearchComponent(searchWrap)
-			.setPlaceholder('Filter codes...')
-			.onChange((value: string) => {
-				this.searchQuery = value;
-				this.renderList();
-			});
-
-		// List container
-		this.listEl = contentEl.createDiv('codemarker-code-browser-list');
-		this.renderList();
+	getItems(): CodeDefinition[] {
+		return this.registry.getAll();
 	}
 
-	private renderList() {
-		if (!this.listEl) return;
-		this.listEl.empty();
-
-		const allCodes = this.registry.getAll();
-		const q = this.searchQuery.toLowerCase();
-		const filtered = q
-			? allCodes.filter(def => def.name.toLowerCase().includes(q))
-			: allCodes;
-
-		if (filtered.length === 0) {
-			this.listEl.createEl('p', {
-				text: q ? 'No codes match the filter.' : 'No codes yet.',
-				cls: 'codemarker-code-browser-empty',
-			});
-			return;
-		}
-
-		for (const def of filtered) {
-			const row = this.listEl.createDiv('codemarker-code-browser-row');
-
-			const swatch = row.createSpan('codemarker-code-browser-swatch');
-			swatch.style.backgroundColor = def.color;
-
-			const name = row.createSpan('codemarker-code-browser-name');
-			name.textContent = def.name;
-
-			if (def.description) {
-				const desc = row.createSpan('codemarker-code-browser-desc');
-				desc.textContent = def.description;
-			}
-
-			row.addEventListener('click', () => {
-				this.onSelect(def.name);
-				this.close();
-			});
-		}
+	getItemText(item: CodeDefinition): string {
+		return item.description ? `${item.name} — ${item.description}` : item.name;
 	}
 
-	onClose() {
-		this.contentEl.empty();
+	renderSuggestion(match: FuzzyMatch<CodeDefinition>, el: HTMLElement): void {
+		super.renderSuggestion(match, el);
+		const swatch = el.createSpan({ cls: 'codemarker-code-browser-swatch' });
+		swatch.style.backgroundColor = match.item.color;
+		el.insertBefore(swatch, el.firstChild);
+	}
+
+	onChooseItem(item: CodeDefinition): void {
+		this.onSelectCode(item.name);
+	}
+
+	onClose(): void {
+		super.onClose();
 		this.onDismiss?.();
 	}
 }
