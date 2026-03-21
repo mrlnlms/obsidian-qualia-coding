@@ -40,6 +40,13 @@ export class ImageCodingView extends ItemView {
 		super(leaf);
 		this.plugin = plugin;
 		this.model = model;
+		this.registerEvent(
+			this.app.workspace.on('active-leaf-change', (leaf) => {
+				if (leaf === this.leaf) {
+					this.contentEl.focus();
+				}
+			})
+		);
 	}
 
 	getViewType(): string {
@@ -78,6 +85,7 @@ export class ImageCodingView extends ItemView {
 		this.leaf.updateHeader?.();
 
 		const { contentEl } = this;
+		contentEl.tabIndex = -1;
 		contentEl.empty();
 		contentEl.addClass('codemarker-image-view');
 
