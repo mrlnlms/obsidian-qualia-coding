@@ -1379,7 +1379,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 /* Coding popover menu — appended to body */
 .codemarker-popover {
   position: fixed;
-  z-index: 9999;
+  z-index: 2000;
   min-width: 220px;
   max-width: 320px;
   max-height: 400px;
@@ -1434,7 +1434,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   font-weight: 400;
   white-space: normal;
   max-width: 280px;
-  z-index: 9999;
+  z-index: 2000;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   pointer-events: none;
 }

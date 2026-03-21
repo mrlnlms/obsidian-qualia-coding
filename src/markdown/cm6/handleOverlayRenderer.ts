@@ -34,7 +34,7 @@ export class HandleOverlayRenderer {
 		this.overlayEl.style.height = '0';
 		this.overlayEl.style.overflow = 'visible';
 		this.overlayEl.style.pointerEvents = 'none';
-		this.overlayEl.style.zIndex = '10000';
+		this.overlayEl.style.zIndex = '1000';
 		scrollDOM.style.position = 'relative';
 		scrollDOM.appendChild(this.overlayEl);
 	}
@@ -214,7 +214,7 @@ export class HandleOverlayRenderer {
 		svg.style.left = `${h.x - ballSize / 2}px`;
 		svg.style.top = `${h.y - h.lineHeight * 0.3}px`;
 		svg.style.pointerEvents = h.shouldShow ? 'auto' : 'none';
-		svg.style.zIndex = (10000 + h.index).toString();
+		svg.style.zIndex = (1000 + h.index).toString();
 		svg.classList.toggle('codemarker-handle-hidden', !h.shouldShow);
 		svg.classList.toggle('codemarker-handle-visible', h.shouldShow && h.isHovered);
 	}
@@ -225,7 +225,7 @@ export class HandleOverlayRenderer {
 		const ballSize = fontSize * 0.75;
 		const barWidth = fontSize * 0.125;
 		const barLength = lineHeight * 1.1;
-		const zIndex = 10000 + index;
+		const zIndex = 1000 + index;
 
 		let displayColor = color;
 		if (color.startsWith('#')) {
