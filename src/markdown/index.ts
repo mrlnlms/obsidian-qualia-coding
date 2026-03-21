@@ -1,4 +1,6 @@
 import { MarkdownView, Modal, Notice, Setting } from 'obsidian';
+import { CodeBrowserModal } from '../core/codeBrowserModal';
+import { addCodeAction } from './menu/menuActions';
 import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { CodeMarkerModel } from './models/codeMarkerModel';
@@ -125,6 +127,30 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 			const editorView = editor.cm;
 			if (!editorView) return;
 			openMenuFromEditorSelection(editorView, markdownView.file.path, selection, menuController);
+		},
+	});
+
+	// ── Command: Quick Code (Fuzzy) ─────────────────────────────────────
+	plugin.addCommand({
+		id: 'quick-code',
+		name: 'Quick Code — apply code to selection',
+		editorCallback: (editor, markdownView) => {
+			if (!(markdownView instanceof MarkdownView)) return;
+			if (!markdownView.file) return;
+			const selection = editor.getSelection();
+			if (!selection?.trim()) {
+				new Notice('Select text first.');
+				return;
+			}
+
+			const fileId = markdownView.file.path;
+			const from = editor.posToOffset(editor.getCursor('from'));
+			const to = editor.posToOffset(editor.getCursor('to'));
+
+			new CodeBrowserModal(plugin.app, registry, (codeName) => {
+				addCodeAction(model, { from, to, text: selection, fileId }, codeName);
+				new Notice(`Applied "${codeName}"`);
+			}).open();
 		},
 	});
 
