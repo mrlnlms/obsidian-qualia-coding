@@ -104,9 +104,9 @@ describe('formatLocation', () => {
 		expect(formatLocation(seg)).toBe('region');
 	});
 
-	it('returns Page N for pdf (1-indexed)', () => {
+	it('returns Page N for pdf (already 1-indexed)', () => {
 		const seg = makeSeg('pdf', { meta: { page: 2 } });
-		expect(formatLocation(seg)).toBe('Page 3');
+		expect(formatLocation(seg)).toBe('Page 2');
 	});
 
 	it('returns empty for pdf without page', () => {

@@ -138,12 +138,12 @@ describe("formatLocation", () => {
   });
 
   describe("pdf", () => {
-    it("formats page as 1-indexed", () => {
-      expect(formatLocation(seg({ source: "pdf", meta: { page: 0 } }))).toBe("Page 1");
+    it("formats page directly (already 1-indexed)", () => {
+      expect(formatLocation(seg({ source: "pdf", meta: { page: 1 } }))).toBe("Page 1");
     });
 
-    it("formats page 4 as Page 5", () => {
-      expect(formatLocation(seg({ source: "pdf", meta: { page: 4 } }))).toBe("Page 5");
+    it("formats page 4 as Page 4", () => {
+      expect(formatLocation(seg({ source: "pdf", meta: { page: 4 } }))).toBe("Page 4");
     });
 
     it("returns empty when page missing", () => {

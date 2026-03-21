@@ -202,6 +202,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
 
     card.addEventListener("click", () => {
       ctx.viewMode = thumb.mode;
+      ctx.trMarkerFilter = null;
       ctx.renderConfigPanel();
       ctx.scheduleUpdate();
     });

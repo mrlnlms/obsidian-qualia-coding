@@ -78,6 +78,7 @@ export class AnalyticsView extends ItemView {
   trGroupBy: "code" | "file" = "code";
   trSegments: ExtractedSegment[] = [];
   trCollapsed = new Set<string>();
+  trMarkerFilter: Set<string> | null = null;
 
   // DOM refs
   chartContainer: HTMLElement | null = null;

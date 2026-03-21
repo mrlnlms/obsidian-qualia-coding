@@ -40,11 +40,28 @@ export function renderTextRetrieval(ctx: AnalyticsViewContext, filters: FilterCo
 
   const contentEl = container.createDiv({ cls: "codemarker-tr-content" });
 
-  // Filter markers per current filters
-  const filtered = ctx.data.markers.filter((m) =>
+  // Show filter banner if viewing a subset from another mode
+  if (ctx.trMarkerFilter) {
+    const banner = container.insertBefore(
+      createDiv({ cls: "codemarker-tr-filter-banner" }),
+      contentEl,
+    );
+    banner.createSpan({ text: `Filtered: ${ctx.trMarkerFilter.size} markers` });
+    const clearBtn = banner.createEl("button", { text: "Show all", cls: "codemarker-tr-filter-clear" });
+    clearBtn.addEventListener("click", () => {
+      ctx.trMarkerFilter = null;
+      ctx.scheduleUpdate();
+    });
+  }
+
+  // Filter markers per current filters (+ optional marker ID filter from other modes)
+  let filtered = ctx.data.markers.filter((m) =>
     filters.sources.includes(m.source) &&
     m.codes.some((c) => !filters.excludeCodes.includes(c))
   );
+  if (ctx.trMarkerFilter) {
+    filtered = filtered.filter((m) => ctx.trMarkerFilter!.has(m.id));
+  }
 
   if (filtered.length === 0) {
     contentEl.createDiv({

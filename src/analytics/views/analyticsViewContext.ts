@@ -86,6 +86,7 @@ export interface AnalyticsViewContext {
   trGroupBy: "code" | "file";
   trSegments: ExtractedSegment[];
   trCollapsed: Set<string>;
+  trMarkerFilter: Set<string> | null;
 
   // Render generation — async modes check this to detect stale renders
   renderGeneration: number;

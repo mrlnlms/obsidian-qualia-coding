@@ -96,10 +96,11 @@ export function renderDecisionTreeView(ctx: AnalyticsViewContext, filters: Filte
 
       const btn = row.createEl("button", { cls: "codemarker-dt-error-btn", text: "View in Text Retrieval" });
       btn.addEventListener("click", () => {
-        // Switch to text-retrieval mode (user can inspect the markers)
+        // Switch to text-retrieval mode filtered to this node's error markers
+        ctx.trMarkerFilter = new Set(leaf.markerIds);
         ctx.viewMode = "text-retrieval";
         ctx.scheduleUpdate();
-        new Notice(`Switched to Text Retrieval. ${leaf.errors} misclassified markers from node #${leaf.nodeId}.`);
+        new Notice(`Showing ${leaf.errors} misclassified markers from node #${leaf.nodeId}.`);
       });
     }
   }

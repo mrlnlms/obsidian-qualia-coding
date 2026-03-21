@@ -65,6 +65,7 @@ export function renderViewModeSection(ctx: AnalyticsViewContext): void {
 
     radio.addEventListener("change", () => {
       ctx.viewMode = value;
+      ctx.trMarkerFilter = null;
       ctx.renderConfigPanel();
       ctx.scheduleUpdate();
     });
