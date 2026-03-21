@@ -48,14 +48,14 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
-| C1 | Media | z-index stacking | handles z:10000 vs popover z:9999. Escala proposta no item abaixo |
-| C2 | Media | `handleOverlayRenderer.ts:27,38` + `marginPanelExtension.ts:40` | Ambos setam scrollDOM position=relative. destroy() de um quebra o outro |
-| C3 | Media | `markerPositionUtils.ts:94-96` | ch sem clamp ao tamanho da linha. Offset sangra pra proxima linha |
+| ~~C1~~ | ~~FEITO~~ | `handleOverlayRenderer.ts`, `styles.css` | ~~z-index normalizado: handles 1000, popover 2000~~ |
+| ~~C2~~ | ~~FEITO~~ | `marginPanelExtension.ts` | ~~scrollDOM position salvo/restaurado em constructor/destroy~~ |
+| ~~C3~~ | ~~FEITO~~ | `markerPositionUtils.ts` | ~~ch clampado ao tamanho da linha via Math.min~~ |
 | ~~C4~~ | ~~FEITO~~ | `codeMarkerModel.ts` | ~~deleteCode: batch save — mutacao in-place + 1 save no final~~ |
 | ~~C5~~ | ~~FEITO~~ | `codeMarkerModel.ts` | ~~isPositionBefore strict < (nao ambiguo pra posicoes iguais)~~ |
-| C6 | — | `marginPanelExtension.ts` 548 LOC | Candidato a split (position math, hover, DOM render) |
+| C6 | Won't-fix | `marginPanelExtension.ts` 548 LOC | Layout algorithm ja extraido em marginPanelLayout.ts. Refactoring restante sem bug associado |
 
-**Escala z-index proposta (C1):**
+**Escala z-index implementada (C1):**
 
 | Camada | z-index | Elemento |
 |--------|---------|----------|
@@ -64,8 +64,6 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 | Resize handle (futuro) | 100 | Borda direita |
 | Drag handles overlay | 1000 | .codemarker-handle-overlay |
 | Popover | 2000 | .codemarker-popover |
-
-Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#17).
 
 ---
 
