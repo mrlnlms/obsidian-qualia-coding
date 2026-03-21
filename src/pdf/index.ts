@@ -309,17 +309,18 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 				eState: { subpath: `#page=${data.page}` },
 			});
 
-			// Re-render highlights after navigation (viewer may have re-rendered pages)
-			setTimeout(() => {
+			// Re-instrument and refresh after navigation — wait for viewer to be ready
+			let attempts = 0;
+			const tryRefresh = () => {
 				const view = leaf.view as any;
 				if (view?.getViewType?.() === 'pdf' && view.viewer) {
 					instrumentPdfView(view);
-					// Refresh all observers for this viewer's children
-					for (const [, obs] of observers) {
-						obs.refreshAll();
-					}
+					for (const [, obs] of observers) obs.refreshAll();
+				} else if (++attempts < 20) {
+					requestAnimationFrame(tryRefresh);
 				}
-			}, 300);
+			};
+			requestAnimationFrame(tryRefresh);
 		})
 	);
 
