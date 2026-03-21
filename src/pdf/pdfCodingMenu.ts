@@ -163,7 +163,7 @@ export function openShapeCodingPopover(
 		setMemo: (value) => {
 			shape.memo = value || undefined;
 			shape.updatedAt = Date.now();
-			model.save();
+			model.notify();
 		},
 		save: () => model.save(),
 		onRefresh,
