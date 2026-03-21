@@ -22,7 +22,7 @@ declare module 'obsidian' {
 	}
 
 	interface Workspace {
-		on(name: 'qualia-csv:navigate', callback: (data: { file: string; row: number }) => void): EventRef;
+		on(name: 'qualia-csv:navigate', callback: (data: { file: string; row: number; column?: string }) => void): EventRef;
 		on(name: 'qualia-csv:detail', callback: (data: { markerId: string; codeName: string }) => void): EventRef;
 		on(name: 'qualia-audio:navigate', callback: (data: { file: string; seekTo: number }) => void): EventRef;
 		on(name: 'qualia-image:navigate', callback: (data: { file: string; markerId: string }) => void): EventRef;

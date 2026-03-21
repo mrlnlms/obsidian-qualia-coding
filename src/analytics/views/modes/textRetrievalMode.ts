@@ -347,7 +347,7 @@ export function formatLocation(seg: ExtractedSegment): string {
   }
   if (seg.source === "pdf") {
     const page = seg.meta?.page;
-    return page != null ? `Page ${page + 1}` : "";
+    return page != null ? `Page ${page}` : "";
   }
   // Markdown
   const from = seg.fromLine;
@@ -381,15 +381,11 @@ function navigateToSegment(ctx: AnalyticsViewContext, seg: ExtractedSegment): vo
       const tfile = ctx.plugin.app.vault.getAbstractFileByPath(file);
       if (!tfile) return;
       // Reuse existing PDF leaf or open in new tab
-      let pdfLeaf: import("obsidian").WorkspaceLeaf | undefined;
-      ws.iterateAllLeaves(leaf => {
-        if (!pdfLeaf && (leaf.view as any).file?.path === file) {
-          pdfLeaf = leaf;
-        }
-      });
+      const pdfLeaf = ws.getLeavesOfType("pdf")
+        .find(l => (l.view as any).file?.path === file);
       const leaf = pdfLeaf ?? ws.getLeaf("tab");
       leaf.openFile(tfile as import("obsidian").TFile, {
-        eState: { subpath: `#page=${page + 1}` },
+        eState: { subpath: `#page=${page}` },
       });
       return;
     }
