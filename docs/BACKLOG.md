@@ -12,8 +12,8 @@
 | ~~P2~~ | ~~FEITO~~ | `highlightRenderer.ts:105`, `drawLayer.ts:24` | ~~Hover/popover state global ao modulo. Duas PDF views: hover numa pane cancela popover da outra~~ |
 | ~~P3~~ | ~~FEITO~~ | `drawLayer.ts:25-26` | ~~shapeHoverTimer/currentHoverShapeId globais. stop() nao limpa. Timer dispara em elementos destruidos~~ |
 | P4 | Media | `pdf/index.ts:50,234` | cleanupOrphanedObservers nao limpa childListeners Map. Listeners de mousemove/mouseup vazam |
-| P5 | Media | `pdfCodingMenu.ts:75-83,151-155` | setMemo persiste via save() mas nao chama notify(). Sidebar nao atualiza |
-| P6 | Media | `pdfCodingModel.ts:385-389` | removeMarker() direto nao persiste nem notifica listeners |
+| ~~P5~~ | ~~FEITO~~ | `pdfCodingMenu.ts` | ~~setMemo agora chama notify() em vez de save() direto~~ |
+| ~~P6~~ | ~~FEITO~~ | `pdfCodingModel.ts` | ~~removeMarker() agora chama notify() (com silent flag pra chamadas internas)~~ |
 | P7 | Baixa | `highlightGeometry.ts:213-214` | +pageY - pageY e no-op. PDFs com viewBox[1] != 0 (cropadas) ficam com posicao vertical errada |
 | P8 | Baixa | `drawInteraction.ts:260-266` | Keyboard handler so filtra INPUT/TEXTAREA, nao contenteditable |
 
@@ -23,7 +23,7 @@
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
-| I1 | Media | `regionHighlight.ts:40-41,59-65` | origStrokeWidth/origShadow compartilhados. Hover concorrente corrompe valores permanentemente |
+| ~~I1~~ | ~~FEITO~~ | `regionHighlight.ts` | ~~origStrokeWidth/origShadow agora em WeakMap per-shape~~ |
 | I2 | Media | `regionDrawing.ts:307-310` | setMode("select") seta selectable=true em TODOS objetos, incluindo labels |
 | I3 | Media | `regionLabels.ts` | Nenhum handler de zoom/pan chama refreshAll(). Labels desalinham das shapes |
 | ~~I4~~ | ~~FEITO~~ | `imageToolbar.ts:128`, `zoomPanControls.ts:97-98` | ~~window.addEventListener("keydown") global. Duas views: teclas ativam em ambas~~ |
@@ -98,7 +98,7 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 |---|-----------|---------|----------|
 | S1 | Media | `textRetrievalMode.ts:360` | navigateToSegment incompleto: CSV/Image/PDF caem em openLinkText generico |
 | S2 | Media | `decisionTreeMode.ts:94` | "View in Text Retrieval" nao foca subconjunto — cai no TR geral |
-| S3 | Media | `textRetrievalMode.ts:378,382` | Navegacao markdown: getLeaf() nao garante a leaf correta com multiplas tabs |
+| ~~S3~~ | ~~FEITO~~ | `textRetrievalMode.ts` | ~~Navegacao markdown: getLeavesOfType + find por file path~~ |
 | ~~S4~~ | ~~N/A~~ | `unifiedModelAdapter.ts` | ~~Nao e bug: DataManager.markDirty() debounce 500ms colapsa 6 saves em 1 escrita. Documentado~~ |
 | ~~S5~~ | ~~FEITO~~ | `baseCodeExplorerView.ts`, `detailListRenderer.ts` | ~~searchTimeout cancelado no onClose + cleanup retornado por renderListShell~~ |
 
