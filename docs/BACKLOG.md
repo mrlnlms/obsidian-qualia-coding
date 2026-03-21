@@ -98,7 +98,7 @@ Atacar C1+C2 junto com Per-Code Decorations (ROADMAP #16) e/ou Resize Handle (#1
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
 | ~~S1~~ | ~~FEITO~~ | `textRetrievalMode.ts` | ~~navigateToSegment agora dispara eventos por engine: csv, image, pdf (#page), audio, video~~ |
-| S2 | Media | `decisionTreeMode.ts:94` | "View in Text Retrieval" nao foca subconjunto — cai no TR geral |
+| ~~S2~~ | ~~FEITO~~ | `decisionTreeMode.ts` | ~~"View in TR" agora filtra por markerIds do no com erro via trMarkerFilter~~ |
 | ~~S3~~ | ~~FEITO~~ | `textRetrievalMode.ts` | ~~Navegacao markdown: getLeavesOfType + find por file path~~ |
 | ~~S6~~ | ~~FEITO~~ | `textRetrievalMode.ts` | ~~getActiveViewOfType(MarkdownView) + file path guard em vez de find~~ |
 | ~~S4~~ | ~~N/A~~ | `unifiedModelAdapter.ts` | ~~Nao e bug: DataManager.markDirty() debounce 500ms colapsa 6 saves em 1 escrita. Documentado~~ |
