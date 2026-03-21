@@ -106,19 +106,6 @@ export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 				const file = plugin.app.vault.getAbstractFileByPath(filePath);
 				if (!(file instanceof TFile)) continue;
 
-				// Check if file is already open in another leaf of the target type
-				const existingLeaves = plugin.app.workspace.getLeavesOfType(rule.targetViewType);
-				const existingLeaf = existingLeaves.find(l => {
-					const state = l.view.getState?.();
-					const viewFile = state?.file ?? (l.view instanceof FileView ? l.view.file?.path : undefined);
-					return viewFile === filePath;
-				});
-				if (existingLeaf) {
-					leaf.detach();
-					plugin.app.workspace.setActiveLeaf(existingLeaf);
-					return;
-				}
-
 				leaf.setViewState({
 					type: rule.targetViewType,
 					state: { file: file.path },

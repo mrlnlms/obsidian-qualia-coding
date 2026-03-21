@@ -160,6 +160,19 @@ describe('matchesInterceptRule', () => {
 	});
 });
 
+// ── setupFileInterceptor (no detach) ──
+
+describe('setupFileInterceptor (no detach)', () => {
+	it('matchesInterceptRule does not check for existing leaves', () => {
+		const rule: FileInterceptRule = {
+			extensions: new Set(['pdf']),
+			targetViewType: 'pdf-coding',
+		};
+		expect(matchesInterceptRule(rule, 'markdown', 'pdf')).toBe(true);
+		expect(matchesInterceptRule(rule, 'markdown', 'pdf')).toBe(true);
+	});
+});
+
 // ── dispatchRenameRules ──
 
 describe('dispatchRenameRules', () => {
