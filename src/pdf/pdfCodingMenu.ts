@@ -15,6 +15,7 @@ import type { PdfSelectionResult } from './selectionCapture';
 import type { PdfMarker } from './pdfCodingTypes';
 import { cancelHoverCloseTimer, startHoverCloseTimer } from './highlightRenderer';
 import { openCodingPopover, type CodingPopoverAdapter, type CodingPopoverOptions } from '../core/codingPopover';
+import type { PdfViewState } from './pdfViewState';
 
 /**
  * Opens a coding popover for PDF text selections.
@@ -32,6 +33,7 @@ export function openPdfCodingPopover(
 	app?: App,
 	hoverMarkerId?: string,
 	onCloseCleanup?: () => void,
+	pdfState?: PdfViewState,
 ): void {
 	const results = Array.isArray(selectionResults) ? selectionResults : [selectionResults];
 	const pos = savedPos ?? (mouseEvent ? { x: mouseEvent.clientX, y: mouseEvent.clientY } : { x: 0, y: 0 });
@@ -111,13 +113,13 @@ export function openPdfCodingPopover(
 		isHoverMode,
 		badge: results.length > 1 ? `Selection spans ${results.length} pages` : undefined,
 		className: 'codemarker-popover',
-		hoverGrace: {
-			cancel: cancelHoverCloseTimer,
-			start: startHoverCloseTimer,
-		},
+		hoverGrace: pdfState ? {
+			cancel: () => cancelHoverCloseTimer(pdfState),
+			start: (close: () => void) => startHoverCloseTimer(pdfState, close),
+		} : undefined,
 		onClose: onCloseCleanup,
 		onRebuild: () => {
-			openPdfCodingPopover(mouseEvent, model, results, onHighlightRefresh, pos, app, hoverMarkerId);
+			openPdfCodingPopover(mouseEvent, model, results, onHighlightRefresh, pos, app, hoverMarkerId, undefined, pdfState);
 		},
 		deleteAction: isHoverMode ? {
 			label: 'Delete Marker',
@@ -145,6 +147,7 @@ export function openShapeCodingPopover(
 	shapeId: string,
 	onRefresh: () => void,
 	app?: App,
+	pdfState?: PdfViewState,
 ): void {
 	const shape = model.findShapeById(shapeId);
 	if (!shape) return;
@@ -183,11 +186,11 @@ export function openShapeCodingPopover(
 		isHoverMode: true,
 		badge: shapeNames[shape.shape] || shape.shape,
 		className: 'codemarker-popover',
-		hoverGrace: {
-			cancel: cancelHoverCloseTimer,
-			start: startHoverCloseTimer,
-		},
-		onRebuild: () => openShapeCodingPopover(pos, model, shapeId, onRefresh, app),
+		hoverGrace: pdfState ? {
+			cancel: () => cancelHoverCloseTimer(pdfState),
+			start: (close: () => void) => startHoverCloseTimer(pdfState, close),
+		} : undefined,
+		onRebuild: () => openShapeCodingPopover(pos, model, shapeId, onRefresh, app, pdfState),
 		deleteAction: {
 			label: 'Delete Shape',
 			icon: 'trash',

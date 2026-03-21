@@ -11,7 +11,7 @@ import { openPdfCodingPopover, openShapeCodingPopover } from './pdfCodingMenu';
 import { renderSelectionPreview } from './highlightRenderer';
 import type { PDFViewerChild } from './pdfTypings';
 import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
-import { getPdfViewState } from './pdfViewState';
+import { getPdfViewState, type PdfViewState } from './pdfViewState';
 
 export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistration<PdfCodingModel> {
 	// Use shared registry from plugin (single instance for all engines)
@@ -33,7 +33,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 
 	// ── Helper functions ──
 
-	function openPopoverForMarkerAtElement(marker: PdfMarker, anchorEl: HTMLElement, onRefresh: () => void) {
+	function openPopoverForMarkerAtElement(marker: PdfMarker, anchorEl: HTMLElement, onRefresh: () => void, state?: PdfViewState) {
 		const selectionResult: PdfSelectionResult = {
 			file: marker.fileId,
 			page: marker.page,
@@ -45,7 +45,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 		};
 		const rect = anchorEl.getBoundingClientRect();
 		const pos = { x: rect.left, y: rect.bottom };
-		openPdfCodingPopover(null, model, selectionResult, onRefresh, pos, plugin.app, marker.id);
+		openPdfCodingPopover(null, model, selectionResult, onRefresh, pos, plugin.app, marker.id, undefined, state);
 	}
 
 	function cleanupOrphanedObservers() {
@@ -91,7 +91,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 				}));
 				},
 				onMarkerHoverPopover: (marker: PdfMarker, anchorEl: HTMLElement) => {
-					openPopoverForMarkerAtElement(marker, anchorEl, refreshObserver);
+					openPopoverForMarkerAtElement(marker, anchorEl, refreshObserver, pdfState);
 				},
 				onShapeClick: (shapeId, codeName) => {
 					document.dispatchEvent(new CustomEvent('codemarker:label-click', {
@@ -106,6 +106,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 						shape.id,
 						refreshObserver,
 						plugin.app,
+						pdfState,
 					);
 				},
 				onShapeHoverPopover: (shape: PdfShapeMarker, anchorEl: SVGElement) => {
@@ -116,6 +117,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 						shape.id,
 						refreshObserver,
 						plugin.app,
+						pdfState,
 					);
 				},
 			}, pdfState);
@@ -203,6 +205,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 							plugin.app,
 							undefined,
 							() => cleanups.forEach(fn => fn()),
+							pdfState,
 						);
 						return;
 					}
@@ -228,6 +231,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 						plugin.app,
 						undefined,
 						previewCleanup ?? undefined,
+						pdfState,
 					);
 				}, 50);
 			};
