@@ -8,15 +8,15 @@
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
-| P1 | Media | `pageObserver.ts:68` | setTimeout 100ms nao cancelado em stop(). Callback recria highlights em observer parada |
+| ~~P1~~ | ~~FEITO~~ | `pageObserver.ts` | ~~Timeouts rastreados em Map e cancelados em stop()~~ |
 | ~~P2~~ | ~~FEITO~~ | `highlightRenderer.ts:105`, `drawLayer.ts:24` | ~~Hover/popover state global ao modulo. Duas PDF views: hover numa pane cancela popover da outra~~ |
 | ~~P3~~ | ~~FEITO~~ | `drawLayer.ts:25-26` | ~~shapeHoverTimer/currentHoverShapeId globais. stop() nao limpa. Timer dispara em elementos destruidos~~ |
-| P4 | Media | `pdf/index.ts:50,234` | cleanupOrphanedObservers nao limpa childListeners Map. Listeners de mousemove/mouseup vazam |
+| ~~P4~~ | ~~FEITO~~ | `pdf/index.ts` | ~~cleanupOrphanedObservers agora remove listeners e limpa childListeners Map~~ |
 | ~~P5~~ | ~~FEITO~~ | `pdfCodingMenu.ts` | ~~setMemo agora chama notify() em vez de save() direto~~ |
 | ~~P6~~ | ~~FEITO~~ | `pdfCodingModel.ts` | ~~removeMarker() agora chama notify() (com silent flag pra chamadas internas)~~ |
-| P7 | Baixa | `highlightGeometry.ts:213-214` | +pageY - pageY e no-op. PDFs com viewBox[1] != 0 (cropadas) ficam com posicao vertical errada |
-| P8 | Baixa | `drawInteraction.ts:260-266` | Keyboard handler so filtra INPUT/TEXTAREA, nao contenteditable |
-| P9 | Baixa | `pdfCodingModel.ts:186-198` | removeAllCodesFromMarker dispara N notify() (1 por code). Batch com suppressNotify otimizaria |
+| ~~P7~~ | ~~FEITO~~ | `highlightGeometry.ts` | ~~Removido pageY no-op~~ |
+| ~~P8~~ | ~~FEITO~~ | `drawInteraction.ts` | ~~Keyboard handler filtra contenteditable + guard unificado no topo~~ |
+| ~~P9~~ | ~~FEITO~~ | `pdfCodingModel.ts` | ~~removeAllCodesFromMarker usa removeMarker direto — 1 notify~~ |
 
 ---
 
