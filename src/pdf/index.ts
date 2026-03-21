@@ -11,6 +11,7 @@ import { openPdfCodingPopover, openShapeCodingPopover } from './pdfCodingMenu';
 import { renderSelectionPreview } from './highlightRenderer';
 import type { PDFViewerChild } from './pdfTypings';
 import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
+import { getPdfViewState } from './pdfViewState';
 
 export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistration<PdfCodingModel> {
 	// Use shared registry from plugin (single instance for all engines)
@@ -82,6 +83,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			};
 
 			// Create page observer for highlights + shapes
+			const pdfState = getPdfViewState(child.containerEl);
 			const observer = new PdfPageObserver(child, model, {
 				onMarkerClick: (markerId, codeName) => {
 					document.dispatchEvent(new CustomEvent('codemarker:label-click', {
@@ -116,7 +118,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 						plugin.app,
 					);
 				},
-			});
+			}, pdfState);
 			observer.start();
 			observers.set(child, observer);
 

@@ -11,6 +11,7 @@ import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { MergedRect } from './highlightGeometry';
 import { computeMergedHighlightRects } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
+import type { PdfViewState } from './pdfViewState';
 
 const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
 const HIGHLIGHT_CLASS = 'codemarker-pdf-highlight';
@@ -102,29 +103,24 @@ export interface MarkerRenderInfo {
 	color: string;
 }
 
-// Global hover state for popover open/close coordination
-let hoverOpenTimer: ReturnType<typeof setTimeout> | null = null;
-let hoverCloseTimer: ReturnType<typeof setTimeout> | null = null;
-let currentHoverMarkerId: string | null = null;
-
 /** Cancel any pending hover popover open. */
-export function cancelHoverPopover(): void {
-	if (hoverOpenTimer) { clearTimeout(hoverOpenTimer); hoverOpenTimer = null; }
+export function cancelHoverPopover(state: PdfViewState): void {
+	if (state.hoverOpenTimer) { clearTimeout(state.hoverOpenTimer); state.hoverOpenTimer = null; }
 }
 
 /** Start the hover close grace period. If not cancelled, closes the popover. */
-export function startHoverCloseTimer(closePopover: () => void): void {
-	if (hoverCloseTimer) clearTimeout(hoverCloseTimer);
-	hoverCloseTimer = setTimeout(() => {
+export function startHoverCloseTimer(state: PdfViewState, closePopover: () => void): void {
+	if (state.hoverCloseTimer) clearTimeout(state.hoverCloseTimer);
+	state.hoverCloseTimer = setTimeout(() => {
 		closePopover();
-		currentHoverMarkerId = null;
-		hoverCloseTimer = null;
+		state.currentHoverMarkerId = null;
+		state.hoverCloseTimer = null;
 	}, HOVER_CLOSE_DELAY);
 }
 
 /** Cancel the hover close grace period (mouse re-entered popover or highlight). */
-export function cancelHoverCloseTimer(): void {
-	if (hoverCloseTimer) { clearTimeout(hoverCloseTimer); hoverCloseTimer = null; }
+export function cancelHoverCloseTimer(state: PdfViewState): void {
+	if (state.hoverCloseTimer) { clearTimeout(state.hoverCloseTimer); state.hoverCloseTimer = null; }
 }
 
 export function renderHighlightsForPage(
@@ -132,6 +128,7 @@ export function renderHighlightsForPage(
 	markers: PdfMarker[],
 	registry: CodeDefinitionRegistry,
 	callbacks: HighlightCallbacks,
+	state: PdfViewState,
 ): MarkerRenderInfo[] {
 	const pageDiv = pageView.div;
 	clearHighlightsForPage(pageDiv);
@@ -203,7 +200,7 @@ export function renderHighlightsForPage(
 	}
 
 	// Attach centralized hover tracking on the page div
-	attachLayerHoverTracking(pageDiv, renderInfos, callbacks);
+	attachLayerHoverTracking(pageDiv, renderInfos, callbacks, state);
 
 	return renderInfos;
 }
@@ -218,6 +215,7 @@ function attachLayerHoverTracking(
 	pageDiv: HTMLElement,
 	renderInfos: MarkerRenderInfo[],
 	callbacks: HighlightCallbacks,
+	state: PdfViewState,
 ): void {
 	if (renderInfos.length === 0) return;
 
@@ -291,16 +289,16 @@ function attachLayerHoverTracking(
 
 		// Leaving previous marker (or intersection state changed)
 		if (currentMarkerId !== null) {
-			cancelHoverPopover();
+			cancelHoverPopover(state);
 			callbacks.onHover?.(null, null);
 			showHandlesForMarker(pageDiv, null);
 
-			if (currentHoverMarkerId === currentMarkerId) {
-				const popover = document.querySelector('.codemarker-popover') as HTMLElement | null;
+			if (state.currentHoverMarkerId === currentMarkerId) {
+				const popover = state.containerEl.querySelector('.codemarker-popover') as HTMLElement | null;
 				if (popover) {
-					startHoverCloseTimer(() => { popover.remove(); });
+					startHoverCloseTimer(state, () => { popover.remove(); });
 				} else {
-					currentHoverMarkerId = null;
+					state.currentHoverMarkerId = null;
 				}
 			}
 		}
@@ -321,15 +319,15 @@ function attachLayerHoverTracking(
 
 			// Popover: suppress in partial intersection areas (only show handles there)
 			if (!isPartialIntersection) {
-				if (currentHoverMarkerId === hitMarker.id) {
-					cancelHoverCloseTimer();
+				if (state.currentHoverMarkerId === hitMarker.id) {
+					cancelHoverCloseTimer(state);
 				} else {
-					cancelHoverPopover();
+					cancelHoverPopover(state);
 					const marker = hitMarker;
 					const anchorEl = hitRect;
-					hoverOpenTimer = setTimeout(() => {
-						hoverOpenTimer = null;
-						currentHoverMarkerId = marker.id;
+					state.hoverOpenTimer = setTimeout(() => {
+						state.hoverOpenTimer = null;
+						state.currentHoverMarkerId = marker.id;
 						callbacks.onMarkerHoverPopover(marker, anchorEl);
 					}, HOVER_OPEN_DELAY);
 				}
@@ -339,16 +337,16 @@ function attachLayerHoverTracking(
 
 	const onMouseLeave = () => {
 		if (currentMarkerId !== null) {
-			cancelHoverPopover();
+			cancelHoverPopover(state);
 			callbacks.onHover?.(null, null);
 			showHandlesForMarker(pageDiv, null);
 
-			if (currentHoverMarkerId === currentMarkerId) {
-				const popover = document.querySelector('.codemarker-popover') as HTMLElement | null;
+			if (state.currentHoverMarkerId === currentMarkerId) {
+				const popover = state.containerEl.querySelector('.codemarker-popover') as HTMLElement | null;
 				if (popover) {
-					startHoverCloseTimer(() => { popover.remove(); });
+					startHoverCloseTimer(state, () => { popover.remove(); });
 				} else {
-					currentHoverMarkerId = null;
+					state.currentHoverMarkerId = null;
 				}
 			}
 			currentMarkerId = null;

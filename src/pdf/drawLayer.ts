@@ -10,6 +10,7 @@
 import type { PDFPageView } from './pdfTypings';
 import type { PdfShapeMarker, NormalizedShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { PdfViewState } from './pdfViewState';
 import {
 	HOVER_OPEN_DELAY,
 	cancelHoverPopover,
@@ -20,10 +21,6 @@ import {
 const DRAW_LAYER_CLASS = 'codemarker-pdf-draw-layer';
 const SHAPE_CLASS = 'codemarker-pdf-shape';
 const SVG_NS = 'http://www.w3.org/2000/svg';
-
-// Hover state shared across all draw layers
-let shapeHoverTimer: ReturnType<typeof setTimeout> | null = null;
-let currentHoverShapeId: string | null = null;
 
 export interface DrawLayerCallbacks {
 	onClick: (shapeId: string, codeName: string) => void;
@@ -40,6 +37,7 @@ export function renderDrawLayerForPage(
 	shapes: PdfShapeMarker[],
 	registry: CodeDefinitionRegistry,
 	callbacks: DrawLayerCallbacks,
+	state?: PdfViewState,
 ): void {
 	const pageDiv = pageView.div;
 	clearDrawLayerForPage(pageDiv);
@@ -79,34 +77,38 @@ export function renderDrawLayerForPage(
 			callbacks.onHover(shape.id, shape.codes[0] ?? null);
 
 			// Cancel any pending close from text highlights or other shapes
-			cancelHoverCloseTimer();
-			cancelHoverPopover();
+			if (state) {
+				cancelHoverCloseTimer(state);
+				cancelHoverPopover(state);
 
-			// Start hover open timer for popover
-			if (currentHoverShapeId === shape.id) {
-				// Already showing popover for this shape — just cancel close
-				return;
+				// Start hover open timer for popover
+				if (state.currentHoverShapeId === shape.id) {
+					// Already showing popover for this shape — just cancel close
+					return;
+				}
+				if (state.shapeHoverTimer) { clearTimeout(state.shapeHoverTimer); state.shapeHoverTimer = null; }
+				state.shapeHoverTimer = setTimeout(() => {
+					state.shapeHoverTimer = null;
+					state.currentHoverShapeId = shape.id;
+					callbacks.onShapeHoverPopover(shape, el);
+				}, HOVER_OPEN_DELAY);
 			}
-			if (shapeHoverTimer) { clearTimeout(shapeHoverTimer); shapeHoverTimer = null; }
-			shapeHoverTimer = setTimeout(() => {
-				shapeHoverTimer = null;
-				currentHoverShapeId = shape.id;
-				callbacks.onShapeHoverPopover(shape, el);
-			}, HOVER_OPEN_DELAY);
 		});
 		el.addEventListener('mouseleave', () => {
 			callbacks.onHover(null, null);
 
-			// Cancel pending open
-			if (shapeHoverTimer) { clearTimeout(shapeHoverTimer); shapeHoverTimer = null; }
+			if (state) {
+				// Cancel pending open
+				if (state.shapeHoverTimer) { clearTimeout(state.shapeHoverTimer); state.shapeHoverTimer = null; }
 
-			// Start close grace period if popover is open for this shape
-			if (currentHoverShapeId === shape.id) {
-				const popover = document.querySelector('.codemarker-popover') as HTMLElement | null;
-				if (popover) {
-					startHoverCloseTimer(() => { popover.remove(); currentHoverShapeId = null; });
-				} else {
-					currentHoverShapeId = null;
+				// Start close grace period if popover is open for this shape
+				if (state.currentHoverShapeId === shape.id) {
+					const popover = state.containerEl.querySelector('.codemarker-popover') as HTMLElement | null;
+					if (popover) {
+						startHoverCloseTimer(state, () => { popover.remove(); state.currentHoverShapeId = null; });
+					} else {
+						state.currentHoverShapeId = null;
+					}
 				}
 			}
 		});

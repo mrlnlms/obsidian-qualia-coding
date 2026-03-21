@@ -10,6 +10,7 @@
 import type { PDFViewerChild, PDFPageView } from './pdfTypings';
 import type { PdfCodingModel } from './pdfCodingModel';
 import type { PdfMarker } from './pdfCodingTypes';
+import type { PdfViewState } from './pdfViewState';
 import { renderHighlightsForPage, clearHighlightsForPage, updateHighlightRectsForMarker, applyHoverToHighlights, showHandlesForMarker, type HighlightCallbacks } from './highlightRenderer';
 import { renderMarginPanelForPage, clearMarginPanelForPage, applyHoverToMarginPanel } from './marginPanelRenderer';
 import { renderDrawLayerForPage, clearDrawLayerForPage, applyHoverToDrawLayer, type DrawLayerCallbacks } from './drawLayer';
@@ -27,6 +28,7 @@ export class PdfPageObserver {
 	private child: PDFViewerChild;
 	private model: PdfCodingModel;
 	private callbacks: PageObserverCallbacks;
+	private state: PdfViewState;
 	private changeListener: (() => void) | null = null;
 	private hoverListener: ((markerId: string | null, codeName: string | null) => void) | null = null;
 	private textLayerRenderedHandler: ((data: any) => void) | null = null;
@@ -43,10 +45,12 @@ export class PdfPageObserver {
 		child: PDFViewerChild,
 		model: PdfCodingModel,
 		callbacks: PageObserverCallbacks,
+		state: PdfViewState,
 	) {
 		this.child = child;
 		this.model = model;
 		this.callbacks = callbacks;
+		this.state = state;
 	}
 
 	start(): void {
@@ -168,6 +172,7 @@ export class PdfPageObserver {
 			markers,
 			this.model.registry,
 			highlightCallbacks,
+			this.state,
 		);
 
 		// Attach drag handles to each rendered marker
@@ -198,7 +203,7 @@ export class PdfPageObserver {
 			onHover: (shapeId, codeName) => this.model.setHoverState(shapeId, codeName),
 			onShapeHoverPopover: this.callbacks.onShapeHoverPopover,
 		};
-		renderDrawLayerForPage(pageView, shapes, this.model.registry, drawCallbacks);
+		renderDrawLayerForPage(pageView, shapes, this.model.registry, drawCallbacks, this.state);
 
 		// Clear stale overlay panel for this page before re-rendering
 		if (this.labelScroller) {
