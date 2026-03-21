@@ -25,10 +25,10 @@
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
 | ~~I1~~ | ~~FEITO~~ | `regionHighlight.ts` | ~~origStrokeWidth/origShadow agora em WeakMap per-shape~~ |
-| I2 | Media | `regionDrawing.ts:307-310` | setMode("select") seta selectable=true em TODOS objetos, incluindo labels |
-| I3 | Media | `regionLabels.ts` | Nenhum handler de zoom/pan chama refreshAll(). Labels desalinham das shapes |
+| ~~I2~~ | ~~FEITO~~ | `regionDrawing.ts` | ~~setMode skip labels via _qlabel tag~~ |
+| ~~I3~~ | ~~FEITO~~ | `imageView.ts` | ~~refreshAll() chamado via onViewChanged apos zoom/pan~~ |
 | ~~I4~~ | ~~FEITO~~ | `imageToolbar.ts:128`, `zoomPanControls.ts:97-98` | ~~window.addEventListener("keydown") global. Duas views: teclas ativam em ambas~~ |
-| I5 | Baixa | `zoomPanControls.ts:82-88` | Condicao de pan end simplifica incorretamente. Space+drag para ao soltar mouse |
+| ~~I5~~ | ~~FEITO~~ | `zoomPanControls.ts` | ~~mouseup condition simplificada — e.button === 0 || e.button === 1~~ |
 
 ---
 
