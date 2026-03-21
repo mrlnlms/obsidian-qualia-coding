@@ -9,8 +9,8 @@
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
 | P1 | Media | `pageObserver.ts:68` | setTimeout 100ms nao cancelado em stop(). Callback recria highlights em observer parada |
-| P2 | Media | `highlightRenderer.ts:105`, `drawLayer.ts:24` | Hover/popover state global ao modulo. Duas PDF views: hover numa pane cancela popover da outra |
-| P3 | Media | `drawLayer.ts:25-26` | shapeHoverTimer/currentHoverShapeId globais. stop() nao limpa. Timer dispara em elementos destruidos |
+| ~~P2~~ | ~~FEITO~~ | `highlightRenderer.ts:105`, `drawLayer.ts:24` | ~~Hover/popover state global ao modulo. Duas PDF views: hover numa pane cancela popover da outra~~ |
+| ~~P3~~ | ~~FEITO~~ | `drawLayer.ts:25-26` | ~~shapeHoverTimer/currentHoverShapeId globais. stop() nao limpa. Timer dispara em elementos destruidos~~ |
 | P4 | Media | `pdf/index.ts:50,234` | cleanupOrphanedObservers nao limpa childListeners Map. Listeners de mousemove/mouseup vazam |
 | P5 | Media | `pdfCodingMenu.ts:75-83,151-155` | setMemo persiste via save() mas nao chama notify(). Sidebar nao atualiza |
 | P6 | Media | `pdfCodingModel.ts:385-389` | removeMarker() direto nao persiste nem notifica listeners |
@@ -26,20 +26,20 @@
 | I1 | Media | `regionHighlight.ts:40-41,59-65` | origStrokeWidth/origShadow compartilhados. Hover concorrente corrompe valores permanentemente |
 | I2 | Media | `regionDrawing.ts:307-310` | setMode("select") seta selectable=true em TODOS objetos, incluindo labels |
 | I3 | Media | `regionLabels.ts` | Nenhum handler de zoom/pan chama refreshAll(). Labels desalinham das shapes |
-| I4 | Media | `imageToolbar.ts:128`, `zoomPanControls.ts:97-98` | window.addEventListener("keydown") global. Duas views: teclas ativam em ambas |
+| ~~I4~~ | ~~FEITO~~ | `imageToolbar.ts:128`, `zoomPanControls.ts:97-98` | ~~window.addEventListener("keydown") global. Duas views: teclas ativam em ambas~~ |
 | I5 | Baixa | `zoomPanControls.ts:82-88` | Condicao de pan end simplifica incorretamente. Space+drag para ao soltar mouse |
 
 ---
 
-## 3. Multi-pane / state isolation
+## ~~3. Multi-pane / state isolation~~ — FEITO (2026-03-20)
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
-| M1 | Alta | `fileInterceptor.ts:117` | leaf.detach() ao abrir arquivo duplicado. Quebra multi-pane nativo |
-| M2 | Media | `baseSidebarAdapter.ts:76-78` | setHoverState ignora hoveredIds. Multi-marker hover quebra em todos engines exceto markdown |
-| M3 | Media | P2/I4 acima | PDF hover global + Image keyboard global — mesma raiz |
+| ~~M1~~ | ~~FEITO~~ | `fileInterceptor.ts:117` | ~~leaf.detach() ao abrir arquivo duplicado. Quebra multi-pane nativo~~ |
+| ~~M2~~ | ~~FEITO~~ | `baseSidebarAdapter.ts:76-78` | ~~setHoverState ignora hoveredIds. Multi-marker hover quebra em todos engines exceto markdown~~ |
+| ~~M3~~ | ~~FEITO~~ | P2/I4 acima | ~~PDF hover global + Image keyboard global — mesma raiz~~ |
 
-**Solucao unificada**: viewId por pane via WeakMap (pattern mirror-notes). Atacar M1 primeiro, cascata resolve M2/M3.
+Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, hoveredMarkerIds em todos os models.
 
 ---
 
