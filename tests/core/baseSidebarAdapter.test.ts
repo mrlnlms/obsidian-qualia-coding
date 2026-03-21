@@ -13,6 +13,7 @@ function createMockAdapterModel(): AdapterModel {
 		offHoverChange: vi.fn(),
 		setHoverState: vi.fn(),
 		getHoverMarkerId: vi.fn(() => null),
+		getHoverMarkerIds: vi.fn(() => []),
 		getAllMarkers: vi.fn(() => []),
 		removeCodeFromMarker: vi.fn(),
 		findMarkerById: vi.fn(() => null),
@@ -141,13 +142,23 @@ describe('getHoverMarkerId', () => {
 // ── getHoverMarkerIds ─────────────────────────────────────────
 
 describe('getHoverMarkerIds', () => {
-	it('returns [id] when model has hover', () => {
-		(model.getHoverMarkerId as ReturnType<typeof vi.fn>).mockReturnValue('h1');
-		expect(adapter.getHoverMarkerIds()).toEqual(['h1']);
+	it('delegates to model.getHoverMarkerIds when available', () => {
+		(model.getHoverMarkerIds as ReturnType<typeof vi.fn>).mockReturnValue(['h1', 'h2']);
+		expect(adapter.getHoverMarkerIds()).toEqual(['h1', 'h2']);
 	});
 
-	it('returns [] when model has no hover', () => {
-		expect(adapter.getHoverMarkerIds()).toEqual([]);
+	it('falls back to [getHoverMarkerId()] when getHoverMarkerIds absent', () => {
+		const modelWithoutIds = { ...model, getHoverMarkerIds: undefined };
+		const adapterWithout = new TestAdapter(modelWithoutIds as AdapterModel);
+		(modelWithoutIds.getHoverMarkerId as ReturnType<typeof vi.fn>).mockReturnValue('h1');
+		expect(adapterWithout.getHoverMarkerIds()).toEqual(['h1']);
+	});
+
+	it('returns [] via fallback when model has no hover', () => {
+		const modelWithoutIds = { ...model, getHoverMarkerIds: undefined };
+		const adapterWithout = new TestAdapter(modelWithoutIds as AdapterModel);
+		(modelWithoutIds.getHoverMarkerId as ReturnType<typeof vi.fn>).mockReturnValue(null);
+		expect(adapterWithout.getHoverMarkerIds()).toEqual([]);
 	});
 });
 

@@ -18,6 +18,7 @@ export interface AdapterModel {
 	offHoverChange(fn: (...args: unknown[]) => void): void;
 	setHoverState(markerId: string | null, codeName: string | null): void;
 	getHoverMarkerId(): string | null;
+	getHoverMarkerIds?(): string[];
 	getAllMarkers(): Array<{ id: string; codes: string[] }>;
 	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty?: boolean): void;
 	removeMarker(id: string): boolean;
@@ -82,6 +83,7 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 	}
 
 	getHoverMarkerIds(): string[] {
+		if (this.model.getHoverMarkerIds) return this.model.getHoverMarkerIds();
 		const id = this.model.getHoverMarkerId();
 		return id ? [id] : [];
 	}

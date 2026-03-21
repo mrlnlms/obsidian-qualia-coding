@@ -27,6 +27,7 @@ export class MediaCodingModel<
 
 	private hoveredMarkerId: string | null = null;
 	private hoveredCodeName: string | null = null;
+	private _hoveredMarkerIds: string[] = [];
 
 	constructor(dm: DataManager, registry: CodeDefinitionRegistry, sectionName: string, defaultSettings: S) {
 		this.dm = dm;
@@ -83,9 +84,13 @@ export class MediaCodingModel<
 
 	// ── Hover state ──
 
-	setHoverState(markerId: string | null, codeName: string | null): void {
+	setHoverState(markerId: string | null, codeName: string | null, hoveredIds?: string[]): void {
+		const newIds = hoveredIds ?? (markerId ? [markerId] : []);
+		if (this.hoveredMarkerId === markerId && this.hoveredCodeName === codeName
+			&& this._hoveredMarkerIds.length === newIds.length) return;
 		this.hoveredMarkerId = markerId;
 		this.hoveredCodeName = codeName;
+		this._hoveredMarkerIds = newIds;
 		for (const fn of this.hoverListeners) fn();
 	}
 
@@ -95,6 +100,10 @@ export class MediaCodingModel<
 
 	getHoverCodeName(): string | null {
 		return this.hoveredCodeName;
+	}
+
+	getHoverMarkerIds(): string[] {
+		return this._hoveredMarkerIds;
 	}
 
 	onHoverChange(fn: () => void): void {

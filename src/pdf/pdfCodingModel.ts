@@ -27,6 +27,7 @@ export class PdfCodingModel {
 	private hoverListeners = new Set<HoverListener>();
 	private hoverMarkerId: string | null = null;
 	private hoverCodeName: string | null = null;
+	private _hoveredMarkerIds: string[] = [];
 
 	constructor(dataManager: DataManager, registry: CodeDefinitionRegistry) {
 		this.dataManager = dataManager;
@@ -71,14 +72,18 @@ export class PdfCodingModel {
 
 	// ── Hover state (bidirectional highlight ↔ sidebar) ──
 
-	setHoverState(markerId: string | null, codeName: string | null): void {
-		if (this.hoverMarkerId === markerId && this.hoverCodeName === codeName) return;
+	setHoverState(markerId: string | null, codeName: string | null, hoveredIds?: string[]): void {
+		const newIds = hoveredIds ?? (markerId ? [markerId] : []);
+		if (this.hoverMarkerId === markerId && this.hoverCodeName === codeName
+			&& this._hoveredMarkerIds.length === newIds.length) return;
 		this.hoverMarkerId = markerId;
 		this.hoverCodeName = codeName;
+		this._hoveredMarkerIds = newIds;
 		for (const fn of this.hoverListeners) fn(markerId, codeName);
 	}
 
 	getHoverMarkerId(): string | null { return this.hoverMarkerId; }
+	getHoverMarkerIds(): string[] { return this._hoveredMarkerIds; }
 
 	onHoverChange(fn: HoverListener): void {
 		this.hoverListeners.add(fn);

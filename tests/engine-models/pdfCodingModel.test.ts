@@ -561,6 +561,22 @@ describe('setHoverState', () => {
 		model.setHoverState(null, null);
 		expect(model.getHoverMarkerId()).toBeNull();
 	});
+
+	it('setHoverState with hoveredIds stores array', () => {
+		model.setHoverState('m1', 'code-a', ['m1', 'm2']);
+		expect(model.getHoverMarkerIds()).toEqual(['m1', 'm2']);
+	});
+
+	it('setHoverState without hoveredIds defaults to [markerId]', () => {
+		model.setHoverState('m1', 'code-a');
+		expect(model.getHoverMarkerIds()).toEqual(['m1']);
+	});
+
+	it('setHoverState(null) clears hoveredIds', () => {
+		model.setHoverState('m1', 'code-a');
+		model.setHoverState(null, null);
+		expect(model.getHoverMarkerIds()).toEqual([]);
+	});
 });
 
 // ══════════════════════════════════════════════════════════════

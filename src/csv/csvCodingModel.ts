@@ -14,6 +14,7 @@ export class CsvCodingModel {
 	private hoverListeners: HoverListener[] = [];
 	private _hoveredMarkerId: string | null = null;
 	private _hoveredCodeName: string | null = null;
+	private _hoveredMarkerIds: string[] = [];
 
 	/** Cache of row data per file — populated by CsvCodingView on load, cleared on unload */
 	rowDataCache: Map<string, Record<string, string>[]> = new Map();
@@ -54,15 +55,19 @@ export class CsvCodingModel {
 
 	// ── Hover state ──
 
-	setHoverState(markerId: string | null, codeName: string | null): void {
-		if (this._hoveredMarkerId === markerId && this._hoveredCodeName === codeName) return;
+	setHoverState(markerId: string | null, codeName: string | null, hoveredIds?: string[]): void {
+		const newIds = hoveredIds ?? (markerId ? [markerId] : []);
+		if (this._hoveredMarkerId === markerId && this._hoveredCodeName === codeName
+			&& this._hoveredMarkerIds.length === newIds.length) return;
 		this._hoveredMarkerId = markerId;
 		this._hoveredCodeName = codeName;
+		this._hoveredMarkerIds = newIds;
 		for (const fn of this.hoverListeners) fn(markerId, codeName);
 	}
 
 	getHoverMarkerId(): string | null { return this._hoveredMarkerId; }
 	getHoverCodeName(): string | null { return this._hoveredCodeName; }
+	getHoverMarkerIds(): string[] { return this._hoveredMarkerIds; }
 
 	onHoverChange(fn: HoverListener): void {
 		this.hoverListeners.push(fn);

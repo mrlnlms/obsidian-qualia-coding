@@ -16,6 +16,7 @@ export class ImageCodingModel {
 	// Hover state (bidirectional: sidebar ↔ canvas)
 	private hoveredMarkerId: string | null = null;
 	private hoveredCodeName: string | null = null;
+	private _hoveredMarkerIds: string[] = [];
 	private hoverListeners: Set<(markerId: string | null, codeName: string | null) => void> = new Set();
 
 	constructor(dataManager: DataManager, registry: CodeDefinitionRegistry) {
@@ -162,14 +163,22 @@ export class ImageCodingModel {
 
 	// ─── Hover state ───
 
-	setHoverState(markerId: string | null, codeName: string | null): void {
+	setHoverState(markerId: string | null, codeName: string | null, hoveredIds?: string[]): void {
+		const newIds = hoveredIds ?? (markerId ? [markerId] : []);
+		if (this.hoveredMarkerId === markerId && this.hoveredCodeName === codeName
+			&& this._hoveredMarkerIds.length === newIds.length) return;
 		this.hoveredMarkerId = markerId;
 		this.hoveredCodeName = codeName;
+		this._hoveredMarkerIds = newIds;
 		for (const fn of this.hoverListeners) fn(markerId, codeName);
 	}
 
 	getHoverMarkerId(): string | null {
 		return this.hoveredMarkerId;
+	}
+
+	getHoverMarkerIds(): string[] {
+		return this._hoveredMarkerIds;
 	}
 
 	onHoverChange(fn: (markerId: string | null, codeName: string | null) => void): void {
