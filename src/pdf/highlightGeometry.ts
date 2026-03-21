@@ -197,7 +197,6 @@ export function getMarkerVerticalBounds(
 	if (mergedRects.length === 0) return null;
 
 	const viewBox = pageView.pdfPage.view;
-	const pageY = viewBox[1];
 	const pageHeight = viewBox[3] - viewBox[1];
 
 	// In PDF coords: y increases upward. rect = [left, bottom, right, top].
@@ -210,8 +209,8 @@ export function getMarkerVerticalBounds(
 	}
 
 	// Convert to CSS %: mirror Y axis
-	const cssTop = 100 * (viewBox[3] - maxTop + pageY - pageY) / pageHeight;
-	const cssBottom = 100 * (viewBox[3] - minBottom + pageY - pageY) / pageHeight;
+	const cssTop = 100 * (viewBox[3] - maxTop) / pageHeight;
+	const cssBottom = 100 * (viewBox[3] - minBottom) / pageHeight;
 
 	return { topPct: Math.max(0, cssTop), bottomPct: Math.min(100, cssBottom) };
 }
