@@ -29,6 +29,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 			private lastViewportFrom = -1;
 			private lastViewportTo = -1;
 			private suppressMutationUntil = 0;
+			private _origScrollPosition = '';
 
 			constructor(view: EditorView) {
 				this.view = view;
@@ -37,6 +38,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				this.panel.className = 'codemarker-margin-panel';
 
 				const scroller = view.scrollDOM;
+				this._origScrollPosition = scroller.style.position;
 				scroller.style.position = 'relative';
 				scroller.insertBefore(this.panel, scroller.firstChild);
 
@@ -542,6 +544,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				const g = this.view.dom.querySelector('.cm-gutters') as HTMLElement | null;
 				if (g) g.style.marginLeft = '';
 				this.panel.remove();
+				this.view.scrollDOM.style.position = this._origScrollPosition;
 			}
 		}
 	);
