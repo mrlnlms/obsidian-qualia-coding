@@ -161,6 +161,7 @@ export class ImageCodingView extends ItemView {
 					const vt = c.viewportTransform;
 					this.model.saveFileViewState(this.currentFile.path, c.getZoom(), vt[4], vt[5]);
 				}
+				this.regionLabels?.refreshAll();
 			};
 			this.toolbarState = createToolbar(contentEl, this.fabricState, {
 				onDelete: () => {
