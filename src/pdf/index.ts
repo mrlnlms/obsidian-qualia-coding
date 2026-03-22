@@ -299,8 +299,9 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	);
 
 	// Safety net: clean up orphaned selection preview rects when tab regains visibility
+	// Only clean if no popover is open (if popover is still visible, preview should stay)
 	const visibilityHandler = () => {
-		if (!document.hidden) {
+		if (!document.hidden && !document.querySelector('.codemarker-popover')) {
 			document.querySelectorAll('.codemarker-pdf-selection-preview').forEach(el => el.remove());
 		}
 	};
