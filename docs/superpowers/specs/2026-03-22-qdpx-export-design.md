@@ -109,27 +109,44 @@ Para QDC: pula os passos 2-5, salva XML direto como `.qdc`.
 ## Conversao de Coordenadas
 
 ### Markdown
-- Qualia: `{ from: { line, ch }, to: { line, ch } }`
+- Qualia: `marker.range.from: { line, ch }`, `marker.range.to: { line, ch }`
 - REFI: `startPosition` / `endPosition` (offset Unicode codepoint, 0-based)
 - Conversao: ler conteudo do arquivo, calcular offset absoluto a partir de line:ch
 
-### PDF
-- Qualia: `page`, rect com coords do viewer (top-left origin)
-- REFI: `page` (0-based), `firstX/firstY`, `secondX/secondY` em PDF points (bottom-left origin)
-- Conversao: inverter eixo Y usando altura da pagina
+### PDF — dois tipos de marker
 
-### Image
-- Qualia: `NormalizedCoords` (0-1)
-- REFI: pixels (`firstX/firstY`, `secondX/secondY`)
-- Conversao: multiplicar por dimensoes da imagem em pixels
+**PdfMarker (text spans):**
+- Qualia: `beginIndex`, `beginOffset`, `endIndex`, `endOffset`, `text`
+- REFI: `PlainTextSelection` com `startPosition`/`endPosition` sobre a representacao plain text do PDF
+- Conversao: precisa de uma representacao plain text do PDF. Exportar texto extraido do PDF como `plainTextPath`, calcular offsets no texto extraido.
+- Nota: REFI suporta `<Representation plainTextPath="..."/>` no `PDFSource` pra vincular texto extraido.
+
+**PdfShapeMarker (regioes desenhadas):**
+- Qualia: `NormalizedShapeCoords` (rect, ellipse, polygon — coords normalizadas 0-1) + `page`
+- REFI: `PDFSelection` com `page`, `firstX/firstY`, `secondX/secondY` em PDF points (bottom-left origin)
+- Conversao (rect): desnormalizar pra PDF points usando dimensoes da pagina, inverter eixo Y (bottom-left origin)
+- Conversao (ellipse): computar bounding box do ellipse, exportar como rect
+- Conversao (polygon): computar bounding box do polygon, exportar como rect. Perda de precisao — documentar como limitacao.
+
+### Image — shapes variados
+- Qualia: `NormalizedCoords` — pode ser `NormalizedRect` ou `NormalizedPolygon`
+- REFI: `PictureSelection` com `firstX/firstY`, `secondX/secondY` (pixels, bounding box)
+- Conversao (rect): multiplicar por dimensoes da imagem em pixels
+- Conversao (polygon): computar bounding box, multiplicar por dimensoes. Perda de precisao — documentar como limitacao.
+- Se imagem nao pode ser lida pra dimensoes: skip marker com warning no log.
 
 ### Audio/Video
-- Qualia: `startTime` / `endTime` (segundos, float)
+- Qualia: `marker.from` / `marker.to` (segundos, float)
 - REFI: `begin` / `end` (milissegundos, inteiro)
 - Conversao: `Math.round(seconds * 1000)`
 
 ### CSV
 - Nao exporta na v1. Disclaimer no modal.
+
+### Edge cases
+- Source file ausente do vault: skip source com warning no Notice
+- Imagem sem dimensoes legiveis: skip markers dessa imagem com warning
+- PDF sem page height disponivel: skip shape markers dessa pagina com warning
 
 ---
 
@@ -161,6 +178,8 @@ Reutilizar `CodeDefinition.id` e `BaseMarker.id` como GUIDs. Se nao forem UUID v
 Hierarquia: codigos com `parentId` sao nested dentro do pai. Sem `parentId` = top-level.
 `isCodable`: sempre `true` (todos os codigos do Qualia sao codificaveis).
 
+**Namespace:** QDC standalone usa `urn:QDA-XML:codebook:1.0`. Quando embutido no `<Project>`, o `<CodeBook>` herda o namespace do projeto (`urn:QDA-XML:project:1.0`). O `qdcExporter.buildCodebook()` aceita parametro de namespace pra reutilizar nos dois contextos.
+
 ### QDPX — project.qde
 
 ```xml
@@ -187,13 +206,24 @@ Hierarquia: codigos com `parentId` sao nested dentro do pai. Sem `parentId` = to
       </PlainTextSelection>
     </TextSource>
 
-    <!-- PDF -->
+    <!-- PDF text markers → PlainTextSelection sobre texto extraido -->
     <PDFSource guid="..." name="Paper.pdf"
         path="internal://{guid}.pdf">
+      <Representation guid="..." plainTextPath="internal://{guid}.txt"/>
+      <PlainTextSelection guid="..." name="trecho do PDF"
+          startPosition="42" endPosition="98"
+          creationDateTime="...">
+        <Coding guid="..." creationDateTime="...">
+          <CodeRef targetGUID="{code-guid}"/>
+        </Coding>
+      </PlainTextSelection>
+
+      <!-- PDF shape markers → PDFSelection com bounding box -->
       <PDFSelection guid="..." page="0"
           firstX="335" firstY="367"
-          secondX="485" secondY="420">
-        <Coding guid="...">
+          secondX="485" secondY="420"
+          creationDateTime="...">
+        <Coding guid="..." creationDateTime="...">
           <CodeRef targetGUID="{code-guid}"/>
         </Coding>
       </PDFSelection>
@@ -204,8 +234,9 @@ Hierarquia: codigos com `parentId` sao nested dentro do pai. Sem `parentId` = to
         path="internal://{guid}.jpg">
       <PictureSelection guid="..."
           firstX="267" firstY="1"
-          secondX="992" secondY="720">
-        <Coding guid="...">
+          secondX="992" secondY="720"
+          creationDateTime="...">
+        <Coding guid="..." creationDateTime="...">
           <CodeRef targetGUID="{code-guid}"/>
         </Coding>
       </PictureSelection>
@@ -214,8 +245,9 @@ Hierarquia: codigos com `parentId` sao nested dentro do pai. Sem `parentId` = to
     <!-- Audio -->
     <AudioSource guid="..." name="entrevista.m4a"
         path="internal://{guid}.m4a">
-      <AudioSelection guid="..." begin="16176" end="45358">
-        <Coding guid="...">
+      <AudioSelection guid="..." begin="16176" end="45358"
+          creationDateTime="...">
+        <Coding guid="..." creationDateTime="...">
           <CodeRef targetGUID="{code-guid}"/>
         </Coding>
       </AudioSelection>
@@ -224,8 +256,9 @@ Hierarquia: codigos com `parentId` sao nested dentro do pai. Sem `parentId` = to
     <!-- Video -->
     <VideoSource guid="..." name="sessao.mp4"
         path="internal://{guid}.mp4">
-      <VideoSelection guid="..." begin="16176" end="45358">
-        <Coding guid="...">
+      <VideoSelection guid="..." begin="16176" end="45358"
+          creationDateTime="...">
+        <Coding guid="..." creationDateTime="...">
           <CodeRef targetGUID="{code-guid}"/>
         </Coding>
       </VideoSelection>
