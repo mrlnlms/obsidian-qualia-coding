@@ -1,7 +1,8 @@
 import type { PdfMarker, PdfShapeMarker, NormalizedShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
-import type { CodeDefinition } from '../core/types';
+import type { CodeDefinition, CodeApplication } from '../core/types';
+import { hasCode, addCodeApplication, removeCodeApplication } from '../core/codeApplicationHelpers';
 
 // ── Undo types ──
 interface UndoEntry {
@@ -154,26 +155,28 @@ export class PdfCodingModel {
 
 	// ── Code assignment ──
 
-	addCodeToMarker(markerId: string, codeName: string): void {
-		this.registry.create(codeName);
+	addCodeToMarker(markerId: string, codeId: string): void {
+		if (!this.registry.getById(codeId)) {
+			this.registry.create(codeId);
+		}
 
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
-		if (!marker.codes.includes(codeName)) {
+		if (!hasCode(marker.codes, codeId)) {
 			this.pushUndo({ type: 'addCode', markerId, data: { ...marker, codes: [...marker.codes] } });
-			marker.codes.push(codeName);
+			marker.codes = addCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
 			this.notify();
 		}
 	}
 
-	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty = false): void {
+	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty = false): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 
 		this.pushUndo({ type: 'removeCode', markerId, data: { ...marker, codes: [...marker.codes] } });
 
-		marker.codes = marker.codes.filter(c => c !== codeName);
+		marker.codes = removeCodeApplication(marker.codes, codeId);
 		marker.updatedAt = Date.now();
 
 		if (marker.codes.length === 0 && !keepIfEmpty) {
@@ -220,9 +223,9 @@ export class PdfCodingModel {
 
 	// ── Undo ──
 
-	/** Filter codes against current registry — removes names that were renamed or deleted since snapshot. */
-	private reconcileCodes(codes: string[]): string[] {
-		return codes.filter(c => this.registry.getByName(c) !== undefined);
+	/** Filter codes against current registry — removes codeIds that were deleted since snapshot. */
+	private reconcileCodes(codes: CodeApplication[]): CodeApplication[] {
+		return codes.filter(c => this.registry.getById(c.codeId) !== undefined);
 	}
 
 	undo(): boolean {
@@ -348,21 +351,23 @@ export class PdfCodingModel {
 		return this.shapes.find(s => s.id === id);
 	}
 
-	addCodeToShape(shapeId: string, codeName: string): void {
-		this.registry.create(codeName);
+	addCodeToShape(shapeId: string, codeId: string): void {
+		if (!this.registry.getById(codeId)) {
+			this.registry.create(codeId);
+		}
 		const shape = this.findShapeById(shapeId);
 		if (!shape) return;
-		if (!shape.codes.includes(codeName)) {
-			shape.codes.push(codeName);
+		if (!hasCode(shape.codes, codeId)) {
+			shape.codes = addCodeApplication(shape.codes, codeId);
 			shape.updatedAt = Date.now();
 			this.notify();
 		}
 	}
 
-	removeCodeFromShape(shapeId: string, codeName: string, keepIfEmpty = false): void {
+	removeCodeFromShape(shapeId: string, codeId: string, keepIfEmpty = false): void {
 		const shape = this.findShapeById(shapeId);
 		if (!shape) return;
-		shape.codes = shape.codes.filter(c => c !== codeName);
+		shape.codes = removeCodeApplication(shape.codes, codeId);
 		shape.updatedAt = Date.now();
 		if (shape.codes.length === 0 && !keepIfEmpty) {
 			this.deleteShape(shapeId);

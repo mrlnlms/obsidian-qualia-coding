@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PdfCodingModel } from '../../src/pdf/pdfCodingModel';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import type { NormalizedShapeCoords, RectCoords, EllipseCoords, PolygonCoords } from '../../src/core/shapeTypes';
+import type { CodeApplication } from '../../src/core/types';
+import { hasCode } from '../../src/core/codeApplicationHelpers';
 
 // ── Mock DataManager ──
 
@@ -18,6 +20,15 @@ function createMockDm(initial: Record<string, any> = {}) {
 }
 
 // ── Helpers ──
+
+function ca(...codeIds: string[]): CodeApplication[] {
+	return codeIds.map(codeId => ({ codeId }));
+}
+
+/** Create a code definition in the registry and return its id. */
+function cid(name: string): string {
+	return registry.create(name).id;
+}
 
 const rectCoords: RectCoords = { type: 'rect', x: 0.1, y: 0.1, w: 0.5, h: 0.5 };
 const ellipseCoords: EllipseCoords = { type: 'ellipse', cx: 0.5, cy: 0.5, rx: 0.3, ry: 0.2 };
@@ -150,28 +161,30 @@ describe('getAllMarkers', () => {
 describe('addCodeToMarker', () => {
 	it('adds code and registers in registry', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'Theme A');
-		expect(m.codes).toContain('Theme A');
-		expect(registry.getByName('Theme A')).toBeDefined();
+		const id = cid('Theme A');
+		model.addCodeToMarker(m.id, id);
+		expect(hasCode(m.codes, id)).toBe(true);
+		expect(registry.getById(id)).toBeDefined();
 	});
 
 	it('does not add duplicate code', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'Theme A');
-		model.addCodeToMarker(m.id, 'Theme A');
-		expect(m.codes.filter(c => c === 'Theme A')).toHaveLength(1);
+		const id = cid('Theme A');
+		model.addCodeToMarker(m.id, id);
+		model.addCodeToMarker(m.id, id);
+		expect(m.codes.filter(c => c.codeId === id)).toHaveLength(1);
 	});
 
 	it('calls notify on add', () => {
 		const listener = vi.fn();
 		model.onChange(listener);
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'Theme A');
+		model.addCodeToMarker(m.id, cid('Theme A'));
 		expect(listener).toHaveBeenCalled();
 	});
 
 	it('does nothing for unknown marker', () => {
-		model.addCodeToMarker('nonexistent', 'Theme A');
+		model.addCodeToMarker('nonexistent', cid('Theme A'));
 		// Should not throw
 		expect(model.getAllMarkers()).toEqual([]);
 	});
@@ -179,9 +192,10 @@ describe('addCodeToMarker', () => {
 	it('updates updatedAt timestamp', () => {
 		const m = createMarkerVia(model);
 		const before = m.updatedAt;
+		const id = cid('Theme A');
 		// Small delay to ensure different timestamp
 		vi.spyOn(Date, 'now').mockReturnValue(before + 1000);
-		model.addCodeToMarker(m.id, 'Theme A');
+		model.addCodeToMarker(m.id, id);
 		expect(m.updatedAt).toBe(before + 1000);
 		vi.restoreAllMocks();
 	});
@@ -190,39 +204,44 @@ describe('addCodeToMarker', () => {
 describe('removeCodeFromMarker', () => {
 	it('removes code and deletes marker when empty', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'Theme A');
-		model.removeCodeFromMarker(m.id, 'Theme A');
+		const id = cid('Theme A');
+		model.addCodeToMarker(m.id, id);
+		model.removeCodeFromMarker(m.id, id);
 		expect(model.findMarkerById(m.id)).toBeUndefined();
 	});
 
 	it('keeps marker when keepIfEmpty is true', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'Theme A');
-		model.removeCodeFromMarker(m.id, 'Theme A', true);
+		const id = cid('Theme A');
+		model.addCodeToMarker(m.id, id);
+		model.removeCodeFromMarker(m.id, id, true);
 		expect(model.findMarkerById(m.id)).toBeDefined();
 		expect(m.codes).toEqual([]);
 	});
 
 	it('keeps marker when other codes remain', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'Theme A');
-		model.addCodeToMarker(m.id, 'Theme B');
-		model.removeCodeFromMarker(m.id, 'Theme A');
+		const idA = cid('Theme A');
+		const idB = cid('Theme B');
+		model.addCodeToMarker(m.id, idA);
+		model.addCodeToMarker(m.id, idB);
+		model.removeCodeFromMarker(m.id, idA);
 		expect(model.findMarkerById(m.id)).toBeDefined();
-		expect(m.codes).toEqual(['Theme B']);
+		expect(m.codes).toEqual(ca(idB));
 	});
 
 	it('does nothing for unknown marker', () => {
-		model.removeCodeFromMarker('nonexistent', 'Theme A');
+		model.removeCodeFromMarker('nonexistent', cid('Theme A'));
 		// Should not throw
 	});
 
 	it('calls notify', () => {
 		const listener = vi.fn();
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'Theme A');
+		const id = cid('Theme A');
+		model.addCodeToMarker(m.id, id);
 		model.onChange(listener);
-		model.removeCodeFromMarker(m.id, 'Theme A');
+		model.removeCodeFromMarker(m.id, id);
 		expect(listener).toHaveBeenCalled();
 	});
 });
@@ -230,9 +249,9 @@ describe('removeCodeFromMarker', () => {
 describe('removeAllCodesFromMarker', () => {
 	it('removes all codes and deletes marker', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'A');
-		model.addCodeToMarker(m.id, 'B');
-		model.addCodeToMarker(m.id, 'C');
+		model.addCodeToMarker(m.id, cid('A'));
+		model.addCodeToMarker(m.id, cid('B'));
+		model.addCodeToMarker(m.id, cid('C'));
 		model.removeAllCodesFromMarker(m.id);
 		expect(model.findMarkerById(m.id)).toBeUndefined();
 	});
@@ -317,45 +336,52 @@ describe('updateMarkerRangeSilent', () => {
 describe('undo', () => {
 	it('undoes addCode — restores previous codes', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'A');
-		model.addCodeToMarker(m.id, 'B');
+		const idA = cid('A');
+		const idB = cid('B');
+		model.addCodeToMarker(m.id, idA);
+		model.addCodeToMarker(m.id, idB);
 		model.undo();
-		expect(m.codes).toEqual(['A']);
+		expect(m.codes).toEqual(ca(idA));
 	});
 
 	it('undoes removeCode — restores codes on existing marker', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'A');
-		model.addCodeToMarker(m.id, 'B');
-		model.removeCodeFromMarker(m.id, 'A', true);
+		const idA = cid('A');
+		const idB = cid('B');
+		model.addCodeToMarker(m.id, idA);
+		model.addCodeToMarker(m.id, idB);
+		model.removeCodeFromMarker(m.id, idA, true);
 		model.undo();
-		expect(m.codes).toContain('A');
-		expect(m.codes).toContain('B');
+		expect(hasCode(m.codes, idA)).toBe(true);
+		expect(hasCode(m.codes, idB)).toBe(true);
 	});
 
 	it('undoes removeCode — re-creates deleted marker', () => {
 		const m = createMarkerVia(model);
 		const id = m.id;
-		model.addCodeToMarker(id, 'A');
-		model.removeCodeFromMarker(id, 'A'); // deletes marker
+		const idA = cid('A');
+		model.addCodeToMarker(id, idA);
+		model.removeCodeFromMarker(id, idA); // deletes marker
 		expect(model.findMarkerById(id)).toBeUndefined();
 		model.undo();
 		const restored = model.findMarkerById(id);
 		expect(restored).toBeDefined();
-		expect(restored!.codes).toContain('A');
+		expect(hasCode(restored!.codes, idA)).toBe(true);
 	});
 
 	it('undoes removeAllCodes — restores all codes and re-creates marker', () => {
 		const m = createMarkerVia(model);
 		const id = m.id;
-		model.addCodeToMarker(id, 'A');
-		model.addCodeToMarker(id, 'B');
+		const idA = cid('A');
+		const idB = cid('B');
+		model.addCodeToMarker(id, idA);
+		model.addCodeToMarker(id, idB);
 		model.removeAllCodesFromMarker(id);
 		expect(model.findMarkerById(id)).toBeUndefined();
 		model.undo();
 		const restored = model.findMarkerById(id);
 		expect(restored).toBeDefined();
-		expect(restored!.codes).toEqual(['A', 'B']);
+		expect(restored!.codes).toEqual(ca(idA, idB));
 	});
 
 	it('undoes resizeMarker — restores original range', () => {
@@ -376,13 +402,13 @@ describe('undo', () => {
 
 	it('returns true on successful undo', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'A');
+		model.addCodeToMarker(m.id, cid('A'));
 		expect(model.undo()).toBe(true);
 	});
 
 	it('caps undo stack at MAX_UNDO (50)', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'base');
+		model.addCodeToMarker(m.id, cid('base'));
 		// Push 55 undo entries via resize
 		for (let i = 0; i < 55; i++) {
 			model.updateMarkerRange(m.id, { beginIndex: i });
@@ -397,9 +423,12 @@ describe('undo', () => {
 	it('removeAllCodesFromMarker does not push per-code undo entries (suppressUndo)', () => {
 		const m = createMarkerVia(model);
 		const id = m.id;
-		model.addCodeToMarker(id, 'A');
-		model.addCodeToMarker(id, 'B');
-		model.addCodeToMarker(id, 'C');
+		const idA = cid('A');
+		const idB = cid('B');
+		const idC = cid('C');
+		model.addCodeToMarker(id, idA);
+		model.addCodeToMarker(id, idB);
+		model.addCodeToMarker(id, idC);
 		// 3 addCode entries on stack now
 		model.removeAllCodesFromMarker(id);
 		// Should push exactly 1 removeAllCodes entry (not 3 removeCode entries)
@@ -407,12 +436,12 @@ describe('undo', () => {
 		model.undo(); // undo removeAllCodes — restores A, B, C
 		const restored = model.findMarkerById(id);
 		expect(restored).toBeDefined();
-		expect(restored!.codes).toEqual(['A', 'B', 'C']);
+		expect(restored!.codes).toEqual(ca(idA, idB, idC));
 	});
 
 	it('calls notify after undo', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'A');
+		model.addCodeToMarker(m.id, cid('A'));
 		const listener = vi.fn();
 		model.onChange(listener);
 		model.undo();
@@ -428,7 +457,7 @@ describe('load', () => {
 	it('reads markers from dataManager section', () => {
 		const existing = {
 			pdf: {
-				markers: [{ id: 'x', fileId: 'doc.pdf', page: 1, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 5, text: 'hi', codes: ['A'], createdAt: 1, updatedAt: 1 }],
+				markers: [{ id: 'x', fileId: 'doc.pdf', page: 1, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 5, text: 'hi', codes: [{ codeId: 'A' }], createdAt: 1, updatedAt: 1 }],
 				shapes: [],
 			},
 		};
@@ -728,28 +757,30 @@ describe('findShapeById', () => {
 describe('addCodeToShape', () => {
 	it('adds code and registers in registry', () => {
 		const s = model.createShape('doc.pdf', 1, rectCoords);
-		model.addCodeToShape(s.id, 'Region A');
-		expect(s.codes).toContain('Region A');
-		expect(registry.getByName('Region A')).toBeDefined();
+		const id = cid('Region A');
+		model.addCodeToShape(s.id, id);
+		expect(hasCode(s.codes, id)).toBe(true);
+		expect(registry.getById(id)).toBeDefined();
 	});
 
 	it('does not add duplicate code', () => {
 		const s = model.createShape('doc.pdf', 1, rectCoords);
-		model.addCodeToShape(s.id, 'Region A');
-		model.addCodeToShape(s.id, 'Region A');
-		expect(s.codes.filter(c => c === 'Region A')).toHaveLength(1);
+		const id = cid('Region A');
+		model.addCodeToShape(s.id, id);
+		model.addCodeToShape(s.id, id);
+		expect(s.codes.filter(c => c.codeId === id)).toHaveLength(1);
 	});
 
 	it('calls notify', () => {
 		const s = model.createShape('doc.pdf', 1, rectCoords);
 		const fn = vi.fn();
 		model.onChange(fn);
-		model.addCodeToShape(s.id, 'Region A');
+		model.addCodeToShape(s.id, cid('Region A'));
 		expect(fn).toHaveBeenCalled();
 	});
 
 	it('does nothing for unknown shape', () => {
-		model.addCodeToShape('nonexistent', 'Region A');
+		model.addCodeToShape('nonexistent', cid('Region A'));
 		// Should not throw
 	});
 });
@@ -757,30 +788,34 @@ describe('addCodeToShape', () => {
 describe('removeCodeFromShape', () => {
 	it('removes code and deletes shape when empty', () => {
 		const s = model.createShape('doc.pdf', 1, rectCoords);
-		model.addCodeToShape(s.id, 'Region A');
-		model.removeCodeFromShape(s.id, 'Region A');
+		const id = cid('Region A');
+		model.addCodeToShape(s.id, id);
+		model.removeCodeFromShape(s.id, id);
 		expect(model.findShapeById(s.id)).toBeUndefined();
 	});
 
 	it('keeps shape when keepIfEmpty is true', () => {
 		const s = model.createShape('doc.pdf', 1, rectCoords);
-		model.addCodeToShape(s.id, 'Region A');
-		model.removeCodeFromShape(s.id, 'Region A', true);
+		const id = cid('Region A');
+		model.addCodeToShape(s.id, id);
+		model.removeCodeFromShape(s.id, id, true);
 		expect(model.findShapeById(s.id)).toBeDefined();
 		expect(s.codes).toEqual([]);
 	});
 
 	it('keeps shape when other codes remain', () => {
 		const s = model.createShape('doc.pdf', 1, rectCoords);
-		model.addCodeToShape(s.id, 'A');
-		model.addCodeToShape(s.id, 'B');
-		model.removeCodeFromShape(s.id, 'A');
+		const idA = cid('A');
+		const idB = cid('B');
+		model.addCodeToShape(s.id, idA);
+		model.addCodeToShape(s.id, idB);
+		model.removeCodeFromShape(s.id, idA);
 		expect(model.findShapeById(s.id)).toBeDefined();
-		expect(s.codes).toEqual(['B']);
+		expect(s.codes).toEqual(ca(idB));
 	});
 
 	it('does nothing for unknown shape', () => {
-		model.removeCodeFromShape('nonexistent', 'A');
+		model.removeCodeFromShape('nonexistent', cid('A'));
 		// Should not throw
 	});
 });
@@ -788,8 +823,8 @@ describe('removeCodeFromShape', () => {
 describe('removeAllCodesFromShape', () => {
 	it('clears codes and deletes shape', () => {
 		const s = model.createShape('doc.pdf', 1, rectCoords);
-		model.addCodeToShape(s.id, 'A');
-		model.addCodeToShape(s.id, 'B');
+		model.addCodeToShape(s.id, cid('A'));
+		model.addCodeToShape(s.id, cid('B'));
 		model.removeAllCodesFromShape(s.id);
 		expect(model.findShapeById(s.id)).toBeUndefined();
 	});
@@ -854,8 +889,8 @@ describe('getMarkerLabel', () => {
 describe('getAllCodes', () => {
 	it('returns all code definitions from registry', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'Alpha');
-		model.addCodeToMarker(m.id, 'Beta');
+		model.addCodeToMarker(m.id, cid('Alpha'));
+		model.addCodeToMarker(m.id, cid('Beta'));
 		const codes = model.getAllCodes();
 		expect(codes).toHaveLength(2);
 		expect(codes.map(c => c.name)).toContain('Alpha');
@@ -868,9 +903,9 @@ describe('getAllCodes', () => {
 describe('removeAllCodesFromMarker', () => {
 	it('removes marker and notifies once', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'CodeA');
-		model.addCodeToMarker(m.id, 'CodeB');
-		model.addCodeToMarker(m.id, 'CodeC');
+		model.addCodeToMarker(m.id, cid('CodeA'));
+		model.addCodeToMarker(m.id, cid('CodeB'));
+		model.addCodeToMarker(m.id, cid('CodeC'));
 
 		const listener = vi.fn();
 		model.onChange(listener);
@@ -884,8 +919,10 @@ describe('removeAllCodesFromMarker', () => {
 
 	it('is undoable as single operation', () => {
 		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, 'CodeA');
-		model.addCodeToMarker(m.id, 'CodeB');
+		const idA = cid('CodeA');
+		const idB = cid('CodeB');
+		model.addCodeToMarker(m.id, idA);
+		model.addCodeToMarker(m.id, idB);
 
 		model.removeAllCodesFromMarker(m.id);
 		expect(model.findMarkerById(m.id)).toBeUndefined();
@@ -893,7 +930,7 @@ describe('removeAllCodesFromMarker', () => {
 		model.undo();
 		const restored = model.findMarkerById(m.id);
 		expect(restored).toBeDefined();
-		expect(restored!.codes).toEqual(['CodeA', 'CodeB']);
+		expect(restored!.codes).toEqual(ca(idA, idB));
 	});
 
 	it('no-ops on nonexistent marker', () => {
