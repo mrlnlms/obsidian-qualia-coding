@@ -19,6 +19,7 @@ import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
 import type { CodebookTreeState } from './codebookTreeRenderer';
 import { showCodeContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
+import { setupDragDrop } from './codebookDragDrop';
 
 export abstract class BaseCodeDetailView extends ItemView {
 	protected model: SidebarModelInterface;
@@ -44,6 +45,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	private listSearchWrap: HTMLElement | null = null;
 	private listContentZone: HTMLElement | null = null;
 	private listShellCleanup: (() => void) | null = null;
+	private dragDropCleanup: (() => void) | null = null;
 	private listMode = false;
 
 	constructor(leaf: WorkspaceLeaf, model: SidebarModelInterface) {
@@ -81,6 +83,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		document.removeEventListener('qualia:registry-changed', this.scheduleRefresh);
 		if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
 		if (this.listShellCleanup) { this.listShellCleanup(); this.listShellCleanup = null; }
+		if (this.dragDropCleanup) { this.dragDropCleanup(); this.dragDropCleanup = null; }
 		this.contentEl.empty();
 	}
 
@@ -146,12 +149,36 @@ export abstract class BaseCodeDetailView extends ItemView {
 
 	private renderList() {
 		this.listMode = true;
+		if (this.dragDropCleanup) { this.dragDropCleanup(); this.dragDropCleanup = null; }
 		const result = renderListShell(this.contentEl, this.model, this.listCallbacks());
 		this.listSearchWrap = result.listSearchWrap;
 		this.listContentZone = result.listContentZone;
 		this.listShellCleanup = result.cleanup;
 		if (this.listContentZone) {
 			renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+			this.dragDropCleanup = setupDragDrop(
+				this.listContentZone,
+				this.model.registry,
+				() => this.treeDragMode,
+				{
+					onReparent: (codeId, newParentId) => {
+						this.model.registry.setParent(codeId, newParentId);
+						this.model.saveMarkers();
+						if (newParentId) this.treeExpanded.add(newParentId);
+					},
+					onMergeDrop: (_sourceId, _targetId) => {
+						new Notice('Merge: will be available in Phase B');
+					},
+					setDragMode: (mode) => {
+						this.treeDragMode = mode;
+					},
+					refresh: () => {
+						if (this.listContentZone) {
+							renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+						}
+					},
+				},
+			);
 		}
 	}
 

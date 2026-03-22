@@ -4050,6 +4050,16 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   border-radius: var(--radius-s);
 }
 .codebook-tree-row:hover { background-color: var(--background-modifier-hover); }
+.codebook-tree-row.is-dragging { opacity: 0.5; }
+.codebook-tree-row.is-drop-target {
+  border-bottom: 2px solid var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+.codebook-tree-row.is-merge-target {
+  outline: 2px solid var(--text-error);
+  outline-offset: -2px;
+  border-radius: var(--radius-s);
+}
 .codebook-tree-chevron {
   display: flex;
   align-items: center;
