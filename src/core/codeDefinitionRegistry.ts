@@ -164,6 +164,53 @@ export class CodeDefinitionRegistry {
 		return null;
 	}
 
+	// --- Hierarchy queries ---
+
+	/** Returns all codes that have no parent (root-level codes). */
+	getRootCodes(): CodeDefinition[] {
+		return this.getAll().filter(d => !d.parentId);
+	}
+
+	/** Returns direct children of the given parent in childrenOrder. */
+	getChildren(parentId: string): CodeDefinition[] {
+		const parent = this.definitions.get(parentId);
+		if (!parent) return [];
+		return parent.childrenOrder
+			.map(id => this.definitions.get(id))
+			.filter((d): d is CodeDefinition => d !== undefined);
+	}
+
+	/** Returns ancestors bottom-up (parent first, then grandparent, etc.). */
+	getAncestors(id: string): CodeDefinition[] {
+		const ancestors: CodeDefinition[] = [];
+		let current = this.definitions.get(id);
+		while (current?.parentId) {
+			const parent = this.definitions.get(current.parentId);
+			if (!parent) break;
+			ancestors.push(parent);
+			current = parent;
+		}
+		return ancestors;
+	}
+
+	/** Returns all descendants depth-first. */
+	getDescendants(id: string): CodeDefinition[] {
+		const result: CodeDefinition[] = [];
+		const visit = (parentId: string) => {
+			for (const child of this.getChildren(parentId)) {
+				result.push(child);
+				visit(child.id);
+			}
+		};
+		visit(id);
+		return result;
+	}
+
+	/** Returns the depth of a code (0 for root). */
+	getDepth(id: string): number {
+		return this.getAncestors(id).length;
+	}
+
 	// --- Serialization ---
 
 	toJSON(): { definitions: Record<string, CodeDefinition>; nextPaletteIndex: number } {
