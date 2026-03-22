@@ -12,6 +12,7 @@ import type { MergedRect } from './highlightGeometry';
 import { computeMergedHighlightRects } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
 import type { PdfViewState } from './pdfViewState';
+import { closeActivePopover } from '../core/baseCodingMenu';
 
 const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
 const HIGHLIGHT_CLASS = 'codemarker-pdf-highlight';
@@ -296,12 +297,10 @@ function attachLayerHoverTracking(
 			showHandlesForMarker(pageDiv, null);
 
 			if (state.currentHoverMarkerId === currentMarkerId) {
-				const popover = state.containerEl.querySelector('.codemarker-popover') as HTMLElement | null;
-				if (popover) {
-					startHoverCloseTimer(state, () => { popover.remove(); });
-				} else {
+				startHoverCloseTimer(state, () => {
+					closeActivePopover('codemarker-popover');
 					state.currentHoverMarkerId = null;
-				}
+				});
 			}
 		}
 
@@ -344,12 +343,10 @@ function attachLayerHoverTracking(
 			showHandlesForMarker(pageDiv, null);
 
 			if (state.currentHoverMarkerId === currentMarkerId) {
-				const popover = state.containerEl.querySelector('.codemarker-popover') as HTMLElement | null;
-				if (popover) {
-					startHoverCloseTimer(state, () => { popover.remove(); });
-				} else {
+				startHoverCloseTimer(state, () => {
+					closeActivePopover('codemarker-popover');
 					state.currentHoverMarkerId = null;
-				}
+				});
 			}
 			currentMarkerId = null;
 		}
