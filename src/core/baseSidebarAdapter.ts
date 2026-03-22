@@ -7,7 +7,8 @@
  */
 
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
-import type { BaseMarker, SidebarModelInterface } from './types';
+import type { BaseMarker, CodeApplication, SidebarModelInterface } from './types';
+import { hasCode } from './codeApplicationHelpers';
 
 /** Minimal model interface that all engine models satisfy for adapter plumbing. */
 export interface AdapterModel {
@@ -19,8 +20,8 @@ export interface AdapterModel {
 	setHoverState(markerId: string | null, codeName: string | null): void;
 	getHoverMarkerId(): string | null;
 	getHoverMarkerIds?(): string[];
-	getAllMarkers(): Array<{ id: string; codes: string[] }>;
-	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty?: boolean): void;
+	getAllMarkers(): Array<{ id: string; codes: CodeApplication[] }>;
+	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty?: boolean): void;
 	removeMarker(id: string): boolean;
 	findMarkerById(id: string): { memo?: string; colorOverride?: string; updatedAt: number } | undefined | null;
 }
@@ -113,23 +114,11 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 		this.notifyAfterFieldUpdate();
 	}
 
-	/** Rename a code across all markers and notify listeners for UI refresh. */
-	renameCode(oldName: string, newName: string): void {
-		for (const m of this.model.getAllMarkers()) {
-			const idx = m.codes.indexOf(oldName);
-			if (idx >= 0) {
-				m.codes[idx] = newName;
-			}
-		}
-		this.saveMarkers();
-		this.notifyAfterFieldUpdate();
-	}
-
 	/** Remove a code from all markers and delete its definition. PDF overrides for shapes. */
-	deleteCode(codeName: string): void {
+	deleteCode(codeId: string): void {
 		for (const m of this.model.getAllMarkers()) {
-			if (m.codes.includes(codeName)) {
-				this.model.removeCodeFromMarker(m.id, codeName, true);
+			if (hasCode(m.codes, codeId)) {
+				this.model.removeCodeFromMarker(m.id, codeId, true);
 			}
 		}
 		// Clean up orphan markers left with no codes
@@ -138,8 +127,7 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 				this.model.removeMarker(m.id);
 			}
 		}
-		const def = this.registry.getByName(codeName);
-		if (def) this.registry.delete(def.id);
+		this.registry.delete(codeId);
 		this.saveMarkers();
 	}
 }

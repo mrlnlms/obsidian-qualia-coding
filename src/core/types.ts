@@ -48,10 +48,7 @@ export interface SidebarModelInterface {
 	removeMarker(markerId: string): boolean;
 
 	/** Delete a code definition and remove it from all markers. */
-	deleteCode(codeName: string): void;
-
-	/** Rename a code across all markers. Called when registry.update() changes a name. */
-	renameCode(oldName: string, newName: string): void;
+	deleteCode(codeId: string): void;
 
 	/** Optional: whether clicking a segment auto-navigates to the document. */
 	getAutoRevealOnSegmentClick?(): boolean;
