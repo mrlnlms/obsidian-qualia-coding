@@ -11,11 +11,16 @@ import type { VideoFile } from '../video/videoCodingTypes';
 
 export type MarkerType = 'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video';
 
+export interface CodeApplication {
+	codeId: string;
+	magnitude?: string;
+}
+
 export interface BaseMarker {
 	markerType: MarkerType;
 	id: string;
 	fileId: string;
-	codes: string[];
+	codes: CodeApplication[];
 	colorOverride?: string;
 	memo?: string;
 	createdAt: number;
