@@ -30,6 +30,11 @@ export function setupDragDrop(
 		return el.closest<HTMLElement>('[data-code-id]');
 	};
 
+	const isRootZone = (el: EventTarget | null): boolean => {
+		if (!(el instanceof HTMLElement)) return false;
+		return !!el.closest<HTMLElement>('[data-root-drop]');
+	};
+
 	const clearDropIndicators = () => {
 		for (const el of Array.from(container.querySelectorAll('.is-drop-target, .is-merge-target'))) {
 			el.classList.remove('is-drop-target', 'is-merge-target');
@@ -51,17 +56,20 @@ export function setupDragDrop(
 		e.preventDefault();
 
 		clearDropIndicators();
-		container.classList.remove('is-root-drop-target');
+		const rootZoneEl = container.querySelector<HTMLElement>('[data-root-drop]');
+		if (rootZoneEl) rootZoneEl.classList.remove('is-root-drop-active');
 
-		const row = findRow(e.target);
-		if (!row) {
-			// Hovering outside any row → show root drop zone feedback
+		// Check if hovering over the root drop zone
+		if (isRootZone(e.target)) {
 			const mode = getMode();
-			if (mode === 'reorganize') {
-				container.classList.add('is-root-drop-target');
+			if (mode === 'reorganize' && rootZoneEl) {
+				rootZoneEl.classList.add('is-root-drop-active');
 			}
 			return;
 		}
+
+		const row = findRow(e.target);
+		if (!row) return;
 		const targetId = row.dataset.codeId;
 		if (!targetId || targetId === draggedCodeId) return;
 
@@ -77,15 +85,20 @@ export function setupDragDrop(
 		if (!draggedCodeId) return;
 		e.preventDefault();
 
+		// Drop on root zone → promote to root
+		if (isRootZone(e.target)) {
+			const mode = getMode();
+			if (mode === 'reorganize') {
+				callbacks.onReparent(draggedCodeId, undefined);
+			}
+			cleanupDrag();
+			return;
+		}
+
 		const row = findRow(e.target);
 		const targetId = row?.dataset.codeId;
 
-		// Drop outside any row (or on root drop zone) → promote to root
 		if (!targetId || targetId === draggedCodeId) {
-			const mode = getMode();
-			if (mode === 'reorganize' && !row) {
-				callbacks.onReparent(draggedCodeId, undefined);
-			}
 			cleanupDrag();
 			return;
 		}
@@ -118,7 +131,8 @@ export function setupDragDrop(
 			}
 		}
 		clearDropIndicators();
-		container.classList.remove('is-root-drop-target');
+		const rootZoneEl = container.querySelector<HTMLElement>('[data-root-drop]');
+		if (rootZoneEl) rootZoneEl.classList.remove('is-root-drop-active');
 		draggedCodeId = null;
 	};
 

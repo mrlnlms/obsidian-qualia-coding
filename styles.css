@@ -4060,9 +4060,20 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   outline-offset: -2px;
   border-radius: var(--radius-s);
 }
-.is-root-drop-target {
-  border-bottom: 2px dashed var(--interactive-accent);
+.codebook-root-drop-zone {
+  padding: 8px 12px;
+  text-align: center;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  border: 2px dashed transparent;
+  border-radius: var(--radius-s);
+  margin: 4px 8px;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.codebook-root-drop-zone.is-root-drop-active {
+  border-color: var(--interactive-accent);
   background: var(--background-modifier-hover);
+  color: var(--text-normal);
 }
 .codebook-tree-chevron {
   display: flex;
