@@ -28,10 +28,6 @@ export abstract class BaseCodeDetailView extends ItemView {
 	protected treeExpanded: Set<string> = new Set<string>();
 	protected treeDragMode: 'reorganize' | 'merge' = 'reorganize';
 
-	/** Whether clicking a segment also navigates to the marker in the document. */
-	protected get autoRevealOnSegmentClick(): boolean {
-		return this.model.getAutoRevealOnSegmentClick?.() ?? true;
-	}
 	private searchQuery = '';
 	private rafId: number | null = null;
 	private scheduleRefresh = () => {
@@ -208,7 +204,6 @@ export abstract class BaseCodeDetailView extends ItemView {
 			showList: () => this.showList(),
 			showCodeDetail: (c) => this.showCodeDetail(c),
 			setContext: (mid, c) => this.setContext(mid, c),
-			autoRevealOnSegmentClick: this.autoRevealOnSegmentClick,
 			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
 			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
 		});
