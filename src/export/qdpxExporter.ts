@@ -1,7 +1,10 @@
 import { escapeXml, xmlAttr } from './xmlBuilder';
 import type { CodeApplication } from '../core/types';
 import type { Marker } from '../markdown/models/codeMarkerModel';
-import { lineChToOffset } from './coordConverters';
+import type { MediaMarker } from '../media/mediaTypes';
+import type { ImageMarker } from '../image/imageCodingTypes';
+import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
+import { lineChToOffset, mediaToMs, imageToPixels, pdfShapeToRect } from './coordConverters';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -89,4 +92,164 @@ export function buildTextSourceXml(
 
   if (!selections) return '';
   return `<TextSource ${xmlAttr('guid', resolvedSrcGuid)} ${xmlAttr('name', fileName(fileId))} ${pathAttr}>\n${selections}\n</TextSource>`;
+}
+
+// ── Media (Audio/Video) ──
+
+function buildMediaSourceXml(
+  tag: 'AudioSource' | 'VideoSource',
+  selTag: 'AudioSelection' | 'VideoSelection',
+  filePath: string,
+  markers: MediaMarker[],
+  guidMap: Map<string, string>,
+  notes: string[],
+  includeSources?: boolean,
+): string {
+  const srcGuid = uuidV4();
+  guidMap.set(`source:${filePath}`, srcGuid);
+  const ext = filePath.split('.').pop() || '';
+  const pathAttr = includeSources
+    ? xmlAttr('path', `internal://${srcGuid}.${ext}`)
+    : xmlAttr('path', `relative://${filePath}`);
+
+  const selections = markers
+    .filter(m => m.codes.length > 0)
+    .map(m => {
+      const selGuid = ensureGuid(m.id, guidMap);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt);
+      let noteRef = '';
+      if (m.memo) {
+        const noteGuid = `note_${selGuid}`;
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        noteRef = `\n${buildNoteRefXml(noteGuid)}`;
+      }
+      return `<${selTag} ${xmlAttr('guid', selGuid)} ${xmlAttr('begin', mediaToMs(m.from))} ${xmlAttr('end', mediaToMs(m.to))} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</${selTag}>`;
+    })
+    .filter(Boolean)
+    .join('\n');
+
+  if (!selections) return '';
+  return `<${tag} ${xmlAttr('guid', srcGuid)} ${xmlAttr('name', fileName(filePath))} ${pathAttr}>\n${selections}\n</${tag}>`;
+}
+
+export function buildAudioSourceXml(
+  filePath: string, markers: MediaMarker[], guidMap: Map<string, string>, notes: string[], includeSources?: boolean,
+): string {
+  return buildMediaSourceXml('AudioSource', 'AudioSelection', filePath, markers, guidMap, notes, includeSources);
+}
+
+export function buildVideoSourceXml(
+  filePath: string, markers: MediaMarker[], guidMap: Map<string, string>, notes: string[], includeSources?: boolean,
+): string {
+  return buildMediaSourceXml('VideoSource', 'VideoSelection', filePath, markers, guidMap, notes, includeSources);
+}
+
+// ── Image ──
+
+export function buildImageSourceXml(
+  filePath: string,
+  markers: ImageMarker[],
+  imgWidth: number,
+  imgHeight: number,
+  guidMap: Map<string, string>,
+  notes: string[],
+  includeSources?: boolean,
+): string {
+  const srcGuid = uuidV4();
+  guidMap.set(`source:${filePath}`, srcGuid);
+  const ext = filePath.split('.').pop() || '';
+  const pathAttr = includeSources
+    ? xmlAttr('path', `internal://${srcGuid}.${ext}`)
+    : xmlAttr('path', `relative://${filePath}`);
+
+  const selections = markers
+    .filter(m => m.codes.length > 0)
+    .map(m => {
+      const px = imageToPixels(m.coords, imgWidth, imgHeight);
+      if (!px) return '';
+      const selGuid = ensureGuid(m.id, guidMap);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt);
+      let noteRef = '';
+      if (m.memo) {
+        const noteGuid = `note_${selGuid}`;
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        noteRef = `\n${buildNoteRefXml(noteGuid)}`;
+      }
+      return `<PictureSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('firstX', px.firstX)} ${xmlAttr('firstY', px.firstY)} ${xmlAttr('secondX', px.secondX)} ${xmlAttr('secondY', px.secondY)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PictureSelection>`;
+    })
+    .filter(Boolean)
+    .join('\n');
+
+  if (!selections) return '';
+  return `<PictureSource ${xmlAttr('guid', srcGuid)} ${xmlAttr('name', fileName(filePath))} ${pathAttr}>\n${selections}\n</PictureSource>`;
+}
+
+// ── PDF ──
+
+export function buildPdfSourceXml(
+  filePath: string,
+  textMarkers: PdfMarker[],
+  shapeMarkers: PdfShapeMarker[],
+  pageDimensions: Record<number, { width: number; height: number }> | null,
+  textOffsets: Map<string, { start: number; end: number }>,
+  guidMap: Map<string, string>,
+  notes: string[],
+  includeSources?: boolean,
+): string {
+  const srcGuid = uuidV4();
+  guidMap.set(`source:${filePath}`, srcGuid);
+  const ext = filePath.split('.').pop() || '';
+  const pathAttr = includeSources
+    ? xmlAttr('path', `internal://${srcGuid}.${ext}`)
+    : xmlAttr('path', `relative://${filePath}`);
+
+  const reprGuid = uuidV4();
+  const reprPath = includeSources
+    ? `internal://${reprGuid}.txt`
+    : `relative://${filePath.replace(/\.pdf$/i, '.txt')}`;
+  const representationEl = textMarkers.length > 0
+    ? `<Representation ${xmlAttr('guid', reprGuid)} ${xmlAttr('plainTextPath', reprPath)}/>`
+    : '';
+
+  const textSelections = textMarkers
+    .filter(m => m.codes.length > 0)
+    .map(m => {
+      const offsets = textOffsets.get(m.id);
+      if (!offsets) return '';
+      const selGuid = ensureGuid(m.id, guidMap);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt);
+      let noteRef = '';
+      if (m.memo) {
+        const noteGuid = `note_${selGuid}`;
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        noteRef = `\n${buildNoteRefXml(noteGuid)}`;
+      }
+      return `<PlainTextSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('startPosition', offsets.start)} ${xmlAttr('endPosition', offsets.end)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PlainTextSelection>`;
+    })
+    .filter(Boolean);
+
+  const shapeSelections = shapeMarkers
+    .filter(m => m.codes.length > 0)
+    .map(m => {
+      if (!pageDimensions || !pageDimensions[m.page]) return '';
+      const dim = pageDimensions[m.page];
+      const rect = pdfShapeToRect(m.coords, dim.width, dim.height);
+      if (!rect) return '';
+      const selGuid = ensureGuid(m.id, guidMap);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt);
+      let noteRef = '';
+      if (m.memo) {
+        const noteGuid = `note_${selGuid}`;
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        noteRef = `\n${buildNoteRefXml(noteGuid)}`;
+      }
+      return `<PDFSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('page', m.page)} ${xmlAttr('firstX', rect.firstX)} ${xmlAttr('firstY', rect.firstY)} ${xmlAttr('secondX', rect.secondX)} ${xmlAttr('secondY', rect.secondY)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PDFSelection>`;
+    })
+    .filter(Boolean);
+
+  const allSelections = [...textSelections, ...shapeSelections].join('\n');
+  if (!allSelections) return '';
+
+  const inner = [representationEl, allSelections].filter(Boolean).join('\n');
+  return `<PDFSource ${xmlAttr('guid', srcGuid)} ${xmlAttr('name', fileName(filePath))} ${pathAttr}>\n${inner}\n</PDFSource>`;
 }
