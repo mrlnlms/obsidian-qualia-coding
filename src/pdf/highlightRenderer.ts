@@ -12,7 +12,6 @@ import type { MergedRect } from './highlightGeometry';
 import { computeMergedHighlightRects } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
 import type { PdfViewState } from './pdfViewState';
-import { closeActivePopover } from '../core/baseCodingMenu';
 
 const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
 const HIGHLIGHT_CLASS = 'codemarker-pdf-highlight';
@@ -88,6 +87,7 @@ export interface HighlightCallbacks {
 	onClick: (markerId: string, codeName: string) => void;
 	onMarkerHoverPopover: (marker: PdfMarker, rect: HTMLElement) => void;
 	onHover?: (markerId: string | null, codeName: string | null) => void;
+	onClosePopover?: () => void;
 	onRangeUpdate?: (markerId: string, changes: {
 		beginIndex?: number; beginOffset?: number;
 		endIndex?: number; endOffset?: number;
@@ -298,7 +298,7 @@ function attachLayerHoverTracking(
 
 			if (state.currentHoverMarkerId === currentMarkerId) {
 				startHoverCloseTimer(state, () => {
-					closeActivePopover('codemarker-popover');
+					callbacks.onClosePopover?.();
 					state.currentHoverMarkerId = null;
 				});
 			}
@@ -344,7 +344,7 @@ function attachLayerHoverTracking(
 
 			if (state.currentHoverMarkerId === currentMarkerId) {
 				startHoverCloseTimer(state, () => {
-					closeActivePopover('codemarker-popover');
+					callbacks.onClosePopover?.();
 					state.currentHoverMarkerId = null;
 				});
 			}

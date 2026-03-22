@@ -19,6 +19,7 @@ import { attachDragHandles } from './dragHandles';
 export interface PageObserverCallbacks {
 	onMarkerClick: (markerId: string, codeName: string) => void;
 	onMarkerHoverPopover: (marker: PdfMarker, anchorEl: HTMLElement) => void;
+	onClosePopover?: () => void;
 	onShapeClick: (shapeId: string, codeName: string) => void;
 	onShapeDoubleClick: (shape: import('./pdfCodingTypes').PdfShapeMarker, anchorEl: SVGElement) => void;
 	onShapeHoverPopover: (shape: import('./pdfCodingTypes').PdfShapeMarker, anchorEl: SVGElement) => void;
@@ -177,6 +178,7 @@ export class PdfPageObserver {
 		const highlightCallbacks: HighlightCallbacks = {
 			onClick: this.callbacks.onMarkerClick,
 			onMarkerHoverPopover: this.callbacks.onMarkerHoverPopover,
+			onClosePopover: this.callbacks.onClosePopover,
 			onHover: (markerId, codeName) => this.model.setHoverState(markerId, codeName),
 		};
 

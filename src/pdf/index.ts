@@ -9,6 +9,7 @@ import { DrawInteraction } from './drawInteraction';
 import { DrawToolbar } from './drawToolbar';
 import { openPdfCodingPopover, openShapeCodingPopover } from './pdfCodingMenu';
 import { renderSelectionPreview } from './highlightRenderer';
+import { closeActivePopover } from '../core/baseCodingMenu';
 import type { PDFViewerChild } from './pdfTypings';
 import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
 import { getPdfViewState, destroyPdfViewState, type PdfViewState } from './pdfViewState';
@@ -102,6 +103,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 					detail: { markerId, codeName },
 				}));
 				},
+				onClosePopover: () => closeActivePopover('codemarker-popover'),
 				onMarkerHoverPopover: (marker: PdfMarker, anchorEl: HTMLElement) => {
 					openPopoverForMarkerAtElement(marker, anchorEl, refreshObserver, pdfState);
 				},
@@ -216,9 +218,10 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 							undefined,
 							plugin.app,
 							undefined,
-							() => cleanups.forEach(fn => fn()),
+							() => { cleanups.forEach(fn => fn()); if (pdfState) pdfState.selectionPreviewCleanup = null; },
 							pdfState,
 						);
+						if (pdfState && cleanups.length > 0) pdfState.selectionPreviewCleanup = () => cleanups.forEach(fn => fn());
 						return;
 					}
 
@@ -242,9 +245,10 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 						undefined,
 						plugin.app,
 						undefined,
-						previewCleanup ?? undefined,
+						previewCleanup ? () => { previewCleanup!(); if (pdfState) pdfState.selectionPreviewCleanup = null; } : undefined,
 						pdfState,
 					);
+					if (pdfState && previewCleanup) pdfState.selectionPreviewCleanup = previewCleanup;
 				}, 50);
 			};
 			container.addEventListener('mouseup', mouseupHandler);
@@ -293,6 +297,14 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			cleanupOrphanedObservers();
 		})
 	);
+
+	// Safety net: clean up orphaned selection preview rects when tab regains visibility
+	const visibilityHandler = () => {
+		if (!document.hidden) {
+			document.querySelectorAll('.codemarker-pdf-selection-preview').forEach(el => el.remove());
+		}
+	};
+	document.addEventListener('visibilitychange', visibilityHandler);
 
 	// Navigate event from analytics/sidebar → open PDF and go to page
 	plugin.registerEvent(
@@ -353,6 +365,8 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 
 	return {
 		cleanup: () => {
+			document.removeEventListener('visibilitychange', visibilityHandler);
+
 			for (const [, observer] of observers) {
 				observer.stop();
 			}
