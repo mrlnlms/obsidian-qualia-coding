@@ -96,7 +96,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1571 testes em 57 suites (Vitest + jsdom)
+- `npm run test` — 1631 testes em 61 suites (Vitest + jsdom)
 - `npm run test:e2e` — 65 testes e2e em 18 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView
@@ -112,6 +112,12 @@ src/
 - `codes: CodeApplication[]` — array de `{ codeId, magnitude? }` em todos os markers (nunca `string[]`)
 - Helpers em `codeApplicationHelpers.ts`: `hasCode`, `getCodeIds`, `addCodeApplication`, `removeCodeApplication`
 - Popover adapters resolvem name→id na borda UI; models so recebem codeId
+- `parentId` — referencia ao CodeDefinition pai (nunca `parent`)
+- `childrenOrder` — array ordenado de ids filhos (nunca `children`)
+- `mergedFrom` — ids dos codigos fundidos neste (audit trail)
+- `setParent(id, parentId)` — metodo de reparentar com deteccao de ciclo
+- `executeMerge()` — funcao de merge em `mergeModal.ts` (reassigna markers, reparenta filhos, deleta sources)
+- Hierarchy helpers puros em `hierarchyHelpers.ts`: `buildFlatTree`, `buildCountIndex`, `getDirectCount`, `getAggregateCount`
 
 ## Skills Obsidian
 
