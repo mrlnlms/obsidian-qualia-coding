@@ -41,8 +41,9 @@ interface CodeDefinition {
   folder?: string;
 
   // magnitude (Fase D)
+  // ausente = sem magnitude neste codigo. Presente = magnitude configurada.
   magnitude?: {
-    type: 'nominal' | 'ordinal' | 'continuous' | null;
+    type: 'nominal' | 'ordinal' | 'continuous';
     values: string[];   // vazio = sem valores definidos, preenchido = picker fechado
   };
 
@@ -63,7 +64,7 @@ interface CodeApplication {
   magnitude?: string;     // valor atribuido ao segmento (picker fechado)
   relations?: Array<{     // relacoes segmento-level
     label: string;
-    target: string;       // id do codigo alvo (qualquer do registry)
+    target: string;       // id do codigo alvo — qualquer codigo do registry, NAO precisa estar aplicado ao mesmo segmento
     directed: boolean;
   }>;
 }
@@ -114,6 +115,7 @@ Todos os campos novos sao opcionais com defaults seguros (null, false, []).
 Trabalho mecanico guiado pelo TypeScript:
 - Tipo em BaseMarker: 1 lugar
 - addCode/removeCode em cada model: 5 arquivos
+- `SidebarModelInterface` e `AdapterModel`: atualizar assinaturas (deleteCode, renameCode passam a usar id). `renameCode` nos models torna-se desnecessario — rename e atomico no registry.
 - rename/delete no baseSidebarAdapter: 1 arquivo
 - Leituras nas views: `.codes[0]` → `.codes[0].codeId`
 - Filtros no analytics: `.includes(name)` → `.some(c => c.codeId === id)`
@@ -127,7 +129,7 @@ Campos: `parentId`, `childrenOrder`, `mergedFrom`
 Registry ganha metodos:
 - `getRootCodes()`, `getChildren(parentId)`, `getAncestors(id)`, `getDescendants(id)`
 - `getDepth(id)`, `getHierarchicalList()`
-- `setParent(id, parentId)` com validacao anti-ciclo
+- `setParent(id, parentId)` com validacao anti-ciclo + atualiza `childrenOrder` do novo pai (append) e do antigo pai (remove)
 
 Code Form Modal: dropdown "Parent code" (exclui self + descendentes).
 Explorer: arvore hierarquica com collapse/expand.
@@ -144,12 +146,14 @@ Pastas sao containers organizacionais sem significado analitico. Nao afetam hier
 
 Metafora do File Explorer do Obsidian. Distincao visual: pasta (icone) vs codigo-pai (chevron).
 
+Pasta tem context menu proprio: Rename, Delete. Ao deletar pasta, codigos perdem campo `folder` e voltam pra raiz (unfolder).
+
 ### Fase D — Magnitude
 
 Campo no CodeDefinition: `magnitude: { type, values }`
 Campo no CodeApplication: `magnitude?: string`
 
-Tipos de variavel: nominal, ordinal, continuous, null.
+Tipos de variavel: nominal, ordinal, continuous. Campo `magnitude` ausente = sem magnitude neste codigo.
 Picker fechado — valores declarados sao os unicos permitidos. Se quer adicionar valor, vai na definicao do codigo.
 
 UI: secao colapsavel no popover (pattern do Memo). Toggle nas settings controla visibilidade no popover.
@@ -297,7 +301,7 @@ Sem mudanca estrutural. Lista flat com busca fuzzy — hierarquia e pastas nao a
 ```
 [Search or create code...]
 ─────────────────────────
-[*] Toggle  Codigo A        →
+[*] Toggle  Codigo A        →      ← seta expande inline: magnitude picker + relacoes deste codigo neste marker
 [*] Toggle  Codigo B        →
 Browse all codes...
 ─────────────────────────
@@ -331,7 +335,7 @@ Relations: label livre + busca de target (qualquer codigo, pode criar novo).
 - Arestas tracejadas = relacoes segmento-level (espessura por quantidade de segmentos)
 - Toggle no toolbar: "Code-level | Code + Segments"
 - Hover/click na aresta mostra detalhes
-- Quando a mesma relacao existe nos dois niveis, aresta unica fundida com indicador visual
+- Quando a mesma relacao existe nos dois niveis (mesmo `label` + `target` + `directed`), aresta unica fundida com indicador visual
 
 ### Contagem hierarquica
 
