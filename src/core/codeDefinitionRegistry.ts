@@ -69,6 +69,7 @@ export class CodeDefinitionRegistry {
 			paletteIndex: color ? -1 : this.nextPaletteIndex - 1,
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
+			childrenOrder: [],
 		};
 
 		this.definitions.set(def.id, def);
@@ -183,6 +184,7 @@ export class CodeDefinitionRegistry {
 				// Se alguem editar data.json manualmente e mudar a key sem
 				// atualizar def.id, o nameIndex apontaria pra um ID inexistente.
 				def.id = id;
+				if (!def.childrenOrder) def.childrenOrder = [];
 				registry.definitions.set(id, def);
 				registry.nameIndex.set(def.name, id);
 			}
@@ -202,7 +204,7 @@ export class CodeDefinitionRegistry {
 	 */
 	importDefinition(def: CodeDefinition): void {
 		if (this.nameIndex.has(def.name)) return;
-		this.definitions.set(def.id, { ...def });
+		this.definitions.set(def.id, { ...def, childrenOrder: def.childrenOrder ?? [] });
 		this.nameIndex.set(def.name, def.id);
 	}
 

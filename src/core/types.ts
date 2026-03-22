@@ -71,6 +71,10 @@ export interface CodeDefinition {
 	paletteIndex: number;
 	createdAt: number;
 	updatedAt: number;
+	// Hierarchy (Phase A)
+	parentId?: string;
+	childrenOrder: string[];
+	mergedFrom?: string[];
 }
 
 export type EngineCleanup = () => void | Promise<void>;
