@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CsvSidebarAdapter } from '../../src/csv/views/csvSidebarAdapter';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import type { SegmentMarker, RowMarker, CsvMarker } from '../../src/csv/csvCodingTypes';
+import type { CodeApplication } from '../../src/core/types';
+import { hasCode } from '../../src/core/codeApplicationHelpers';
 
 // ── Mock CsvCodingModel ──
 
@@ -22,9 +24,9 @@ function createMockModel() {
 		getMarkersForFile: vi.fn((fileId: string) => markers.filter(m => m.fileId === fileId)),
 		getAllFileIds: vi.fn(() => [...new Set(markers.map(m => m.fileId))]),
 		findMarkerById: vi.fn((id: string) => markers.find(m => m.id === id)),
-		removeCodeFromMarker: vi.fn((id: string, code: string) => {
+		removeCodeFromMarker: vi.fn((id: string, codeId: string) => {
 			const m = markers.find(x => x.id === id);
-			if (m) m.codes = m.codes.filter(c => c !== code);
+			if (m) m.codes = m.codes.filter(c => c.codeId !== codeId);
 		}),
 		removeMarker: vi.fn((id: string) => {
 			const idx = markers.findIndex(m => m.id === id);
@@ -52,7 +54,7 @@ function mkSegment(overrides: Partial<SegmentMarker> = {}): SegmentMarker {
 		column: 'comment',
 		from: 0,
 		to: 10,
-		codes: ['Theme'],
+		codes: [{ codeId: 'theme-id' }],
 		createdAt: 1000,
 		updatedAt: 1000,
 		...overrides,
@@ -65,7 +67,7 @@ function mkRowMarker(overrides: Partial<RowMarker> = {}): RowMarker {
 		fileId: 'data.csv',
 		row: 1,
 		column: 'category',
-		codes: ['Category'],
+		codes: [{ codeId: 'cat-id' }],
 		createdAt: 2000,
 		updatedAt: 2000,
 		...overrides,
@@ -106,7 +108,7 @@ describe('getAllMarkers', () => {
 			rowIndex: 0,
 			columnId: 'comment',
 			isSegment: true,
-			codes: ['Theme'],
+			codes: [{ codeId: 'theme-id' }],
 		});
 	});
 
@@ -260,39 +262,34 @@ describe('notifyAfterFieldUpdate (via updateMarkerFields)', () => {
 
 describe('deleteCode', () => {
 	it('removes code from markers that have it', () => {
-		model._markers.push(mkSegment({ id: 's1', codes: ['A', 'B'] }));
-		model._markers.push(mkRowMarker({ id: 'r1', codes: ['B'] }));
-		adapter.deleteCode('A');
-		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('s1', 'A', true);
-		expect(model.removeCodeFromMarker).not.toHaveBeenCalledWith('r1', 'A', true);
+		const defA = model.registry.create('A');
+		const defB = model.registry.create('B');
+		model._markers.push(mkSegment({ id: 's1', codes: [{ codeId: defA.id }, { codeId: defB.id }] }));
+		model._markers.push(mkRowMarker({ id: 'r1', codes: [{ codeId: defB.id }] }));
+		adapter.deleteCode(defA.id);
+		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('s1', defA.id, true);
+		expect(model.removeCodeFromMarker).not.toHaveBeenCalledWith('r1', defA.id, true);
 	});
 
 	it('deletes code definition from registry', () => {
-		model.registry.create('Gone');
-		adapter.deleteCode('Gone');
+		const def = model.registry.create('Gone');
+		adapter.deleteCode(def.id);
 		expect(model.registry.getByName('Gone')).toBeUndefined();
 	});
 
 	it('calls saveMarkers after cleanup', () => {
-		adapter.deleteCode('X');
+		const def = model.registry.create('X');
+		adapter.deleteCode(def.id);
 		expect(model.saveMarkers).toHaveBeenCalledOnce();
 	});
-});
 
-// ── renameCode (inherited from base) ──
-
-describe('renameCode', () => {
-	it('renames code in markers', () => {
-		const seg = mkSegment({ codes: ['Old'] });
-		model._markers.push(seg);
-		adapter.renameCode('Old', 'New');
-		expect(seg.codes).toContain('New');
-		expect(seg.codes).not.toContain('Old');
-	});
-
-	it('calls save and notifyAndSave', () => {
-		adapter.renameCode('A', 'B');
-		expect(model.saveMarkers).toHaveBeenCalledOnce();
-		expect(model.notifyAndSave).toHaveBeenCalledOnce();
+	it('removes orphan markers with no remaining codes', () => {
+		const def = model.registry.create('Only');
+		const m = mkSegment({ id: 'orphan', codes: [{ codeId: def.id }] });
+		model._markers.push(m);
+		// After removeCodeFromMarker mock removes the code, codes becomes empty
+		// The base deleteCode iterates again and calls removeMarker on empty markers
+		adapter.deleteCode(def.id);
+		expect(model.removeMarker).toHaveBeenCalledWith('orphan');
 	});
 });

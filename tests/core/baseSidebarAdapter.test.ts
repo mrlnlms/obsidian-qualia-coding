@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BaseSidebarAdapter } from '../../src/core/baseSidebarAdapter';
 import type { AdapterModel } from '../../src/core/baseSidebarAdapter';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
-import type { BaseMarker } from '../../src/core/types';
+import type { BaseMarker, CodeApplication } from '../../src/core/types';
 
 function createMockAdapterModel(): AdapterModel {
 	return {
@@ -16,6 +16,7 @@ function createMockAdapterModel(): AdapterModel {
 		getHoverMarkerIds: vi.fn(() => []),
 		getAllMarkers: vi.fn(() => []),
 		removeCodeFromMarker: vi.fn(),
+		removeMarker: vi.fn(() => false),
 		findMarkerById: vi.fn(() => null),
 	};
 }
@@ -209,27 +210,30 @@ describe('multiple listeners', () => {
 
 describe('deleteCode', () => {
 	it('removes code from all markers via model.removeCodeFromMarker', () => {
+		const defA = model.registry.create('A');
+		const defB = model.registry.create('B');
 		vi.mocked(model.getAllMarkers).mockReturnValue([
-			{ id: 'm1', codes: ['A', 'B'] },
-			{ id: 'm2', codes: ['A'] },
-			{ id: 'm3', codes: ['B'] },
+			{ id: 'm1', codes: [{ codeId: defA.id }, { codeId: defB.id }] },
+			{ id: 'm2', codes: [{ codeId: defA.id }] },
+			{ id: 'm3', codes: [{ codeId: defB.id }] },
 		]);
-		adapter.deleteCode('A');
-		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('m1', 'A', true);
-		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('m2', 'A', true);
-		expect(model.removeCodeFromMarker).not.toHaveBeenCalledWith('m3', 'A', true);
+		adapter.deleteCode(defA.id);
+		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('m1', defA.id, true);
+		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('m2', defA.id, true);
+		expect(model.removeCodeFromMarker).not.toHaveBeenCalledWith('m3', defA.id, true);
 	});
 
 	it('deletes code definition from registry', () => {
 		vi.mocked(model.getAllMarkers).mockReturnValue([]);
 		const def = model.registry.create('TestCode');
-		adapter.deleteCode('TestCode');
+		adapter.deleteCode(def.id);
 		expect(model.registry.getByName('TestCode')).toBeUndefined();
 	});
 
 	it('calls saveMarkers after cleanup', () => {
 		vi.mocked(model.getAllMarkers).mockReturnValue([]);
-		adapter.deleteCode('X');
+		const def = model.registry.create('X');
+		adapter.deleteCode(def.id);
 		expect(adapter.saveMarkers).toHaveBeenCalledOnce();
 	});
 

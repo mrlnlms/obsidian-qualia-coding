@@ -3,6 +3,7 @@ import { MediaSidebarAdapter } from '../../src/media/mediaSidebarAdapter';
 import { MediaCodingModel } from '../../src/media/mediaCodingModel';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import type { BaseMediaSettings } from '../../src/media/mediaTypes';
+import type { CodeApplication } from '../../src/core/types';
 
 // ── Mock DataManager ──
 
@@ -47,7 +48,8 @@ describe('constructor', () => {
 describe('markerToBase', () => {
 	it('creates correct MediaBaseMarker from MediaMarker', () => {
 		const marker = model.findOrCreateMarker('file.mp3', 1.5, 3.5);
-		model.addCodeToMarker(marker.id, 'Theme');
+		const def = registry.create('Theme');
+		model.addCodeToMarker(marker.id, def.id);
 		vi.advanceTimersByTime(600);
 
 		const baseMarkers = adapter.getAllMarkers();
@@ -57,7 +59,7 @@ describe('markerToBase', () => {
 		expect(bm.startTime).toBe(1.5);
 		expect(bm.endTime).toBe(3.5);
 		expect(bm.mediaType).toBe('audio');
-		expect(bm.codes).toContain('Theme');
+		expect(bm.codes.some((c: CodeApplication) => c.codeId === def.id)).toBe(true);
 		expect(bm.markerLabel).toBeTruthy();
 	});
 });
@@ -146,12 +148,14 @@ describe('deleteCode', () => {
 	it('removes code from all markers and deletes from registry', () => {
 		const m1 = model.findOrCreateMarker('file.mp3', 0, 5);
 		const m2 = model.findOrCreateMarker('file.mp3', 6, 10);
-		model.addCodeToMarker(m1.id, 'Theme');
-		model.addCodeToMarker(m2.id, 'Theme');
-		model.addCodeToMarker(m2.id, 'Other');
+		const themeDef = registry.create('Theme');
+		const otherDef = registry.create('Other');
+		model.addCodeToMarker(m1.id, themeDef.id);
+		model.addCodeToMarker(m2.id, themeDef.id);
+		model.addCodeToMarker(m2.id, otherDef.id);
 		vi.advanceTimersByTime(600);
 
-		adapter.deleteCode('Theme');
+		adapter.deleteCode(themeDef.id);
 		vi.advanceTimersByTime(600);
 
 		// Theme removed from registry

@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PdfSidebarAdapter } from '../../src/pdf/views/pdfSidebarAdapter';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import type { PdfMarker, PdfShapeMarker } from '../../src/pdf/pdfCodingTypes';
+import type { CodeApplication } from '../../src/core/types';
+import { hasCode } from '../../src/core/codeApplicationHelpers';
 
 // ── Mock PdfCodingModel ──
 
@@ -23,9 +25,9 @@ function createMockModel() {
 		getAllMarkers: vi.fn(() => textMarkers),
 		getMarkersForFile: vi.fn((fileId: string) => textMarkers.filter(m => m.fileId === fileId)),
 		findMarkerById: vi.fn((id: string) => textMarkers.find(m => m.id === id)),
-		removeCodeFromMarker: vi.fn((id: string, code: string) => {
+		removeCodeFromMarker: vi.fn((id: string, codeId: string) => {
 			const m = textMarkers.find(x => x.id === id);
-			if (m) m.codes = m.codes.filter(c => c !== code);
+			if (m) m.codes = m.codes.filter(c => c.codeId !== codeId);
 		}),
 		removeAllCodesFromMarker: vi.fn(),
 		removeMarker: vi.fn(() => true),
@@ -35,9 +37,9 @@ function createMockModel() {
 		getShapesForFile: vi.fn((fileId: string) => shapeMarkers.filter(s => s.fileId === fileId)),
 		findShapeById: vi.fn((id: string) => shapeMarkers.find(s => s.id === id)),
 		deleteShape: vi.fn(),
-		removeCodeFromShape: vi.fn((id: string, code: string) => {
+		removeCodeFromShape: vi.fn((id: string, codeId: string) => {
 			const s = shapeMarkers.find(x => x.id === id);
-			if (s) s.codes = s.codes.filter(c => c !== code);
+			if (s) s.codes = s.codes.filter(c => c.codeId !== codeId);
 		}),
 		getShapeLabel: vi.fn((s: PdfShapeMarker) => `${s.shape} on page ${s.page}`),
 
@@ -63,7 +65,7 @@ function mkTextMarker(overrides: Partial<PdfMarker> = {}): PdfMarker {
 		endIndex: 0,
 		endOffset: 10,
 		text: 'Hello world',
-		codes: ['CodeA'],
+		codes: [{ codeId: 'code-a-id' }],
 		createdAt: 1000,
 		updatedAt: 1000,
 		...overrides,
@@ -77,7 +79,7 @@ function mkShapeMarker(overrides: Partial<PdfShapeMarker> = {}): PdfShapeMarker 
 		page: 2,
 		shape: 'rect',
 		coords: { type: 'rect', x: 0.1, y: 0.2, w: 0.3, h: 0.4 },
-		codes: ['CodeB'],
+		codes: [{ codeId: 'code-b-id' }],
 		createdAt: 2000,
 		updatedAt: 2000,
 		...overrides,
@@ -118,7 +120,7 @@ describe('getAllMarkers', () => {
 			page: 1,
 			isShape: false,
 			text: 'Hello world',
-			codes: ['CodeA'],
+			codes: [{ codeId: 'code-a-id' }],
 		});
 	});
 
@@ -322,68 +324,31 @@ describe('removeMarker', () => {
 
 describe('deleteCode', () => {
 	it('removes code from text markers', () => {
-		model._textMarkers.push(mkTextMarker({ id: 'tm-1', codes: ['A', 'B'] }));
-		model._textMarkers.push(mkTextMarker({ id: 'tm-2', codes: ['B'] }));
-		adapter.deleteCode('A');
-		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('tm-1', 'A');
-		expect(model.removeCodeFromMarker).not.toHaveBeenCalledWith('tm-2', 'A');
+		const defA = model.registry.create('A');
+		const defB = model.registry.create('B');
+		model._textMarkers.push(mkTextMarker({ id: 'tm-1', codes: [{ codeId: defA.id }, { codeId: defB.id }] }));
+		model._textMarkers.push(mkTextMarker({ id: 'tm-2', codes: [{ codeId: defB.id }] }));
+		adapter.deleteCode(defA.id);
+		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('tm-1', defA.id);
+		expect(model.removeCodeFromMarker).not.toHaveBeenCalledWith('tm-2', defA.id);
 	});
 
 	it('removes code from shape markers', () => {
-		model._shapeMarkers.push(mkShapeMarker({ id: 'sm-1', codes: ['X'] }));
-		adapter.deleteCode('X');
-		expect(model.removeCodeFromShape).toHaveBeenCalledWith('sm-1', 'X');
+		const defX = model.registry.create('X');
+		model._shapeMarkers.push(mkShapeMarker({ id: 'sm-1', codes: [{ codeId: defX.id }] }));
+		adapter.deleteCode(defX.id);
+		expect(model.removeCodeFromShape).toHaveBeenCalledWith('sm-1', defX.id);
 	});
 
 	it('deletes code definition from registry', () => {
-		model.registry.create('ToDelete');
-		adapter.deleteCode('ToDelete');
+		const def = model.registry.create('ToDelete');
+		adapter.deleteCode(def.id);
 		expect(model.registry.getByName('ToDelete')).toBeUndefined();
 	});
 
 	it('calls saveMarkers after cleanup', () => {
-		adapter.deleteCode('X');
+		const def = model.registry.create('X');
+		adapter.deleteCode(def.id);
 		expect(model.save).toHaveBeenCalledOnce();
-	});
-});
-
-// ── renameCode ──
-
-describe('renameCode', () => {
-	it('renames code in text markers', () => {
-		const tm = mkTextMarker({ codes: ['Old'] });
-		model._textMarkers.push(tm);
-		adapter.renameCode('Old', 'New');
-		expect(tm.codes).toContain('New');
-		expect(tm.codes).not.toContain('Old');
-	});
-
-	it('renames code in shape markers', () => {
-		const sm = mkShapeMarker({ codes: ['Old'] });
-		model._shapeMarkers.push(sm);
-		adapter.renameCode('Old', 'New');
-		expect(sm.codes).toContain('New');
-		expect(sm.codes).not.toContain('Old');
-	});
-
-	it('updates updatedAt on renamed markers', () => {
-		const tm = mkTextMarker({ codes: ['Old'], updatedAt: 100 });
-		model._textMarkers.push(tm);
-		adapter.renameCode('Old', 'New');
-		expect(tm.updatedAt).toBeGreaterThan(100);
-	});
-
-	it('does not touch markers without the code', () => {
-		const tm = mkTextMarker({ codes: ['Other'], updatedAt: 100 });
-		model._textMarkers.push(tm);
-		adapter.renameCode('Old', 'New');
-		expect(tm.codes).toEqual(['Other']);
-		expect(tm.updatedAt).toBe(100);
-	});
-
-	it('calls save and notify', () => {
-		adapter.renameCode('A', 'B');
-		expect(model.save).toHaveBeenCalledOnce();
-		expect(model.notify).toHaveBeenCalledOnce();
 	});
 });

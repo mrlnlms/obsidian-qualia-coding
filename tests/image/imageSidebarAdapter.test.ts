@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ImageSidebarAdapter } from '../../src/image/views/imageSidebarAdapter';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import type { ImageMarker } from '../../src/image/imageCodingTypes';
+import type { CodeApplication } from '../../src/core/types';
+import { hasCode } from '../../src/core/codeApplicationHelpers';
 
 // ── Mock ImageCodingModel ──
 
@@ -22,9 +24,9 @@ function createMockModel() {
 		getMarkersForFile: vi.fn((fileId: string) => markers.filter(m => m.fileId === fileId)),
 		getAllFileIds: vi.fn(() => [...new Set(markers.map(m => m.fileId))]),
 		findMarkerById: vi.fn((id: string) => markers.find(m => m.id === id)),
-		removeCodeFromMarker: vi.fn((id: string, code: string) => {
+		removeCodeFromMarker: vi.fn((id: string, codeId: string) => {
 			const m = markers.find(x => x.id === id);
-			if (m) m.codes = m.codes.filter(c => c !== code);
+			if (m) m.codes = m.codes.filter(c => c.codeId !== codeId);
 		}),
 		removeMarker: vi.fn((id: string) => {
 			const idx = markers.findIndex(m => m.id === id);
@@ -49,7 +51,7 @@ function mkMarker(overrides: Partial<ImageMarker> = {}): ImageMarker {
 		fileId: 'photo.png',
 		shape: 'rect',
 		coords: { type: 'rect', x: 0.1, y: 0.2, w: 0.5, h: 0.3 },
-		codes: ['Pattern'],
+		codes: [{ codeId: 'pattern-id' }],
 		createdAt: 1000,
 		updatedAt: 1000,
 		...overrides,
@@ -88,7 +90,7 @@ describe('getAllMarkers', () => {
 			id: 'img-1',
 			fileId: 'photo.png',
 			shape: 'rect',
-			codes: ['Pattern'],
+			codes: [{ codeId: 'pattern-id' }],
 		});
 	});
 
@@ -250,55 +252,34 @@ describe('updateMarkerFields', () => {
 
 describe('deleteCode', () => {
 	it('removes code from markers that have it', () => {
-		model._markers.push(mkMarker({ id: 'a', codes: ['X', 'Y'] }));
-		model._markers.push(mkMarker({ id: 'b', codes: ['Y'] }));
-		adapter.deleteCode('X');
-		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('a', 'X', true);
-		expect(model.removeCodeFromMarker).not.toHaveBeenCalledWith('b', 'X', true);
+		const defX = model.registry.create('X');
+		const defY = model.registry.create('Y');
+		model._markers.push(mkMarker({ id: 'a', codes: [{ codeId: defX.id }, { codeId: defY.id }] }));
+		model._markers.push(mkMarker({ id: 'b', codes: [{ codeId: defY.id }] }));
+		adapter.deleteCode(defX.id);
+		expect(model.removeCodeFromMarker).toHaveBeenCalledWith('a', defX.id, true);
+		expect(model.removeCodeFromMarker).not.toHaveBeenCalledWith('b', defX.id, true);
 	});
 
 	it('deletes code definition from registry', () => {
-		model.registry.create('ToDelete');
-		adapter.deleteCode('ToDelete');
+		const def = model.registry.create('ToDelete');
+		adapter.deleteCode(def.id);
 		expect(model.registry.getByName('ToDelete')).toBeUndefined();
 	});
 
 	it('calls saveMarkers after cleanup', () => {
-		adapter.deleteCode('Z');
+		const def = model.registry.create('Z');
+		adapter.deleteCode(def.id);
 		expect(model.saveMarkers).toHaveBeenCalledOnce();
 	});
 
 	it('removes orphan markers with no remaining codes', () => {
-		const m = mkMarker({ id: 'orphan', codes: ['Only'] });
+		const def = model.registry.create('Only');
+		const m = mkMarker({ id: 'orphan', codes: [{ codeId: def.id }] });
 		model._markers.push(m);
 		// After removeCodeFromMarker mock removes the code, codes becomes empty
 		// The base deleteCode iterates again and calls removeMarker on empty markers
-		adapter.deleteCode('Only');
+		adapter.deleteCode(def.id);
 		expect(model.removeMarker).toHaveBeenCalledWith('orphan');
-	});
-});
-
-// ── renameCode (inherited from base) ──
-
-describe('renameCode', () => {
-	it('renames code in markers', () => {
-		const m = mkMarker({ codes: ['Old'] });
-		model._markers.push(m);
-		adapter.renameCode('Old', 'New');
-		expect(m.codes).toContain('New');
-		expect(m.codes).not.toContain('Old');
-	});
-
-	it('does not touch markers without the code', () => {
-		const m = mkMarker({ codes: ['Other'] });
-		model._markers.push(m);
-		adapter.renameCode('Old', 'New');
-		expect(m.codes).toEqual(['Other']);
-	});
-
-	it('calls save and notify', () => {
-		adapter.renameCode('A', 'B');
-		expect(model.saveMarkers).toHaveBeenCalledOnce();
-		expect(model.notify).toHaveBeenCalledOnce();
 	});
 });
