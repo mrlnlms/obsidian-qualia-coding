@@ -65,13 +65,20 @@ export function openPdfCodingPopover(
 					firstResult.beginIndex, firstResult.beginOffset,
 					firstResult.endIndex, firstResult.endOffset,
 				);
-			return current ? [...current.codes] : [];
+			if (!current) return [];
+			return current.codes
+				.map(c => model.registry.getById(c.codeId)?.name)
+				.filter((n): n is string => !!n);
 		},
 		addCode: (name) => {
-			for (const m of getMarkers()) model.addCodeToMarker(m.id, name);
+			let def = model.registry.getByName(name);
+			if (!def) def = model.registry.create(name);
+			for (const m of getMarkers()) model.addCodeToMarker(m.id, def.id);
 		},
 		removeCode: (name) => {
-			for (const m of getMarkers()) model.removeCodeFromMarker(m.id, name, true);
+			const def = model.registry.getByName(name);
+			if (!def) return;
+			for (const m of getMarkers()) model.removeCodeFromMarker(m.id, def.id, true);
 		},
 		getMemo: () => {
 			const m = hoverMarkerId
@@ -156,9 +163,18 @@ export function openShapeCodingPopover(
 
 	const adapter: CodingPopoverAdapter = {
 		registry: model.registry,
-		getActiveCodes: () => [...shape.codes],
-		addCode: (name) => model.addCodeToShape(shapeId, name),
-		removeCode: (name) => model.removeCodeFromShape(shapeId, name, true),
+		getActiveCodes: () => shape.codes
+			.map(c => model.registry.getById(c.codeId)?.name)
+			.filter((n): n is string => !!n),
+		addCode: (name) => {
+			let def = model.registry.getByName(name);
+			if (!def) def = model.registry.create(name);
+			model.addCodeToShape(shapeId, def.id);
+		},
+		removeCode: (name) => {
+			const def = model.registry.getByName(name);
+			if (def) model.removeCodeFromShape(shapeId, def.id, true);
+		},
 		getMemo: () => shape.memo ?? '',
 		setMemo: (value) => {
 			shape.memo = value || undefined;

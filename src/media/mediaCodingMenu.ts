@@ -18,8 +18,8 @@ export interface MediaMenuModel<M extends MediaMarker = MediaMarker> {
 	registry: CodeDefinitionRegistry;
 	findExistingMarker(filePath: string, from: number, to: number): M | undefined;
 	findOrCreateMarker(filePath: string, from: number, to: number): M;
-	addCodeToMarker(markerId: string, codeName: string): void;
-	removeCodeFromMarker(markerId: string, codeName: string, silent?: boolean): void;
+	addCodeToMarker(markerId: string, codeId: string): void;
+	removeCodeFromMarker(markerId: string, codeId: string, silent?: boolean): void;
 	removeMarker(markerId: string): boolean;
 	notify(): void;
 	save(): void;
@@ -44,15 +44,24 @@ export function openMediaCodingPopover(
 
 	const adapter: CodingPopoverAdapter = {
 		registry: model.registry,
-		getActiveCodes: () => existingMarker ? [...existingMarker.codes] : [],
+		getActiveCodes: () => {
+			if (!existingMarker) return [];
+			return existingMarker.codes
+				.map(c => model.registry.getById(c.codeId)?.name)
+				.filter((n): n is string => !!n);
+		},
 		addCode: (name) => {
+			let def = model.registry.getByName(name);
+			if (!def) def = model.registry.create(name);
 			const m = getMarker();
-			model.addCodeToMarker(m.id, name);
+			model.addCodeToMarker(m.id, def.id);
 			regionRenderer.refreshRegion(m.id);
 		},
 		removeCode: (name) => {
+			const def = model.registry.getByName(name);
+			if (!def) return;
 			const m = getMarker();
-			model.removeCodeFromMarker(m.id, name, true);
+			model.removeCodeFromMarker(m.id, def.id, true);
 			regionRenderer.refreshRegion(m.id);
 		},
 		getMemo: () => {
@@ -106,8 +115,8 @@ export function openMediaCodingPopover(
 			icon: 'trash',
 			onDelete: () => {
 				if (existingMarker) {
-					for (const code of [...existingMarker.codes]) {
-						model.removeCodeFromMarker(existingMarker.id, code);
+					for (const ca of [...existingMarker.codes]) {
+						model.removeCodeFromMarker(existingMarker.id, ca.codeId);
 					}
 					regionRenderer.removeRegion(existingMarker.id);
 				}

@@ -9,6 +9,7 @@ import type { BaseMarker } from '../../core/types';
 import type { PdfCodingModel } from '../pdfCodingModel';
 import type { PdfMarker, PdfShapeMarker } from '../pdfCodingTypes';
 import { BaseSidebarAdapter } from '../../core/baseSidebarAdapter';
+import { hasCode } from '../../core/codeApplicationHelpers';
 
 /** Extended BaseMarker carrying PDF-specific metadata for hooks. */
 export interface PdfBaseMarker extends BaseMarker {
@@ -129,38 +130,18 @@ export class PdfSidebarAdapter extends BaseSidebarAdapter {
 		return false;
 	}
 
-	renameCode(oldName: string, newName: string): void {
+	deleteCode(codeId: string): void {
 		for (const m of this.model.getAllMarkers()) {
-			const idx = m.codes.indexOf(oldName);
-			if (idx >= 0) {
-				m.codes[idx] = newName;
-				m.updatedAt = Date.now();
+			if (hasCode(m.codes, codeId)) {
+				this.model.removeCodeFromMarker(m.id, codeId);
 			}
 		}
 		for (const s of this.model.getAllShapes()) {
-			const idx = s.codes.indexOf(oldName);
-			if (idx >= 0) {
-				s.codes[idx] = newName;
-				s.updatedAt = Date.now();
+			if (hasCode(s.codes, codeId)) {
+				this.model.removeCodeFromShape(s.id, codeId);
 			}
 		}
-		this.saveMarkers();
-		this.notifyAfterFieldUpdate();
-	}
-
-	deleteCode(codeName: string): void {
-		for (const m of this.model.getAllMarkers()) {
-			if (m.codes.includes(codeName)) {
-				this.model.removeCodeFromMarker(m.id, codeName);
-			}
-		}
-		for (const s of this.model.getAllShapes()) {
-			if (s.codes.includes(codeName)) {
-				this.model.removeCodeFromShape(s.id, codeName);
-			}
-		}
-		const def = this.registry.getByName(codeName);
-		if (def) this.registry.delete(def.id);
+		this.registry.delete(codeId);
 		this.saveMarkers();
 	}
 }

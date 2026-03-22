@@ -9,6 +9,7 @@
 import type { App } from 'obsidian';
 import type { CsvCodingModel } from './csvCodingModel';
 import type { GridApi } from 'ag-grid-community';
+import { hasCode } from '../core/codeApplicationHelpers';
 import {
 	openCodingPopover,
 	type CodingPopoverAdapter,
@@ -39,16 +40,23 @@ export function openCsvCodingPopover(
 		registry: model.registry,
 		getActiveCodes: () => {
 			const current = model.getRowMarkersForCell(file, row, column)[0];
-			return current ? [...current.codes] : [];
+			if (!current) return [];
+			return current.codes
+				.map(c => model.registry.getById(c.codeId)?.name)
+				.filter((n): n is string => !!n);
 		},
 		addCode: (name) => {
+			let def = model.registry.getByName(name);
+			if (!def) def = model.registry.create(name);
 			const m = getMarker();
-			model.addCodeToMarker(m.id, name);
+			model.addCodeToMarker(m.id, def.id);
 			gridApi.refreshCells({ force: true });
 		},
 		removeCode: (name) => {
+			const def = model.registry.getByName(name);
+			if (!def) return;
 			const m = getMarker();
-			model.removeCodeFromMarker(m.id, name, true);
+			model.removeCodeFromMarker(m.id, def.id, true);
 			gridApi.refreshCells({ force: true });
 		},
 		getMemo: () => '',
@@ -75,8 +83,8 @@ export function openCsvCodingPopover(
 			icon: 'trash',
 			onDelete: () => {
 				if (existingMarker) {
-					for (const code of [...existingMarker.codes]) {
-						model.removeCodeFromMarker(existingMarker.id, code);
+					for (const ca of [...existingMarker.codes]) {
+						model.removeCodeFromMarker(existingMarker.id, ca.codeId);
 					}
 					gridApi.refreshCells({ force: true });
 				}
@@ -115,7 +123,7 @@ export function openBatchCodingPopover(
 	for (const codeDef of allCodes) {
 		let count = 0;
 		for (const row of filteredRows) {
-			if (model.getRowMarkersForCell(file, row, column).some(m => m.codes.includes(codeDef.name))) {
+			if (model.getRowMarkersForCell(file, row, column).some(m => hasCode(m.codes, codeDef.id))) {
 				count++;
 			}
 		}
@@ -128,16 +136,20 @@ export function openBatchCodingPopover(
 		registry: model.registry,
 		getActiveCodes: () => [...fullyActiveCodes],
 		addCode: (name) => {
+			let def = model.registry.getByName(name);
+			if (!def) def = model.registry.create(name);
 			for (const row of filteredRows) {
 				const m = model.findOrCreateRowMarker(file, row, column);
-				model.addCodeToMarker(m.id, name);
+				model.addCodeToMarker(m.id, def.id);
 			}
 			gridApi.refreshCells({ force: true });
 		},
 		removeCode: (name) => {
+			const def = model.registry.getByName(name);
+			if (!def) return;
 			for (const row of filteredRows) {
 				const m = model.findOrCreateRowMarker(file, row, column);
-				model.removeCodeFromMarker(m.id, name, true);
+				model.removeCodeFromMarker(m.id, def.id, true);
 			}
 			gridApi.refreshCells({ force: true });
 		},
@@ -165,8 +177,8 @@ export function openBatchCodingPopover(
 				for (const row of filteredRows) {
 					const markers = model.getRowMarkersForCell(file, row, column);
 					for (const m of markers) {
-						for (const code of [...m.codes]) {
-							model.removeCodeFromMarker(m.id, code);
+						for (const ca of [...m.codes]) {
+							model.removeCodeFromMarker(m.id, ca.codeId);
 						}
 					}
 				}

@@ -39,8 +39,11 @@ export function addCodeAction(
 	codeName: string,
 	color?: string
 ): boolean {
+	// Resolve name → id via registry; create if needed
+	let def = model.registry.getByName(codeName);
+	if (!def) def = model.registry.create(codeName, color);
 	const marker = model.findOrCreateMarkerAtSelection(snapshot);
-	return model.addCodeToMarker(marker.id, codeName, color);
+	return model.addCodeToMarker(marker.id, def.id, color);
 }
 
 export function addCodeWithDetailsAction(
@@ -50,8 +53,10 @@ export function addCodeWithDetailsAction(
 	color: string,
 	description: string
 ): boolean {
+	let def = model.registry.getByName(codeName);
+	if (!def) def = model.registry.create(codeName, color);
 	const marker = model.findOrCreateMarkerAtSelection(snapshot);
-	const added = model.addCodeToMarker(marker.id, codeName, color);
+	const added = model.addCodeToMarker(marker.id, def.id, color);
 	if (description) {
 		model.setCodeDescription(codeName, description);
 	}
@@ -65,10 +70,12 @@ export function removeCodeAction(
 ): boolean {
 	const marker = getTargetMarker(model, snapshot);
 	if (!marker) return false;
+	const def = model.registry.getByName(codeName);
+	if (!def) return false;
 	// In hover mode, keep the empty marker alive so the menu stays coherent;
 	// cleanup happens when the tooltip closes.
 	const keepIfEmpty = !!snapshot.hoverMarkerId;
-	return model.removeCodeFromMarker(marker.id, codeName, keepIfEmpty);
+	return model.removeCodeFromMarker(marker.id, def.id, keepIfEmpty);
 }
 
 export function removeAllCodesAction(
@@ -86,7 +93,10 @@ export function getCodesAtSelection(
 ): string[] {
 	const marker = getTargetMarker(model, snapshot);
 	if (!marker) return [];
-	return [...marker.codes];
+	// Resolve codeIds → names for UI display
+	return marker.codes
+		.map(c => model.registry.getById(c.codeId)?.name)
+		.filter((n): n is string => !!n);
 }
 
 /**

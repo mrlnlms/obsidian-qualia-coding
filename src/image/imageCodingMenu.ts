@@ -41,9 +41,22 @@ export class CodingMenu {
 
 		const adapter: CodingPopoverAdapter = {
 			registry: this.model.registry,
-			getActiveCodes: () => [...(this.model.findMarkerById(markerId)?.codes ?? [])],
-			addCode: (name) => this.model.addCodeToMarker(markerId, name),
-			removeCode: (name) => this.model.removeCodeFromMarker(markerId, name, true),
+			getActiveCodes: () => {
+				const m = this.model.findMarkerById(markerId);
+				if (!m) return [];
+				return m.codes
+					.map(c => this.model.registry.getById(c.codeId)?.name)
+					.filter((n): n is string => !!n);
+			},
+			addCode: (name) => {
+				let def = this.model.registry.getByName(name);
+				if (!def) def = this.model.registry.create(name);
+				this.model.addCodeToMarker(markerId, def.id);
+			},
+			removeCode: (name) => {
+				const def = this.model.registry.getByName(name);
+				if (def) this.model.removeCodeFromMarker(markerId, def.id, true);
+			},
 			getMemo: () => this.model.findMarkerById(markerId)?.memo ?? '',
 			setMemo: (value) => {
 				const m = this.model.findMarkerById(markerId);
