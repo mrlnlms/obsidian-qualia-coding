@@ -292,3 +292,26 @@ describe('CodeDefinitionRegistry — hierarchy serialization', () => {
 		expect(restored.getById('leg-1')!.childrenOrder).toEqual([]);
 	});
 });
+
+// ── create() with parentId ──────────────────────────────────
+
+describe('CodeDefinitionRegistry — create with parentId', () => {
+	let registry: CodeDefinitionRegistry;
+
+	beforeEach(() => {
+		registry = new CodeDefinitionRegistry();
+	});
+
+	it('creates child code with parentId set and parent childrenOrder updated', () => {
+		const parent = registry.create('Parent');
+		const child = registry.create('Child', undefined, undefined, parent.id);
+		expect(child.parentId).toBe(parent.id);
+		expect(registry.getById(parent.id)!.childrenOrder).toContain(child.id);
+	});
+
+	it('ignores invalid parentId silently (code created without parent)', () => {
+		const code = registry.create('Orphan', undefined, undefined, 'nonexistent');
+		expect(code.parentId).toBeUndefined();
+		expect(code.childrenOrder).toEqual([]);
+	});
+});

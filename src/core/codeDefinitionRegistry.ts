@@ -55,7 +55,7 @@ export class CodeDefinitionRegistry {
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	create(name: string, color?: string, description?: string): CodeDefinition {
+	create(name: string, color?: string, description?: string, parentId?: string): CodeDefinition {
 		// If already exists, return existing
 		const existing = this.getByName(name);
 		if (existing) return existing;
@@ -74,6 +74,16 @@ export class CodeDefinitionRegistry {
 
 		this.definitions.set(def.id, def);
 		this.nameIndex.set(def.name, def.id);
+
+		// Wire parent if valid
+		if (parentId) {
+			const parent = this.definitions.get(parentId);
+			if (parent) {
+				def.parentId = parentId;
+				parent.childrenOrder.push(def.id);
+			}
+		}
+
 		for (const fn of this.onMutateListeners) fn();
 		return def;
 	}
