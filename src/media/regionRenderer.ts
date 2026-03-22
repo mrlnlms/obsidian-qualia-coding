@@ -2,6 +2,7 @@ import type { WaveformRenderer } from './waveformRenderer';
 import type { MediaMarker, MediaCodingModelLike } from './mediaTypes';
 import type { Region } from "wavesurfer.js/dist/plugins/regions";
 import { formatTime } from './formatTime';
+import { getCodeIds } from '../core/codeApplicationHelpers';
 
 export class MediaRegionRenderer {
 	private renderer: WaveformRenderer;
@@ -36,7 +37,7 @@ export class MediaRegionRenderer {
 	renderMarkerRegion(marker: MediaMarker): void {
 		this.removeRegion(marker.id);
 
-		const baseColor = marker.colorOverride ?? this.model.registry.getColorForCodes(marker.codes);
+		const baseColor = marker.colorOverride ?? this.model.registry.getColorForCodeIds(getCodeIds(marker.codes));
 		const alpha = Math.round(this.model.settings.regionOpacity * 255).toString(16).padStart(2, '0');
 		const fallbackAlpha = Math.round(this.model.settings.regionOpacity * 0.6 * 255).toString(16).padStart(2, '0');
 		const fallback = this.renderer.readAccentHex() + fallbackAlpha;
@@ -46,9 +47,11 @@ export class MediaRegionRenderer {
 		if (this.model.settings.showLabelsOnRegions && marker.codes.length > 0) {
 			content = document.createElement('div');
 			content.className = 'codemarker-media-region-label';
-			content.title = marker.codes.join(', ') + '\n' + formatTime(marker.from) + ' – ' + formatTime(marker.to);
+			const codeNames = marker.codes.map(c => this.model.registry.getById(c.codeId)?.name ?? c.codeId);
+			content.title = codeNames.join(', ') + '\n' + formatTime(marker.from) + ' – ' + formatTime(marker.to);
 
-			for (const codeName of marker.codes) {
+			for (const ca of marker.codes) {
+				const codeName = this.model.registry.getById(ca.codeId)?.name ?? ca.codeId;
 				const chip = document.createElement('span');
 				chip.textContent = codeName;
 				chip.className = 'codemarker-media-chip';
@@ -144,7 +147,7 @@ export class MediaRegionRenderer {
 		if (duration <= 0 || markers.length === 0) return;
 
 		for (const marker of markers) {
-			const baseColor = marker.colorOverride ?? this.model.registry.getColorForCodes(marker.codes);
+			const baseColor = marker.colorOverride ?? this.model.registry.getColorForCodeIds(getCodeIds(marker.codes));
 			const color = baseColor ?? this.renderer.readAccentHex();
 			const left = (marker.from / duration) * 100;
 			const width = ((marker.to - marker.from) / duration) * 100;
@@ -154,7 +157,8 @@ export class MediaRegionRenderer {
 			bar.style.left = `${left}%`;
 			bar.style.width = `${Math.max(width, 0.3)}%`;
 			bar.style.backgroundColor = color;
-			bar.title = marker.codes.join(', ') + ' · ' + formatTime(marker.from) + ' – ' + formatTime(marker.to);
+			const codeNames = marker.codes.map(c => this.model.registry.getById(c.codeId)?.name ?? c.codeId);
+			bar.title = codeNames.join(', ') + ' · ' + formatTime(marker.from) + ' – ' + formatTime(marker.to);
 			overlay.appendChild(bar);
 		}
 	}

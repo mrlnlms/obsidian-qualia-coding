@@ -81,7 +81,7 @@ export function renderListContent(
 	// List
 	const list = contentZone.createDiv({ cls: 'codemarker-explorer-list' });
 	for (const def of filteredCodes) {
-		const count = counts.get(def.name) ?? 0;
+		const count = counts.get(def.id) ?? 0;
 		const row = list.createDiv({ cls: 'codemarker-explorer-row' });
 
 		const swatch = row.createSpan({ cls: 'codemarker-detail-swatch' });
@@ -101,12 +101,12 @@ export function renderListContent(
 	}
 }
 
-/** Count how many segments reference each code name. */
+/** Count how many segments reference each code (by codeId). */
 export function countSegmentsPerCode(markers: BaseMarker[]): Map<string, number> {
 	const counts = new Map<string, number>();
 	for (const marker of markers) {
-		for (const code of marker.codes) {
-			counts.set(code, (counts.get(code) ?? 0) + 1);
+		for (const ca of marker.codes) {
+			counts.set(ca.codeId, (counts.get(ca.codeId) ?? 0) + 1);
 		}
 	}
 	return counts;

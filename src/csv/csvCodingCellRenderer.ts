@@ -4,6 +4,7 @@ import type { CsvCodingModel } from './csvCodingModel';
 import type { GridApi } from 'ag-grid-community';
 import type { CsvViewRef } from './columnToggleModal';
 import { openCsvCodingPopover } from './csvCodingMenu';
+import { hasCode } from '../core/codeApplicationHelpers';
 
 /** Cell renderer for cod-seg and cod-frow columns — tag chips + action button */
 export function codingCellRenderer(params: any): HTMLElement {
@@ -30,12 +31,13 @@ export function codingCellRenderer(params: any): HTMLElement {
 	tagsArea.className = 'csv-tag-area';
 
 	if (model) {
-		const codes = isFrow
+		const codeIds = isFrow
 			? model.getCodesForCell(file, row, sourceColumn, 'row')
 			: model.getCodesForCell(file, row, sourceColumn, 'segment');
 
-		for (const codeName of codes) {
-			const def = model.registry.getByName(codeName);
+		for (const codeId of codeIds) {
+			const def = model.registry.getById(codeId);
+			const codeName = def?.name ?? codeId;
 			const color = def?.color ?? '#888';
 
 			const chip = document.createElement('span');
@@ -56,7 +58,7 @@ export function codingCellRenderer(params: any): HTMLElement {
 				const markers = isFrow
 					? model.getRowMarkersForCell(file, row, sourceColumn)
 					: model.getSegmentMarkersForCell(file, row, sourceColumn);
-				const marker = markers.find(m => m.codes.includes(codeName));
+				const marker = markers.find(m => hasCode(m.codes, codeId));
 				if (marker) {
 					// Dispatch detail event for sidebar
 					app?.workspace?.trigger('qualia-csv:detail', {
@@ -80,8 +82,8 @@ export function codingCellRenderer(params: any): HTMLElement {
 					e.stopPropagation();
 					const markers = model.getRowMarkersForCell(file, row, sourceColumn);
 					for (const m of markers) {
-						if (m.codes.includes(codeName)) {
-							model.removeCodeFromMarker(m.id, codeName);
+						if (hasCode(m.codes, codeId)) {
+							model.removeCodeFromMarker(m.id, codeId);
 						}
 					}
 					gridApi.refreshCells({ force: true });

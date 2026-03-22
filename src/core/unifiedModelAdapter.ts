@@ -83,10 +83,6 @@ export class UnifiedModelAdapter implements SidebarModelInterface {
 		return false;
 	}
 
-	renameCode(oldName: string, newName: string): void {
-		for (const m of this.models) m.renameCode(oldName, newName);
-	}
-
 	deleteCode(codeName: string): void {
 		// Each sub-model calls saveMarkers() internally, which routes through
 		// DataManager.setSection() → markDirty(). markDirty() debounces disk

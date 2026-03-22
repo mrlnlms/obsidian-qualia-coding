@@ -251,7 +251,8 @@ export class MediaViewCore {
         const markerId = this.regionRenderer?.getMarkerIdForRegion(region.id);
         if (!markerId) return;
         const marker = this.model.findMarkerById(markerId);
-        this.model.setHoverState(markerId, marker?.codes[0] ?? null);
+        const firstCodeName = marker?.codes[0] ? (this.model.registry.getById(marker.codes[0].codeId)?.name ?? null) : null;
+        this.model.setHoverState(markerId, firstCodeName);
       });
       regionsPlugin.on('region-mouseleave', () => {
         this.model.setHoverState(null, null);

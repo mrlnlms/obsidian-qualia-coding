@@ -138,7 +138,8 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		for (const fileId of this.model.getAllFileIds()) {
 			const markers = this.model.getMarkersForFile(fileId);
 			for (const marker of markers) {
-				for (const codeName of marker.codes) {
+				for (const ca of marker.codes) {
+					const codeName = this.model.registry.getById(ca.codeId)?.name ?? ca.codeId;
 					if (!index.has(codeName)) {
 						index.set(codeName, new Map());
 					}
@@ -302,7 +303,8 @@ export abstract class BaseCodeExplorerView extends ItemView {
 					matchEl.textContent = label;
 					matchEl.addEventListener('click', () => this.navigateToMarker(marker));
 					matchEl.addEventListener('mouseenter', () => {
-						this.model.setHoverState(marker.id, marker.codes[0] ?? null);
+						const firstCodeName = marker.codes[0] ? (this.model.registry.getById(marker.codes[0].codeId)?.name ?? null) : null;
+						this.model.setHoverState(marker.id, firstCodeName);
 					});
 					matchEl.addEventListener('mouseleave', () => {
 						this.model.setHoverState(null, null);

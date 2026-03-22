@@ -12,6 +12,7 @@ import type { Marker, CodeMarkerModel } from '../markdown/models/codeMarkerModel
 import type { SegmentMarker } from './csvCodingTypes';
 import type { CsvCodingModel } from './csvCodingModel';
 import type { GridApi } from 'ag-grid-community';
+import { getCodeIds } from '../core/codeApplicationHelpers';
 
 export interface SegmentEditorContext {
 	file: string;
@@ -285,7 +286,7 @@ export class SegmentEditor {
 					from: offsetToPos(seg.from),
 					to: offsetToPos(seg.to),
 				},
-				color: this.host.csvModel.registry.getColorForCodes(seg.codes) ?? '#6200EE',
+				color: this.host.csvModel.registry.getColorForCodeIds(getCodeIds(seg.codes)) ?? '#6200EE',
 				codes: [...seg.codes],
 				createdAt: seg.createdAt,
 				updatedAt: seg.updatedAt,

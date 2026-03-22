@@ -12,6 +12,7 @@ import { Rect, Ellipse, Polygon, Point, FabricObject, Canvas } from 'fabric';
 import type { ImageCodingModel } from '../imageCodingModel';
 import type { ImageMarker, NormalizedRect, NormalizedPolygon, NormalizedCoords } from '../imageCodingTypes';
 import type { FabricCanvasState } from './fabricCanvas';
+import { getCodeIds } from '../../core/codeApplicationHelpers';
 
 /** Marker color when no codes assigned */
 const DEFAULT_FILL = 'rgba(59, 130, 246, 0.2)';
@@ -82,7 +83,7 @@ export class RegionManager {
 	// ─── Style ───
 
 	private getStyleForMarker(marker: ImageMarker): { fill: string; stroke: string } {
-		const color = this.model.registry.getColorForCodes(marker.codes);
+		const color = this.model.registry.getColorForCodeIds(getCodeIds(marker.codes));
 		if (color) {
 			return {
 				fill: color + '33', // ~20% opacity

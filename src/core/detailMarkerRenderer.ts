@@ -8,6 +8,7 @@
 import { setIcon } from 'obsidian';
 import type { BaseMarker, SidebarModelInterface } from './types';
 import { renderBackButton } from './detailCodeRenderer';
+import { getCodeIds } from './codeApplicationHelpers';
 
 export interface MarkerRendererCallbacks {
 	getMarkerText(marker: BaseMarker): string | null;
@@ -110,7 +111,7 @@ function renderColorSection(
 	colorSection.createEl('h6', { text: 'Color' });
 	const colorRow = colorSection.createDiv({ cls: 'codemarker-detail-color-row' });
 
-	const inheritedColor = model.registry.getColorForCodes(marker.codes) ?? '#888';
+	const inheritedColor = model.registry.getColorForCodeIds(getCodeIds(marker.codes)) ?? '#888';
 	const currentColor = marker.colorOverride ?? inheritedColor;
 
 	const swatch = colorRow.createSpan({ cls: 'codemarker-detail-swatch codemarker-detail-swatch-editable' });
@@ -164,18 +165,19 @@ function renderCodesSection(
 	const codesSection = container.createDiv({ cls: 'codemarker-detail-section' });
 	codesSection.createEl('h6', { text: 'Codes' });
 	const chipList = codesSection.createDiv({ cls: 'codemarker-detail-chips' });
-	for (const code of marker.codes) {
-		const codeDef = model.registry.getByName(code);
+	for (const ca of marker.codes) {
+		const codeDef = model.registry.getById(ca.codeId);
+		const codeName = codeDef?.name ?? ca.codeId;
 		const codeColor = codeDef?.color ?? '#888';
 		const chip = chipList.createEl('span', { cls: 'codemarker-detail-chip' });
 		const dot = chip.createSpan({ cls: 'codemarker-detail-chip-dot' });
 		dot.style.backgroundColor = codeColor;
-		chip.createSpan({ text: code });
-		if (code === activeCodeName) {
+		chip.createSpan({ text: codeName });
+		if (codeName === activeCodeName) {
 			chip.addClass('is-active');
 		}
 		chip.addEventListener('click', () => {
-			callbacks.showCodeDetail(code);
+			callbacks.showCodeDetail(codeName);
 		});
 	}
 }

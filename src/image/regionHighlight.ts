@@ -88,7 +88,9 @@ export function setupRegionHighlight(
     // Notify model so sidebar items highlight
     suppressModelHover = true;
     const marker = model.findMarkerById(markerId);
-    model.setHoverState(markerId, marker?.codes[0] ?? null);
+    const firstCodeId = marker?.codes[0]?.codeId;
+    const firstCodeName = firstCodeId ? (model.registry.getById(firstCodeId)?.name ?? null) : null;
+    model.setHoverState(markerId, firstCodeName);
     suppressModelHover = false;
   }
 

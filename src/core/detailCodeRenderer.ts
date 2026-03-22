@@ -7,6 +7,7 @@
 
 import { setIcon } from 'obsidian';
 import type { BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
+import { hasCode } from './codeApplicationHelpers';
 
 export interface CodeRendererCallbacks {
 	getMarkerLabel(marker: BaseMarker): string;
@@ -63,7 +64,7 @@ export function renderCodeDetail(
 			model.saveMarkers();
 			const affectedFiles = new Set(
 				model.getAllMarkers()
-					.filter(m => m.codes.includes(codeName))
+					.filter(m => hasCode(m.codes, def.id))
 					.map(m => m.fileId)
 			);
 			for (const fileId of affectedFiles) {
@@ -82,8 +83,10 @@ export function renderCodeDetail(
 	renderCodeDescription(container, def, model, callbacks);
 
 	// All markers with this code (across all files)
-	const allMarkers = model.getAllMarkers()
-		.filter(m => m.codes.includes(codeName));
+	const codeId = def?.id;
+	const allMarkers = codeId
+		? model.getAllMarkers().filter(m => hasCode(m.codes, codeId))
+		: [];
 
 	if (allMarkers.length === 0) {
 		container.createEl('p', { text: 'No segments yet.', cls: 'codemarker-detail-empty' });

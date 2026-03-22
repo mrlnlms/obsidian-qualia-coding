@@ -8,6 +8,7 @@
 import { FabricText, FabricObject, Canvas } from "fabric";
 import type { RegionManager } from "./canvas/regionManager";
 import type { ImageCodingModel } from "./imageCodingModel";
+import { getCodeIds } from "../core/codeApplicationHelpers";
 
 /** Check if a Fabric object is a Qualia label (non-interactive text overlay). */
 export function isQualiaLabel(obj: FabricObject): boolean {
@@ -40,8 +41,8 @@ export class RegionLabels {
       return;
     }
 
-    const text = marker.codes.join(", ");
-    const color = this.model.registry.getColorForCodes(marker.codes) || "#6200EE";
+    const text = marker.codes.map(c => this.model.registry.getById(c.codeId)?.name ?? c.codeId).join(", ");
+    const color = this.model.registry.getColorForCodeIds(getCodeIds(marker.codes)) || "#6200EE";
 
     let label = this.labels.get(markerId);
     if (label) {
