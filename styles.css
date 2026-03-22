@@ -4144,3 +4144,35 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   background: var(--background-primary);
   color: var(--text-normal);
 }
+
+/* ------------------------------------------------------------------
+   Merge Modal
+   ------------------------------------------------------------------ */
+
+.codebook-merge-modal { min-width: 400px; }
+.codebook-merge-source-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.codebook-merge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-small);
+}
+.codebook-merge-chip-count { color: var(--text-muted); }
+.codebook-merge-chip-remove { cursor: pointer; color: var(--text-muted); }
+.codebook-merge-chip-remove:hover { color: var(--text-error); }
+.codebook-merge-name-input { width: 100%; margin: 4px 0; }
+.codebook-merge-impact { margin: 12px 0; font-size: var(--font-ui-small); color: var(--text-muted); }
+.codebook-merge-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.codebook-merge-search-results { max-height: 200px; overflow-y: auto; }
+.codebook-merge-search-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+.codebook-merge-search-item:hover { background: var(--background-modifier-hover); }

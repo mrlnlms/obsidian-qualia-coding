@@ -100,6 +100,13 @@ export class MergeModal extends Modal {
 		this.onConfirm = options.onConfirm;
 	}
 
+	/** Pre-add a source code before opening (used by drag-drop merge). */
+	addSource(codeId: string): void {
+		if (codeId !== this.destinationId) {
+			this.sourceIds.add(codeId);
+		}
+	}
+
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.addClass('codebook-merge-modal');

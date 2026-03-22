@@ -20,6 +20,7 @@ import { renderMarkerDetail } from './detailMarkerRenderer';
 import type { CodebookTreeState } from './codebookTreeRenderer';
 import { showCodeContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
 import { setupDragDrop } from './codebookDragDrop';
+import { MergeModal, executeMerge } from './mergeModal';
 
 export abstract class BaseCodeDetailView extends ItemView {
 	protected model: SidebarModelInterface;
@@ -166,8 +167,27 @@ export abstract class BaseCodeDetailView extends ItemView {
 						this.model.saveMarkers();
 						if (newParentId) this.treeExpanded.add(newParentId);
 					},
-					onMergeDrop: (_sourceId, _targetId) => {
-						new Notice('Merge: will be available in Phase B');
+					onMergeDrop: (sourceId, targetId) => {
+						const modal = new MergeModal({
+							app: this.app,
+							registry: this.model.registry,
+							initialDestinationId: targetId,
+							allMarkers: this.model.getAllMarkers(),
+							onConfirm: (destId, srcIds, name, parentId) => {
+								executeMerge({
+									destinationId: destId,
+									sourceIds: srcIds,
+									registry: this.model.registry,
+									markers: this.model.getAllMarkers(),
+									destinationName: name,
+									destinationParentId: parentId,
+								});
+								this.model.saveMarkers();
+								this.showList();
+							},
+						});
+						modal.addSource(sourceId);
+						modal.open();
 					},
 					setDragMode: (mode) => {
 						this.treeDragMode = mode;
@@ -218,8 +238,25 @@ export abstract class BaseCodeDetailView extends ItemView {
 	private contextMenuCallbacks(): ContextMenuCallbacks {
 		return {
 			showCodeDetail: (codeId: string) => this.showCodeDetail(codeId),
-			openMergeModal: (_codeId: string) => {
-				new Notice('Merge: will be available in Phase B');
+			openMergeModal: (codeId: string) => {
+				new MergeModal({
+					app: this.app,
+					registry: this.model.registry,
+					initialDestinationId: codeId,
+					allMarkers: this.model.getAllMarkers(),
+					onConfirm: (destId, srcIds, name, parentId) => {
+						executeMerge({
+							destinationId: destId,
+							sourceIds: srcIds,
+							registry: this.model.registry,
+							markers: this.model.getAllMarkers(),
+							destinationName: name,
+							destinationParentId: parentId,
+						});
+						this.model.saveMarkers();
+						this.showList();
+					},
+				}).open();
 			},
 			promptRename: (codeId: string) => {
 				const def = this.model.registry.getById(codeId);
