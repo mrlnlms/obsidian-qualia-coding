@@ -121,13 +121,16 @@ export function openCodingPopover(
 		rawClose = () => { container.empty(); };
 	} else {
 		// Standard mode: create floating popover attached to document.body
-		const popover = createPopover(options.className ?? 'codemarker-popover');
+		// onClose is passed to createPopover so ALL close paths (ESC, click-outside, replace) call it
+		const popover = createPopover(
+			options.className ?? 'codemarker-popover',
+			() => options.onClose?.(),
+		);
 		container = popover.container;
 		rawClose = popover.close;
 	}
 
 	const close = () => {
-		options.onClose?.();
 		rawClose();
 	};
 

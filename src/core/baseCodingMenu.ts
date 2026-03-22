@@ -24,7 +24,7 @@ const activePopovers = new Map<string, PopoverHandle>();
  * Returns the container element and a close() function that removes it
  * and cleans up outside-click / Escape listeners.
  */
-export function createPopover(className: string): PopoverHandle {
+export function createPopover(className: string, onClose?: () => void): PopoverHandle {
 	// Close previous popover properly (removes document listeners)
 	activePopovers.get(className)?.close();
 
@@ -40,6 +40,7 @@ export function createPopover(className: string): PopoverHandle {
 
 	const close = () => {
 		if (listenTimer) { clearTimeout(listenTimer); listenTimer = null; }
+		onClose?.();
 		container.remove();
 		if (outsideHandler) document.removeEventListener('mousedown', outsideHandler);
 		if (escHandler) document.removeEventListener('keydown', escHandler);
@@ -64,6 +65,11 @@ export function createPopover(className: string): PopoverHandle {
 	const handle = { container, close };
 	activePopovers.set(className, handle);
 	return handle;
+}
+
+/** Close the active popover for a given class name (if any). */
+export function closeActivePopover(className: string): void {
+	activePopovers.get(className)?.close();
 }
 
 // ── Code input ───────────────────────────────────────────────
