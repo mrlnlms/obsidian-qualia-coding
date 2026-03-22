@@ -373,8 +373,13 @@ export function consolidate(
 export function extractCodes(raw: unknown): string[] {
   if (!raw) return [];
   if (Array.isArray(raw)) {
-    // Could be string[] or {name: string}[]
-    return raw.map((c) => (typeof c === "string" ? c : c?.name ?? "")).filter(Boolean);
+    // Handles string[] (legacy/consolidated), {codeId: string}[] (CodeApplication), or {name: string}[]
+    return raw.map((c) => {
+      if (typeof c === "string") return c;
+      if (c && typeof c === "object" && "codeId" in c) return (c as { codeId: string }).codeId;
+      if (c && typeof c === "object" && "name" in c) return (c as { name: string }).name;
+      return "";
+    }).filter(Boolean);
   }
   return [];
 }

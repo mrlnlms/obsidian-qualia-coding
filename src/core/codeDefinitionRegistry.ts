@@ -27,7 +27,6 @@ export class CodeDefinitionRegistry {
 	private nameIndex: Map<string, string> = new Map(); // name → id
 	private nextPaletteIndex: number = 0;
 	private onMutateListeners: Set<() => void> = new Set();
-	private onRenamed: ((oldName: string, newName: string) => void) | null = null;
 
 	/** Register a callback invoked on every mutation (create/update/delete). */
 	addOnMutate(fn: () => void): void {
@@ -37,11 +36,6 @@ export class CodeDefinitionRegistry {
 	/** Unregister a previously registered mutation callback. */
 	removeOnMutate(fn: () => void): void {
 		this.onMutateListeners.delete(fn);
-	}
-
-	/** Register a callback invoked when a code name changes. Used to propagate renames to markers. */
-	setOnRenamed(fn: (oldName: string, newName: string) => void): void {
-		this.onRenamed = fn;
 	}
 
 	// --- CRUD ---
@@ -92,11 +86,9 @@ export class CodeDefinitionRegistry {
 			const collision = this.nameIndex.get(changes.name);
 			if (collision !== undefined) return false;
 
-			const oldName = def.name;
-			this.nameIndex.delete(oldName);
+			this.nameIndex.delete(def.name);
 			def.name = changes.name;
 			this.nameIndex.set(def.name, def.id);
-			this.onRenamed?.(oldName, changes.name);
 		}
 		if (changes.color !== undefined) {
 			def.color = changes.color;
