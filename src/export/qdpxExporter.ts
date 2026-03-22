@@ -1,6 +1,8 @@
 import { escapeXml, xmlAttr, xmlDeclaration } from './xmlBuilder';
 import { buildCodebookXml } from './qdcExporter';
+import { buildQdcFile } from './qdcExporter';
 import { zipSync, strToU8 } from 'fflate';
+import type { App, Vault, TFile } from 'obsidian';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CodeApplication } from '../core/types';
 import type { Marker } from '../markdown/models/codeMarkerModel';
@@ -8,6 +10,7 @@ import type { MediaMarker } from '../media/mediaTypes';
 import type { ImageMarker } from '../image/imageCodingTypes';
 import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
 import { lineChToOffset, mediaToMs, imageToPixels, pdfShapeToRect } from './coordConverters';
+import type { DataManager } from '../core/dataManager';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -293,4 +296,177 @@ export function createQdpxZip(
     files[path] = toU8(data);
   }
   return zipSync(files);
+}
+
+// ── Export orchestration ──
+
+export interface ExportOptions {
+  format: 'qdc' | 'qdpx';
+  includeSources: boolean;
+  fileName: string;
+  vaultName: string;
+  pluginVersion: string;
+}
+
+export interface ExportResult {
+  data: Uint8Array | string;
+  fileName: string;
+  warnings: string[];
+}
+
+export async function exportProject(
+  app: App,
+  dataManager: DataManager,
+  registry: CodeDefinitionRegistry,
+  options: ExportOptions,
+): Promise<ExportResult> {
+  if (options.format === 'qdc') {
+    return { data: buildQdcFile(registry), fileName: options.fileName, warnings: [] };
+  }
+
+  const guidMap = new Map<string, string>();
+  const notes: string[] = [];
+  const sourceFiles = new Map<string, Uint8Array>();
+  const allSourcesXml: string[] = [];
+  const warnings: string[] = [];
+
+  // --- Markdown ---
+  const mdData = dataManager.section('markdown');
+  for (const [fileId, markers] of Object.entries(mdData.markers)) {
+    if (markers.length === 0) continue;
+    const file = app.vault.getAbstractFileByPath(fileId);
+    if (!file || !('extension' in file)) {
+      warnings.push(`Source not found: ${fileId}`);
+      continue;
+    }
+    const content = await app.vault.cachedRead(file as TFile);
+    const srcGuid = uuidV4();
+    const txtGuid = uuidV4();
+    const xml = buildTextSourceXml(fileId, markers, content, guidMap, notes, srcGuid, txtGuid, options.includeSources);
+    if (xml) {
+      allSourcesXml.push(xml);
+      if (options.includeSources) {
+        sourceFiles.set(`sources/${txtGuid}.txt`, strToU8(content));
+      }
+    }
+  }
+
+  // --- PDF ---
+  const pdfData = dataManager.section('pdf');
+  const pdfByFile = groupByFileId(pdfData.markers, pdfData.shapes);
+  for (const [fileId, { textMarkers, shapeMarkers }] of pdfByFile) {
+    const textOffsets = new Map<string, { start: number; end: number }>();
+    for (const m of textMarkers) {
+      textOffsets.set(m.id, { start: m.beginOffset, end: m.endOffset });
+    }
+    if (textMarkers.length > 0) {
+      warnings.push(`PDF text offsets for ${fileId} are approximate (per-content-item, not absolute)`);
+    }
+    const pageDims: Record<number, { width: number; height: number }> | null = null;
+    if (shapeMarkers.length > 0) {
+      warnings.push(`PDF shape markers for ${fileId} skipped (page dimensions not available at export time)`);
+    }
+    const xml = buildPdfSourceXml(fileId, textMarkers, shapeMarkers, pageDims, textOffsets, guidMap, notes, options.includeSources);
+    if (xml) allSourcesXml.push(xml);
+    if (options.includeSources) {
+      await addSourceFile(app.vault, fileId, sourceFiles, guidMap);
+    }
+  }
+
+  // --- Image ---
+  const imgData = dataManager.section('image');
+  const imgByFile = groupMarkersByFileId(imgData.markers);
+  for (const [fileId, markers] of imgByFile) {
+    const dims = await getImageDimensions(app.vault, fileId);
+    if (!dims) {
+      warnings.push(`Cannot read dimensions: ${fileId}`);
+      continue;
+    }
+    const xml = buildImageSourceXml(fileId, markers, dims.width, dims.height, guidMap, notes, options.includeSources);
+    if (xml) allSourcesXml.push(xml);
+    if (options.includeSources) {
+      await addSourceFile(app.vault, fileId, sourceFiles, guidMap);
+    }
+  }
+
+  // --- Audio ---
+  const audioData = dataManager.section('audio');
+  for (const audioFile of audioData.files) {
+    if (audioFile.markers.length === 0) continue;
+    const xml = buildAudioSourceXml(audioFile.path, audioFile.markers, guidMap, notes, options.includeSources);
+    if (xml) allSourcesXml.push(xml);
+    if (options.includeSources) {
+      await addSourceFile(app.vault, audioFile.path, sourceFiles, guidMap);
+    }
+  }
+
+  // --- Video ---
+  const videoData = dataManager.section('video');
+  for (const videoFile of videoData.files) {
+    if (videoFile.markers.length === 0) continue;
+    const xml = buildVideoSourceXml(videoFile.path, videoFile.markers, guidMap, notes, options.includeSources);
+    if (xml) allSourcesXml.push(xml);
+    if (options.includeSources) {
+      await addSourceFile(app.vault, videoFile.path, sourceFiles, guidMap);
+    }
+  }
+
+  const sourcesXml = allSourcesXml.join('\n');
+  const notesXml = notes.join('\n');
+  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, options.vaultName, options.pluginVersion);
+  const zipData = createQdpxZip(projectXml, sourceFiles);
+
+  return { data: zipData, fileName: options.fileName, warnings };
+}
+
+// ── Helpers ──
+
+function groupByFileId(textMarkers: PdfMarker[], shapeMarkers: PdfShapeMarker[]) {
+  const map = new Map<string, { textMarkers: PdfMarker[]; shapeMarkers: PdfShapeMarker[] }>();
+  for (const m of textMarkers) {
+    if (!map.has(m.fileId)) map.set(m.fileId, { textMarkers: [], shapeMarkers: [] });
+    map.get(m.fileId)!.textMarkers.push(m);
+  }
+  for (const m of shapeMarkers) {
+    if (!map.has(m.fileId)) map.set(m.fileId, { textMarkers: [], shapeMarkers: [] });
+    map.get(m.fileId)!.shapeMarkers.push(m);
+  }
+  return map;
+}
+
+function groupMarkersByFileId<T extends { fileId: string }>(markers: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const m of markers) {
+    if (!map.has(m.fileId)) map.set(m.fileId, []);
+    map.get(m.fileId)!.push(m);
+  }
+  return map;
+}
+
+async function addSourceFile(
+  vault: Vault, filePath: string,
+  sourceFiles: Map<string, Uint8Array>,
+  guidMap: Map<string, string>,
+): Promise<void> {
+  const file = vault.getAbstractFileByPath(filePath);
+  if (!file || !('extension' in file)) return;
+  const data = await vault.readBinary(file as TFile);
+  const ext = filePath.split('.').pop() || '';
+  const guid = guidMap.get(`source:${filePath}`) || uuidV4();
+  sourceFiles.set(`sources/${guid}.${ext}`, new Uint8Array(data));
+}
+
+async function getImageDimensions(vault: Vault, filePath: string): Promise<{ width: number; height: number } | null> {
+  try {
+    const file = vault.getAbstractFileByPath(filePath);
+    if (!file || !('extension' in file)) return null;
+    const data = await vault.readBinary(file as TFile);
+    const blob = new Blob([data]);
+    const bitmap = await createImageBitmap(blob);
+    const result = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return result;
+  } catch {
+    return null;
+  }
 }
