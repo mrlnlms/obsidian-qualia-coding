@@ -1,4 +1,7 @@
 import { escapeXml, xmlAttr } from './xmlBuilder';
+import type { CodeApplication } from '../core/types';
+import type { Marker } from '../markdown/models/codeMarkerModel';
+import { lineChToOffset } from './coordConverters';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -23,4 +26,67 @@ export function ensureGuid(id: string, guidMap: Map<string, string>): string {
   const guid = uuidV4();
   guidMap.set(id, guid);
   return guid;
+}
+
+/** Build <Coding><CodeRef/></Coding> elements for all codes on a selection. */
+export function buildCodingXml(codes: CodeApplication[], guidMap: Map<string, string>, createdAt?: number): string {
+  const dateStr = createdAt ? new Date(createdAt).toISOString() : new Date().toISOString();
+  return codes.map(ca => {
+    const codingGuid = uuidV4();
+    const codeGuid = ensureGuid(ca.codeId, guidMap);
+    return `<Coding ${xmlAttr('guid', codingGuid)} ${xmlAttr('creationDateTime', dateStr)}>\n<CodeRef ${xmlAttr('targetGUID', codeGuid)}/>\n</Coding>`;
+  }).join('\n');
+}
+
+export function buildNoteXml(guid: string, name: string, text: string): string {
+  return `<Note ${xmlAttr('guid', guid)} ${xmlAttr('name', name)} ${xmlAttr('creationDateTime', new Date().toISOString())}>\n<PlainTextContent>${escapeXml(text)}</PlainTextContent>\n</Note>`;
+}
+
+export function buildNoteRefXml(targetGuid: string): string {
+  return `<NoteRef ${xmlAttr('targetGUID', targetGuid)}/>`;
+}
+
+function fileName(path: string): string {
+  return path.split('/').pop() || path;
+}
+
+export function buildTextSourceXml(
+  fileId: string,
+  markers: Marker[],
+  fileContent: string,
+  guidMap: Map<string, string>,
+  notes: string[],
+  srcGuid?: string,
+  txtGuid?: string,
+  includeSources?: boolean,
+): string {
+  const resolvedSrcGuid = srcGuid || uuidV4();
+  const resolvedTxtGuid = txtGuid || uuidV4();
+  const pathAttr = includeSources
+    ? xmlAttr('plainTextPath', `internal://${resolvedTxtGuid}.txt`)
+    : xmlAttr('plainTextPath', `relative://${fileId.replace(/\.md$/, '.txt')}`);
+
+  const selections = markers
+    .filter(m => m.codes.length > 0)
+    .map(m => {
+      const start = lineChToOffset(fileContent, m.range.from.line, m.range.from.ch);
+      const end = lineChToOffset(fileContent, m.range.to.line, m.range.to.ch);
+      if (start === -1 || end === -1) return '';
+
+      const selGuid = ensureGuid(m.id, guidMap);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt);
+      let noteRef = '';
+      if (m.memo) {
+        const noteGuid = `note_${selGuid}`;
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(fileId)}`, m.memo));
+        noteRef = `\n${buildNoteRefXml(noteGuid)}`;
+      }
+
+      return `<PlainTextSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('startPosition', start)} ${xmlAttr('endPosition', end)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PlainTextSelection>`;
+    })
+    .filter(Boolean)
+    .join('\n');
+
+  if (!selections) return '';
+  return `<TextSource ${xmlAttr('guid', resolvedSrcGuid)} ${xmlAttr('name', fileName(fileId))} ${pathAttr}>\n${selections}\n</TextSource>`;
 }
