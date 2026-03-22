@@ -153,7 +153,7 @@ interface SidebarModelInterface {
   updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void;
   updateDecorations?(): void;
   removeMarker(markerId: string): boolean;
-  deleteCode(codeName: string): void;
+  deleteCode(codeId: string): void;
   setHoverState(markerId: string | null, codeName: string | null): void;
   getHoverMarkerId(): string | null;
   getHoverMarkerIds(): string[];
@@ -190,18 +190,18 @@ function isXxxMarker(marker: BaseMarker): marker is XxxBaseMarker {
 ```
 
 #### 7. Menu usa `openCodingPopover()`
-Implementar `CodingPopoverAdapter` interface (definida em `src/core/codingPopover.ts`). NÃO criar menu custom.
+Implementar `CodingPopoverAdapter` interface (definida em `src/core/codingPopover.ts`). NÃO criar menu custom. O popover opera com **nomes** (UI); cada adapter resolve name→id na borda.
 ```typescript
 interface CodingPopoverAdapter {
   registry: CodeDefinitionRegistry;
-  getActiveCodes(markerId: string): string[];
-  addCode(markerId: string, codeName: string): void;
-  removeCode(markerId: string, codeName: string): void;
-  getMemo(markerId: string): string;
-  setMemo(markerId: string, memo: string): void;
+  getActiveCodes(): string[];       // resolve codeId→name via registry
+  addCode(codeName: string): void;  // resolve name→id, passa id ao model
+  removeCode(codeName: string): void;
+  getMemo(): string;
+  setMemo(value: string): void;
   save(): void;
-  onRefresh?(): void;
-  onNavClick?(markerId: string, codeName: string): void;
+  onRefresh(): void;
+  onNavClick?(codeName: string, isActive: boolean): void;
 }
 ```
 

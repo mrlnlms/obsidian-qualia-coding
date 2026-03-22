@@ -11,6 +11,7 @@ src/
   core/
     baseSidebarAdapter.ts    — base class para TODOS os sidebar adapters (listeners, hover, deleteCode, updateMarkerFields)
     markerResolvers.ts       — type guards (isPdfMarker etc.) + getMarkerLabel + shortenPath
+    codeApplicationHelpers.ts — hasCode, getCodeIds, addCodeApplication, removeCodeApplication
     baseCodingMenu.ts        — helpers compartilhados de menu (createActionItem, applyThemeColors)
     drawToolbarFactory.ts    — factory compartilhada de toolbar drawing (PDF + Image)
     ...                      — DataManager, CodeDefinitionRegistry, settings, types
@@ -95,7 +96,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1548 testes em 54 suites (Vitest + jsdom)
+- `npm run test` — 1571 testes em 57 suites (Vitest + jsdom)
 - `npm run test:e2e` — 65 testes e2e em 18 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView
@@ -107,6 +108,10 @@ src/
 - `memo` — campo de anotacao no marker (nunca `note`)
 - `removeMarker()` — metodo de remocao no model (nunca `deleteMarker`)
 - `colorOverride` — cor custom por marker (presente em todos os tipos)
+- `codeId` — referencia estavel ao CodeDefinition.id nos markers (nunca nome direto)
+- `codes: CodeApplication[]` — array de `{ codeId, magnitude? }` em todos os markers (nunca `string[]`)
+- Helpers em `codeApplicationHelpers.ts`: `hasCode`, `getCodeIds`, `addCodeApplication`, `removeCodeApplication`
+- Popover adapters resolvem name→id na borda UI; models so recebem codeId
 
 ## Skills Obsidian
 

@@ -14,7 +14,7 @@ O Qualia Coding é uma plataforma de **Análise Qualitativa de Dados (QDA)** con
 
 1. **Notes stay 100% clean** — Arquivos do vault nunca são modificados. Todas as anotações vivem em `data.json`. CM6 decorations cuidam da visualização. O vault é um vault de notas, não um banco de dados.
 2. **Global workspace as state zero** — O usuário codifica primeiro, organiza em projetos depois. Análogo à filosofia Obsidian: "loose notes first, folders later".
-3. **One code system, many formats** — Um único `CodeDefinitionRegistry` compartilhado entre todos os 7 engines. Renomear um código propaga para todos os formatos.
+3. **One code system, many formats** — Um único `CodeDefinitionRegistry` compartilhado entre todos os 7 engines. Markers referenciam códigos por ID estável (`codeId`), não por nome — rename é atômico no registry sem propagação.
 4. **Non-invasive file intercept** — Cada engine intercepta seu formato sem conflitar com handlers nativos do Obsidian ou outros plugins.
 
 ---
@@ -222,14 +222,12 @@ Elementos renderizados fora do DOM do Obsidian (CM6 tooltips, WaveSurfer, Fabric
 
 ### 4.7 openCodingPopover()
 
-Menu de codificação unificado via `CodingPopoverAdapter` interface. Cada engine fornece um wrapper que implementa:
-- `getActiveCodes(): string[]`
-- `addCode(codeName: string): void`
-- `removeCode(codeName: string): void`
-- `getMemo(): string`
-- `setMemo(value: string): void`
-- `save(): void`
-- `onRefresh(): void`
+Menu de codificação unificado via `CodingPopoverAdapter` interface. O popover opera com **nomes** (UI layer), e cada adapter resolve name→id na borda:
+- `getActiveCodes(): string[]` — retorna nomes (resolve `codeId` → name via registry)
+- `addCode(codeName: string): void` — resolve name → id via `registry.getByName()`, passa id ao model
+- `removeCode(codeName: string): void` — mesmo pattern de resolução
+- `getMemo(): string` / `setMemo(value: string): void`
+- `save(): void` / `onRefresh(): void`
 - `onNavClick?(codeName: string, isActive: boolean): void`
 
 CSV tem batch mode especial para codificar múltiplas linhas visíveis de uma vez.
@@ -243,8 +241,9 @@ CSV tem batch mode especial para codificar múltiplas linhas visíveis de uma ve
 Instância única compartilhada entre todos os 7 engines:
 - 12 cores auto-palette (alta contrast, safe em light/dark)
 - Palette categórica (não gradiente) — cada cor é visualmente distinta
-- Markers referenciam códigos por **nome** (`codes: string[]`), não por ID — nomes são a identidade em QDA
-- Rename propagation via `onRenamed` callback: quando `registry.update()` muda um nome, `unifiedModel.renameCode(oldName, newName)` atualiza todos os markers de todos os engines
+- Markers referenciam códigos por **ID estável** (`codes: CodeApplication[]` onde `CodeApplication = { codeId: string; magnitude?: string }`). Rename é atômico no registry — sem propagação para markers
+- Helpers centralizados em `codeApplicationHelpers.ts`: `hasCode`, `getCodeIds`, `addCodeApplication`, `removeCodeApplication`
+- Popover adapters resolvem name→id na borda UI (usuário digita nome, adapter resolve para `codeId` via registry)
 - Auto-persistence via `onMutate` callback — qualquer mutação (add, rename, delete, recolor) dispara save automaticamente
 
 ### 5.2 DataManager
@@ -592,12 +591,13 @@ interface QDAProject {
       board.json     — per-project Research Board (optional)
 ```
 
-### Inheritance Model — Codes Shared by Name
+### Inheritance Model — Codes Shared by ID
 
-- **Global codes** live in `data.json` under `registry.definitions`. Markers reference them by **name** (`codes: string[]`).
-- **Why names, not IDs:** In QDA, code names ARE the identity — researchers think in terms of "Emotion", "Theme", not UUIDs. Names are human-readable in the data file and across engines.
-- **Rename propagation:** When a code name changes via `registry.update()`, the `onRenamed` callback triggers `unifiedModel.renameCode(oldName, newName)` which updates all markers across all 6 engines.
-- **Delete cascades:** `deleteCode(name)` removes the code from all markers and deletes the definition. Markers left with no codes are also removed.
+- **Global codes** live in `data.json` under `registry.definitions`. Markers reference them by **stable ID** (`codes: CodeApplication[]` onde `CodeApplication = { codeId: string; magnitude?: string }`).
+- **Why IDs:** Renomear um código é operação atômica no registry — sem necessidade de propagar para markers. Eliminamos `renameCode()` de todos os models e adapters. Nomes são resolvidos via `registry.getById(codeId)` apenas para display.
+- **Helpers centralizados** em `codeApplicationHelpers.ts`: `hasCode(codes, codeId)`, `getCodeIds(codes)`, `addCodeApplication(codes, codeId)`, `removeCodeApplication(codes, codeId)`.
+- **Delete cascades:** `deleteCode(codeId)` removes the code from all markers and deletes the definition. Markers left with no codes are also removed.
+- **Legacy migration:** `loadMarkers()` no markdown converte `string[]` → `CodeApplication[]` automaticamente. `extractCodes()` no analytics aceita ambos os formatos.
 
 ---
 
@@ -666,7 +666,7 @@ interface QDAProject {
 | `removeMarker()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `getMemo()` | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
 | `setMemo()` | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
-| `renameCode()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `deleteCode(codeId)` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `save()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `getActiveCodes()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `setHoverState()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

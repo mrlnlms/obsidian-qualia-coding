@@ -27,7 +27,9 @@
 | 6. Detail breadcrumbs | `baseCodeDetailView.ts` | ~20 | "Category > Code" header |
 | 7. CSS | `styles.css` | ~15 | Indent + visual hierarchy |
 
-**O que NÃO muda**: `BaseMarker.codes` (markers armazenam nomes, não IDs), engine models, Analytics, `cm6TooltipMenu.ts`, `obsidianMenu.ts`, serialização.
+**Prerequisito**: Fase C (codes[] migration) já concluída — markers agora usam `CodeApplication[]` com `codeId` estável.
+
+**O que NÃO muda**: engine models, Analytics, `cm6TooltipMenu.ts`, `obsidianMenu.ts`, serialização.
 
 **Migration**: Old data becomes root codes (migration zero — optional field, existing = root).
 
