@@ -21,8 +21,8 @@ const BASE_OPACITY = 0.35;
 function resolveCodeColors(marker: PdfMarker, registry: CodeDefinitionRegistry): string[] {
 	if (marker.colorOverride) return [marker.colorOverride];
 	const colors: string[] = [];
-	for (const codeName of marker.codes) {
-		const def = registry.getByName(codeName);
+	for (const ca of marker.codes) {
+		const def = registry.getById(ca.codeId);
 		if (def) colors.push(def.color);
 	}
 	return colors.length > 0 ? colors : ['#FFEB3B'];
@@ -183,7 +183,9 @@ export function renderHighlightsForPage(
 
 			// Tooltip with code names on the topmost layer
 			if (lastLayerEl) {
-				const codeNames = marker.codes.join(', ');
+				const codeNames = marker.codes
+					.map(ca => registry.getById(ca.codeId)?.name ?? ca.codeId)
+					.join(', ');
 				setTooltip(lastLayerEl, codeNames);
 			}
 		}
@@ -308,7 +310,7 @@ function attachLayerHoverTracking(
 
 		// Entering new marker (or intersection state changed)
 		if (hitMarker && hitRect) {
-			callbacks.onHover?.(hitMarker.id, hitMarker.codes[0] ?? null);
+			callbacks.onHover?.(hitMarker.id, hitMarker.codes[0]?.codeId ?? null);
 
 			// Show handles — all overlapping markers in intersection areas, single marker otherwise
 			if (hits.length > 1) {

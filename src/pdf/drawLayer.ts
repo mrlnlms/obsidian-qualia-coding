@@ -10,6 +10,7 @@
 import type { PDFPageView } from './pdfTypings';
 import type { PdfShapeMarker, NormalizedShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import { getCodeIds } from '../core/codeApplicationHelpers';
 import type { PdfViewState } from './pdfViewState';
 import {
 	HOVER_OPEN_DELAY,
@@ -62,19 +63,19 @@ export function renderDrawLayerForPage(
 	svg.style.overflow = 'visible';
 
 	for (const shape of shapes) {
-		const color = registry.getColorForCodes(shape.codes) ?? '#FFEB3B';
+		const color = registry.getColorForCodeIds(getCodeIds(shape.codes)) ?? '#FFEB3B';
 		const el = createShapeSVG(shape.coords, color);
 		if (!el) continue;
 
 		el.classList.add(SHAPE_CLASS);
 		el.dataset.shapeId = shape.id;
 		if (shape.codes.length > 0) {
-			el.dataset.codeName = shape.codes[0];
+			el.dataset.codeName = shape.codes[0]!.codeId;
 		}
 
 		// Events
 		el.addEventListener('mouseenter', () => {
-			callbacks.onHover(shape.id, shape.codes[0] ?? null);
+			callbacks.onHover(shape.id, shape.codes[0]?.codeId ?? null);
 
 			// Cancel any pending close from text highlights or other shapes
 			if (state) {
@@ -115,7 +116,7 @@ export function renderDrawLayerForPage(
 		el.addEventListener('click', (e) => {
 			e.stopPropagation();
 			if (shape.codes.length > 0) {
-				callbacks.onClick(shape.id, shape.codes[0]!);
+				callbacks.onClick(shape.id, shape.codes[0]!.codeId);
 			}
 		});
 		el.addEventListener('dblclick', (e) => {

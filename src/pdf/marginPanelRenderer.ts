@@ -91,12 +91,12 @@ export function renderMarginPanelForPage(
 			const bounds = getMarkerVerticalBounds(mergedRects, pageView);
 			if (!bounds) continue;
 
-			for (const codeName of marker.codes) {
-				const def = registry.getByName(codeName);
+			for (const ca of marker.codes) {
+				const def = registry.getById(ca.codeId);
 				const color = def?.color ?? '#FFEB3B';
 				bars.push({
 					markerId: marker.id,
-					codeName,
+					codeName: def?.name ?? ca.codeId,
 					color,
 					topPct: bounds.topPct,
 					bottomPct: bounds.bottomPct,
@@ -114,12 +114,12 @@ export function renderMarginPanelForPage(
 
 			const bounds = getShapeVerticalBounds(shape.coords);
 
-			for (const codeName of shape.codes) {
-				const def = registry.getByName(codeName);
+			for (const ca of shape.codes) {
+				const def = registry.getById(ca.codeId);
 				const color = def?.color ?? '#FFEB3B';
 				bars.push({
 					markerId: shape.id,
-					codeName,
+					codeName: def?.name ?? ca.codeId,
 					color,
 					topPct: bounds.topPct,
 					bottomPct: bounds.bottomPct,
