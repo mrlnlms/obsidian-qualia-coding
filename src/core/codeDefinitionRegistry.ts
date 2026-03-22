@@ -106,6 +106,22 @@ export class CodeDefinitionRegistry {
 		const def = this.definitions.get(id);
 		if (!def) return false;
 
+		// Promote children to root
+		for (const childId of def.childrenOrder) {
+			const child = this.definitions.get(childId);
+			if (child) {
+				child.parentId = undefined;
+			}
+		}
+
+		// Remove from own parent's childrenOrder
+		if (def.parentId) {
+			const parent = this.definitions.get(def.parentId);
+			if (parent) {
+				parent.childrenOrder = parent.childrenOrder.filter(cid => cid !== id);
+			}
+		}
+
 		this.nameIndex.delete(def.name);
 		this.definitions.delete(id);
 		for (const fn of this.onMutateListeners) fn();

@@ -210,3 +210,34 @@ describe('CodeDefinitionRegistry — setParent', () => {
 		expect(registry.getById(parent.id)!.childrenOrder).toEqual([c1.id, c2.id, c3.id]);
 	});
 });
+
+// ── delete with hierarchy ───────────────────────────────────
+
+describe('CodeDefinitionRegistry — delete with hierarchy', () => {
+	let registry: CodeDefinitionRegistry;
+
+	beforeEach(() => {
+		registry = new CodeDefinitionRegistry();
+	});
+
+	it('children become root when parent deleted', () => {
+		const parent = registry.create('Parent');
+		const c1 = registry.create('C1');
+		const c2 = registry.create('C2');
+		registry.setParent(c1.id, parent.id);
+		registry.setParent(c2.id, parent.id);
+		registry.delete(parent.id);
+		expect(registry.getById(c1.id)!.parentId).toBeUndefined();
+		expect(registry.getById(c2.id)!.parentId).toBeUndefined();
+	});
+
+	it('removed from own parent childrenOrder when deleted', () => {
+		const parent = registry.create('Parent');
+		const c1 = registry.create('C1');
+		const c2 = registry.create('C2');
+		registry.setParent(c1.id, parent.id);
+		registry.setParent(c2.id, parent.id);
+		registry.delete(c1.id);
+		expect(registry.getById(parent.id)!.childrenOrder).toEqual([c2.id]);
+	});
+});
