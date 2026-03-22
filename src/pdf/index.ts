@@ -303,24 +303,43 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			// Reuse existing PDF leaf or open in new tab
 			const pdfLeaf = plugin.app.workspace.getLeavesOfType('pdf')
 				.find(l => (l.view as any).file?.path === data.file);
-			const leaf = pdfLeaf ?? plugin.app.workspace.getLeaf('tab');
 
-			leaf.openFile(tfile, {
-				eState: { subpath: `#page=${data.page}` },
-			});
-
-			// Re-instrument and refresh after navigation — poll until viewer is ready
-			let attempts = 0;
-			const tryRefresh = () => {
-				const view = leaf.view as any;
-				if (view?.getViewType?.() === 'pdf' && view.viewer) {
+			if (pdfLeaf) {
+				// PDF already open — scroll directly via page element instead of openFile
+				// (openFile re-processes eState subpath and causes scroll overshoot on repeated clicks)
+				plugin.app.workspace.setActiveLeaf(pdfLeaf, { focus: true });
+				const view = pdfLeaf.view as any;
+				const child = view?.viewer?.child;
+				if (child) {
+					try {
+						const pageView = child.getPage(data.page);
+						if (pageView?.div) {
+							pageView.div.scrollIntoView({ block: 'start' });
+						}
+					} catch { /* fallback: do nothing, page is already visible */ }
 					instrumentPdfView(view);
 					for (const [, obs] of observers) obs.refreshAll();
-				} else if (++attempts < 50) {
-					setTimeout(tryRefresh, 100);
 				}
-			};
-			setTimeout(tryRefresh, 100);
+			} else {
+				// PDF not open — open in new tab with page subpath
+				const leaf = plugin.app.workspace.getLeaf('tab');
+				leaf.openFile(tfile, {
+					eState: { subpath: `#page=${data.page}` },
+				});
+
+				// Re-instrument and refresh after navigation — poll until viewer is ready
+				let attempts = 0;
+				const tryRefresh = () => {
+					const view = leaf.view as any;
+					if (view?.getViewType?.() === 'pdf' && view.viewer) {
+						instrumentPdfView(view);
+						for (const [, obs] of observers) obs.refreshAll();
+					} else if (++attempts < 50) {
+						setTimeout(tryRefresh, 100);
+					}
+				};
+				setTimeout(tryRefresh, 100);
+			}
 		})
 	);
 
