@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { CodeMarkerModel, Marker } from '../../src/markdown/models/codeMarkerModel';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import { DEFAULT_SETTINGS } from '../../src/markdown/models/settings';
+import type { CodeApplication } from '../../src/core/types';
+import { hasCode } from '../../src/core/codeApplicationHelpers';
 
 // ── Mock Plugin ──
 
@@ -34,7 +36,7 @@ function makeMarker(overrides: Partial<Marker> = {}): Marker {
 		fileId: overrides.fileId ?? 'test.md',
 		range: overrides.range ?? { from: { line: 0, ch: 0 }, to: { line: 0, ch: 10 } },
 		color: overrides.color ?? '#6200EE',
-		codes: overrides.codes ?? ['codeA'],
+		codes: overrides.codes ?? [{ codeId: 'codeA' }],
 		text: overrides.text ?? 'sample',
 		createdAt: overrides.createdAt ?? 1000,
 		updatedAt: overrides.updatedAt ?? 1000,
@@ -43,7 +45,12 @@ function makeMarker(overrides: Partial<Marker> = {}): Marker {
 	};
 }
 
-function addTestMarker(model: CodeMarkerModel, fileId: string, codes: string[], id?: string): Marker {
+/** Helper: create CodeApplication[] from string ids for brevity. */
+function ca(...codeIds: string[]): CodeApplication[] {
+	return codeIds.map(codeId => ({ codeId }));
+}
+
+function addTestMarker(model: CodeMarkerModel, fileId: string, codes: CodeApplication[], id?: string): Marker {
 	const marker = makeMarker({ fileId, codes, id: id ?? `m-${Math.random().toString(36).slice(2, 8)}` });
 	model.addMarkerDirect(fileId, marker);
 	return marker;
@@ -89,15 +96,15 @@ describe('getMarkersForFile', () => {
 	});
 
 	it('returns markers for known file', () => {
-		const m = addTestMarker(model, 'a.md', ['code1']);
+		const m = addTestMarker(model, 'a.md', ca('code1'));
 		const result = model.getMarkersForFile('a.md');
 		expect(result).toHaveLength(1);
 		expect(result[0].id).toBe(m.id);
 	});
 
 	it('does not return markers from other files', () => {
-		addTestMarker(model, 'a.md', ['code1']);
-		addTestMarker(model, 'b.md', ['code2']);
+		addTestMarker(model, 'a.md', ca('code1'));
+		addTestMarker(model, 'b.md', ca('code2'));
 		expect(model.getMarkersForFile('a.md')).toHaveLength(1);
 		expect(model.getMarkersForFile('b.md')).toHaveLength(1);
 	});
@@ -111,14 +118,14 @@ describe('getAllMarkers', () => {
 	});
 
 	it('returns markers from all files', () => {
-		addTestMarker(model, 'a.md', ['c1']);
-		addTestMarker(model, 'b.md', ['c2']);
+		addTestMarker(model, 'a.md', ca('c1'));
+		addTestMarker(model, 'b.md', ca('c2'));
 		expect(model.getAllMarkers()).toHaveLength(2);
 	});
 
 	it('filters out csv: prefixed files', () => {
-		addTestMarker(model, 'a.md', ['c1']);
-		addTestMarker(model, 'csv:data.csv:0:col', ['c2']);
+		addTestMarker(model, 'a.md', ca('c1'));
+		addTestMarker(model, 'csv:data.csv:0:col', ca('c2'));
 		expect(model.getAllMarkers()).toHaveLength(1);
 		expect(model.getAllMarkers()[0].fileId).toBe('a.md');
 	});
@@ -132,16 +139,16 @@ describe('getAllFileIds', () => {
 	});
 
 	it('returns file ids', () => {
-		addTestMarker(model, 'a.md', ['c1']);
-		addTestMarker(model, 'b.md', ['c2']);
+		addTestMarker(model, 'a.md', ca('c1'));
+		addTestMarker(model, 'b.md', ca('c2'));
 		const ids = model.getAllFileIds();
 		expect(ids).toContain('a.md');
 		expect(ids).toContain('b.md');
 	});
 
 	it('filters out csv: prefixed files', () => {
-		addTestMarker(model, 'a.md', ['c1']);
-		addTestMarker(model, 'csv:data.csv:0:col', ['c2']);
+		addTestMarker(model, 'a.md', ca('c1'));
+		addTestMarker(model, 'csv:data.csv:0:col', ca('c2'));
 		const ids = model.getAllFileIds();
 		expect(ids).toEqual(['a.md']);
 	});
@@ -151,15 +158,15 @@ describe('getAllFileIds', () => {
 
 describe('getMarkerById', () => {
 	it('finds marker across files', () => {
-		addTestMarker(model, 'a.md', ['c1'], 'id-1');
-		addTestMarker(model, 'b.md', ['c2'], 'id-2');
+		addTestMarker(model, 'a.md', ca('c1'), 'id-1');
+		addTestMarker(model, 'b.md', ca('c2'), 'id-2');
 		const found = model.getMarkerById('id-2');
 		expect(found).not.toBeNull();
 		expect(found!.id).toBe('id-2');
 	});
 
 	it('returns null for unknown marker', () => {
-		addTestMarker(model, 'a.md', ['c1'], 'id-1');
+		addTestMarker(model, 'a.md', ca('c1'), 'id-1');
 		expect(model.getMarkerById('unknown')).toBeNull();
 	});
 });
@@ -169,46 +176,37 @@ describe('getMarkerById', () => {
 describe('addCodeToMarker', () => {
 	it('adds code to existing marker', () => {
 		const m = addTestMarker(model, 'a.md', [], 'id-1');
-		const result = model.addCodeToMarker('id-1', 'newCode');
+		const def = registry.create('newCode');
+		const result = model.addCodeToMarker('id-1', def.id);
 		expect(result).toBe(true);
-		expect(m.codes).toContain('newCode');
-	});
-
-	it('creates registry entry for new code', () => {
-		addTestMarker(model, 'a.md', [], 'id-1');
-		model.addCodeToMarker('id-1', 'brandNew');
-		expect(registry.getByName('brandNew')).toBeDefined();
-	});
-
-	it('uses provided color for new registry entry', () => {
-		addTestMarker(model, 'a.md', [], 'id-1');
-		model.addCodeToMarker('id-1', 'colored', '#FF0000');
-		expect(registry.getByName('colored')!.color).toBe('#FF0000');
+		expect(hasCode(m.codes, def.id)).toBe(true);
 	});
 
 	it('does not duplicate existing code in marker', () => {
-		addTestMarker(model, 'a.md', ['existingCode'], 'id-1');
-		registry.create('existingCode');
-		const result = model.addCodeToMarker('id-1', 'existingCode');
+		const def = registry.create('existingCode');
+		addTestMarker(model, 'a.md', ca(def.id), 'id-1');
+		const result = model.addCodeToMarker('id-1', def.id);
 		expect(result).toBe(false);
-		expect(model.getMarkerById('id-1')!.codes).toEqual(['existingCode']);
+		expect(model.getMarkerById('id-1')!.codes).toEqual(ca(def.id));
 	});
 
 	it('returns false for unknown marker', () => {
-		expect(model.addCodeToMarker('nonexistent', 'code')).toBe(false);
+		expect(model.addCodeToMarker('nonexistent', 'code_id')).toBe(false);
 	});
 
 	it('sets updatedAt timestamp', () => {
 		const m = addTestMarker(model, 'a.md', [], 'id-1');
 		const before = m.updatedAt;
 		vi.advanceTimersByTime(100);
-		model.addCodeToMarker('id-1', 'code');
+		const def = registry.create('code');
+		model.addCodeToMarker('id-1', def.id);
 		expect(m.updatedAt).toBeGreaterThan(before);
 	});
 
 	it('calls saveMarkers after adding', () => {
 		addTestMarker(model, 'a.md', [], 'id-1');
-		model.addCodeToMarker('id-1', 'code');
+		const def = registry.create('code');
+		model.addCodeToMarker('id-1', def.id);
 		expect(plugin.dataManager.setSection).toHaveBeenCalled();
 	});
 });
@@ -217,20 +215,20 @@ describe('addCodeToMarker', () => {
 
 describe('removeCodeFromMarker', () => {
 	it('removes code from marker', () => {
-		const m = addTestMarker(model, 'a.md', ['c1', 'c2'], 'id-1');
+		const m = addTestMarker(model, 'a.md', ca('c1', 'c2'), 'id-1');
 		const result = model.removeCodeFromMarker('id-1', 'c1');
 		expect(result).toBe(true);
-		expect(m.codes).toEqual(['c2']);
+		expect(m.codes).toEqual(ca('c2'));
 	});
 
 	it('deletes marker when last code removed and keepIfEmpty=false', () => {
-		addTestMarker(model, 'a.md', ['onlyCode'], 'id-1');
+		addTestMarker(model, 'a.md', ca('onlyCode'), 'id-1');
 		model.removeCodeFromMarker('id-1', 'onlyCode', false);
 		expect(model.getMarkerById('id-1')).toBeNull();
 	});
 
 	it('keeps marker when last code removed and keepIfEmpty=true', () => {
-		addTestMarker(model, 'a.md', ['onlyCode'], 'id-1');
+		addTestMarker(model, 'a.md', ca('onlyCode'), 'id-1');
 		model.removeCodeFromMarker('id-1', 'onlyCode', true);
 		const m = model.getMarkerById('id-1');
 		expect(m).not.toBeNull();
@@ -242,12 +240,12 @@ describe('removeCodeFromMarker', () => {
 	});
 
 	it('returns false when code not in marker', () => {
-		addTestMarker(model, 'a.md', ['c1'], 'id-1');
+		addTestMarker(model, 'a.md', ca('c1'), 'id-1');
 		expect(model.removeCodeFromMarker('id-1', 'notThere')).toBe(false);
 	});
 
 	it('sets updatedAt on removal', () => {
-		const m = addTestMarker(model, 'a.md', ['c1', 'c2'], 'id-1');
+		const m = addTestMarker(model, 'a.md', ca('c1', 'c2'), 'id-1');
 		const before = m.updatedAt;
 		vi.advanceTimersByTime(100);
 		model.removeCodeFromMarker('id-1', 'c1');
@@ -259,7 +257,7 @@ describe('removeCodeFromMarker', () => {
 
 describe('removeAllCodesFromMarker', () => {
 	it('removes marker entirely', () => {
-		addTestMarker(model, 'a.md', ['c1', 'c2'], 'id-1');
+		addTestMarker(model, 'a.md', ca('c1', 'c2'), 'id-1');
 		const result = model.removeAllCodesFromMarker('id-1');
 		expect(result).toBe(true);
 		expect(model.getMarkerById('id-1')).toBeNull();
@@ -281,7 +279,7 @@ describe('cleanupEmptyMarker', () => {
 	});
 
 	it('does not remove marker that has codes', () => {
-		addTestMarker(model, 'a.md', ['c1'], 'id-1');
+		addTestMarker(model, 'a.md', ca('c1'), 'id-1');
 		const result = model.cleanupEmptyMarker('id-1');
 		expect(result).toBe(false);
 		expect(model.getMarkerById('id-1')).not.toBeNull();
@@ -296,7 +294,7 @@ describe('cleanupEmptyMarker', () => {
 
 describe('removeMarker', () => {
 	it('removes and returns true', () => {
-		addTestMarker(model, 'a.md', ['c1'], 'id-1');
+		addTestMarker(model, 'a.md', ca('c1'), 'id-1');
 		expect(model.removeMarker('id-1')).toBe(true);
 		expect(model.getMarkerById('id-1')).toBeNull();
 	});
@@ -306,7 +304,7 @@ describe('removeMarker', () => {
 	});
 
 	it('calls saveMarkers on removal', () => {
-		addTestMarker(model, 'a.md', ['c1'], 'id-1');
+		addTestMarker(model, 'a.md', ca('c1'), 'id-1');
 		plugin.dataManager.setSection.mockClear();
 		model.removeMarker('id-1');
 		expect(plugin.dataManager.setSection).toHaveBeenCalled();
@@ -317,19 +315,19 @@ describe('removeMarker', () => {
 
 describe('updateMarkerFields', () => {
 	it('updates memo', () => {
-		addTestMarker(model, 'a.md', ['c1'], 'id-1');
+		addTestMarker(model, 'a.md', ca('c1'), 'id-1');
 		model.updateMarkerFields('id-1', { memo: 'note text' });
 		expect(model.getMarkerById('id-1')!.memo).toBe('note text');
 	});
 
 	it('updates colorOverride', () => {
-		addTestMarker(model, 'a.md', ['c1'], 'id-1');
+		addTestMarker(model, 'a.md', ca('c1'), 'id-1');
 		model.updateMarkerFields('id-1', { colorOverride: '#FF0000' });
 		expect(model.getMarkerById('id-1')!.colorOverride).toBe('#FF0000');
 	});
 
 	it('updates updatedAt', () => {
-		const m = addTestMarker(model, 'a.md', ['c1'], 'id-1');
+		const m = addTestMarker(model, 'a.md', ca('c1'), 'id-1');
 		const before = m.updatedAt;
 		vi.advanceTimersByTime(100);
 		model.updateMarkerFields('id-1', { memo: 'x' });
@@ -344,7 +342,7 @@ describe('updateMarkerFields', () => {
 	});
 
 	it('calls saveMarkers', () => {
-		addTestMarker(model, 'a.md', ['c1'], 'id-1');
+		addTestMarker(model, 'a.md', ca('c1'), 'id-1');
 		plugin.dataManager.setSection.mockClear();
 		model.updateMarkerFields('id-1', { memo: 'y' });
 		expect(plugin.dataManager.setSection).toHaveBeenCalled();
@@ -355,12 +353,12 @@ describe('updateMarkerFields', () => {
 
 describe('updateMarker', () => {
 	it('replaces marker in file array', () => {
-		const m = addTestMarker(model, 'a.md', ['c1'], 'id-1');
-		const updated = { ...m, text: 'updated text', codes: ['c1', 'c2'] };
+		const m = addTestMarker(model, 'a.md', ca('c1'), 'id-1');
+		const updated = { ...m, text: 'updated text', codes: ca('c1', 'c2') };
 		model.updateMarker(updated);
 		const found = model.getMarkerById('id-1');
 		expect(found!.text).toBe('updated text');
-		expect(found!.codes).toEqual(['c1', 'c2']);
+		expect(found!.codes).toEqual(ca('c1', 'c2'));
 	});
 
 	it('no-op for marker with unknown fileId', () => {
@@ -371,7 +369,7 @@ describe('updateMarker', () => {
 	});
 
 	it('no-op for marker with unknown id in existing file', () => {
-		addTestMarker(model, 'a.md', ['c1'], 'id-1');
+		addTestMarker(model, 'a.md', ca('c1'), 'id-1');
 		const m = makeMarker({ fileId: 'a.md', id: 'id-unknown' });
 		plugin.dataManager.setSection.mockClear();
 		model.updateMarker(m);
@@ -383,7 +381,7 @@ describe('updateMarker', () => {
 
 describe('saveMarkers', () => {
 	it('calls dataManager.setSection for markdown', () => {
-		addTestMarker(model, 'a.md', ['c1']);
+		addTestMarker(model, 'a.md', ca('c1'));
 		plugin.dataManager.setSection.mockClear();
 		model.saveMarkers();
 		const calls = plugin.dataManager.setSection.mock.calls;
@@ -401,8 +399,8 @@ describe('saveMarkers', () => {
 	});
 
 	it('skips csv: files in save output', () => {
-		addTestMarker(model, 'csv:data.csv:0:col', ['c1']);
-		addTestMarker(model, 'a.md', ['c2']);
+		addTestMarker(model, 'csv:data.csv:0:col', ca('c1'));
+		addTestMarker(model, 'a.md', ca('c2'));
 		plugin.dataManager.setSection.mockClear();
 		model.saveMarkers();
 		const calls = plugin.dataManager.setSection.mock.calls;
@@ -423,7 +421,7 @@ describe('saveMarkers', () => {
 
 describe('markDirtyForSave / flushPendingSave', () => {
 	it('debounces save to 2s', () => {
-		addTestMarker(model, 'a.md', ['c1']);
+		addTestMarker(model, 'a.md', ca('c1'));
 		plugin.dataManager.setSection.mockClear();
 		model.markDirtyForSave();
 		expect(plugin.dataManager.setSection).not.toHaveBeenCalled();
@@ -432,7 +430,7 @@ describe('markDirtyForSave / flushPendingSave', () => {
 	});
 
 	it('resets timer on repeated calls', () => {
-		addTestMarker(model, 'a.md', ['c1']);
+		addTestMarker(model, 'a.md', ca('c1'));
 		plugin.dataManager.setSection.mockClear();
 		model.markDirtyForSave();
 		vi.advanceTimersByTime(1500);
@@ -445,7 +443,7 @@ describe('markDirtyForSave / flushPendingSave', () => {
 	});
 
 	it('flushPendingSave forces immediate save', () => {
-		addTestMarker(model, 'a.md', ['c1']);
+		addTestMarker(model, 'a.md', ca('c1'));
 		plugin.dataManager.setSection.mockClear();
 		model.markDirtyForSave();
 		model.flushPendingSave();
@@ -463,14 +461,14 @@ describe('markDirtyForSave / flushPendingSave', () => {
 
 describe('migrateFilePath', () => {
 	it('moves markers to new path', () => {
-		addTestMarker(model, 'old.md', ['c1'], 'id-1');
+		addTestMarker(model, 'old.md', ca('c1'), 'id-1');
 		model.migrateFilePath('old.md', 'new.md');
 		expect(model.getMarkersForFile('old.md')).toEqual([]);
 		expect(model.getMarkersForFile('new.md')).toHaveLength(1);
 	});
 
 	it('updates fileId on migrated markers', () => {
-		addTestMarker(model, 'old.md', ['c1'], 'id-1');
+		addTestMarker(model, 'old.md', ca('c1'), 'id-1');
 		model.migrateFilePath('old.md', 'new.md');
 		const m = model.getMarkerById('id-1');
 		expect(m!.fileId).toBe('new.md');
@@ -484,7 +482,7 @@ describe('migrateFilePath', () => {
 	});
 
 	it('marks dirty for save', () => {
-		addTestMarker(model, 'old.md', ['c1']);
+		addTestMarker(model, 'old.md', ca('c1'));
 		plugin.dataManager.setSection.mockClear();
 		model.migrateFilePath('old.md', 'new.md');
 		// markDirtyForSave was called — advance timer to trigger
@@ -636,22 +634,23 @@ describe('isPositionAfter', () => {
 
 describe('deleteCode', () => {
 	it('removes code from all markers and deletes empty markers', () => {
-		registry.create('codeX', '#F00');
-		addTestMarker(model, 'a.md', ['codeX'], 'id-1');
-		addTestMarker(model, 'b.md', ['codeX', 'codeY'], 'id-2');
-		model.deleteCode('codeX');
+		const defX = registry.create('codeX', '#F00');
+		const defY = registry.create('codeY');
+		addTestMarker(model, 'a.md', ca(defX.id), 'id-1');
+		addTestMarker(model, 'b.md', ca(defX.id, defY.id), 'id-2');
+		model.deleteCode(defX.id);
 		// id-1 had only codeX, should be deleted
 		expect(model.getMarkerById('id-1')).toBeNull();
 		// id-2 still has codeY
 		const m2 = model.getMarkerById('id-2');
 		expect(m2).not.toBeNull();
-		expect(m2!.codes).toEqual(['codeY']);
+		expect(m2!.codes).toEqual(ca(defY.id));
 	});
 
 	it('removes code definition from registry', () => {
 		const def = registry.create('codeX');
-		addTestMarker(model, 'a.md', ['codeX'], 'id-1');
-		model.deleteCode('codeX');
+		addTestMarker(model, 'a.md', ca(def.id), 'id-1');
+		model.deleteCode(def.id);
 		expect(registry.getById(def.id)).toBeUndefined();
 	});
 
@@ -662,11 +661,11 @@ describe('deleteCode', () => {
 	});
 
 	it('handles markers in multiple files', () => {
-		registry.create('codeZ');
-		addTestMarker(model, 'a.md', ['codeZ'], 'id-1');
-		addTestMarker(model, 'b.md', ['codeZ'], 'id-2');
-		addTestMarker(model, 'c.md', ['other'], 'id-3');
-		model.deleteCode('codeZ');
+		const defZ = registry.create('codeZ');
+		addTestMarker(model, 'a.md', ca(defZ.id), 'id-1');
+		addTestMarker(model, 'b.md', ca(defZ.id), 'id-2');
+		addTestMarker(model, 'c.md', ca('other'), 'id-3');
+		model.deleteCode(defZ.id);
 		expect(model.getMarkerById('id-1')).toBeNull();
 		expect(model.getMarkerById('id-2')).toBeNull();
 		expect(model.getMarkerById('id-3')).not.toBeNull();
@@ -679,7 +678,7 @@ describe('loadMarkers', () => {
 	it('loads markers from dataManager', () => {
 		plugin = createMockPlugin({
 			markers: {
-				'file.md': [makeMarker({ fileId: 'file.md', id: 'id-1', codes: ['c1'] })],
+				'file.md': [makeMarker({ fileId: 'file.md', id: 'id-1', codes: ca('c1') })],
 			},
 		});
 		model = new CodeMarkerModel(plugin as any, registry);
@@ -704,7 +703,7 @@ describe('loadMarkers', () => {
 		model.loadMarkers();
 		const loaded = model.getMarkerById('id-old');
 		expect(loaded).not.toBeNull();
-		expect(loaded!.codes).toEqual(['legacyCode']);
+		expect(loaded!.codes).toEqual([{ codeId: 'legacyCode' }]);
 		expect((loaded as any).code).toBeUndefined();
 	});
 
@@ -745,15 +744,15 @@ describe('loadMarkers', () => {
 
 describe('clearAllMarkers', () => {
 	it('empties all markers', () => {
-		addTestMarker(model, 'a.md', ['c1']);
-		addTestMarker(model, 'b.md', ['c2']);
+		addTestMarker(model, 'a.md', ca('c1'));
+		addTestMarker(model, 'b.md', ca('c2'));
 		model.clearAllMarkers();
 		expect(model.getAllMarkers()).toEqual([]);
 		expect(model.getAllFileIds()).toEqual([]);
 	});
 
 	it('calls dataManager.setSection with empty markers', () => {
-		addTestMarker(model, 'a.md', ['c1']);
+		addTestMarker(model, 'a.md', ca('c1'));
 		plugin.dataManager.setSection.mockClear();
 		model.clearAllMarkers();
 		const calls = plugin.dataManager.setSection.mock.calls;
@@ -792,9 +791,9 @@ describe('addMarkerDirect', () => {
 
 describe('clearMarkersForFile', () => {
 	it('removes all markers for a file', () => {
-		addTestMarker(model, 'a.md', ['c1']);
-		addTestMarker(model, 'a.md', ['c2']);
-		addTestMarker(model, 'b.md', ['c3']);
+		addTestMarker(model, 'a.md', ca('c1'));
+		addTestMarker(model, 'a.md', ca('c2'));
+		addTestMarker(model, 'b.md', ca('c3'));
 		model.clearMarkersForFile('a.md');
 		expect(model.getMarkersForFile('a.md')).toEqual([]);
 		expect(model.getMarkersForFile('b.md')).toHaveLength(1);
@@ -900,42 +899,3 @@ describe('setCodeDescription / getCodeDescription', () => {
 	});
 });
 
-// ── 30. renameCode ──
-
-describe('renameCode', () => {
-	it('renames code in all markers', () => {
-		registry.create('OldName');
-		model.addMarkerDirect('f1', {
-			markerType: 'markdown', id: 'm1', fileId: 'f1',
-			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 10 } },
-			color: '#6200EE', codes: ['OldName'], createdAt: 1, updatedAt: 1,
-		});
-		model.addMarkerDirect('f2', {
-			markerType: 'markdown', id: 'm2', fileId: 'f2',
-			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 10 } },
-			color: '#6200EE', codes: ['OldName', 'Other'], createdAt: 1, updatedAt: 1,
-		});
-
-		model.renameCode('OldName', 'NewName');
-
-		const m1 = model.getMarkerById('m1');
-		const m2 = model.getMarkerById('m2');
-		expect(m1?.codes).toEqual(['NewName']);
-		expect(m2?.codes).toContain('NewName');
-		expect(m2?.codes).toContain('Other');
-		expect(m2?.codes).not.toContain('OldName');
-	});
-
-	it('does nothing when code not found in markers', () => {
-		registry.create('A');
-		model.addMarkerDirect('f1', {
-			markerType: 'markdown', id: 'm1', fileId: 'f1',
-			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 10 } },
-			color: '#6200EE', codes: ['A'], createdAt: 1, updatedAt: 1,
-		});
-
-		model.renameCode('NonExistent', 'Whatever');
-
-		expect(model.getMarkerById('m1')?.codes).toEqual(['A']);
-	});
-});

@@ -5,7 +5,8 @@ import { CodeMarkerSettings, DEFAULT_SETTINGS } from './settings';
 import { CodeItem, SelectionSnapshot } from '../menu/menuTypes';
 import { getViewForFile as getViewForFileLookup } from '../cm6/utils/viewLookupUtils';
 import { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
-import type { SidebarModelInterface } from '../../core/types';
+import type { CodeApplication, SidebarModelInterface } from '../../core/types';
+import { hasCode, addCodeApplication, removeCodeApplication } from '../../core/codeApplicationHelpers';
 import { setFileIdEffect } from '../cm6/markerStateField';
 
 export interface Marker {
@@ -18,7 +19,7 @@ export interface Marker {
 	};
 	color: string;
 	colorOverride?: string;
-	codes: string[];
+	codes: CodeApplication[];
 	text?: string;
 	memo?: string;
 	createdAt: number;
@@ -53,13 +54,18 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		if (rawMarkers) {
 			for (const fileId in rawMarkers) {
 				const fileMarkers: Marker[] = rawMarkers[fileId]!.map((m) => {
-					// Migration: convert old `code: string` to `codes: string[]`
-					// Legacy data may have { code: "X" } instead of { codes: ["X"] }
 					const legacy = m as unknown as Record<string, unknown>;
+					// Migration: convert old `code: string` to `codes: CodeApplication[]`
 					if ('code' in legacy && !('codes' in legacy)) {
-						const codes = legacy.code ? [legacy.code as string] : [];
+						const codeName = legacy.code as string;
+						const codes: CodeApplication[] = codeName ? [{ codeId: codeName }] : [];
 						const { code: _, ...rest } = legacy;
 						return { ...rest, codes } as unknown as Marker;
+					}
+					// Migration: convert old `codes: string[]` to `codes: CodeApplication[]`
+					if (Array.isArray(legacy.codes) && legacy.codes.length > 0 && typeof legacy.codes[0] === 'string') {
+						const codes: CodeApplication[] = (legacy.codes as string[]).map(name => ({ codeId: name }));
+						return { ...m, codes } as unknown as Marker;
 					}
 					return m;
 				});
@@ -173,17 +179,12 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		}));
 	}
 
-	addCodeToMarker(markerId: string, codeName: string, color?: string): boolean {
+	addCodeToMarker(markerId: string, codeId: string, color?: string): boolean {
 		const marker = this.getMarkerById(markerId);
 		if (!marker) return false;
 
-		// Ensure code definition exists in registry
-		if (!this.registry.getByName(codeName)) {
-			this.registry.create(codeName, color);
-		}
-
-		if (!marker.codes.includes(codeName)) {
-			marker.codes.push(codeName);
+		if (!hasCode(marker.codes, codeId)) {
+			marker.codes = addCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
 			if (color) marker.color = color;
 			this.saveMarkers();
@@ -193,13 +194,12 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		return false;
 	}
 
-	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty = false): boolean {
+	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty = false): boolean {
 		const marker = this.getMarkerById(markerId);
 		if (!marker) return false;
 
-		const idx = marker.codes.indexOf(codeName);
-		if (idx >= 0) {
-			marker.codes.splice(idx, 1);
+		if (hasCode(marker.codes, codeId)) {
+			marker.codes = removeCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
 
 			if (marker.codes.length === 0 && !keepIfEmpty) {
@@ -519,27 +519,8 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		this.plugin.dataManager.markDirty();
 	}
 
-	renameCode(oldName: string, newName: string) {
-		const allMarkers = this.getAllMarkers();
-		const affectedFiles = new Set<string>();
-		for (const marker of allMarkers) {
-			const idx = marker.codes.indexOf(oldName);
-			if (idx >= 0) {
-				marker.codes[idx] = newName;
-				marker.updatedAt = Date.now();
-				affectedFiles.add(marker.fileId);
-			}
-		}
-		this.saveMarkers();
-		for (const fileId of affectedFiles) {
-			this.updateMarkersForFile(fileId);
-		}
-		this._notifyChange();
-	}
-
-	deleteCode(codeName: string) {
-		const def = this.registry.getByName(codeName);
-		if (!def) return;
+deleteCode(codeId: string) {
+		if (!this.registry.getById(codeId)) return;
 
 		// Remove code from all markers; delete markers left with no codes.
 		// Do all mutations first, then save once (avoid N saves via removeMarker).
@@ -547,9 +528,8 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		for (const [fileId, markers] of this.markers.entries()) {
 			for (let i = markers.length - 1; i >= 0; i--) {
 				const marker = markers[i]!;
-				const idx = marker.codes.indexOf(codeName);
-				if (idx < 0) continue;
-				marker.codes.splice(idx, 1);
+				if (!hasCode(marker.codes, codeId)) continue;
+				marker.codes = removeCodeApplication(marker.codes, codeId);
 				affectedFiles.add(fileId);
 				if (marker.codes.length === 0) {
 					markers.splice(i, 1);
@@ -558,7 +538,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 			if (markers.length === 0) this.markers.delete(fileId);
 		}
 
-		this.registry.delete(def.id);
+		this.registry.delete(codeId);
 		this.saveMarkers();
 
 		for (const fileId of affectedFiles) {
