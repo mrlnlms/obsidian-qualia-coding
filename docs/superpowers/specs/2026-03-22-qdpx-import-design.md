@@ -136,25 +136,40 @@ Se toggle "Keep original source files" ativo, copia tambem o `.docx` e `.txt` or
 Copia PDF pro vault. Cria markers:
 
 **PlainTextSelection no PDF:**
-- Precisa do texto extraido (Representation plainTextPath) pra mapear offsets
-- Cria `PdfMarker` com `beginIndex`/`endIndex`/`beginOffset`/`endOffset` a partir dos offsets no texto
+- Requer `<Representation plainTextPath="...">` no PDFSource — o texto extraido do PDF
+- Ler o plain text, usar `startPosition`/`endPosition` pra localizar o trecho
+- Pra mapear pra `PdfMarker` (`beginIndex`/`beginOffset`/`endIndex`/`endOffset`), precisa reconstruir o mapeamento span-by-span do PDF text layer. Isso requer parsear o PDF pra obter a estrutura de text items e seus offsets
+- Se o mapeamento span nao for viavel, alternativa: criar marker com `text` extraido do plain text e offsets aproximados
+- Se `<Representation>` ausente: skip text selections com warning
 
-**PDFSelection (rects):**
-- Converter PDF points (bottom-left origin) → coords normalizadas do Qualia
-- Inverter eixo Y usando page height
-- Normalizar dividindo por dimensoes da pagina
-- Cria `PdfShapeMarker` com `NormalizedShapeCoords`
+**PDFSelection (rects) — sempre shape tipo `rect`:**
+- REFI so exporta retangulos. Import sempre cria `PdfShapeMarker` com `shape: 'rect'`
+- Converter PDF points (bottom-left origin) → `RectCoords {type: 'rect', x, y, w, h}` normalizado:
+  ```
+  x = firstX / pageWidth
+  y = 1 - (secondY / pageHeight)    // inverter Y (bottom-left → top-left)
+  w = (secondX - firstX) / pageWidth
+  h = (secondY - firstY) / pageHeight
+  ```
+- Page height/width obtidos via PDF metadata
 
 ### PictureSource → Image
 
 Copia imagem pro vault. Cria `ImageMarker`:
-- Converter pixels → normalized (0-1) dividindo por dimensoes da imagem
-- `firstX/firstY, secondX/secondY` → `NormalizedRect`
+- REFI so exporta retangulos. Import sempre cria `shape: 'rect'`
+- Converter pixels → `NormalizedRect {type: 'rect', x, y, w, h}`:
+  ```
+  x = firstX / imageWidth
+  y = firstY / imageHeight
+  w = (secondX - firstX) / imageWidth
+  h = (secondY - firstY) / imageHeight
+  ```
+- Dimensoes da imagem obtidas ao ler o arquivo. Se ilegivel: skip markers com warning
 
 ### AudioSource / VideoSource → Audio / Video
 
 Copia arquivo pro vault. Cria `MediaMarker`:
-- `begin`/`end` (ms inteiro) → `from`/`to` (seconds float): `ms / 1000`
+- `begin`/`end` (ms inteiro) → `from`/`to` (seconds float): `value / 1000`
 
 ---
 
@@ -172,7 +187,15 @@ Copia arquivo pro vault. Cria `MediaMarker`:
 - PDF sem Representation (plain text): skip text selections, warning no log
 - Imagem corrompida/ilegivel: skip markers, warning
 - Offsets fora do range do texto: skip selection, warning
-- Source file ausente no ZIP (path `relative://`): skip source, warning
+- Source file ausente no ZIP (path `relative://`): tentar resolver como caminho relativo ao vault. Se nao encontrado, skip source com warning
+- ZIP corrompido ou sem `project.qde`: erro imediato com Notice explicativo
+
+### Regras gerais de criacao de markers
+
+- **Timestamps:** usar `creationDateTime` do REFI (Selection e Coding) pra `createdAt`/`updatedAt` do marker. Se ausente, usar timestamp atual.
+- **Color:** markers markdown precisam de `color: string`. Usar cor do primeiro codigo aplicado (via registry). Se nenhum codigo, usar cor default da paleta.
+- **Um Selection = um marker:** cada `<PlainTextSelection>`, `<PDFSelection>`, `<PictureSelection>`, `<AudioSelection>` ou `<VideoSelection>` gera um marker. Multiplos `<Coding>` filhos = multiplos `CodeApplication` no mesmo marker.
+- **Import sempre cria `shape: 'rect'`** para PDF shapes e Image — REFI so suporta retangulos.
 
 ---
 
@@ -219,7 +242,7 @@ Tabela interna `Map<qdpxGuid, qualiaId>` construida durante import. Cada `<CodeR
 | NoteRef em | Destino no Qualia |
 |------------|-------------------|
 | Selection (segmento) | `marker.memo` |
-| Code | `CodeDefinition.description` (concatena se ja existe) |
+| Code | `CodeDefinition.description` (se ja existe, concatena com `\n\n--- Imported memo ---\n` como separador) |
 | Project | Arquivo .md em `imports/{project}/memos/` |
 | Source | Arquivo .md em `imports/{project}/memos/` |
 | Solto (sem ref) | Arquivo .md em `imports/{project}/memos/` |
