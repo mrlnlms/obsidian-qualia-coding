@@ -276,3 +276,55 @@ describe('createQdpxZip', () => {
     expect(strFromU8(unzipped['sources/abc.txt'])).toBe('hello');
   });
 });
+
+describe('full export assembly', () => {
+  it('creates valid QDPX ZIP with all engines', () => {
+    const registry = new CodeDefinitionRegistry();
+    const code1 = registry.create('Theme A', '#ff0000', 'A theme');
+    const code2 = registry.create('Theme B', '#00ff00');
+
+    const guidMap = new Map<string, string>();
+    const notes: string[] = [];
+
+    // Markdown
+    const mdMarkers = [{
+      id: 'md-1', fileId: 'test.md',
+      range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
+      codes: [{ codeId: code1.id }],
+      memo: 'A note',
+      createdAt: Date.now(), updatedAt: Date.now(),
+    }];
+    const mdXml = buildTextSourceXml('test.md', mdMarkers as any, 'hello world', guidMap, notes);
+
+    // Audio
+    const audioMarkers: MediaMarker[] = [{
+      id: 'au-1', fileId: 'audio.m4a',
+      from: 1.5, to: 3.0,
+      codes: [{ codeId: code2.id }],
+      createdAt: Date.now(), updatedAt: Date.now(),
+    }];
+    const audioXml = buildAudioSourceXml('audio.m4a', audioMarkers, guidMap, notes);
+
+    const sourcesXml = [mdXml, audioXml].filter(Boolean).join('\n');
+    const notesXml = notes.join('\n');
+    const projectXml = buildProjectXml(registry, sourcesXml, notesXml, 'Test Vault', '1.0.0');
+
+    // Verify XML structure
+    expect(projectXml).toContain('xmlns="urn:QDA-XML:project:1.0"');
+    expect(projectXml).toContain('<CodeBook>');
+    expect(projectXml).toContain('name="Theme A"');
+    expect(projectXml).toContain('<Description>A theme</Description>');
+    expect(projectXml).toContain('<Sources>');
+    expect(projectXml).toContain('<TextSource');
+    expect(projectXml).toContain('<AudioSource');
+    expect(projectXml).toContain('<Notes>');
+    expect(projectXml).toContain('<PlainTextContent>A note</PlainTextContent>');
+
+    // Verify ZIP
+    const zip = createQdpxZip(projectXml, new Map());
+    const unzipped = unzipSync(zip);
+    const content = strFromU8(unzipped['project.qde']);
+    expect(content).toContain('<Project');
+    expect(content).toContain('<AudioSource');
+  });
+});
