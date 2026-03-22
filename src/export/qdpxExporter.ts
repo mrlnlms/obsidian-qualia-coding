@@ -1,4 +1,7 @@
-import { escapeXml, xmlAttr } from './xmlBuilder';
+import { escapeXml, xmlAttr, xmlDeclaration } from './xmlBuilder';
+import { buildCodebookXml } from './qdcExporter';
+import { zipSync, strToU8 } from 'fflate';
+import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CodeApplication } from '../core/types';
 import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { MediaMarker } from '../media/mediaTypes';
@@ -252,4 +255,42 @@ export function buildPdfSourceXml(
 
   const inner = [representationEl, allSelections].filter(Boolean).join('\n');
   return `<PDFSource ${xmlAttr('guid', srcGuid)} ${xmlAttr('name', fileName(filePath))} ${pathAttr}>\n${inner}\n</PDFSource>`;
+}
+
+// ── Project assembly ──
+
+const PROJECT_NS = 'urn:QDA-XML:project:1.0';
+
+/** Assemble the complete project.qde XML. */
+export function buildProjectXml(
+  registry: CodeDefinitionRegistry,
+  sourcesXml: string,
+  notesXml: string,
+  vaultName: string,
+  pluginVersion: string,
+): string {
+  const codebook = buildCodebookXml(registry);
+  const sourcesSection = sourcesXml ? `<Sources>\n${sourcesXml}\n</Sources>` : '';
+  const notesSection = notesXml ? `<Notes>\n${notesXml}\n</Notes>` : '';
+
+  const sections = [codebook, sourcesSection, notesSection].filter(Boolean).join('\n');
+
+  return `${xmlDeclaration()}\n<Project ${xmlAttr('name', vaultName)} ${xmlAttr('origin', `Qualia Coding ${pluginVersion}`)} ${xmlAttr('creationDateTime', new Date().toISOString())} ${xmlAttr('xmlns', PROJECT_NS)}>\n${sections}\n</Project>`;
+}
+
+/** Create a QDPX ZIP archive containing project.qde and optional source files. */
+export function createQdpxZip(
+  projectXml: string,
+  sourceFiles: Map<string, Uint8Array>,
+): Uint8Array {
+  // new Uint8Array(buf) ensures the buffer is in the current realm,
+  // which is required for fflate's `instanceof Uint8Array` check to pass.
+  const toU8 = (buf: Uint8Array) => new Uint8Array(buf);
+  const files: Record<string, Uint8Array> = {
+    'project.qde': toU8(strToU8(projectXml)),
+  };
+  for (const [path, data] of sourceFiles) {
+    files[path] = toU8(data);
+  }
+  return zipSync(files);
 }

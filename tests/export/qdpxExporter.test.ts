@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { ensureGuid, isValidUuid, buildCodingXml, buildNoteXml, buildNoteRefXml, buildTextSourceXml, buildAudioSourceXml, buildVideoSourceXml, buildImageSourceXml, buildPdfSourceXml } from '../../src/export/qdpxExporter';
+import { ensureGuid, isValidUuid, buildCodingXml, buildNoteXml, buildNoteRefXml, buildTextSourceXml, buildAudioSourceXml, buildVideoSourceXml, buildImageSourceXml, buildPdfSourceXml, buildProjectXml, createQdpxZip } from '../../src/export/qdpxExporter';
+import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import { unzipSync, strFromU8 } from 'fflate';
 import type { CodeApplication } from '../../src/core/types';
 import type { MediaMarker } from '../../src/media/mediaTypes';
 import type { ImageMarker } from '../../src/image/imageCodingTypes';
@@ -229,5 +231,48 @@ describe('buildPdfSourceXml', () => {
     const notes: string[] = [];
     const xml = buildPdfSourceXml('docs/paper.pdf', [], shapes, null, new Map(), guidMap, notes);
     expect(xml).toBe('');
+  });
+});
+
+describe('buildProjectXml', () => {
+  it('assembles Project XML with codebook, sources, and notes', () => {
+    const registry = new CodeDefinitionRegistry();
+    registry.create('Theme A', '#ff0000');
+    const sourcesXml = '<TextSource guid="s1" name="test.md" plainTextPath="relative://test.txt"/>';
+    const notesXml = '<Note guid="n1" name="Memo" creationDateTime="2026-01-01T00:00:00.000Z">\n<PlainTextContent>test</PlainTextContent>\n</Note>';
+    const xml = buildProjectXml(registry, sourcesXml, notesXml, 'My Vault', '1.0.0');
+    expect(xml).toMatch(/^<\?xml version="1.0" encoding="utf-8"\?>/);
+    expect(xml).toContain('xmlns="urn:QDA-XML:project:1.0"');
+    expect(xml).toContain('name="My Vault"');
+    expect(xml).toContain('origin="Qualia Coding 1.0.0"');
+    expect(xml).toContain('<CodeBook>');
+    expect(xml).toContain('<Sources>');
+    expect(xml).toContain('<Notes>');
+  });
+
+  it('omits Notes section when no notes', () => {
+    const registry = new CodeDefinitionRegistry();
+    const xml = buildProjectXml(registry, '', '', 'Vault', '1.0.0');
+    expect(xml).not.toContain('<Notes>');
+  });
+});
+
+describe('createQdpxZip', () => {
+  it('creates ZIP with project.qde', () => {
+    const projectXml = '<?xml version="1.0"?><Project/>';
+    const zip = createQdpxZip(projectXml, new Map());
+    const unzipped = unzipSync(zip);
+    expect(unzipped['project.qde']).toBeDefined();
+    expect(strFromU8(unzipped['project.qde'])).toBe(projectXml);
+  });
+
+  it('includes source files when provided', () => {
+    const projectXml = '<Project/>';
+    const sources = new Map<string, Uint8Array>();
+    sources.set('sources/abc.txt', new TextEncoder().encode('hello'));
+    const zip = createQdpxZip(projectXml, sources);
+    const unzipped = unzipSync(zip);
+    expect(unzipped['sources/abc.txt']).toBeDefined();
+    expect(strFromU8(unzipped['sources/abc.txt'])).toBe('hello');
   });
 });
