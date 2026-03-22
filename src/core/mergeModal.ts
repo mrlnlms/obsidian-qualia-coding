@@ -247,7 +247,8 @@ export class MergeModal extends Modal {
 			this.close();
 		});
 
-		// Initial state
+		// Initial state (render pre-added sources from addSource())
+		updateChips();
 		updateImpact();
 	}
 
