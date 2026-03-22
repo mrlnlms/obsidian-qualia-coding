@@ -237,8 +237,8 @@ export function buildPdfSourceXml(
   const shapeSelections = shapeMarkers
     .filter(m => m.codes.length > 0)
     .map(m => {
-      if (!pageDimensions || !pageDimensions[m.page]) return '';
-      const dim = pageDimensions[m.page];
+      const dim = pageDimensions?.[m.page];
+      if (!dim) return '';
       const rect = pdfShapeToRect(m.coords, dim.width, dim.height);
       if (!rect) return '';
       const selGuid = ensureGuid(m.id, guidMap);

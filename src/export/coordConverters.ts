@@ -31,9 +31,9 @@ export function lineChToOffset(content: string, line: number, ch: number): numbe
 
   let cpOffset = 0;
   for (let i = 0; i < line; i++) {
-    cpOffset += codepointLength(lines[i]) + 1; // +1 for \n
+    cpOffset += codepointLength(lines[i]!) + 1; // +1 for \n
   }
-  cpOffset += codepointLengthOfCodeUnits(lines[line], ch);
+  cpOffset += codepointLengthOfCodeUnits(lines[line]!, ch);
   return cpOffset;
 }
 
