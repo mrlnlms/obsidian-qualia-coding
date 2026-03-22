@@ -164,6 +164,52 @@ export class CodeDefinitionRegistry {
 		return null;
 	}
 
+	// --- Hierarchy mutations ---
+
+	/**
+	 * Set or remove the parent of a code.
+	 * Returns false if the operation is invalid (self-parent, cycle, nonexistent parent).
+	 */
+	setParent(id: string, parentId: string | undefined): boolean {
+		const def = this.definitions.get(id);
+		if (!def) return false;
+
+		if (parentId !== undefined) {
+			if (parentId === id) return false;
+			if (!this.definitions.has(parentId)) return false;
+			// Cycle detection: walk up from parentId
+			let cursor: string | undefined = parentId;
+			while (cursor) {
+				if (cursor === id) return false;
+				const p = this.definitions.get(cursor);
+				cursor = p?.parentId;
+			}
+		}
+
+		// Remove from old parent
+		if (def.parentId) {
+			const oldParent = this.definitions.get(def.parentId);
+			if (oldParent) {
+				oldParent.childrenOrder = oldParent.childrenOrder.filter(cid => cid !== id);
+			}
+		}
+
+		def.parentId = parentId;
+		def.updatedAt = Date.now();
+
+		// Add to new parent
+		if (parentId) {
+			const newParent = this.definitions.get(parentId)!;
+			if (!newParent.childrenOrder.includes(id)) {
+				newParent.childrenOrder.push(id);
+			}
+			newParent.updatedAt = Date.now();
+		}
+
+		for (const fn of this.onMutateListeners) fn();
+		return true;
+	}
+
 	// --- Hierarchy queries ---
 
 	/** Returns all codes that have no parent (root-level codes). */

@@ -125,3 +125,88 @@ describe('CodeDefinitionRegistry — hierarchy queries', () => {
 		});
 	});
 });
+
+// ── setParent ───────────────────────────────────────────────
+
+describe('CodeDefinitionRegistry — setParent', () => {
+	let registry: CodeDefinitionRegistry;
+
+	beforeEach(() => {
+		registry = new CodeDefinitionRegistry();
+	});
+
+	it('sets parentId and updates childrenOrder', () => {
+		const parent = registry.create('Parent');
+		const child = registry.create('Child');
+		const ok = registry.setParent(child.id, parent.id);
+		expect(ok).toBe(true);
+		expect(registry.getById(child.id)!.parentId).toBe(parent.id);
+		expect(registry.getById(parent.id)!.childrenOrder).toContain(child.id);
+	});
+
+	it('removes from old parent when reparenting', () => {
+		const p1 = registry.create('P1');
+		const p2 = registry.create('P2');
+		const child = registry.create('Child');
+		registry.setParent(child.id, p1.id);
+		registry.setParent(child.id, p2.id);
+		expect(registry.getById(p1.id)!.childrenOrder).not.toContain(child.id);
+		expect(registry.getById(p2.id)!.childrenOrder).toContain(child.id);
+		expect(registry.getById(child.id)!.parentId).toBe(p2.id);
+	});
+
+	it('promotes to root when parentId is undefined', () => {
+		const parent = registry.create('Parent');
+		const child = registry.create('Child');
+		registry.setParent(child.id, parent.id);
+		const ok = registry.setParent(child.id, undefined);
+		expect(ok).toBe(true);
+		expect(registry.getById(child.id)!.parentId).toBeUndefined();
+		expect(registry.getById(parent.id)!.childrenOrder).not.toContain(child.id);
+	});
+
+	it('rejects self-parenting', () => {
+		const code = registry.create('Self');
+		expect(registry.setParent(code.id, code.id)).toBe(false);
+		expect(code.parentId).toBeUndefined();
+	});
+
+	it('rejects cycle (grandpa cannot become child of child)', () => {
+		const grandpa = registry.create('Grandpa');
+		const parent = registry.create('Parent');
+		const child = registry.create('Child');
+		registry.setParent(parent.id, grandpa.id);
+		registry.setParent(child.id, parent.id);
+		// Try to make grandpa a child of child → cycle
+		expect(registry.setParent(grandpa.id, child.id)).toBe(false);
+		expect(grandpa.parentId).toBeUndefined();
+	});
+
+	it('rejects nonexistent parent', () => {
+		const code = registry.create('Code');
+		expect(registry.setParent(code.id, 'nonexistent')).toBe(false);
+	});
+
+	it('fires onMutate on success, not on rejection', () => {
+		const parent = registry.create('Parent');
+		const child = registry.create('Child');
+		let callCount = 0;
+		registry.addOnMutate(() => callCount++);
+		callCount = 0; // reset after setup
+		registry.setParent(child.id, parent.id);
+		expect(callCount).toBe(1);
+		registry.setParent(child.id, child.id); // reject
+		expect(callCount).toBe(1); // no change
+	});
+
+	it('preserves childrenOrder order when adding multiple children', () => {
+		const parent = registry.create('Parent');
+		const c1 = registry.create('C1');
+		const c2 = registry.create('C2');
+		const c3 = registry.create('C3');
+		registry.setParent(c1.id, parent.id);
+		registry.setParent(c2.id, parent.id);
+		registry.setParent(c3.id, parent.id);
+		expect(registry.getById(parent.id)!.childrenOrder).toEqual([c1.id, c2.id, c3.id]);
+	});
+});
