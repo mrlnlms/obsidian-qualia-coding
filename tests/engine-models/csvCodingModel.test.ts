@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CsvCodingModel } from '../../src/csv/csvCodingModel';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import type { CodeApplication } from '../../src/core/types';
+
+function ca(...codeIds: string[]): CodeApplication[] {
+	return codeIds.map(codeId => ({ codeId }));
+}
 
 // ── Mock DataManager ──
 
@@ -104,25 +109,22 @@ describe('getAllMarkers', () => {
 // ── addCodeToMarker ──
 
 describe('addCodeToMarker', () => {
-	it('adds code and creates in registry', () => {
+	it('adds code as CodeApplication', () => {
 		const marker = model.findOrCreateRowMarker('f.csv', 0, 'c');
-		model.addCodeToMarker(marker.id, 'Theme');
-		expect(marker.codes).toContain('Theme');
-		expect(registry.getByName('Theme')).toBeDefined();
+		model.addCodeToMarker(marker.id, 'code_theme');
+		expect(marker.codes).toEqual(ca('code_theme'));
 	});
 
 	it('does not add duplicate code', () => {
 		const marker = model.findOrCreateRowMarker('f.csv', 0, 'c');
-		model.addCodeToMarker(marker.id, 'Theme');
-		model.addCodeToMarker(marker.id, 'Theme');
-		expect(marker.codes.filter((c: string) => c === 'Theme')).toHaveLength(1);
+		model.addCodeToMarker(marker.id, 'code_theme');
+		model.addCodeToMarker(marker.id, 'code_theme');
+		expect(marker.codes).toEqual(ca('code_theme'));
 	});
 
 	it('does nothing for unknown marker id', () => {
-		model.addCodeToMarker('nonexistent', 'Theme');
-		// registry.create is not called for unknown marker
-		// (addCodeToMarker calls create before checking marker, so it will exist)
-		// This is the actual behavior - create is called first
+		model.addCodeToMarker('nonexistent', 'code_theme');
+		// no marker found — nothing happens
 	});
 });
 
@@ -131,21 +133,21 @@ describe('addCodeToMarker', () => {
 describe('removeCodeFromMarker', () => {
 	it('removes code and deletes marker if empty', () => {
 		const marker = model.findOrCreateRowMarker('f.csv', 0, 'c');
-		model.addCodeToMarker(marker.id, 'Theme');
-		model.removeCodeFromMarker(marker.id, 'Theme');
+		model.addCodeToMarker(marker.id, 'code_theme');
+		model.removeCodeFromMarker(marker.id, 'code_theme');
 		expect(model.findMarkerById(marker.id)).toBeUndefined();
 	});
 
 	it('keeps marker when keepIfEmpty is true', () => {
 		const marker = model.findOrCreateRowMarker('f.csv', 0, 'c');
-		model.addCodeToMarker(marker.id, 'Theme');
-		model.removeCodeFromMarker(marker.id, 'Theme', true);
+		model.addCodeToMarker(marker.id, 'code_theme');
+		model.removeCodeFromMarker(marker.id, 'code_theme', true);
 		expect(model.findMarkerById(marker.id)).toBeDefined();
 		expect(marker.codes).toEqual([]);
 	});
 
 	it('does nothing for unknown marker', () => {
-		expect(() => model.removeCodeFromMarker('nonexistent', 'Theme')).not.toThrow();
+		expect(() => model.removeCodeFromMarker('nonexistent', 'code_theme')).not.toThrow();
 	});
 });
 

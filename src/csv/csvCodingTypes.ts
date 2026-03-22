@@ -1,3 +1,5 @@
+import type { CodeApplication } from '../core/types';
+
 /** Coding of a specific text segment within a cell */
 export interface SegmentMarker {
 	id: string;
@@ -6,7 +8,7 @@ export interface SegmentMarker {
 	column: string;     // source column field name
 	from: number;       // char offset start within cell text
 	to: number;         // char offset end within cell text
-	codes: string[];    // code names applied to this segment
+	codes: CodeApplication[];
 	memo?: string;
 	colorOverride?: string;
 	createdAt: number;
@@ -19,7 +21,7 @@ export interface RowMarker {
 	fileId: string;
 	row: number;
 	column: string;
-	codes: string[];
+	codes: CodeApplication[];
 	memo?: string;
 	colorOverride?: string;
 	createdAt: number;

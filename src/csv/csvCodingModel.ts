@@ -1,6 +1,7 @@
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { SegmentMarker, RowMarker, CsvMarker, CodingSnapshot } from './csvCodingTypes';
+import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication } from '../core/codeApplicationHelpers';
 
 type ChangeListener = () => void;
 type HoverListener = (markerId: string | null, codeName: string | null) => void;
@@ -126,21 +127,20 @@ export class CsvCodingModel {
 
 	// ── Code assignment (works for both marker types) ──
 
-	addCodeToMarker(markerId: string, codeName: string): void {
-		this.registry.create(codeName);
+	addCodeToMarker(markerId: string, codeId: string): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
-		if (!marker.codes.includes(codeName)) {
-			marker.codes.push(codeName);
+		if (!hasCode(marker.codes, codeId)) {
+			marker.codes = addCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
 			this.notify();
 		}
 	}
 
-	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty = false): void {
+	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty = false): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
-		marker.codes = marker.codes.filter(c => c !== codeName);
+		marker.codes = removeCodeApplication(marker.codes, codeId);
 		marker.updatedAt = Date.now();
 		if (marker.codes.length === 0 && !keepIfEmpty) {
 			this.removeMarker(markerId);
@@ -158,9 +158,9 @@ export class CsvCodingModel {
 		const markers = type === 'segment'
 			? this.getSegmentMarkersForCell(file, row, column)
 			: this.getRowMarkersForCell(file, row, column);
-		const codes = new Set<string>();
-		for (const m of markers) for (const c of m.codes) codes.add(c);
-		return Array.from(codes);
+		const codeIds = new Set<string>();
+		for (const m of markers) for (const id of getCodeIds(m.codes)) codeIds.add(id);
+		return Array.from(codeIds);
 	}
 
 	getAllCodes() {
