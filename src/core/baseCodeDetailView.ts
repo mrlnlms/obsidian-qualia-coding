@@ -17,11 +17,16 @@ import { BaseMarker, SidebarModelInterface } from './types';
 import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
+import type { CodebookTreeState } from './codebookTreeRenderer';
 
 export abstract class BaseCodeDetailView extends ItemView {
 	protected model: SidebarModelInterface;
 	protected markerId: string | null = null;
-	protected codeName: string | null = null;
+	protected codeId: string | null = null;
+
+	// Tree state for codebook panel
+	protected treeExpanded: Set<string> = new Set<string>();
+	protected treeDragMode: 'reorganize' | 'merge' = 'reorganize';
 
 	/** Whether clicking a segment also navigates to the marker in the document. */
 	protected get autoRevealOnSegmentClick(): boolean {
@@ -37,13 +42,6 @@ export abstract class BaseCodeDetailView extends ItemView {
 		});
 	};
 	private boundApplyHover = () => this.applyHoverToItems();
-	private boundRenameHandler = (e: Event) => {
-		const { oldName, newName } = (e as CustomEvent<{ oldName: string; newName: string }>).detail;
-		if (this.codeName === oldName) {
-			this.codeName = newName;
-			this.leaf.updateHeader?.();
-		}
-	};
 
 	// Persistent DOM for list mode (search survives refreshes)
 	private listSearchWrap: HTMLElement | null = null;
@@ -77,7 +75,6 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.model.onChange(this.scheduleRefresh);
 		this.model.onHoverChange(this.boundApplyHover);
 		document.addEventListener('qualia:registry-changed', this.scheduleRefresh);
-		document.addEventListener('qualia:code-renamed', this.boundRenameHandler);
 		this.refreshCurrentMode();
 	}
 
@@ -85,7 +82,6 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.model.offChange(this.scheduleRefresh);
 		this.model.offHoverChange(this.boundApplyHover);
 		document.removeEventListener('qualia:registry-changed', this.scheduleRefresh);
-		document.removeEventListener('qualia:code-renamed', this.boundRenameHandler);
 		if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
 		if (this.listShellCleanup) { this.listShellCleanup(); this.listShellCleanup = null; }
 		this.contentEl.empty();
@@ -96,43 +92,45 @@ export abstract class BaseCodeDetailView extends ItemView {
 	/** Navigate to the list of all codes */
 	showList() {
 		this.markerId = null;
-		this.codeName = null;
+		this.codeId = null;
 		this.leaf.updateHeader?.();
 		this.renderList();
 	}
 
 	/** Navigate to a code-focused detail (all markers for a code) */
-	showCodeDetail(codeName: string) {
+	showCodeDetail(codeId: string) {
 		this.markerId = null;
-		this.codeName = codeName;
+		this.codeId = codeId;
 		this.leaf.updateHeader?.();
 		this.doRenderCodeDetail();
 	}
 
 	/** Set context to a specific marker + code (marker-focused detail) */
-	setContext(markerId: string, codeName: string) {
+	setContext(markerId: string, codeId: string) {
 		this.markerId = markerId;
-		this.codeName = codeName;
+		this.codeId = codeId;
 		this.leaf.updateHeader?.();
 		this.doRenderMarkerDetail();
 	}
 
 	getDisplayText(): string {
-		if (this.codeName) return this.codeName;
+		if (this.codeId) {
+			return this.model.registry.getById(this.codeId)?.name ?? 'Code Detail';
+		}
 		return 'Code Detail';
 	}
 
 	// ─── Refresh routing ────────────────────────────────────
 
 	protected refreshCurrentMode() {
-		if (this.markerId && this.codeName) {
+		if (this.markerId && this.codeId) {
 			this.doRenderMarkerDetail();
-		} else if (this.codeName) {
+		} else if (this.codeId) {
 			this.doRenderCodeDetail();
 		} else {
 			// In list mode, only rebuild the list content (preserve search input)
 			if (this.listMode && this.listContentZone) {
-				renderListContent(this.listContentZone, this.model, this.searchQuery, this.listCallbacks());
+				renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
 			} else {
 				this.renderList();
 			}
@@ -141,6 +139,14 @@ export abstract class BaseCodeDetailView extends ItemView {
 
 	// ─── List Mode ──────────────────────────────────────────
 
+	protected getTreeState(): CodebookTreeState {
+		return {
+			expanded: this.treeExpanded,
+			searchQuery: this.searchQuery,
+			dragMode: this.treeDragMode,
+		};
+	}
+
 	private renderList() {
 		this.listMode = true;
 		const result = renderListShell(this.contentEl, this.model, this.listCallbacks());
@@ -148,21 +154,37 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.listContentZone = result.listContentZone;
 		this.listShellCleanup = result.cleanup;
 		if (this.listContentZone) {
-			renderListContent(this.listContentZone, this.model, this.searchQuery, this.listCallbacks());
+			renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
 		}
 	}
 
 	private listCallbacks() {
 		return {
-			onCodeClick: (codeName: string) => {
+			onCodeClick: (codeId: string) => {
 				this.searchQuery = '';
-				this.showCodeDetail(codeName);
+				this.showCodeDetail(codeId);
 			},
 			onSearchChange: (query: string) => {
 				this.searchQuery = query;
 				if (this.listContentZone) {
-					renderListContent(this.listContentZone, this.model, this.searchQuery, this.listCallbacks());
+					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
 				}
+			},
+			onToggleExpand: (codeId: string) => {
+				if (this.treeExpanded.has(codeId)) {
+					this.treeExpanded.delete(codeId);
+				} else {
+					this.treeExpanded.add(codeId);
+				}
+				if (this.listContentZone) {
+					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+				}
+			},
+			onCodeRightClick: (_codeId: string, _event: MouseEvent) => {
+				// Placeholder for Phase B context menu
+			},
+			onDragModeChange: (mode: 'reorganize' | 'merge') => {
+				this.treeDragMode = mode;
 			},
 		};
 	}
@@ -177,9 +199,9 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.listContentZone = null;
 		if (this.listShellCleanup) { this.listShellCleanup(); this.listShellCleanup = null; }
 
-		if (!this.codeName) return;
+		if (!this.codeId) return;
 
-		renderCodeDetail(container, this.codeName, this.model, {
+		renderCodeDetail(container, this.codeId, this.model, {
 			getMarkerLabel: (m) => this.getMarkerLabel(m),
 			navigateToMarker: (m) => this.navigateToMarker(m),
 			shortenPath: (f) => this.shortenPath(f),
@@ -202,9 +224,9 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.listContentZone = null;
 		if (this.listShellCleanup) { this.listShellCleanup(); this.listShellCleanup = null; }
 
-		if (!this.markerId || !this.codeName) return;
+		if (!this.markerId || !this.codeId) return;
 
-		renderMarkerDetail(container, this.markerId, this.codeName, this.model, {
+		renderMarkerDetail(container, this.markerId, this.codeId, this.model, {
 			getMarkerText: (m) => this.getMarkerText(m),
 			navigateToMarker: (m) => this.navigateToMarker(m),
 			shortenPath: (f) => this.shortenPath(f),

@@ -15,7 +15,7 @@ export interface MarkerRendererCallbacks {
 	navigateToMarker(marker: BaseMarker): void;
 	shortenPath(fileId: string): string;
 	showList(): void;
-	showCodeDetail(codeName: string): void;
+	showCodeDetail(codeId: string): void;
 	renderCustomSection(container: HTMLElement, marker: BaseMarker): void;
 	/** Temporarily suspend/resume model onChange listener during editing. */
 	suspendRefresh(): void;
@@ -28,11 +28,13 @@ export interface MarkerRendererCallbacks {
 export function renderMarkerDetail(
 	container: HTMLElement,
 	markerId: string,
-	codeName: string,
+	codeId: string,
 	model: SidebarModelInterface,
 	callbacks: MarkerRendererCallbacks,
 ): void {
-	renderBackButton(container, codeName, () => callbacks.showCodeDetail(codeName));
+	const codeDef = model.registry.getById(codeId);
+	const codeName = codeDef?.name ?? codeId;
+	renderBackButton(container, codeName, () => callbacks.showCodeDetail(codeId));
 
 	const marker = model.getMarkerById(markerId);
 	if (!marker) {
@@ -68,11 +70,11 @@ export function renderMarkerDetail(
 
 	// -- Codes on this segment --
 	if (marker.codes.length > 0) {
-		renderCodesSection(container, marker, codeName, model, callbacks);
+		renderCodesSection(container, marker, codeId, model, callbacks);
 	}
 
 	// -- Delete segment --
-	renderDeleteSegmentButton(container, marker, codeName, model, callbacks);
+	renderDeleteSegmentButton(container, marker, codeId, model, callbacks);
 }
 
 // ─── Sub-renderers ──────────────────────────────────────
@@ -158,7 +160,7 @@ function renderColorSection(
 function renderCodesSection(
 	container: HTMLElement,
 	marker: BaseMarker,
-	activeCodeName: string,
+	activeCodeId: string,
 	model: SidebarModelInterface,
 	callbacks: MarkerRendererCallbacks,
 ) {
@@ -166,18 +168,18 @@ function renderCodesSection(
 	codesSection.createEl('h6', { text: 'Codes' });
 	const chipList = codesSection.createDiv({ cls: 'codemarker-detail-chips' });
 	for (const ca of marker.codes) {
-		const codeDef = model.registry.getById(ca.codeId);
-		const codeName = codeDef?.name ?? ca.codeId;
-		const codeColor = codeDef?.color ?? '#888';
+		const chipDef = model.registry.getById(ca.codeId);
+		const chipName = chipDef?.name ?? ca.codeId;
+		const codeColor = chipDef?.color ?? '#888';
 		const chip = chipList.createEl('span', { cls: 'codemarker-detail-chip' });
 		const dot = chip.createSpan({ cls: 'codemarker-detail-chip-dot' });
 		dot.style.backgroundColor = codeColor;
-		chip.createSpan({ text: codeName });
-		if (codeName === activeCodeName) {
+		chip.createSpan({ text: chipName });
+		if (ca.codeId === activeCodeId) {
 			chip.addClass('is-active');
 		}
 		chip.addEventListener('click', () => {
-			callbacks.showCodeDetail(codeName);
+			callbacks.showCodeDetail(ca.codeId);
 		});
 	}
 }
@@ -185,7 +187,7 @@ function renderCodesSection(
 function renderDeleteSegmentButton(
 	container: HTMLElement,
 	marker: BaseMarker,
-	codeName: string,
+	codeId: string,
 	model: SidebarModelInterface,
 	callbacks: MarkerRendererCallbacks,
 ) {
@@ -204,7 +206,7 @@ function renderDeleteSegmentButton(
 
 		confirmBtn.addEventListener('click', () => {
 			model.removeMarker(marker.id);
-			if (codeName) callbacks.showCodeDetail(codeName);
+			if (codeId) callbacks.showCodeDetail(codeId);
 			else callbacks.showList();
 		});
 		cancelBtn.addEventListener('click', () => {

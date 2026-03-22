@@ -14,8 +14,8 @@ export interface CodeRendererCallbacks {
 	navigateToMarker(marker: BaseMarker): void;
 	shortenPath(fileId: string): string;
 	showList(): void;
-	showCodeDetail(codeName: string): void;
-	setContext(markerId: string, codeName: string): void;
+	showCodeDetail(codeId: string): void;
+	setContext(markerId: string, codeId: string): void;
 	autoRevealOnSegmentClick: boolean;
 	/** Temporarily suspend/resume model onChange listener during color editing. */
 	suspendRefresh(): void;
@@ -27,13 +27,14 @@ export interface CodeRendererCallbacks {
  */
 export function renderCodeDetail(
 	container: HTMLElement,
-	codeName: string,
+	codeId: string,
 	model: SidebarModelInterface,
 	callbacks: CodeRendererCallbacks,
 ): void {
 	renderBackButton(container, undefined, () => callbacks.showList());
 
-	const def = model.registry.getByName(codeName);
+	const def = model.registry.getById(codeId);
+	const codeName = def?.name ?? codeId;
 	const color = def?.color ?? '#888';
 
 	// Header: swatch (clickable color picker) + code name
@@ -83,14 +84,13 @@ export function renderCodeDetail(
 	renderCodeDescription(container, def, model, callbacks);
 
 	// All markers with this code (across all files)
-	const codeId = def?.id;
-	const allMarkers = codeId
-		? model.getAllMarkers().filter(m => hasCode(m.codes, codeId))
+	const allMarkers = def
+		? model.getAllMarkers().filter(m => hasCode(m.codes, def.id))
 		: [];
 
 	if (allMarkers.length === 0) {
 		container.createEl('p', { text: 'No segments yet.', cls: 'codemarker-detail-empty' });
-		if (def) renderDeleteCodeButton(container, def.name, model, callbacks);
+		if (def) renderDeleteCodeButton(container, codeId, codeName, model, callbacks);
 		return;
 	}
 
@@ -123,7 +123,7 @@ export function renderCodeDetail(
 		// Click item -> open marker-focused detail (+ navigate if enabled)
 		li.addEventListener('click', () => {
 			if (callbacks.autoRevealOnSegmentClick) callbacks.navigateToMarker(marker);
-			callbacks.setContext(marker.id, codeName);
+			callbacks.setContext(marker.id, codeId);
 		});
 		li.addEventListener('mouseenter', () => {
 			model.setHoverState(marker.id, codeName);
@@ -134,11 +134,11 @@ export function renderCodeDetail(
 	}
 
 	// Segments by file (tree grouped by file)
-	renderSegmentsByFile(container, allMarkers, codeName, model, callbacks);
+	renderSegmentsByFile(container, allMarkers, codeId, codeName, model, callbacks);
 
 	// Delete code — at the bottom, after all content
 	if (def) {
-		renderDeleteCodeButton(container, def.name, model, callbacks);
+		renderDeleteCodeButton(container, codeId, codeName, model, callbacks);
 	}
 }
 
@@ -147,6 +147,7 @@ export function renderCodeDetail(
 function renderSegmentsByFile(
 	container: HTMLElement,
 	allMarkers: BaseMarker[],
+	codeId: string,
 	codeName: string,
 	model: SidebarModelInterface,
 	callbacks: CodeRendererCallbacks,
@@ -184,7 +185,7 @@ function renderSegmentsByFile(
 			matchEl.textContent = label;
 			matchEl.addEventListener('click', () => {
 				if (callbacks.autoRevealOnSegmentClick) callbacks.navigateToMarker(marker);
-				callbacks.setContext(marker.id, codeName);
+				callbacks.setContext(marker.id, codeId);
 			});
 			matchEl.addEventListener('mouseenter', () => {
 				model.setHoverState(marker.id, codeName);
@@ -240,6 +241,7 @@ function renderCodeDescription(
 
 function renderDeleteCodeButton(
 	container: HTMLElement,
+	codeId: string,
 	codeName: string,
 	model: SidebarModelInterface,
 	callbacks: CodeRendererCallbacks,
@@ -258,7 +260,7 @@ function renderDeleteCodeButton(
 		const cancelBtn = actions.createEl('button', { text: 'Cancel' });
 
 		confirmBtn.addEventListener('click', () => {
-			model.deleteCode(codeName);
+			model.deleteCode(codeId);
 			callbacks.showList();
 		});
 		cancelBtn.addEventListener('click', () => {

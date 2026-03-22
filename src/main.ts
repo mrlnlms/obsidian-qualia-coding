@@ -128,7 +128,10 @@ export default class QualiaCodingPlugin extends Plugin {
 		const onLabelClick = (evt: Event) => {
 			const detail = (evt as CustomEvent<{ markerId: string; codeName: string }>).detail;
 			if (!detail?.markerId || !detail?.codeName) return;
-			this.revealCodeDetailPanel(detail.markerId, detail.codeName);
+			// Resolve codeName → codeId at the event boundary
+			const def = this.sharedRegistry.getByName(detail.codeName);
+			if (!def) return;
+			this.revealCodeDetailPanel(detail.markerId, def.id);
 		};
 		document.addEventListener('codemarker:label-click', onLabelClick);
 		this.register(() => document.removeEventListener('codemarker:label-click', onLabelClick));
@@ -136,7 +139,10 @@ export default class QualiaCodingPlugin extends Plugin {
 		const onCodeClick = (evt: Event) => {
 			const detail = (evt as CustomEvent<{ codeName: string }>).detail;
 			if (!detail?.codeName) return;
-			this.revealCodeDetailForCode(detail.codeName);
+			// Resolve codeName → codeId at the event boundary
+			const def = this.sharedRegistry.getByName(detail.codeName);
+			if (!def) return;
+			this.revealCodeDetailForCode(def.id);
 		};
 		document.addEventListener('codemarker:code-click', onCodeClick);
 		this.register(() => document.removeEventListener('codemarker:code-click', onCodeClick));
@@ -144,37 +150,37 @@ export default class QualiaCodingPlugin extends Plugin {
 
 	// ── Sidebar reveal helpers (used by cross-engine listeners + commands) ──
 
-	async revealCodeDetailPanel(markerId: string, codeName: string) {
+	async revealCodeDetailPanel(markerId: string, codeId: string) {
 		const leaves = this.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
 		const existing = leaves[0];
 		if (existing) {
 			const view = existing.view as BaseCodeDetailView;
-			view.setContext(markerId, codeName);
+			view.setContext(markerId, codeId);
 			this.app.workspace.revealLeaf(existing);
 		} else {
 			const leaf = this.app.workspace.getRightLeaf(false);
 			if (leaf) {
 				await leaf.setViewState({ type: CODE_DETAIL_VIEW_TYPE, active: true });
 				const view = leaf.view as BaseCodeDetailView;
-				view.setContext(markerId, codeName);
+				view.setContext(markerId, codeId);
 				this.app.workspace.revealLeaf(leaf);
 			}
 		}
 	}
 
-	async revealCodeDetailForCode(codeName: string) {
+	async revealCodeDetailForCode(codeId: string) {
 		const leaves = this.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
 		const existing = leaves[0];
 		if (existing) {
 			const view = existing.view as BaseCodeDetailView;
-			view.showCodeDetail(codeName);
+			view.showCodeDetail(codeId);
 			this.app.workspace.revealLeaf(existing);
 		} else {
 			const leaf = this.app.workspace.getRightLeaf(false);
 			if (leaf) {
 				await leaf.setViewState({ type: CODE_DETAIL_VIEW_TYPE, active: true });
 				const view = leaf.view as BaseCodeDetailView;
-				view.showCodeDetail(codeName);
+				view.showCodeDetail(codeId);
 				this.app.workspace.revealLeaf(leaf);
 			}
 		}

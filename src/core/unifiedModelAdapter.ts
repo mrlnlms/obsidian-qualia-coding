@@ -83,12 +83,12 @@ export class UnifiedModelAdapter implements SidebarModelInterface {
 		return false;
 	}
 
-	deleteCode(codeName: string): void {
+	deleteCode(codeId: string): void {
 		// Each sub-model calls saveMarkers() internally, which routes through
 		// DataManager.setSection() → markDirty(). markDirty() debounces disk
 		// writes with a 500ms timer that resets on every call, so all 6 saves
 		// collapse into a single flush — no redundant disk writes occur.
-		for (const m of this.models) m.deleteCode(codeName);
+		for (const m of this.models) m.deleteCode(codeId);
 	}
 
 	getAutoRevealOnSegmentClick(): boolean {
