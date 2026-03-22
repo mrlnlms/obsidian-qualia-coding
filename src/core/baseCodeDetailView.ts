@@ -12,12 +12,13 @@
  *   - renderCustomSection(container, marker) — optional extra section (e.g. memo)
  */
 
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import { BaseMarker, SidebarModelInterface } from './types';
 import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
 import type { CodebookTreeState } from './codebookTreeRenderer';
+import { showCodeContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
 
 export abstract class BaseCodeDetailView extends ItemView {
 	protected model: SidebarModelInterface;
@@ -176,11 +177,80 @@ export abstract class BaseCodeDetailView extends ItemView {
 					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
 				}
 			},
-			onCodeRightClick: (_codeId: string, _event: MouseEvent) => {
-				// Placeholder for Phase B context menu
+			onCodeRightClick: (codeId: string, event: MouseEvent) => {
+				showCodeContextMenu(event, codeId, this.model.registry, this.contextMenuCallbacks());
 			},
 			onDragModeChange: (mode: 'reorganize' | 'merge') => {
 				this.treeDragMode = mode;
+			},
+		};
+	}
+
+	// ─── Context Menu ──────────────────────────────────────
+
+	private contextMenuCallbacks(): ContextMenuCallbacks {
+		return {
+			showCodeDetail: (codeId: string) => this.showCodeDetail(codeId),
+			openMergeModal: (_codeId: string) => {
+				new Notice('Merge: will be available in Phase B');
+			},
+			promptRename: (codeId: string) => {
+				const def = this.model.registry.getById(codeId);
+				if (!def) return;
+				const newName = prompt('Rename code:', def.name);
+				if (newName && newName.trim() && newName.trim() !== def.name) {
+					const ok = this.model.registry.update(codeId, { name: newName.trim() });
+					if (ok) {
+						this.model.saveMarkers();
+					} else {
+						new Notice('A code with that name already exists.');
+					}
+				}
+			},
+			promptAddChild: (parentId: string) => {
+				const name = prompt('New child code name:');
+				if (name && name.trim()) {
+					this.model.registry.create(name.trim(), undefined, undefined, parentId);
+					this.model.saveMarkers();
+					this.treeExpanded.add(parentId);
+				}
+			},
+			promptMoveTo: (_codeId: string) => {
+				new Notice('Move to: will be available in Phase B');
+			},
+			promptDelete: (codeId: string) => {
+				const def = this.model.registry.getById(codeId);
+				if (!def) return;
+				if (confirm(`Delete code "${def.name}"? Children will be promoted to top-level.`)) {
+					this.model.deleteCode(codeId);
+					this.showList();
+				}
+			},
+			promptColor: (codeId: string) => {
+				const def = this.model.registry.getById(codeId);
+				if (!def) return;
+				const input = document.createElement('input');
+				input.type = 'color';
+				input.value = def.color;
+				input.style.position = 'absolute';
+				input.style.opacity = '0';
+				input.style.pointerEvents = 'none';
+				document.body.appendChild(input);
+				input.addEventListener('input', () => {
+					this.model.registry.update(codeId, { color: input.value });
+					this.model.saveMarkers();
+				});
+				input.addEventListener('change', () => {
+					input.remove();
+				});
+				input.click();
+			},
+			promptDescription: (codeId: string) => {
+				this.showCodeDetail(codeId);
+			},
+			setParent: (codeId: string, parentId: string | undefined) => {
+				this.model.registry.setParent(codeId, parentId);
+				this.model.saveMarkers();
 			},
 		};
 	}
