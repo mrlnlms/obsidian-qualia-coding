@@ -4033,3 +4033,51 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   outline: none;
   border-radius: var(--radius-s);
 }
+
+/* ── Codebook Tree (virtual scroll) ───────────────────── */
+.codebook-tree-scroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.codebook-tree-spacer { width: 100%; }
+.codebook-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 8px;
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+.codebook-tree-row:hover { background-color: var(--background-modifier-hover); }
+.codebook-tree-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+.codebook-tree-chevron.is-expanded { transform: rotate(90deg); }
+.codebook-tree-chevron-spacer { width: 16px; flex-shrink: 0; }
+.codebook-tree-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.codebook-tree-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-ui-small);
+}
+.codebook-tree-count {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
