@@ -5,6 +5,8 @@
  * natural width/height. This makes them resolution-independent.
  */
 
+import type { CodeApplication } from '../core/types';
+
 export type RegionShape = 'rect' | 'ellipse' | 'polygon';
 
 export interface ImageMarker {
@@ -12,7 +14,7 @@ export interface ImageMarker {
 	fileId: string;          // image file path in vault
 	shape: RegionShape;
 	coords: NormalizedCoords;
-	codes: string[];
+	codes: CodeApplication[];
 	memo?: string;
 	colorOverride?: string;
 	createdAt: number;

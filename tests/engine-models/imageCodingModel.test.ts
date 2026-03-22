@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ImageCodingModel } from '../../src/image/imageCodingModel';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import type { NormalizedCoords } from '../../src/image/imageCodingTypes';
+import type { CodeApplication } from '../../src/core/types';
+import { hasCode } from '../../src/core/codeApplicationHelpers';
+
+function ca(...codeIds: string[]): CodeApplication[] {
+	return codeIds.map(codeId => ({ codeId }));
+}
 
 // ── Mock DataManager ──
 
@@ -64,23 +70,22 @@ describe('findMarkerById', () => {
 // ── addCodeToMarker ──
 
 describe('addCodeToMarker', () => {
-	it('adds code and creates in registry', () => {
+	it('adds code to marker', () => {
 		const marker = model.createMarker('img.png', 'rect', rectCoords);
-		const result = model.addCodeToMarker(marker.id, 'Theme A');
+		const result = model.addCodeToMarker(marker.id, 'code_theme_a');
 		expect(result).toBe(true);
-		expect(marker.codes).toContain('Theme A');
-		expect(registry.getByName('Theme A')).toBeDefined();
+		expect(hasCode(marker.codes, 'code_theme_a')).toBe(true);
 	});
 
 	it('does not add duplicate code', () => {
 		const marker = model.createMarker('img.png', 'rect', rectCoords);
-		model.addCodeToMarker(marker.id, 'Theme A');
-		model.addCodeToMarker(marker.id, 'Theme A');
-		expect(marker.codes.filter(c => c === 'Theme A')).toHaveLength(1);
+		model.addCodeToMarker(marker.id, 'code_theme_a');
+		model.addCodeToMarker(marker.id, 'code_theme_a');
+		expect(marker.codes.filter(c => c.codeId === 'code_theme_a')).toHaveLength(1);
 	});
 
 	it('returns false for unknown marker id', () => {
-		expect(model.addCodeToMarker('nonexistent', 'Theme A')).toBe(false);
+		expect(model.addCodeToMarker('nonexistent', 'code_theme_a')).toBe(false);
 	});
 });
 
@@ -89,27 +94,27 @@ describe('addCodeToMarker', () => {
 describe('removeCodeFromMarker', () => {
 	it('removes code and deletes marker if empty', () => {
 		const marker = model.createMarker('img.png', 'rect', rectCoords);
-		model.addCodeToMarker(marker.id, 'Theme A');
-		model.removeCodeFromMarker(marker.id, 'Theme A');
+		model.addCodeToMarker(marker.id, 'code_theme_a');
+		model.removeCodeFromMarker(marker.id, 'code_theme_a');
 		expect(model.findMarkerById(marker.id)).toBeUndefined();
 	});
 
 	it('keeps marker when keepIfEmpty is true', () => {
 		const marker = model.createMarker('img.png', 'rect', rectCoords);
-		model.addCodeToMarker(marker.id, 'Theme A');
-		model.removeCodeFromMarker(marker.id, 'Theme A', true);
+		model.addCodeToMarker(marker.id, 'code_theme_a');
+		model.removeCodeFromMarker(marker.id, 'code_theme_a', true);
 		expect(model.findMarkerById(marker.id)).toBeDefined();
 		expect(marker.codes).toEqual([]);
 	});
 
 	it('returns false for unknown marker', () => {
-		expect(model.removeCodeFromMarker('nonexistent', 'Theme A')).toBe(false);
+		expect(model.removeCodeFromMarker('nonexistent', 'code_theme_a')).toBe(false);
 	});
 
 	it('returns false if code not present on marker', () => {
 		const marker = model.createMarker('img.png', 'rect', rectCoords);
-		model.addCodeToMarker(marker.id, 'Theme A');
-		expect(model.removeCodeFromMarker(marker.id, 'Theme B')).toBe(false);
+		model.addCodeToMarker(marker.id, 'code_theme_a');
+		expect(model.removeCodeFromMarker(marker.id, 'code_theme_b')).toBe(false);
 	});
 });
 

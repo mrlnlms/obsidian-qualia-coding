@@ -5,6 +5,7 @@
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { ImageMarker, RegionShape, NormalizedCoords } from './imageCodingTypes';
+import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication } from '../core/codeApplicationHelpers';
 
 export type ChangeListener = () => void;
 
@@ -124,28 +125,25 @@ export class ImageCodingModel {
 
 	// ─── Code assignment ───
 
-	addCodeToMarker(markerId: string, codeName: string): boolean {
+	addCodeToMarker(markerId: string, codeId: string): boolean {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return false;
 
-		this.registry.create(codeName);
-
-		if (!marker.codes.includes(codeName)) {
-			marker.codes.push(codeName);
+		if (!hasCode(marker.codes, codeId)) {
+			marker.codes = addCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
 			this.notify();
 		}
 		return true;
 	}
 
-	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty = false): boolean {
+	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty = false): boolean {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return false;
 
-		const idx = marker.codes.indexOf(codeName);
-		if (idx < 0) return false;
+		if (!hasCode(marker.codes, codeId)) return false;
 
-		marker.codes.splice(idx, 1);
+		marker.codes = removeCodeApplication(marker.codes, codeId);
 		marker.updatedAt = Date.now();
 
 		if (marker.codes.length === 0 && !keepIfEmpty) {
@@ -158,7 +156,7 @@ export class ImageCodingModel {
 
 	getCodesForMarker(markerId: string): string[] {
 		const marker = this.findMarkerById(markerId);
-		return marker ? [...marker.codes] : [];
+		return marker ? getCodeIds(marker.codes) : [];
 	}
 
 	// ─── Hover state ───
