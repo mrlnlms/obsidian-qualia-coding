@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MediaCodingModel } from '../../src/media/mediaCodingModel';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import type { MediaMarker, MediaFile, BaseMediaSettings } from '../../src/media/mediaTypes';
+import type { CodeApplication } from '../../src/core/types';
+import { hasCode } from '../../src/core/codeApplicationHelpers';
+
+function ca(...codeIds: string[]): CodeApplication[] {
+	return codeIds.map(codeId => ({ codeId }));
+}
 
 // ── Mock DataManager ──
 
@@ -130,7 +136,7 @@ describe('addCodeToMarker', () => {
 	it('adds code to marker and creates definition in registry', () => {
 		const marker = model.findOrCreateMarker('file.mp3', 0, 5);
 		model.addCodeToMarker(marker.id, 'Theme A');
-		expect(marker.codes).toContain('Theme A');
+		expect(hasCode(marker.codes, 'Theme A')).toBe(true);
 		expect(registry.getByName('Theme A')).toBeDefined();
 	});
 
@@ -138,7 +144,7 @@ describe('addCodeToMarker', () => {
 		const marker = model.findOrCreateMarker('file.mp3', 0, 5);
 		model.addCodeToMarker(marker.id, 'Theme A');
 		model.addCodeToMarker(marker.id, 'Theme A');
-		expect(marker.codes.filter((c: string) => c === 'Theme A')).toHaveLength(1);
+		expect(marker.codes.filter(c => c.codeId === 'Theme A')).toHaveLength(1);
 	});
 
 	it('does nothing for unknown marker id', () => {
@@ -147,10 +153,10 @@ describe('addCodeToMarker', () => {
 	});
 
 	it('reuses existing registry definition', () => {
-		registry.create('Existing');
+		const def = registry.create('Existing');
 		const marker = model.findOrCreateMarker('file.mp3', 0, 5);
-		model.addCodeToMarker(marker.id, 'Existing');
-		expect(marker.codes).toContain('Existing');
+		model.addCodeToMarker(marker.id, def.id);
+		expect(hasCode(marker.codes, def.id)).toBe(true);
 	});
 });
 
@@ -159,18 +165,18 @@ describe('addCodeToMarker', () => {
 describe('removeCodeFromMarker', () => {
 	it('removes code and deletes marker if empty', () => {
 		const marker = model.findOrCreateMarker('file.mp3', 0, 5);
-		model.addCodeToMarker(marker.id, 'Theme A');
+		model.addCodeToMarker(marker.id, 'code_a');
 		vi.advanceTimersByTime(600); // flush scheduleSave
-		model.removeCodeFromMarker(marker.id, 'Theme A');
+		model.removeCodeFromMarker(marker.id, 'code_a');
 		vi.advanceTimersByTime(600);
 		expect(model.findMarkerById(marker.id)).toBeUndefined();
 	});
 
 	it('keeps marker when keepIfEmpty is true', () => {
 		const marker = model.findOrCreateMarker('file.mp3', 0, 5);
-		model.addCodeToMarker(marker.id, 'Theme A');
+		model.addCodeToMarker(marker.id, 'code_a');
 		vi.advanceTimersByTime(600);
-		model.removeCodeFromMarker(marker.id, 'Theme A', true);
+		model.removeCodeFromMarker(marker.id, 'code_a', true);
 		vi.advanceTimersByTime(600);
 		const found = model.findMarkerById(marker.id);
 		expect(found).toBeDefined();
@@ -178,15 +184,15 @@ describe('removeCodeFromMarker', () => {
 	});
 
 	it('does nothing for unknown marker', () => {
-		model.removeCodeFromMarker('nonexistent', 'Theme A');
+		model.removeCodeFromMarker('nonexistent', 'code_a');
 		// no error thrown
 	});
 
 	it('does nothing if code not present on marker', () => {
 		const marker = model.findOrCreateMarker('file.mp3', 0, 5);
-		model.addCodeToMarker(marker.id, 'Theme A');
-		model.removeCodeFromMarker(marker.id, 'Theme B');
-		expect(marker.codes).toEqual(['Theme A']);
+		model.addCodeToMarker(marker.id, 'code_a');
+		model.removeCodeFromMarker(marker.id, 'code_b');
+		expect(marker.codes).toEqual(ca('code_a'));
 	});
 });
 
@@ -309,7 +315,7 @@ describe('notify', () => {
 		const listener = vi.fn();
 		model.onChange(listener);
 		model.findOrCreateMarker('file.mp3', 0, 5);
-		model.addCodeToMarker(model.getAllMarkers()[0]!.id, 'X');
+		model.addCodeToMarker(model.getAllMarkers()[0]!.id, 'code_x');
 		// addCodeToMarker calls notify which calls scheduleSave + fires listeners
 		expect(listener).toHaveBeenCalled();
 	});
@@ -395,7 +401,7 @@ describe('migration backfill', () => {
 					{
 						path: 'old.mp3',
 						markers: [
-							{ id: 'legacy1', from: 0, to: 5, codes: ['a'], createdAt: now - 10000 },
+							{ id: 'legacy1', from: 0, to: 5, codes: ca('code_a'), createdAt: now - 10000 },
 						],
 					},
 				],

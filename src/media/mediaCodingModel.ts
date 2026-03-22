@@ -6,7 +6,8 @@
 import type { DataManager } from '../core/dataManager';
 import type { MediaMarker, MediaFile, BaseMediaSettings } from './mediaTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
-import type { CodeDefinition, QualiaData } from '../core/types';
+import type { CodeApplication, CodeDefinition, QualiaData } from '../core/types';
+import { hasCode, addCodeApplication, removeCodeApplication } from '../core/codeApplicationHelpers';
 import { formatTime } from './formatTime';
 
 const TOLERANCE = 0.01;
@@ -194,27 +195,27 @@ export class MediaCodingModel<
 
 	// ── Code assignment ──
 
-	addCodeToMarker(markerId: string, codeName: string): void {
+	addCodeToMarker(markerId: string, codeId: string): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
-		if (marker.codes.includes(codeName)) return;
+		if (hasCode(marker.codes, codeId)) return;
 
-		if (!this.registry.getByName(codeName)) {
-			this.registry.create(codeName);
+		if (!this.registry.getById(codeId)) {
+			const def = this.registry.getByName(codeId);
+			if (!def) this.registry.create(codeId);
 		}
 
-		marker.codes.push(codeName);
+		marker.codes = addCodeApplication(marker.codes, codeId);
 		marker.updatedAt = Date.now();
 		this.notify();
 	}
 
-	removeCodeFromMarker(markerId: string, codeName: string, keepIfEmpty?: boolean): void {
+	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty?: boolean): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 
-		const idx = marker.codes.indexOf(codeName);
-		if (idx < 0) return;
-		marker.codes.splice(idx, 1);
+		if (!hasCode(marker.codes, codeId)) return;
+		marker.codes = removeCodeApplication(marker.codes, codeId);
 
 		if (!keepIfEmpty && marker.codes.length === 0) {
 			this.removeMarker(markerId);

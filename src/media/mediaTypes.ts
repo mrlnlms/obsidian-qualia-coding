@@ -2,6 +2,7 @@
  * Shared types for time-based media engines (audio + video).
  */
 
+import type { CodeApplication } from '../core/types';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 
 /** A coded region on a timeline (used by both Audio and Video). */
@@ -10,7 +11,7 @@ export interface MediaMarker {
 	fileId: string;
 	from: number;
 	to: number;
-	codes: string[];
+	codes: CodeApplication[];
 	colorOverride?: string;
 	memo?: string;
 	createdAt: number;
