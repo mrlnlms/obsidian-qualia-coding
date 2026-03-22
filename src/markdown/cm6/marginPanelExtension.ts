@@ -324,9 +324,10 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 						continue;
 					}
 
-					for (const codeName of marker.codes) {
-						const def = model.registry.getByName(codeName);
+					for (const codeApp of marker.codes) {
+						const def = model.registry.getById(codeApp.codeId);
 						const color = def?.color ?? marker.color;
+						const codeName = def?.name ?? codeApp.codeId;
 
 						brackets.push({
 							marker,

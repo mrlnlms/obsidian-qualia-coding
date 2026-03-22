@@ -70,7 +70,7 @@ export class HandleOverlayRenderer {
 					if (m.colorOverride) {
 						handleColor = m.colorOverride;
 					} else if (m.codes && m.codes.length > 0) {
-						const def = this.model.registry.getByName(m.codes[0]!);
+						const def = this.model.registry.getById(m.codes[0]!.codeId);
 						if (def) handleColor = def.color;
 					}
 

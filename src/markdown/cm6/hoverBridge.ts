@@ -55,7 +55,7 @@ export const createHoverBridge = (model: CodeMarkerModel) => {
 							let codeName: string | null = null;
 							if (markerId) {
 								const marker = model.getMarkerById(markerId);
-								codeName = marker?.codes[0] ?? null;
+								codeName = marker?.codes[0]?.codeId ?? null;
 							}
 
 							// Suppress to prevent onModelHoverChange from re-dispatching

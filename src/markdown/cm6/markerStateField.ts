@@ -259,8 +259,8 @@ function buildDecorationsForFile(
 
 			// Resolve colors for each code on this marker
 			const codeColors: string[] = [];
-			for (const codeName of marker.codes) {
-				const def = model.registry.getByName(codeName);
+			for (const codeApp of marker.codes) {
+				const def = model.registry.getById(codeApp.codeId);
 				if (def) codeColors.push(def.color);
 			}
 
