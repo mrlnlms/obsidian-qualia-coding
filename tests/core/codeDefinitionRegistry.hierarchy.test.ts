@@ -241,3 +241,54 @@ describe('CodeDefinitionRegistry — delete with hierarchy', () => {
 		expect(registry.getById(parent.id)!.childrenOrder).toEqual([c2.id]);
 	});
 });
+
+// ── Serialization round-trip ────────────────────────────────
+
+describe('CodeDefinitionRegistry — hierarchy serialization', () => {
+	let registry: CodeDefinitionRegistry;
+
+	beforeEach(() => {
+		registry = new CodeDefinitionRegistry();
+	});
+
+	it('round-trips parentId and childrenOrder', () => {
+		const parent = registry.create('Parent');
+		const child = registry.create('Child');
+		registry.setParent(child.id, parent.id);
+
+		const json = registry.toJSON();
+		const restored = CodeDefinitionRegistry.fromJSON(json);
+
+		expect(restored.getById(child.id)!.parentId).toBe(parent.id);
+		expect(restored.getById(parent.id)!.childrenOrder).toEqual([child.id]);
+	});
+
+	it('round-trips mergedFrom', () => {
+		const code = registry.create('Merged');
+		code.mergedFrom = ['old-1', 'old-2'];
+
+		const json = registry.toJSON();
+		const restored = CodeDefinitionRegistry.fromJSON(json);
+
+		expect(restored.getById(code.id)!.mergedFrom).toEqual(['old-1', 'old-2']);
+	});
+
+	it('fromJSON handles legacy data without childrenOrder', () => {
+		const legacyData = {
+			definitions: {
+				'leg-1': {
+					id: 'leg-1',
+					name: 'Legacy',
+					color: '#FFF',
+					paletteIndex: 0,
+					createdAt: 1000,
+					updatedAt: 1000,
+					// no childrenOrder!
+				},
+			},
+			nextPaletteIndex: 1,
+		};
+		const restored = CodeDefinitionRegistry.fromJSON(legacyData);
+		expect(restored.getById('leg-1')!.childrenOrder).toEqual([]);
+	});
+});
