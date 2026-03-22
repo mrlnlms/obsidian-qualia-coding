@@ -149,11 +149,23 @@ export class CodeDefinitionRegistry {
 
 	/**
 	 * Returns the color of the first code (by name) found in the registry.
-	 * Used by the decoration layer to derive marker highlight color.
+	 * @deprecated Use getColorForCodeIds instead.
 	 */
 	getColorForCodes(codeNames: string[]): string | null {
 		for (const name of codeNames) {
 			const def = this.getByName(name);
+			if (def) return def.color;
+		}
+		return null;
+	}
+
+	/**
+	 * Returns the color of the first code (by id) found in the registry.
+	 * Used by the decoration layer to derive marker highlight color.
+	 */
+	getColorForCodeIds(codeIds: string[]): string | null {
+		for (const id of codeIds) {
+			const def = this.getById(id);
 			if (def) return def.color;
 		}
 		return null;
