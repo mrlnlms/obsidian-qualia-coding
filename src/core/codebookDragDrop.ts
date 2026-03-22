@@ -51,9 +51,17 @@ export function setupDragDrop(
 		e.preventDefault();
 
 		clearDropIndicators();
+		container.classList.remove('is-root-drop-target');
 
 		const row = findRow(e.target);
-		if (!row) return;
+		if (!row) {
+			// Hovering outside any row → show root drop zone feedback
+			const mode = getMode();
+			if (mode === 'reorganize') {
+				container.classList.add('is-root-drop-target');
+			}
+			return;
+		}
 		const targetId = row.dataset.codeId;
 		if (!targetId || targetId === draggedCodeId) return;
 
@@ -70,9 +78,17 @@ export function setupDragDrop(
 		e.preventDefault();
 
 		const row = findRow(e.target);
-		if (!row) { cleanup(); return; }
-		const targetId = row.dataset.codeId;
-		if (!targetId || targetId === draggedCodeId) { cleanupDrag(); return; }
+		const targetId = row?.dataset.codeId;
+
+		// Drop outside any row (or on root drop zone) → promote to root
+		if (!targetId || targetId === draggedCodeId) {
+			const mode = getMode();
+			if (mode === 'reorganize' && !row) {
+				callbacks.onReparent(draggedCodeId, undefined);
+			}
+			cleanupDrag();
+			return;
+		}
 
 		const mode = getMode();
 
@@ -102,6 +118,7 @@ export function setupDragDrop(
 			}
 		}
 		clearDropIndicators();
+		container.classList.remove('is-root-drop-target');
 		draggedCodeId = null;
 	};
 

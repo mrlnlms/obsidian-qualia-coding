@@ -4060,6 +4060,10 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   outline-offset: -2px;
   border-radius: var(--radius-s);
 }
+.is-root-drop-target {
+  border-bottom: 2px dashed var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
 .codebook-tree-chevron {
   display: flex;
   align-items: center;
