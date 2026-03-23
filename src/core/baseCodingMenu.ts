@@ -393,11 +393,15 @@ export function renderMagnitudeSection(
 			.filter(c => c.def?.magnitude && c.def.magnitude.values.length > 0);
 
 		if (codesWithMag.length === 0) {
-			const empty = document.createElement('div');
-			empty.className = 'codemarker-tooltip-magnitude-empty';
-			empty.textContent = 'No codes have magnitude configured';
-			body.appendChild(empty);
+			// Hide entirely when no codes have magnitude — no confusing message
+			separator.style.display = 'none';
+			wrapper.style.display = 'none';
 			return;
+		}
+		// Re-show if previously hidden
+		if (codeIds.length > 0) {
+			separator.style.display = '';
+			wrapper.style.display = '';
 		}
 
 		for (const { id, def } of codesWithMag) {

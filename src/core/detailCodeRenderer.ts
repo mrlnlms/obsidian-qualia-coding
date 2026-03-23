@@ -402,6 +402,12 @@ function renderMagnitudeConfigSection(
 	const body = section.createDiv({ cls: 'codemarker-detail-magnitude-body' });
 	body.style.display = enabled ? '' : 'none';
 
+	const saveMagnitude = () => {
+		def.updatedAt = Date.now();
+		model.registry.update(def.id, { magnitude: def.magnitude });
+		model.saveMarkers();
+	};
+
 	const renderBody = () => {
 		body.empty();
 		if (!def.magnitude) return;
@@ -417,18 +423,38 @@ function renderMagnitudeConfigSection(
 		select.addEventListener('change', () => {
 			if (!def.magnitude) return;
 			def.magnitude.type = select.value as 'nominal' | 'ordinal' | 'continuous';
-			def.updatedAt = Date.now();
-			model.registry.update(def.id, { magnitude: def.magnitude });
-			model.saveMarkers();
+			def.magnitude.values = []; // clear values on type change
+			saveMagnitude();
+			renderBody();
 		});
 
-		// Values chips + add input
-		const valuesSection = body.createDiv({ cls: 'codemarker-detail-magnitude-values' });
-		valuesSection.createSpan({ text: 'Values:', cls: 'codemarker-detail-magnitude-label' });
+		// Type-specific value editor
+		if (def.magnitude.type === 'continuous') {
+			renderContinuousEditor(body, def, saveMagnitude, renderBody, callbacks);
+		} else {
+			renderChipEditor(body, def, def.magnitude.type === 'ordinal', saveMagnitude, renderBody, callbacks);
+		}
+	};
+
+	function renderChipEditor(
+		parent: HTMLElement,
+		def: CodeDefinition,
+		showOrder: boolean,
+		save: () => void,
+		rerender: () => void,
+		cb: Pick<CodeRendererCallbacks, 'suspendRefresh' | 'resumeRefresh'>,
+	) {
+		const label = showOrder ? 'Levels (in order):' : 'Categories:';
+		const placeholder = showOrder ? 'Add level...' : 'Add category...';
+
+		const valuesSection = parent.createDiv({ cls: 'codemarker-detail-magnitude-values' });
+		valuesSection.createSpan({ text: label, cls: 'codemarker-detail-magnitude-label' });
 
 		const chipList = valuesSection.createDiv({ cls: 'codemarker-detail-chips' });
-		for (const val of def.magnitude.values) {
+		for (let i = 0; i < def.magnitude!.values.length; i++) {
+			const val = def.magnitude!.values[i];
 			const chip = chipList.createEl('span', { cls: 'codemarker-detail-chip codemarker-detail-magnitude-value-chip' });
+			if (showOrder) chip.createSpan({ text: `${i + 1}. `, cls: 'codemarker-detail-magnitude-order' });
 			chip.createSpan({ text: val });
 			const removeBtn = chip.createSpan({ cls: 'codemarker-detail-magnitude-remove' });
 			setIcon(removeBtn, 'x');
@@ -436,18 +462,15 @@ function renderMagnitudeConfigSection(
 				e.stopPropagation();
 				if (!def.magnitude) return;
 				def.magnitude.values = def.magnitude.values.filter(v => v !== val);
-				def.updatedAt = Date.now();
-				model.registry.update(def.id, { magnitude: def.magnitude });
-				model.saveMarkers();
-				renderBody();
+				save();
+				rerender();
 			});
 		}
 
-		// Add value input
 		const addRow = valuesSection.createDiv({ cls: 'codemarker-detail-magnitude-add-row' });
 		const addInput = addRow.createEl('input', {
 			cls: 'codemarker-detail-magnitude-add-input',
-			attr: { type: 'text', placeholder: 'Add value...' },
+			attr: { type: 'text', placeholder },
 		});
 		addInput.addEventListener('keydown', (e) => {
 			if (e.key === 'Enter') {
@@ -456,16 +479,102 @@ function renderMagnitudeConfigSection(
 				if (!val || !def.magnitude) return;
 				if (def.magnitude.values.includes(val)) return;
 				def.magnitude.values.push(val);
-				def.updatedAt = Date.now();
-				model.registry.update(def.id, { magnitude: def.magnitude });
-				model.saveMarkers();
-				renderBody();
+				save();
+				rerender();
 			}
 			e.stopPropagation();
 		});
-		addInput.addEventListener('focus', () => callbacks.suspendRefresh());
-		addInput.addEventListener('blur', () => callbacks.resumeRefresh());
-	};
+		addInput.addEventListener('focus', () => cb.suspendRefresh());
+		addInput.addEventListener('blur', () => cb.resumeRefresh());
+	}
+
+	function renderContinuousEditor(
+		parent: HTMLElement,
+		def: CodeDefinition,
+		save: () => void,
+		rerender: () => void,
+		cb: Pick<CodeRendererCallbacks, 'suspendRefresh' | 'resumeRefresh'>,
+	) {
+		const valuesSection = parent.createDiv({ cls: 'codemarker-detail-magnitude-values' });
+		valuesSection.createSpan({ text: 'Scale points:', cls: 'codemarker-detail-magnitude-label' });
+
+		// Quick-fill: min, max, step → generate
+		const quickFill = valuesSection.createDiv({ cls: 'codemarker-detail-magnitude-quickfill' });
+		const minInput = quickFill.createEl('input', {
+			cls: 'codemarker-detail-magnitude-range-input',
+			attr: { type: 'number', placeholder: 'Min', step: 'any' },
+		});
+		const maxInput = quickFill.createEl('input', {
+			cls: 'codemarker-detail-magnitude-range-input',
+			attr: { type: 'number', placeholder: 'Max', step: 'any' },
+		});
+		const stepInput = quickFill.createEl('input', {
+			cls: 'codemarker-detail-magnitude-range-input',
+			attr: { type: 'number', placeholder: 'Step', step: 'any', value: '1' },
+		});
+		const genBtn = quickFill.createEl('button', { text: 'Generate', cls: 'codemarker-detail-magnitude-gen-btn' });
+		genBtn.addEventListener('click', () => {
+			const min = parseFloat(minInput.value);
+			const max = parseFloat(maxInput.value);
+			const step = parseFloat(stepInput.value) || 1;
+			if (isNaN(min) || isNaN(max) || step <= 0 || min > max) return;
+			if (!def.magnitude) return;
+			const values: string[] = [];
+			for (let v = min; v <= max + step * 0.001; v += step) {
+				values.push(String(Math.round(v * 1000) / 1000));
+			}
+			if (values.length > 100) return; // safety cap
+			def.magnitude.values = values;
+			save();
+			rerender();
+		});
+
+		// Prevent popover/panel refresh during input
+		for (const inp of [minInput, maxInput, stepInput]) {
+			inp.addEventListener('focus', () => cb.suspendRefresh());
+			inp.addEventListener('blur', () => cb.resumeRefresh());
+			inp.addEventListener('keydown', (e) => e.stopPropagation());
+		}
+
+		// Show current values as chips (editable)
+		if (def.magnitude!.values.length > 0) {
+			const chipList = valuesSection.createDiv({ cls: 'codemarker-detail-chips' });
+			for (const val of def.magnitude!.values) {
+				const chip = chipList.createEl('span', { cls: 'codemarker-detail-chip codemarker-detail-magnitude-value-chip' });
+				chip.createSpan({ text: val });
+				const removeBtn = chip.createSpan({ cls: 'codemarker-detail-magnitude-remove' });
+				setIcon(removeBtn, 'x');
+				removeBtn.addEventListener('click', (e) => {
+					e.stopPropagation();
+					if (!def.magnitude) return;
+					def.magnitude.values = def.magnitude.values.filter(v => v !== val);
+					save();
+					rerender();
+				});
+			}
+		}
+
+		// Also allow individual add
+		const addRow = valuesSection.createDiv({ cls: 'codemarker-detail-magnitude-add-row' });
+		const addInput = addRow.createEl('input', {
+			cls: 'codemarker-detail-magnitude-add-input',
+			attr: { type: 'text', placeholder: 'Add scale point...' },
+		});
+		addInput.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				const val = addInput.value.trim();
+				if (!val || !def.magnitude) return;
+				if (def.magnitude.values.includes(val)) return;
+				def.magnitude.values.push(val);
+				save();
+				rerender();
+			}
+			e.stopPropagation();
+		});
+		addInput.addEventListener('focus', () => cb.suspendRefresh());
+		addInput.addEventListener('blur', () => cb.resumeRefresh());
+	}
 
 	toggleEl.onChange((value) => {
 		if (value) {

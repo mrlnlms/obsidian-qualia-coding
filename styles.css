@@ -4282,6 +4282,34 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	color: var(--text-normal);
 }
 
+/* ── Magnitude config: continuous quick-fill ── */
+.codemarker-detail-magnitude-quickfill {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	margin-bottom: var(--size-4-1);
+	flex-wrap: wrap;
+}
+.codemarker-detail-magnitude-range-input {
+	width: 60px;
+	font-size: var(--font-ui-small);
+	padding: var(--size-2-1) var(--size-4-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+.codemarker-detail-magnitude-gen-btn {
+	font-size: var(--font-ui-small);
+	padding: var(--size-2-1) var(--size-4-2);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+.codemarker-detail-magnitude-order {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
 /* ── Magnitude popover section ── */
 .codemarker-tooltip-magnitude-body {
 	padding: var(--size-2-1) var(--size-4-2);
