@@ -142,6 +142,10 @@ src/
 - `childrenOrder` — array ordenado de ids filhos (nunca `children`)
 - `mergedFrom` — ids dos codigos fundidos neste (audit trail)
 - `folder` — id da pasta virtual (nunca path). Pastas nao tem significado analitico
+- `FolderDefinition` — `{ id, name, createdAt }` no registry. Pastas nao afetam analytics
+- `createFolder` / `deleteFolder` / `renameFolder` / `setCodeFolder` — CRUD de pastas no registry
+- `FlatTreeNode = FlatCodeNode | FlatFolderNode` — union discriminada em hierarchyHelpers.ts
+- `rootOrder` — array ordenado de IDs root no registry. Controla ordem de exibicao
 - `magnitude` — config no CodeDefinition `{ type, values }`, valor no CodeApplication. Picker fechado
 - `relations` — array de `{ label, target, directed }` em CodeDefinition (codigo-level) e CodeApplication (segmento-level). Label livre com autocomplete
 - `setParent(id, parentId)` — metodo de reparentar com deteccao de ciclo
