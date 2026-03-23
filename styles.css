@@ -4302,7 +4302,9 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	flex-wrap: wrap;
 	gap: 4px;
 }
-.codemarker-tooltip-magnitude-chip {
+/* Shared magnitude chip styles (popover + detail) */
+.codemarker-tooltip-magnitude-chip,
+.codemarker-detail-magnitude-chip {
 	font-size: var(--font-ui-small);
 	padding: 2px 8px;
 	border-radius: var(--radius-s);
@@ -4311,10 +4313,12 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	background: var(--background-primary);
 	color: var(--text-normal);
 }
-.codemarker-tooltip-magnitude-chip:hover {
+.codemarker-tooltip-magnitude-chip:hover,
+.codemarker-detail-magnitude-chip:hover {
 	background: var(--background-modifier-hover);
 }
-.codemarker-tooltip-magnitude-chip.is-selected {
+.codemarker-tooltip-magnitude-chip.is-selected,
+.codemarker-detail-magnitude-chip.is-selected {
 	background: var(--interactive-accent);
 	color: white;
 	border-color: var(--interactive-accent);
@@ -4341,21 +4345,4 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 4px;
-}
-.codemarker-detail-magnitude-chip {
-	font-size: var(--font-ui-small);
-	padding: 2px 8px;
-	border-radius: var(--radius-s);
-	border: 1px solid var(--background-modifier-border);
-	cursor: pointer;
-	background: var(--background-primary);
-	color: var(--text-normal);
-}
-.codemarker-detail-magnitude-chip:hover {
-	background: var(--background-modifier-hover);
-}
-.codemarker-detail-magnitude-chip.is-selected {
-	background: var(--interactive-accent);
-	color: white;
-	border-color: var(--interactive-accent);
 }

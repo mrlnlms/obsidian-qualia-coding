@@ -6,7 +6,7 @@
  */
 
 import { setIcon } from 'obsidian';
-import type { BaseMarker, SidebarModelInterface } from './types';
+import type { BaseMarker, CodeApplication, CodeDefinition, SidebarModelInterface } from './types';
 import { renderBackButton } from './detailCodeRenderer';
 import { getCodeIds } from './codeApplicationHelpers';
 
@@ -118,7 +118,7 @@ function renderMagnitudePerCode(
 
 	if (codesWithMag.length === 0) return;
 
-	const rebuildChips = (chipContainer: HTMLElement, ca: { codeId: string; magnitude?: string }, def: { magnitude?: { type: string; values: string[] }; color: string; name: string }) => {
+	const rebuildChips = (chipContainer: HTMLElement, ca: CodeApplication, def: CodeDefinition) => {
 		chipContainer.empty();
 		for (const v of def.magnitude!.values) {
 			const c = chipContainer.createEl('span', {
