@@ -9,6 +9,8 @@ import { setIcon } from 'obsidian';
 import type { BaseMarker, CodeApplication, CodeDefinition, SidebarModelInterface } from './types';
 import { renderBackButton } from './detailCodeRenderer';
 import { getCodeIds } from './codeApplicationHelpers';
+import { collectAllLabels } from './relationHelpers';
+import { renderAddRelationRow } from './relationUI';
 
 export interface MarkerRendererCallbacks {
 	getMarkerText(marker: BaseMarker): string | null;
@@ -67,6 +69,9 @@ export function renderMarkerDetail(
 
 	// -- Magnitude per code --
 	renderMagnitudePerCode(container, marker, model);
+
+	// Relations segment-level per code
+	renderRelationsPerCode(container, marker, model, callbacks);
 
 	// -- Segment color override --
 	renderColorSection(container, marker, model, callbacks);
@@ -146,6 +151,72 @@ function renderMagnitudePerCode(
 
 		const chipContainer = row.createDiv({ cls: 'codemarker-detail-magnitude-chips' });
 		rebuildChips(chipContainer, ca, def!);
+	}
+}
+
+function renderRelationsPerCode(
+	container: HTMLElement,
+	marker: BaseMarker,
+	model: SidebarModelInterface,
+	callbacks: MarkerRendererCallbacks,
+) {
+	const section = container.createDiv({ cls: 'codemarker-detail-section codemarker-detail-relations' });
+	section.createEl('h6', { text: 'Relations' });
+
+	const allLabels = collectAllLabels(model.registry.getAll(), model.getAllMarkers());
+
+	for (const ca of marker.codes) {
+		const def = model.registry.getById(ca.codeId);
+		if (!def) continue;
+
+		const codeRow = section.createDiv({ cls: 'codemarker-detail-relation-code-group' });
+		const codeHeader = codeRow.createDiv({ cls: 'codemarker-detail-magnitude-row' });
+		const swatch = codeHeader.createSpan({ cls: 'codemarker-detail-chip-dot' });
+		swatch.style.backgroundColor = def.color;
+		codeHeader.createSpan({ text: def.name, cls: 'codemarker-detail-magnitude-code-name' });
+
+		const relBody = codeRow.createDiv();
+
+		const saveAndRebuild = () => {
+			marker.updatedAt = Date.now();
+			model.saveMarkers();
+			rebuild();
+		};
+
+		const rebuild = () => {
+			relBody.empty();
+			const rels = ca.relations ?? [];
+			for (const rel of rels) {
+				const row = relBody.createDiv({ cls: 'codemarker-detail-relation-row' });
+				const dirIcon = row.createSpan({ cls: 'codemarker-detail-relation-dir' });
+				setIcon(dirIcon, rel.directed ? 'arrow-right' : 'minus');
+
+				row.createSpan({ cls: 'codemarker-detail-relation-label', text: rel.label });
+
+				const targetDef = model.registry.getById(rel.target);
+				if (targetDef) {
+					const chip = row.createSpan({ cls: 'codemarker-detail-chip' });
+					const dot = chip.createSpan({ cls: 'codemarker-detail-chip-dot' });
+					dot.style.backgroundColor = targetDef.color;
+					chip.createSpan({ text: targetDef.name });
+					chip.addEventListener('click', () => callbacks.showCodeDetail(targetDef.id));
+				}
+
+				const removeBtn = row.createSpan({ cls: 'codemarker-detail-magnitude-remove' });
+				setIcon(removeBtn, 'x');
+				removeBtn.addEventListener('click', (e) => {
+					e.stopPropagation();
+					if (!ca.relations) return;
+					ca.relations = ca.relations.filter(r => !(r.label === rel.label && r.target === rel.target));
+					saveAndRebuild();
+				});
+			}
+
+			// Shared add-relation row (with datalist autocomplete)
+			renderAddRelationRow(relBody, ca, model.registry, allLabels, saveAndRebuild, callbacks);
+		};
+
+		rebuild();
 	}
 }
 
