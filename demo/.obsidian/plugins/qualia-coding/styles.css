@@ -4033,3 +4033,545 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   outline: none;
   border-radius: var(--radius-s);
 }
+
+/* ── Codebook Tree (virtual scroll) ───────────────────── */
+.codebook-tree-scroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.codebook-tree-spacer { width: 100%; }
+.codebook-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 8px;
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+.codebook-tree-row:hover { background-color: var(--background-modifier-hover); }
+.codebook-tree-row.is-dragging { opacity: 0.4; }
+.codebook-tree-row.is-drop-before { border-top: 2px solid var(--interactive-accent); }
+.codebook-tree-row.is-drop-inside {
+  background: var(--background-modifier-hover);
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+.codebook-tree-row.is-drop-after { border-bottom: 2px solid var(--interactive-accent); }
+.codebook-tree-row.is-merge-target {
+  outline: 2px solid var(--text-error);
+  outline-offset: -2px;
+  border-radius: var(--radius-s);
+}
+.codebook-tree-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+.codebook-tree-chevron.is-expanded { transform: rotate(90deg); }
+.codebook-tree-chevron-spacer { width: 16px; flex-shrink: 0; }
+.codebook-tree-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.codebook-tree-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-ui-small);
+}
+.codebook-tree-count {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ── Codebook Toolbar ─────────────────────────────────── */
+.codebook-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  gap: 8px;
+}
+.codebook-toolbar-toggle { display: flex; gap: 2px; padding: 4px 0; }
+.codebook-toggle-btn {
+  font-size: var(--font-ui-smaller);
+  padding: 2px 8px;
+  border-radius: var(--radius-s);
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.codebook-toggle-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+.codebook-new-code-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-ui-smaller);
+  padding: 2px 8px;
+  border-radius: var(--radius-s);
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.codebook-new-code-btn:hover {
+  background: var(--background-modifier-hover);
+}
+.codebook-new-code-input-wrap {
+  display: flex;
+  width: 100%;
+  padding: 4px 0;
+}
+.codebook-new-code-input {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: var(--font-ui-small);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+/* ------------------------------------------------------------------
+   Merge Modal
+   ------------------------------------------------------------------ */
+
+.codebook-merge-modal { min-width: 400px; }
+.codebook-merge-source-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.codebook-merge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-small);
+}
+.codebook-merge-chip-count { color: var(--text-muted); }
+.codebook-merge-chip-remove { cursor: pointer; color: var(--text-muted); }
+.codebook-merge-chip-remove:hover { color: var(--text-error); }
+.codebook-merge-name-input { width: 100%; margin: 4px 0; }
+.codebook-merge-impact { margin: 12px 0; font-size: var(--font-ui-small); color: var(--text-muted); }
+.codebook-merge-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.codebook-merge-search-results { max-height: 200px; overflow-y: auto; }
+.codebook-merge-search-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+.codebook-merge-search-item:hover { background: var(--background-modifier-hover); }
+
+/* ─── Folder rows ─────────────────────────────────────── */
+
+.codebook-folder-row {
+	font-weight: 500;
+}
+
+.codebook-tree-folder-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	margin-right: 4px;
+	color: var(--text-muted);
+}
+
+.codebook-folder-name {
+	color: var(--text-muted);
+}
+
+.codebook-folder-row:hover .codebook-folder-name {
+	color: var(--text-normal);
+}
+
+/* Drag-drop: folder as drop target */
+.codebook-folder-row.is-folder-drop-target {
+	background-color: var(--background-modifier-hover);
+	outline: 1px dashed var(--interactive-accent);
+	outline-offset: -1px;
+}
+
+/* New Folder button */
+.codebook-new-folder-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	color: var(--text-muted);
+	background: transparent;
+	border: none;
+	padding: 2px 6px;
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-small);
+}
+
+.codebook-new-folder-btn:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.codebook-new-folder-input-wrap {
+	padding: 4px 0;
+}
+
+/* ── Magnitude config (code detail level 2) ── */
+.codemarker-detail-magnitude-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.codemarker-detail-magnitude-header h6 {
+	margin: 0;
+}
+.codemarker-detail-magnitude-body {
+	margin-top: var(--size-4-1);
+}
+.codemarker-detail-magnitude-type-row,
+.codemarker-detail-magnitude-values {
+	margin-bottom: var(--size-4-2);
+}
+.codemarker-detail-magnitude-label {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	margin-right: var(--size-4-1);
+}
+.codemarker-detail-magnitude-select {
+	font-size: var(--font-ui-small);
+}
+.codemarker-detail-magnitude-value-chip {
+	cursor: default;
+}
+.codemarker-detail-magnitude-value-chip .codemarker-detail-magnitude-remove {
+	margin-left: 4px;
+	cursor: pointer;
+	opacity: 0.6;
+}
+.codemarker-detail-magnitude-value-chip .codemarker-detail-magnitude-remove:hover {
+	opacity: 1;
+}
+.codemarker-detail-magnitude-add-row {
+	margin-top: var(--size-2-1);
+}
+.codemarker-detail-magnitude-add-input {
+	width: 100%;
+	font-size: var(--font-ui-small);
+	padding: var(--size-2-1) var(--size-4-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+/* ── Magnitude config: continuous quick-fill ── */
+.codemarker-detail-magnitude-quickfill {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	margin-bottom: var(--size-4-1);
+	flex-wrap: wrap;
+}
+.codemarker-detail-magnitude-range-input {
+	width: 60px;
+	font-size: var(--font-ui-small);
+	padding: var(--size-2-1) var(--size-4-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+.codemarker-detail-magnitude-gen-btn {
+	font-size: var(--font-ui-small);
+	padding: var(--size-2-1) var(--size-4-2);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+.codemarker-detail-magnitude-order {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+/* ── Magnitude popover section ── */
+.codemarker-tooltip-magnitude-body {
+	padding: var(--size-2-1) var(--size-4-2);
+}
+.codemarker-tooltip-magnitude-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	margin-bottom: var(--size-2-1);
+}
+.codemarker-tooltip-magnitude-code-name {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	min-width: 60px;
+}
+.codemarker-tooltip-magnitude-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+/* Shared magnitude chip styles (popover + detail) */
+.codemarker-tooltip-magnitude-chip,
+.codemarker-detail-magnitude-chip {
+	font-size: var(--font-ui-small);
+	padding: 2px 8px;
+	border-radius: var(--radius-s);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+.codemarker-tooltip-magnitude-chip:hover,
+.codemarker-detail-magnitude-chip:hover {
+	background: var(--background-modifier-hover);
+}
+.codemarker-tooltip-magnitude-chip.is-selected,
+.codemarker-detail-magnitude-chip.is-selected {
+	background: var(--interactive-accent);
+	color: white;
+	border-color: var(--interactive-accent);
+}
+.codemarker-tooltip-magnitude-empty {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	padding: var(--size-2-1) 0;
+}
+
+/* ── Magnitude in marker detail (Level 3) ── */
+.codemarker-detail-magnitude-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	margin-bottom: var(--size-2-1);
+}
+.codemarker-detail-magnitude-code-name {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	min-width: 60px;
+}
+.codemarker-detail-magnitude-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+/* ── Relations ──────────────────────────────────── */
+
+.codemarker-detail-relations-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.codemarker-detail-relation-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 0;
+}
+
+.codemarker-detail-relation-dir {
+	display: flex;
+	align-items: center;
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+.codemarker-detail-relation-dir svg {
+	width: 14px;
+	height: 14px;
+}
+
+.codemarker-detail-relation-label {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.codemarker-detail-relation-target-missing {
+	font-size: var(--font-ui-small);
+	color: var(--text-faint);
+}
+
+.codemarker-detail-relation-add {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-top: 4px;
+}
+
+.codemarker-detail-relation-input {
+	flex: 1;
+	min-width: 0;
+	font-size: var(--font-ui-small);
+	padding: 2px 6px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.codemarker-detail-relation-dir-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: none;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	padding: 2px;
+	color: var(--text-muted);
+}
+.codemarker-detail-relation-dir-btn:hover {
+	background: var(--background-modifier-hover);
+}
+.codemarker-detail-relation-dir-btn svg {
+	width: 14px;
+	height: 14px;
+}
+
+.codemarker-detail-relation-add-btn {
+	font-size: var(--font-ui-small);
+	padding: 2px 8px;
+	cursor: pointer;
+}
+
+.codemarker-detail-relation-code-group {
+	margin-bottom: 8px;
+}
+
+/* Popover relations section */
+.codemarker-tooltip-relations-wrapper .codemarker-tooltip-memo-header {
+	cursor: pointer;
+}
+.codemarker-tooltip-relations-wrapper .codemarker-tooltip-memo-chevron {
+	transition: transform 100ms ease;
+}
+.codemarker-tooltip-relations-wrapper.is-open .codemarker-tooltip-memo-chevron {
+	transform: rotate(90deg);
+}
+
+.codemarker-tooltip-relations-body {
+	padding: 4px 8px;
+}
+
+.codemarker-tooltip-relations-code-group {
+	margin-bottom: 6px;
+}
+
+.codemarker-tooltip-relation-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 0;
+	font-size: var(--font-ui-small);
+}
+
+.codemarker-tooltip-relation-dir {
+	display: flex;
+	color: var(--text-muted);
+}
+.codemarker-tooltip-relation-dir svg {
+	width: 12px;
+	height: 12px;
+}
+
+.codemarker-tooltip-relation-label {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.codemarker-tooltip-relation-target {
+	color: var(--text-normal);
+}
+
+.codemarker-tooltip-relation-remove {
+	cursor: pointer;
+	color: var(--text-faint);
+	margin-left: auto;
+}
+.codemarker-tooltip-relation-remove:hover {
+	color: var(--text-error);
+}
+.codemarker-tooltip-relation-remove svg {
+	width: 12px;
+	height: 12px;
+}
+
+.codemarker-tooltip-relation-add {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	margin-top: 3px;
+}
+
+.codemarker-tooltip-relation-input {
+	flex: 1;
+	min-width: 0;
+	font-size: 11px;
+	padding: 1px 4px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.codemarker-tooltip-relation-dir-btn {
+	display: flex;
+	align-items: center;
+	background: none;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	padding: 1px;
+	color: var(--text-muted);
+}
+.codemarker-tooltip-relation-dir-btn svg {
+	width: 12px;
+	height: 12px;
+}
+
+.codemarker-tooltip-relation-add-btn {
+	font-size: 11px;
+	padding: 1px 6px;
+	background: none;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	color: var(--text-muted);
+}
+.codemarker-tooltip-relation-add-btn:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* Analytics edge hover tooltip */
+.codemarker-analytics-tooltip {
+	font-size: 11px;
+	padding: 4px 8px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	color: var(--text-normal);
+	white-space: nowrap;
+	box-shadow: var(--shadow-s);
+	z-index: 100;
+}
