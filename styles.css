@@ -4050,30 +4050,25 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   border-radius: var(--radius-s);
 }
 .codebook-tree-row:hover { background-color: var(--background-modifier-hover); }
-.codebook-tree-row.is-dragging { opacity: 0.5; }
-.codebook-tree-row.is-drop-target {
-  border-bottom: 2px solid var(--interactive-accent);
-  background: var(--background-modifier-hover);
+.codebook-tree-row.is-dragging { opacity: 0.4; }
+/* Drop zones: before (sibling above), inside (child), after (sibling below) */
+.codebook-tree-row.is-drop-before {
+  border-top: 2px solid var(--interactive-accent);
 }
-.codebook-tree-row.is-merge-target {
-  outline: 2px solid var(--text-error);
+.codebook-tree-row.is-drop-inside {
+  background: var(--background-modifier-hover);
+  outline: 2px solid var(--interactive-accent);
   outline-offset: -2px;
   border-radius: var(--radius-s);
 }
-.codebook-root-drop-zone {
-  padding: 8px 12px;
-  text-align: center;
-  font-size: var(--font-ui-smaller);
-  color: var(--text-faint);
-  border: 2px dashed transparent;
-  border-radius: var(--radius-s);
-  margin: 4px 8px;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+.codebook-tree-row.is-drop-after {
+  border-bottom: 2px solid var(--interactive-accent);
 }
-.codebook-root-drop-zone.is-root-drop-active {
-  border-color: var(--interactive-accent);
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
+.codebook-tree-row.is-merge-target {
+  background: rgba(var(--color-red-rgb), 0.12);
+  outline: 2px solid var(--text-error);
+  outline-offset: -2px;
+  border-radius: var(--radius-s);
 }
 .codebook-tree-chevron {
   display: flex;

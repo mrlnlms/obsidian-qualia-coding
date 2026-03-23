@@ -1,16 +1,20 @@
 /**
  * codebookDragDrop — Drag-and-drop for codebook tree rows.
  *
- * Supports two modes:
- * - reorganize: reparent a code under a new parent (or promote to root)
- * - merge: drop a code onto another to merge them
+ * File-explorer-style interaction:
+ * - Drop on MIDDLE of a row → make child (reparent under target)
+ * - Drop on TOP/BOTTOM edge of a row → insert as sibling (same parent as target)
+ * - If target is root and drop is on edge → dragged code becomes root
  *
- * Returns a cleanup function to remove all event listeners.
+ * Merge mode: drop on any zone → open merge modal.
  */
 
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 
+type DropZone = 'before' | 'inside' | 'after';
+
 export interface DragDropCallbacks {
+	/** Reparent: newParentId=undefined means promote to root */
 	onReparent(codeId: string, newParentId: string | undefined): void;
 	onMergeDrop(sourceId: string, targetId: string): void;
 	setDragMode(mode: 'reorganize' | 'merge'): void;
@@ -30,14 +34,19 @@ export function setupDragDrop(
 		return el.closest<HTMLElement>('[data-code-id]');
 	};
 
-	const isRootZone = (el: EventTarget | null): boolean => {
-		if (!(el instanceof HTMLElement)) return false;
-		return !!el.closest<HTMLElement>('[data-root-drop]');
+	/** Detect which zone of the row the cursor is in (top 30%, middle 40%, bottom 30%) */
+	const getDropZone = (row: HTMLElement, clientY: number): DropZone => {
+		const rect = row.getBoundingClientRect();
+		const y = clientY - rect.top;
+		const h = rect.height;
+		if (y < h * 0.30) return 'before';
+		if (y > h * 0.70) return 'after';
+		return 'inside';
 	};
 
-	const clearDropIndicators = () => {
-		for (const el of Array.from(container.querySelectorAll('.is-drop-target, .is-merge-target'))) {
-			el.classList.remove('is-drop-target', 'is-merge-target');
+	const clearIndicators = () => {
+		for (const el of Array.from(container.querySelectorAll('.is-drop-before, .is-drop-inside, .is-drop-after, .is-merge-target, .is-dragging'))) {
+			el.classList.remove('is-drop-before', 'is-drop-inside', 'is-drop-after', 'is-merge-target');
 		}
 	};
 
@@ -54,19 +63,10 @@ export function setupDragDrop(
 	const onDragOver = (e: DragEvent) => {
 		if (!draggedCodeId) return;
 		e.preventDefault();
-
-		clearDropIndicators();
-		const rootZoneEl = container.querySelector<HTMLElement>('[data-root-drop]');
-		if (rootZoneEl) rootZoneEl.classList.remove('is-root-drop-active');
-
-		// Check if hovering over the root drop zone
-		if (isRootZone(e.target)) {
-			const mode = getMode();
-			if (mode === 'reorganize' && rootZoneEl) {
-				rootZoneEl.classList.add('is-root-drop-active');
-			}
-			return;
-		}
+		clearIndicators();
+		// Keep is-dragging on source
+		const srcRow = container.querySelector<HTMLElement>(`[data-code-id="${draggedCodeId}"]`);
+		if (srcRow) srcRow.classList.add('is-dragging');
 
 		const row = findRow(e.target);
 		if (!row) return;
@@ -74,47 +74,54 @@ export function setupDragDrop(
 		if (!targetId || targetId === draggedCodeId) return;
 
 		const mode = getMode();
-		if (mode === 'reorganize') {
-			row.classList.add('is-drop-target');
-		} else {
+		if (mode === 'merge') {
 			row.classList.add('is-merge-target');
+			return;
 		}
+
+		const zone = getDropZone(row, e.clientY);
+		if (zone === 'before') row.classList.add('is-drop-before');
+		else if (zone === 'after') row.classList.add('is-drop-after');
+		else row.classList.add('is-drop-inside');
 	};
 
 	const onDrop = (e: DragEvent) => {
 		if (!draggedCodeId) return;
 		e.preventDefault();
 
-		// Drop on root zone → promote to root
-		if (isRootZone(e.target)) {
-			const mode = getMode();
-			if (mode === 'reorganize') {
-				callbacks.onReparent(draggedCodeId, undefined);
-			}
-			cleanupDrag();
-			return;
-		}
-
 		const row = findRow(e.target);
 		const targetId = row?.dataset.codeId;
-
-		if (!targetId || targetId === draggedCodeId) {
+		if (!row || !targetId || targetId === draggedCodeId) {
 			cleanupDrag();
 			return;
 		}
 
 		const mode = getMode();
 
-		if (mode === 'reorganize') {
-			// Validate: cannot reparent under own descendant
-			const descendants = registry.getDescendants(draggedCodeId);
-			const isDescendant = descendants.some(d => d.id === targetId);
-			if (!isDescendant) {
-				callbacks.onReparent(draggedCodeId, targetId);
-			}
-		} else {
+		if (mode === 'merge') {
 			callbacks.onMergeDrop(draggedCodeId, targetId);
 			callbacks.setDragMode('reorganize');
+			cleanupDrag();
+			return;
+		}
+
+		// Reorganize mode — validate no descendant cycle
+		const descendants = registry.getDescendants(draggedCodeId);
+		if (descendants.some(d => d.id === targetId)) {
+			cleanupDrag();
+			return;
+		}
+
+		const zone = getDropZone(row, e.clientY);
+		const targetDef = registry.getById(targetId);
+
+		if (zone === 'inside') {
+			// Make child of target
+			callbacks.onReparent(draggedCodeId, targetId);
+		} else {
+			// Insert as sibling: same parent as target
+			const newParentId = targetDef?.parentId ?? undefined;
+			callbacks.onReparent(draggedCodeId, newParentId);
 		}
 
 		cleanupDrag();
@@ -125,14 +132,10 @@ export function setupDragDrop(
 	};
 
 	const cleanupDrag = () => {
-		if (draggedCodeId) {
-			for (const el of Array.from(container.querySelectorAll('.is-dragging'))) {
-				el.classList.remove('is-dragging');
-			}
+		clearIndicators();
+		for (const el of Array.from(container.querySelectorAll('.is-dragging'))) {
+			el.classList.remove('is-dragging');
 		}
-		clearDropIndicators();
-		const rootZoneEl = container.querySelector<HTMLElement>('[data-root-drop]');
-		if (rootZoneEl) rootZoneEl.classList.remove('is-root-drop-active');
 		draggedCodeId = null;
 	};
 
@@ -141,13 +144,11 @@ export function setupDragDrop(
 	container.addEventListener('drop', onDrop);
 	container.addEventListener('dragend', onDragEnd);
 
-	const cleanup = () => {
+	return () => {
 		container.removeEventListener('dragstart', onDragStart);
 		container.removeEventListener('dragover', onDragOver);
 		container.removeEventListener('drop', onDrop);
 		container.removeEventListener('dragend', onDragEnd);
 		cleanupDrag();
 	};
-
-	return cleanup;
 }

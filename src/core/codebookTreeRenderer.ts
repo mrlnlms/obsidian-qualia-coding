@@ -79,11 +79,6 @@ export function renderCodebookTree(
 		}
 	};
 
-	// Root drop zone — visible only during drag, allows promoting to top-level
-	const rootDropZone = container.createDiv({ cls: 'codebook-root-drop-zone' });
-	rootDropZone.textContent = '↑ Drop here to make top-level';
-	rootDropZone.dataset.rootDrop = 'true';
-
 	renderVisibleRows();
 	scrollEl.addEventListener('scroll', renderVisibleRows, { passive: true });
 
