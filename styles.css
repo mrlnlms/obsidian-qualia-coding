@@ -4281,3 +4281,46 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	background: var(--background-primary);
 	color: var(--text-normal);
 }
+
+/* ── Magnitude popover section ── */
+.codemarker-tooltip-magnitude-body {
+	padding: var(--size-2-1) var(--size-4-2);
+}
+.codemarker-tooltip-magnitude-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	margin-bottom: var(--size-2-1);
+}
+.codemarker-tooltip-magnitude-code-name {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	min-width: 60px;
+}
+.codemarker-tooltip-magnitude-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+.codemarker-tooltip-magnitude-chip {
+	font-size: var(--font-ui-small);
+	padding: 2px 8px;
+	border-radius: var(--radius-s);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+.codemarker-tooltip-magnitude-chip:hover {
+	background: var(--background-modifier-hover);
+}
+.codemarker-tooltip-magnitude-chip.is-selected {
+	background: var(--interactive-accent);
+	color: white;
+	border-color: var(--interactive-accent);
+}
+.codemarker-tooltip-magnitude-empty {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	padding: var(--size-2-1) 0;
+}

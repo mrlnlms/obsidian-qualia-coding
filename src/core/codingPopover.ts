@@ -27,10 +27,12 @@ import {
 	createSeparator,
 	renderBrowseItem,
 	renderMemoSection,
+	renderMagnitudeSection,
 	renderEnterHint,
 	positionAndClamp,
 	applyThemeColors,
 	type MemoHandle,
+	type MagnitudeHandle,
 } from './baseCodingMenu';
 
 const MAX_RECENT = 3;
@@ -56,6 +58,10 @@ export interface CodingPopoverAdapter {
 	onRefresh(): void;
 	/** Nav arrow click — dispatches sidebar events */
 	onNavClick?(codeName: string, isActive: boolean): void;
+	/** Get magnitude value for a specific code on this marker */
+	getMagnitudeForCode?(codeId: string): string | undefined;
+	/** Set magnitude value for a specific code on this marker */
+	setMagnitudeForCode?(codeId: string, value: string | undefined): void;
 }
 
 export interface CodingPopoverOptions {
@@ -98,6 +104,8 @@ export interface CodingPopoverOptions {
 	modalDefaultColor?: string;
 	/** Called when CodeFormModal closes (e.g. rebuild/recreate menu) */
 	onModalClose?: () => void;
+	/** Whether to show the magnitude section (from settings) */
+	showMagnitudeSection?: boolean;
 }
 
 export interface CodingPopoverHandle {
@@ -170,6 +178,13 @@ export function openCodingPopover(
 		}
 		adapter.onRefresh();
 		memo?.updateVisibility(activeCodes.length > 0);
+		if (magnitudeHandle) {
+			magnitudeHandle.updateVisibility(activeCodes.length > 0);
+			const updatedIds = activeCodes
+				.map(name => adapter.registry.getByName(name)?.id)
+				.filter((id): id is string => !!id);
+			magnitudeHandle.refresh(updatedIds);
+		}
 	};
 
 	// ── a) Search/create input ──
@@ -286,6 +301,30 @@ export function openCodingPopover(
 		activeCodes.length > 0,
 		() => close(),
 	);
+
+	// ── d2) Magnitude section ──
+	let magnitudeHandle: MagnitudeHandle | null = null;
+	const showMag = options.showMagnitudeSection !== false
+		&& adapter.getMagnitudeForCode
+		&& adapter.setMagnitudeForCode;
+
+	if (showMag) {
+		const activeCodeIds = activeCodes
+			.map(name => adapter.registry.getByName(name)?.id)
+			.filter((id): id is string => !!id);
+
+		magnitudeHandle = renderMagnitudeSection(
+			container,
+			adapter.registry,
+			activeCodeIds,
+			(codeId) => adapter.getMagnitudeForCode!(codeId),
+			(codeId, value) => {
+				adapter.setMagnitudeForCode!(codeId, value);
+				adapter.save();
+			},
+			activeCodes.length > 0,
+		);
+	}
 
 	// ── e) Action buttons ──
 	container.appendChild(createSeparator());

@@ -342,6 +342,146 @@ export function renderMemoSection(
 	};
 }
 
+// ── Magnitude section ─────────────────────────────────────
+
+export interface MagnitudeHandle {
+	wrapper: HTMLElement;
+	separator: HTMLElement;
+	updateVisibility(show: boolean): void;
+	refresh(activeCodeIds: string[]): void;
+}
+
+/**
+ * Renders a collapsible magnitude section with a picker per active code
+ * that has magnitude configured.
+ */
+export function renderMagnitudeSection(
+	parent: HTMLElement,
+	registry: CodeDefinitionRegistry,
+	activeCodeIds: string[],
+	getMagnitude: (codeId: string) => string | undefined,
+	setMagnitude: (codeId: string, value: string | undefined) => void,
+	visible: boolean,
+): MagnitudeHandle {
+	const separator = createSeparator();
+	const wrapper = document.createElement('div');
+	wrapper.className = 'codemarker-tooltip-magnitude-wrapper';
+
+	// Header
+	const header = document.createElement('div');
+	header.className = 'codemarker-tooltip-memo-header menu-item';
+	const chevron = document.createElement('div');
+	chevron.className = 'codemarker-tooltip-memo-chevron';
+	setIcon(chevron, 'chevron-right');
+	header.appendChild(chevron);
+	const headerTitle = document.createElement('span');
+	headerTitle.className = 'menu-item-title';
+	headerTitle.textContent = 'Magnitude';
+	header.appendChild(headerTitle);
+
+	// Body
+	const body = document.createElement('div');
+	body.className = 'codemarker-tooltip-magnitude-body';
+
+	let expanded = false;
+	body.style.display = 'none';
+
+	const buildPickers = (codeIds: string[]) => {
+		body.innerHTML = '';
+		const codesWithMag = codeIds
+			.map(id => ({ id, def: registry.getById(id) }))
+			.filter(c => c.def?.magnitude && c.def.magnitude.values.length > 0);
+
+		if (codesWithMag.length === 0) {
+			const empty = document.createElement('div');
+			empty.className = 'codemarker-tooltip-magnitude-empty';
+			empty.textContent = 'No codes have magnitude configured';
+			body.appendChild(empty);
+			return;
+		}
+
+		for (const { id, def } of codesWithMag) {
+			const row = document.createElement('div');
+			row.className = 'codemarker-tooltip-magnitude-row';
+
+			const swatch = document.createElement('span');
+			swatch.className = 'codemarker-popover-swatch';
+			swatch.style.backgroundColor = def!.color;
+			row.appendChild(swatch);
+
+			const nameEl = document.createElement('span');
+			nameEl.className = 'codemarker-tooltip-magnitude-code-name';
+			nameEl.textContent = def!.name;
+			row.appendChild(nameEl);
+
+			const chipContainer = document.createElement('div');
+			chipContainer.className = 'codemarker-tooltip-magnitude-chips';
+
+			const currentValue = getMagnitude(id);
+			for (const val of def!.magnitude!.values) {
+				const chip = document.createElement('span');
+				chip.className = 'codemarker-tooltip-magnitude-chip';
+				chip.textContent = val;
+				if (val === currentValue) chip.addClass('is-selected');
+				chip.addEventListener('click', (e) => {
+					e.stopPropagation();
+					if (val === getMagnitude(id)) {
+						setMagnitude(id, undefined);
+					} else {
+						setMagnitude(id, val);
+					}
+					buildPickers(codeIds);
+				});
+				chipContainer.appendChild(chip);
+			}
+
+			row.appendChild(chipContainer);
+			body.appendChild(row);
+		}
+	};
+
+	header.addEventListener('click', (e) => {
+		e.stopPropagation();
+		expanded = !expanded;
+		body.style.display = expanded ? '' : 'none';
+		wrapper.toggleClass('is-open', expanded);
+	});
+
+	wrapper.appendChild(header);
+	wrapper.appendChild(body);
+
+	// Auto-expand if any active code already has a magnitude value set
+	const hasAnyMagnitude = activeCodeIds.some(id => {
+		const def = registry.getById(id);
+		return def?.magnitude && def.magnitude.values.length > 0 && getMagnitude(id);
+	});
+	if (hasAnyMagnitude) {
+		expanded = true;
+		body.style.display = '';
+		wrapper.addClass('is-open');
+	}
+
+	buildPickers(activeCodeIds);
+
+	separator.style.display = visible ? '' : 'none';
+	wrapper.style.display = visible ? '' : 'none';
+
+	parent.appendChild(separator);
+	parent.appendChild(wrapper);
+
+	return {
+		wrapper,
+		separator,
+		updateVisibility(show: boolean) {
+			separator.style.display = show ? '' : 'none';
+			wrapper.style.display = show ? '' : 'none';
+		},
+		refresh(codeIds: string[]) {
+			buildPickers(codeIds);
+		},
+	};
+}
+
 // ── "Press Enter" hint ───────────────────────────────────────
 
 export function renderEnterHint(parent: HTMLElement, filterText: string): void {
