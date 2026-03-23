@@ -1,6 +1,7 @@
 import type { App } from "obsidian";
 import type QualiaCodingPlugin from "../main";
 import { openExportModal } from "../export/exportCommands";
+import { openImportModal } from "../import/importCommands";
 import type { CodeDefinitionRegistry } from "../core/codeDefinitionRegistry";
 import type { DataManager } from "../core/dataManager";
 import { ANALYTICS_VIEW_TYPE, AnalyticsView } from "./views/analyticsView";
@@ -25,6 +26,7 @@ export interface AnalyticsPluginAPI {
   addCodeCardToBoard(codeName: string, color: string, description: string, markerCount: number, sources: string[]): Promise<void>;
   addExcerptToBoard(text: string, file: string, source: string, location: string, codes: string[], codeColors: string[]): Promise<void>;
   openExportModal(defaultFormat?: 'qdc' | 'qdpx'): void;
+  openImportModal(defaultFormat?: 'qdc' | 'qdpx'): void;
 }
 
 /**
@@ -90,6 +92,10 @@ export function registerAnalyticsEngine(plugin: QualiaCodingPlugin, cache?: Cons
 
     openExportModal(defaultFormat: 'qdc' | 'qdpx' = 'qdpx'): void {
       openExportModal(plugin, defaultFormat);
+    },
+
+    openImportModal(defaultFormat: 'qdc' | 'qdpx' = 'qdpx'): void {
+      openImportModal(plugin, defaultFormat);
     },
   };
 

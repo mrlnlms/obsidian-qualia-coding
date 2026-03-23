@@ -22,6 +22,7 @@ import { registerVideoEngine } from './video';
 import { registerAnalyticsEngine } from './analytics';
 import { ConsolidationCache } from './analytics/data/consolidationCache';
 import { registerExportCommands } from './export/exportCommands';
+import { registerImportCommands } from './import/importCommands';
 import { setupFileInterceptor } from './core/fileInterceptor';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
@@ -85,6 +86,7 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.cleanups.push(registerAnalyticsEngine(this, consolidationCache));
 
 		registerExportCommands(this);
+		registerImportCommands(this);
 
 		// Single active-leaf-change listener for file-open interception
 		setupFileInterceptor(this);

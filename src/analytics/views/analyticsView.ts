@@ -265,6 +265,13 @@ export class AnalyticsView extends ItemView {
       this.plugin.openExportModal();
     });
 
+    const importBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
+    importBtn.createSpan({ text: "Import REFI-QDA" });
+    importBtn.setAttribute("aria-label", "Import REFI-QDA (QDPX/QDC)");
+    importBtn.addEventListener("click", () => {
+      this.plugin.openImportModal();
+    });
+
     const boardBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
     setIcon(boardBtn, "layout-dashboard");
     boardBtn.createSpan({ text: "Add to Board" });
