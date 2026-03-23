@@ -486,6 +486,205 @@ export function renderMagnitudeSection(
 	};
 }
 
+// ── Relations section ─────────────────────────────────────
+
+export interface RelationsHandle {
+	wrapper: HTMLElement;
+	separator: HTMLElement;
+	updateVisibility(show: boolean): void;
+	refresh(activeCodeIds: string[]): void;
+}
+
+export function renderRelationsSection(
+	parent: HTMLElement,
+	registry: CodeDefinitionRegistry,
+	activeCodeIds: string[],
+	getRelations: (codeId: string) => Array<{ label: string; target: string; directed: boolean }>,
+	setRelations: (codeId: string, relations: Array<{ label: string; target: string; directed: boolean }>) => void,
+	visible: boolean,
+	allLabels: string[],
+): RelationsHandle {
+	const separator = createSeparator();
+	const wrapper = document.createElement('div');
+	wrapper.className = 'codemarker-tooltip-relations-wrapper';
+
+	const header = document.createElement('div');
+	header.className = 'codemarker-tooltip-memo-header menu-item';
+	const chevron = document.createElement('div');
+	chevron.className = 'codemarker-tooltip-memo-chevron';
+	setIcon(chevron, 'chevron-right');
+	header.appendChild(chevron);
+	const headerTitle = document.createElement('span');
+	headerTitle.className = 'menu-item-title';
+	headerTitle.textContent = 'Relations';
+	header.appendChild(headerTitle);
+
+	const body = document.createElement('div');
+	body.className = 'codemarker-tooltip-relations-body';
+
+	let expanded = false;
+	body.style.display = 'none';
+
+	const buildContent = (codeIds: string[]) => {
+		body.innerHTML = '';
+		if (codeIds.length === 0) {
+			separator.style.display = 'none';
+			wrapper.style.display = 'none';
+			return;
+		}
+		if (codeIds.length > 0) {
+			separator.style.display = visible ? '' : 'none';
+			wrapper.style.display = visible ? '' : 'none';
+		}
+
+		for (const codeId of codeIds) {
+			const def = registry.getById(codeId);
+			if (!def) continue;
+
+			const rels = getRelations(codeId);
+			const codeGroup = document.createElement('div');
+			codeGroup.className = 'codemarker-tooltip-relations-code-group';
+
+			const codeHeader = document.createElement('div');
+			codeHeader.className = 'codemarker-tooltip-magnitude-row';
+			const swatch = document.createElement('span');
+			swatch.className = 'codemarker-popover-swatch';
+			swatch.style.backgroundColor = def.color;
+			codeHeader.appendChild(swatch);
+			const nameEl = document.createElement('span');
+			nameEl.className = 'codemarker-tooltip-magnitude-code-name';
+			nameEl.textContent = def.name;
+			codeHeader.appendChild(nameEl);
+			codeGroup.appendChild(codeHeader);
+
+			for (const rel of rels) {
+				const row = document.createElement('div');
+				row.className = 'codemarker-tooltip-relation-row';
+
+				const dirEl = document.createElement('span');
+				dirEl.className = 'codemarker-tooltip-relation-dir';
+				setIcon(dirEl, rel.directed ? 'arrow-right' : 'minus');
+				row.appendChild(dirEl);
+
+				const labelEl = document.createElement('span');
+				labelEl.className = 'codemarker-tooltip-relation-label';
+				labelEl.textContent = rel.label;
+				row.appendChild(labelEl);
+
+				const targetDef = registry.getById(rel.target);
+				const targetEl = document.createElement('span');
+				targetEl.className = 'codemarker-tooltip-relation-target';
+				targetEl.textContent = targetDef?.name ?? '(deleted)';
+				row.appendChild(targetEl);
+
+				const removeBtn = document.createElement('span');
+				removeBtn.className = 'codemarker-tooltip-relation-remove';
+				setIcon(removeBtn, 'x');
+				removeBtn.addEventListener('click', (e) => {
+					e.stopPropagation();
+					const updated = rels.filter(r => !(r.label === rel.label && r.target === rel.target));
+					setRelations(codeId, updated);
+					buildContent(codeIds);
+				});
+				row.appendChild(removeBtn);
+
+				codeGroup.appendChild(row);
+			}
+
+			// Compact add row
+			const addRow = document.createElement('div');
+			addRow.className = 'codemarker-tooltip-relation-add';
+
+			const labelIn = document.createElement('input');
+			labelIn.className = 'codemarker-tooltip-relation-input';
+			labelIn.placeholder = 'Label...';
+			applyInputTheme(labelIn);
+			addRow.appendChild(labelIn);
+
+			const targetIn = document.createElement('input');
+			targetIn.className = 'codemarker-tooltip-relation-input';
+			targetIn.placeholder = 'Target...';
+			applyInputTheme(targetIn);
+			addRow.appendChild(targetIn);
+
+			const dirBtn = document.createElement('button');
+			dirBtn.className = 'codemarker-tooltip-relation-dir-btn';
+			let directed = true;
+			const updateDir = () => { dirBtn.innerHTML = ''; setIcon(dirBtn, directed ? 'arrow-right' : 'minus'); };
+			updateDir();
+			dirBtn.addEventListener('click', (e) => { e.stopPropagation(); directed = !directed; updateDir(); });
+			addRow.appendChild(dirBtn);
+
+			const addBtn = document.createElement('button');
+			addBtn.className = 'codemarker-tooltip-relation-add-btn';
+			addBtn.textContent = '+';
+			addBtn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				const label = labelIn.value.trim();
+				const targetName = targetIn.value.trim();
+				if (!label || !targetName) return;
+				let targetDef = registry.getByName(targetName);
+				if (!targetDef) {
+					targetDef = registry.create(targetName, registry.peekNextPaletteColor());
+				}
+				const dup = rels.some(r => r.label === label && r.target === targetDef!.id && r.directed === directed);
+				if (dup) return;
+				setRelations(codeId, [...rels, { label, target: targetDef.id, directed }]);
+				buildContent(codeIds);
+			});
+			addRow.appendChild(addBtn);
+
+			for (const inp of [labelIn, targetIn]) {
+				inp.addEventListener('mousedown', (e) => e.stopPropagation());
+				inp.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
+					e.stopPropagation();
+				});
+			}
+
+			codeGroup.appendChild(addRow);
+			body.appendChild(codeGroup);
+		}
+	};
+
+	header.addEventListener('click', (e) => {
+		e.stopPropagation();
+		expanded = !expanded;
+		body.style.display = expanded ? '' : 'none';
+		wrapper.toggleClass('is-open', expanded);
+	});
+
+	wrapper.appendChild(header);
+	wrapper.appendChild(body);
+
+	const hasAnyRelations = activeCodeIds.some(id => getRelations(id).length > 0);
+	if (hasAnyRelations) {
+		expanded = true;
+		body.style.display = '';
+		wrapper.addClass('is-open');
+	}
+
+	buildContent(activeCodeIds);
+
+	separator.style.display = visible ? '' : 'none';
+	wrapper.style.display = visible ? '' : 'none';
+
+	parent.appendChild(separator);
+	parent.appendChild(wrapper);
+
+	return {
+		wrapper,
+		separator,
+		updateVisibility(show: boolean) {
+			separator.style.display = show ? '' : 'none';
+			wrapper.style.display = show ? '' : 'none';
+		},
+		refresh(codeIds: string[]) {
+			buildContent(codeIds);
+		},
+	};
+}
+
 // ── "Press Enter" hint ───────────────────────────────────────
 
 export function renderEnterHint(parent: HTMLElement, filterText: string): void {
