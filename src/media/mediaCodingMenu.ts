@@ -6,7 +6,9 @@
 import type { App } from 'obsidian';
 import type { MediaMarker } from './mediaTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { DataManager } from '../core/dataManager';
 import type { MediaRegionRenderer } from './regionRenderer';
+import { findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
 import {
 	openCodingPopover,
 	type CodingPopoverAdapter,
@@ -16,6 +18,7 @@ import {
 /** Minimal model interface required by the media coding popover. */
 export interface MediaMenuModel<M extends MediaMarker = MediaMarker> {
 	registry: CodeDefinitionRegistry;
+	readonly dm: DataManager;
 	findExistingMarker(filePath: string, from: number, to: number): M | undefined;
 	findOrCreateMarker(filePath: string, from: number, to: number): M;
 	addCodeToMarker(markerId: string, codeId: string): void;
@@ -74,6 +77,17 @@ export function openMediaCodingPopover(
 			m.updatedAt = Date.now();
 			model.save();
 		},
+		getMagnitudeForCode: (codeId) => {
+			const m = model.findExistingMarker(filePath, regionStart, regionEnd);
+			if (!m) return undefined;
+			return findCodeApplication(m.codes, codeId)?.magnitude;
+		},
+		setMagnitudeForCode: (codeId, value) => {
+			const m = getMarker();
+			m.codes = setMagnitude(m.codes, codeId, value);
+			m.updatedAt = Date.now();
+			model.save();
+		},
 		save: () => model.save(),
 		onRefresh: () => {
 			const m = model.findExistingMarker(filePath, regionStart, regionEnd);
@@ -96,6 +110,7 @@ export function openMediaCodingPopover(
 		pos,
 		app,
 		isHoverMode,
+		showMagnitudeSection: model.dm.section('general').showMagnitudeInPopover,
 		className: 'codemarker-popover',
 		onClose: () => {
 			const marker = model.findExistingMarker(filePath, regionStart, regionEnd);

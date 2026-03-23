@@ -14,6 +14,7 @@ import type { PdfCodingModel } from './pdfCodingModel';
 import type { PdfSelectionResult } from './selectionCapture';
 import type { PdfMarker } from './pdfCodingTypes';
 import { cancelHoverCloseTimer, startHoverCloseTimer } from './highlightRenderer';
+import { findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
 import { openCodingPopover, type CodingPopoverAdapter, type CodingPopoverOptions } from '../core/codingPopover';
 import type { PdfViewState } from './pdfViewState';
 
@@ -99,6 +100,25 @@ export function openPdfCodingPopover(
 			}
 			model.notify();
 		},
+		getMagnitudeForCode: (codeId) => {
+			const m = hoverMarkerId
+				? model.findMarkerById(hoverMarkerId)
+				: model.findExistingMarker(
+					firstResult.file, firstResult.page,
+					firstResult.beginIndex, firstResult.beginOffset,
+					firstResult.endIndex, firstResult.endOffset,
+				);
+			if (!m) return undefined;
+			return findCodeApplication(m.codes, codeId)?.magnitude;
+		},
+		setMagnitudeForCode: (codeId, value) => {
+			const markers = getMarkers();
+			for (const m of markers) {
+				m.codes = setMagnitude(m.codes, codeId, value);
+				m.updatedAt = Date.now();
+			}
+			model.notify();
+		},
 		save: () => model.save(),
 		onRefresh: onHighlightRefresh,
 		onNavClick: (codeName, isActive) => {
@@ -118,6 +138,7 @@ export function openPdfCodingPopover(
 		pos,
 		app,
 		isHoverMode,
+		showMagnitudeSection: model.dataManager.section('general').showMagnitudeInPopover,
 		badge: results.length > 1 ? `Selection spans ${results.length} pages` : undefined,
 		className: 'codemarker-popover',
 		hoverGrace: pdfState ? {
@@ -181,6 +202,18 @@ export function openShapeCodingPopover(
 			shape.updatedAt = Date.now();
 			model.notify();
 		},
+		getMagnitudeForCode: (codeId) => {
+			const s = model.findShapeById(shapeId);
+			if (!s) return undefined;
+			return findCodeApplication(s.codes, codeId)?.magnitude;
+		},
+		setMagnitudeForCode: (codeId, value) => {
+			const s = model.findShapeById(shapeId);
+			if (!s) return;
+			s.codes = setMagnitude(s.codes, codeId, value);
+			s.updatedAt = Date.now();
+			model.notify();
+		},
 		save: () => model.save(),
 		onRefresh,
 		onNavClick: (codeName, isActive) => {
@@ -200,6 +233,7 @@ export function openShapeCodingPopover(
 		pos,
 		app,
 		isHoverMode: true,
+		showMagnitudeSection: model.dataManager.section('general').showMagnitudeInPopover,
 		badge: shapeNames[shape.shape] || shape.shape,
 		className: 'codemarker-popover',
 		hoverGrace: pdfState ? {

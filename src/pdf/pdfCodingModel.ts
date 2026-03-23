@@ -19,7 +19,7 @@ type HoverListener = (markerId: string | null, codeName: string | null) => void;
 
 export class PdfCodingModel {
 	readonly registry: CodeDefinitionRegistry;
-	private dataManager: DataManager;
+	readonly dataManager: DataManager;
 	private markers: PdfMarker[] = [];
 	private shapes: PdfShapeMarker[] = [];
 	private undoStack: UndoEntry[] = [];

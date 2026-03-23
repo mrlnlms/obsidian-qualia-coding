@@ -11,7 +11,7 @@ export type ChangeListener = () => void;
 
 export class ImageCodingModel {
 	readonly registry: CodeDefinitionRegistry;
-	private dataManager: DataManager;
+	readonly dataManager: DataManager;
 	private listeners: ChangeListener[] = [];
 
 	// Hover state (bidirectional: sidebar ↔ canvas)

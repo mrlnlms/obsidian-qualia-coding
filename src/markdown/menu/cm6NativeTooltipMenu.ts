@@ -23,6 +23,7 @@ import {
 	openCodingPopover,
 	type CodingPopoverAdapter,
 } from '../../core/codingPopover';
+import { findCodeApplication, setMagnitude } from '../../core/codeApplicationHelpers';
 
 export function buildNativeTooltipMenuDOM(
 	view: EditorView,
@@ -61,6 +62,22 @@ export function buildNativeTooltipMenuDOM(
 			marker.updatedAt = Date.now();
 			model.saveMarkers();
 		},
+		getMagnitudeForCode: (codeId) => {
+			const marker = snapshot.hoverMarkerId
+				? model.getMarkerById(snapshot.hoverMarkerId)
+				: model.findMarkerAtExactRange(snapshot);
+			if (!marker) return undefined;
+			return findCodeApplication(marker.codes, codeId)?.magnitude;
+		},
+		setMagnitudeForCode: (codeId, value) => {
+			const marker = snapshot.hoverMarkerId
+				? model.getMarkerById(snapshot.hoverMarkerId)
+				: model.findMarkerAtExactRange(snapshot);
+			if (!marker) return;
+			marker.codes = setMagnitude(marker.codes, codeId, value);
+			marker.updatedAt = Date.now();
+			model.saveMarkers();
+		},
 		save: () => model.saveMarkers(),
 		onRefresh: () => {},
 		onNavClick: (codeName, isActive) => {
@@ -81,6 +98,7 @@ export function buildNativeTooltipMenuDOM(
 		pos: { x: 0, y: 0 }, // CM6 handles positioning
 		app: model.plugin.app,
 		isHoverMode,
+		showMagnitudeSection: model.plugin.dataManager.section('general').showMagnitudeInPopover,
 		externalContainer: container,
 		className: 'codemarker-popover',
 		autoFocus: !isHoverMode,

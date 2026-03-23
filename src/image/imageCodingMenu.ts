@@ -5,6 +5,7 @@
 
 import type { App } from 'obsidian';
 import type { ImageCodingModel } from './imageCodingModel';
+import { findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
 import {
 	openCodingPopover,
 	type CodingPopoverAdapter,
@@ -66,6 +67,18 @@ export class CodingMenu {
 					this.model.saveMarkers();
 				}
 			},
+			getMagnitudeForCode: (codeId) => {
+				const m = this.model.findMarkerById(markerId);
+				if (!m) return undefined;
+				return findCodeApplication(m.codes, codeId)?.magnitude;
+			},
+			setMagnitudeForCode: (codeId, value) => {
+				const m = this.model.findMarkerById(markerId);
+				if (!m) return;
+				m.codes = setMagnitude(m.codes, codeId, value);
+				m.updatedAt = Date.now();
+				this.model.saveMarkers();
+			},
 			save: () => this.model.saveMarkers(),
 			onRefresh: () => this.callbacks.onCodesChanged(markerId),
 			onNavClick: (codeName, isActive) => {
@@ -85,6 +98,7 @@ export class CodingMenu {
 			pos: { x, y },
 			app: this.app,
 			isHoverMode: true,
+			showMagnitudeSection: this.model.dataManager.section('general').showMagnitudeInPopover,
 			className: 'codemarker-popover',
 			deleteAction: {
 				label: 'Remove Region',

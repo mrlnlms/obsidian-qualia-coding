@@ -8,7 +8,7 @@ type HoverListener = (markerId: string | null, codeName: string | null) => void;
 
 export class CsvCodingModel {
 	readonly registry: CodeDefinitionRegistry;
-	private dm: DataManager;
+	readonly dm: DataManager;
 	private segmentMarkers: SegmentMarker[] = [];
 	private rowMarkers: RowMarker[] = [];
 	private listeners: ChangeListener[] = [];

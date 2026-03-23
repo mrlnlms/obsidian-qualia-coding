@@ -9,7 +9,7 @@
 import type { App } from 'obsidian';
 import type { CsvCodingModel } from './csvCodingModel';
 import type { GridApi } from 'ag-grid-community';
-import { hasCode } from '../core/codeApplicationHelpers';
+import { hasCode, findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
 import {
 	openCodingPopover,
 	type CodingPopoverAdapter,
@@ -61,6 +61,19 @@ export function openCsvCodingPopover(
 		},
 		getMemo: () => '',
 		setMemo: () => {},
+		getMagnitudeForCode: (codeId) => {
+			const current = model.getRowMarkersForCell(file, row, column)[0];
+			if (!current) return undefined;
+			return findCodeApplication(current.codes, codeId)?.magnitude;
+		},
+		setMagnitudeForCode: (codeId, value) => {
+			const current = model.getRowMarkersForCell(file, row, column)[0];
+			if (!current) return;
+			current.codes = setMagnitude(current.codes, codeId, value);
+			current.updatedAt = Date.now();
+			model.saveMarkers();
+			gridApi.refreshCells({ force: true });
+		},
 		save: () => model.saveMarkers(),
 		onRefresh: () => {
 			gridApi.refreshCells({ force: true });
@@ -71,6 +84,7 @@ export function openCsvCodingPopover(
 		pos,
 		app,
 		isHoverMode,
+		showMagnitudeSection: model.dm.section('general').showMagnitudeInPopover,
 		className: 'codemarker-popover',
 		onClose: () => {
 			gridApi.refreshCells({ force: true });

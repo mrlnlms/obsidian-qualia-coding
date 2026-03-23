@@ -17,7 +17,7 @@ export class MediaCodingModel<
 	F extends MediaFile<M> = MediaFile<M>,
 	S extends BaseMediaSettings = BaseMediaSettings,
 > {
-	private dm: DataManager;
+	readonly dm: DataManager;
 	private sectionName: string;
 	registry: CodeDefinitionRegistry;
 	files: F[] = [];
