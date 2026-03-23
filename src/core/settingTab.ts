@@ -39,6 +39,16 @@ export class QualiaSettingTab extends PluginSettingTab {
 					save();
 				}));
 
+		new Setting(containerEl)
+			.setName('Show relations in popover')
+			.setDesc('Show relations section in the coding popover for adding segment-level relations')
+			.addToggle(toggle => toggle
+				.setValue(generalSettings.showRelationsInPopover)
+				.onChange((value) => {
+					generalSettings.showRelationsInPopover = value;
+					save();
+				}));
+
 		// ── Markdown ────────────────────────────────────────────
 		containerEl.createEl('h2', { text: 'Markdown' });
 
