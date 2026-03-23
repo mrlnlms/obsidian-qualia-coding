@@ -11,8 +11,13 @@ src/
   core/
     baseSidebarAdapter.ts    — base class para TODOS os sidebar adapters (listeners, hover, deleteCode, updateMarkerFields)
     markerResolvers.ts       — type guards (isPdfMarker etc.) + getMarkerLabel + shortenPath
-    codeApplicationHelpers.ts — hasCode, getCodeIds, addCodeApplication, removeCodeApplication
-    baseCodingMenu.ts        — helpers compartilhados de menu (createActionItem, applyThemeColors)
+    codeApplicationHelpers.ts — hasCode, getCodeIds, addCodeApplication, removeCodeApplication, getMagnitude, setMagnitude, getRelations, addRelation, removeRelation
+    baseCodingMenu.ts        — helpers compartilhados de menu (createActionItem, applyThemeColors, renderMagnitudeSection, renderRelationsSection)
+    relationUI.ts            — renderAddRelationRow compartilhado (popover, detail, marker detail)
+    relationHelpers.ts       — collectAllLabels, buildRelationEdges (funcoes puras)
+    hierarchyHelpers.ts      — buildFlatTree, buildCountIndex, getDirectCount, getAggregateCount
+    codebookTreeRenderer.ts  — virtual scrolling tree com hierarquia e pastas
+    mergeModal.ts            — MergeModal com busca fuzzy, preview de impacto, executeMerge
     drawToolbarFactory.ts    — factory compartilhada de toolbar drawing (PDF + Image)
     ...                      — DataManager, CodeDefinitionRegistry, settings, types
   markdown/                  — CodeMirror 6 engine para markdown
@@ -41,11 +46,25 @@ src/
     canvas/                  — Fabric.js canvas, drawing, zoom/pan (4 arquivos)
   audio/                     — Audio engine — thin wrapper (~53 LOC) via MediaViewCore
   video/                     — Video engine — thin wrapper (~54 LOC) via MediaViewCore
+  export/                    — REFI-QDA export (QDC codebook + QDPX projeto completo)
+    qdcExporter.ts           — gera XML do codebook (hierarquia por nesting)
+    qdpxExporter.ts          — orquestra export completo (codigos + sources + segments + memos + links)
+    xmlBuilder.ts            — helpers XML (escapeXml, xmlAttr, xmlEl, xmlDeclaration)
+    coordConverters.ts       — conversao de coords por engine (PDF, Image, Media)
+    exportModal.ts           — modal pre-export (formato, toggle sources, disclaimer CSV)
+    exportCommands.ts        — commands na palette + botao no analytics
+  import/                    — REFI-QDA import (QDC + QDPX)
+    qdcImporter.ts           — parse XML codebook, popular registry
+    qdpxImporter.ts          — orquestra import completo (ZIP → vault)
+    xmlParser.ts             — helpers parse XML
+    importModal.ts           — modal de import (conflitos, opcoes)
+    importCommands.ts        — commands na palette
   analytics/                 — Charts e word clouds (chart.js)
     data/
       consolidationCache.ts  — cache incremental por engine (dirty flags + merge parcial)
       dataConsolidator.ts    — 6 funcoes puras por engine + consolidateCodes + consolidate() como composicao
       dataReader.ts          — readAllData(DataManager) → AllEngineData
+      relationsEngine.ts     — extractRelationEdges, extractRelationNodes (Network View)
       statsEngine.ts         — barrel re-export (6 modulos: frequency, cooccurrence, evolution, sequential, inferential, textAnalysis)
       statsHelpers.ts        — applyFilters compartilhado
     board/
@@ -61,7 +80,7 @@ src/
       shared/chartHelpers.ts — heatmapColor, computeDisplayMatrix, divergentColor, SOURCE_COLORS
       modes/
         modeRegistry.ts      — Record<ViewMode, ModeEntry> declarativo (render, options, exportCSV, label)
-        *Mode.ts             — 19 mode modules (1 por visualizacao, ~150-400 LOC cada)
+        *Mode.ts             — 20 mode modules incl. relationsNetworkMode (1 por visualizacao, ~150-400 LOC cada)
   media/
     mediaViewCore.ts         — logica compartilhada audio/video via composicao (transport, zoom, regions)
     mediaViewConfig.ts       — interface de configuracao (video element, CSS prefix, popover)
@@ -96,7 +115,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1631 testes em 61 suites (Vitest + jsdom)
+- `npm run test` — 1758 testes em 71 suites (Vitest + jsdom)
 - `npm run test:e2e` — 65 testes e2e em 18 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView
@@ -109,12 +128,15 @@ src/
 - `removeMarker()` — metodo de remocao no model (nunca `deleteMarker`)
 - `colorOverride` — cor custom por marker (presente em todos os tipos)
 - `codeId` — referencia estavel ao CodeDefinition.id nos markers (nunca nome direto)
-- `codes: CodeApplication[]` — array de `{ codeId, magnitude? }` em todos os markers (nunca `string[]`)
-- Helpers em `codeApplicationHelpers.ts`: `hasCode`, `getCodeIds`, `addCodeApplication`, `removeCodeApplication`
+- `codes: CodeApplication[]` — array de `{ codeId, magnitude?, relations? }` em todos os markers (nunca `string[]`)
+- Helpers em `codeApplicationHelpers.ts`: `hasCode`, `getCodeIds`, `addCodeApplication`, `removeCodeApplication`, `getMagnitude`, `setMagnitude`, `getRelations`, `addRelation`, `removeRelation`
 - Popover adapters resolvem name→id na borda UI; models so recebem codeId
 - `parentId` — referencia ao CodeDefinition pai (nunca `parent`)
 - `childrenOrder` — array ordenado de ids filhos (nunca `children`)
 - `mergedFrom` — ids dos codigos fundidos neste (audit trail)
+- `folder` — id da pasta virtual (nunca path). Pastas nao tem significado analitico
+- `magnitude` — config no CodeDefinition `{ type, values }`, valor no CodeApplication. Picker fechado
+- `relations` — array de `{ label, target, directed }` em CodeDefinition (codigo-level) e CodeApplication (segmento-level). Label livre com autocomplete
 - `setParent(id, parentId)` — metodo de reparentar com deteccao de ciclo
 - `executeMerge()` — funcao de merge em `mergeModal.ts` (reassigna markers, reparenta filhos, deleta sources)
 - Hierarchy helpers puros em `hierarchyHelpers.ts`: `buildFlatTree`, `buildCountIndex`, `getDirectCount`, `getAggregateCount`
@@ -141,3 +163,13 @@ src/
 - `docs/DEVELOPMENT.md` — guia de desenvolvimento
 - `docs/ROADMAP.md` — roadmap do plugin
 - `docs/BACKLOG.md` — divida tecnica e oportunidades de refactor
+
+### Atualizacao obrigatoria apos cada feature
+
+Ao concluir implementacao de uma feature ou fase, atualizar docs afetados:
+- `ROADMAP.md` — marcar items feitos, adicionar novos
+- `BACKLOG.md` — nova divida tecnica, remover resolvidos
+- `CLAUDE.md` — estrutura de arquivos, convencoes, contagem de testes/suites
+- `ARCHITECTURE.md` — novos modulos e fluxos
+- `TECHNICAL-PATTERNS.md` — padroes novos descobertos
+- `DEVELOPMENT.md` — novos commands, settings, fluxos
