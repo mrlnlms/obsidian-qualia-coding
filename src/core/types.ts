@@ -11,9 +11,16 @@ import type { VideoFile } from '../video/videoCodingTypes';
 
 export type MarkerType = 'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video';
 
+export interface CodeRelation {
+	label: string;
+	target: string;
+	directed: boolean;
+}
+
 export interface CodeApplication {
 	codeId: string;
 	magnitude?: string;
+	relations?: CodeRelation[];
 }
 
 export interface BaseMarker {
@@ -79,6 +86,8 @@ export interface CodeDefinition {
 	folder?: string;        // folder id — undefined = no folder (root level)
 	// Magnitude (Phase D)
 	magnitude?: { type: 'nominal' | 'ordinal' | 'continuous'; values: string[] };
+	// Relations code-level (Phase E)
+	relations?: CodeRelation[];
 }
 
 export interface FolderDefinition {
@@ -96,6 +105,7 @@ export interface EngineRegistration<M = unknown> {
 
 export interface GeneralSettings {
 	showMagnitudeInPopover: boolean;
+	showRelationsInPopover: boolean;
 }
 
 export interface QualiaData {
@@ -134,7 +144,7 @@ export interface QualiaData {
 export function createDefaultData(): QualiaData {
 	return {
 		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, rootOrder: [] },
-		general: { showMagnitudeInPopover: true },
+		general: { showMagnitudeInPopover: true, showRelationsInPopover: true },
 		markdown: { markers: {}, settings: {
 			defaultColor: '#6200EE',
 			markerOpacity: 0.4,
