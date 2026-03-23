@@ -8,12 +8,25 @@ import type { CodeDefinition, BaseMarker } from './types';
 
 // ─── Types ───────────────────────────────────────────────────────
 
-export interface FlatTreeNode {
+export interface FlatCodeNode {
+	type: 'code';
 	def: CodeDefinition;
 	depth: number;
 	hasChildren: boolean;
 	isExpanded: boolean;
 }
+
+export interface FlatFolderNode {
+	type: 'folder';
+	folderId: string;
+	name: string;
+	depth: 0;
+	hasChildren: boolean;
+	isExpanded: boolean;
+	codeCount: number;
+}
+
+export type FlatTreeNode = FlatCodeNode | FlatFolderNode;
 
 export interface CountEntry {
 	direct: number;
@@ -37,22 +50,31 @@ export function buildFlatTree(
 	expanded: Set<string>,
 	searchQuery?: string,
 ): FlatTreeNode[] {
-	// If searching, compute which codes to show and which to force-expand
-	let visibleIds: Set<string> | null = null;
+	const folders = registry.getAllFolders();
+
+	// If searching, compute which codes/folders to show and which to force-expand
+	let visibleCodeIds: Set<string> | null = null;
+	let visibleFolderIds: Set<string> | null = null;
 	let forceExpanded: Set<string> | null = null;
 
 	if (searchQuery && searchQuery.trim().length > 0) {
 		const query = searchQuery.trim().toLowerCase();
-		visibleIds = new Set<string>();
+		visibleCodeIds = new Set<string>();
+		visibleFolderIds = new Set<string>();
 		forceExpanded = new Set<string>();
 
 		for (const def of registry.getAll()) {
 			if (def.name.toLowerCase().includes(query)) {
-				visibleIds.add(def.id);
+				visibleCodeIds.add(def.id);
 				// Add all ancestors
 				for (const ancestor of registry.getAncestors(def.id)) {
-					visibleIds.add(ancestor.id);
+					visibleCodeIds.add(ancestor.id);
 					forceExpanded.add(ancestor.id);
+				}
+				// Auto-expand containing folder
+				if (def.folder) {
+					visibleFolderIds.add(def.folder);
+					forceExpanded.add(`folder:${def.folder}`);
 				}
 			}
 		}
@@ -60,23 +82,54 @@ export function buildFlatTree(
 
 	const result: FlatTreeNode[] = [];
 
-	const visit = (codes: CodeDefinition[], depth: number): void => {
+	const visitCodes = (codes: CodeDefinition[], depth: number): void => {
 		for (const def of codes) {
-			if (visibleIds && !visibleIds.has(def.id)) continue;
+			if (visibleCodeIds && !visibleCodeIds.has(def.id)) continue;
 
 			const children = registry.getChildren(def.id);
 			const hasChildren = children.length > 0;
 			const isExpanded = forceExpanded?.has(def.id) || expanded.has(def.id);
 
-			result.push({ def, depth, hasChildren, isExpanded: hasChildren && isExpanded });
+			result.push({ type: 'code', def, depth, hasChildren, isExpanded: hasChildren && isExpanded });
 
 			if (hasChildren && isExpanded) {
-				visit(children, depth + 1);
+				visitCodes(children, depth + 1);
 			}
 		}
 	};
 
-	visit(registry.getRootCodes(), 0);
+	// 1. Render folders (sorted by name)
+	for (const folder of folders) {
+		if (visibleFolderIds && !visibleFolderIds.has(folder.id)) continue;
+
+		const codesInFolder = registry.getCodesInFolder(folder.id);
+		const rootCodesInFolder = codesInFolder.filter(c => !c.parentId || !codesInFolder.some(p => p.id === c.parentId));
+		const folderExpKey = `folder:${folder.id}`;
+		const isExpanded = forceExpanded?.has(folderExpKey) || expanded.has(folderExpKey);
+
+		result.push({
+			type: 'folder',
+			folderId: folder.id,
+			name: folder.name,
+			depth: 0,
+			hasChildren: codesInFolder.length > 0,
+			isExpanded: (codesInFolder.length > 0) && isExpanded,
+			codeCount: codesInFolder.length,
+		});
+
+		if (isExpanded) {
+			visitCodes(rootCodesInFolder, 1);
+		}
+	}
+
+	// 2. Unfiled root codes (no folder, no parentId)
+	const unfiledRoots = registry.getRootCodes().filter(d => !d.folder);
+	if (visibleCodeIds) {
+		visitCodes(unfiledRoots.filter(d => visibleCodeIds!.has(d.id)), 0);
+	} else {
+		visitCodes(unfiledRoots, 0);
+	}
+
 	return result;
 }
 

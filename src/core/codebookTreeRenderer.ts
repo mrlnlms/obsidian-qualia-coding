@@ -7,7 +7,7 @@
 
 import { setIcon } from 'obsidian';
 import type { SidebarModelInterface } from './types';
-import { buildFlatTree, buildCountIndex, type FlatTreeNode, type CountIndex } from './hierarchyHelpers';
+import { buildFlatTree, buildCountIndex, type FlatTreeNode, type FlatCodeNode, type FlatFolderNode, type CountIndex } from './hierarchyHelpers';
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -21,6 +21,8 @@ export interface CodebookTreeCallbacks {
 	onCodeClick(codeId: string): void;
 	onCodeRightClick(codeId: string, event: MouseEvent): void;
 	onToggleExpand(codeId: string): void;
+	onFolderToggleExpand(folderId: string): void;
+	onFolderRightClick(folderId: string, event: MouseEvent): void;
 }
 
 export interface CodebookTreeState {
@@ -93,6 +95,77 @@ export function renderCodebookTree(
 
 function renderRow(
 	node: FlatTreeNode,
+	counts: CountIndex,
+	index: number,
+	callbacks: CodebookTreeCallbacks,
+): HTMLElement {
+	if (node.type === 'folder') {
+		return renderFolderRow(node, index, callbacks);
+	}
+	return renderCodeRow(node, counts, index, callbacks);
+}
+
+function renderFolderRow(
+	node: FlatFolderNode,
+	index: number,
+	callbacks: CodebookTreeCallbacks,
+): HTMLElement {
+	const row = document.createElement('div');
+	row.className = 'codebook-tree-row codebook-folder-row';
+	row.style.position = 'absolute';
+	row.style.top = `${index * ROW_HEIGHT}px`;
+	row.style.height = `${ROW_HEIGHT}px`;
+	row.style.width = '100%';
+	row.dataset.folderId = node.folderId;
+
+	// Chevron
+	const chevron = document.createElement('span');
+	chevron.className = 'codebook-tree-chevron';
+	if (node.isExpanded) chevron.classList.add('is-expanded');
+	setIcon(chevron, 'chevron-right');
+	chevron.addEventListener('click', (e) => {
+		e.stopPropagation();
+		callbacks.onFolderToggleExpand(node.folderId);
+	});
+	row.appendChild(chevron);
+
+	// Folder icon (distinct from code's color swatch)
+	const icon = document.createElement('span');
+	icon.className = 'codebook-tree-folder-icon';
+	setIcon(icon, node.isExpanded ? 'folder-open' : 'folder');
+	row.appendChild(icon);
+
+	// Name
+	const name = document.createElement('span');
+	name.className = 'codebook-tree-name codebook-folder-name';
+	name.textContent = node.name;
+	row.appendChild(name);
+
+	// Code count badge
+	if (node.codeCount > 0) {
+		const badge = document.createElement('span');
+		badge.className = 'codebook-tree-count';
+		badge.textContent = `${node.codeCount}`;
+		badge.title = `${node.codeCount} codes in folder`;
+		row.appendChild(badge);
+	}
+
+	// Right-click → folder context menu
+	row.addEventListener('contextmenu', (e) => {
+		e.preventDefault();
+		callbacks.onFolderRightClick(node.folderId, e);
+	});
+
+	// Click → toggle expand
+	row.addEventListener('click', () => {
+		callbacks.onFolderToggleExpand(node.folderId);
+	});
+
+	return row;
+}
+
+function renderCodeRow(
+	node: FlatCodeNode,
 	counts: CountIndex,
 	index: number,
 	callbacks: CodebookTreeCallbacks,

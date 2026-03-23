@@ -227,6 +227,20 @@ export abstract class BaseCodeDetailView extends ItemView {
 			onCodeRightClick: (codeId: string, event: MouseEvent) => {
 				showCodeContextMenu(event, codeId, this.model.registry, this.contextMenuCallbacks());
 			},
+			onFolderToggleExpand: (folderId: string) => {
+				const key = `folder:${folderId}`;
+				if (this.treeExpanded.has(key)) {
+					this.treeExpanded.delete(key);
+				} else {
+					this.treeExpanded.add(key);
+				}
+				if (this.listContentZone) {
+					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+				}
+			},
+			onFolderRightClick: (_folderId: string, _event: MouseEvent) => {
+				// Wired in Task 6
+			},
 			onDragModeChange: (mode: 'reorganize' | 'merge') => {
 				this.treeDragMode = mode;
 			},
