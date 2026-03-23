@@ -240,7 +240,7 @@ describe('buildProjectXml', () => {
     registry.create('Theme A', '#ff0000');
     const sourcesXml = '<TextSource guid="s1" name="test.md" plainTextPath="relative://test.txt"/>';
     const notesXml = '<Note guid="n1" name="Memo" creationDateTime="2026-01-01T00:00:00.000Z">\n<PlainTextContent>test</PlainTextContent>\n</Note>';
-    const xml = buildProjectXml(registry, sourcesXml, notesXml, 'My Vault', '1.0.0');
+    const xml = buildProjectXml(registry, sourcesXml, notesXml, '', 'My Vault', '1.0.0');
     expect(xml).toMatch(/^<\?xml version="1.0" encoding="utf-8"\?>/);
     expect(xml).toContain('xmlns="urn:QDA-XML:project:1.0"');
     expect(xml).toContain('name="My Vault"');
@@ -252,7 +252,7 @@ describe('buildProjectXml', () => {
 
   it('omits Notes section when no notes', () => {
     const registry = new CodeDefinitionRegistry();
-    const xml = buildProjectXml(registry, '', '', 'Vault', '1.0.0');
+    const xml = buildProjectXml(registry, '', '', '', 'Vault', '1.0.0');
     expect(xml).not.toContain('<Notes>');
   });
 });
@@ -307,7 +307,7 @@ describe('full export assembly', () => {
 
     const sourcesXml = [mdXml, audioXml].filter(Boolean).join('\n');
     const notesXml = notes.join('\n');
-    const projectXml = buildProjectXml(registry, sourcesXml, notesXml, 'Test Vault', '1.0.0');
+    const projectXml = buildProjectXml(registry, sourcesXml, notesXml, '', 'Test Vault', '1.0.0');
 
     // Verify XML structure
     expect(projectXml).toContain('xmlns="urn:QDA-XML:project:1.0"');

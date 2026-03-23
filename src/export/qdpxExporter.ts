@@ -4,7 +4,7 @@ import { buildQdcFile } from './qdcExporter';
 import { zipSync, strToU8 } from 'fflate';
 import type { App, Vault, TFile } from 'obsidian';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
-import type { CodeApplication } from '../core/types';
+import type { CodeApplication, CodeDefinition, BaseMarker as CoreBaseMarker } from '../core/types';
 import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { MediaMarker } from '../media/mediaTypes';
 import type { ImageMarker } from '../image/imageCodingTypes';
@@ -264,19 +264,62 @@ export function buildPdfSourceXml(
 
 const PROJECT_NS = 'urn:QDA-XML:project:1.0';
 
+/** Build <Links> XML section from code-level and segment-level relations. */
+export function buildLinksXml(
+  definitions: CodeDefinition[],
+  markers: CoreBaseMarker[],
+  guidMap: Map<string, string>,
+): string {
+  const links: string[] = [];
+
+  // Code-level relations: Code → Code
+  for (const def of definitions) {
+    if (!def.relations) continue;
+    for (const rel of def.relations) {
+      const linkGuid = uuidV4();
+      const originGuid = ensureGuid(def.id, guidMap);
+      const targetGuid = ensureGuid(rel.target, guidMap);
+      const direction = rel.directed ? 'OneWay' : 'Associative';
+      links.push(
+        `<Link ${xmlAttr('guid', linkGuid)} ${xmlAttr('name', rel.label)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}/>`,
+      );
+    }
+  }
+
+  // Segment-level relations: Selection → Code
+  for (const marker of markers) {
+    for (const ca of marker.codes) {
+      if (!ca.relations) continue;
+      for (const rel of ca.relations) {
+        const linkGuid = uuidV4();
+        const originGuid = ensureGuid(marker.id, guidMap);
+        const targetGuid = ensureGuid(rel.target, guidMap);
+        const direction = rel.directed ? 'OneWay' : 'Associative';
+        links.push(
+          `<Link ${xmlAttr('guid', linkGuid)} ${xmlAttr('name', rel.label)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}/>`,
+        );
+      }
+    }
+  }
+
+  return links.join('\n');
+}
+
 /** Assemble the complete project.qde XML. */
 export function buildProjectXml(
   registry: CodeDefinitionRegistry,
   sourcesXml: string,
   notesXml: string,
+  linksXml: string,
   vaultName: string,
   pluginVersion: string,
 ): string {
   const codebook = buildCodebookXml(registry);
   const sourcesSection = sourcesXml ? `<Sources>\n${sourcesXml}\n</Sources>` : '';
   const notesSection = notesXml ? `<Notes>\n${notesXml}\n</Notes>` : '';
+  const linksSection = linksXml ? `<Links>\n${linksXml}\n</Links>` : '';
 
-  const sections = [codebook, sourcesSection, notesSection].filter(Boolean).join('\n');
+  const sections = [codebook, sourcesSection, notesSection, linksSection].filter(Boolean).join('\n');
 
   return `${xmlDeclaration()}\n<Project ${xmlAttr('name', vaultName)} ${xmlAttr('origin', `Qualia Coding ${pluginVersion}`)} ${xmlAttr('creationDateTime', new Date().toISOString())} ${xmlAttr('xmlns', PROJECT_NS)}>\n${sections}\n</Project>`;
 }
@@ -411,9 +454,21 @@ export async function exportProject(
     }
   }
 
+  // Collect all markers for link generation
+  const allMarkersForLinks: CoreBaseMarker[] = [];
+  for (const markers of Object.values(mdData.markers)) allMarkersForLinks.push(...markers);
+  for (const { textMarkers, shapeMarkers } of pdfByFile.values()) allMarkersForLinks.push(...textMarkers, ...shapeMarkers);
+  for (const [, markers] of imgByFile) allMarkersForLinks.push(...markers);
+  for (const af of audioData.files) allMarkersForLinks.push(...af.markers);
+  for (const vf of videoData.files) allMarkersForLinks.push(...vf.markers);
+  const csvData = dataManager.section('csv');
+  allMarkersForLinks.push(...csvData.segmentMarkers, ...csvData.rowMarkers);
+
   const sourcesXml = allSourcesXml.join('\n');
   const notesXml = notes.join('\n');
-  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, options.vaultName, options.pluginVersion);
+  const allDefs = registry.getAll();
+  const linksXml = buildLinksXml(allDefs, allMarkersForLinks, guidMap);
+  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, options.vaultName, options.pluginVersion);
   const zipData = createQdpxZip(projectXml, sourceFiles);
 
   return { data: zipData, fileName: options.fileName, warnings };
