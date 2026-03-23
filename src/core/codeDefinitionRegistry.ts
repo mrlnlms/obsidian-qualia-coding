@@ -4,7 +4,7 @@
  * Canonical copy — all engines import from here.
  */
 
-import type { CodeDefinition } from './types';
+import type { CodeDefinition, FolderDefinition } from './types';
 
 // 12-color categorical palette — light/dark safe, high distinguishability
 export const DEFAULT_PALETTE: string[] = [
@@ -27,6 +27,7 @@ export class CodeDefinitionRegistry {
 	private nameIndex: Map<string, string> = new Map(); // name → id
 	private nextPaletteIndex: number = 0;
 	private onMutateListeners: Set<() => void> = new Set();
+	private folders: Map<string, FolderDefinition> = new Map();
 
 	/** Register a callback invoked on every mutation (create/update/delete). */
 	addOnMutate(fn: () => void): void {
@@ -142,6 +143,7 @@ export class CodeDefinitionRegistry {
 	clear(): void {
 		this.definitions.clear();
 		this.nameIndex.clear();
+		this.folders.clear();
 		this.nextPaletteIndex = 0;
 		for (const fn of this.onMutateListeners) fn();
 	}
@@ -188,6 +190,72 @@ export class CodeDefinitionRegistry {
 			if (def) return def.color;
 		}
 		return null;
+	}
+
+	// --- Folder CRUD ---
+
+	createFolder(name: string): FolderDefinition {
+		// Dedup by name
+		for (const f of this.folders.values()) {
+			if (f.name === name) return f;
+		}
+		const folder: FolderDefinition = {
+			id: this.generateId(),
+			name,
+			createdAt: Date.now(),
+		};
+		this.folders.set(folder.id, folder);
+		for (const fn of this.onMutateListeners) fn();
+		return folder;
+	}
+
+	getFolderById(id: string): FolderDefinition | undefined {
+		return this.folders.get(id);
+	}
+
+	getAllFolders(): FolderDefinition[] {
+		return Array.from(this.folders.values())
+			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	renameFolder(id: string, name: string): boolean {
+		const folder = this.folders.get(id);
+		if (!folder) return false;
+		if (folder.name === name) return true; // no-op
+		// Reject duplicate name
+		for (const f of this.folders.values()) {
+			if (f.id !== id && f.name === name) return false;
+		}
+		folder.name = name;
+		for (const fn of this.onMutateListeners) fn();
+		return true;
+	}
+
+	deleteFolder(id: string): boolean {
+		if (!this.folders.has(id)) return false;
+		// Clear folder reference from all codes
+		for (const def of this.definitions.values()) {
+			if (def.folder === id) {
+				def.folder = undefined;
+			}
+		}
+		this.folders.delete(id);
+		for (const fn of this.onMutateListeners) fn();
+		return true;
+	}
+
+	setCodeFolder(codeId: string, folderId: string | undefined): boolean {
+		const def = this.definitions.get(codeId);
+		if (!def) return false;
+		if (folderId !== undefined && !this.folders.has(folderId)) return false;
+		def.folder = folderId;
+		def.updatedAt = Date.now();
+		for (const fn of this.onMutateListeners) fn();
+		return true;
+	}
+
+	getCodesInFolder(folderId: string): CodeDefinition[] {
+		return this.getAll().filter(d => d.folder === folderId);
 	}
 
 	// --- Hierarchy mutations ---
@@ -285,12 +353,16 @@ export class CodeDefinitionRegistry {
 
 	// --- Serialization ---
 
-	toJSON(): { definitions: Record<string, CodeDefinition>; nextPaletteIndex: number } {
+	toJSON(): { definitions: Record<string, CodeDefinition>; nextPaletteIndex: number; folders: Record<string, FolderDefinition> } {
 		const definitions: Record<string, CodeDefinition> = {};
 		for (const [id, def] of this.definitions.entries()) {
 			definitions[id] = def;
 		}
-		return { definitions, nextPaletteIndex: this.nextPaletteIndex };
+		const folders: Record<string, FolderDefinition> = {};
+		for (const [id, f] of this.folders.entries()) {
+			folders[id] = f;
+		}
+		return { definitions, nextPaletteIndex: this.nextPaletteIndex, folders };
 	}
 
 	static fromJSON(data: any): CodeDefinitionRegistry {
@@ -306,6 +378,13 @@ export class CodeDefinitionRegistry {
 				if (!def.childrenOrder) def.childrenOrder = [];
 				registry.definitions.set(id, def);
 				registry.nameIndex.set(def.name, id);
+			}
+		}
+		if (data?.folders) {
+			for (const id in data.folders) {
+				const f = data.folders[id] as FolderDefinition;
+				f.id = id;
+				registry.folders.set(id, f);
 			}
 		}
 		if (typeof data?.nextPaletteIndex === 'number') {
