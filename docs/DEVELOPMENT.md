@@ -47,6 +47,8 @@ src/
 │   ├── codingPopover.ts     # Menu de codificação unificado
 │   ├── codeFormModal.ts     # Modal de criar/editar código
 │   ├── codeBrowserModal.ts  # Modal de browse códigos
+│   ├── relationHelpers.ts         # collectAllLabels, buildRelationEdges (pure)
+│   ├── relationUI.ts              # renderAddRelationRow compartilhado
 │   ├── fileInterceptor.ts   # Interceptor de abertura de arquivo
 │   ├── unifiedModelAdapter.ts    # Merge N engines → 1 sidebar model
 │   ├── unifiedExplorerView.ts    # Code Explorer unificado
@@ -60,7 +62,12 @@ src/
 │   ├── detailListRenderer.ts     # Renderer modo lista do detail view
 │   ├── detailCodeRenderer.ts     # Renderer modo code do detail view
 │   ├── detailMarkerRenderer.ts   # Renderer modo marker do detail view
-│   └── settingTab.ts        # Settings
+│   ├── settingTab.ts        # Settings
+│   ├── hierarchyHelpers.ts        # buildFlatTree, buildCountIndex, getDirectCount, getAggregateCount
+│   ├── codebookTreeRenderer.ts    # Codebook tree com hierarquia e pastas
+│   ├── codebookContextMenu.ts     # Context menu do codebook
+│   ├── codebookDragDrop.ts        # Drag-drop no codebook (reorganize + merge)
+│   └── mergeModal.ts              # Modal de merge de codigos
 ├── markdown/                # Engine markdown (CM6)
 ├── pdf/                     # Engine PDF (DOM/SVG)
 ├── csv/                     # Engine CSV (AG Grid)
@@ -92,7 +99,7 @@ src/
         ├── boardView.ts             # Research Board view
         ├── shared/
         │   └── chartHelpers.ts      # heatmapColor, computeDisplayMatrix, divergentColor, etc.
-        └── modes/                   # 19 mode modules + registry
+        └── modes/                   # 20 mode modules + registry
             ├── modeRegistry.ts      # Record<ViewMode, ModeEntry> — declarative mode dispatch
             ├── dashboardMode.ts     # Dashboard + mini thumbnails
             ├── frequencyMode.ts     # Frequency bars + sort/group options + exportCSV
@@ -112,7 +119,8 @@ src/
             ├── chiSquareMode.ts     # Chi-square independence tests
             ├── decisionTreeMode.ts  # Decision tree (CHAID)
             ├── sourceComparisonMode.ts # Source comparison
-            └── overlapMode.ts       # Code overlap matrix
+            ├── overlapMode.ts       # Code overlap matrix
+            └── relationsNetworkMode.ts  # Relations network (code + segment level)
 ```
 
 ### Regra: `main.ts` é orquestrador leve (~180 LOC)
@@ -202,6 +210,10 @@ interface CodingPopoverAdapter {
   save(): void;
   onRefresh(): void;
   onNavClick?(codeName: string, isActive: boolean): void;
+  getMagnitudeForCode?(codeId: string): string | undefined;
+  setMagnitudeForCode?(codeId: string, value: string | undefined): void;
+  getRelationsForCode?(codeId: string): Array<{ label: string; target: string; directed: boolean }>;
+  setRelationsForCode?(codeId: string, relations: Array<{ label: string; target: string; directed: boolean }>): void;
 }
 ```
 
@@ -533,6 +545,9 @@ Convenções de naming aplicadas em todos os engines e interfaces:
 | Nota/anotação do marker | `memo` | `note` |
 | Método de remoção de marker | `removeMarker()` | `deleteMarker()` |
 | Cor custom do marker | `colorOverride` | — (presente em todos os tipos de marker) |
+| Magnitude config | `magnitude` (on CodeDefinition) | — |
+| Magnitude value | `magnitude` (on CodeApplication) | — |
+| Relations | `relations` (on both CodeDefinition and CodeApplication) | — |
 
 ---
 

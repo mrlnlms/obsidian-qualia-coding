@@ -6,10 +6,9 @@
 
 ## Prioridade Alta — Funcionalidades Core
 
-### 1. Code Hierarchy (parentId)
+### ~~1. Code Hierarchy (parentId)~~ — FEITO (Fase A, 2026-03-22)
 
-**Status**: Plano completo, pronto para executar (~200 LOC total).
-**Blocked on**: Design de interação (como o usuário cria/gerencia hierarquia na UI).
+Implementado como parte do Codebook Evolution. `parentId`, `childrenOrder`, `mergedFrom` no `CodeDefinition`. 7 métodos no registry. Codebook Panel com 3 níveis, drag-drop, merge modal, context menu. Ver spec em `docs/superpowers/specs/2026-03-22-codebook-evolution-design.md`.
 
 **Data model**:
 - `parentId?: string` opcional em `CodeDefinition` — zero migration necessária
@@ -201,20 +200,44 @@ interface QDAProject {
 
 **DOM framework**: Decision open — Obsidian não oferece reactive components nativamente.
 
-### 14. Magnitude Coding (Saldaña Ch.14)
+### ~~14. Magnitude Coding (Saldaña Ch.14)~~ — FEITO (Fase D, 2026-03-22)
 
-- `magnitude?: string` no marker (intensidade/direção/avaliação)
-- Chip visual diferenciado (e.g., badge "HIGH" ao lado do código)
-- Filtro no Analytics por magnitude dentro de um código
+Implementado como parte do Codebook Evolution.
 
-### 15. Export
+- `CodeDefinition.magnitude?: { type: 'nominal' | 'ordinal' | 'continuous'; values: string[] }` — config por código
+- `CodeApplication.magnitude?: string` — valor por aplicação (já existia no schema, agora surfaced na UI)
+- Picker fechado no popover: só valores declarados são permitidos; seção colapsável em todos os 6 engines
+- Config no Detail View Level 2: toggle de ativação, seletor de tipo, editores por tipo (chips para nominal/ordinal com numeração, range generator para continuous)
+- Picker de magnitude no Marker Detail (Level 3)
+- Settings toggle `showMagnitudeInPopover` na seção General Settings
+- Context menu "Set magnitude..." em todos os engines
+- `GeneralSettings` interface + seção `QualiaData.general`
 
-| Formato | Escopo |
+### ~~14b. Relations~~ — FEITO (Fase E, 2026-03-22)
+
+Implementado como parte do Codebook Evolution.
+
+- `CodeDefinition.relations?: Array<{ label, target, directed }>` — relações no nível do código
+- `CodeApplication.relations?: Array<{ label, target, directed }>` — relações no nível do segmento
+- Label livre com autocomplete de todos os labels já usados
+- UI: seções colapsáveis no popover, Detail View Level 2 e Marker Detail Level 3
+- Settings toggle `showRelationsInPopover`
+- Relations Network: 20ª visualização no Analytics (modo grafo de relações entre códigos)
+- Novos arquivos: `relationHelpers.ts`, `relationUI.ts`, `relationsEngine.ts`, `relationsNetworkMode.ts`
+- Helpers `getRelations`, `addRelation`, `removeRelation` em `codeApplicationHelpers.ts`
+- `renderRelationsSection` em `baseCodingMenu.ts`
+- QDPX export inclui relations como Notes
+
+### ~~15. Export~~ — PARCIALMENTE FEITO (2026-03-22)
+
+| Formato | Status |
 |---------|--------|
-| CSV | Dados codificados com colunas de código incluídas |
-| JSON | Full data export |
-| REFI-QDA (QDPX) | Interoperabilidade com ATLAS.ti, NVivo, MAXQDA |
-| PNG/PDF (Dashboard) | Composite de todas as visualizações |
+| ~~REFI-QDA (QDPX)~~ | **FEITO** — export completo com codebook, sources, segments, memos, links (relações) |
+| ~~REFI-QDA (QDC)~~ | **FEITO** — codebook standalone com hierarquia |
+| ~~REFI-QDA Import~~ | **FEITO** — import QDC + QDPX com resolução de conflitos |
+| ~~CSV~~ | **FEITO** — export de dados codificados via Analytics (code frequencies, co-occurrence, Doc-Code Matrix) |
+| JSON | PENDENTE — full data export |
+| PNG/PDF (Dashboard) | PENDENTE |
 
 ### 16. Per-Code Decorations (Phase 3 original)
 
@@ -277,15 +300,15 @@ O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para dra
 | Gap | Por que importa | Items do roadmap relacionados |
 |-----|----------------|-------------------------------|
 | **Case/Document Variables** | Sem metadata por documento, não dá pra cruzar codes × demographics — o workflow core de mixed methods "joint display". Todos os concorrentes (NVivo, ATLAS.ti, MAXQDA, Dedoose) têm isso. | #18 Case Variables, #9 Code × Metadata |
-| **REFI-QDA (QDPX) Export/Import** | Padrão XML de interoperabilidade entre CAQDAS tools. Crítico para credibilidade acadêmica e portabilidade. NVivo, ATLAS.ti, MAXQDA, Dedoose, Quirkos, Taguette suportam. | #15 Export |
-| **Export CSV/Excel** | Pesquisadores esperam exportar code frequencies, co-occurrence, Doc-Code Matrix pra rodar stats próprias. Todos os concorrentes exportam pra Excel/SPSS. | #15 Export |
+| ~~**REFI-QDA (QDPX) Export/Import**~~ | ~~FEITO — Export QDPX/QDC + Import com resolução de conflitos~~ | ~~#15 Export~~ |
+| ~~**Export CSV/Excel**~~ | ~~FEITO — Analytics exporta CSV de frequencies, co-occurrence, Doc-Code Matrix~~ | ~~#15 Export~~ |
 | **Intercoder Reliability** | Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de rigor. NVivo, ATLAS.ti, MAXQDA, Dedoose, QualCoder oferecem. | Novo item (não listado) |
 
 ### Diferenciais confirmados pela pesquisa
 
 | Diferencial | Status | Concorrência |
 |------------|--------|-------------|
-| **5 analytics views exclusivas** (MCA, MDS, LSA, Polar, CHAID) | Implementado | Zero concorrentes oferecem built-in |
+| **5 analytics views exclusivas** (MCA, MDS, LSA, Polar, CHAID) + Relations Network | Implementado | Zero concorrentes oferecem built-in |
 | **Parquet support** | Implementado | Único no mercado CAQDAS |
 | **Dentro do Obsidian** (vault = dados, zero lock-in) | Implementado | Só o Quadro (muito mais limitado) |
 | **7 formatos + unified analytics** grátis | Implementado | Concorrentes cobram $130-1,005/ano |

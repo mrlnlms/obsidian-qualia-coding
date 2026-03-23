@@ -130,3 +130,14 @@ Implementado em duas camadas: `ConsolidationCache` (analytics pipeline, dirty fl
 
 ### ~~Board: snapshot vs live-linked~~ — FEITO (2026-03-20)
 Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abrir: atualiza cores/nomes/contagens, marca orfaos, remove arrows invalidas. Notice informativo.
+
+---
+
+## 10b. Magnitude / Relations
+
+| Item | Severidade | Detalhe |
+|------|-----------|---------|
+| CSS chip styles duplicados | Baixa | Chips de magnitude e relações têm class names distintos no popover vs. no detail view — CSS consolidado mas dois seletores separados ainda existem |
+| Magnitude popover sem empty state | Won't-fix | Seção de magnitude some inteiramente quando nenhum código aplicado tem magnitude configurada — decisão UX intencional, não exibe mensagem |
+| Continuous type — step decimal | Baixa | Range generator do tipo continuous não refina exibição de step decimal (ex: 0.5 exibido como "0.5" sem arredondamento configurável) |
+| Relations Network — sem edge bundling | Baixa | Modo grafo básico: sem edge bundling, sem detecção de comunidades, sem layout por cluster — expansão futura quando a base de usuários justificar |

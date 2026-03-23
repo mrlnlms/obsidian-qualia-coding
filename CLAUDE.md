@@ -17,6 +17,13 @@ src/
     relationHelpers.ts       — collectAllLabels, buildRelationEdges (funcoes puras)
     hierarchyHelpers.ts      — buildFlatTree, buildCountIndex, getDirectCount, getAggregateCount
     codebookTreeRenderer.ts  — virtual scrolling tree com hierarquia e pastas
+    codebookContextMenu.ts   — context menu codigos + pastas (Rename, Delete, Move to folder)
+    codebookDragDrop.ts      — drag-drop lifecycle: reparent, merge, move to folder
+    detailListRenderer.ts    — "All Codes" list mode + toolbar (New Code, New Folder, drag mode toggle)
+    detailCodeRenderer.ts    — code-focused detail (name, color, description, hierarchy, markers)
+    detailMarkerRenderer.ts  — marker-focused detail (excerpt, codes, memo, color override)
+    baseCodeDetailView.ts    — abstract base: 3-level stack navigation (list → code → marker)
+    baseCodeExplorerView.ts  — abstract base: Code Explorer tree (Code → File → Segment)
     mergeModal.ts            — MergeModal com busca fuzzy, preview de impacto, executeMerge
     drawToolbarFactory.ts    — factory compartilhada de toolbar drawing (PDF + Image)
     ...                      — DataManager, CodeDefinitionRegistry, settings, types

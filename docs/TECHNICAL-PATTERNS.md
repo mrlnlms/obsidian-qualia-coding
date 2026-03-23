@@ -772,6 +772,41 @@ Padrões estabelecidos durante o refactor de unificação:
 - **BaseSidebarAdapter**: Classe base (`baseSidebarAdapter.ts`) da qual todos os sidebar adapters herdam. Concentra listener wrapping, hover state, `deleteCode()` e `updateMarkerFields()` com hook `notifyAfterFieldUpdate()`. PDF override para dual text/shape. CSV override hook para `notifyAndSave()`. Adapters específicos (PDF, CSV, Image, Media) estendem.
 - **MediaCodingModel**: Base genérica (`mediaCodingModel.ts`) compartilhada entre Audio e Video. Gerencia markers, save debounce (500ms via `scheduleSave()`), e change listeners. `AudioCodingModel` e `VideoCodingModel` estendem.
 - **Module augmentation**: Typings adicionais via declaration files — `obsidian-internals.d.ts` (workspace events, internal APIs) e `fabricExtensions.d.ts` (propriedades custom em FabricObject para board nodes).
+
+----
+
+## 7. Codebook Evolution Patterns
+
+### 7.1 Collapsible Popover Sections (Memo/Magnitude/Relations)
+
+Pattern for adding a collapsible section to the shared coding popover:
+
+1. Create `renderXxxSection()` in `baseCodingMenu.ts` returning a handle `{ wrapper, separator, updateVisibility(), refresh() }`
+2. Section follows memo pattern: chevron header + hidden body, auto-expand if data exists
+3. Wire in `codingPopover.ts` after memo section — call `updateVisibility()` and `refresh()` in `onToggle`
+4. Add optional adapter methods (`getXxxForCode?`, `setXxxForCode?`) — optional to preserve backward compat
+5. Settings toggle controls visibility: `showXxxInPopover` in `GeneralSettings`
+
+**Key gotcha**: `activeCodes` in the popover are code **names**, but adapter methods use **codeIds**. Map via `registry.getByName(name)?.id` when calling magnitude/relations methods.
+
+### 7.2 Type-Specific Config UIs
+
+Magnitude config (Level 2 code detail) renders different editors per type:
+- **Nominal**: Unordered chips with "Add category..." input
+- **Ordinal**: Numbered chips (1. 2. 3.) with "Add level..." input, order = array index
+- **Continuous**: Quick-fill (min/max/step → Generate button) + individual add. Safety cap at 100 values.
+
+Changing type clears existing values (prevents type/value mismatch).
+
+### 7.3 Relations — Dual-Level with Shared UI
+
+Relations exist at two levels:
+- **Code-level** (`CodeDefinition.relations`): theoretical declarations
+- **Segment-level** (`CodeApplication.relations`): data-anchored interpretations
+
+Both use `{ label: string; target: string; directed: boolean }`. `target` is a codeId. Label is free text with autocomplete from all labels used project-wide (`collectAllLabels()` in `relationHelpers.ts`).
+
+`renderAddRelationRow()` in `relationUI.ts` is shared across popover, code detail, and marker detail to avoid duplication.
 - **Discriminated union para board nodes**: `boardTypes.ts` define cada tipo de node (Sticky, Snapshot, Excerpt, CodeCard, KpiCard, ClusterFrame, Arrow) como interface com `boardType` discriminant. Type guards (`isStickyNode()`, `isExcerptNode()`, etc.) para narrowing seguro.
 - **CodeDefinitionRegistry auto-persistence**: `onMutate` callback no registry — qualquer mutação (add, remove, update de code definition) dispara save automaticamente via DataManager, sem chamada manual.
 - **Shared type guards**: `markerResolvers.ts` exporta type guards (`isPdfMarker()`, `isImageMarker()`, `isCsvMarker()`, `isAudioMarker()`, `isVideoMarker()`) usando discriminante `markerType` em `BaseMarker`. Narrowing seguro sem duck typing.

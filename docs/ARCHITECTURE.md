@@ -110,6 +110,7 @@ Cada um tem um `CodingModel` próprio mas **todos** implementam a interface `Sid
 ```
 QualiaData {
   registry    → CodeDefinition[] (compartilhado)
+  general     → GeneralSettings (showMagnitudeInPopover, showRelationsInPopover, …)
   markdown    → markers, settings
   pdf         → markers, shapes
   csv         → segmentMarkers, rowMarkers
@@ -227,8 +228,14 @@ Menu de codificação unificado via `CodingPopoverAdapter` interface. O popover 
 - `addCode(codeName: string): void` — resolve name → id via `registry.getByName()`, passa id ao model
 - `removeCode(codeName: string): void` — mesmo pattern de resolução
 - `getMemo(): string` / `setMemo(value: string): void`
+- `getMagnitudeForCode?(codeId: string): string | undefined`
+- `setMagnitudeForCode?(codeId: string, value: string | undefined): void`
+- `getRelationsForCode?(codeId: string): CodeRelation[]`
+- `setRelationsForCode?(codeId: string, relations: CodeRelation[]): void`
 - `save(): void` / `onRefresh(): void`
 - `onNavClick?(codeName: string, isActive: boolean): void`
+
+Seções colapsáveis: Memo (sempre), Magnitude (toggle `showMagnitudeInPopover`), Relations (toggle `showRelationsInPopover`). Toggles escondem do popover mas a feature continua acessível no Detail View e Marker Detail.
 
 CSV tem batch mode especial para codificar múltiplas linhas visíveis de uma vez.
 
@@ -241,8 +248,10 @@ CSV tem batch mode especial para codificar múltiplas linhas visíveis de uma ve
 Instância única compartilhada entre todos os 7 engines:
 - 12 cores auto-palette (alta contrast, safe em light/dark)
 - Palette categórica (não gradiente) — cada cor é visualmente distinta
-- Markers referenciam códigos por **ID estável** (`codes: CodeApplication[]` onde `CodeApplication = { codeId: string; magnitude?: string }`). Rename é atômico no registry — sem propagação para markers
-- Helpers centralizados em `codeApplicationHelpers.ts`: `hasCode`, `getCodeIds`, `addCodeApplication`, `removeCodeApplication`
+- Markers referenciam códigos por **ID estável** (`codes: CodeApplication[]` onde `CodeApplication = { codeId: string; magnitude?: string; relations?: CodeRelation[] }`). Rename é atômico no registry — sem propagação para markers
+- Relações em dois níveis: `CodeDefinition.relations` (código-level, declaração teórica) e `CodeApplication.relations` (segmento-level, interpretação ancorada no dado). Ambos usam shape `{ label: string; target: string; directed: boolean }`. Label livre com autocomplete via `<datalist>`
+- Helpers centralizados em `codeApplicationHelpers.ts`: `hasCode`, `getCodeIds`, `addCodeApplication`, `removeCodeApplication`, `getMagnitude`, `setMagnitude`, `getRelations`, `addRelation`, `removeRelation`
+- Funções puras de relação em `relationHelpers.ts`: `collectAllLabels`, `buildRelationEdges` (com merge code/segment quando mesma aresta existe nos dois níveis)
 - Popover adapters resolvem name→id na borda UI (usuário digita nome, adapter resolve para `codeId` via registry)
 - Auto-persistence via `onMutate` callback — qualquer mutação (add, rename, delete, recolor) dispara save automaticamente
 
@@ -285,9 +294,21 @@ Não deve implementar lógica de engine — apenas coordenar. O acoplamento é i
 
 ### 5.5 analyticsView — state management sem framework
 
-`analyticsView.ts` (~338 LOC) gerencia ~20 campos de estado organizados por concern. Cada mode module recebe o ctx via interface tipada (`AnalyticsViewContext`), sem acessar o view direto. A statefulness é custo inerente de UI sem framework. Se o state crescer além de ~25 campos, agrupar em sub-objetos por concern (ex: `wordCloudState: { lang, minLength, maxWords }`).
+`analyticsView.ts` (~340 LOC) gerencia ~22 campos de estado organizados por concern. Cada mode module recebe o ctx via interface tipada (`AnalyticsViewContext`), sem acessar o view direto. A statefulness é custo inerente de UI sem framework. Se o state crescer além de ~25 campos, agrupar em sub-objetos por concern (ex: `wordCloudState: { lang, minLength, maxWords }`).
 
-### 5.6 Shared Files
+### 5.7 Relations Network (Fase E)
+
+`relationsNetworkMode.ts` — visualização de rede baseada em relações explícitas (não co-ocorrência). Usa `relationsEngine.ts` para extrair arestas de `CodeDefinition.relations` e `CodeApplication.relations`.
+
+- **Níveis**: toggle "Code-level | Code + Segments" via `ctx.relationsLevel`
+- **Arestas**: sólida (code-level), tracejada (segment-level), dash-dot (merged quando mesma aresta nos dois níveis)
+- **Espessura**: `Math.min(1 + weight, 8)` — weight = contagem de markers distintos
+- **Direção**: arrowheads para relações direcionais
+- **Hover tooltip**: hit-testing point-to-segment no canvas (threshold 6px)
+- **Dados**: lê markers raw via `readAllData(ctx.plugin.dataManager)` — não usa consolidated data (relações vivem em `CodeApplication`, não em `ConsolidatedData`)
+- **CSV export**: source, target, label, directed, level, weight
+
+### 5.8 Shared Files
 
 ```
 src/
@@ -593,7 +614,7 @@ interface QDAProject {
 
 ### Inheritance Model — Codes Shared by ID
 
-- **Global codes** live in `data.json` under `registry.definitions`. Markers reference them by **stable ID** (`codes: CodeApplication[]` onde `CodeApplication = { codeId: string; magnitude?: string }`).
+- **Global codes** live in `data.json` under `registry.definitions`. Markers reference them by **stable ID** (`codes: CodeApplication[]` onde `CodeApplication = { codeId: string; magnitude?: string; relations?: Array<{ label: string; target: string; directed: boolean }> }`).
 - **Why IDs:** Renomear um código é operação atômica no registry — sem necessidade de propagar para markers. Eliminamos `renameCode()` de todos os models e adapters. Nomes são resolvidos via `registry.getById(codeId)` apenas para display.
 - **Helpers centralizados** em `codeApplicationHelpers.ts`: `hasCode(codes, codeId)`, `getCodeIds(codes)`, `addCodeApplication(codes, codeId)`, `removeCodeApplication(codes, codeId)`.
 - **Delete cascades:** `deleteCode(codeId)` removes the code from all markers and deletes the definition. Markers left with no codes are also removed.
