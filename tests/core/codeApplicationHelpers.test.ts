@@ -5,6 +5,8 @@ import {
 	findCodeApplication,
 	addCodeApplication,
 	removeCodeApplication,
+	getMagnitude,
+	setMagnitude,
 } from '../../src/core/codeApplicationHelpers';
 import type { CodeApplication } from '../../src/core/types';
 
@@ -65,6 +67,38 @@ describe('codeApplicationHelpers', () => {
 		it('returns unchanged if not found', () => {
 			const result = removeCodeApplication([...codes], 'code_z');
 			expect(result).toHaveLength(2);
+		});
+	});
+
+	describe('getMagnitude', () => {
+		it('returns value when present', () => {
+			expect(getMagnitude(codes, 'code_b')).toBe('ALTA');
+		});
+		it('returns undefined when code has no magnitude', () => {
+			expect(getMagnitude(codes, 'code_a')).toBeUndefined();
+		});
+		it('returns undefined when codeId not found', () => {
+			expect(getMagnitude(codes, 'code_z')).toBeUndefined();
+		});
+	});
+
+	describe('setMagnitude', () => {
+		it('sets value on existing code', () => {
+			const result = setMagnitude(codes, 'code_a', 'MEDIA');
+			expect(result).not.toBe(codes);
+			expect(findCodeApplication(result, 'code_a')?.magnitude).toBe('MEDIA');
+		});
+		it('clears magnitude with undefined', () => {
+			const result = setMagnitude(codes, 'code_b', undefined);
+			expect(findCodeApplication(result, 'code_b')?.magnitude).toBeUndefined();
+		});
+		it('returns same array when codeId not found', () => {
+			const result = setMagnitude(codes, 'code_z', 'ALTA');
+			expect(result).toBe(codes);
+		});
+		it('preserves other code applications', () => {
+			const result = setMagnitude(codes, 'code_a', 'BAIXA');
+			expect(findCodeApplication(result, 'code_b')?.magnitude).toBe('ALTA');
 		});
 	});
 });

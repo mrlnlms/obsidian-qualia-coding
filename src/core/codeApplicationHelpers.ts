@@ -20,3 +20,14 @@ export function addCodeApplication(codes: CodeApplication[], codeId: string): Co
 export function removeCodeApplication(codes: CodeApplication[], codeId: string): CodeApplication[] {
 	return codes.filter(c => c.codeId !== codeId);
 }
+
+export function getMagnitude(codes: CodeApplication[], codeId: string): string | undefined {
+	return codes.find(c => c.codeId === codeId)?.magnitude;
+}
+
+export function setMagnitude(codes: CodeApplication[], codeId: string, value: string | undefined): CodeApplication[] {
+	const idx = codes.findIndex(c => c.codeId === codeId);
+	if (idx < 0) return codes;
+	const updated = codes.map((c, i) => i === idx ? { ...c, magnitude: value } : c);
+	return updated;
+}
