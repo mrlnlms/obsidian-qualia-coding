@@ -95,7 +95,7 @@ export class CodeDefinitionRegistry {
 		return def;
 	}
 
-	update(id: string, changes: Partial<Pick<CodeDefinition, 'name' | 'color' | 'description' | 'magnitude'>>): boolean {
+	update(id: string, changes: Partial<Pick<CodeDefinition, 'name' | 'color' | 'description' | 'magnitude' | 'relations'>>): boolean {
 		const def = this.definitions.get(id);
 		if (!def) return false;
 
@@ -116,6 +116,9 @@ export class CodeDefinitionRegistry {
 		}
 		if ('magnitude' in changes) {
 			def.magnitude = changes.magnitude;
+		}
+		if ('relations' in changes) {
+			def.relations = changes.relations;
 		}
 		def.updatedAt = Date.now();
 		for (const fn of this.onMutateListeners) fn();

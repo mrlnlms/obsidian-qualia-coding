@@ -372,6 +372,35 @@ describe('getColorForCodes', () => {
   });
 });
 
+describe('relations', () => {
+	it('update() accepts relations field', () => {
+		const reg = new CodeDefinitionRegistry();
+		const code = reg.create('Alpha', '#ff0000');
+		const ok = reg.update(code.id, {
+			relations: [{ label: 'causes', target: 'fake-id', directed: true }],
+		});
+		expect(ok).toBe(true);
+		expect(reg.getById(code.id)!.relations).toHaveLength(1);
+	});
+
+	it('update() clears relations with undefined', () => {
+		const reg = new CodeDefinitionRegistry();
+		const code = reg.create('Beta', '#00ff00');
+		reg.update(code.id, { relations: [{ label: 'x', target: 'y', directed: false }] });
+		reg.update(code.id, { relations: undefined });
+		expect(reg.getById(code.id)!.relations).toBeUndefined();
+	});
+
+	it('toJSON/fromJSON round-trips relations', () => {
+		const reg = new CodeDefinitionRegistry();
+		const code = reg.create('Gamma', '#0000ff');
+		reg.update(code.id, { relations: [{ label: 'enables', target: 'z', directed: true }] });
+		const json = reg.toJSON();
+		const restored = CodeDefinitionRegistry.fromJSON(json);
+		expect(restored.getById(code.id)!.relations).toEqual([{ label: 'enables', target: 'z', directed: true }]);
+	});
+});
+
 describe('update — magnitude', () => {
 	it('sets magnitude config on a definition', () => {
 		const reg = new CodeDefinitionRegistry();
