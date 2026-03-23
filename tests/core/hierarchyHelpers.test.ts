@@ -41,14 +41,14 @@ function setupHierarchy(): { registry: CodeDefinitionRegistry; rootA: string; ro
 // ─── buildFlatTree ───────────────────────────────────────────────
 
 describe('buildFlatTree', () => {
-	it('returns flat codes sorted alphabetically when no hierarchy', () => {
+	it('returns flat codes in creation order when no hierarchy', () => {
 		const registry = new CodeDefinitionRegistry();
 		registry.create('Zeta');
 		registry.create('Alpha');
 		registry.create('Mu');
 
 		const nodes = buildFlatTree(registry, new Set());
-		expect(nodes.map(n => n.def.name)).toEqual(['Alpha', 'Mu', 'Zeta']);
+		expect(nodes.map(n => n.def.name)).toEqual(['Zeta', 'Alpha', 'Mu']);
 		expect(nodes.every(n => n.depth === 0)).toBe(true);
 		expect(nodes.every(n => !n.hasChildren)).toBe(true);
 		expect(nodes.every(n => !n.isExpanded)).toBe(true);

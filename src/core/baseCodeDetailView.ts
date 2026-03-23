@@ -162,8 +162,8 @@ export abstract class BaseCodeDetailView extends ItemView {
 				this.model.registry,
 				() => this.treeDragMode,
 				{
-					onReparent: (codeId, newParentId) => {
-						this.model.registry.setParent(codeId, newParentId);
+					onReparent: (codeId, newParentId, insertBefore) => {
+						this.model.registry.setParent(codeId, newParentId, insertBefore);
 						this.model.saveMarkers();
 						if (newParentId) this.treeExpanded.add(newParentId);
 					},

@@ -4,7 +4,7 @@
  * Canonical copy — all engines import from here.
  */
 
-import type { CodeDefinition } from './types';
+import type { CodeDefinition, FolderDefinition } from './types';
 
 // 12-color categorical palette — light/dark safe, high distinguishability
 export const DEFAULT_PALETTE: string[] = [
@@ -27,6 +27,9 @@ export class CodeDefinitionRegistry {
 	private nameIndex: Map<string, string> = new Map(); // name → id
 	private nextPaletteIndex: number = 0;
 	private onMutateListeners: Set<() => void> = new Set();
+	private folders: Map<string, FolderDefinition> = new Map();
+	/** Ordered list of root-level code IDs. Controls display order. */
+	rootOrder: string[] = [];
 
 	/** Register a callback invoked on every mutation (create/update/delete). */
 	addOnMutate(fn: () => void): void {
@@ -81,7 +84,11 @@ export class CodeDefinitionRegistry {
 			if (parent) {
 				def.parentId = parentId;
 				parent.childrenOrder.push(def.id);
+			} else {
+				this.rootOrder.push(def.id);
 			}
+		} else {
+			this.rootOrder.push(def.id);
 		}
 
 		for (const fn of this.onMutateListeners) fn();
@@ -121,6 +128,7 @@ export class CodeDefinitionRegistry {
 			const child = this.definitions.get(childId);
 			if (child) {
 				child.parentId = undefined;
+				this.rootOrder.push(childId);
 			}
 		}
 
@@ -130,6 +138,9 @@ export class CodeDefinitionRegistry {
 			if (parent) {
 				parent.childrenOrder = parent.childrenOrder.filter(cid => cid !== id);
 			}
+		} else {
+			// Was root — remove from rootOrder
+			this.rootOrder = this.rootOrder.filter(rid => rid !== id);
 		}
 
 		this.nameIndex.delete(def.name);
@@ -142,6 +153,8 @@ export class CodeDefinitionRegistry {
 	clear(): void {
 		this.definitions.clear();
 		this.nameIndex.clear();
+		this.folders.clear();
+		this.rootOrder = [];
 		this.nextPaletteIndex = 0;
 		for (const fn of this.onMutateListeners) fn();
 	}
@@ -190,13 +203,80 @@ export class CodeDefinitionRegistry {
 		return null;
 	}
 
+	// --- Folder CRUD ---
+
+	createFolder(name: string): FolderDefinition {
+		// Dedup by name
+		for (const f of this.folders.values()) {
+			if (f.name === name) return f;
+		}
+		const folder: FolderDefinition = {
+			id: this.generateId(),
+			name,
+			createdAt: Date.now(),
+		};
+		this.folders.set(folder.id, folder);
+		for (const fn of this.onMutateListeners) fn();
+		return folder;
+	}
+
+	getFolderById(id: string): FolderDefinition | undefined {
+		return this.folders.get(id);
+	}
+
+	getAllFolders(): FolderDefinition[] {
+		return Array.from(this.folders.values())
+			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	renameFolder(id: string, name: string): boolean {
+		const folder = this.folders.get(id);
+		if (!folder) return false;
+		if (folder.name === name) return true; // no-op
+		// Reject duplicate name
+		for (const f of this.folders.values()) {
+			if (f.id !== id && f.name === name) return false;
+		}
+		folder.name = name;
+		for (const fn of this.onMutateListeners) fn();
+		return true;
+	}
+
+	deleteFolder(id: string): boolean {
+		if (!this.folders.has(id)) return false;
+		// Clear folder reference from all codes
+		for (const def of this.definitions.values()) {
+			if (def.folder === id) {
+				def.folder = undefined;
+			}
+		}
+		this.folders.delete(id);
+		for (const fn of this.onMutateListeners) fn();
+		return true;
+	}
+
+	setCodeFolder(codeId: string, folderId: string | undefined): boolean {
+		const def = this.definitions.get(codeId);
+		if (!def) return false;
+		if (folderId !== undefined && !this.folders.has(folderId)) return false;
+		def.folder = folderId;
+		def.updatedAt = Date.now();
+		for (const fn of this.onMutateListeners) fn();
+		return true;
+	}
+
+	getCodesInFolder(folderId: string): CodeDefinition[] {
+		return this.getAll().filter(d => d.folder === folderId);
+	}
+
 	// --- Hierarchy mutations ---
 
 	/**
-	 * Set or remove the parent of a code.
+	 * Set or remove the parent of a code, optionally at a specific position.
 	 * Returns false if the operation is invalid (self-parent, cycle, nonexistent parent).
+	 * @param insertBefore — insert before this sibling ID. If omitted, appends at end.
 	 */
-	setParent(id: string, parentId: string | undefined): boolean {
+	setParent(id: string, parentId: string | undefined, insertBefore?: string): boolean {
 		const def = this.definitions.get(id);
 		if (!def) return false;
 
@@ -212,35 +292,57 @@ export class CodeDefinitionRegistry {
 			}
 		}
 
-		// Remove from old parent
+		const wasRoot = !def.parentId;
+
+		// Remove from old parent's childrenOrder
 		if (def.parentId) {
 			const oldParent = this.definitions.get(def.parentId);
 			if (oldParent) {
 				oldParent.childrenOrder = oldParent.childrenOrder.filter(cid => cid !== id);
 			}
 		}
+		// Remove from rootOrder if was root
+		if (wasRoot) {
+			this.rootOrder = this.rootOrder.filter(rid => rid !== id);
+		}
 
 		def.parentId = parentId;
 		def.updatedAt = Date.now();
 
-		// Add to new parent
 		if (parentId) {
+			// Add to new parent's childrenOrder
 			const newParent = this.definitions.get(parentId)!;
-			if (!newParent.childrenOrder.includes(id)) {
-				newParent.childrenOrder.push(id);
-			}
+			newParent.childrenOrder = newParent.childrenOrder.filter(cid => cid !== id);
+			this._insertInList(newParent.childrenOrder, id, insertBefore);
 			newParent.updatedAt = Date.now();
+		} else {
+			// Promote to root — insert in rootOrder
+			this._insertInList(this.rootOrder, id, insertBefore);
 		}
 
 		for (const fn of this.onMutateListeners) fn();
 		return true;
 	}
 
+	/** Insert id into list before the given anchor, or append if no anchor. */
+	private _insertInList(list: string[], id: string, insertBefore?: string): void {
+		if (insertBefore) {
+			const idx = list.indexOf(insertBefore);
+			if (idx >= 0) {
+				list.splice(idx, 0, id);
+				return;
+			}
+		}
+		list.push(id);
+	}
+
 	// --- Hierarchy queries ---
 
-	/** Returns all codes that have no parent (root-level codes). */
+	/** Returns root-level codes in rootOrder. */
 	getRootCodes(): CodeDefinition[] {
-		return this.getAll().filter(d => !d.parentId);
+		return this.rootOrder
+			.map(id => this.definitions.get(id))
+			.filter((d): d is CodeDefinition => d !== undefined && !d.parentId);
 	}
 
 	/** Returns direct children of the given parent in childrenOrder. */
@@ -285,12 +387,16 @@ export class CodeDefinitionRegistry {
 
 	// --- Serialization ---
 
-	toJSON(): { definitions: Record<string, CodeDefinition>; nextPaletteIndex: number } {
+	toJSON(): { definitions: Record<string, CodeDefinition>; nextPaletteIndex: number; rootOrder: string[]; folders: Record<string, FolderDefinition> } {
 		const definitions: Record<string, CodeDefinition> = {};
 		for (const [id, def] of this.definitions.entries()) {
 			definitions[id] = def;
 		}
-		return { definitions, nextPaletteIndex: this.nextPaletteIndex };
+		const folders: Record<string, FolderDefinition> = {};
+		for (const [id, f] of this.folders.entries()) {
+			folders[id] = f;
+		}
+		return { definitions, nextPaletteIndex: this.nextPaletteIndex, rootOrder: this.rootOrder, folders };
 	}
 
 	static fromJSON(data: any): CodeDefinitionRegistry {
@@ -308,8 +414,26 @@ export class CodeDefinitionRegistry {
 				registry.nameIndex.set(def.name, id);
 			}
 		}
+		if (data?.folders) {
+			for (const id in data.folders) {
+				const f = data.folders[id] as FolderDefinition;
+				f.id = id;
+				registry.folders.set(id, f);
+			}
+		}
 		if (typeof data?.nextPaletteIndex === 'number') {
 			registry.nextPaletteIndex = data.nextPaletteIndex;
+		}
+
+		// Restore rootOrder, or rebuild from definitions if missing (migration)
+		if (Array.isArray(data?.rootOrder)) {
+			registry.rootOrder = data.rootOrder.filter((id: string) => registry.definitions.has(id));
+		}
+		// Ensure all root codes are in rootOrder (migration safety)
+		for (const [id, def] of registry.definitions) {
+			if (!def.parentId && !registry.rootOrder.includes(id)) {
+				registry.rootOrder.push(id);
+			}
 		}
 
 		return registry;

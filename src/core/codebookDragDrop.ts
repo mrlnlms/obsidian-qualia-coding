@@ -1,12 +1,12 @@
 /**
- * codebookDragDrop — Drag-and-drop for codebook tree rows.
+ * codebookDragDrop — File-explorer-style drag-and-drop for codebook tree.
  *
- * File-explorer-style interaction:
- * - Drop on MIDDLE of a row → make child (reparent under target)
- * - Drop on TOP/BOTTOM edge of a row → insert as sibling (same parent as target)
- * - If target is root and drop is on edge → dragged code becomes root
+ * Drop zones per row:
+ * - Top edge (30%) → insert as sibling BEFORE target (same parent)
+ * - Middle (40%) → make child OF target
+ * - Bottom edge (30%) → insert as sibling AFTER target (same parent)
  *
- * Merge mode: drop on any zone → open merge modal.
+ * Merge mode: any zone → open merge modal.
  */
 
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
@@ -14,8 +14,8 @@ import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 type DropZone = 'before' | 'inside' | 'after';
 
 export interface DragDropCallbacks {
-	/** Reparent: newParentId=undefined means promote to root */
-	onReparent(codeId: string, newParentId: string | undefined): void;
+	/** Reparent with position: newParentId=undefined → root, insertBefore controls order. */
+	onReparent(codeId: string, newParentId: string | undefined, insertBefore?: string): void;
 	onMergeDrop(sourceId: string, targetId: string): void;
 	setDragMode(mode: 'reorganize' | 'merge'): void;
 	refresh(): void;
@@ -34,18 +34,16 @@ export function setupDragDrop(
 		return el.closest<HTMLElement>('[data-code-id]');
 	};
 
-	/** Detect which zone of the row the cursor is in (top 30%, middle 40%, bottom 30%) */
 	const getDropZone = (row: HTMLElement, clientY: number): DropZone => {
 		const rect = row.getBoundingClientRect();
-		const y = clientY - rect.top;
-		const h = rect.height;
-		if (y < h * 0.30) return 'before';
-		if (y > h * 0.70) return 'after';
+		const ratio = (clientY - rect.top) / rect.height;
+		if (ratio < 0.30) return 'before';
+		if (ratio > 0.70) return 'after';
 		return 'inside';
 	};
 
 	const clearIndicators = () => {
-		for (const el of Array.from(container.querySelectorAll('.is-drop-before, .is-drop-inside, .is-drop-after, .is-merge-target, .is-dragging'))) {
+		for (const el of Array.from(container.querySelectorAll('.is-drop-before, .is-drop-inside, .is-drop-after, .is-merge-target'))) {
 			el.classList.remove('is-drop-before', 'is-drop-inside', 'is-drop-after', 'is-merge-target');
 		}
 	};
@@ -64,9 +62,6 @@ export function setupDragDrop(
 		if (!draggedCodeId) return;
 		e.preventDefault();
 		clearIndicators();
-		// Keep is-dragging on source
-		const srcRow = container.querySelector<HTMLElement>(`[data-code-id="${draggedCodeId}"]`);
-		if (srcRow) srcRow.classList.add('is-dragging');
 
 		const row = findRow(e.target);
 		if (!row) return;
@@ -80,9 +75,7 @@ export function setupDragDrop(
 		}
 
 		const zone = getDropZone(row, e.clientY);
-		if (zone === 'before') row.classList.add('is-drop-before');
-		else if (zone === 'after') row.classList.add('is-drop-after');
-		else row.classList.add('is-drop-inside');
+		row.classList.add(zone === 'before' ? 'is-drop-before' : zone === 'after' ? 'is-drop-after' : 'is-drop-inside');
 	};
 
 	const onDrop = (e: DragEvent) => {
@@ -97,7 +90,6 @@ export function setupDragDrop(
 		}
 
 		const mode = getMode();
-
 		if (mode === 'merge') {
 			callbacks.onMergeDrop(draggedCodeId, targetId);
 			callbacks.setDragMode('reorganize');
@@ -105,7 +97,7 @@ export function setupDragDrop(
 			return;
 		}
 
-		// Reorganize mode — validate no descendant cycle
+		// Validate no descendant cycle
 		const descendants = registry.getDescendants(draggedCodeId);
 		if (descendants.some(d => d.id === targetId)) {
 			cleanupDrag();
@@ -114,22 +106,40 @@ export function setupDragDrop(
 
 		const zone = getDropZone(row, e.clientY);
 		const targetDef = registry.getById(targetId);
+		if (!targetDef) { cleanupDrag(); return; }
 
 		if (zone === 'inside') {
-			// Make child of target
+			// Make child of target (append at end)
 			callbacks.onReparent(draggedCodeId, targetId);
 		} else {
-			// Insert as sibling: same parent as target
-			const newParentId = targetDef?.parentId ?? undefined;
-			callbacks.onReparent(draggedCodeId, newParentId);
+			// Insert as sibling — same parent as target
+			const siblingParentId = targetDef.parentId ?? undefined;
+
+			if (zone === 'before') {
+				// Insert before target among siblings
+				callbacks.onReparent(draggedCodeId, siblingParentId, targetId);
+			} else {
+				// Insert after target — find next sibling to use as insertBefore
+				const siblings = siblingParentId
+					? (registry.getById(siblingParentId)?.childrenOrder ?? [])
+					: registry.rootOrder;
+				const targetIdx = siblings.indexOf(targetId);
+				// Next sibling that isn't the dragged code itself
+				let insertBefore: string | undefined;
+				for (let i = targetIdx + 1; i < siblings.length; i++) {
+					if (siblings[i] !== draggedCodeId) {
+						insertBefore = siblings[i];
+						break;
+					}
+				}
+				callbacks.onReparent(draggedCodeId, siblingParentId, insertBefore);
+			}
 		}
 
 		cleanupDrag();
 	};
 
-	const onDragEnd = () => {
-		cleanupDrag();
-	};
+	const onDragEnd = () => cleanupDrag();
 
 	const cleanupDrag = () => {
 		clearIndicators();

@@ -75,6 +75,14 @@ export interface CodeDefinition {
 	parentId?: string;
 	childrenOrder: string[];
 	mergedFrom?: string[];
+	// Virtual folders (Phase B)
+	folder?: string;        // folder id — undefined = no folder (root level)
+}
+
+export interface FolderDefinition {
+	id: string;
+	name: string;
+	createdAt: number;
 }
 
 export type EngineCleanup = () => void | Promise<void>;
@@ -88,6 +96,8 @@ export interface QualiaData {
 	registry: {
 		definitions: Record<string, CodeDefinition>;
 		nextPaletteIndex: number;
+		folders: Record<string, FolderDefinition>;
+		rootOrder: string[];
 	};
 	markdown: { markers: Record<string, Marker[]>; settings: CodeMarkerSettings };
 	csv: { segmentMarkers: SegmentMarker[]; rowMarkers: RowMarker[] };
@@ -116,7 +126,7 @@ export interface QualiaData {
 
 export function createDefaultData(): QualiaData {
 	return {
-		registry: { definitions: {}, nextPaletteIndex: 0 },
+		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, rootOrder: [] },
 		markdown: { markers: {}, settings: {
 			defaultColor: '#6200EE',
 			markerOpacity: 0.4,
