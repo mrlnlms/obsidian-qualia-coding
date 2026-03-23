@@ -119,6 +119,27 @@ export function openPdfCodingPopover(
 			}
 			model.notify();
 		},
+		getRelationsForCode: (codeId) => {
+			const m = hoverMarkerId
+				? model.findMarkerById(hoverMarkerId)
+				: model.findExistingMarker(
+					firstResult.file, firstResult.page,
+					firstResult.beginIndex, firstResult.beginOffset,
+					firstResult.endIndex, firstResult.endOffset,
+				);
+			return findCodeApplication(m?.codes ?? [], codeId)?.relations ?? [];
+		},
+		setRelationsForCode: (codeId, relations) => {
+			const markers = getMarkers();
+			for (const m of markers) {
+				const ca = findCodeApplication(m.codes, codeId);
+				if (ca) {
+					ca.relations = relations.length > 0 ? relations : undefined;
+					m.updatedAt = Date.now();
+				}
+			}
+			model.notify();
+		},
 		save: () => model.save(),
 		onRefresh: onHighlightRefresh,
 		onNavClick: (codeName, isActive) => {
@@ -139,6 +160,7 @@ export function openPdfCodingPopover(
 		app,
 		isHoverMode,
 		showMagnitudeSection: model.dataManager.section('general').showMagnitudeInPopover,
+		showRelationsSection: model.dataManager.section('general').showRelationsInPopover,
 		badge: results.length > 1 ? `Selection spans ${results.length} pages` : undefined,
 		className: 'codemarker-popover',
 		hoverGrace: pdfState ? {
@@ -214,6 +236,20 @@ export function openShapeCodingPopover(
 			s.updatedAt = Date.now();
 			model.notify();
 		},
+		getRelationsForCode: (codeId) => {
+			const s = model.findShapeById(shapeId);
+			return findCodeApplication(s?.codes ?? [], codeId)?.relations ?? [];
+		},
+		setRelationsForCode: (codeId, relations) => {
+			const s = model.findShapeById(shapeId);
+			if (!s) return;
+			const ca = findCodeApplication(s.codes, codeId);
+			if (ca) {
+				ca.relations = relations.length > 0 ? relations : undefined;
+				s.updatedAt = Date.now();
+				model.notify();
+			}
+		},
 		save: () => model.save(),
 		onRefresh,
 		onNavClick: (codeName, isActive) => {
@@ -234,6 +270,7 @@ export function openShapeCodingPopover(
 		app,
 		isHoverMode: true,
 		showMagnitudeSection: model.dataManager.section('general').showMagnitudeInPopover,
+		showRelationsSection: model.dataManager.section('general').showRelationsInPopover,
 		badge: shapeNames[shape.shape] || shape.shape,
 		className: 'codemarker-popover',
 		hoverGrace: pdfState ? {

@@ -88,6 +88,20 @@ export function openMediaCodingPopover(
 			m.updatedAt = Date.now();
 			model.save();
 		},
+		getRelationsForCode: (codeId) => {
+			const m = model.findExistingMarker(filePath, regionStart, regionEnd);
+			return findCodeApplication(m?.codes ?? [], codeId)?.relations ?? [];
+		},
+		setRelationsForCode: (codeId, relations) => {
+			const m = model.findExistingMarker(filePath, regionStart, regionEnd);
+			if (!m) return;
+			const ca = findCodeApplication(m.codes, codeId);
+			if (ca) {
+				ca.relations = relations.length > 0 ? relations : undefined;
+				m.updatedAt = Date.now();
+				model.save();
+			}
+		},
 		save: () => model.save(),
 		onRefresh: () => {
 			const m = model.findExistingMarker(filePath, regionStart, regionEnd);
@@ -111,6 +125,7 @@ export function openMediaCodingPopover(
 		app,
 		isHoverMode,
 		showMagnitudeSection: model.dm.section('general').showMagnitudeInPopover,
+		showRelationsSection: model.dm.section('general').showRelationsInPopover,
 		className: 'codemarker-popover',
 		onClose: () => {
 			const marker = model.findExistingMarker(filePath, regionStart, regionEnd);

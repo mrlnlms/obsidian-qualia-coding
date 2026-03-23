@@ -78,6 +78,24 @@ export function buildNativeTooltipMenuDOM(
 			marker.updatedAt = Date.now();
 			model.saveMarkers();
 		},
+		getRelationsForCode: (codeId) => {
+			const marker = snapshot.hoverMarkerId
+				? model.getMarkerById(snapshot.hoverMarkerId)
+				: model.findMarkerAtExactRange(snapshot);
+			return findCodeApplication(marker?.codes ?? [], codeId)?.relations ?? [];
+		},
+		setRelationsForCode: (codeId, relations) => {
+			const marker = snapshot.hoverMarkerId
+				? model.getMarkerById(snapshot.hoverMarkerId)
+				: model.findMarkerAtExactRange(snapshot);
+			if (!marker) return;
+			const ca = findCodeApplication(marker.codes, codeId);
+			if (ca) {
+				ca.relations = relations.length > 0 ? relations : undefined;
+				marker.updatedAt = Date.now();
+				model.saveMarkers();
+			}
+		},
 		save: () => model.saveMarkers(),
 		onRefresh: () => {},
 		onNavClick: (codeName, isActive) => {
@@ -99,6 +117,7 @@ export function buildNativeTooltipMenuDOM(
 		app: model.plugin.app,
 		isHoverMode,
 		showMagnitudeSection: model.plugin.dataManager.section('general').showMagnitudeInPopover,
+		showRelationsSection: model.plugin.dataManager.section('general').showRelationsInPopover,
 		externalContainer: container,
 		className: 'codemarker-popover',
 		autoFocus: !isHoverMode,

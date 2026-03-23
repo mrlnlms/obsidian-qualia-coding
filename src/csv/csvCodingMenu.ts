@@ -74,6 +74,21 @@ export function openCsvCodingPopover(
 			model.saveMarkers();
 			gridApi.refreshCells({ force: true });
 		},
+		getRelationsForCode: (codeId) => {
+			const current = model.getRowMarkersForCell(file, row, column)[0];
+			return findCodeApplication(current?.codes ?? [], codeId)?.relations ?? [];
+		},
+		setRelationsForCode: (codeId, relations) => {
+			const current = model.getRowMarkersForCell(file, row, column)[0];
+			if (!current) return;
+			const ca = findCodeApplication(current.codes, codeId);
+			if (ca) {
+				ca.relations = relations.length > 0 ? relations : undefined;
+				current.updatedAt = Date.now();
+				model.saveMarkers();
+				gridApi.refreshCells({ force: true });
+			}
+		},
 		save: () => model.saveMarkers(),
 		onRefresh: () => {
 			gridApi.refreshCells({ force: true });
@@ -85,6 +100,7 @@ export function openCsvCodingPopover(
 		app,
 		isHoverMode,
 		showMagnitudeSection: model.dm.section('general').showMagnitudeInPopover,
+		showRelationsSection: model.dm.section('general').showRelationsInPopover,
 		className: 'codemarker-popover',
 		onClose: () => {
 			gridApi.refreshCells({ force: true });

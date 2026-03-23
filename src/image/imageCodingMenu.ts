@@ -79,6 +79,20 @@ export class CodingMenu {
 				m.updatedAt = Date.now();
 				this.model.saveMarkers();
 			},
+			getRelationsForCode: (codeId) => {
+				const m = this.model.findMarkerById(markerId);
+				return findCodeApplication(m?.codes ?? [], codeId)?.relations ?? [];
+			},
+			setRelationsForCode: (codeId, relations) => {
+				const m = this.model.findMarkerById(markerId);
+				if (!m) return;
+				const ca = findCodeApplication(m.codes, codeId);
+				if (ca) {
+					ca.relations = relations.length > 0 ? relations : undefined;
+					m.updatedAt = Date.now();
+					this.model.saveMarkers();
+				}
+			},
 			save: () => this.model.saveMarkers(),
 			onRefresh: () => this.callbacks.onCodesChanged(markerId),
 			onNavClick: (codeName, isActive) => {
@@ -99,6 +113,7 @@ export class CodingMenu {
 			app: this.app,
 			isHoverMode: true,
 			showMagnitudeSection: this.model.dataManager.section('general').showMagnitudeInPopover,
+			showRelationsSection: this.model.dataManager.section('general').showRelationsInPopover,
 			className: 'codemarker-popover',
 			deleteAction: {
 				label: 'Remove Region',
