@@ -39,7 +39,7 @@ export function getRelations(codes: CodeApplication[], codeId: string): CodeRela
 export function addRelation(codes: CodeApplication[], codeId: string, relation: CodeRelation): CodeApplication[] {
 	const idx = codes.findIndex(c => c.codeId === codeId);
 	if (idx < 0) return codes;
-	const ca = codes[idx];
+	const ca = codes[idx]!;
 	const existing = ca.relations ?? [];
 	const dup = existing.some(r => r.label === relation.label && r.target === relation.target && r.directed === relation.directed);
 	if (dup) return codes;
@@ -49,7 +49,7 @@ export function addRelation(codes: CodeApplication[], codeId: string, relation: 
 export function removeRelation(codes: CodeApplication[], codeId: string, label: string, target: string): CodeApplication[] {
 	const idx = codes.findIndex(c => c.codeId === codeId);
 	if (idx < 0) return codes;
-	const ca = codes[idx];
+	const ca = codes[idx]!;
 	const existing = ca.relations ?? [];
 	const filtered = existing.filter(r => !(r.label === label && r.target === target));
 	if (filtered.length === existing.length) return codes;

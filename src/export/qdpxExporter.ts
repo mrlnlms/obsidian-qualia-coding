@@ -267,7 +267,7 @@ const PROJECT_NS = 'urn:QDA-XML:project:1.0';
 /** Build <Links> XML section from code-level and segment-level relations. */
 export function buildLinksXml(
   definitions: CodeDefinition[],
-  markers: CoreBaseMarker[],
+  markers: Array<{ id: string; codes: CodeApplication[] }>,
   guidMap: Map<string, string>,
 ): string {
   const links: string[] = [];
@@ -455,7 +455,7 @@ export async function exportProject(
   }
 
   // Collect all markers for link generation
-  const allMarkersForLinks: CoreBaseMarker[] = [];
+  const allMarkersForLinks: Array<{ id: string; codes: CodeApplication[] }> = [];
   for (const markers of Object.values(mdData.markers)) allMarkersForLinks.push(...markers);
   for (const { textMarkers, shapeMarkers } of pdfByFile.values()) allMarkersForLinks.push(...textMarkers, ...shapeMarkers);
   for (const [, markers] of imgByFile) allMarkersForLinks.push(...markers);
