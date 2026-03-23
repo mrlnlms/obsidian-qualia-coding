@@ -372,3 +372,32 @@ describe('getColorForCodes', () => {
   });
 });
 
+describe('update — magnitude', () => {
+	it('sets magnitude config on a definition', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('Frustration');
+		const mag = { type: 'ordinal' as const, values: ['LOW', 'MED', 'HIGH'] };
+		const ok = reg.update(def.id, { magnitude: mag });
+		expect(ok).toBe(true);
+		expect(reg.getById(def.id)!.magnitude).toEqual(mag);
+	});
+
+	it('clears magnitude config with undefined', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('Frustration');
+		reg.update(def.id, { magnitude: { type: 'nominal', values: ['A', 'B'] } });
+		reg.update(def.id, { magnitude: undefined });
+		expect(reg.getById(def.id)!.magnitude).toBeUndefined();
+	});
+
+	it('round-trips magnitude through toJSON/fromJSON', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('Frustration');
+		const mag = { type: 'continuous' as const, values: ['1', '2', '3'] };
+		reg.update(def.id, { magnitude: mag });
+
+		const restored = CodeDefinitionRegistry.fromJSON(reg.toJSON());
+		expect(restored.getById(def.id)!.magnitude).toEqual(mag);
+	});
+});
+

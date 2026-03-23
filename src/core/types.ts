@@ -77,6 +77,8 @@ export interface CodeDefinition {
 	mergedFrom?: string[];
 	// Virtual folders (Phase B)
 	folder?: string;        // folder id — undefined = no folder (root level)
+	// Magnitude (Phase D)
+	magnitude?: { type: 'nominal' | 'ordinal' | 'continuous'; values: string[] };
 }
 
 export interface FolderDefinition {
