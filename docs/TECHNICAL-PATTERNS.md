@@ -813,6 +813,51 @@ Both use `{ label: string; target: string; directed: boolean }`. `target` is a c
 
 ---
 
+## 8. Hierarchy & Tree Patterns
+
+### 8.1 Cycle Detection in setParent
+
+Walk up from proposed parent — if we reach the code being moved, it's a cycle. O(depth) per call.
+
+```typescript
+let cursor = parentId;
+while (cursor) {
+  if (cursor === id) return false; // cycle!
+  cursor = registry.getById(cursor)?.parentId;
+}
+```
+
+### 8.2 Virtual Scroll for Trees
+
+`codebookTreeRenderer.ts` uses fixed ROW_HEIGHT (30px) + absolute positioning.
+- `buildFlatTree()` flattens hierarchy respecting expand state
+- Only rows in viewport + BUFFER_ROWS are rendered as DOM nodes
+- Scroll listener recalculates visible range via `scrollTop / ROW_HEIGHT`
+- Avoids DOM bloat with 1000+ codes
+
+### 8.3 Drag-Drop Zone Detection
+
+Each row has 3 drop zones based on cursor Y position:
+- Top 30% → insert as sibling BEFORE (same parent)
+- Middle 40% → make child OF target
+- Bottom 30% → insert as sibling AFTER
+
+`getDropZone()` converts `(clientY - rect.top) / rect.height` to zone.
+
+### 8.4 rootOrder for Manual Root Ordering
+
+Root codes are ordered by `registry.rootOrder: string[]` (not alphabetically).
+`setParent(id, parentId, insertBefore?)` inserts at position via `_insertInList()`.
+Children already have manual ordering via `childrenOrder`.
+
+### 8.5 Count Aggregation (buildCountIndex)
+
+Post-order DFS: visit children first, then parent.
+`aggregate = direct + sum(children.aggregate)`.
+Single pass O(markers + codes). Deduplicates codeIds per marker with `Set`.
+
+---
+
 ## Fontes
 
 Este documento consolida:
@@ -879,6 +924,42 @@ Fix: `new Uint8Array(buf)` re-cria no realm correto antes de passar para `zipSyn
 ### 6.5 GUID Correlation Pattern
 
 Source builders geram `srcGuid = uuidV4()` e armazenam em `guidMap.set('source:' + filePath, srcGuid)`. O orchestrator usa esse mesmo GUID para nomear o entry no ZIP (`sources/{guid}.{ext}`). Sem isso, XML referencia um GUID e o ZIP contém outro.
+
+---
+
+## 10. Codebook Panel — Hierarchy & Folders
+
+### 10.1 Discriminated Union para FlatTreeNode
+
+`hierarchyHelpers.ts` usa union discriminada `FlatCodeNode | FlatFolderNode` (campo `type: 'code' | 'folder'`). O renderer (`codebookTreeRenderer.ts`) despacha por tipo:
+
+```typescript
+if (node.type === 'folder') return renderFolderRow(node, ...);
+return renderCodeRow(node, ...);
+```
+
+**Gotcha**: FlatCodeNode tem `.def` (CodeDefinition), FlatFolderNode tem `.folderId` + `.name`. Acessar `.def` sem type guard causa erro de tipo.
+
+### 10.2 Folder expanded state com prefixo
+
+`baseCodeDetailView.ts` mantem dois Sets separados: `treeExpanded` (code IDs) e `folderExpanded` (folder IDs). O `getTreeState()` unifica num unico Set com prefixo `folder:` para folders:
+
+```typescript
+for (const fId of this.folderExpanded) merged.add(`folder:${fId}`);
+```
+
+`buildFlatTree` espera `folder:{id}` no Set `expanded` para expandir pastas.
+
+### 10.3 Contagem hierarquica (buildCountIndex)
+
+`buildCountIndex` usa DFS post-order: cada no agrega counts dos filhos. O resultado `CountIndex = Map<codeId, { direct, aggregate }>` alimenta o badge na tree:
+- **Expandido**: mostra `direct` (so deste codigo)
+- **Colapsado**: mostra `aggregate` (este + todos os descendentes)
+- **Pastas**: mostram `codeCount` (total de codigos na pasta, nao markers)
+
+### 10.4 Drag-to-root limpa folder
+
+Quando um codigo e arrastado pro root (promote to top-level), o callback `onReparent(id, undefined)` tambem chama `setCodeFolder(id, undefined)`. Isso garante que o codigo saia da pasta ao ser promovido.
 
 ---
 

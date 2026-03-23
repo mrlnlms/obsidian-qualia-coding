@@ -829,6 +829,61 @@ Na terceira passagem, o Codex focou em **transições entre views vivas e comand
 
 ---
 
+## 14. Codebook Evolution (Phases A-E)
+
+O CodeDefinition evoluiu de um registro flat para suportar hierarquia, pastas virtuais, magnitude e relações. Todas as fases foram implementadas sem breaking changes — campos opcionais com defaults seguros.
+
+### 14.1 Hierarquia (Phase A)
+
+**Campos**: `parentId?: string`, `childrenOrder: string[]`, `mergedFrom?: string[]`
+**Registry**: `rootOrder: string[]` controla ordem visual dos root codes
+
+Métodos de consulta: `getRootCodes()`, `getChildren()`, `getAncestors()`, `getDescendants()`, `getDepth()`.
+Mutação: `setParent(id, parentId, insertBefore?)` com detecção de ciclo.
+Delete de pai: filhos promovidos a root.
+
+**Codebook Panel** (evolução do Detail View):
+- Navegação stack-based (3 níveis: Codebook → Código → Segmento)
+- `codebookTreeRenderer.ts` — virtual scrolling (ROW_HEIGHT=30px, BUFFER_ROWS=10)
+- `codebookDragDrop.ts` — drag-drop estilo file explorer (zonas top/middle/bottom por row)
+- `codebookContextMenu.ts` — Menu API (Rename, Add child, Move to, Promote, Merge, Color, Delete)
+- `mergeModal.ts` — `executeMerge()` (reassigna markers, reparenta filhos, registra `mergedFrom`, deleta sources) + `MergeModal` UI
+
+**Navegação**: refatorada de `codeName` para `codeId` em todo o detail view. Events (`codemarker:label-click`, `codemarker:code-click`) resolvem name→id na borda (`main.ts`).
+
+**Contagem**: colapsado = agregado, expandido = direto. `buildCountIndex()` pré-computa via post-order DFS.
+
+### 14.2 Pastas Virtuais (Phase B)
+
+**Campo**: `folder?: string` no CodeDefinition. `folders: Record<string, FolderDefinition>` no registry.
+Containers organizacionais sem significado analítico. Ícone de pasta vs chevron de hierarquia.
+
+### 14.3 Magnitude (Phase D)
+
+**Config**: `magnitude?: { type: 'nominal' | 'ordinal' | 'continuous'; values: string[] }` no CodeDefinition.
+**Valor**: `magnitude?: string` no CodeApplication.
+Picker fechado — valores declarados são os únicos permitidos. Toggle nas settings controla visibilidade no popover.
+
+### 14.4 Relações (Phase E)
+
+Dois níveis:
+- **Código-level**: `CodeDefinition.relations: RelationDefinition[]` — declaração teórica
+- **Segmento-level**: `CodeApplication.relations: CodeRelation[]` — interpretação ancorada no dado
+
+Shape: `{ label: string; target: string; directed: boolean }`. Label livre com autocomplete via `<datalist>`.
+
+Funções puras: `relationHelpers.ts` (`collectAllLabels`, `buildRelationEdges`).
+Analytics: `relationsEngine.ts` → `relationsNetworkMode.ts` (Network View com nós = códigos, arestas = relações).
+
+### 14.5 REFI-QDA Export/Import
+
+**Export**: `qdcExporter.ts` (codebook XML) + `qdpxExporter.ts` (projeto completo: codes + sources + segments + memos + links).
+**Import**: `qdcImporter.ts` + `qdpxImporter.ts` com resolução de conflitos.
+**Helpers**: `xmlBuilder.ts` (XML generation), `coordConverters.ts` (PDF/Image/Media coord conversion), `xmlParser.ts` (parsing).
+**UI**: `exportModal.ts` (pre-export config), `importModal.ts` (conflict resolution).
+
+---
+
 ## Fontes
 
 Este documento consolida decisões de:

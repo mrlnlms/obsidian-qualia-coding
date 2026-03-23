@@ -590,6 +590,14 @@ Convenções de naming aplicadas em todos os engines e interfaces:
 | Magnitude value | `magnitude` (on CodeApplication) | — |
 | Relations | `relations` (on both CodeDefinition and CodeApplication) | — |
 
+- `parentId` — referencia ao CodeDefinition pai (nunca `parent`)
+- `childrenOrder` — array ordenado de ids filhos (nunca `children`)
+- `mergedFrom` — ids dos codigos fundidos (audit trail)
+- `folder` — id da pasta virtual (nunca path). Pastas nao tem significado analitico
+- `rootOrder` — array ordenado de IDs root. Controla ordem de exibicao
+- `FolderDefinition` — `{ id, name, createdAt }`. CRUD via registry
+- `FlatTreeNode` — `FlatCodeNode | FlatFolderNode` (union discriminada)
+
 ---
 
 ## 8. Convenções do Projeto
