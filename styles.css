@@ -4324,3 +4324,38 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	color: var(--text-muted);
 	padding: var(--size-2-1) 0;
 }
+
+/* ── Magnitude in marker detail (Level 3) ── */
+.codemarker-detail-magnitude-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	margin-bottom: var(--size-2-1);
+}
+.codemarker-detail-magnitude-code-name {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	min-width: 60px;
+}
+.codemarker-detail-magnitude-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+.codemarker-detail-magnitude-chip {
+	font-size: var(--font-ui-small);
+	padding: 2px 8px;
+	border-radius: var(--radius-s);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+.codemarker-detail-magnitude-chip:hover {
+	background: var(--background-modifier-hover);
+}
+.codemarker-detail-magnitude-chip.is-selected {
+	background: var(--interactive-accent);
+	color: white;
+	border-color: var(--interactive-accent);
+}

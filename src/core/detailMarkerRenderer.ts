@@ -65,6 +65,9 @@ export function renderMarkerDetail(
 	// -- Memo --
 	renderMemoSection(container, marker, model, callbacks);
 
+	// -- Magnitude per code --
+	renderMagnitudePerCode(container, marker, model);
+
 	// -- Segment color override --
 	renderColorSection(container, marker, model, callbacks);
 
@@ -101,6 +104,49 @@ function renderMemoSection(
 	memoTextarea.addEventListener('blur', () => {
 		callbacks.resumeRefresh();
 	});
+}
+
+function renderMagnitudePerCode(
+	container: HTMLElement,
+	marker: BaseMarker,
+	model: SidebarModelInterface,
+) {
+	// Only show if any code on this marker has magnitude defined
+	const codesWithMag = marker.codes
+		.map(ca => ({ ca, def: model.registry.getById(ca.codeId) }))
+		.filter(c => c.def?.magnitude && c.def.magnitude.values.length > 0);
+
+	if (codesWithMag.length === 0) return;
+
+	const rebuildChips = (chipContainer: HTMLElement, ca: { codeId: string; magnitude?: string }, def: { magnitude?: { type: string; values: string[] }; color: string; name: string }) => {
+		chipContainer.empty();
+		for (const v of def.magnitude!.values) {
+			const c = chipContainer.createEl('span', {
+				cls: 'codemarker-detail-magnitude-chip',
+				text: v,
+			});
+			if (v === ca.magnitude) c.addClass('is-selected');
+			c.addEventListener('click', () => {
+				ca.magnitude = v === ca.magnitude ? undefined : v;
+				marker.updatedAt = Date.now();
+				model.saveMarkers();
+				rebuildChips(chipContainer, ca, def);
+			});
+		}
+	};
+
+	const section = container.createDiv({ cls: 'codemarker-detail-section' });
+	section.createEl('h6', { text: 'Magnitude' });
+
+	for (const { ca, def } of codesWithMag) {
+		const row = section.createDiv({ cls: 'codemarker-detail-magnitude-row' });
+		const swatch = row.createSpan({ cls: 'codemarker-detail-chip-dot' });
+		swatch.style.backgroundColor = def!.color;
+		row.createSpan({ text: def!.name, cls: 'codemarker-detail-magnitude-code-name' });
+
+		const chipContainer = row.createDiv({ cls: 'codemarker-detail-magnitude-chips' });
+		rebuildChips(chipContainer, ca, def!);
+	}
 }
 
 function renderColorSection(
