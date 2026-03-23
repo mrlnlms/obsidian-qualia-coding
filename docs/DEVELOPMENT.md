@@ -39,12 +39,16 @@ npm run dev      # esbuild watch mode (hot reload com hot-reload plugin)
 
 ```
 src/
-├── main.ts                  # Entry point (~180 LOC) — registra engines, sidebar, cross-engine navigation, auto-persist
+├── main.ts                  # Entry point (~200 LOC) — registra engines, sidebar, cross-engine navigation, auto-persist
 ├── core/                    # Infraestrutura compartilhada
-│   ├── types.ts             # BaseMarker, SidebarModelInterface, CodeDefinition
+│   ├── types.ts             # BaseMarker, CodeApplication, CodeRelation, CodeDefinition, GeneralSettings
 │   ├── dataManager.ts       # Cache in-memory + debounced save
 │   ├── codeDefinitionRegistry.ts  # Registry único de códigos
-│   ├── codingPopover.ts     # Menu de codificação unificado
+│   ├── codeApplicationHelpers.ts  # Helpers: hasCode, getCodeIds, getMagnitude, getRelations, addRelation, removeRelation
+│   ├── relationHelpers.ts        # collectAllLabels, buildRelationEdges (funções puras)
+│   ├── relationUI.ts             # renderAddRelationRow compartilhado (datalist autocomplete)
+│   ├── codingPopover.ts     # Menu de codificação unificado (memo, magnitude, relations)
+│   ├── baseCodingMenu.ts    # Primitivas: renderMemoSection, renderMagnitudeSection, renderRelationsSection
 │   ├── codeFormModal.ts     # Modal de criar/editar código
 │   ├── codeBrowserModal.ts  # Modal de browse códigos
 │   ├── relationHelpers.ts         # collectAllLabels, buildRelationEdges (pure)
@@ -60,9 +64,9 @@ src/
 │   ├── drawToolbarFactory.ts     # Factory compartilhada toolbar drawing (PDF + Image)
 │   ├── shapeTypes.ts             # DrawMode, ShapeType, DRAW_TOOL_BUTTONS catalog
 │   ├── detailListRenderer.ts     # Renderer modo lista do detail view
-│   ├── detailCodeRenderer.ts     # Renderer modo code do detail view
-│   ├── detailMarkerRenderer.ts   # Renderer modo marker do detail view
-│   ├── settingTab.ts        # Settings
+│   ├── detailCodeRenderer.ts     # Renderer modo code do detail view (+ relations section)
+│   ├── detailMarkerRenderer.ts   # Renderer modo marker do detail view (+ relations per code)
+│   ├── settingTab.ts        # Settings (magnitude + relations toggles)
 │   ├── hierarchyHelpers.ts        # buildFlatTree, buildCountIndex, getDirectCount, getAggregateCount
 │   ├── codebookTreeRenderer.ts    # Codebook tree com hierarquia e pastas
 │   ├── codebookContextMenu.ts     # Context menu do codebook
@@ -74,6 +78,8 @@ src/
 ├── image/                   # Engine Image (Fabric.js)
 ├── audio/                   # Engine Audio (WaveSurfer)
 ├── video/                   # Engine Video (WaveSurfer)
+├── export/                  # REFI-QDA export (QDC + QDPX com Links para relações)
+├── import/                  # REFI-QDA import (QDC + QDPX)
 ├── obsidian-internals.d.ts   # Type declarations para APIs internas do Obsidian
 ├── media/                   # Shared audio+video
 │   ├── mediaViewCore.ts         # Logica compartilhada via composicao (transport, zoom, regions)
@@ -84,8 +90,21 @@ src/
 │   ├── waveformRenderer.ts      # Wrapper WaveSurfer.js
 │   ├── regionRenderer.ts        # Renderizacao de regioes
 │   └── formatTime.ts            # Helper de formatacao de tempo
+├── export/                  # REFI-QDA export (QDC + QDPX)
+│   ├── xmlBuilder.ts            # XML primitives (escape, element, attr)
+│   ├── coordConverters.ts       # Coordinate conversion per engine
+│   ├── qdcExporter.ts           # Codebook XML generation
+│   ├── qdpxExporter.ts          # Full project export orchestration + ZIP
+│   ├── exportModal.ts           # Pre-export modal UI
+│   └── exportCommands.ts        # Palette commands + analytics button
+├── import/                  # REFI-QDA import (QDC + QDPX)
+│   ├── xmlParser.ts             # XML parsing helpers
+│   ├── qdcImporter.ts           # Codebook import → registry
+│   ├── qdpxImporter.ts          # Full project import orchestration
+│   ├── importModal.ts           # Import modal with conflict resolution
+│   └── importCommands.ts        # Palette commands
 └── analytics/               # Engine Analytics (Chart.js + Fabric.js)
-    ├── data/                # 6 computation engines
+    ├── data/                # 6 computation engines + relationsEngine
     ├── board/               # Research Board
     │   ├── boardTypes.ts        # Tipos do board (discriminated union + type guards)
     │   ├── boardNodeHelpers.ts  # Factories compartilhadas (cardBg, textbox, badges, theme)
@@ -123,7 +142,7 @@ src/
             └── relationsNetworkMode.ts  # Relations network (code + segment level)
 ```
 
-### Regra: `main.ts` é orquestrador leve (~180 LOC)
+### Regra: `main.ts` é orquestrador leve (~200 LOC)
 Nao implementa logica de engine — registra engines, monta sidebar unificada, conecta listeners cross-engine (label-click, code-click, rename propagation) e limpa. Cada engine exporta `registerXxxEngine()` que retorna `EngineRegistration<Model>` com `{ cleanup, model }`. O main.ts destructura o model diretamente — sem non-null assertions. O registry persiste automaticamente via `onMutate` callback.
 
 ```typescript
@@ -372,7 +391,7 @@ Coberto indiretamente por: `highlights.e2e.ts`, `hover-interaction.e2e.ts`, `han
 - [ ] FileId e identificado corretamente ao abrir arquivo
 - [ ] Preview mode nao causa erros (plugin desativa gracefully)
 
-### Analytics modes (15/19 sem teste unitario)
+### Analytics modes (15/20 sem teste unitario)
 
 Cobertos indiretamente por: `analytics-dashboard.e2e.ts`, `analytics-frequency.e2e.ts`
 
@@ -395,6 +414,28 @@ Cobertos indiretamente por: interacao manual no Obsidian
 - [ ] Memo textarea salva ao sair do popover
 - [ ] Clicar fora do popover fecha ele
 - [ ] Escape fecha o popover
+
+---
+
+## 5c. Export / Import REFI-QDA
+
+### Settings tab
+
+A aba de settings tem duas secoes:
+
+- **General** — `showMagnitudeInPopover`, `showRelationsInPopover`
+- **Export** — botoes para exportar QDPX (projeto completo) e QDC (codebook)
+
+### Palette commands
+
+| Command ID | Descricao |
+|-----------|-----------|
+| `export-qdpx` | Exporta projeto completo (QDPX + ZIP) |
+| `export-qdc` | Exporta codebook (QDC) |
+| `import-qdpx` | Importa projeto completo (QDPX) |
+| `import-qdc` | Importa codebook (QDC) |
+
+Os comandos de export tambem aparecem no botao de analytics (toolbar do AnalyticsView). Os comandos de import abrem `importModal.ts` com resolucao de conflitos.
 
 ---
 

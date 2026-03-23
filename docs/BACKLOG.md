@@ -112,6 +112,27 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 
 ---
 
+## 8b. Codebook Panel (Phase A/B)
+
+| # | Severidade | Arquivo | Problema |
+|---|-----------|---------|----------|
+| CB1 | Low | `baseCodeDetailView.ts` | `folderExpanded` e `treeExpanded` sao dois Sets paralelos com prefixo `folder:` pra distinguir — fragil pra futuro dev. Considerar unificar num unico Set tipado |
+| CB2 | Low | `codebookContextMenu.ts` | "Move to folder" lista pastas inline no menu principal — com muitas pastas pode ficar longo. Considerar submenu quando > 5 pastas |
+| CB3 | Low | `hierarchyHelpers.ts` | Search em `buildFlatTree` so busca nomes de codigos, nao nomes de pastas. Adicionar busca em folder.name se necessario |
+| CB4 | Low | `baseCodeDetailView.ts` | `prompt()` / `confirm()` nativos para rename/delete — funcional mas feio no Electron. Migrar pra Obsidian Modal quando tocar nos arquivos |
+
+---
+
+## 8c. Relations (Fase E)
+
+| # | Severidade | Arquivo | Problema |
+|---|-----------|---------|----------|
+| E1 | Low | `relationsNetworkMode.ts` | Force-directed layout é estático (calculado uma vez). Sem drag nos nós. Considerar d3-force se crescer |
+| E2 | Low | `relationUI.ts` | `<datalist>` nativo não suporta fuzzy search — só prefix match. Considerar custom dropdown se UX insuficiente |
+| E3 | Low | `baseCodingMenu.ts` | Inline add-row no popover usa `document.createElement` — inconsistente com o resto que usa componentes Obsidian |
+
+---
+
 ## 9. Permanente (ineliminavel)
 
 | Item | Razao |
@@ -120,6 +141,7 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 | 3 `@ts-ignore` (wavesurfer) | Module resolution |
 | !important 66 instancias | Maioria AG Grid defensivos |
 | Inline styles ~15 estaticos | Migrar quando tocar nos arquivos |
+| fflate bundled (~8KB gzip) | Dependencia do QDPX export — sem alternativa nativa no Obsidian |
 
 ---
 
@@ -130,6 +152,19 @@ Implementado em duas camadas: `ConsolidationCache` (analytics pipeline, dirty fl
 
 ### ~~Board: snapshot vs live-linked~~ — FEITO (2026-03-20)
 Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abrir: atualiza cores/nomes/contagens, marca orfaos, remove arrows invalidas. Notice informativo.
+
+---
+
+---
+
+## 11. Export/Import
+
+| # | Severidade | Arquivo | Problema |
+|---|-----------|---------|----------|
+| E1 | Media | `qdpxExporter.ts` | Offsets de texto PDF no QDPX sao aproximados (por content-item, nao codepoints absolutos). Requer extracao completa do texto PDF para offsets precisos. Warning exibido ao usuario |
+| E2 | Media | `qdpxExporter.ts` | Shape markers de PDF ignorados no export — dimensoes de pagina nao disponiveis em tempo de export. Solucao: cachear dimensoes no PDF viewer durante visualizacao |
+| E3 | Baixa | Modal de export | Markers CSV nao exportaveis via REFI-QDA (limitacao do formato). Documentado no disclaimer do modal |
+| E4 | Baixa | `imageToPixels` | `createImageBitmap` pode falhar para alguns formatos de imagem — fallback necessario |
 
 ---
 

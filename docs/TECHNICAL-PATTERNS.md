@@ -848,6 +848,40 @@ class AudioView extends ItemView {
 
 ---
 
+## 6. REFI-QDA XML Export
+
+### 6.1 XML Building sem DOM
+
+O módulo `xmlBuilder.ts` constrói XML via concatenação de strings — sem DOMParser, sem DOM. Isso evita dependências de ambiente (jsdom vs browser) e é mais rápido para geração bulk.
+
+Pattern: `xmlEl(tag, attrs, children?, isXml?)` — `isXml=true` para filhos XML (newlines), `false` (default) para texto escapado.
+
+### 6.2 Unicode Codepoint Offsets
+
+REFI-QDA `startPosition`/`endPosition` contam **Unicode codepoints**, não UTF-16 code units. CM6 `ch` é em code units (surrogate pairs contam 2).
+
+`lineChToOffset()` resolve isso iterando codepoints via `for..of` (que itera por codepoint) e contando code units via `charCodeAt` para detectar surrogate pairs.
+
+### 6.3 PDF Coordinate Flip
+
+PDF usa origem bottom-left, REFI-QDA `PDFSelection` também. Conversão de coordenadas normalizadas (top-left, 0-1):
+- `firstY = (1 - y) * pageHeight` — topo do rect em coords bottom-left
+- `secondY = (1 - y - h) * pageHeight` — base do rect
+
+Ellipses e polígonos são convertidos para bounding box antes da transformação.
+
+### 6.4 fflate Realm Mismatch (jsdom)
+
+Em ambiente jsdom (Vitest), `fflate` instancia `Uint8Array` no realm do Node.js, mas `zipSync` espera o `Uint8Array` do jsdom. Cross-realm `instanceof` falha silenciosamente — fflate trata os dados como diretórios vazios.
+
+Fix: `new Uint8Array(buf)` re-cria no realm correto antes de passar para `zipSync`.
+
+### 6.5 GUID Correlation Pattern
+
+Source builders geram `srcGuid = uuidV4()` e armazenam em `guidMap.set('source:' + filePath, srcGuid)`. O orchestrator usa esse mesmo GUID para nomear o entry no ZIP (`sources/{guid}.{ext}`). Sem isso, XML referencia um GUID e o ZIP contém outro.
+
+---
+
 ## References
 
 - `memory/visual-testing.md` — CM6 rendering lessons, visual testing traps

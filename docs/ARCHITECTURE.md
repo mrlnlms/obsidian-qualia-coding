@@ -248,12 +248,30 @@ CSV tem batch mode especial para codificar múltiplas linhas visíveis de uma ve
 Instância única compartilhada entre todos os 7 engines:
 - 12 cores auto-palette (alta contrast, safe em light/dark)
 - Palette categórica (não gradiente) — cada cor é visualmente distinta
-- Markers referenciam códigos por **ID estável** (`codes: CodeApplication[]` onde `CodeApplication = { codeId: string; magnitude?: string; relations?: CodeRelation[] }`). Rename é atômico no registry — sem propagação para markers
-- Relações em dois níveis: `CodeDefinition.relations` (código-level, declaração teórica) e `CodeApplication.relations` (segmento-level, interpretação ancorada no dado). Ambos usam shape `{ label: string; target: string; directed: boolean }`. Label livre com autocomplete via `<datalist>`
-- Helpers centralizados em `codeApplicationHelpers.ts`: `hasCode`, `getCodeIds`, `addCodeApplication`, `removeCodeApplication`, `getMagnitude`, `setMagnitude`, `getRelations`, `addRelation`, `removeRelation`
-- Funções puras de relação em `relationHelpers.ts`: `collectAllLabels`, `buildRelationEdges` (com merge code/segment quando mesma aresta existe nos dois níveis)
+- Markers referenciam códigos por **ID estável** (`codes: CodeApplication[]` onde `CodeApplication = { codeId: string; magnitude?: string }`). Rename é atômico no registry — sem propagação para markers
+- Helpers centralizados em `codeApplicationHelpers.ts`: `hasCode`, `getCodeIds`, `addCodeApplication`, `removeCodeApplication`
 - Popover adapters resolvem name→id na borda UI (usuário digita nome, adapter resolve para `codeId` via registry)
 - Auto-persistence via `onMutate` callback — qualquer mutação (add, rename, delete, recolor) dispara save automaticamente
+
+**Hierarquia (Phase A):**
+- `parentId?`, `childrenOrder: string[]`, `mergedFrom?: string[]` no CodeDefinition
+- Metodos: `setParent` (com deteccao de ciclo), `getRootCodes`, `getChildren`, `getAncestors`, `getDescendants`, `getDepth`
+- `rootOrder: string[]` controla ordem de exibicao dos codigos root
+- `executeMerge()` em `mergeModal.ts`: reassigna markers, reparenta filhos, registra audit trail
+
+**Pastas virtuais (Phase B):**
+- `folder?: string` no CodeDefinition (ID da pasta)
+- `FolderDefinition { id, name, createdAt }` armazenado no registry
+- CRUD: `createFolder`, `renameFolder`, `deleteFolder`, `setCodeFolder`, `getCodesInFolder`, `getAllFolders`
+- Pastas NAO afetam hierarquia, analytics, ou queries — sao puramente organizacionais
+- Serializacao: `folders: Record<string, FolderDefinition>` no JSON
+
+**Codebook Panel (UI):**
+- `hierarchyHelpers.ts`: `buildFlatTree` (virtual scroll com FlatCodeNode | FlatFolderNode), `buildCountIndex` (contagem direta + agregada)
+- `codebookTreeRenderer.ts`: virtual scrolling, folder rows (icone) vs code rows (chevron + swatch)
+- `codebookDragDrop.ts`: reparent, merge, move-to-folder
+- `codebookContextMenu.ts`: Rename, Add child, Move to folder, Merge, Delete (codigos) + Rename, Delete (pastas)
+- `mergeModal.ts`: FuzzySuggestModal com preview de impacto e destino configuravel
 
 ### 5.2 DataManager
 
@@ -324,6 +342,31 @@ src/
     fabricExtensions.d.ts    — Fabric.js type extensions for custom node properties
   obsidian-internals.d.ts    — type declarations for undocumented Obsidian internals
 ```
+
+### 5.9 REFI-QDA Export/Import
+
+Módulo `src/export/` implementa export nos formatos QDC (codebook) e QDPX (projeto completo) do padrão REFI-QDA v1.5. Módulo `src/import/` implementa o caminho inverso.
+
+**Export — Arquitetura em camadas**:
+
+1. `xmlBuilder.ts` — primitivas XML (escaping, atributos, elementos). Zero dependência de DOM
+2. `coordConverters.ts` — conversão de coordenadas por engine:
+   - Markdown: `lineChToOffset()` (CM6 line:ch → Unicode codepoint offset)
+   - PDF shapes: `pdfShapeToRect()` (normalized 0-1 → PDF points, bottom-left origin, ellipse/polygon via bounding box)
+   - Image: `imageToPixels()` (normalized 0-1 → pixel bounding box)
+   - Media: `mediaToMs()` (seconds float → milliseconds integer)
+3. `qdcExporter.ts` — codebook XML. `buildCodebookXml(registry, namespace?)` gera hierarquia por nesting recursivo via `getChildren()`. Namespace opcional para embedding em `<Project>` (herda do pai)
+4. `qdpxExporter.ts` — projeto completo. Source builders por engine (`buildTextSourceXml`, `buildPdfSourceXml`, `buildImageSourceXml`, `buildAudioSourceXml`, `buildVideoSourceXml`). Cada builder gera `<Source>` + `<Selection>` + `<Coding>` + `<NoteRef>`. `exportProject()` orquestra tudo + ZIP via fflate
+5. `exportModal.ts` — UI pre-export (formato, toggle sources, disclaimer CSV)
+6. `exportCommands.ts` — 2 commands na palette + botão no analytics + factory `openExportModal()`
+
+**Padrões chave**:
+- **GUID correlation**: Cada source builder armazena `guidMap.set('source:' + filePath, srcGuid)`. O helper `addSourceFile()` lê esse GUID para garantir que o path `internal://` no XML e o entry no ZIP coincidam
+- **Memos como Notes**: Marker com `memo` gera `<Note>` + `<NoteRef>` no `<Selection>`. GUID do note: `note_{selectionGuid}`
+- **Relations como Links**: `buildLinksXml()` converte `CodeDefinition.relations` e `CodeApplication.relations` em `<Link>` com `direction` (Associative/OneWay)
+- **Warnings**: `ExportResult.warnings[]` acumula problemas (source missing, PDF offsets approximate, image dimensions unreadable). Modal exibe via Notice
+
+**Import** (`src/import/`): Parse XML → popular registry + criar markers. Conflitos de código resolvidos via modal interativo.
 
 ---
 

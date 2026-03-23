@@ -6,33 +6,15 @@
 
 ## Prioridade Alta — Funcionalidades Core
 
-### ~~1. Code Hierarchy (parentId)~~ — FEITO (Fase A, 2026-03-22)
+### ~~1. Code Hierarchy~~ — FEITO (2026-03-22)
 
-Implementado como parte do Codebook Evolution. `parentId`, `childrenOrder`, `mergedFrom` no `CodeDefinition`. 7 métodos no registry. Codebook Panel com 3 níveis, drag-drop, merge modal, context menu. Ver spec em `docs/superpowers/specs/2026-03-22-codebook-evolution-design.md`.
+Implementado nas Fases A, B, C do Codebook Evolution:
 
-**Data model**:
-- `parentId?: string` opcional em `CodeDefinition` — zero migration necessária
-- 7 novos métodos no registry: `getRootCodes`, `getChildren`, `getAncestors`, `getDescendants`, `getDepth`, `getHierarchicalList`, `setParent`
+- **Fase C**: `codes: string[]` → `codes: CodeApplication[]` com `codeId` estavel. Rename atomico
+- **Fase A**: `parentId`, `childrenOrder`, `mergedFrom` no CodeDefinition. Registry com getRootCodes, getChildren, getAncestors, getDescendants, setParent (com deteccao de ciclo). Codebook Panel com 3 niveis (lista → codigo → segmento), virtual scrolling, drag-drop (reorganizar/merge), context menu, MergeModal com busca fuzzy
+- **Fase B**: Pastas virtuais — `folder?` no CodeDefinition, `FolderDefinition` no registry. Pastas sao containers organizacionais SEM significado analitico. Drag-drop em pastas, context menu (Rename, Delete), "New Folder" no toolbar
 
-**7 fases de implementação**:
-
-| Fase | Arquivo | LOC | O que muda |
-|------|---------|-----|-----------|
-| 1. Data Model | `types.ts`, `codeDefinitionRegistry.ts` | ~60 | `parentId` field + 7 métodos |
-| 2. Code Form Modal | `codeFormModal.ts` | ~25 | Dropdown "Parent code" + anti-cycle validation (~25 LOC) |
-| 3. Popover indent | `codingPopover.ts` | ~15 | `paddingLeft: depth * 16px` (indentation driven by `getHierarchicalList()` output) |
-| 4. Code Browser Modal | `codeBrowserModal.ts` | ~10 | Tree indentation |
-| 5. Explorer 4-level tree | `baseCodeExplorerView.ts` | ~50 | Category → Code → File → Segment |
-| 6. Detail breadcrumbs | `baseCodeDetailView.ts` | ~20 | "Category > Code" header |
-| 7. CSS | `styles.css` | ~15 | Indent + visual hierarchy |
-
-**Prerequisito**: Fase C (codes[] migration) já concluída — markers agora usam `CodeApplication[]` com `codeId` estável.
-
-**O que NÃO muda**: engine models, Analytics, `cm6TooltipMenu.ts`, `obsidianMenu.ts`, serialização.
-
-**Migration**: Old data becomes root codes (migration zero — optional field, existing = root).
-
-**Ref. metodológica**: Saldaña Ch.14 — code→theme hierarchy é padrão em QDA.
+Spec completo: `docs/superpowers/specs/2026-03-22-codebook-evolution-design.md`
 
 ---
 
@@ -226,18 +208,28 @@ Implementado como parte do Codebook Evolution.
 - Novos arquivos: `relationHelpers.ts`, `relationUI.ts`, `relationsEngine.ts`, `relationsNetworkMode.ts`
 - Helpers `getRelations`, `addRelation`, `removeRelation` em `codeApplicationHelpers.ts`
 - `renderRelationsSection` em `baseCodingMenu.ts`
-- QDPX export inclui relations como Notes
+- QDPX export inclui relations como `<Link>` elements
+
+### ~~14c. Virtual Folders (Fase B)~~ — FEITO (2026-03-22)
+
+Implementado como parte do Codebook Evolution.
+
+- `folder?: string` no `CodeDefinition` — associa um código a uma pasta organizacional
+- `FolderDefinition` no registry — containers organizacionais SEM significado analítico
+- Context menu: Rename Folder, Delete Folder (promove códigos para root), New Folder
+- Drag-drop: arrastar código para pasta; arrastar entre pastas
+- Folder tree rendering no Codebook Panel (nível superior acima dos códigos)
+- "New Folder" no toolbar do Codebook Panel
 
 ### ~~15. Export~~ — PARCIALMENTE FEITO (2026-03-22)
 
 | Formato | Status |
 |---------|--------|
-| ~~REFI-QDA (QDPX)~~ | **FEITO** — export completo com codebook, sources, segments, memos, links (relações) |
-| ~~REFI-QDA (QDC)~~ | **FEITO** — codebook standalone com hierarquia |
-| ~~REFI-QDA Import~~ | **FEITO** — import QDC + QDPX com resolução de conflitos |
-| ~~CSV~~ | **FEITO** — export de dados codificados via Analytics (code frequencies, co-occurrence, Doc-Code Matrix) |
-| JSON | PENDENTE — full data export |
-| PNG/PDF (Dashboard) | PENDENTE |
+| ~~REFI-QDA Export (QDPX + QDC)~~ | **FEITO** — `qdcExporter.ts` (codebook XML com hierarquia), `qdpxExporter.ts` (codigos + sources + segments + memos + links). Conversao de coordenadas por engine. Modal pre-export com formato e toggle sources |
+| ~~REFI-QDA Import (QDC + QDPX)~~ | **FEITO** — import com resolucao de conflitos |
+| ~~CSV por modo Analytics~~ | **FEITO** — Analytics exporta CSV de frequencies, co-occurrence, Doc-Code Matrix |
+| JSON full export | PENDENTE |
+| PNG/PDF (Dashboard composite) | PENDENTE |
 
 ### 16. Per-Code Decorations (Phase 3 original)
 
@@ -308,7 +300,8 @@ O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para dra
 
 | Diferencial | Status | Concorrência |
 |------------|--------|-------------|
-| **5 analytics views exclusivas** (MCA, MDS, LSA, Polar, CHAID) + Relations Network | Implementado | Zero concorrentes oferecem built-in |
+| **20 analytics modes** (incl. MCA, MDS, LSA, Polar, CHAID, Relations Network) | Implementado | Zero concorrentes oferecem built-in |
+| **REFI-QDA interoperability** (export + import QDC/QDPX) | Implementado | NVivo, ATLAS.ti, MAXQDA cobram licença; QualCoder tem suporte parcial |
 | **Parquet support** | Implementado | Único no mercado CAQDAS |
 | **Dentro do Obsidian** (vault = dados, zero lock-in) | Implementado | Só o Quadro (muito mais limitado) |
 | **7 formatos + unified analytics** grátis | Implementado | Concorrentes cobram $130-1,005/ano |
