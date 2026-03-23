@@ -4374,3 +4374,204 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	flex-wrap: wrap;
 	gap: 4px;
 }
+
+/* ── Relations ──────────────────────────────────── */
+
+.codemarker-detail-relations-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.codemarker-detail-relation-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 0;
+}
+
+.codemarker-detail-relation-dir {
+	display: flex;
+	align-items: center;
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+.codemarker-detail-relation-dir svg {
+	width: 14px;
+	height: 14px;
+}
+
+.codemarker-detail-relation-label {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.codemarker-detail-relation-target-missing {
+	font-size: var(--font-ui-small);
+	color: var(--text-faint);
+}
+
+.codemarker-detail-relation-add {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-top: 4px;
+}
+
+.codemarker-detail-relation-input {
+	flex: 1;
+	min-width: 0;
+	font-size: var(--font-ui-small);
+	padding: 2px 6px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.codemarker-detail-relation-dir-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: none;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	padding: 2px;
+	color: var(--text-muted);
+}
+.codemarker-detail-relation-dir-btn:hover {
+	background: var(--background-modifier-hover);
+}
+.codemarker-detail-relation-dir-btn svg {
+	width: 14px;
+	height: 14px;
+}
+
+.codemarker-detail-relation-add-btn {
+	font-size: var(--font-ui-small);
+	padding: 2px 8px;
+	cursor: pointer;
+}
+
+.codemarker-detail-relation-code-group {
+	margin-bottom: 8px;
+}
+
+/* Popover relations section */
+.codemarker-tooltip-relations-wrapper .codemarker-tooltip-memo-header {
+	cursor: pointer;
+}
+.codemarker-tooltip-relations-wrapper .codemarker-tooltip-memo-chevron {
+	transition: transform 100ms ease;
+}
+.codemarker-tooltip-relations-wrapper.is-open .codemarker-tooltip-memo-chevron {
+	transform: rotate(90deg);
+}
+
+.codemarker-tooltip-relations-body {
+	padding: 4px 8px;
+}
+
+.codemarker-tooltip-relations-code-group {
+	margin-bottom: 6px;
+}
+
+.codemarker-tooltip-relation-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 0;
+	font-size: var(--font-ui-small);
+}
+
+.codemarker-tooltip-relation-dir {
+	display: flex;
+	color: var(--text-muted);
+}
+.codemarker-tooltip-relation-dir svg {
+	width: 12px;
+	height: 12px;
+}
+
+.codemarker-tooltip-relation-label {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.codemarker-tooltip-relation-target {
+	color: var(--text-normal);
+}
+
+.codemarker-tooltip-relation-remove {
+	cursor: pointer;
+	color: var(--text-faint);
+	margin-left: auto;
+}
+.codemarker-tooltip-relation-remove:hover {
+	color: var(--text-error);
+}
+.codemarker-tooltip-relation-remove svg {
+	width: 12px;
+	height: 12px;
+}
+
+.codemarker-tooltip-relation-add {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	margin-top: 3px;
+}
+
+.codemarker-tooltip-relation-input {
+	flex: 1;
+	min-width: 0;
+	font-size: 11px;
+	padding: 1px 4px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.codemarker-tooltip-relation-dir-btn {
+	display: flex;
+	align-items: center;
+	background: none;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	padding: 1px;
+	color: var(--text-muted);
+}
+.codemarker-tooltip-relation-dir-btn svg {
+	width: 12px;
+	height: 12px;
+}
+
+.codemarker-tooltip-relation-add-btn {
+	font-size: 11px;
+	padding: 1px 6px;
+	background: none;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	color: var(--text-muted);
+}
+.codemarker-tooltip-relation-add-btn:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* Analytics edge hover tooltip */
+.codemarker-analytics-tooltip {
+	font-size: 11px;
+	padding: 4px 8px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	color: var(--text-normal);
+	white-space: nowrap;
+	box-shadow: var(--shadow-s);
+	z-index: 100;
+}
