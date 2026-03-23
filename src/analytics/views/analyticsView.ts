@@ -73,6 +73,9 @@ export class AnalyticsView extends ItemView {
   srcCompDisplayMode: "count" | "percent-code" | "percent-source" = "count";
   srcCompSort: { col: string; asc: boolean } = { col: "total", asc: false };
 
+  // Relations Network state
+  relationsLevel: 'code' | 'both' = 'both';
+
   // Text Retrieval state
   trSearch = "";
   trGroupBy: "code" | "file" = "code";

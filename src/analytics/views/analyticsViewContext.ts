@@ -7,7 +7,7 @@ import type { MDSMode } from "../data/mdsEngine";
 
 // ─── Type aliases (moved from analyticsView.ts) ───
 
-export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap";
+export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap" | "relations-network";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
 export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
@@ -63,6 +63,9 @@ export interface AnalyticsViewContext {
 
   // Text Stats state
   tsSort: { col: string; asc: boolean };
+
+  // Relations Network state
+  relationsLevel: 'code' | 'both';
 
   // Polar Coordinates state
   polarFocalCode: string;

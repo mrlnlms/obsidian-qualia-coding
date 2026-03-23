@@ -22,6 +22,7 @@ import { renderChiSquareView, renderChiSquareOptionsSection, exportChiSquareCSV 
 import { renderDecisionTreeView, renderDecisionTreeOptionsSection, exportDecisionTreeCSV } from "./decisionTreeMode";
 import { renderSourceComparison, renderSourceComparisonOptionsSection, exportSourceComparisonCSV } from "./sourceComparisonMode";
 import { renderOverlapMatrix, exportOverlapCSV } from "./overlapMode";
+import { renderRelationsNetwork, renderRelationsNetworkOptions, exportRelationsNetworkCSV } from "./relationsNetworkMode";
 
 export type ModeEntry = {
   label: string;
@@ -141,5 +142,11 @@ export const MODE_REGISTRY: Record<ViewMode, ModeEntry> = {
     render: renderOverlapMatrix,
     renderOptions: (ctx) => { renderDisplaySection(ctx); renderCooccSortSection(ctx); },
     exportCSV: exportOverlapCSV,
+  },
+  "relations-network": {
+    label: "Relations Network",
+    render: renderRelationsNetwork,
+    renderOptions: renderRelationsNetworkOptions,
+    exportCSV: exportRelationsNetworkCSV,
   },
 };
