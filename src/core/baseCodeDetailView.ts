@@ -169,6 +169,10 @@ export abstract class BaseCodeDetailView extends ItemView {
 				{
 					onReparent: (codeId, newParentId, insertBefore) => {
 						this.model.registry.setParent(codeId, newParentId, insertBefore);
+						// Promoting to root also removes from folder
+						if (!newParentId) {
+							this.model.registry.setCodeFolder(codeId, undefined);
+						}
 						this.model.saveMarkers();
 						if (newParentId) this.treeExpanded.add(newParentId);
 					},

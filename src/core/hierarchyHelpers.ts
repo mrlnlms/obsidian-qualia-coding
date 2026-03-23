@@ -103,7 +103,8 @@ export function buildFlatTree(
 		if (visibleFolderIds && !visibleFolderIds.has(folder.id)) continue;
 
 		const codesInFolder = registry.getCodesInFolder(folder.id);
-		const rootCodesInFolder = codesInFolder.filter(c => !c.parentId || !codesInFolder.some(p => p.id === c.parentId));
+		const folderCodeIds = new Set(codesInFolder.map(c => c.id));
+		const rootCodesInFolder = codesInFolder.filter(c => !c.parentId || !folderCodeIds.has(c.parentId));
 		const folderExpKey = `folder:${folder.id}`;
 		const isExpanded = forceExpanded?.has(folderExpKey) || expanded.has(folderExpKey);
 
