@@ -103,3 +103,41 @@ describe('buildFlatTree with folders', () => {
 		expect((folderNode as any).codeCount).toBe(2);
 	});
 });
+
+describe('buildCountIndex unaffected by folders', () => {
+	it('buildCountIndex ignores folders — only counts codes', () => {
+		const folder = registry.createFolder('F1');
+		const c1 = registry.create('A');
+		const c2 = registry.create('B');
+		registry.setCodeFolder(c1.id, folder.id);
+
+		const markers = [makeMarker([c1.id]), makeMarker([c2.id])];
+		const index = buildCountIndex(registry, markers);
+
+		expect(index.get(c1.id)?.direct).toBe(1);
+		expect(index.get(c2.id)?.direct).toBe(1);
+		expect(index.has(folder.id)).toBe(false);
+	});
+});
+
+describe('folder edge cases in tree', () => {
+	it('code moved between folders: only appears in new folder', () => {
+		const f1 = registry.createFolder('F1');
+		const f2 = registry.createFolder('F2');
+		const code = registry.create('A');
+		registry.setCodeFolder(code.id, f1.id);
+		registry.setCodeFolder(code.id, f2.id);
+
+		const expanded = new Set<string>([`folder:${f1.id}`, `folder:${f2.id}`]);
+		const nodes = buildFlatTree(registry, expanded);
+		const codeNodes = nodes.filter(n => n.type === 'code' && n.def.name === 'A');
+		expect(codeNodes.length).toBe(1);
+	});
+
+	it('search that matches no codes shows empty tree', () => {
+		registry.createFolder('F1');
+		registry.create('Alpha');
+		const nodes = buildFlatTree(registry, new Set(), 'zzzzz');
+		expect(nodes.length).toBe(0);
+	});
+});

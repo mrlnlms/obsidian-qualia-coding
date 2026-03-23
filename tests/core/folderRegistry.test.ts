@@ -155,3 +155,34 @@ describe('folder serialization', () => {
 		expect(restored.getAllFolders()).toEqual([]);
 	});
 });
+
+describe('folder + hierarchy interaction', () => {
+	it('child code inherits no folder from parent (folders are independent of hierarchy)', () => {
+		const folder = registry.createFolder('F1');
+		const parent = registry.create('Parent');
+		const child = registry.create('Child');
+		registry.setCodeFolder(parent.id, folder.id);
+		registry.setParent(child.id, parent.id);
+		expect(child.folder).toBeUndefined();
+	});
+
+	it('deleting a code does not affect its folder', () => {
+		const folder = registry.createFolder('F1');
+		const code = registry.create('CodeA');
+		registry.setCodeFolder(code.id, folder.id);
+		registry.delete(code.id);
+		expect(registry.getFolderById(folder.id)).toBeDefined();
+	});
+
+	it('clear() removes folders too', () => {
+		registry.createFolder('F1');
+		registry.clear();
+		expect(registry.getAllFolders()).toEqual([]);
+	});
+
+	it('renameFolder with same name is a no-op success', () => {
+		const folder = registry.createFolder('Same');
+		const ok = registry.renameFolder(folder.id, 'Same');
+		expect(ok).toBe(true);
+	});
+});
