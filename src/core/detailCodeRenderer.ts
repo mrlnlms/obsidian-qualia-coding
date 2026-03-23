@@ -10,6 +10,8 @@ import type { BaseMarker, CodeDefinition, SidebarModelInterface } from './types'
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import { hasCode } from './codeApplicationHelpers';
 import { getCountBreakdown } from './hierarchyHelpers';
+import { collectAllLabels } from './relationHelpers';
+import { renderAddRelationRow } from './relationUI';
 
 export interface CodeRendererCallbacks {
 	getMarkerLabel(marker: BaseMarker): string;
@@ -89,6 +91,9 @@ export function renderCodeDetail(
 
 	// Magnitude config
 	if (def) renderMagnitudeConfigSection(container, def, model, callbacks);
+
+	// Relations code-level
+	if (def) renderRelationsSection(container, def, model, callbacks);
 
 	// All markers with this code (across all files)
 	const allMarkers = def
@@ -599,6 +604,72 @@ function renderMagnitudeConfigSection(
 	});
 
 	if (enabled) renderBody();
+}
+
+// ─── Relations section ───────────────────────────────────
+
+function renderRelationsSection(
+	container: HTMLElement,
+	def: CodeDefinition,
+	model: SidebarModelInterface,
+	callbacks: Pick<CodeRendererCallbacks, 'showCodeDetail' | 'suspendRefresh' | 'resumeRefresh'>,
+): void {
+	const section = container.createDiv({ cls: 'codemarker-detail-section codemarker-detail-relations' });
+
+	const headerRow = section.createDiv({ cls: 'codemarker-detail-relations-header' });
+	headerRow.createEl('h6', { text: 'Relations' });
+
+	const body = section.createDiv({ cls: 'codemarker-detail-relations-body' });
+
+	const saveRelations = () => {
+		model.registry.update(def.id, { relations: def.relations && def.relations.length > 0 ? def.relations : undefined });
+		model.saveMarkers();
+	};
+
+	const allLabels = collectAllLabels(model.registry.getAll(), model.getAllMarkers());
+
+	const renderRows = () => {
+		body.empty();
+		const currentRelations = def.relations ?? [];
+
+		for (const rel of currentRelations) {
+			const row = body.createDiv({ cls: 'codemarker-detail-relation-row' });
+
+			const dirIcon = row.createSpan({ cls: 'codemarker-detail-relation-dir' });
+			setIcon(dirIcon, rel.directed ? 'arrow-right' : 'minus');
+			dirIcon.title = rel.directed ? 'Directed' : 'Symmetric';
+
+			row.createSpan({ cls: 'codemarker-detail-relation-label', text: rel.label });
+
+			const targetDef = model.registry.getById(rel.target);
+			if (targetDef) {
+				const chip = row.createSpan({ cls: 'codemarker-detail-chip' });
+				const dot = chip.createSpan({ cls: 'codemarker-detail-chip-dot' });
+				dot.style.backgroundColor = targetDef.color;
+				chip.createSpan({ text: targetDef.name });
+				chip.addEventListener('click', () => callbacks.showCodeDetail(targetDef.id));
+			} else {
+				row.createSpan({ cls: 'codemarker-detail-relation-target-missing', text: '(deleted)' });
+			}
+
+			const removeBtn = row.createSpan({ cls: 'codemarker-detail-magnitude-remove' });
+			setIcon(removeBtn, 'x');
+			removeBtn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				if (!def.relations) return;
+				def.relations = def.relations.filter(r => !(r.label === rel.label && r.target === rel.target));
+				saveRelations();
+				renderRows();
+			});
+		}
+
+		renderAddRelationRow(body, def, model.registry, allLabels, () => {
+			saveRelations();
+			renderRows();
+		}, callbacks);
+	};
+
+	renderRows();
 }
 
 // ─── Audit section ──────────────────────────────────────
