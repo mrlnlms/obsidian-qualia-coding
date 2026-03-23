@@ -254,6 +254,14 @@ export class AnalyticsView extends ItemView {
     csvBtn.setAttribute("aria-label", "Export data as CSV");
     csvBtn.addEventListener("click", () => this.exportCSV());
 
+    const refiBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
+    setIcon(refiBtn, "file-output");
+    refiBtn.createSpan({ text: "Export REFI-QDA" });
+    refiBtn.setAttribute("aria-label", "Export as REFI-QDA (QDPX/QDC)");
+    refiBtn.addEventListener("click", () => {
+      this.plugin.openExportModal();
+    });
+
     const boardBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
     setIcon(boardBtn, "layout-dashboard");
     boardBtn.createSpan({ text: "Add to Board" });
