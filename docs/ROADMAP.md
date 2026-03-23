@@ -226,7 +226,7 @@ Implementado como parte do Codebook Evolution.
 | Formato | Status |
 |---------|--------|
 | ~~REFI-QDA Export (QDPX + QDC)~~ | **FEITO** — `qdcExporter.ts` (codebook XML com hierarquia), `qdpxExporter.ts` (codigos + sources + segments + memos + links). Conversao de coordenadas por engine. Modal pre-export com formato e toggle sources |
-| ~~REFI-QDA Import (QDC + QDPX)~~ | **FEITO** — import com resolucao de conflitos |
+| ~~REFI-QDA Import (QDC + QDPX)~~ | **FEITO** — `qdcImporter.ts` (codebook XML com hierarquia + NoteRef→description), `qdpxImporter.ts` (ZIP→vault: 5 source types, segments, memos standalone como .md, magnitude via `[Magnitude: X]` Notes, relations via `<Link>`). Modal com preview, conflitos merge/separate, botao analytics. `coordConverters.ts` inversas (offset→lineCh, pdfRect→normalized, pixels→normalized, ms→seconds) |
 | ~~CSV por modo Analytics~~ | **FEITO** — Analytics exporta CSV de frequencies, co-occurrence, Doc-Code Matrix |
 | JSON full export | PENDENTE |
 | PNG/PDF (Dashboard composite) | PENDENTE |

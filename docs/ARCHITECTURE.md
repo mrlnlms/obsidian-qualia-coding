@@ -366,7 +366,15 @@ Módulo `src/export/` implementa export nos formatos QDC (codebook) e QDPX (proj
 - **Relations como Links**: `buildLinksXml()` converte `CodeDefinition.relations` e `CodeApplication.relations` em `<Link>` com `direction` (Associative/OneWay)
 - **Warnings**: `ExportResult.warnings[]` acumula problemas (source missing, PDF offsets approximate, image dimensions unreadable). Modal exibe via Notice
 
-**Import** (`src/import/`): Parse XML → popular registry + criar markers. Conflitos de código resolvidos via modal interativo.
+**Import** (`src/import/`) — Arquitetura em camadas:
+
+- **xmlParser.ts**: Helpers DOMParser — `parseXml`, `getChildElements`, `getAttr`, `getNumAttr`, `getTextContent`, `getAllElements`
+- **coordConverters.ts**: Conversão inversa — `offsetToLineCh` (codepoint→CM6 line:ch com surrogate pairs), `pdfRectToNormalized` (PDF points bottom-left→0-1), `pixelsToNormalized`, `msToSeconds`
+- **qdcImporter.ts**: `parseCodebook` (recursivo com hierarquia + NoteRef→description), `applyCodebook` (merge/separate + guidMap QDPX→Qualia)
+- **qdpxImporter.ts**: `parseSources` (5 tipos), `parseNotes` (com detecção `[Magnitude: X]`), `parseLinks`, `previewQdpx`, `importQdpx` (ZIP→vault: extrai sources, cria markers por engine, batch de text markers com offset→lineCh, memos standalone como .md, `applyLinks` code-level + marker-level)
+- **importModal.ts**: File picker, preview com contagem, dropdown conflitos, toggle sources, flows QDC e QDPX separados
+- **importCommands.ts**: `import-qdpx`, `import-qdc` na palette + botão analytics
+- **Magnitude round-trip**: Export codifica `CodeApplication.magnitude` como Note `[Magnitude: X]` via `buildCodingXml(codes, guidMap, createdAt, notes)`. Import detecta prefixo e reconstrói magnitude no `CodeApplication`
 
 ---
 
@@ -877,9 +885,9 @@ Analytics: `relationsEngine.ts` → `relationsNetworkMode.ts` (Network View com 
 
 ### 14.5 REFI-QDA Export/Import
 
-**Export**: `qdcExporter.ts` (codebook XML) + `qdpxExporter.ts` (projeto completo: codes + sources + segments + memos + links).
-**Import**: `qdcImporter.ts` + `qdpxImporter.ts` com resolução de conflitos.
-**Helpers**: `xmlBuilder.ts` (XML generation), `coordConverters.ts` (PDF/Image/Media coord conversion), `xmlParser.ts` (parsing).
+**Export**: `qdcExporter.ts` (codebook XML) + `qdpxExporter.ts` (projeto completo: codes + sources + segments + memos + links + magnitude como Notes).
+**Import**: `qdcImporter.ts` (codebook com hierarquia + NoteRef→description) + `qdpxImporter.ts` (5 source types, segments, memos standalone, magnitude, relations via Links).
+**Helpers**: `xmlBuilder.ts` (XML generation), `coordConverters.ts` export (lineChToOffset, pdfShapeToRect, imageToPixels, mediaToMs), `xmlParser.ts` + `coordConverters.ts` import (offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds).
 **UI**: `exportModal.ts` (pre-export config), `importModal.ts` (conflict resolution).
 
 ---
