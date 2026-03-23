@@ -84,6 +84,9 @@ export function showCodeContextMenu(
 	menu.addItem(item =>
 		item.setTitle('Edit description').setIcon('file-text').onClick(() => callbacks.promptDescription(codeId)),
 	);
+	menu.addItem(item =>
+		item.setTitle('Set magnitude...').setIcon('gauge').onClick(() => callbacks.showCodeDetail(codeId)),
+	);
 
 	menu.addSeparator();
 
