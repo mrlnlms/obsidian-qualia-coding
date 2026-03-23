@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
+import { ExportModal } from '../export/exportModal';
 
 export class QualiaSettingTab extends PluginSettingTab {
 	plugin: QualiaCodingPlugin;
@@ -22,6 +23,21 @@ export class QualiaSettingTab extends PluginSettingTab {
 				model.updateMarkersForFile(fileId);
 			}
 		};
+
+		// ── General ────────────────────────────────────────────
+		containerEl.createEl('h2', { text: 'General' });
+
+		const generalSettings = this.plugin.dataManager.section('general');
+
+		new Setting(containerEl)
+			.setName('Show magnitude in popover')
+			.setDesc('Show magnitude picker section in the coding popover for codes with magnitude configured')
+			.addToggle(toggle => toggle
+				.setValue(generalSettings.showMagnitudeInPopover)
+				.onChange((value) => {
+					generalSettings.showMagnitudeInPopover = value;
+					save();
+				}));
 
 		// ── Markdown ────────────────────────────────────────────
 		containerEl.createEl('h2', { text: 'Markdown' });
@@ -118,6 +134,27 @@ export class QualiaSettingTab extends PluginSettingTab {
 				.onChange((value) => {
 					settings.autoRevealOnSegmentClick = value;
 					save();
+				}));
+
+		// ── Export ──────────────────────────────────────────────
+		containerEl.createEl('h2', { text: 'Export' });
+
+		new Setting(containerEl)
+			.setName('Export project (QDPX)')
+			.setDesc('Export codes, segments, and sources as a REFI-QDA project')
+			.addButton(btn => btn
+				.setButtonText('Export QDPX')
+				.onClick(() => {
+					new ExportModal(this.app, this.plugin.dataManager, this.plugin.sharedRegistry, 'qdpx', this.plugin.manifest.version).open();
+				}));
+
+		new Setting(containerEl)
+			.setName('Export codebook (QDC)')
+			.setDesc('Export only the code definitions and hierarchy')
+			.addButton(btn => btn
+				.setButtonText('Export QDC')
+				.onClick(() => {
+					new ExportModal(this.app, this.plugin.dataManager, this.plugin.sharedRegistry, 'qdc', this.plugin.manifest.version).open();
 				}));
 	}
 }

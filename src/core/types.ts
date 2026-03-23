@@ -94,6 +94,10 @@ export interface EngineRegistration<M = unknown> {
 	model: M;
 }
 
+export interface GeneralSettings {
+	showMagnitudeInPopover: boolean;
+}
+
 export interface QualiaData {
 	registry: {
 		definitions: Record<string, CodeDefinition>;
@@ -101,6 +105,7 @@ export interface QualiaData {
 		folders: Record<string, FolderDefinition>;
 		rootOrder: string[];
 	};
+	general: GeneralSettings;
 	markdown: { markers: Record<string, Marker[]>; settings: CodeMarkerSettings };
 	csv: { segmentMarkers: SegmentMarker[]; rowMarkers: RowMarker[] };
 	image: { markers: ImageMarker[]; settings: { autoOpenImages: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> } };
@@ -129,6 +134,7 @@ export interface QualiaData {
 export function createDefaultData(): QualiaData {
 	return {
 		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, rootOrder: [] },
+		general: { showMagnitudeInPopover: true },
 		markdown: { markers: {}, settings: {
 			defaultColor: '#6200EE',
 			markerOpacity: 0.4,
