@@ -38,12 +38,18 @@ export function ensureGuid(id: string, guidMap: Map<string, string>): string {
 }
 
 /** Build <Coding><CodeRef/></Coding> elements for all codes on a selection. */
-export function buildCodingXml(codes: CodeApplication[], guidMap: Map<string, string>, createdAt?: number): string {
+export function buildCodingXml(codes: CodeApplication[], guidMap: Map<string, string>, createdAt?: number, notes?: string[]): string {
   const dateStr = createdAt ? new Date(createdAt).toISOString() : new Date().toISOString();
   return codes.map(ca => {
     const codingGuid = uuidV4();
     const codeGuid = ensureGuid(ca.codeId, guidMap);
-    return `<Coding ${xmlAttr('guid', codingGuid)} ${xmlAttr('creationDateTime', dateStr)}>\n<CodeRef ${xmlAttr('targetGUID', codeGuid)}/>\n</Coding>`;
+    let noteRef = '';
+    if (ca.magnitude && notes) {
+      const noteGuid = `mag_${codingGuid}`;
+      notes.push(buildNoteXml(noteGuid, 'Magnitude', `[Magnitude: ${ca.magnitude}]`));
+      noteRef = `\n${buildNoteRefXml(noteGuid)}`;
+    }
+    return `<Coding ${xmlAttr('guid', codingGuid)} ${xmlAttr('creationDateTime', dateStr)}>\n<CodeRef ${xmlAttr('targetGUID', codeGuid)}/>${noteRef}\n</Coding>`;
   }).join('\n');
 }
 
@@ -83,7 +89,7 @@ export function buildTextSourceXml(
       if (start === -1 || end === -1) return '';
 
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -122,7 +128,7 @@ function buildMediaSourceXml(
     .filter(m => m.codes.length > 0)
     .map(m => {
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -174,7 +180,7 @@ export function buildImageSourceXml(
       const px = imageToPixels(m.coords, imgWidth, imgHeight);
       if (!px) return '';
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -223,7 +229,7 @@ export function buildPdfSourceXml(
       const offsets = textOffsets.get(m.id);
       if (!offsets) return '';
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -242,7 +248,7 @@ export function buildPdfSourceXml(
       const rect = pdfShapeToRect(m.coords, dim.width, dim.height);
       if (!rect) return '';
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
