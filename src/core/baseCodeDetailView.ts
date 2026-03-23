@@ -18,7 +18,7 @@ import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
 import type { CodebookTreeState } from './codebookTreeRenderer';
-import { showCodeContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
+import { showCodeContextMenu, showFolderContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
 import { setupDragDrop } from './codebookDragDrop';
 import { MergeModal, executeMerge } from './mergeModal';
 
@@ -29,6 +29,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 
 	// Tree state for codebook panel
 	protected treeExpanded: Set<string> = new Set<string>();
+	protected folderExpanded: Set<string> = new Set<string>();
 	protected treeDragMode: 'reorganize' | 'merge' = 'reorganize';
 
 	private searchQuery = '';
@@ -141,8 +142,12 @@ export abstract class BaseCodeDetailView extends ItemView {
 	// ─── List Mode ──────────────────────────────────────────
 
 	protected getTreeState(): CodebookTreeState {
+		const merged = new Set<string>(this.treeExpanded);
+		for (const fId of this.folderExpanded) {
+			merged.add(`folder:${fId}`);
+		}
 		return {
-			expanded: this.treeExpanded,
+			expanded: merged,
 			searchQuery: this.searchQuery,
 			dragMode: this.treeDragMode,
 		};
@@ -189,6 +194,11 @@ export abstract class BaseCodeDetailView extends ItemView {
 						modal.addSource(sourceId);
 						modal.open();
 					},
+					onMoveToFolder: (codeId, folderId) => {
+						this.model.registry.setCodeFolder(codeId, folderId);
+						this.model.saveMarkers();
+						if (folderId) this.folderExpanded.add(folderId);
+					},
 					setDragMode: (mode) => {
 						this.treeDragMode = mode;
 					},
@@ -228,18 +238,39 @@ export abstract class BaseCodeDetailView extends ItemView {
 				showCodeContextMenu(event, codeId, this.model.registry, this.contextMenuCallbacks());
 			},
 			onFolderToggleExpand: (folderId: string) => {
-				const key = `folder:${folderId}`;
-				if (this.treeExpanded.has(key)) {
-					this.treeExpanded.delete(key);
+				if (this.folderExpanded.has(folderId)) {
+					this.folderExpanded.delete(folderId);
 				} else {
-					this.treeExpanded.add(key);
+					this.folderExpanded.add(folderId);
 				}
 				if (this.listContentZone) {
 					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
 				}
 			},
-			onFolderRightClick: (_folderId: string, _event: MouseEvent) => {
-				// Wired in Task 6
+			onFolderRightClick: (folderId: string, event: MouseEvent) => {
+				showFolderContextMenu(event, folderId, this.model.registry, {
+					promptRenameFolder: (id) => {
+						const folder = this.model.registry.getFolderById(id);
+						if (!folder) return;
+						const newName = prompt('Rename folder:', folder.name);
+						if (newName && newName.trim() && newName.trim() !== folder.name) {
+							const ok = this.model.registry.renameFolder(id, newName.trim());
+							if (ok) {
+								this.model.saveMarkers();
+							} else {
+								new Notice('A folder with that name already exists.');
+							}
+						}
+					},
+					promptDeleteFolder: (id) => {
+						const folder = this.model.registry.getFolderById(id);
+						if (!folder) return;
+						if (confirm(`Delete folder "${folder.name}"? Codes will be moved to root.`)) {
+							this.model.registry.deleteFolder(id);
+							this.model.saveMarkers();
+						}
+					},
+				});
 			},
 			onDragModeChange: (mode: 'reorganize' | 'merge') => {
 				this.treeDragMode = mode;
@@ -293,8 +324,10 @@ export abstract class BaseCodeDetailView extends ItemView {
 					this.treeExpanded.add(parentId);
 				}
 			},
-			promptMoveTo: (_codeId: string) => {
-				new Notice('Move to: will be available in Phase B');
+			promptMoveTo: (codeId: string, folderId: string | undefined) => {
+				this.model.registry.setCodeFolder(codeId, folderId);
+				this.model.saveMarkers();
+				if (folderId) this.folderExpanded.add(folderId);
 			},
 			promptDelete: (codeId: string) => {
 				const def = this.model.registry.getById(codeId);

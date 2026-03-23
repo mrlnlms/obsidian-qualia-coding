@@ -123,6 +123,15 @@ function renderCodebookToolbar(
 	newCodeBtn.addEventListener('click', () => {
 		showNewCodeInput(toolbar, model);
 	});
+
+	// New Folder button
+	const newFolderBtn = toolbar.createEl('button', { cls: 'codebook-new-folder-btn' });
+	const folderIcon = newFolderBtn.createSpan();
+	setIcon(folderIcon, 'folder-plus');
+	newFolderBtn.createSpan({ text: 'New Folder' });
+	newFolderBtn.addEventListener('click', () => {
+		showNewFolderInput(toolbar, model);
+	});
 }
 
 function showNewCodeInput(toolbar: HTMLElement, model: SidebarModelInterface): void {
@@ -151,6 +160,34 @@ function showNewCodeInput(toolbar: HTMLElement, model: SidebarModelInterface): v
 	});
 	input.addEventListener('blur', () => {
 		// Small delay to allow Enter to fire first
+		setTimeout(() => { if (wrap.isConnected) wrap.remove(); }, 150);
+	});
+}
+
+function showNewFolderInput(toolbar: HTMLElement, model: SidebarModelInterface): void {
+	if (toolbar.querySelector('.codebook-new-folder-input-wrap')) return;
+
+	const wrap = toolbar.createDiv({ cls: 'codebook-new-folder-input-wrap' });
+	const input = wrap.createEl('input', {
+		cls: 'codebook-new-code-input',
+		attr: { type: 'text', placeholder: 'Folder name...' },
+	});
+	input.focus();
+
+	const submit = () => {
+		const name = input.value.trim();
+		if (name) {
+			model.registry.createFolder(name);
+			model.saveMarkers();
+		}
+		wrap.remove();
+	};
+
+	input.addEventListener('keydown', (e) => {
+		if (e.key === 'Enter') { e.preventDefault(); submit(); }
+		if (e.key === 'Escape') { wrap.remove(); }
+	});
+	input.addEventListener('blur', () => {
 		setTimeout(() => { if (wrap.isConnected) wrap.remove(); }, 150);
 	});
 }

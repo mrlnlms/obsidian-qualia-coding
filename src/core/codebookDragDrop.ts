@@ -17,6 +17,7 @@ export interface DragDropCallbacks {
 	/** Reparent with position: newParentId=undefined → root, insertBefore controls order. */
 	onReparent(codeId: string, newParentId: string | undefined, insertBefore?: string): void;
 	onMergeDrop(sourceId: string, targetId: string): void;
+	onMoveToFolder(codeId: string, folderId: string | undefined): void;
 	setDragMode(mode: 'reorganize' | 'merge'): void;
 	refresh(): void;
 }
@@ -34,6 +35,11 @@ export function setupDragDrop(
 		return el.closest<HTMLElement>('[data-code-id]');
 	};
 
+	const findFolderRow = (el: EventTarget | null): HTMLElement | null => {
+		if (!(el instanceof HTMLElement)) return null;
+		return el.closest<HTMLElement>('[data-folder-id]');
+	};
+
 	const getDropZone = (row: HTMLElement, clientY: number): DropZone => {
 		const rect = row.getBoundingClientRect();
 		const ratio = (clientY - rect.top) / rect.height;
@@ -43,8 +49,8 @@ export function setupDragDrop(
 	};
 
 	const clearIndicators = () => {
-		for (const el of Array.from(container.querySelectorAll('.is-drop-before, .is-drop-inside, .is-drop-after, .is-merge-target'))) {
-			el.classList.remove('is-drop-before', 'is-drop-inside', 'is-drop-after', 'is-merge-target');
+		for (const el of Array.from(container.querySelectorAll('.is-drop-before, .is-drop-inside, .is-drop-after, .is-merge-target, .is-folder-drop-target'))) {
+			el.classList.remove('is-drop-before', 'is-drop-inside', 'is-drop-after', 'is-merge-target', 'is-folder-drop-target');
 		}
 	};
 
@@ -62,6 +68,13 @@ export function setupDragDrop(
 		if (!draggedCodeId) return;
 		e.preventDefault();
 		clearIndicators();
+
+		// Check folder row
+		const folderRow = findFolderRow(e.target);
+		if (folderRow && getMode() === 'reorganize') {
+			folderRow.classList.add('is-folder-drop-target');
+			return;
+		}
 
 		const row = findRow(e.target);
 		if (!row) return;
@@ -81,6 +94,17 @@ export function setupDragDrop(
 	const onDrop = (e: DragEvent) => {
 		if (!draggedCodeId) return;
 		e.preventDefault();
+
+		// Drop on folder row
+		const folderRow = findFolderRow(e.target);
+		if (folderRow && getMode() === 'reorganize') {
+			const folderId = folderRow.dataset.folderId;
+			if (folderId && draggedCodeId) {
+				callbacks.onMoveToFolder(draggedCodeId, folderId);
+			}
+			cleanupDrag();
+			return;
+		}
 
 		const row = findRow(e.target);
 		const targetId = row?.dataset.codeId;

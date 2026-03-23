@@ -4179,3 +4179,57 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   border-radius: var(--radius-s);
 }
 .codebook-merge-search-item:hover { background: var(--background-modifier-hover); }
+
+/* ─── Folder rows ─────────────────────────────────────── */
+
+.codebook-folder-row {
+	font-weight: 500;
+}
+
+.codebook-tree-folder-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	margin-right: 4px;
+	color: var(--text-muted);
+}
+
+.codebook-folder-name {
+	color: var(--text-muted);
+}
+
+.codebook-folder-row:hover .codebook-folder-name {
+	color: var(--text-normal);
+}
+
+/* Drag-drop: folder as drop target */
+.codebook-folder-row.is-folder-drop-target {
+	background-color: var(--background-modifier-hover);
+	outline: 1px dashed var(--interactive-accent);
+	outline-offset: -1px;
+}
+
+/* New Folder button */
+.codebook-new-folder-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	color: var(--text-muted);
+	background: transparent;
+	border: none;
+	padding: 2px 6px;
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-small);
+}
+
+.codebook-new-folder-btn:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.codebook-new-folder-input-wrap {
+	padding: 4px 0;
+}

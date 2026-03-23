@@ -13,7 +13,7 @@ export interface ContextMenuCallbacks {
 	openMergeModal(codeId: string): void;
 	promptRename(codeId: string): void;
 	promptAddChild(parentId: string): void;
-	promptMoveTo(codeId: string): void;
+	promptMoveTo(codeId: string, folderId: string | undefined): void;
 	promptDelete(codeId: string): void;
 	promptColor(codeId: string): void;
 	promptDescription(codeId: string): void;
@@ -40,9 +40,30 @@ export function showCodeContextMenu(
 
 	menu.addSeparator();
 
-	menu.addItem(item =>
-		item.setTitle('Move to...').setIcon('folder-input').onClick(() => callbacks.promptMoveTo(codeId)),
-	);
+	const folders = registry.getAllFolders();
+	if (folders.length > 0) {
+		for (const folder of folders) {
+			menu.addItem(item =>
+				item.setTitle(`Move to ${folder.name}`)
+					.setIcon('folder')
+					.setChecked(def.folder === folder.id)
+					.onClick(() => callbacks.promptMoveTo(codeId, folder.id)),
+			);
+		}
+		if (def.folder) {
+			menu.addItem(item =>
+				item.setTitle('Remove from folder')
+					.setIcon('folder-minus')
+					.onClick(() => callbacks.promptMoveTo(codeId, undefined)),
+			);
+		}
+	} else {
+		menu.addItem(item =>
+			item.setTitle('Move to folder...')
+				.setIcon('folder-input')
+				.setDisabled(true),
+		);
+	}
 	if (def.parentId) {
 		menu.addItem(item =>
 			item.setTitle('Promote to top-level').setIcon('arrow-up-to-line').onClick(() => callbacks.setParent(codeId, undefined)),
@@ -68,6 +89,35 @@ export function showCodeContextMenu(
 
 	menu.addItem(item =>
 		item.setTitle('Delete').setIcon('trash-2').onClick(() => callbacks.promptDelete(codeId)),
+	);
+
+	menu.showAtMouseEvent(event);
+}
+
+export interface FolderContextMenuCallbacks {
+	promptRenameFolder(folderId: string): void;
+	promptDeleteFolder(folderId: string): void;
+}
+
+export function showFolderContextMenu(
+	event: MouseEvent,
+	folderId: string,
+	registry: CodeDefinitionRegistry,
+	callbacks: FolderContextMenuCallbacks,
+): void {
+	const folder = registry.getFolderById(folderId);
+	if (!folder) return;
+
+	const menu = new Menu();
+
+	menu.addItem(item =>
+		item.setTitle('Rename').setIcon('pencil').onClick(() => callbacks.promptRenameFolder(folderId)),
+	);
+
+	menu.addSeparator();
+
+	menu.addItem(item =>
+		item.setTitle('Delete folder').setIcon('trash-2').onClick(() => callbacks.promptDeleteFolder(folderId)),
 	);
 
 	menu.showAtMouseEvent(event);
