@@ -28,12 +28,15 @@ import {
 	renderBrowseItem,
 	renderMemoSection,
 	renderMagnitudeSection,
+	renderRelationsSection,
 	renderEnterHint,
 	positionAndClamp,
 	applyThemeColors,
 	type MemoHandle,
 	type MagnitudeHandle,
+	type RelationsHandle,
 } from './baseCodingMenu';
+import { collectAllLabels } from './relationHelpers';
 
 const MAX_RECENT = 3;
 
@@ -62,6 +65,10 @@ export interface CodingPopoverAdapter {
 	getMagnitudeForCode?(codeId: string): string | undefined;
 	/** Set magnitude value for a specific code on this marker */
 	setMagnitudeForCode?(codeId: string, value: string | undefined): void;
+	/** Get segment-level relations for a specific code on this marker */
+	getRelationsForCode?(codeId: string): Array<{ label: string; target: string; directed: boolean }>;
+	/** Set segment-level relations for a specific code on this marker */
+	setRelationsForCode?(codeId: string, relations: Array<{ label: string; target: string; directed: boolean }>): void;
 }
 
 export interface CodingPopoverOptions {
@@ -106,6 +113,8 @@ export interface CodingPopoverOptions {
 	onModalClose?: () => void;
 	/** Whether to show the magnitude section (from settings) */
 	showMagnitudeSection?: boolean;
+	/** Whether to show the relations section (from settings) */
+	showRelationsSection?: boolean;
 }
 
 export interface CodingPopoverHandle {
@@ -184,6 +193,13 @@ export function openCodingPopover(
 				.map(name => adapter.registry.getByName(name)?.id)
 				.filter((id): id is string => !!id);
 			magnitudeHandle.refresh(updatedIds);
+		}
+		if (relationsHandle) {
+			relationsHandle.updateVisibility(activeCodes.length > 0);
+			const updatedIds = activeCodes
+				.map(name => adapter.registry.getByName(name)?.id)
+				.filter((id): id is string => !!id);
+			relationsHandle.refresh(updatedIds);
 		}
 	};
 
@@ -323,6 +339,33 @@ export function openCodingPopover(
 				adapter.save();
 			},
 			activeCodes.length > 0,
+		);
+	}
+
+	// ── d3) Relations section ──
+	let relationsHandle: RelationsHandle | null = null;
+	const showRel = options.showRelationsSection !== false
+		&& adapter.getRelationsForCode
+		&& adapter.setRelationsForCode;
+
+	if (showRel) {
+		const activeCodeIds = activeCodes
+			.map(name => adapter.registry.getByName(name)?.id)
+			.filter((id): id is string => !!id);
+
+		const allLabels = collectAllLabels(adapter.registry.getAll(), []);
+
+		relationsHandle = renderRelationsSection(
+			container,
+			adapter.registry,
+			activeCodeIds,
+			(codeId) => adapter.getRelationsForCode!(codeId),
+			(codeId, relations) => {
+				adapter.setRelationsForCode!(codeId, relations);
+				adapter.save();
+			},
+			activeCodes.length > 0,
+			allLabels,
 		);
 	}
 
