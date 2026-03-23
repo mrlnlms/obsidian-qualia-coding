@@ -192,7 +192,10 @@ describe('clearAllSections', () => {
 		expect(data.audio.files).toEqual([]);
 		expect(data.video.files).toEqual([]);
 		expect(data.markdown.markers).toEqual({});
-		expect(data.registry).toEqual({ definitions: {}, nextPaletteIndex: 0 });
+		expect(data.registry.definitions).toEqual({});
+		expect(data.registry.nextPaletteIndex).toBe(0);
+		expect(data.registry.folders).toEqual({});
+		expect(data.registry.rootOrder).toEqual([]);
 	});
 
 	it('preserves per-engine settings', async () => {

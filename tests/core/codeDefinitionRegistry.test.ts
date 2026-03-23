@@ -266,6 +266,7 @@ describe('importDefinition', () => {
       paletteIndex: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      childrenOrder: [],
     };
     registry.importDefinition(def);
     expect(registry.getByName('External')).toBeDefined();
@@ -281,6 +282,7 @@ describe('importDefinition', () => {
       paletteIndex: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      childrenOrder: [],
     };
     registry.importDefinition(def);
     // Should keep original, not import ext-2

@@ -11,7 +11,7 @@
  */
 
 import { ItemView, WorkspaceLeaf, setIcon, SearchComponent, ExtraButtonComponent } from 'obsidian';
-import { BaseMarker, SidebarModelInterface } from './types';
+import { BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
 
 interface CollapsibleNode {
 	treeItem: HTMLElement;
@@ -131,8 +131,15 @@ export abstract class BaseCodeExplorerView extends ItemView {
 	private buildCodeIndex(): Map<string, Map<string, BaseMarker[]>> {
 		const index = new Map<string, Map<string, BaseMarker[]>>();
 
-		for (const code of this.model.registry.getAll()) {
-			index.set(code.name, new Map());
+		// Build in hierarchy order (roots first, then children recursively)
+		const addCode = (def: CodeDefinition) => {
+			index.set(def.name, new Map());
+			for (const child of this.model.registry.getChildren(def.id)) {
+				addCode(child);
+			}
+		};
+		for (const root of this.model.registry.getRootCodes()) {
+			addCode(root);
 		}
 
 		for (const fileId of this.model.getAllFileIds()) {
@@ -162,9 +169,24 @@ export abstract class BaseCodeExplorerView extends ItemView {
 	): Map<string, Map<string, BaseMarker[]>> {
 		if (!this.searchQuery) return index;
 		const q = this.searchQuery.toLowerCase();
+
+		// Collect matching code names + ancestor names (to preserve hierarchy context)
+		const visibleNames = new Set<string>();
+		for (const [codeName] of index) {
+			if (codeName.toLowerCase().includes(q)) {
+				visibleNames.add(codeName);
+				const def = this.model.registry.getByName(codeName);
+				if (def) {
+					for (const ancestor of this.model.registry.getAncestors(def.id)) {
+						visibleNames.add(ancestor.name);
+					}
+				}
+			}
+		}
+
 		const filtered = new Map<string, Map<string, BaseMarker[]>>();
 		for (const [codeName, fileMap] of index) {
-			if (codeName.toLowerCase().includes(q)) {
+			if (visibleNames.has(codeName)) {
 				filtered.set(codeName, fileMap);
 			}
 		}
@@ -263,8 +285,10 @@ export abstract class BaseCodeExplorerView extends ItemView {
 			const totalMarkers = Array.from(fileMap.values()).reduce((s, arr) => s + arr.length, 0);
 
 			// --- Code group (level 1) ---
+			const depth = def ? this.model.registry.getDepth(def.id) : 0;
 			const codeTreeItem = resultsEl.createDiv({ cls: 'tree-item search-result' });
 			const codeSelf = codeTreeItem.createDiv({ cls: 'tree-item-self search-result-file-title is-clickable' });
+			codeSelf.style.paddingLeft = `${depth * 18 + 4}px`;
 
 			codeSelf.createDiv({ cls: 'tree-item-icon collapse-icon' }, (el) => setIcon(el, 'right-triangle'));
 

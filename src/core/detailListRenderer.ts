@@ -1,15 +1,16 @@
 /**
  * detailListRenderer — Renders the "All Codes" list mode for BaseCodeDetailView.
  *
- * Pure rendering functions: receive container + data, produce DOM.
+ * Uses codebookTreeRenderer for hierarchical virtual-scrolled tree display.
  */
 
-import { SearchComponent } from 'obsidian';
+import { SearchComponent, setIcon } from 'obsidian';
 import type { BaseMarker, SidebarModelInterface } from './types';
+import { renderCodebookTree, type CodebookTreeCallbacks, type CodebookTreeState } from './codebookTreeRenderer';
 
-export interface ListRendererCallbacks {
-	onCodeClick(codeName: string): void;
+export interface ListRendererCallbacks extends CodebookTreeCallbacks {
 	onSearchChange(query: string): void;
+	onDragModeChange(mode: 'reorganize' | 'merge'): void;
 }
 
 /**
@@ -30,6 +31,9 @@ export function renderListShell(
 	const header = container.createDiv({ cls: 'codemarker-explorer-header' });
 	header.createSpan({ text: 'All Codes', cls: 'codemarker-explorer-title' });
 	header.createSpan({ text: `${codes.length}`, cls: 'codemarker-explorer-count' });
+
+	// Toolbar: drag mode toggle + New Code button
+	renderCodebookToolbar(container, model, callbacks);
 
 	if (codes.length === 0) {
 		container.createEl('p', { text: 'No codes yet.', cls: 'codemarker-detail-empty' });
@@ -59,46 +63,16 @@ export function renderListShell(
 }
 
 /**
- * Render the filtered code list inside the content zone.
+ * Render the hierarchical code tree inside the content zone.
  */
 export function renderListContent(
 	contentZone: HTMLElement,
 	model: SidebarModelInterface,
-	searchQuery: string,
+	treeState: CodebookTreeState,
 	callbacks: ListRendererCallbacks,
 ): void {
 	contentZone.empty();
-
-	const codes = model.registry.getAll();
-	const counts = countSegmentsPerCode(model.getAllMarkers());
-
-	// Filtered codes
-	const q = searchQuery.toLowerCase();
-	const filteredCodes = q
-		? codes.filter(def => def.name.toLowerCase().includes(q))
-		: codes;
-
-	// List
-	const list = contentZone.createDiv({ cls: 'codemarker-explorer-list' });
-	for (const def of filteredCodes) {
-		const count = counts.get(def.id) ?? 0;
-		const row = list.createDiv({ cls: 'codemarker-explorer-row' });
-
-		const swatch = row.createSpan({ cls: 'codemarker-detail-swatch' });
-		swatch.style.backgroundColor = def.color;
-
-		const info = row.createDiv({ cls: 'codemarker-explorer-row-info' });
-		info.createSpan({ text: def.name, cls: 'codemarker-explorer-row-name' });
-		if (def.description) {
-			info.createSpan({ text: def.description, cls: 'codemarker-explorer-row-desc' });
-		}
-
-		row.createSpan({ text: `${count}`, cls: 'codemarker-explorer-row-count' });
-
-		row.addEventListener('click', () => {
-			callbacks.onCodeClick(def.name);
-		});
-	}
+	renderCodebookTree(contentZone, model, treeState, callbacks);
 }
 
 /** Count how many segments reference each code (by codeId). */
@@ -110,4 +84,73 @@ export function countSegmentsPerCode(markers: BaseMarker[]): Map<string, number>
 		}
 	}
 	return counts;
+}
+
+// ─── Toolbar ─────────────────────────────────────────────
+
+function renderCodebookToolbar(
+	container: HTMLElement,
+	model: SidebarModelInterface,
+	callbacks: ListRendererCallbacks,
+): void {
+	const toolbar = container.createDiv({ cls: 'codebook-toolbar' });
+
+	// Drag mode toggle
+	const toggle = toolbar.createDiv({ cls: 'codebook-toolbar-toggle' });
+	const reorgBtn = toggle.createEl('button', { text: 'Reorganize', cls: 'codebook-toggle-btn' });
+	const mergeBtn = toggle.createEl('button', { text: 'Merge', cls: 'codebook-toggle-btn' });
+
+	const updateToggle = (mode: 'reorganize' | 'merge') => {
+		reorgBtn.toggleClass('is-active', mode === 'reorganize');
+		mergeBtn.toggleClass('is-active', mode === 'merge');
+	};
+	updateToggle('reorganize');
+
+	reorgBtn.addEventListener('click', () => {
+		callbacks.onDragModeChange('reorganize');
+		updateToggle('reorganize');
+	});
+	mergeBtn.addEventListener('click', () => {
+		callbacks.onDragModeChange('merge');
+		updateToggle('merge');
+	});
+
+	// New Code button
+	const newCodeBtn = toolbar.createEl('button', { cls: 'codebook-new-code-btn' });
+	const plusIcon = newCodeBtn.createSpan();
+	setIcon(plusIcon, 'plus');
+	newCodeBtn.createSpan({ text: 'New Code' });
+	newCodeBtn.addEventListener('click', () => {
+		showNewCodeInput(toolbar, model);
+	});
+}
+
+function showNewCodeInput(toolbar: HTMLElement, model: SidebarModelInterface): void {
+	// Check if input already open
+	if (toolbar.querySelector('.codebook-new-code-input-wrap')) return;
+
+	const wrap = toolbar.createDiv({ cls: 'codebook-new-code-input-wrap' });
+	const input = wrap.createEl('input', {
+		cls: 'codebook-new-code-input',
+		attr: { type: 'text', placeholder: 'Code name...' },
+	});
+	input.focus();
+
+	const submit = () => {
+		const name = input.value.trim();
+		if (name) {
+			model.registry.create(name);
+			model.saveMarkers();
+		}
+		wrap.remove();
+	};
+
+	input.addEventListener('keydown', (e) => {
+		if (e.key === 'Enter') { e.preventDefault(); submit(); }
+		if (e.key === 'Escape') { wrap.remove(); }
+	});
+	input.addEventListener('blur', () => {
+		// Small delay to allow Enter to fire first
+		setTimeout(() => { if (wrap.isConnected) wrap.remove(); }, 150);
+	});
 }

@@ -2,21 +2,22 @@
  * detailCodeRenderer — Renders the code-focused detail mode for BaseCodeDetailView.
  *
  * Shows all markers for a single code: header with color picker, description,
- * flat segment list, file-grouped tree, and delete button.
+ * hierarchy (parent/children), flat segment list, file-grouped tree, audit trail, and delete button.
  */
 
 import { setIcon } from 'obsidian';
 import type { BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
+import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import { hasCode } from './codeApplicationHelpers';
+import { getCountBreakdown } from './hierarchyHelpers';
 
 export interface CodeRendererCallbacks {
 	getMarkerLabel(marker: BaseMarker): string;
 	navigateToMarker(marker: BaseMarker): void;
 	shortenPath(fileId: string): string;
 	showList(): void;
-	showCodeDetail(codeName: string): void;
-	setContext(markerId: string, codeName: string): void;
-	autoRevealOnSegmentClick: boolean;
+	showCodeDetail(codeId: string): void;
+	setContext(markerId: string, codeId: string): void;
 	/** Temporarily suspend/resume model onChange listener during color editing. */
 	suspendRefresh(): void;
 	resumeRefresh(): void;
@@ -27,13 +28,14 @@ export interface CodeRendererCallbacks {
  */
 export function renderCodeDetail(
 	container: HTMLElement,
-	codeName: string,
+	codeId: string,
 	model: SidebarModelInterface,
 	callbacks: CodeRendererCallbacks,
 ): void {
-	renderBackButton(container, undefined, () => callbacks.showList());
+	renderBreadcrumb(container, codeId, model.registry, callbacks);
 
-	const def = model.registry.getByName(codeName);
+	const def = model.registry.getById(codeId);
+	const codeName = def?.name ?? codeId;
 	const color = def?.color ?? '#888';
 
 	// Header: swatch (clickable color picker) + code name
@@ -82,20 +84,34 @@ export function renderCodeDetail(
 	// Description — editable textarea
 	renderCodeDescription(container, def, model, callbacks);
 
+	// Hierarchy section (parent + children)
+	if (def) renderHierarchySection(container, def, model.registry, callbacks);
+
 	// All markers with this code (across all files)
-	const codeId = def?.id;
-	const allMarkers = codeId
-		? model.getAllMarkers().filter(m => hasCode(m.codes, codeId))
+	const allMarkers = def
+		? model.getAllMarkers().filter(m => hasCode(m.codes, def.id))
 		: [];
 
 	if (allMarkers.length === 0) {
 		container.createEl('p', { text: 'No segments yet.', cls: 'codemarker-detail-empty' });
-		if (def) renderDeleteCodeButton(container, def.name, model, callbacks);
+		if (def) {
+			renderAuditSection(container, def);
+			renderDeleteCodeButton(container, codeId, codeName, model, callbacks);
+		}
 		return;
 	}
 
+	// Segment count — hierarchy-aware
 	const segSection = container.createDiv({ cls: 'codemarker-detail-section' });
-	segSection.createEl('h6', { text: `Segments (${allMarkers.length})` });
+	const children = model.registry.getChildren(codeId);
+	if (children.length > 0) {
+		const breakdown = getCountBreakdown(codeId, model.registry, model.getAllMarkers());
+		segSection.createEl('h6', {
+			text: `Segments (${breakdown.direct} diretos \u00b7 ${breakdown.withChildren} com filhos)`,
+		});
+	} else {
+		segSection.createEl('h6', { text: `Segments (${allMarkers.length})` });
+	}
 
 	const list = segSection.createEl('ul', { cls: 'codemarker-detail-marker-list' });
 	for (const marker of allMarkers) {
@@ -120,10 +136,9 @@ export function renderCodeDetail(
 		// Text preview
 		li.createEl('span', { text: label });
 
-		// Click item -> open marker-focused detail (+ navigate if enabled)
+		// Click item -> drill-down to marker-focused detail (no navigation)
 		li.addEventListener('click', () => {
-			if (callbacks.autoRevealOnSegmentClick) callbacks.navigateToMarker(marker);
-			callbacks.setContext(marker.id, codeName);
+			callbacks.setContext(marker.id, codeId);
 		});
 		li.addEventListener('mouseenter', () => {
 			model.setHoverState(marker.id, codeName);
@@ -134,11 +149,14 @@ export function renderCodeDetail(
 	}
 
 	// Segments by file (tree grouped by file)
-	renderSegmentsByFile(container, allMarkers, codeName, model, callbacks);
+	renderSegmentsByFile(container, allMarkers, codeId, codeName, model, callbacks);
+
+	// Audit trail (mergedFrom)
+	if (def) renderAuditSection(container, def);
 
 	// Delete code — at the bottom, after all content
 	if (def) {
-		renderDeleteCodeButton(container, def.name, model, callbacks);
+		renderDeleteCodeButton(container, codeId, codeName, model, callbacks);
 	}
 }
 
@@ -147,6 +165,7 @@ export function renderCodeDetail(
 function renderSegmentsByFile(
 	container: HTMLElement,
 	allMarkers: BaseMarker[],
+	codeId: string,
 	codeName: string,
 	model: SidebarModelInterface,
 	callbacks: CodeRendererCallbacks,
@@ -183,8 +202,7 @@ function renderSegmentsByFile(
 			matchEl.dataset.markerId = marker.id;
 			matchEl.textContent = label;
 			matchEl.addEventListener('click', () => {
-				if (callbacks.autoRevealOnSegmentClick) callbacks.navigateToMarker(marker);
-				callbacks.setContext(marker.id, codeName);
+				callbacks.setContext(marker.id, codeId);
 			});
 			matchEl.addEventListener('mouseenter', () => {
 				model.setHoverState(marker.id, codeName);
@@ -240,6 +258,7 @@ function renderCodeDescription(
 
 function renderDeleteCodeButton(
 	container: HTMLElement,
+	codeId: string,
 	codeName: string,
 	model: SidebarModelInterface,
 	callbacks: CodeRendererCallbacks,
@@ -258,7 +277,7 @@ function renderDeleteCodeButton(
 		const cancelBtn = actions.createEl('button', { text: 'Cancel' });
 
 		confirmBtn.addEventListener('click', () => {
-			model.deleteCode(codeName);
+			model.deleteCode(codeId);
 			callbacks.showList();
 		});
 		cancelBtn.addEventListener('click', () => {
@@ -268,7 +287,41 @@ function renderDeleteCodeButton(
 	});
 }
 
-// ─── Shared: back button ────────────────────────────────
+// ─── Breadcrumb ─────────────────────────────────────────
+
+/**
+ * Render hierarchy-aware breadcrumb: ← Codebook › Parent Name
+ * Current code name is shown in the header below, not repeated here.
+ */
+export function renderBreadcrumb(
+	container: HTMLElement,
+	codeId: string,
+	registry: CodeDefinitionRegistry,
+	callbacks: Pick<CodeRendererCallbacks, 'showList' | 'showCodeDetail'>,
+): void {
+	const nav = container.createDiv({ cls: 'codemarker-detail-breadcrumb' });
+
+	// ← Codebook (always)
+	const rootLink = nav.createSpan({ cls: 'codemarker-detail-breadcrumb-link' });
+	const icon = rootLink.createSpan();
+	setIcon(icon, 'arrow-left');
+	rootLink.createSpan({ text: 'Codebook' });
+	rootLink.addEventListener('click', () => callbacks.showList());
+
+	// › Parent (if has parent)
+	const def = registry.getById(codeId);
+	if (def?.parentId) {
+		const parentDef = registry.getById(def.parentId);
+		if (parentDef) {
+			nav.createSpan({ cls: 'codemarker-detail-breadcrumb-sep', text: '\u203a' });
+			const parentLink = nav.createSpan({
+				cls: 'codemarker-detail-breadcrumb-link',
+				text: parentDef.name,
+			});
+			parentLink.addEventListener('click', () => callbacks.showCodeDetail(parentDef.id));
+		}
+	}
+}
 
 /** Render the back-navigation button. Exported for use by marker renderer too. */
 export function renderBackButton(container: HTMLElement, label?: string, callback?: () => void) {
@@ -280,4 +333,65 @@ export function renderBackButton(container: HTMLElement, label?: string, callbac
 	back.addEventListener('click', () => {
 		if (callback) callback();
 	});
+}
+
+// ─── Hierarchy section ──────────────────────────────────
+
+function renderHierarchySection(
+	container: HTMLElement,
+	def: CodeDefinition,
+	registry: CodeDefinitionRegistry,
+	callbacks: Pick<CodeRendererCallbacks, 'showCodeDetail'>,
+): void {
+	const parentDef = def.parentId ? registry.getById(def.parentId) : undefined;
+	const children = registry.getChildren(def.id);
+
+	// Only render if there is hierarchy to show
+	if (!parentDef && children.length === 0) return;
+
+	const section = container.createDiv({ cls: 'codemarker-detail-section' });
+	section.createEl('h6', { text: 'Hierarchy' });
+
+	if (parentDef) {
+		const parentRow = section.createDiv({ cls: 'codemarker-detail-hierarchy-row' });
+		parentRow.createSpan({ cls: 'codemarker-detail-hierarchy-label', text: 'Parent:' });
+		const parentLink = parentRow.createSpan({ cls: 'codemarker-detail-hierarchy-link' });
+		const dot = parentLink.createSpan({ cls: 'codemarker-detail-chip-dot' });
+		dot.style.backgroundColor = parentDef.color;
+		parentLink.createSpan({ text: parentDef.name });
+		parentLink.addEventListener('click', () => callbacks.showCodeDetail(parentDef.id));
+	}
+
+	if (children.length > 0) {
+		const childRow = section.createDiv({ cls: 'codemarker-detail-hierarchy-row' });
+		childRow.createSpan({ cls: 'codemarker-detail-hierarchy-label', text: 'Children:' });
+		const chips = childRow.createDiv({ cls: 'codemarker-detail-chips' });
+		for (const child of children) {
+			const chip = chips.createEl('span', { cls: 'codemarker-detail-chip' });
+			const dot = chip.createSpan({ cls: 'codemarker-detail-chip-dot' });
+			dot.style.backgroundColor = child.color;
+			chip.createSpan({ text: child.name });
+			chip.addEventListener('click', () => callbacks.showCodeDetail(child.id));
+		}
+	}
+}
+
+// ─── Audit section ──────────────────────────────────────
+
+function renderAuditSection(container: HTMLElement, def: CodeDefinition): void {
+	const hasMerged = def.mergedFrom && def.mergedFrom.length > 0;
+	if (!hasMerged) return;
+
+	const section = container.createDiv({ cls: 'codemarker-detail-section' });
+	section.createEl('h6', { text: 'Audit' });
+	section.createEl('p', {
+		text: `Merged from ${def.mergedFrom!.length} code(s)`,
+		cls: 'codemarker-detail-audit-text',
+	});
+	if (def.createdAt) {
+		section.createEl('p', {
+			text: `Created: ${new Date(def.createdAt).toLocaleDateString()}`,
+			cls: 'codemarker-detail-audit-text',
+		});
+	}
 }
