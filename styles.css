@@ -4233,3 +4233,51 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 .codebook-new-folder-input-wrap {
 	padding: 4px 0;
 }
+
+/* ── Magnitude config (code detail level 2) ── */
+.codemarker-detail-magnitude-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.codemarker-detail-magnitude-header h6 {
+	margin: 0;
+}
+.codemarker-detail-magnitude-body {
+	margin-top: var(--size-4-1);
+}
+.codemarker-detail-magnitude-type-row,
+.codemarker-detail-magnitude-values {
+	margin-bottom: var(--size-4-2);
+}
+.codemarker-detail-magnitude-label {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	margin-right: var(--size-4-1);
+}
+.codemarker-detail-magnitude-select {
+	font-size: var(--font-ui-small);
+}
+.codemarker-detail-magnitude-value-chip {
+	cursor: default;
+}
+.codemarker-detail-magnitude-value-chip .codemarker-detail-magnitude-remove {
+	margin-left: 4px;
+	cursor: pointer;
+	opacity: 0.6;
+}
+.codemarker-detail-magnitude-value-chip .codemarker-detail-magnitude-remove:hover {
+	opacity: 1;
+}
+.codemarker-detail-magnitude-add-row {
+	margin-top: var(--size-2-1);
+}
+.codemarker-detail-magnitude-add-input {
+	width: 100%;
+	font-size: var(--font-ui-small);
+	padding: var(--size-2-1) var(--size-4-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}

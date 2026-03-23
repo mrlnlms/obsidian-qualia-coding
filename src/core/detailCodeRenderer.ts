@@ -5,7 +5,7 @@
  * hierarchy (parent/children), flat segment list, file-grouped tree, audit trail, and delete button.
  */
 
-import { setIcon } from 'obsidian';
+import { setIcon, ToggleComponent } from 'obsidian';
 import type { BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import { hasCode } from './codeApplicationHelpers';
@@ -86,6 +86,9 @@ export function renderCodeDetail(
 
 	// Hierarchy section (parent + children)
 	if (def) renderHierarchySection(container, def, model.registry, callbacks);
+
+	// Magnitude config
+	if (def) renderMagnitudeConfigSection(container, def, model, callbacks);
 
 	// All markers with this code (across all files)
 	const allMarkers = def
@@ -374,6 +377,119 @@ function renderHierarchySection(
 			chip.addEventListener('click', () => callbacks.showCodeDetail(child.id));
 		}
 	}
+}
+
+// ─── Magnitude config section ────────────────────────────
+
+function renderMagnitudeConfigSection(
+	container: HTMLElement,
+	def: CodeDefinition,
+	model: SidebarModelInterface,
+	callbacks: Pick<CodeRendererCallbacks, 'suspendRefresh' | 'resumeRefresh'>,
+): void {
+	const section = container.createDiv({ cls: 'codemarker-detail-section codemarker-detail-magnitude-config' });
+
+	// Header: "Magnitude" with toggle
+	const headerRow = section.createDiv({ cls: 'codemarker-detail-magnitude-header' });
+	headerRow.createEl('h6', { text: 'Magnitude' });
+
+	const enabled = !!def.magnitude;
+
+	const toggleEl = new ToggleComponent(headerRow);
+	toggleEl.setValue(enabled);
+
+	// Config body (only if enabled)
+	const body = section.createDiv({ cls: 'codemarker-detail-magnitude-body' });
+	body.style.display = enabled ? '' : 'none';
+
+	const renderBody = () => {
+		body.empty();
+		if (!def.magnitude) return;
+
+		// Type selector
+		const typeRow = body.createDiv({ cls: 'codemarker-detail-magnitude-type-row' });
+		typeRow.createSpan({ text: 'Type:', cls: 'codemarker-detail-magnitude-label' });
+		const select = typeRow.createEl('select', { cls: 'dropdown codemarker-detail-magnitude-select' });
+		for (const t of ['nominal', 'ordinal', 'continuous'] as const) {
+			const opt = select.createEl('option', { text: t, attr: { value: t } });
+			if (t === def.magnitude.type) opt.selected = true;
+		}
+		select.addEventListener('change', () => {
+			if (!def.magnitude) return;
+			def.magnitude.type = select.value as 'nominal' | 'ordinal' | 'continuous';
+			def.updatedAt = Date.now();
+			model.registry.update(def.id, { magnitude: def.magnitude });
+			model.saveMarkers();
+		});
+
+		// Values chips + add input
+		const valuesSection = body.createDiv({ cls: 'codemarker-detail-magnitude-values' });
+		valuesSection.createSpan({ text: 'Values:', cls: 'codemarker-detail-magnitude-label' });
+
+		const chipList = valuesSection.createDiv({ cls: 'codemarker-detail-chips' });
+		for (const val of def.magnitude.values) {
+			const chip = chipList.createEl('span', { cls: 'codemarker-detail-chip codemarker-detail-magnitude-value-chip' });
+			chip.createSpan({ text: val });
+			const removeBtn = chip.createSpan({ cls: 'codemarker-detail-magnitude-remove' });
+			setIcon(removeBtn, 'x');
+			removeBtn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				if (!def.magnitude) return;
+				def.magnitude.values = def.magnitude.values.filter(v => v !== val);
+				def.updatedAt = Date.now();
+				model.registry.update(def.id, { magnitude: def.magnitude });
+				model.saveMarkers();
+				renderBody();
+			});
+		}
+
+		// Add value input
+		const addRow = valuesSection.createDiv({ cls: 'codemarker-detail-magnitude-add-row' });
+		const addInput = addRow.createEl('input', {
+			cls: 'codemarker-detail-magnitude-add-input',
+			attr: { type: 'text', placeholder: 'Add value...' },
+		});
+		addInput.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				const val = addInput.value.trim();
+				if (!val || !def.magnitude) return;
+				if (def.magnitude.values.includes(val)) return;
+				def.magnitude.values.push(val);
+				def.updatedAt = Date.now();
+				model.registry.update(def.id, { magnitude: def.magnitude });
+				model.saveMarkers();
+				renderBody();
+			}
+			e.stopPropagation();
+		});
+		addInput.addEventListener('focus', () => callbacks.suspendRefresh());
+		addInput.addEventListener('blur', () => callbacks.resumeRefresh());
+	};
+
+	toggleEl.onChange((value) => {
+		if (value) {
+			model.registry.update(def.id, { magnitude: { type: 'nominal', values: [] } });
+		} else {
+			// Clear magnitude from all markers that use this code
+			for (const marker of model.getAllMarkers()) {
+				const ca = marker.codes.find(c => c.codeId === def.id);
+				if (ca?.magnitude !== undefined) {
+					ca.magnitude = undefined;
+					marker.updatedAt = Date.now();
+				}
+			}
+			model.registry.update(def.id, { magnitude: undefined });
+		}
+		model.saveMarkers();
+		body.style.display = value ? '' : 'none';
+		// Re-read def since update() modified it
+		const updated = model.registry.getById(def.id);
+		if (updated) Object.assign(def, updated);
+		renderBody();
+	});
+
+	if (enabled) renderBody();
 }
 
 // ─── Audit section ──────────────────────────────────────
