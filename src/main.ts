@@ -1,8 +1,9 @@
-import { Plugin } from 'obsidian';
+import { Plugin, FileView, type View } from 'obsidian';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
 import { CaseVariablesRegistry } from './core/caseVariables/caseVariablesRegistry';
+import { openPropertiesPopover } from './core/caseVariables/propertiesPopover';
 import type { EngineCleanup } from './core/types';
 import { BaseCodeDetailView } from './core/baseCodeDetailView';
 import { clearFileInterceptRules } from './core/fileInterceptor';
@@ -36,6 +37,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	sharedRegistry!: CodeDefinitionRegistry;
 	caseVariablesRegistry!: CaseVariablesRegistry;
 	private cleanups: EngineCleanup[] = [];
+	private caseVariablesViewListeners = new WeakMap<View, () => void>();
 	updateFileMarkersEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
 	setFileIdEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
 	markdownModel?: import('./markdown/models/codeMarkerModel').CodeMarkerModel;
@@ -66,6 +68,12 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.caseVariablesRegistry = new CaseVariablesRegistry(this.app, this.dataManager);
 		await this.caseVariablesRegistry.initialize();
 		this.cleanups.push(() => this.caseVariablesRegistry.unload());
+
+		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
+			if (leaf?.view instanceof FileView) {
+				this.addCaseVariablesActionToView(leaf.view);
+			}
+		}));
 
 		this.addSettingTab(new QualiaSettingTab(this.app, this));
 
@@ -196,6 +204,38 @@ export default class QualiaCodingPlugin extends Plugin {
 				this.app.workspace.revealLeaf(leaf);
 			}
 		}
+	}
+
+	private addCaseVariablesActionToView(view: FileView): void {
+		if ((view as unknown as { _caseVariablesActionAdded?: boolean })._caseVariablesActionAdded) return;
+		const file = view.file;
+		if (!file) return;
+		const fileId = file.path;
+
+		const button = view.addAction('clipboard-list', 'Case Variables', () => {
+			openPropertiesPopover(button, {
+				fileId,
+				registry: this.caseVariablesRegistry,
+			});
+		});
+
+		const updateBadge = () => {
+			try {
+				if (!button.isConnected) return;
+				const count = Object.keys(this.caseVariablesRegistry.getVariables(fileId)).length;
+				button.toggleClass('has-properties', count > 0);
+				button.setAttribute('data-count', String(count));
+			} catch {
+				// button may be disconnected during view teardown; no-op
+			}
+		};
+		updateBadge();
+
+		const listener = () => updateBadge();
+		this.caseVariablesRegistry.addOnMutate(listener);
+		this.caseVariablesViewListeners.set(view, listener);
+
+		(view as unknown as { _caseVariablesActionAdded?: boolean })._caseVariablesActionAdded = true;
 	}
 
 	async onunload() {
