@@ -2,6 +2,7 @@ import { Plugin } from 'obsidian';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
+import { CaseVariablesRegistry } from './core/caseVariables/caseVariablesRegistry';
 import type { EngineCleanup } from './core/types';
 import { BaseCodeDetailView } from './core/baseCodeDetailView';
 import { clearFileInterceptRules } from './core/fileInterceptor';
@@ -33,6 +34,7 @@ import type { VideoCodingModel } from './video/videoCodingModel';
 export default class QualiaCodingPlugin extends Plugin {
 	dataManager!: DataManager;
 	sharedRegistry!: CodeDefinitionRegistry;
+	caseVariablesRegistry!: CaseVariablesRegistry;
 	private cleanups: EngineCleanup[] = [];
 	updateFileMarkersEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
 	setFileIdEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
@@ -59,6 +61,11 @@ export default class QualiaCodingPlugin extends Plugin {
 			this.dataManager.setSection('registry', this.sharedRegistry.toJSON());
 			document.dispatchEvent(new Event('qualia:registry-changed'));
 		});
+
+		// Case Variables registry — per-file typed properties (like Obsidian Properties for binaries)
+		this.caseVariablesRegistry = new CaseVariablesRegistry(this.app, this.dataManager);
+		await this.caseVariablesRegistry.initialize();
+		this.cleanups.push(() => this.caseVariablesRegistry.unload());
 
 		this.addSettingTab(new QualiaSettingTab(this.app, this));
 
