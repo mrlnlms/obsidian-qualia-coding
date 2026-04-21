@@ -1,6 +1,6 @@
 # Qualia Coding — Roadmap
 
-> Todas as features planejadas mas ainda não implementadas, organizadas por prioridade e escopo. Items concluídos estão documentados em `HISTORY.md`.
+> Todas as features planejadas mas ainda não implementadas, organizadas por prioridade e escopo.
 
 ---
 
@@ -14,13 +14,11 @@ Implementado nas Fases A, B, C do Codebook Evolution:
 - **Fase A**: `parentId`, `childrenOrder`, `mergedFrom` no CodeDefinition. Registry com getRootCodes, getChildren, getAncestors, getDescendants, setParent (com deteccao de ciclo). Codebook Panel com 3 niveis (lista → codigo → segmento), virtual scrolling, drag-drop (reorganizar/merge), context menu, MergeModal com busca fuzzy
 - **Fase B**: Pastas virtuais — `folder?` no CodeDefinition, `FolderDefinition` no registry. Pastas sao containers organizacionais SEM significado analitico. Drag-drop em pastas, context menu (Rename, Delete), "New Folder" no toolbar
 
-Spec completo: `docs/superpowers/specs/2026-03-22-codebook-evolution-design.md`
-
 ---
 
 ### 2. Parquet — Evolução futura
 
-**Status**: Suporte básico já implementado (`hyparquet` + `parseTabularFile()` + `registerExtensions(['csv', 'parquet'])`). Ver `HISTORY.md` para detalhes da implementação.
+**Status**: Suporte básico já implementado (`hyparquet` + `parseTabularFile()` + `registerExtensions(['csv', 'parquet'])`).
 
 **Problema atual**: Lê arquivo inteiro pra memória. Datasets grandes (ex: export Qualtrics 2M rows) crasham o Obsidian (~500MB-2GB de memória, main thread bloqueada).
 
@@ -259,7 +257,7 @@ Implementado nos dois engines de texto que renderizam highlights por range:
 - UX precisa de grip dots ou indicador visual mais forte
 
 **Dependência: scrollDOM stacking context** (audit 2026-03-19):
-O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para drag handles de markers. O resize handle precisa coexistir no mesmo container. Análise completa com escala de z-index proposta e pré-requisitos está em `BACKLOG.md § z-index conflicts + análise de stacking no scrollDOM`. Os dois itens devem ser atacados na mesma sessão.
+O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para drag handles de markers. O resize handle precisa coexistir no mesmo container. Os dois itens (z-index conflicts + resize handle) devem ser atacados na mesma sessão.
 
 **Alternativas**:
 - CSS native `resize: horizontal` no panel

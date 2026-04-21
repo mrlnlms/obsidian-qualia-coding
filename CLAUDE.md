@@ -169,18 +169,29 @@ src/
 
 ## Docs
 
+Docs publicos (repo):
 - `docs/ARCHITECTURE.md` — arquitetura detalhada
 - `docs/TECHNICAL-PATTERNS.md` — padroes recorrentes
 - `docs/DEVELOPMENT.md` — guia de desenvolvimento
 - `docs/ROADMAP.md` — roadmap do plugin
-- `docs/BACKLOG.md` — divida tecnica e oportunidades de refactor
+- `docs/DESIGN-PRINCIPLES.md` — principios de design do produto
+- `docs/DESIGN-STORY.md` — fundamentacao teorica do design
+
+Docs internos (fora do repo, em `obsidian-qualia-coding/plugin-docs/`):
+- `HISTORY.md`, `PREHISTORY.md` — historia e pre-historia
+- `BACKLOG.md` — divida tecnica e oportunidades de refactor
+- `NEXT-STEPS.md` — visao operacional do que esta pendente
+- `archive/` — plans arquivados, roadmaps antigos, vision docs
+- `superpowers/` — specs e plans gerados por skills
+- `pm/`, `research/`, `ORG ANTIGOS/` — material de PM, research, historico
 
 ### Atualizacao obrigatoria apos cada feature
 
 Ao concluir implementacao de uma feature ou fase, atualizar docs afetados:
-- `ROADMAP.md` — marcar items feitos, adicionar novos
-- `BACKLOG.md` — nova divida tecnica, remover resolvidos
-- `CLAUDE.md` — estrutura de arquivos, convencoes, contagem de testes/suites
-- `ARCHITECTURE.md` — novos modulos e fluxos
-- `TECHNICAL-PATTERNS.md` — padroes novos descobertos
-- `DEVELOPMENT.md` — novos commands, settings, fluxos
+- `ROADMAP.md` (repo) — marcar items feitos, adicionar novos
+- `BACKLOG.md` (workspace) — nova divida tecnica, remover resolvidos
+- `HISTORY.md` (workspace) — registrar conclusao
+- `CLAUDE.md` (repo, gitignored) — estrutura de arquivos, convencoes, contagem de testes/suites
+- `ARCHITECTURE.md` (repo) — novos modulos e fluxos
+- `TECHNICAL-PATTERNS.md` (repo) — padroes novos descobertos
+- `DEVELOPMENT.md` (repo) — novos commands, settings, fluxos

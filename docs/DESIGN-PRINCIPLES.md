@@ -87,7 +87,7 @@ How the design values translate into concrete interaction and engineering decisi
 | Custom events, not forced navigation | `qualia-image:navigate`, `qualia-audio:navigate` etc. — sidebar sends events, engines decide how to respond | Content views control their own scroll/focus |
 | Selection preview preserves context | `setSelectionPreviewEffect` creates temporary decoration simulating the selection when focus moves to tooltip | Researcher sees what they selected even after focus shifts |
 
-**Historical lesson:** The "Stacked Label Click Bug" (HISTORY.md) was caused by `revealLeaf()` stealing focus → CM6 removing `cm-focused` → MutationObserver triggering a render loop. The 3-layer fix (self-suppression + hover fallback + remove revealLeaf on existing leaves) established this as an inviolable rule.
+**Historical lesson:** The "Stacked Label Click Bug" was caused by `revealLeaf()` stealing focus → CM6 removing `cm-focused` → MutationObserver triggering a render loop. The 3-layer fix (self-suppression + hover fallback + remove revealLeaf on existing leaves) established this as an inviolable rule.
 
 ### 2.2 Visual Information Density
 
@@ -115,7 +115,7 @@ How the design values translate into concrete interaction and engineering decisi
 | Feature detection over version checks | `getTextLayerInfo()` for PDF.js text layer compat (`TECHNICAL-PATTERNS.md §7.1`) | Survives Obsidian updates that change PDF.js version |
 | Phantom marker prevention | `findExistingMarker()` (read-only) vs `findOrCreateMarker()` (creates on demand) — all 6 engines | No empty markers from cancelled operations |
 
-**Historical lesson:** The "Dark Mode Breakthrough" (HISTORY.md) was discovering that CSS variables don't cascade into CM6 tooltips (isolated DOM). Three approaches failed before `getComputedStyle(document.body)` → inline styles solved it permanently. This lesson generalized into the principle: never rely on cascade for contexts outside the main DOM tree.
+**Historical lesson:** The "Dark Mode Breakthrough" was discovering that CSS variables don't cascade into CM6 tooltips (isolated DOM). Three approaches failed before `getComputedStyle(document.body)` → inline styles solved it permanently. This lesson generalized into the principle: never rely on cascade for contexts outside the main DOM tree.
 
 ### 2.4 Unified but Modular
 
@@ -130,7 +130,7 @@ How the design values translate into concrete interaction and engineering decisi
 | Engine registration pattern | Each engine exports `registerXxxEngine() → EngineCleanup`; `main.ts` orchestrates (~85 LOC) | Adding an engine = implementing interfaces, not modifying core |
 | `drawToolbarFactory` shared across engines | `drawToolbarFactory.ts:32` — `createDrawToolbar(parent, buttons, config)` serves PDF and Image with identical UX | Adding a drawing tool = one factory change, two engines updated |
 
-**The consolidation proof:** 7 separate plugins (each with their own CodeDefinitionRegistry, CodeFormModal, sidebar views, settings tabs) were merged into 1. Deduplication results: 83% reduction in registry code, 80% in form code, 68% in sidebar code, 100% elimination of SharedRegistry file sync (HISTORY.md §Fase 3).
+**The consolidation proof:** 7 separate plugins (each with their own CodeDefinitionRegistry, CodeFormModal, sidebar views, settings tabs) were merged into 1. Deduplication results: 83% reduction in registry code, 80% in form code, 68% in sidebar code, 100% elimination of SharedRegistry file sync.
 
 ### 2.5 Graceful State Management
 
@@ -510,7 +510,7 @@ Before migrating handles from `Decoration.widget` to overlay divs, a frozen vers
 
 ### 6.5 Margin Panel Evolution (7 Commits)
 
-The margin panel went through 7 iterations (HISTORY.md §2026-02-17):
+The margin panel went through 7 iterations:
 1. Prototype: fixed bars
 2. Collision avoidance for labels
 3. Dynamic width with RLL adaptation
@@ -619,6 +619,5 @@ These are not arbitrary rules — each was established after a specific failure 
 | `src/image/canvas/regionDrawing.ts` | Drawing state machine |
 | `styles.css` | Namespacing, blend modes, z-index values, opacity system |
 | `CLAUDE.md` | Inviolable rules (= principles encoded as constraints) |
-| `docs/HISTORY.md` | Design evolution, decision moments |
 | `docs/ARCHITECTURE.md` | Architectural rationale, visual approach analysis |
 | `docs/TECHNICAL-PATTERNS.md` | Gotchas (= implicit principles via negative examples) |

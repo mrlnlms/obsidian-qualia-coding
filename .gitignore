@@ -5,7 +5,6 @@ data.json
 .DS_Store
 .obsidian-cache/
 CLAUDE.md
-docs/archive/
 coverage/
 .claude/
 test/screenshots/actual/

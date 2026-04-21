@@ -536,7 +536,7 @@ Reavaliável apenas se Obsidian mudar seu sistema de carregamento de plugins par
 | **data.json com vaults grandes** (Codex) | Persistência monolítica pode virar gargalo com centenas de markers densos | JSON suficiente para volume QDA típico; caminho de migração mantido aberto (§3.4) |
 | **Registry rename collision** (Codex) | ~~`update()` sem guard~~ | **FEITO** — guard rejeita rename se nome existe (+4 testes) |
 | **Clear All Markers lifecycle** (Codex) | ~~Board, Image, Analytics, models em memória não limpavam~~ | **FEITO** — evento `qualia:clear-all` + `clearAll()` nos models + `clearBoard()` |
-| **FileInterceptor destrói multi-pane** (Codex) | `leaf.detach()` + singleton leaf por engine — quebra workflow nativo | Bug de UX. Ref: mirror-notes viewId pattern. Ver BACKLOG.md |
+| **FileInterceptor destrói multi-pane** (Codex) | `leaf.detach()` + singleton leaf por engine — quebra workflow nativo | Bug de UX. Ref: mirror-notes viewId pattern. |
 | **CI coverage** (Codex) | ~~thresholds não eram gate real~~ | **FEITO** — `vitest run --coverage` no CI, thresholds 30/25/30/30 |
 | **View readiness** (Codex) | Race conditions em Board e Image por falta de contrato de readiness | **FEITO** — Two-phase: polling descobre a view (max 500ms), `waitUntilReady()` promise garante que canvas/dados estão prontos. Error paths resolvem via `try/finally` (Board) e `catch` (Image). Load race em Image prevenido por generation counter. |
 
