@@ -320,9 +320,9 @@ CSS overrides via `.ag-theme-quartz { --ag-background-color: ... }` do NOT work 
 
 ---
 
-## 7. PDF Engine Internals
+## 4. PDF Engine Internals
 
-### 7.1 Margin Panel "Page Push" Architecture
+### 4.1 Margin Panel "Page Push" Architecture
 ```
 containerEl (position: relative)
 ├── codemarker-pdf-label-overlay (absolute, overflow hidden)
@@ -332,18 +332,18 @@ containerEl (position: relative)
 ```
 Panels rendered in page divs then MOVED to overlay. Scroll sync via translateY(-scrollTop). Thumbnail sidebar compat via offsetLeft calculation.
 
-### 7.2 Highlight Geometry Dual Path
+### 4.2 Highlight Geometry Dual Path
 Strategy A: chars-level via `item.chars` array (Obsidian PDF.js customization) — `computeHighlightRectForItemFromChars`
 Strategy B: DOM Range fallback via `getBoundingClientRect()` → convert back to PDF coords — `computeHighlightRectForItemFromTextLayer`
 Same-line merging: `areRectanglesMergeable()` (horizontal adjacency + vertical overlap threshold)
 
-### 7.3 Coordinate Conversion (4 steps)
+### 4.3 Coordinate Conversion (4 steps)
 1. Read `pageView.pdfPage.view` (viewBox: `[x0, y0, x1, y1]`)
 2. Mirror Y axis: `viewBox[3] - rect[y] + viewBox[1]`
 3. Normalize to `[left, top, right, bottom]`
 4. Express as CSS percentages relative to page dimensions
 
-### 7.4 SVG Drawing Overlay
+### 4.4 SVG Drawing Overlay
 - `viewBox="0 0 100 100"` + coords as CSS percentages → scales with zoom
 - Z-index 4 (between highlight layer 3 and annotation layer 5)
 - Rect/Ellipse: drag-to-draw; Polygon: click-to-place, double-click to finish
@@ -351,24 +351,24 @@ Same-line merging: `areRectanglesMergeable()` (horizontal adjacency + vertical o
 - Data: `PdfShapeMarker` with `NormalizedShapeCoords` (rect/ellipse/polygon union)
 - Storage: `shapes[]` array alongside `markers[]`
 
-### 7.5 Highlight Interaction Model
+### 4.5 Highlight Interaction Model
 - Hover → native Obsidian tooltip (`setTooltip`) showing code names
 - Click → opens Code Detail sidebar
 - Double-click → opens coding popover
 - Highlight layer `pointer-events: none`, individual rects `pointer-events: auto`
 
-### 7.6 View Instrumentation
+### 4.6 View Instrumentation
 - `active-leaf-change` detects PDF views (`getViewType() === 'pdf'`)
 - `view.viewer.then(child => ...)` waits for PDFViewerChild
 - `Map<PDFViewerChild, PdfPageObserver>` tracks observers
 - `cleanupOrphanedObservers()` on `layout-change`
 
-### 7.7 Lazy Page Rendering
+### 4.7 Lazy Page Rendering
 - `textlayerrendered` event → render highlights for that page
 - `pagerendered` event → re-render after zoom (100ms delay for text layer rebuild)
 - `refreshAll()` only iterates pages with `data-loaded` attribute
 
-### 7.8 PDF Undo Stack
+### 4.8 PDF Undo Stack
 
 O `PdfCodingModel` tem um **undo stack** limitado a 50 entries com 4 tipos de operação:
 - `addCode` — código adicionado a marker
@@ -378,7 +378,7 @@ O `PdfCodingModel` tem um **undo stack** limitado a 50 entries com 4 tipos de op
 
 Flag `suppressUndo` previne registro durante operações programáticas (e.g., redo). Sem saber desse stack, modificar o PDF model pode causar memory leaks (stack unbounded) ou perda de undo.
 
-### 7.9 PDF Page Navigation
+### 4.9 PDF Page Navigation
 
 ```typescript
 // Navigate to specific page:
@@ -387,7 +387,7 @@ app.workspace.openLinkText('', file.path, false, { eState: { subpath: '#page=3' 
 leaf.openFile(file, { eState: { subpath: '#page=N' } });
 ```
 
-### 7.10 PDF Data Schema
+### 4.10 PDF Data Schema
 ```typescript
 PdfMarker { id, fileId, page, beginIndex, beginOffset, endIndex, endOffset, text, codes[], memo?, createdAt, updatedAt }
 PdfShapeMarker { id, fileId, page, shape: 'rect'|'ellipse'|'polygon', coords: NormalizedShapeCoords, codes[], memo?, createdAt, updatedAt }
@@ -395,12 +395,12 @@ PdfShapeMarker { id, fileId, page, shape: 'rect'|'ellipse'|'polygon', coords: No
 
 ---
 
-## 8. Audio/Video Engine Internals
+## 5. Audio/Video Engine Internals
 
-### 8.1 Vertical Lanes Algorithm
+### 5.1 Vertical Lanes Algorithm
 Sort by start time, then duration descending. Greedy lane assignment: first lane where `laneEnd <= marker.from`. CSS `top: (laneIndex / totalLanes * 100)%`, `height: (1/totalLanes * 100)%`.
 
-### 8.2 Audio File Intercept
+### 5.2 Audio File Intercept
 ```typescript
 this.registerEvent(
   this.app.workspace.on('active-leaf-change', (leaf) => {
@@ -414,28 +414,28 @@ this.registerEvent(
 );
 ```
 
-### 8.3 Region Events
+### 5.3 Region Events
 - `region-created` → open coding popover
 - `region-update-end` → persist new bounds
 - `region-double-clicked` → play segment
 - `region-mouseenter/leave` → bidirectional hover
 
-### 8.4 Audio View Layout (top to bottom)
+### 5.4 Audio View Layout (top to bottom)
 Minimap → Waveform → Timeline ruler → Transport (play/pause, time, spacer, volume, speed [0.5/0.75/1/1.25/1.5/2x], zoom slider)
 
-### 8.5 Zoom/Scroll Persistence
+### 5.5 Zoom/Scroll Persistence
 `settings.fileStates[path] = { zoom, lastPosition }`. Save on unload, restore on re-open.
 
-### 8.6 Supported Formats
+### 5.6 Supported Formats
 Audio: `.mp3`, `.m4a`, `.wav`, `.ogg`, `.flac`, `.aac`
 Video: `.mp4`, `.webm`, `.ogv`
 
-### 8.7 AudioMarker Data Contract
+### 5.7 AudioMarker Data Contract
 NEVER break `{from, to}` in seconds (float). Analytics reads `data.json` directly.
 
 Marker lookup usa `TOLERANCE = 0.01` para comparação float: `Math.abs(marker.from - from) < 0.01 && Math.abs(marker.to - to) < 0.01`. Sem tolerance, floating point imprecision causa markers "não encontrados" ao reabrir popover.
 
-### 8.8 Audio Settings Slider Ranges
+### 5.8 Audio Settings Slider Ranges
 
 | Setting | Range | Step | Default |
 |---------|-------|------|---------|
@@ -445,7 +445,7 @@ Marker lookup usa `TOLERANCE = 0.01` para comparação float: `Math.abs(marker.f
 
 Color alpha dynamic: `regionOpacity` da settings aplicado como canal alpha hex na cor da region.
 
-### 8.9 Analytics Event Bridge
+### 5.9 Analytics Event Bridge
 ```typescript
 // Navigate from Analytics → Audio/Video
 workspace.trigger('codemarker-audio:seek', { file: string, seekTo: number });
@@ -454,9 +454,9 @@ workspace.trigger('codemarker-video:seek', { file: string, seekTo: number });
 
 ---
 
-## 9. esbuild & Build
+## 6. esbuild & Build
 
-### 9.1 esbuild Config
+### 6.1 esbuild Config
 ```javascript
 external: ["obsidian", "electron", ...builtinModules]
 // Do NOT externalize bundled libs (ag-grid, chart.js, fabric, etc.)
@@ -465,14 +465,14 @@ platform: "node"
 // package.json needs "type": "module" for top-level await in .mjs config
 ```
 
-### 9.2 PapaParse Import
+### 6.2 PapaParse Import
 ```typescript
 import * as Papa from "papaparse"  // NOT default export
 Papa.parse(raw, { header: true, skipEmptyLines: true })
 // Returns { data: Record<string, string>[], meta: { fields: string[] }, errors: [] }
 ```
 
-### 9.3 FileView Pattern
+### 6.3 FileView Pattern
 ```typescript
 // plugin onload:
 this.registerView(VIEW_TYPE, (leaf) => new MyView(leaf));
@@ -490,46 +490,46 @@ class MyView extends FileView {
 
 ---
 
-## 4. WaveSurfer.js v7
+## 7. WaveSurfer.js v7
 
-### 4.1 Shadow DOM Constraint
+### 7.1 Shadow DOM Constraint
 
 WaveSurfer renderiza dentro de shadow DOM. Timeline e Minimap plugins ficam **invisíveis** se renderizados dentro do shadow DOM.
 
 **Fix**: Prover `container` elements **fora** do shadow DOM para cada plugin.
 
-### 4.2 Destruction antes do Leaf Close
+### 7.2 Destruction antes do Leaf Close
 
 WaveSurfer DEVE ser destroyed antes do leaf fechar. Dangling audio contexts causam memory leaks e podem bloquear reprodução em aberturas subsequentes.
 
-### 4.3 Dark Mode
+### 7.3 Dark Mode
 
 WaveSurfer não herda CSS variables do Obsidian.
 
 **Fix**: `applyThemeColors()` lê computed styles de `document.body` no init. Listener em `css-change` event para reapliar via `ws.setOptions()`.
 
-### 4.4 ResizeObserver com try-catch
+### 7.4 ResizeObserver com try-catch
 
 Zoom reflow debounced 100ms, mas áudio pode não estar loaded ainda. try-catch obrigatório no callback do ResizeObserver.
 
-### 4.5 Inicialização
+### 7.5 Inicialização
 
 WaveSurfer deve ser inicializado **só depois** que o container DOM está mounted — não no constructor da view.
 
-### 4.6 notify() vs notifyChange()
+### 7.6 notify() vs notifyChange()
 
 - `notify()` — schedula save + dispara listeners
 - `notifyChange()` — só dispara listeners (para quando save é gerenciado separadamente, e.g., settings tab)
 
-### 4.7 Memo Textarea Pause
+### 7.7 Memo Textarea Pause
 
 Textarea de memo pausa o change listener: `offChange()` no focus, `onChange()` no blur. Previne re-render enquanto usuário digita.
 
 ---
 
-## 5. Obsidian API
+## 8. Obsidian API
 
-### 5.1 CSS Variables não Cascatam
+### 8.1 CSS Variables não Cascatam
 
 CSS vars do Obsidian (`--background-primary`, `--text-normal`, etc.) NÃO cascatam para:
 - CM6 tooltips (DOM apartado)
@@ -539,13 +539,13 @@ CSS vars do Obsidian (`--background-primary`, `--text-normal`, etc.) NÃO cascat
 
 **Fix universal**: `applyThemeColors()` + listener em `css-change`.
 
-### 5.2 revealLeaf — Nunca em Updates Automáticos
+### 8.2 revealLeaf — Nunca em Updates Automáticos
 
 `revealLeaf()` rouba foco → CM6 remove `cm-focused` → MutationObserver dispara → render loop → DOM destroyed.
 
 **Regra**: `revealLeaf()` só em ações explícitas do usuário. Para updates automáticos de sidebar, usar `setContext()` direto.
 
-### 5.3 Stacked Label Click Bug (Root Cause)
+### 8.3 Stacked Label Click Bug (Root Cause)
 
 Cascata de 5 passos:
 1. `revealLeaf()` rouba foco do editor
@@ -559,7 +559,7 @@ Cascata de 5 passos:
 2. Fallback para hover state no click (defesa contra DOM rebuilds)
 3. Remover `revealLeaf()` em leaves já existentes
 
-### 5.4 Native Components como DOM Elements
+### 8.4 Native Components como DOM Elements
 
 `TextComponent`, `ToggleComponent`, `ButtonComponent` são simples DOM elements. Podem ser criados dentro de qualquer container (CM6 tooltip, modal, sidebar, AG Grid cell).
 
@@ -571,7 +571,9 @@ const toggle = new ToggleComponent(container);
 
 **Caveat**: `(item as any).dom` é hack que pode quebrar em updates do Obsidian.
 
-### 5.5 FuzzySuggestModal
+Quick reference de componentes e DOM helpers em `DEVELOPMENT.md §6`.
+
+### 8.5 FuzzySuggestModal
 
 Modal com busca fuzzy — ideal para "Add Existing Code":
 ```typescript
@@ -582,17 +584,17 @@ class CodeSuggestModal extends FuzzySuggestModal<CodeDefinition> {
 }
 ```
 
-### 5.6 registerExtensions Conflicts
+### 8.6 registerExtensions Conflicts
 
 `registerExtensions(['mp3', 'wav', ...])` conflita com o handler nativo de áudio do Obsidian. Plugin falha ao carregar.
 
 **Fix**: Usar `active-leaf-change` interceptor para substituir a view.
 
-### 5.7 WeakSet para Double-Instrumentation
+### 8.7 WeakSet para Double-Instrumentation
 
 `WeakSet<PDFViewerChild>` garante que cada PDF viewer é instrumentado só uma vez. `mouseup` listener checa `child.unloaded` e faz self-remove para evitar memory leaks.
 
-### 5.8 PDF DOM Hierarchy
+### 8.8 PDF DOM Hierarchy
 
 ```
 containerEl
@@ -611,29 +613,17 @@ containerEl
 
 Crítico para debugging de renderização PDF.
 
-### 5.9 DOM Helpers
-- `createEl(tag, { cls, text, attr })` — create element
-- `createDiv({ cls, text })`, `createSpan()`, `createFragment()`
-- `setIcon(el, iconName)` — Lucide icon
-- `el.empty()` — clear children
-- `el.addClass()` / `el.removeClass()`
-- `DomElementInfo` interface for type-safe creation
-
-### 5.10 Layout Shifts sem CM6 Events
+### 8.9 Layout Shifts sem CM6 Events
 
 Inline title toggle e theme switches não disparam CM6 resize/viewport events. MutationObserver é necessário para detectar essas mudanças.
 
 ---
 
-## 6. Patterns Gerais
+## 9. Patterns Gerais
 
-### 6.1 Phantom Marker Prevention
+> Phantom marker prevention é descrita em `ARCHITECTURE.md §4.2`.
 
-Dois métodos internos em cada engine model (NÃO fazem parte de SidebarModelInterface):
-- `findExistingMarker()` — read-only, para hover/display
-- `findOrCreateMarker()` — cria sob demanda, só no primeiro code toggle
-
-### 6.2 Debounced Save (3 níveis)
+### 9.1 Debounced Save (3 níveis)
 
 1. **DataManager**: 500ms debounce (todos os engines)
 2. **Markdown Model**: 2s debounce adicional via `markDirtyForSave()` (específico do markdown)
@@ -641,19 +631,19 @@ Dois métodos internos em cada engine model (NÃO fazem parte de SidebarModelInt
 
 Ambos fazem `flushPendingSave()` no `onunload()`.
 
-### 6.3 Cross-Page Selection (PDF)
+### 9.2 Cross-Page Selection (PDF)
 
 Seleções que cruzam páginas no PDF são divididas em múltiplos `PdfSelectionResult` (um por página) e o popover suporta markers cross-page. A implementação anterior bloqueava essas seleções, mas o comportamento atual permite codificação cross-page com split automático.
 
-### 6.4 Synthetic Data em Testes
+### 9.3 Synthetic Data em Testes
 
 Valores hardcoded de `ch` em test data podem criar falsos positivos se `ch > comprimento real da linha`. Sempre validar contra o documento real.
 
-### 6.5 Baselines de Visual Testing
+### 9.4 Baselines de Visual Testing
 
 Baselines são resolution-dependent. Mudança de vault content, appearance, ou máquina invalida todos os baselines.
 
-### 6.6 CSV Standalone Editor Registry — Lifecycle Completo
+### 9.5 CSV Standalone Editor Registry — Lifecycle Completo
 
 O CSV segment editor usa um registry bidirecional para CM6 editors standalone:
 
@@ -675,7 +665,7 @@ Map<fileId, EditorView>      // virtual file → editor
 
 Sem entender esse sync bidirecional, editar o CSV engine pode causar perda de dados de markers.
 
-### 6.7 Registry Migration — 3 Formatos Legacy
+### 9.6 Registry Migration — 3 Formatos Legacy
 
 O `DataManager.migrateRegistries()` suporta 3 formatos de registry antigos:
 
@@ -689,7 +679,7 @@ Adicionalmente: campo legacy `codeDescriptions` (D22) é extraído e migrado par
 
 Merge rule: por `updatedAt` — mais recente ganha. `nextPaletteIndex = max(all sources)`.
 
-### 6.8 `menuMode` Setting
+### 9.7 `menuMode` Setting
 
 Setting no model que controla qual Menu Approach está ativo:
 
@@ -701,7 +691,7 @@ Setting no model que controla qual Menu Approach está ativo:
 
 Remover ou quebrar este setting travaria usuários em um approach só.
 
-### 6.9 DataManager `flush()` — Re-entrant Save
+### 9.8 DataManager `flush()` — Re-entrant Save
 
 ```
 flush():
@@ -714,7 +704,7 @@ flush():
 
 Se `markDirty()` dispara durante um save ativo, defere em vez de dropar. Sem esse pattern, saves concorrentes causam data loss.
 
-### 6.10 File Rename Tracking
+### 9.9 File Rename Tracking
 
 Todos os engines agora suportam rename via `fileInterceptor.ts` centralizado + `model.migrateFilePath()`:
 
@@ -727,7 +717,7 @@ Todos os engines agora suportam rename via `fileInterceptor.ts` centralizado + `
 | CSV | ✅ | `model.migrateFilePath()` via fileInterceptor |
 | Image | ✅ | `model.migrateFilePath()` via fileInterceptor |
 
-### 6.11 Timing Inventory (Valores Consolidados)
+### 9.10 Timing Inventory (Valores Consolidados)
 
 | Timer | Value | Where |
 |-------|-------|-------|
@@ -742,21 +732,21 @@ Todos os engines agora suportam rename via `fileInterceptor.ts` centralizado + `
 | ResizeObserver zoom debounce | 100ms | WaveSurfer views |
 | Board auto-save debounce | 2000ms | `boardSerializer.ts` |
 
-### 6.12 Image Engine — Gotchas Específicos
+### 9.11 Image Engine — Gotchas Específicos
 
 - **Keyboard shortcuts no `window`**: Image registra V/R/E/F/Del no `window`, não na view. Pode conflitar com outros plugins ou com shortcuts globais do Obsidian.
 - **Sem file rename tracking**: Renomear imagem no vault orphana todos os markers. `CSV` tem o mesmo problema.
 - **Sem memo field**: Diferente de Audio/Video, Image markers não têm `memo`.
 - **ResizeObserver ≠ fitToContainer**: O observer só redimensiona o canvas, NÃO re-fita a imagem. Fit é manual.
 
-### 6.13 Analytics `TextExtractor`
+### 9.12 Analytics `TextExtractor`
 
 Analytics tem uma classe `TextExtractor` que:
 - Cache de file reads para evitar I/O repetido
 - Suporta extração sub-line (`fromCh`/`toCh`) para markdown markers
 - Inclui CSV parser próprio (~40 LOC) separado do PapaParse — lê cells de CSV sem AG Grid
 
-### 6.14 CSS Concatenation Order
+### 9.13 CSS Concatenation Order
 
 Ordem de concat no merge (v2 wins em conflitos de especificidade):
 ```
@@ -765,7 +755,7 @@ v2 > PDF > CSV > Image > Audio > Video > Analytics
 
 Divergência conhecida: `.codemarker-code-form .cm-form-actions` — v2 usa `padding-top: 16px` + `margin-top: 8px`, outros engines usavam `margin-top: 16px`. v2 como canônico.
 
-### 6.15 Architectural Patterns (Refactor)
+### 9.14 Architectural Patterns (Refactor)
 
 Padrões estabelecidos durante o refactor de unificação:
 
@@ -773,11 +763,11 @@ Padrões estabelecidos durante o refactor de unificação:
 - **MediaCodingModel**: Base genérica (`mediaCodingModel.ts`) compartilhada entre Audio e Video. Gerencia markers, save debounce (500ms via `scheduleSave()`), e change listeners. `AudioCodingModel` e `VideoCodingModel` estendem.
 - **Module augmentation**: Typings adicionais via declaration files — `obsidian-internals.d.ts` (workspace events, internal APIs) e `fabricExtensions.d.ts` (propriedades custom em FabricObject para board nodes).
 
-----
+---
 
-## 7. Codebook Evolution Patterns
+## 10. Codebook Evolution Patterns
 
-### 7.1 Collapsible Popover Sections (Memo/Magnitude/Relations)
+### 10.1 Collapsible Popover Sections (Memo/Magnitude/Relations)
 
 Pattern for adding a collapsible section to the shared coding popover:
 
@@ -789,7 +779,7 @@ Pattern for adding a collapsible section to the shared coding popover:
 
 **Key gotcha**: `activeCodes` in the popover are code **names**, but adapter methods use **codeIds**. Map via `registry.getByName(name)?.id` when calling magnitude/relations methods.
 
-### 7.2 Type-Specific Config UIs
+### 10.2 Type-Specific Config UIs
 
 Magnitude config (Level 2 code detail) renders different editors per type:
 - **Nominal**: Unordered chips with "Add category..." input
@@ -798,7 +788,7 @@ Magnitude config (Level 2 code detail) renders different editors per type:
 
 Changing type clears existing values (prevents type/value mismatch).
 
-### 7.3 Relations — Dual-Level with Shared UI
+### 10.3 Relations — Dual-Level with Shared UI
 
 Relations exist at two levels:
 - **Code-level** (`CodeDefinition.relations`): theoretical declarations
@@ -813,9 +803,9 @@ Both use `{ label: string; target: string; directed: boolean }`. `target` is a c
 
 ---
 
-## 8. Hierarchy & Tree Patterns
+## 11. Hierarchy & Tree Patterns
 
-### 8.1 Cycle Detection in setParent
+### 11.1 Cycle Detection in setParent
 
 Walk up from proposed parent — if we reach the code being moved, it's a cycle. O(depth) per call.
 
@@ -827,7 +817,7 @@ while (cursor) {
 }
 ```
 
-### 8.2 Virtual Scroll for Trees
+### 11.2 Virtual Scroll for Trees
 
 `codebookTreeRenderer.ts` uses fixed ROW_HEIGHT (30px) + absolute positioning.
 - `buildFlatTree()` flattens hierarchy respecting expand state
@@ -835,7 +825,7 @@ while (cursor) {
 - Scroll listener recalculates visible range via `scrollTop / ROW_HEIGHT`
 - Avoids DOM bloat with 1000+ codes
 
-### 8.3 Drag-Drop Zone Detection
+### 11.3 Drag-Drop Zone Detection
 
 Each row has 3 drop zones based on cursor Y position:
 - Top 30% → insert as sibling BEFORE (same parent)
@@ -844,13 +834,13 @@ Each row has 3 drop zones based on cursor Y position:
 
 `getDropZone()` converts `(clientY - rect.top) / rect.height` to zone.
 
-### 8.4 rootOrder for Manual Root Ordering
+### 11.4 rootOrder for Manual Root Ordering
 
 Root codes are ordered by `registry.rootOrder: string[]` (not alphabetically).
 `setParent(id, parentId, insertBefore?)` inserts at position via `_insertInList()`.
 Children already have manual ordering via `childrenOrder`.
 
-### 8.5 Count Aggregation (buildCountIndex)
+### 11.5 Count Aggregation (buildCountIndex)
 
 Post-order DFS: visit children first, then parent.
 `aggregate = direct + sum(children.aggregate)`.
@@ -858,15 +848,9 @@ Single pass O(markers + codes). Deduplicates codeIds per marker with `Set`.
 
 ---
 
-## Fontes
+## 12. Obsidian View Inheritance — Composition over Inheritance
 
-Este documento consolida:
-- `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
----
-
-## Obsidian View Inheritance — Composition over Inheritance
-
-### Gotcha: ItemView heranca intermediaria nao funciona
+### 12.1 ItemView heranca intermediaria nao funciona
 
 **Problema:** Tentar `AudioView extends MediaView extends ItemView` (heranca de 3 niveis) faz com que o Obsidian nao carregue a view corretamente — aparece o player padrao em vez da view customizada. Build e tsc passam, mas no runtime a view nao registra.
 
@@ -893,21 +877,21 @@ class AudioView extends ItemView {
 
 ---
 
-## 6. REFI-QDA XML Export
+## 13. REFI-QDA XML Export
 
-### 6.1 XML Building sem DOM
+### 13.1 XML Building sem DOM
 
 O módulo `xmlBuilder.ts` constrói XML via concatenação de strings — sem DOMParser, sem DOM. Isso evita dependências de ambiente (jsdom vs browser) e é mais rápido para geração bulk.
 
 Pattern: `xmlEl(tag, attrs, children?, isXml?)` — `isXml=true` para filhos XML (newlines), `false` (default) para texto escapado.
 
-### 6.2 Unicode Codepoint Offsets
+### 13.2 Unicode Codepoint Offsets
 
 REFI-QDA `startPosition`/`endPosition` contam **Unicode codepoints**, não UTF-16 code units. CM6 `ch` é em code units (surrogate pairs contam 2).
 
 `lineChToOffset()` resolve isso iterando codepoints via `for..of` (que itera por codepoint) e contando code units via `charCodeAt` para detectar surrogate pairs.
 
-### 6.3 PDF Coordinate Flip
+### 13.3 PDF Coordinate Flip
 
 PDF usa origem bottom-left, REFI-QDA `PDFSelection` também. Conversão de coordenadas normalizadas (top-left, 0-1):
 - `firstY = (1 - y) * pageHeight` — topo do rect em coords bottom-left
@@ -915,21 +899,21 @@ PDF usa origem bottom-left, REFI-QDA `PDFSelection` também. Conversão de coord
 
 Ellipses e polígonos são convertidos para bounding box antes da transformação.
 
-### 6.4 fflate Realm Mismatch (jsdom)
+### 13.4 fflate Realm Mismatch (jsdom)
 
 Em ambiente jsdom (Vitest), `fflate` instancia `Uint8Array` no realm do Node.js, mas `zipSync` espera o `Uint8Array` do jsdom. Cross-realm `instanceof` falha silenciosamente — fflate trata os dados como diretórios vazios.
 
 Fix: `new Uint8Array(buf)` re-cria no realm correto antes de passar para `zipSync`.
 
-### 6.5 GUID Correlation Pattern
+### 13.5 GUID Correlation Pattern
 
 Source builders geram `srcGuid = uuidV4()` e armazenam em `guidMap.set('source:' + filePath, srcGuid)`. O orchestrator usa esse mesmo GUID para nomear o entry no ZIP (`sources/{guid}.{ext}`). Sem isso, XML referencia um GUID e o ZIP contém outro.
 
 ---
 
-## 10. Codebook Panel — Hierarchy & Folders
+## 14. Codebook Panel — Hierarchy & Folders
 
-### 10.1 Discriminated Union para FlatTreeNode
+### 14.1 Discriminated Union para FlatTreeNode
 
 `hierarchyHelpers.ts` usa union discriminada `FlatCodeNode | FlatFolderNode` (campo `type: 'code' | 'folder'`). O renderer (`codebookTreeRenderer.ts`) despacha por tipo:
 
@@ -940,7 +924,7 @@ return renderCodeRow(node, ...);
 
 **Gotcha**: FlatCodeNode tem `.def` (CodeDefinition), FlatFolderNode tem `.folderId` + `.name`. Acessar `.def` sem type guard causa erro de tipo.
 
-### 10.2 Folder expanded state com prefixo
+### 14.2 Folder expanded state com prefixo
 
 `baseCodeDetailView.ts` mantem dois Sets separados: `treeExpanded` (code IDs) e `folderExpanded` (folder IDs). O `getTreeState()` unifica num unico Set com prefixo `folder:` para folders:
 
@@ -950,21 +934,22 @@ for (const fId of this.folderExpanded) merged.add(`folder:${fId}`);
 
 `buildFlatTree` espera `folder:{id}` no Set `expanded` para expandir pastas.
 
-### 10.3 Contagem hierarquica (buildCountIndex)
+### 14.3 Contagem hierarquica (buildCountIndex)
 
 `buildCountIndex` usa DFS post-order: cada no agrega counts dos filhos. O resultado `CountIndex = Map<codeId, { direct, aggregate }>` alimenta o badge na tree:
 - **Expandido**: mostra `direct` (so deste codigo)
 - **Colapsado**: mostra `aggregate` (este + todos os descendentes)
 - **Pastas**: mostram `codeCount` (total de codigos na pasta, nao markers)
 
-### 10.4 Drag-to-root limpa folder
+### 14.4 Drag-to-root limpa folder
 
 Quando um codigo e arrastado pro root (promote to top-level), o callback `onReparent(id, undefined)` tambem chama `setCodeFolder(id, undefined)`. Isso garante que o codigo saia da pasta ao ser promovido.
 
 ---
 
-## References
+## Fontes
 
+- `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
 - `memory/visual-testing.md` — CM6 rendering lessons, visual testing traps
 - `docs/markdown/DEVELOPMENT.md` — dark mode breakthrough, bug fixes
 - `docs/pdf/CLAUDE.md` — PDF coordinate system, DOM hierarchy
