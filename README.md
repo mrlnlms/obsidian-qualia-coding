@@ -166,7 +166,6 @@ A freeform canvas for synthesizing findings:
 | [`docs/TECHNICAL-PATTERNS.md`](docs/TECHNICAL-PATTERNS.md) | How do I fix this weird bug? |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | How do I contribute, port, or test? |
 | [`docs/BACKLOG.md`](docs/BACKLOG.md) | What technical debt is open? |
-| [`docs/NEXT-STEPS.md`](docs/NEXT-STEPS.md) | What's the operational next step? |
 
 ## License
 

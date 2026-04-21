@@ -1,6 +1,17 @@
 # Qualia Coding — Roadmap
 
-> Todas as features planejadas mas ainda não implementadas, organizadas por prioridade e escopo.
+> Features planejadas por prioridade. Items concluídos ficam riscados como registro.
+> Última atualização: 2026-04-21.
+
+---
+
+## 📍 Próximos a atacar
+
+| Item | Complexidade | Motivação | Ref |
+|------|--------------|-----------|-----|
+| **Toggle Visibility por Código** | Média | Resolve "color soup" com 20+ códigos — próximo passo natural após per-code blending | [#7](#7-toggle-visibility-por-código) |
+| **Case Variables por Documento** | Alta | Core de mixed methods — cruza códigos com metadata demográfica. Todos os concorrentes têm | [#18](#18-case-variables-por-documento) |
+| **Intercoder Reliability (kappa/alpha)** | Alta | Credibilidade acadêmica — blocker pra pesquisa em equipe | [§Gaps](#gaps-identificados-na-pesquisa-de-mercado) |
 
 ---
 
@@ -317,6 +328,16 @@ O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para dra
 | `vault.adapter` vs `loadData` | Concurrency/caching race conditions | Single source of truth via DataManager |
 | Leaf view DOM without framework | UI verbose, hard to maintain | Obsidian não oferece reactive components nativamente — avaliar lit-html ou similar |
 | "Escopo cresce pra ATLAS.ti" | Months of work, feature creep | Incremental phases — cada item standalone, shippable |
+
+---
+
+## Items permanentes (ineliminaveis)
+
+| Item | Razão |
+|------|-------|
+| 3 `as any` PDF viewer | API interna Obsidian não exporta tipos |
+| 3 `as any` dataManager deepMerge | Type gymnastics genérica |
+| fflate bundled (~8KB gzip) | Dependência do QDPX export — sem alternativa nativa |
 
 ---
 

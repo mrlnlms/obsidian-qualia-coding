@@ -173,9 +173,8 @@ Docs operacionais (repo — usados no trabalho diario):
 - `docs/ARCHITECTURE.md` — arquitetura detalhada
 - `docs/TECHNICAL-PATTERNS.md` — padroes recorrentes
 - `docs/DEVELOPMENT.md` — guia de desenvolvimento
-- `docs/ROADMAP.md` — features planejadas por prioridade
+- `docs/ROADMAP.md` — features planejadas por prioridade (com secao "Proximos a atacar" no topo)
 - `docs/BACKLOG.md` — divida tecnica e oportunidades de refactor
-- `docs/NEXT-STEPS.md` — visao operacional do que esta pendente
 
 Docs narrativos/historicos (fora do repo, em `obsidian-qualia-coding/plugin-docs/`):
 - `HISTORY.md`, `PREHISTORY.md` — historia e pre-historia
