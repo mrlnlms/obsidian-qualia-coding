@@ -3,6 +3,8 @@ import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
 import { CaseVariablesRegistry } from './core/caseVariables/caseVariablesRegistry';
+import { CaseVariablesView } from './core/caseVariables/caseVariablesView';
+import { CASE_VARIABLES_VIEW_TYPE } from './core/caseVariables/caseVariablesViewTypes';
 import { openPropertiesPopover } from './core/caseVariables/propertiesPopover';
 import type { EngineCleanup } from './core/types';
 import { BaseCodeDetailView } from './core/baseCodeDetailView';
@@ -140,6 +142,24 @@ export default class QualiaCodingPlugin extends Plugin {
 			new UnifiedCodeExplorerView(leaf, unifiedModel, mdModel));
 		this.registerView(CODE_DETAIL_VIEW_TYPE, (leaf) =>
 			new UnifiedCodeDetailView(leaf, unifiedModel, mdModel));
+		this.registerView(CASE_VARIABLES_VIEW_TYPE, (leaf) =>
+			new CaseVariablesView(leaf, this));
+
+		this.addCommand({
+			id: 'open-case-variables-panel',
+			name: 'Open Case Variables panel',
+			callback: async () => {
+				const { workspace } = this.app;
+				let leaf = workspace.getLeavesOfType(CASE_VARIABLES_VIEW_TYPE)[0];
+				if (!leaf) {
+					const right = workspace.getRightLeaf(false);
+					if (!right) return;
+					await right.setViewState({ type: CASE_VARIABLES_VIEW_TYPE, active: true });
+					leaf = right;
+				}
+				workspace.revealLeaf(leaf);
+			},
+		});
 
 		// ── Cross-engine navigation listeners ──────────────────────────
 		// These serve ALL engines (margin panel label-click, hover menu code-click)
@@ -242,6 +262,7 @@ export default class QualiaCodingPlugin extends Plugin {
 		clearFileInterceptRules();
 		this.app.workspace.detachLeavesOfType(CODE_EXPLORER_VIEW_TYPE);
 		this.app.workspace.detachLeavesOfType(CODE_DETAIL_VIEW_TYPE);
+		this.app.workspace.detachLeavesOfType(CASE_VARIABLES_VIEW_TYPE);
 
 		for (let i = this.cleanups.length - 1; i >= 0; i--) {
 			try { await this.cleanups[i]!(); } catch (e) {
