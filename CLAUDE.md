@@ -184,13 +184,26 @@ Docs narrativos/historicos (fora do repo, em `obsidian-qualia-coding/plugin-docs
 - `superpowers/` — specs e plans gerados por skills
 - `pm/`, `research/`, `ORG ANTIGOS/` — material de PM, research, historico
 
-### Atualizacao obrigatoria apos cada feature
+### Atualizacao de docs apos feature/fase
 
-Ao concluir implementacao de uma feature ou fase, atualizar docs afetados:
-- `ROADMAP.md` (repo) — marcar items feitos, adicionar novos
-- `BACKLOG.md` (repo) — nova divida tecnica, remover resolvidos
-- `HISTORY.md` (workspace) — registrar conclusao
-- `CLAUDE.md` (repo, gitignored) — estrutura de arquivos, convencoes, contagem de testes/suites
-- `ARCHITECTURE.md` (repo) — novos modulos e fluxos
-- `TECHNICAL-PATTERNS.md` (repo) — padroes novos descobertos
-- `DEVELOPMENT.md` (repo) — novos commands, settings, fluxos
+**Quando acionar:**
+- Apos conclusao de feature, fase de plano, ou refactor significativo
+- NAO em commits WIP, experimentos, ou bugfixes triviais
+
+**Escopo:** so docs do repo (`docs/`). Arquivos no workspace externo (`obsidian-qualia-coding/plugin-docs/`) NAO fazem parte desse fluxo — atualizacao de HISTORY, archive, etc. e ad-hoc.
+
+**Ordem sugerida** (do mais obrigatorio ao mais opcional):
+
+1. `ROADMAP.md` — marcar item como FEITO (riscar + anotar data). Se a feature gerou sub-items nao planejados, adicionar como novos items.
+2. `ARCHITECTURE.md` — novos modulos, fluxos, decisoes arquiteturais
+3. `TECHNICAL-PATTERNS.md` — padroes/gotchas descobertos durante a implementacao
+4. `DEVELOPMENT.md` — novos commands, settings, fluxos de teste
+5. `BACKLOG.md` — nova divida tecnica surgida, marcar resolvidos
+6. `CLAUDE.md` (gitignored) — so se estrutura de arquivos, convencoes ou contagem de testes mudaram. Nao atualizar por mudanca menor.
+
+**Triggers por tipo de mudanca:**
+- Feature nova → 1, 2, 4 (+ 3 se descobriu pattern)
+- Refactor → 2, 5 (marca resolvido)
+- Bug fix significativo → 3 se revelou padrao
+- Padrao tecnico novo isolado → 3
+- Novo modulo/arquivo → 2, 6
