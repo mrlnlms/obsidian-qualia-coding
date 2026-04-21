@@ -6,6 +6,7 @@ import type { ImageMarker } from '../image/imageCodingTypes';
 import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
 import type { AudioFile } from '../audio/audioCodingTypes';
 import type { VideoFile } from '../video/videoCodingTypes';
+import type { CaseVariablesSection } from './caseVariables/caseVariablesTypes';
 
 // ─── Base interfaces for sidebar views (all engines) ─────────────
 
@@ -139,6 +140,7 @@ export interface QualiaData {
 			fileStates: Record<string, { zoom: number; lastPosition: number }>;
 		};
 	};
+	caseVariables: CaseVariablesSection;
 }
 
 export function createDefaultData(): QualiaData {
@@ -166,5 +168,6 @@ export function createDefaultData(): QualiaData {
 			files: [],
 			settings: { defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, videoFit: 'contain', fileStates: {} },
 		},
+		caseVariables: { values: {}, types: {} },
 	};
 }
