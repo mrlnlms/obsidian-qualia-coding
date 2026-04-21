@@ -260,3 +260,58 @@ describe('CaseVariablesRegistry — autocomplete helpers', () => {
     expect(reg.getFilesByVariable('grupo', 'inexistente')).toEqual([]);
   });
 });
+
+describe('CaseVariablesRegistry — applyVariablesBatch', () => {
+  it('writes multiple variables at once on binary', async () => {
+    const app = createMockApp();
+    const data = createMockDataManager();
+    const reg = new CaseVariablesRegistry(app, data as any);
+    await reg.initialize();
+
+    await reg.applyVariablesBatch('jane.jpg', [
+      { name: 'idade', value: 30 },
+      { name: 'grupo', value: 'controle' },
+    ]);
+
+    expect(reg.getVariables('jane.jpg')).toEqual({ idade: 30, grupo: 'controle' });
+  });
+
+  it('uses single processFrontMatter call on markdown', async () => {
+    const processFrontMatter = vi.fn(async (_file: any, fn: (fm: any) => void) => {
+      const fm: Record<string, unknown> = {};
+      fn(fm);
+    });
+    const app = {
+      vault: {
+        getMarkdownFiles: () => [],
+        getAbstractFileByPath: (p: string) => ({ path: p, extension: 'md' }),
+      },
+      fileManager: { processFrontMatter },
+      metadataCache: { getFileCache: () => undefined, on: vi.fn(() => ({})), offref: vi.fn() },
+      workspace: { layoutReady: true, onLayoutReady: vi.fn((cb: () => void) => cb()) },
+    } as unknown as App;
+
+    const reg = new CaseVariablesRegistry(app, createMockDataManager() as any);
+    await reg.initialize();
+
+    await reg.applyVariablesBatch('jane.md', [
+      { name: 'idade', value: 30 },
+      { name: 'grupo', value: 'controle' },
+    ]);
+
+    expect(processFrontMatter).toHaveBeenCalledTimes(1);
+  });
+
+  it('no-op when variables array is empty', async () => {
+    const app = createMockApp();
+    const data = createMockDataManager();
+    const reg = new CaseVariablesRegistry(app, data as any);
+    await reg.initialize();
+
+    await reg.applyVariablesBatch('jane.jpg', []);
+
+    expect(data.setSection).not.toHaveBeenCalledWith('caseVariables', expect.objectContaining({
+      values: { 'jane.jpg': {} },
+    }));
+  });
+});

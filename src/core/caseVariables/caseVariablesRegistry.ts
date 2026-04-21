@@ -96,6 +96,40 @@ export class CaseVariablesRegistry {
     }
   }
 
+  /**
+   * Bulk write multiple variables to a single file. For markdown, uses one
+   * processFrontMatter call (instead of N separate ones — significant perf gain
+   * during QDPX import of 100+ md files). For binary, writes mirror directly.
+   */
+  async applyVariablesBatch(
+    fileId: string,
+    variables: Array<{ name: string; value: VariableValue }>,
+  ): Promise<void> {
+    if (variables.length === 0) return;
+
+    if (fileId.endsWith('.md')) {
+      const file = this.app.vault.getAbstractFileByPath(fileId) as TFile | null;
+      if (!file) return;
+      this.writingInProgress.add(fileId);
+      try {
+        await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+          for (const { name, value } of variables) fm[name] = value;
+        });
+      } finally {
+        setTimeout(() => this.writingInProgress.delete(fileId), 0);
+      }
+      return;
+    }
+
+    // Binary path
+    this.mirror[fileId] ??= {};
+    for (const { name, value } of variables) {
+      this.mirror[fileId][name] = value;
+    }
+    this.persist();
+    this.notify();
+  }
+
   async removeVariable(fileId: string, name: string): Promise<void> {
     if (fileId.endsWith('.md')) {
       const file = this.app.vault.getAbstractFileByPath(fileId) as TFile | null;
