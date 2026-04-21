@@ -68,7 +68,7 @@ export default class QualiaCodingPlugin extends Plugin {
 
 		// Case Variables registry — per-file typed properties (like Obsidian Properties for binaries)
 		this.caseVariablesRegistry = new CaseVariablesRegistry(this.app, this.dataManager);
-		await this.caseVariablesRegistry.initialize();
+		this.caseVariablesRegistry.initialize();
 		this.cleanups.push(() => this.caseVariablesRegistry.unload());
 
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {

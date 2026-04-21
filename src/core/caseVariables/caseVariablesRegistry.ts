@@ -20,19 +20,23 @@ export class CaseVariablesRegistry {
     private data: DataManager,
   ) {}
 
-  async initialize(): Promise<void> {
+  initialize(): void {
     const section = this.data.section('caseVariables');
     this.mirror = section.values;
     this.types = section.types;
 
-    await this.waitForLayoutReady();
-
-    for (const file of this.app.vault.getMarkdownFiles()) {
-      this.syncFromFrontmatter(file);
-    }
-
     this.metadataCacheRef = this.app.metadataCache.on('changed', (file: TFile) => {
       if (file.extension === 'md' && !this.writingInProgress.has(file.path)) {
+        this.syncFromFrontmatter(file);
+      }
+    });
+
+    // Initial scan deferred to layout-ready — syncs mirror from frontmatter of
+    // all md files, catching changes made while the plugin was off. Must NOT
+    // be awaited: onLayoutReady fires only AFTER plugin.onload() returns, so
+    // awaiting here would deadlock the plugin boot.
+    this.app.workspace.onLayoutReady(() => {
+      for (const file of this.app.vault.getMarkdownFiles()) {
         this.syncFromFrontmatter(file);
       }
     });
@@ -221,11 +225,6 @@ export class CaseVariablesRegistry {
       this.mirror[file.path] = filtered;
     }
     this.notify();
-  }
-
-  private async waitForLayoutReady(): Promise<void> {
-    if (this.app.workspace.layoutReady) return;
-    await new Promise<void>(resolve => this.app.workspace.onLayoutReady(() => resolve()));
   }
 
   private notify(): void {
