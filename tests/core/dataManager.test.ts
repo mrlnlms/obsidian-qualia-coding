@@ -121,6 +121,8 @@ describe('getAll', () => {
 		expect(all).toHaveProperty('pdf');
 		expect(all).toHaveProperty('audio');
 		expect(all).toHaveProperty('video');
+		expect(all).toHaveProperty('caseVariables');
+		expect(all.caseVariables).toEqual({ values: {}, types: {} });
 	});
 });
 
@@ -196,6 +198,8 @@ describe('clearAllSections', () => {
 		expect(data.registry.nextPaletteIndex).toBe(0);
 		expect(data.registry.folders).toEqual({});
 		expect(data.registry.rootOrder).toEqual([]);
+		expect(data.caseVariables.values).toEqual({});
+		expect(data.caseVariables.types).toEqual({});
 	});
 
 	it('preserves per-engine settings', async () => {
