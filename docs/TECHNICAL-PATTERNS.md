@@ -717,6 +717,15 @@ Todos os engines agora suportam rename via `fileInterceptor.ts` centralizado + `
 | CSV | ✅ | `model.migrateFilePath()` via fileInterceptor |
 | Image | ✅ | `model.migrateFilePath()` via fileInterceptor |
 
+**Gotcha: rename com mudança de extensão não emite rename event.** O vault do Obsidian emite `create` (novo path) **seguido** de `delete` (path antigo), nessa ordem. Nenhum `rename`. Consequência: handlers baseados em `vault.on('rename')` não veem esses renames; handlers de `vault.on('delete')` que fazem cleanup por path perdem os dados.
+
+Pattern implementado em `src/main.ts` (Case Variables) pra detectar e tratar:
+
+1. Em `create`, guardar `{ path, basename sem extensão, size }` em Map com TTL de 2s
+2. Em `delete`, iterar pelos creates recentes — se algum bate `basename` **OU** `size` (do `TFile.stat.size`), é rename disfarçado → migrar dados em vez de deletar
+
+Cobertura: (a) mesma extensão, nome muda → `rename` event nativo; (b) nome igual, só extensão muda → basename match; (c) nome **e** extensão mudam → size match (binário não é re-encode, size sobrevive byte-exact). `TFile.stat.size` permanece disponível no argumento do evento `delete` (o TFile carrega o stat do momento antes de sumir do disco).
+
 ### 9.10 Timing Inventory (Valores Consolidados)
 
 | Timer | Value | Where |
@@ -874,6 +883,29 @@ class AudioView extends ItemView {
 **Resultado:** AudioView (387 → 53 LOC), VideoView (393 → 54 LOC), MediaViewCore (357 LOC). ~287 LOC eliminadas.
 
 **Regra:** Em plugins Obsidian, NUNCA usar heranca intermediaria de ItemView/FileView. Usar composicao pra compartilhar logica entre views.
+
+### 12.2 Views de binário extendem ItemView, não FileView
+
+As 3 views customizadas de binários (`ImageCodingView`, `AudioView`, `VideoView`) herdam de `ItemView`, não de `FileView`. É inércia histórica dos plugins pre-consolidação — `CsvCodingView` foi feito como `FileView` depois. Consequências:
+
+- `instanceof FileView` não pega essas 3
+- `view.file` não existe nativamente — cada view expõe o TFile por um campo diferente: `ImageCodingView.currentFile` (agora exposto via getter `file`), `AudioView.core.file`, `VideoView.core.file`
+- Features que iteram "views com arquivo ativo" (tipo Case Variables, export por-view) precisam de helper pra extrair TFile
+
+Pattern atual em `src/main.ts#getFileFromItemView`:
+
+```typescript
+private getFileFromItemView(view: ItemView): TFile | null {
+  if (view instanceof FileView) return view.file;
+  if (view instanceof ImageCodingView) return view.file;
+  if (view instanceof AudioView || view instanceof VideoView) return view.core.file;
+  return null;
+}
+```
+
+Listener de `active-leaf-change` passa a filtrar por `instanceof ItemView` (cobre todas). Boot de vault com múltiplos panes não dispara `active-leaf-change` pros inativos — precisa combinar com `onLayoutReady` + `layout-change` iterando `iterateAllLeaves`.
+
+Migração pra `FileView` nas 3 views está no `BACKLOG.md §13` — evitaria o helper e padronizaria `.file`, `onLoadFile`, `onUnloadFile`.
 
 ---
 

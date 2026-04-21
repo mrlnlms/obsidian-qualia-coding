@@ -190,3 +190,30 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 - [ ] K1: autoRevealOnSegmentClick toggle no settingTab pode estar orfao apos remocao do Detail View — verificar se Explorer ainda usa
 - [ ] K2: Drag-drop visual feedback poderia ser mais forte (cor mais visivel, animacao de transicao)
 - [ ] K3: Virtual scroll reconstroi todos os rows visiveis no scroll — considerar row recycling para 5000+ codes
+
+---
+
+## 13. Migrar ImageCodingView / AudioView / VideoView para `FileView`
+
+**Contexto:** essas 3 views estendem `ItemView` por inercia historica (herdado dos plugins independentes pre-consolidacao, commit `d7eb286` 2026-03-02). CSV ja e `FileView`. Markdown/PDF sao `FileView` nativos do Obsidian. As 3 views custom ficaram foras do padrao.
+
+**Consequencias atuais:**
+- Case Variables precisa helper `getFileFromItemView` pra extrair TFile (workaround pela falta de `view.file` padrao).
+- Cada view expoe o file por um campo diferente: `currentFile` (image), `core.file` (media). Sem contrato uniforme.
+- Qualquer feature futura que itere "todas as views com arquivo" (ex: export per-view, migrations, hooks de ciclo de vida) precisa conhecer o pattern de cada uma.
+- `_caseVariablesActionAdded` flag inline na view e uma gambiarra que seria desnecessaria se `FileView.onLoadFile`/`onUnloadFile` fossem usados como ponto de engate.
+
+**Ganho de migrar para `FileView`:**
+- `view.file: TFile` padrao — elimina helpers e getters custom.
+- `onLoadFile(file)` / `onUnloadFile(file)` como pontos de integracao limpos (Case Vars, future features) em vez de depender de `active-leaf-change` + guard.
+- Alinhamento com CSV e com as views nativas do Obsidian.
+- Remove necessidade de file interceptor re-checar file-association (o proprio Obsidian ja lida quando a view e `FileView` + `registerExtensions`).
+
+**Custo/risco:**
+- Refatorar lifecycle das 3 views: `setState`/`getState` deixam de carregar file manualmente; `onLoadFile` assume.
+- `MediaViewCore.loadMedia` precisa ser chamado de dentro de `onLoadFile` em vez de `setState`.
+- Precisa reavaliar `setupFileInterceptor` — talvez pare de ser necessario pra essas 3 views se `registerExtensions` for usado.
+- Testes e2e dependem de `getViewType()` e transicoes de view — pode precisar ajuste.
+- **Risco:** regressao em persistencia de state (zoom/pan per-file), file association, hot-reload.
+
+**Quando atacar:** depois do merge de Case Variables Phase 1, com plano dedicado. Testar cada engine em isolamento. Estimativa: 150-300 LOC + ajuste de testes.

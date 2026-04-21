@@ -280,13 +280,14 @@ Implementado como Case Variables Phase 1:
 - **Registry central** (`CaseVariablesRegistry`) — mirror reativo de propriedades tipadas por arquivo (text, number, date, datetime, checkbox). Inicializa/descarrega via `this.cleanups`. `addOnMutate` invalida `consolidationCache` em toda mutação.
 - **Storage 3-caminhos**: Markdown lê/grava via frontmatter (`fileManager.processFrontMatter`) com mirror em `data.json` sincronizado por `metadataCache.on('changed')` + `writingInProgress` guard. Binários (PDF, image, audio, video) persistem direto em `data.json.caseVariables.values[fileId]`. Reentrancy guard previne loops de feedback.
 - **Type resolution** em cascata: `metadataTypeManager` do Obsidian → mapa próprio do plugin → `'text'` como fallback.
-- **UI layers**: `PropertiesEditor` (componente DOM base: render + inline edit + add row + confirm remove), `PropertiesPopover` (wrapper via `view.addAction` em todos os FileViews), `CaseVariablesView` (painel lateral ItemView com comando `open-case-variables-panel`).
-- **Lifecycle**: hooks `registerFileRename` + `vault.on('delete')` propagam renomear/deletar para o registry. Botão de ação injetado em todo FileView via `active-leaf-change`.
+- **UI layers**: `PropertiesEditor` (componente DOM base: render + inline edit + add row + confirm remove), `PropertiesPopover` (wrapper via `view.addAction` em toda ItemView com TFile), `CaseVariablesView` (painel lateral ItemView com comando `open-case-variables-panel`).
+- **Lifecycle**: hooks `registerFileRename` + `vault.on('delete')` propagam renomear/deletar para o registry. Detecção de rename disfarçado (Obsidian emite `create+delete` em vez de `rename` quando extensão muda) via Map com basename/size matching. Botão de ação injetado em toda ItemView — cobre também image/audio/video (que herdam ItemView, não FileView) via listener + `onLayoutReady`/`layout-change` pra pegar panes secundários no boot.
 - **Analytics filter**: novo `caseVariableFilter` em `FilterConfig`, aplicado no nível da view (AnalyticsView) antes de qualquer mode — sem tocar nos 6 stats engines.
 - **QDPX round-trip**: `caseVariablesXml.ts` gera `<Variable>` por Source + seção `<Cases>` com `<SourceRef>`. Tipos preservados no import (number permanece number, boolean permanece boolean).
 - **Schema**: `QualiaData` ganhou `caseVariables: CaseVariablesSection` com default `{values:{}, types:{}}` em `createDefaultData()` e `clearAllSections()`.
 - **Novos arquivos** em `src/core/caseVariables/` (9 arquivos) + `src/export/caseVariablesXml.ts`.
-- **Testes**: 81 novos testes, 1891 total.
+- **Testes**: 86 novos testes, 1896 total.
+- **Smoke test 2026-04-21**: 8 bugs corrigidos — popover toggle, ausência em ItemViews de binário, closure capture do fileId durante rename, badge no pane secundário no boot, rename com troca de extensão, ícones sempre `T`, validação de nomes reservados (`tags`/`aliases`/`cssclasses`/`position`), CSS inicial ausente.
 
 ### 19. Analytical Memos
 
