@@ -24,4 +24,13 @@ describe('getObsidianPropertyType', () => {
     } as unknown as App;
     expect(getObsidianPropertyType(app, 'idade')).toBe(undefined);
   });
+
+  it('returns undefined when type is not in VALID_TYPES whitelist', () => {
+    const app = {
+      metadataTypeManager: {
+        getTypeInfo: (name: string) => name === 'futuro' ? { type: 'link' } : undefined,
+      },
+    } as unknown as App;
+    expect(getObsidianPropertyType(app, 'futuro')).toBe(undefined);
+  });
 });
