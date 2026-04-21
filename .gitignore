@@ -7,6 +7,6 @@ data.json
 CLAUDE.md
 coverage/
 .claude/
-test/screenshots/actual/
-test/screenshots/diff/
+tests/screenshots/actual/
+tests/screenshots/diff/
 .superpowers/

@@ -354,14 +354,14 @@ Todos os plugins usam a mesma copia. Se precisar resetar: `rm -rf ~/.cache/obsid
 - Commands:
   ```bash
   npm run test:e2e                                          # roda todos os 18 specs
-  npm run test:e2e -- --spec test/e2e/specs/smoke.e2e.ts   # spec especifico
+  npm run test:e2e -- --spec tests/e2e/specs/smoke.e2e.ts  # spec especifico
   npm run test:visual:update                                # regenera baselines
   ```
 
 ### Test Vault & Baselines
-- Test vault: `test/e2e/vaults/visual/` com fixtures (md, csv, pdf, png, mp3, mp4)
-- Baselines: `test/screenshots/baseline/` (commitados — referencia visual)
-- `test/screenshots/actual/` e `test/screenshots/diff/` sao gitignored (artefatos de run)
+- Test vault: `tests/e2e/vaults/visual/` com fixtures (md, csv, pdf, png, mp3, mp4)
+- Baselines: `tests/screenshots/baseline/` (commitados — referencia visual)
+- `tests/screenshots/actual/` e `tests/screenshots/diff/` sao gitignored (artefatos de run)
 - Resolution-dependent — mesma maquina pra baseline e comparacao
 - CI roda so smoke test (Linux rendering difere de macOS)
 

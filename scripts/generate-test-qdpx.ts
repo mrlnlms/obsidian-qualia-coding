@@ -50,7 +50,7 @@ const PROJECT_XML = `<?xml version="1.0" encoding="utf-8"?>
 
 const sourceText = 'I felt really happy today but then I started feeling frustrated about the costs involved in everything';
 
-const dest = 'test/e2e/vaults/visual/sample-import.qdpx';
+const dest = 'tests/e2e/vaults/visual/sample-import.qdpx';
 mkdirSync(dirname(dest), { recursive: true });
 
 const files: Record<string, Uint8Array> = {

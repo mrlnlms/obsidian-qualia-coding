@@ -1,4 +1,4 @@
-// test/e2e/specs/import-qdpx.e2e.ts
+// tests/e2e/specs/import-qdpx.e2e.ts
 import { waitForPlugin } from "obsidian-e2e-visual-test-kit";
 
 describe("QDPX Import", () => {
