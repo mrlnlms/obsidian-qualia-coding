@@ -378,7 +378,70 @@ Módulo `src/export/` implementa export nos formatos QDC (codebook) e QDPX (proj
 
 ---
 
-## 6. Research Board
+## 6. Case Variables
+
+Sistema de propriedades tipadas por arquivo (mixed-methods: cruzar códigos × metadata demográfica). Funciona para todos os 7 formatos — md, pdf, image, audio, video.
+
+### Abstração central — CaseVariablesRegistry
+
+`src/core/caseVariables/caseVariablesRegistry.ts` — instância única criada no `main.ts`, inicializada/descarregada via `this.cleanups`. API async de leitura/escrita por `fileId`. Emite `addOnMutate` callbacks em toda mutação; o `main.ts` usa esse hook para invalidar o `consolidationCache` global.
+
+### Storage 3-caminhos
+
+| Formato | Source of truth | Mirror em data.json |
+|---------|----------------|---------------------|
+| **Markdown** | Frontmatter (`fileManager.processFrontMatter`) | Sim — sincronizado por `metadataCache.on('changed')` |
+| **Binários** (PDF, Image, Audio, Video) | `data.json.caseVariables.values[fileId]` | É o primário (não há frontmatter possível) |
+
+**Sync reativo (Markdown)**: `metadataCache.on('changed')` dispara após qualquer escrita em frontmatter. O registry escuta esse evento e atualiza o mirror em memória. Quando a escrita foi feita pelo próprio plugin, `writingInProgress: Set<fileId>` impede a re-notificação (reentrancy guard — detalhe em `TECHNICAL-PATTERNS.md §15`).
+
+### Type resolution (cascata)
+
+1. `metadataTypeManager` do Obsidian (API interna via `obsidianInternalsApi.ts`) — resolve tipos de propriedades definidos pelo usuário no Obsidian
+2. Mapa próprio do plugin (`data.json.caseVariables.types`)
+3. `'text'` como fallback
+
+`inferPropertyType.ts` infere tipo via regex (number / date / datetime / checkbox / text) para valores sem tipo declarado.
+
+### UI layers
+
+| Camada | Arquivo | Responsabilidade |
+|--------|---------|-----------------|
+| **PropertiesEditor** | `propertiesEditor.ts` | Componente DOM base: render de rows, inline edit, add row, confirm remove |
+| **PropertiesPopover** | `propertiesPopover.ts` | Wrapper popover injetado via `view.addAction` em todo FileView |
+| **CaseVariablesView** | `caseVariablesView.ts` | ItemView (painel lateral) — registrado com `CASE_VARIABLES_VIEW_TYPE` + comando `open-case-variables-panel` |
+
+### Integração com o resto do sistema
+
+- **Lifecycle de arquivos**: `registerFileRename` + `vault.on('delete')` propagam rename/delete para o registry. Botão de ação injetado em todo FileView via `active-leaf-change` listener no `main.ts`.
+- **Analytics filter**: `caseVariableFilter` em `FilterConfig` — aplicado no nível da `AnalyticsView` antes de qualquer mode module. Não toca nos 6 stats engines.
+- **Cache invalidation**: `caseVariablesRegistry.addOnMutate(() => consolidationCache.invalidateAll())` — mudança em qualquer variável invalida o cache analítico global.
+- **QDPX export/import**: `src/export/caseVariablesXml.ts` gera `<Variable>` dentro de cada `<Source>` + seção `<Cases>` com `<SourceRef>`. Round-trip preserva tipos (number permanece number, boolean permanece boolean).
+
+### Schema
+
+`QualiaData` ganhou campo `caseVariables: CaseVariablesSection` (`{ values: Record<fileId, Record<string, VariableValue>>; types: Record<string, PropertyType> }`). Default `{values:{}, types:{}}` em `createDefaultData()` e `clearAllSections()`.
+
+### Arquivos
+
+```
+src/core/caseVariables/
+  caseVariablesTypes.ts      — PropertyType, VariableValue, CaseVariablesSection, OBSIDIAN_RESERVED
+  obsidianInternalsApi.ts    — encapsula metadataTypeManager do Obsidian (API interna)
+  caseVariablesRegistry.ts   — classe central (CRUD, initialize/unload, sync, events)
+  typeIcons.ts               — mapping PropertyType → Lucide icon
+  inferPropertyType.ts       — regex-based type inference (number/date/datetime/checkbox/text)
+  propertiesEditor.ts        — componente DOM (render + inline edit + add row + confirm remove)
+  propertiesPopover.ts       — wrapper popover via view.addAction
+  caseVariablesView.ts       — painel lateral (ItemView)
+  caseVariablesViewTypes.ts  — constante CASE_VARIABLES_VIEW_TYPE
+src/export/
+  caseVariablesXml.ts        — QDPX helpers (renderVariableXml, variableTypeToQdpx, renderVariablesForFile, renderCasesXml)
+```
+
+---
+
+## 7. Research Board
 
 Canvas Fabric.js para síntese de findings:
 
@@ -440,7 +503,7 @@ src/analytics/views/
 
 ---
 
-## 7. Performance Considerations
+## 8. Performance Considerations
 
 ### Thresholds documentados
 - **500+ markers/arquivo** → considerar interval tree em vez de linear scan no `getMarkersInRange()`
@@ -542,7 +605,7 @@ Reavaliável apenas se Obsidian mudar seu sistema de carregamento de plugins par
 
 ---
 
-## 8. Compatibility
+## 9. Compatibility
 
 ### PDF.js versions
 - Obsidian v1.7.7: `OldTextLayerBuilder` com `textDivs`/`textContentItems`
@@ -561,7 +624,7 @@ Reavaliável apenas se Obsidian mudar seu sistema de carregamento de plugins par
 
 ---
 
-## 9. Visual Approach Analysis
+## 10. Visual Approach Analysis
 
 Como representar N códigos no mesmo trecho de texto? Quatro opções foram avaliadas:
 
@@ -608,7 +671,7 @@ Nenhuma decoração visível permanente. Hover sobre texto revela tooltip com c�
 
 ---
 
-## 10. Projects + Workspace Data Model
+## 11. Projects + Workspace Data Model
 
 ### TypeScript Interfaces
 
@@ -673,7 +736,7 @@ interface QDAProject {
 
 ---
 
-## 11. Leaf View Layout
+## 12. Leaf View Layout
 
 ### Wireframe — Unified Analysis Workspace
 
@@ -709,7 +772,7 @@ interface QDAProject {
 
 ---
 
-## 12. Cross-Engine Consolidation Results
+## 13. Cross-Engine Consolidation Results
 
 ### LOC Savings
 
@@ -776,7 +839,7 @@ interface QDAProject {
 
 ---
 
-## 13. Avaliação Externa (Codex, 2026-03-19)
+## 14. Avaliação Externa (Codex, 2026-03-19)
 
 > Análise independente feita pelo Codex sobre o estado do projeto.
 
@@ -837,7 +900,7 @@ Na terceira passagem, o Codex focou em **transições entre views vivas e comand
 
 ---
 
-## 14. Codebook Evolution (Phases A-E)
+## 15. Codebook Evolution (Phases A-E)
 
 O CodeDefinition evoluiu de um registro flat para suportar hierarquia, pastas virtuais, magnitude e relações. Todas as fases foram implementadas sem breaking changes — campos opcionais com defaults seguros.
 

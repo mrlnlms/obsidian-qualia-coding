@@ -10,7 +10,6 @@
 | Item | Complexidade | Motivação | Ref |
 |------|--------------|-----------|-----|
 | **Toggle Visibility por Código** | Média | Resolve "color soup" com 20+ códigos — próximo passo natural após per-code blending | [#7](#7-toggle-visibility-por-código) |
-| **Case Variables por Documento** | Alta | Core de mixed methods — cruza códigos com metadata demográfica. Todos os concorrentes têm | [#18](#18-case-variables-por-documento) |
 | **Intercoder Reliability (kappa/alpha)** | Alta | Credibilidade acadêmica — blocker pra pesquisa em equipe | [§Gaps](#gaps-identificados-na-pesquisa-de-mercado) |
 
 ---
@@ -274,10 +273,20 @@ O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para dra
 - CSS native `resize: horizontal` no panel
 - Setting numérico no settings tab em vez de drag interativo
 
-### 18. Case Variables por Documento
+### ~~18. Case Variables por Documento~~ — FEITO (2026-04-21)
 
-- Metadados atribuídos a documentos inteiros (gênero do participante, data da entrevista, etc.)
-- Cruzamento com códigos no Analytics (Code × Variable)
+Implementado como Case Variables Phase 1:
+
+- **Registry central** (`CaseVariablesRegistry`) — mirror reativo de propriedades tipadas por arquivo (text, number, date, datetime, checkbox). Inicializa/descarrega via `this.cleanups`. `addOnMutate` invalida `consolidationCache` em toda mutação.
+- **Storage 3-caminhos**: Markdown lê/grava via frontmatter (`fileManager.processFrontMatter`) com mirror em `data.json` sincronizado por `metadataCache.on('changed')` + `writingInProgress` guard. Binários (PDF, image, audio, video) persistem direto em `data.json.caseVariables.values[fileId]`. Reentrancy guard previne loops de feedback.
+- **Type resolution** em cascata: `metadataTypeManager` do Obsidian → mapa próprio do plugin → `'text'` como fallback.
+- **UI layers**: `PropertiesEditor` (componente DOM base: render + inline edit + add row + confirm remove), `PropertiesPopover` (wrapper via `view.addAction` em todos os FileViews), `CaseVariablesView` (painel lateral ItemView com comando `open-case-variables-panel`).
+- **Lifecycle**: hooks `registerFileRename` + `vault.on('delete')` propagam renomear/deletar para o registry. Botão de ação injetado em todo FileView via `active-leaf-change`.
+- **Analytics filter**: novo `caseVariableFilter` em `FilterConfig`, aplicado no nível da view (AnalyticsView) antes de qualquer mode — sem tocar nos 6 stats engines.
+- **QDPX round-trip**: `caseVariablesXml.ts` gera `<Variable>` por Source + seção `<Cases>` com `<SourceRef>`. Tipos preservados no import (number permanece number, boolean permanece boolean).
+- **Schema**: `QualiaData` ganhou `caseVariables: CaseVariablesSection` com default `{values:{}, types:{}}` em `createDefaultData()` e `clearAllSections()`.
+- **Novos arquivos** em `src/core/caseVariables/` (9 arquivos) + `src/export/caseVariablesXml.ts`.
+- **Testes**: 81 novos testes, 1891 total.
 
 ### 19. Analytical Memos
 
@@ -296,7 +305,7 @@ O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para dra
 
 | Gap | Por que importa | Items do roadmap relacionados |
 |-----|----------------|-------------------------------|
-| **Case/Document Variables** | Sem metadata por documento, não dá pra cruzar codes × demographics — o workflow core de mixed methods "joint display". Todos os concorrentes (NVivo, ATLAS.ti, MAXQDA, Dedoose) têm isso. | #18 Case Variables, #9 Code × Metadata |
+| ~~**Case/Document Variables**~~ | ~~FEITO — Registry central, popover em todos file types, painel lateral, filter analytics, QDPX round-trip, rename/delete hooks~~ | ~~#18 Case Variables~~ |
 | ~~**REFI-QDA (QDPX) Export/Import**~~ | ~~FEITO — Export QDPX/QDC + Import com resolução de conflitos~~ | ~~#15 Export~~ |
 | ~~**Export CSV/Excel**~~ | ~~FEITO — Analytics exporta CSV de frequencies, co-occurrence, Doc-Code Matrix~~ | ~~#15 Export~~ |
 | **Intercoder Reliability** | Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de rigor. NVivo, ATLAS.ti, MAXQDA, Dedoose, QualCoder oferecem. | Novo item (não listado) |

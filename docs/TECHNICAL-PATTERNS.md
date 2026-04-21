@@ -947,6 +947,53 @@ Quando um codigo e arrastado pro root (promote to top-level), o callback `onRepa
 
 ---
 
+## 15. Mirror Reativo de Frontmatter com Reentrancy Guard
+
+### Problema
+
+Frontmatter é a source of truth para variáveis de markdown (Obsidian Properties). Mas o plugin precisa de acesso in-memory a variáveis de múltiplos arquivos para queries cross-file (`getValuesForVariable`, `getFilesByVariable`). Manter dois estados em sync sem criar loops de feedback.
+
+### Pattern
+
+Mirror em memória sincronizado por `metadataCache.on('changed')`. Quando o plugin escreve, o `writingInProgress: Set<fileId>` bloqueia o re-processamento do echo event.
+
+**Por que `setTimeout(..., 0)` e não `delete` síncrono?**
+
+`metadataCache` dispara seu evento **assincronamente** (após `processFrontMatter` resolver). Deletar do Set de forma síncrona no `finally` reabre a janela antes do evento disparar — causando uma notificação espúria. O `setTimeout` garante que o `delete` só ocorre depois que o microtask queue esvaziou e o evento do metadataCache já foi processado (ou ignorado).
+
+```typescript
+async setValues(fileId: string, values: Record<string, VariableValue>): Promise<void> {
+  const file = this.app.vault.getFileByPath(fileId);
+  if (!file) return;
+
+  this.writingInProgress.add(fileId);
+  try {
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      for (const [k, v] of Object.entries(values)) fm[k] = v;
+    });
+  } finally {
+    setTimeout(() => this.writingInProgress.delete(fileId), 0);
+  }
+}
+
+// No listener:
+this.app.metadataCache.on('changed', (file) => {
+  if (this.writingInProgress.has(file.path)) return; // echo — ignorar
+  this.syncFromFrontmatter(file);
+  this.notifyMutate();
+});
+```
+
+### Quando generalizar
+
+Qualquer situação onde o plugin escreve em estado do Obsidian (frontmatter, vault files) que dispara eventos observados pelo próprio plugin. O pattern é: guard Set + `add` antes da escrita + `delete` em `setTimeout` no finally.
+
+### Onde está implementado
+
+`src/core/caseVariables/caseVariablesRegistry.ts` — CaseVariablesRegistry, método `setValues()` e listener `metadataCache.on('changed')`.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
