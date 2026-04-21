@@ -74,13 +74,26 @@ export class CaseVariablesRegistry {
 
   async setVariable(fileId: string, name: string, value: VariableValue): Promise<void> {
     if (fileId.endsWith('.md')) {
-      // markdown path — implementado em task 7
-      throw new Error('not implemented');
+      const file = this.app.vault.getAbstractFileByPath(fileId) as TFile | null;
+      if (!file) return;
+
+      this.writingInProgress.add(fileId);
+      try {
+        await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+          fm[name] = value;
+        });
+      } finally {
+        setTimeout(() => this.writingInProgress.delete(fileId), 0);
+      }
+      // NOTE: do not call persist() or notify() here.
+      // The metadataCache 'changed' event fires async after processFrontMatter resolves,
+      // and Task 3's syncFromFrontmatter handles mirror update + notify.
+    } else {
+      this.mirror[fileId] ??= {};
+      this.mirror[fileId][name] = value;
+      this.persist();
+      this.notify();
     }
-    this.mirror[fileId] ??= {};
-    this.mirror[fileId][name] = value;
-    this.persist();
-    this.notify();
   }
 
   private persist(): void {

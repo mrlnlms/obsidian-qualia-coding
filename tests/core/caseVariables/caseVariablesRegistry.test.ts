@@ -87,3 +87,59 @@ describe('CaseVariablesRegistry — setVariable (binary)', () => {
     expect(listener).toHaveBeenCalled();
   });
 });
+
+describe('CaseVariablesRegistry — setVariable (markdown)', () => {
+  it('calls processFrontMatter to write to md file', async () => {
+    const processFrontMatter = vi.fn(async (_file: any, fn: (fm: any) => void) => {
+      const fm: Record<string, unknown> = {};
+      fn(fm);
+    });
+    const vault = {
+      getMarkdownFiles: () => [],
+      getAbstractFileByPath: (p: string) => ({ path: p, extension: 'md' }),
+    };
+    const app = {
+      vault,
+      fileManager: { processFrontMatter },
+      metadataCache: { getFileCache: () => undefined, on: vi.fn(() => ({})), offref: vi.fn() },
+      workspace: { layoutReady: true, onLayoutReady: vi.fn((cb: () => void) => cb()) },
+    } as unknown as App;
+
+    const reg = new CaseVariablesRegistry(app, createMockDataManager() as any);
+    await reg.initialize();
+
+    await reg.setVariable('jane.md', 'idade', 30);
+
+    expect(processFrontMatter).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'jane.md' }),
+      expect.any(Function),
+    );
+  });
+
+  it('marks writingInProgress during processFrontMatter call', async () => {
+    let wasGuarded = false;
+    let reg: CaseVariablesRegistry;
+
+    const processFrontMatter = vi.fn(async (_file: any, fn: (fm: any) => void) => {
+      // durante o processFrontMatter, o guard deve estar ativo
+      wasGuarded = (reg as unknown as { writingInProgress: Set<string> }).writingInProgress.has('jane.md');
+      fn({});
+    });
+    const app = {
+      vault: {
+        getMarkdownFiles: () => [],
+        getAbstractFileByPath: (p: string) => ({ path: p, extension: 'md' }),
+      },
+      fileManager: { processFrontMatter },
+      metadataCache: { getFileCache: () => undefined, on: vi.fn(() => ({})), offref: vi.fn() },
+      workspace: { layoutReady: true, onLayoutReady: vi.fn((cb: () => void) => cb()) },
+    } as unknown as App;
+
+    reg = new CaseVariablesRegistry(app, createMockDataManager() as any);
+    await reg.initialize();
+
+    await reg.setVariable('jane.md', 'idade', 30);
+
+    expect(wasGuarded).toBe(true);
+  });
+});
