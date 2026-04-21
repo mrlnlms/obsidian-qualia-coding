@@ -193,6 +193,37 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 
 ---
 
+## 14. Analytics engine — repassada geral (PRIORIDADE ALTA)
+
+**Bug crítico descoberto 2026-04-21 durante smoke test do corpus sintético.**
+
+Após o commit `46b90e8` (Phase C — codes string[] → CodeApplication[]), `extractCodes` foi atualizado pra retornar `codeId`, mas `consolidateCodes` e os 6 stats engines (`frequency`, `cooccurrence`, `evolution`, `sequential`, `inferential`, `textAnalysis`) continuaram indexando por `name`. Consequências:
+
+- `consolidateCodes` cria entradas DUPLICADAS no `codeMap`: uma por `def.name` (count=0 sempre, porque nenhum marker bate) e outra por `codeId` (com count real)
+- Lista CODES no painel de Analytics mostra `adocao (0)` enquanto o gráfico mostra `c_42` com barras cheias — inconsistência visível
+- Labels do gráfico saem como `c_XX` em vez do nome do código
+- Cores caem no fallback `#6200EE` porque `codeColors.get(codeId)` falha (map indexado por nome)
+- Filtros por código provavelmente quebrados também
+
+**Por que dormiu sem ser notado:** seus markers antigos pré-Phase-C tinham `codeId = name` (vindo da migração inline em `loadMarkers`) — por acidente, lookup funcionava. Markers novos pós-Phase-C (codeId real `c_XX`) expõem o bug.
+
+**Fix proposto (mínimo invasivo, ~30-45 min):**
+- `dataTypes.ts`: adicionar `id?: string` em `UnifiedCode`
+- `dataConsolidator.ts`: popular `id` no `consolidateCodes`, mergear por nome mas guardando id
+- `statsHelpers.ts`: helper `buildIdToNameMap(codes)` reutilizável
+- `frequency.ts`, `cooccurrence.ts`, `evolution.ts`, `sequential.ts`, `inferential.ts`, `textAnalysis.ts`, `mdsEngine.ts`, `decisionTreeEngine.ts`: usar resolver pra mapear codeId → nome antes de indexar
+- 17 arquivos de teste podem precisar ajustes (a maioria usa nomes literais e não vai quebrar)
+
+**Outros itens pra repassada geral do analytics** (a serem listados conforme aparecem):
+- Verificar que filtro de Case Variables funciona corretamente nos 6 engines (smoke test do corpus pendente)
+- Verificar invalidação de cache quando code é renomeado/deletado (especialmente após o id-vs-name fix)
+- Auditoria do `consolidationCache` pra confirmar que dirty flags propagam por engine corretamente
+- Considerar tipos discriminados pra evitar bugs como esse (tipo `CodeId = Branded<string, 'codeId'>`)
+
+**Quando atacar:** próxima sessão dedicada a Analytics. Idealmente antes de novos bugs do filtro de Case Variables serem reportados (o smoke test do corpus pode encobrir mais bugs do engine).
+
+---
+
 ## 13. Migrar ImageCodingView / AudioView / VideoView para `FileView`
 
 **Contexto:** essas 3 views estendem `ItemView` por inercia historica (herdado dos plugins independentes pre-consolidacao, commit `d7eb286` 2026-03-02). CSV ja e `FileView`. Markdown/PDF sao `FileView` nativos do Obsidian. As 3 views custom ficaram foras do padrao.
