@@ -193,6 +193,20 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 
 ---
 
+## 15. Case Variables — edge cases marginais pendentes
+
+Smoke test de 2026-04-21 cobriu os cenários principais. Faltam validações de borda:
+
+- Nome de variável com **emoji** ou **caracteres exóticos** (acentuação já funciona, confirmado durante smoke test)
+- **Valor vazio** ao adicionar — deveria rejeitar ou aceitar como string vazia?
+- **Hot-reload do plugin** com popover aberto — o listener do addOnMutate fica órfão?
+- **Multi-pane:** edição de frontmatter direto no editor markdown (não via popover) — popover na outra pane atualiza?
+- **Multi-pane racing:** dois popovers do mesmo arquivo abertos simultâneamente (hoje não é possível — clicar num fecha o outro — mas se multi-popover vier no futuro)
+
+Risco/retorno baixo. Fazer numa sessão dedicada de 20-30 min quando houver outro trigger pra mexer em Case Variables.
+
+---
+
 ## 14. Analytics engine — repassada geral (PRIORIDADE ALTA)
 
 **Bug crítico descoberto 2026-04-21 durante smoke test do corpus sintético.**
