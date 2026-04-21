@@ -234,6 +234,9 @@ Após o commit `46b90e8` (Phase C — codes string[] → CodeApplication[]), `ex
 - Auditoria do `consolidationCache` pra confirmar que dirty flags propagam por engine corretamente
 - Considerar tipos discriminados pra evitar bugs como esse (tipo `CodeId = Branded<string, 'codeId'>`)
 
+**Manifestações adicionais do mesmo bug** (descobertas 2026-04-21 durante teste de QDPX round-trip no vault B):
+- **Painel "All Codes" no Codebook sidebar** mostra todas as contagens como `0` — independente do número real de markers. Mesma raiz: a contagem é feita por nome do código, mas os markers referenciam codeId. Fix será o mesmo do consolidator (popular id em UnifiedCode + helper buildIdToNameMap).
+
 **Quando atacar:** próxima sessão dedicada a Analytics. Idealmente antes de novos bugs do filtro de Case Variables serem reportados (o smoke test do corpus pode encobrir mais bugs do engine).
 
 ---
