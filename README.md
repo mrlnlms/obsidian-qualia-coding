@@ -165,8 +165,8 @@ A freeform canvas for synthesizing findings:
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | What's planned but not yet built? (includes market research gaps) |
 | [`docs/TECHNICAL-PATTERNS.md`](docs/TECHNICAL-PATTERNS.md) | How do I fix this weird bug? |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | How do I contribute, port, or test? |
-| [`docs/DESIGN-PRINCIPLES.md`](docs/DESIGN-PRINCIPLES.md) | What design values drove the code? |
-| [`docs/DESIGN-STORY.md`](docs/DESIGN-STORY.md) | What theory grounds the design? |
+| [`docs/BACKLOG.md`](docs/BACKLOG.md) | What technical debt is open? |
+| [`docs/NEXT-STEPS.md`](docs/NEXT-STEPS.md) | What's the operational next step? |
 
 ## License
 

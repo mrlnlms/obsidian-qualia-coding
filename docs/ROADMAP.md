@@ -236,7 +236,7 @@ Implementado nos dois engines de texto que renderizam highlights por range:
 - **PDF** (`src/pdf/highlightRenderer.ts:149-180`): N retângulos sobrepostos no DOM overlay, cada um com `BASE_OPACITY / N`. Hover aumenta proporcionalmente
 - **Mix-blend-mode**: `multiply` em ambos — cores se compõem visualmente em cor única de "mistura"
 
-**Fórmula documentada** em `docs/DESIGN-PRINCIPLES.md §3.2 (Opacity Blending)`.
+**Fórmula documentada** no blending engine de cada formato.
 
 **Engines sem blending** (decisão intencional, paradigma diferente):
 - Image (fabric.js) — regiões são shapes, não ranges
