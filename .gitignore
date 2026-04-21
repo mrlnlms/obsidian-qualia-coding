@@ -12,3 +12,4 @@ coverage/
 .claude/
 test/screenshots/actual/
 test/screenshots/diff/
+.superpowers/

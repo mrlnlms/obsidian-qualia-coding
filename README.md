@@ -163,7 +163,6 @@ A freeform canvas for synthesizing findings:
 |-----|---------------------|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Why is it built this way? |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | What's planned but not yet built? (includes market research gaps) |
-| [`docs/research/`](docs/research/) | Competitive benchmark, technical evaluation, product brainstorm |
 | [`docs/TECHNICAL-PATTERNS.md`](docs/TECHNICAL-PATTERNS.md) | How do I fix this weird bug? |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | How do I contribute, port, or test? |
 | [`docs/HISTORY.md`](docs/HISTORY.md) | How did we get here? |
