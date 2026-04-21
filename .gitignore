@@ -1,7 +1,6 @@
 main.js
 node_modules/
 data.json
-.hotreload
 .DS_Store
 .obsidian-cache/
 CLAUDE.md
