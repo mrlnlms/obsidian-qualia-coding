@@ -6,6 +6,7 @@ import type {
   VariableValue,
 } from './caseVariablesTypes';
 import { OBSIDIAN_RESERVED } from './caseVariablesTypes';
+import { getObsidianPropertyType } from './obsidianInternalsApi';
 
 export class CaseVariablesRegistry {
   private mirror: CaseVariablesData = {};
@@ -55,6 +56,12 @@ export class CaseVariablesRegistry {
       for (const name of Object.keys(vars)) names.add(name);
     }
     return [...names].sort();
+  }
+
+  getType(name: string): PropertyType {
+    const obsidianType = getObsidianPropertyType(this.app, name);
+    if (obsidianType) return obsidianType;
+    return this.types[name] ?? 'text';
   }
 
   addOnMutate(fn: () => void): void {
