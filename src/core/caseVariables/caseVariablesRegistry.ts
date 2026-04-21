@@ -118,6 +118,12 @@ export class CaseVariablesRegistry {
     this.notify();
   }
 
+  /**
+   * Remove the mirror entry for a file entirely. Binary-only in practice —
+   * called by the file-deletion hook (Task 18) when a file is removed from the vault.
+   * Markdown files with frontmatter variables should use `removeVariable` per key;
+   * on actual file delete, the metadataCache event will drop the entry reactively.
+   */
   removeAllForFile(fileId: string): void {
     if (!this.mirror[fileId]) return;
     delete this.mirror[fileId];
@@ -152,6 +158,11 @@ export class CaseVariablesRegistry {
     return files;
   }
 
+  /**
+   * Return fileIds sharing a `caseId` value. Convention: multi-document cases
+   * are grouped by setting `caseId` to the same string in each related file.
+   * Sugar over `getFilesByVariable('caseId', caseId)`.
+   */
   getFilesByCase(caseId: string): string[] {
     return this.getFilesByVariable('caseId', caseId);
   }

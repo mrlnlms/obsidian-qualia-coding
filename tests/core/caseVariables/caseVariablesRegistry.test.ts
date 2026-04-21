@@ -178,6 +178,35 @@ describe('CaseVariablesRegistry — removeVariable / removeAllForFile / migrateF
     expect(reg.getVariables('old.jpg')).toEqual({});
     expect(reg.getVariables('new.jpg')).toEqual({ idade: 30 });
   });
+
+  it('calls processFrontMatter with delete on markdown path', async () => {
+    let deletedKey: string | undefined;
+    const processFrontMatter = vi.fn(async (_file: any, fn: (fm: any) => void) => {
+      const fm: Record<string, unknown> = { idade: 30, grupo: 'c' };
+      fn(fm);
+      deletedKey = 'idade' in fm ? undefined : 'idade';
+    });
+    const app = {
+      vault: {
+        getMarkdownFiles: () => [],
+        getAbstractFileByPath: (p: string) => ({ path: p, extension: 'md' }),
+      },
+      fileManager: { processFrontMatter },
+      metadataCache: { getFileCache: () => undefined, on: vi.fn(() => ({})), offref: vi.fn() },
+      workspace: { layoutReady: true, onLayoutReady: vi.fn((cb: () => void) => cb()) },
+    } as unknown as App;
+
+    const reg = new CaseVariablesRegistry(app, createMockDataManager() as any);
+    await reg.initialize();
+
+    await reg.removeVariable('jane.md', 'idade');
+
+    expect(processFrontMatter).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'jane.md' }),
+      expect.any(Function),
+    );
+    expect(deletedKey).toBe('idade');
+  });
 });
 
 describe('CaseVariablesRegistry — autocomplete helpers', () => {
@@ -212,5 +241,22 @@ describe('CaseVariablesRegistry — autocomplete helpers', () => {
 
     expect(reg.getFilesByVariable('grupo').sort()).toEqual(['a.jpg']);
     expect(reg.getFilesByVariable('idade').sort()).toEqual(['b.jpg']);
+  });
+
+  it('filters files by exact variable value', async () => {
+    const app = createMockApp();
+    const data = createMockDataManager({
+      values: {
+        'a.jpg': { grupo: 'controle' },
+        'b.jpg': { grupo: 'tratamento' },
+        'c.jpg': { grupo: 'controle' },
+      },
+      types: {},
+    });
+    const reg = new CaseVariablesRegistry(app, data as any);
+    await reg.initialize();
+
+    expect(reg.getFilesByVariable('grupo', 'controle').sort()).toEqual(['a.jpg', 'c.jpg']);
+    expect(reg.getFilesByVariable('grupo', 'inexistente')).toEqual([]);
   });
 });
