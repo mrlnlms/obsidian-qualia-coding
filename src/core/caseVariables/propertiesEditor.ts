@@ -19,8 +19,8 @@ export class PropertiesEditor {
     this.container = container;
     this.config = config;
     this.mutateListener = () => this.render();
-    this.config.registry.addOnMutate(this.mutateListener);
     this.render();
+    this.config.registry.addOnMutate(this.mutateListener);
   }
 
   destroy(): void {
@@ -95,8 +95,13 @@ export class PropertiesEditor {
     input.value = value == null ? '' : String(value);
     input.addEventListener('blur', () => {
       const raw = input.value;
-      const coerced: VariableValue = type === 'number' ? Number(raw) : raw;
-      handleChange(coerced);
+      if (type === 'number') {
+        const num = Number(raw);
+        if (raw === '' || Number.isNaN(num)) return;  // ignore empty or invalid numbers
+        handleChange(num);
+        return;
+      }
+      handleChange(raw);
     });
   }
 
@@ -124,8 +129,13 @@ export class PropertiesEditor {
     const close = () => wrapper.remove();
     cancel.addEventListener('click', close);
     remove.addEventListener('click', async () => {
-      await this.config.registry.removeVariable(this.config.fileId, name);
-      close();
+      try {
+        await this.config.registry.removeVariable(this.config.fileId, name);
+      } catch (err) {
+        console.error('PropertiesEditor: removeVariable failed', err);
+      } finally {
+        close();
+      }
     });
   }
 
