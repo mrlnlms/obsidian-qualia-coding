@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mock obsidian ────────────────────────────────────────────────────
+const NoticeSpy = vi.fn();
 vi.mock('obsidian', () => ({
-  setIcon: vi.fn(),
+  setIcon: vi.fn((el: HTMLElement, name: string) => {
+    el.setAttribute('data-icon', name);
+  }),
+  Notice: class {
+    constructor(msg: string) { NoticeSpy(msg); }
+  },
 }));
 
 // ── Patch HTMLElement with Obsidian-specific DOM helpers ─────────────
@@ -99,6 +105,93 @@ describe('PropertiesEditor — rendering', () => {
     new PropertiesEditor(container, { fileId: 'empty.jpg', registry });
 
     expect(container.querySelector('.case-variables-empty')).toBeTruthy();
+  });
+
+  it('resolves fileId via function — supports rename mid-edit', () => {
+    const setVariable = vi.fn();
+    const getVariables = vi.fn(() => ({ grupo: 'controle' }));
+    let currentPath = 'old.jpg';
+    const registry = {
+      getVariables,
+      getType: () => 'text',
+      getAllVariableNames: () => ['grupo'],
+      getValuesForVariable: () => [],
+      setVariable, removeVariable: vi.fn(),
+      addOnMutate: vi.fn(), removeOnMutate: vi.fn(),
+    } as any;
+
+    new PropertiesEditor(container, { fileId: () => currentPath, registry });
+
+    expect(getVariables).toHaveBeenLastCalledWith('old.jpg');
+
+    // Simulate rename: function now returns the new path.
+    currentPath = 'new.jpg';
+    const input = container.querySelector('input[type="text"]') as HTMLInputElement;
+    input.value = 'tratamento';
+    input.dispatchEvent(new Event('blur'));
+
+    expect(setVariable).toHaveBeenCalledWith('new.jpg', 'grupo', 'tratamento');
+  });
+
+  it('infers icon type from value when registry returns text (for dates, datetime, booleans)', () => {
+    const registry = {
+      getVariables: () => ({ data: '2026-04-21', datahora: '2026-04-21T14:30', booleano: true, texto: 'livre' }),
+      getType: () => 'text',  // stored type is text for all
+      getAllVariableNames: () => ['data', 'datahora', 'booleano', 'texto'],
+      getValuesForVariable: () => [],
+      addOnMutate: vi.fn(), removeOnMutate: vi.fn(),
+      setVariable: vi.fn(), removeVariable: vi.fn(),
+    } as any;
+
+    new PropertiesEditor(container, { fileId: 'jane.md', registry });
+
+    const rows = container.querySelectorAll('.case-variables-row');
+    const icons = Array.from(rows).map(r => r.querySelector('.case-variables-icon')?.getAttribute('data-icon'));
+    // TYPE_ICONS: date=calendar, datetime=calendar-clock, checkbox=check-square, text=type
+    expect(icons).toEqual(['calendar', 'calendar-clock', 'check-square', 'type']);
+  });
+
+  it('blocks adding Obsidian-reserved names (tags, aliases, cssclasses, position)', async () => {
+    NoticeSpy.mockClear();
+    const setVariable = vi.fn();
+    const registry = {
+      getVariables: () => ({}),
+      getType: () => 'text',
+      getAllVariableNames: () => [],
+      getValuesForVariable: () => [],
+      setVariable, removeVariable: vi.fn(),
+      addOnMutate: vi.fn(), removeOnMutate: vi.fn(),
+    } as any;
+
+    new PropertiesEditor(container, { fileId: 'jane.md', registry });
+    const nameInput = container.querySelector('.case-variables-add-row input[data-role="name"]') as HTMLInputElement;
+    const valueInput = container.querySelector('.case-variables-add-row input[data-role="value"]') as HTMLInputElement;
+    const addBtn = container.querySelector('.case-variables-add-row button') as HTMLButtonElement;
+
+    nameInput.value = 'tags';
+    valueInput.value = 'foo';
+    addBtn.click();
+    await Promise.resolve();
+
+    expect(setVariable).not.toHaveBeenCalled();
+    expect(NoticeSpy).toHaveBeenCalledTimes(1);
+    expect(NoticeSpy.mock.calls[0][0]).toContain('"tags"');
+  });
+
+  it('shows fallback empty state when fileId function returns null (file deleted)', () => {
+    const registry = {
+      getVariables: vi.fn(),
+      getType: () => 'text',
+      getAllVariableNames: () => [],
+      getValuesForVariable: () => [],
+      setVariable: vi.fn(), removeVariable: vi.fn(),
+      addOnMutate: vi.fn(), removeOnMutate: vi.fn(),
+    } as any;
+
+    new PropertiesEditor(container, { fileId: () => null, registry });
+
+    expect(registry.getVariables).not.toHaveBeenCalled();
+    expect(container.querySelector('.case-variables-empty')?.textContent).toBe('File no longer available');
   });
 });
 

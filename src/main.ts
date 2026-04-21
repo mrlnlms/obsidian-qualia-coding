@@ -1,4 +1,4 @@
-import { Plugin, FileView, TFile, type View } from 'obsidian';
+import { Plugin, FileView, ItemView, TFile, type View } from 'obsidian';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
@@ -33,6 +33,9 @@ import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
 import type { AudioCodingModel } from './audio/audioCodingModel';
 import type { VideoCodingModel } from './video/videoCodingModel';
+import { ImageCodingView } from './image/views/imageView';
+import { AudioView } from './audio/audioView';
+import { VideoView } from './video/videoView';
 
 export default class QualiaCodingPlugin extends Plugin {
 	dataManager!: DataManager;
@@ -72,10 +75,22 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.cleanups.push(() => this.caseVariablesRegistry.unload());
 
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
-			if (leaf?.view instanceof FileView) {
-				this.addCaseVariablesActionToView(leaf.view);
+			const view = leaf?.view;
+			if (view instanceof ItemView) {
+				this.addCaseVariablesActionToView(view);
 			}
 		}));
+
+		// Cover leaves that don't fire active-leaf-change (e.g. second pane at boot)
+		const addActionToAllLeaves = () => {
+			this.app.workspace.iterateAllLeaves((leaf) => {
+				if (leaf.view instanceof ItemView) {
+					this.addCaseVariablesActionToView(leaf.view);
+				}
+			});
+		};
+		this.app.workspace.onLayoutReady(addActionToAllLeaves);
+		this.registerEvent(this.app.workspace.on('layout-change', addActionToAllLeaves));
 
 		// Case variables: migrate on rename, clear on delete
 		const CASE_VAR_EXTENSIONS = new Set([
@@ -93,10 +108,56 @@ export default class QualiaCodingPlugin extends Plugin {
 			},
 		});
 
+		// Obsidian emits extension-changing renames as create+delete (no rename event).
+		// Correlate create and delete within a 2s window by basename OR file size,
+		// covering: (a) same name, changed extension; (b) changed name + extension
+		// (size survives rename without re-encode — TFile.stat.size is byte-exact).
+		interface RecentCreate {
+			path: string;
+			basename: string;
+			size: number;
+			timer: ReturnType<typeof setTimeout>;
+		}
+		const recentCreates = new Map<string, RecentCreate>();
+		const basenameNoExt = (path: string): string => {
+			const slash = path.lastIndexOf('/');
+			const name = slash >= 0 ? path.slice(slash + 1) : path;
+			const dot = name.lastIndexOf('.');
+			return dot >= 0 ? name.slice(0, dot) : name;
+		};
+
+		this.registerEvent(this.app.vault.on('create', (file) => {
+			if (!(file instanceof TFile) || !CASE_VAR_EXTENSIONS.has(file.extension)) return;
+			const prev = recentCreates.get(file.path);
+			if (prev) clearTimeout(prev.timer);
+			const timer = setTimeout(() => recentCreates.delete(file.path), 2000);
+			recentCreates.set(file.path, {
+				path: file.path,
+				basename: basenameNoExt(file.path),
+				size: file.stat.size,
+				timer,
+			});
+		}));
+
 		this.registerEvent(this.app.vault.on('delete', (file) => {
-			if (file instanceof TFile && CASE_VAR_EXTENSIONS.has(file.extension)) {
-				this.caseVariablesRegistry.removeAllForFile(file.path);
+			if (!(file instanceof TFile) || !CASE_VAR_EXTENSIONS.has(file.extension)) return;
+			const deletedBase = basenameNoExt(file.path);
+			const deletedSize = file.stat.size;
+			let match: RecentCreate | null = null;
+			for (const entry of recentCreates.values()) {
+				if (entry.path === file.path) continue;
+				if (entry.basename === deletedBase || entry.size === deletedSize) {
+					match = entry;
+					break;
+				}
 			}
+			if (match) {
+				this.caseVariablesRegistry.migrateFilePath(file.path, match.path);
+				clearTimeout(match.timer);
+				recentCreates.delete(match.path);
+				return;
+			}
+			this.caseVariablesRegistry.removeAllForFile(file.path);
 		}));
 
 		this.addSettingTab(new QualiaSettingTab(this.app, this));
@@ -251,22 +312,40 @@ export default class QualiaCodingPlugin extends Plugin {
 		}
 	}
 
-	private addCaseVariablesActionToView(view: FileView): void {
-		if ((view as unknown as { _caseVariablesActionAdded?: boolean })._caseVariablesActionAdded) return;
-		const file = view.file;
-		if (!file) return;
-		const fileId = file.path;
+	private getFileFromItemView(view: ItemView): TFile | null {
+		if (view instanceof FileView) return view.file;
+		if (view instanceof ImageCodingView) return view.file;
+		if (view instanceof AudioView || view instanceof VideoView) return view.core.file;
+		return null;
+	}
 
+	private addCaseVariablesActionToView(view: ItemView): void {
+		if ((view as unknown as { _caseVariablesActionAdded?: boolean })._caseVariablesActionAdded) return;
+		if (!this.getFileFromItemView(view)) return;
+
+		// Resolve fileId dynamically — TFile.path mutates on rename; closure capture would stale.
+		const currentFileId = (): string | null => this.getFileFromItemView(view)?.path ?? null;
+
+		let closeCurrent: (() => void) | null = null;
 		const button = view.addAction('clipboard-list', 'Case Variables', () => {
-			openPropertiesPopover(button, {
-				fileId,
+			if (closeCurrent) {
+				closeCurrent();
+				return;
+			}
+			if (!currentFileId()) return;
+			closeCurrent = openPropertiesPopover(button, {
+				fileId: currentFileId,
 				registry: this.caseVariablesRegistry,
+				onClose: () => { closeCurrent = null; },
 			});
 		});
+		button.addClass('case-variables-action');
 
 		const updateBadge = () => {
 			try {
 				if (!button.isConnected) return;
+				const fileId = currentFileId();
+				if (!fileId) return;
 				const count = Object.keys(this.caseVariablesRegistry.getVariables(fileId)).length;
 				button.toggleClass('has-properties', count > 0);
 				button.setAttribute('data-count', String(count));

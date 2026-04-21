@@ -1,11 +1,27 @@
 import type { CaseVariablesRegistry } from './caseVariablesRegistry';
 import type { PropertyType, VariableValue } from './caseVariablesTypes';
+import { OBSIDIAN_RESERVED } from './caseVariablesTypes';
 import { TYPE_ICONS } from './typeIcons';
 import { inferPropertyType } from './inferPropertyType';
-import { setIcon } from 'obsidian';
+import { Notice, setIcon } from 'obsidian';
+
+function resolveDisplayType(storedType: PropertyType, value: VariableValue): PropertyType {
+  if (storedType !== 'text') return storedType;
+  if (typeof value === 'boolean') return 'checkbox';
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'string') {
+    const inferred = inferPropertyType(value);
+    if (inferred !== 'text') return inferred;
+  }
+  return 'text';
+}
 
 export interface PropertiesEditorConfig {
-  fileId: string;
+  /**
+   * File path. Pass a function when the path may change while the editor is mounted
+   * (e.g. user renames the file mid-edit) — function is re-resolved on every read/write.
+   */
+  fileId: string | (() => string | null);
   registry: CaseVariablesRegistry;
   onClose?: () => void;
 }
@@ -32,11 +48,23 @@ export class PropertiesEditor {
     this.render();
   }
 
+  private resolveFileId(): string | null {
+    const f = this.config.fileId;
+    return typeof f === 'function' ? f() : f;
+  }
+
   private render(): void {
     this.container.innerHTML = '';
     this.container.classList.add('case-variables-editor');
 
-    const variables = this.config.registry.getVariables(this.config.fileId);
+    const fileId = this.resolveFileId();
+    if (!fileId) {
+      const empty = this.container.createDiv({ cls: 'case-variables-empty' });
+      empty.textContent = 'File no longer available';
+      return;
+    }
+
+    const variables = this.config.registry.getVariables(fileId);
     const entries = Object.entries(variables);
 
     if (entries.length === 0) {
@@ -55,7 +83,7 @@ export class PropertiesEditor {
     const row = this.container.createDiv({ cls: 'case-variables-row' });
     row.dataset.propertyName = name;
 
-    const type = this.config.registry.getType(name);
+    const type = resolveDisplayType(this.config.registry.getType(name), value);
     const iconEl = row.createSpan({ cls: 'case-variables-icon' });
     setIcon(iconEl, TYPE_ICONS[type]);
 
@@ -75,7 +103,9 @@ export class PropertiesEditor {
     value: VariableValue,
   ): void {
     const handleChange = (newValue: VariableValue) => {
-      void this.config.registry.setVariable(this.config.fileId, name, newValue);
+      const fileId = this.resolveFileId();
+      if (!fileId) return;
+      void this.config.registry.setVariable(fileId, name, newValue);
     };
 
     if (type === 'checkbox') {
@@ -129,8 +159,13 @@ export class PropertiesEditor {
     const close = () => wrapper.remove();
     cancel.addEventListener('click', close);
     remove.addEventListener('click', async () => {
+      const fileId = this.resolveFileId();
+      if (!fileId) {
+        close();
+        return;
+      }
       try {
-        await this.config.registry.removeVariable(this.config.fileId, name);
+        await this.config.registry.removeVariable(fileId, name);
       } catch (err) {
         console.error('PropertiesEditor: removeVariable failed', err);
       } finally {
@@ -158,13 +193,22 @@ export class PropertiesEditor {
       const rawValue = valueInput.value;
       if (!name) return;
 
+      if (OBSIDIAN_RESERVED.includes(name)) {
+        new Notice(`"${name}" is reserved by Obsidian and cannot be used as a Case Variable.`);
+        nameInput.select();
+        return;
+      }
+
+      const fileId = this.resolveFileId();
+      if (!fileId) return;
+
       const type = inferPropertyType(rawValue);
       const coerced: VariableValue =
         type === 'number' ? Number(rawValue) :
         type === 'checkbox' ? /^true$/i.test(rawValue) :
         rawValue;
 
-      await this.config.registry.setVariable(this.config.fileId, name, coerced);
+      await this.config.registry.setVariable(fileId, name, coerced);
       nameInput.value = '';
       valueInput.value = '';
     };

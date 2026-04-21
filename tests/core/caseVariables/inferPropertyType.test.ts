@@ -26,6 +26,12 @@ describe('inferPropertyType', () => {
     expect(inferPropertyType('controle')).toBe('text');
     expect(inferPropertyType('')).toBe('text');
   });
+  it('infers number from pure digits, including leading zeros (01, 007 → number; user must use prefix like "P01" to preserve string)', () => {
+    expect(inferPropertyType('01')).toBe('number');
+    expect(inferPropertyType('007')).toBe('number');
+    expect(inferPropertyType('P01')).toBe('text');
+    expect(inferPropertyType('ID-007')).toBe('text');
+  });
   it('does not infer multitext from single string (multitext via explicit user action)', () => {
     expect(inferPropertyType('a, b, c')).toBe('text');
   });
