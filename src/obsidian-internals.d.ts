@@ -36,4 +36,11 @@ declare module 'obsidian' {
 		trigger(name: 'qualia-video:navigate', data: { file: string; seekTo: number }): void;
 		trigger(name: 'qualia-pdf:navigate', data: { file: string; page: number }): void;
 	}
+
+	interface App {
+		metadataTypeManager?: {
+			getTypeInfo?: (propertyName: string) => { type: string; widget?: unknown } | undefined;
+			registeredTypeWidgets?: Record<string, unknown>;
+		};
+	}
 }
