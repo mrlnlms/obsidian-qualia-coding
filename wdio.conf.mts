@@ -5,6 +5,7 @@ export const config = createConfig({
   pluginDir: ".",
   vault: "tests/e2e/vaults/visual",
   specs: ["tests/e2e/specs/**/*.e2e.ts"],
+  screenshotDir: "tests/screenshots",
   timeout: 120_000,
   overrides: {
     specFileRetries: 2,
