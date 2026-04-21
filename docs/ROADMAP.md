@@ -238,7 +238,7 @@ Implementado nos dois engines de texto que renderizam highlights por range:
 - **PDF** (`src/pdf/highlightRenderer.ts:149-180`): N retângulos sobrepostos no DOM overlay, cada um com `BASE_OPACITY / N`. Hover aumenta proporcionalmente
 - **Mix-blend-mode**: `multiply` em ambos — cores se compõem visualmente em cor única de "mistura"
 
-**Fórmula documentada** em `docs/pm/product/DESIGN-PRINCIPLES.md §3.2 (Opacity Blending)`.
+**Fórmula documentada** em `docs/DESIGN-PRINCIPLES.md §3.2 (Opacity Blending)`.
 
 **Engines sem blending** (decisão intencional, paradigma diferente):
 - Image (fabric.js) — regiões são shapes, não ranges
@@ -282,8 +282,6 @@ O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para dra
 ---
 
 ## Gaps Identificados na Pesquisa de Mercado
-
-> Ver `docs/pm/research/MARKET-RESEARCH.md` para análise completa de concorrentes, preços, e benchmark de mixed methods.
 
 ### Gaps estratégicos (fundamentados em benchmark)
 
@@ -334,4 +332,3 @@ Este roadmap consolida (arquivos originais já arquivados):
 - `docs/markdown/ARCHITECTURE.md` — Phases 3-5 (per-code decorations, projects, power features)
 - `docs/markdown/POC-RESIZE-HANDLE.md` — Resize handle POC
 - `docs/markdown/COMPONENTS.md` — FuzzySuggestModal opportunity
-- `docs/pm/research/MARKET-RESEARCH.md` — pesquisa de mercado e benchmark mixed methods (março 2026)

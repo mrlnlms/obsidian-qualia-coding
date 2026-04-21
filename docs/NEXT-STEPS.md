@@ -69,8 +69,8 @@
 | Projects + Workspace | Feature | Alta | ROADMAP #13 (reavaliar data model) |
 | Export JSON full / PNG Dashboard composite | Feature | Baixa-Media | ROADMAP #15 |
 | Intercoder Reliability (kappa/alpha) | Gap estrategico | Alta | ROADMAP §Gaps |
-| AI-Assisted Coding (local-first, Ollama) | Gap estrategico | Alta | docs/pm/gaps/2026-03-03-analysis.md |
-| Community plugin listing | Gap estrategico | Media | docs/pm/gaps/2026-03-03-analysis.md |
+| AI-Assisted Coding (local-first, Ollama) | Gap estrategico | Alta | ROADMAP §Gaps |
+| Community plugin listing | Gap estrategico | Media | ROADMAP §Gaps |
 
 ---
 
