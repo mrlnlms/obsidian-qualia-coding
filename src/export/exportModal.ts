@@ -2,6 +2,7 @@ import { Modal, Setting, Notice } from 'obsidian';
 import type { App } from 'obsidian';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import { exportProject } from './qdpxExporter';
 
 export class ExportModal extends Modal {
@@ -10,6 +11,7 @@ export class ExportModal extends Modal {
   private fileName: string;
   private dataManager: DataManager;
   private registry: CodeDefinitionRegistry;
+  private caseVariablesRegistry: CaseVariablesRegistry;
   private pluginVersion: string;
   private dynamicEl!: HTMLElement;
 
@@ -19,10 +21,12 @@ export class ExportModal extends Modal {
     registry: CodeDefinitionRegistry,
     defaultFormat: 'qdc' | 'qdpx',
     pluginVersion: string,
+    caseVariablesRegistry: CaseVariablesRegistry,
   ) {
     super(app);
     this.dataManager = dataManager;
     this.registry = registry;
+    this.caseVariablesRegistry = caseVariablesRegistry;
     this.format = defaultFormat;
     this.pluginVersion = pluginVersion;
     this.fileName = `qualia-project.${defaultFormat}`;
@@ -89,7 +93,7 @@ export class ExportModal extends Modal {
         fileName: this.fileName,
         vaultName: this.app.vault.getName(),
         pluginVersion: this.pluginVersion,
-      });
+      }, this.caseVariablesRegistry);
 
       if (typeof result.data === 'string') {
         await this.app.vault.create(result.fileName, result.data);

@@ -36,6 +36,8 @@ export class ImageCodingView extends ItemView {
 	/** Resolves when loadImage completes and canvas is ready. */
 	waitUntilReady(): Promise<void> { return this.readyPromise; }
 
+	get file(): TFile | null { return this.currentFile; }
+
 	constructor(leaf: WorkspaceLeaf, plugin: QualiaCodingPlugin, model: ImageCodingModel) {
 		super(leaf);
 		this.plugin = plugin;

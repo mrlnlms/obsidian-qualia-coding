@@ -11,6 +11,8 @@ import type { ImageMarker } from '../image/imageCodingTypes';
 import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
 import { lineChToOffset, mediaToMs, imageToPixels, pdfShapeToRect } from './coordConverters';
 import type { DataManager } from '../core/dataManager';
+import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
+import { renderVariablesForFile, renderCasesXml } from './caseVariablesXml';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -317,6 +319,7 @@ export function buildProjectXml(
   sourcesXml: string,
   notesXml: string,
   linksXml: string,
+  casesXml: string,
   vaultName: string,
   pluginVersion: string,
 ): string {
@@ -324,8 +327,9 @@ export function buildProjectXml(
   const sourcesSection = sourcesXml ? `<Sources>\n${sourcesXml}\n</Sources>` : '';
   const notesSection = notesXml ? `<Notes>\n${notesXml}\n</Notes>` : '';
   const linksSection = linksXml ? `<Links>\n${linksXml}\n</Links>` : '';
+  const casesSection = casesXml ? `<Cases>\n${casesXml}\n</Cases>` : '';
 
-  const sections = [codebook, sourcesSection, notesSection, linksSection].filter(Boolean).join('\n');
+  const sections = [codebook, sourcesSection, notesSection, linksSection, casesSection].filter(Boolean).join('\n');
 
   return `${xmlDeclaration()}\n<Project ${xmlAttr('name', vaultName)} ${xmlAttr('origin', `Qualia Coding ${pluginVersion}`)} ${xmlAttr('creationDateTime', new Date().toISOString())} ${xmlAttr('xmlns', PROJECT_NS)}>\n${sections}\n</Project>`;
 }
@@ -349,6 +353,18 @@ export function createQdpxZip(
 
 // ── Export orchestration ──
 
+/**
+ * Inject <Variable> elements into a source XML string before its closing tag.
+ * Matches the last `</SomethingSource>` pattern (TextSource, PDFSource, etc.).
+ */
+function injectVariablesIntoSource(sourceXml: string, variablesXml: string): string {
+  if (!variablesXml || !sourceXml) return sourceXml;
+  const match = sourceXml.match(/<\/(\w+Source)>\s*$/);
+  if (!match) return sourceXml;
+  const closingTag = match[0];
+  return sourceXml.slice(0, -closingTag.length) + variablesXml + '\n' + closingTag;
+}
+
 export interface ExportOptions {
   format: 'qdc' | 'qdpx';
   includeSources: boolean;
@@ -368,6 +384,7 @@ export async function exportProject(
   dataManager: DataManager,
   registry: CodeDefinitionRegistry,
   options: ExportOptions,
+  caseVariablesRegistry: CaseVariablesRegistry,
 ): Promise<ExportResult> {
   if (options.format === 'qdc') {
     return { data: buildQdcFile(registry), fileName: options.fileName, warnings: [] };
@@ -378,6 +395,7 @@ export async function exportProject(
   const sourceFiles = new Map<string, Uint8Array>();
   const allSourcesXml: string[] = [];
   const warnings: string[] = [];
+  const sourceGuidByFileId = new Map<string, string>();
 
   // --- Markdown ---
   const mdData = dataManager.section('markdown');
@@ -393,7 +411,9 @@ export async function exportProject(
     const txtGuid = uuidV4();
     const xml = buildTextSourceXml(fileId, markers, content, guidMap, notes, srcGuid, txtGuid, options.includeSources);
     if (xml) {
-      allSourcesXml.push(xml);
+      const variablesXml = renderVariablesForFile(fileId, caseVariablesRegistry);
+      allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
+      sourceGuidByFileId.set(fileId, srcGuid);
       if (options.includeSources) {
         sourceFiles.set(`sources/${txtGuid}.txt`, strToU8(content));
       }
@@ -416,7 +436,12 @@ export async function exportProject(
       warnings.push(`PDF shape markers for ${fileId} skipped (page dimensions not available at export time)`);
     }
     const xml = buildPdfSourceXml(fileId, textMarkers, shapeMarkers, pageDims, textOffsets, guidMap, notes, options.includeSources);
-    if (xml) allSourcesXml.push(xml);
+    if (xml) {
+      const variablesXml = renderVariablesForFile(fileId, caseVariablesRegistry);
+      allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
+      const srcGuid = guidMap.get(`source:${fileId}`);
+      if (srcGuid) sourceGuidByFileId.set(fileId, srcGuid);
+    }
     if (options.includeSources) {
       await addSourceFile(app.vault, fileId, sourceFiles, guidMap);
     }
@@ -432,7 +457,12 @@ export async function exportProject(
       continue;
     }
     const xml = buildImageSourceXml(fileId, markers, dims.width, dims.height, guidMap, notes, options.includeSources);
-    if (xml) allSourcesXml.push(xml);
+    if (xml) {
+      const variablesXml = renderVariablesForFile(fileId, caseVariablesRegistry);
+      allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
+      const srcGuid = guidMap.get(`source:${fileId}`);
+      if (srcGuid) sourceGuidByFileId.set(fileId, srcGuid);
+    }
     if (options.includeSources) {
       await addSourceFile(app.vault, fileId, sourceFiles, guidMap);
     }
@@ -443,7 +473,12 @@ export async function exportProject(
   for (const audioFile of audioData.files) {
     if (audioFile.markers.length === 0) continue;
     const xml = buildAudioSourceXml(audioFile.path, audioFile.markers, guidMap, notes, options.includeSources);
-    if (xml) allSourcesXml.push(xml);
+    if (xml) {
+      const variablesXml = renderVariablesForFile(audioFile.path, caseVariablesRegistry);
+      allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
+      const srcGuid = guidMap.get(`source:${audioFile.path}`);
+      if (srcGuid) sourceGuidByFileId.set(audioFile.path, srcGuid);
+    }
     if (options.includeSources) {
       await addSourceFile(app.vault, audioFile.path, sourceFiles, guidMap);
     }
@@ -454,7 +489,12 @@ export async function exportProject(
   for (const videoFile of videoData.files) {
     if (videoFile.markers.length === 0) continue;
     const xml = buildVideoSourceXml(videoFile.path, videoFile.markers, guidMap, notes, options.includeSources);
-    if (xml) allSourcesXml.push(xml);
+    if (xml) {
+      const variablesXml = renderVariablesForFile(videoFile.path, caseVariablesRegistry);
+      allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
+      const srcGuid = guidMap.get(`source:${videoFile.path}`);
+      if (srcGuid) sourceGuidByFileId.set(videoFile.path, srcGuid);
+    }
     if (options.includeSources) {
       await addSourceFile(app.vault, videoFile.path, sourceFiles, guidMap);
     }
@@ -474,7 +514,8 @@ export async function exportProject(
   const notesXml = notes.join('\n');
   const allDefs = registry.getAll();
   const linksXml = buildLinksXml(allDefs, allMarkersForLinks, guidMap);
-  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, options.vaultName, options.pluginVersion);
+  const casesXml = renderCasesXml(caseVariablesRegistry, sourceGuidByFileId);
+  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, casesXml, options.vaultName, options.pluginVersion);
   const zipData = createQdpxZip(projectXml, sourceFiles);
 
   return { data: zipData, fileName: options.fileName, warnings };

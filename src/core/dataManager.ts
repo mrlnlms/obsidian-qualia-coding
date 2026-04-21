@@ -99,6 +99,7 @@ export class DataManager {
 		this.data.pdf = { markers: [], shapes: [] };
 		this.data.audio = { files: [], settings: this.data.audio.settings };
 		this.data.video = { files: [], settings: this.data.video.settings };
+		this.data.caseVariables = { values: {}, types: {} };
 		await this.flush();
 	}
 }

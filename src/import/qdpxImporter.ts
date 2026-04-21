@@ -14,7 +14,20 @@ import { parseXml, getChildElements, getAttr, getNumAttr, getTextContent, getAll
 import { offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from './coordConverters';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
 
+import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
+import type { VariableValue } from '../core/caseVariables/caseVariablesTypes';
+
 // ─── Parsed types ───
+
+export interface ParsedVariable {
+  name: string;
+  value: string | number | boolean | string[];
+}
+
+export interface ParsedCase {
+  name: string;
+  sourceGuids: string[];
+}
 
 export interface ParsedSelection {
   guid: string;
@@ -43,6 +56,7 @@ export interface ParsedSource {
   path?: string;           // internal:// or relative://
   plainTextPath?: string;  // for TextSource and PDF Representation
   selections: ParsedSelection[];
+  variables: ParsedVariable[];
 }
 
 export interface ParsedNote {
@@ -102,6 +116,7 @@ export function parseSources(doc: Document): ParsedSource[] {
         path: getAttr(el, 'path') ?? getAttr(el, 'plainTextPath'),
         plainTextPath: getAttr(el, 'plainTextPath'),
         selections: [],
+        variables: [],
       };
 
       // For PDF, capture Representation plainTextPath
@@ -118,6 +133,11 @@ export function parseSources(doc: Document): ParsedSource[] {
         for (const selEl of getChildElements(el, selTag)) {
           src.selections.push(parseSelection(selEl, selTag as ParsedSelection['type']));
         }
+      }
+
+      // Parse <Variable> children
+      for (const varEl of getChildElements(el, 'Variable')) {
+        src.variables.push(parseVariableElement(varEl));
       }
 
       sources.push(src);
@@ -214,6 +234,44 @@ export function parseLinks(doc: Document): ParsedLink[] {
   return links;
 }
 
+/** Parse a single <Variable> element into a typed ParsedVariable. */
+export function parseVariableElement(el: Element): ParsedVariable {
+  const name = getAttr(el, 'name') ?? '';
+  const qdpxType = getAttr(el, 'typeOfVariable') ?? 'Text';
+  const values: string[] = [];
+  for (const vEl of getChildElements(el, 'VariableValue')) {
+    values.push(vEl.textContent ?? '');
+  }
+
+  if (values.length === 0) return { name, value: '' };
+  if (values.length > 1) return { name, value: values };
+
+  const raw = values[0] ?? '';
+  let coerced: ParsedVariable['value'] = raw;
+  if (qdpxType === 'Float' || qdpxType === 'Integer') coerced = Number(raw);
+  else if (qdpxType === 'Boolean') coerced = /^true$/i.test(raw);
+  return { name, value: coerced };
+}
+
+/** Parse <Cases> section into case groupings. */
+export function parseCases(doc: Document): ParsedCase[] {
+  const cases: ParsedCase[] = [];
+  const casesEl = getAllElements(doc.documentElement, 'Cases')[0];
+  if (!casesEl) return cases;
+
+  for (const caseEl of getChildElements(casesEl, 'Case')) {
+    const name = getAttr(caseEl, 'name') ?? '';
+    const sourceGuids: string[] = [];
+    for (const ref of getChildElements(caseEl, 'SourceRef')) {
+      const g = getAttr(ref, 'targetGUID');
+      if (g) sourceGuids.push(g);
+    }
+    cases.push({ name, sourceGuids });
+  }
+
+  return cases;
+}
+
 // ─── Import orchestration ───
 
 export interface ImportOptions {
@@ -280,6 +338,7 @@ export async function importQdpx(
   dataManager: DataManager,
   registry: CodeDefinitionRegistry,
   options: ImportOptions,
+  caseVariablesRegistry?: CaseVariablesRegistry,
 ): Promise<ImportResult> {
   const result: ImportResult = {
     codesCreated: 0, codesMerged: 0, sourcesImported: 0,
@@ -334,6 +393,28 @@ export async function importQdpx(
   const textResult = await createTextMarkers(sources, guidMap, notes, app, dataManager, registry);
   result.segmentsCreated += textResult.count;
   result.warnings.push(...textResult.warnings);
+
+  // 6b. Apply case variables (Variables per source + Case groupings)
+  if (caseVariablesRegistry) {
+    for (const src of sources) {
+      const fileId = guidMap.get(src.guid);
+      if (!fileId || src.variables.length === 0) continue;
+      await caseVariablesRegistry.applyVariablesBatch(
+        fileId,
+        src.variables.map(v => ({ name: v.name, value: v.value as VariableValue })),
+      );
+    }
+
+    const cases = parseCases(doc);
+    for (const c of cases) {
+      for (const guid of c.sourceGuids) {
+        const fileId = guidMap.get(guid);
+        if (fileId) {
+          await caseVariablesRegistry.setVariable(fileId, 'caseId', c.name);
+        }
+      }
+    }
+  }
 
   // 7. Import standalone memos (Source-level, Project-level, loose)
   result.memosImported += await importStandaloneMemos(doc, sources, notes, guidMap, app.vault, importDir);

@@ -84,6 +84,9 @@ export interface AnalyticsViewContext {
   srcCompDisplayMode: "count" | "percent-code" | "percent-source";
   srcCompSort: { col: string; asc: boolean };
 
+  // Case variable filter state
+  caseVariableFilter: { name: string; value: string } | null;
+
   // Text Retrieval state
   trSearch: string;
   trGroupBy: "code" | "file";

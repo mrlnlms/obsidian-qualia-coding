@@ -26,6 +26,16 @@ src/
     baseCodeExplorerView.ts  — abstract base: Code Explorer tree (Code → File → Segment)
     mergeModal.ts            — MergeModal com busca fuzzy, preview de impacto, executeMerge
     drawToolbarFactory.ts    — factory compartilhada de toolbar drawing (PDF + Image)
+    caseVariables/           — Case Variables: propriedades tipadas por arquivo (mixed-methods)
+      caseVariablesTypes.ts      — PropertyType, VariableValue, CaseVariablesSection, OBSIDIAN_RESERVED
+      obsidianInternalsApi.ts    — encapsula metadataTypeManager do Obsidian (API interna)
+      caseVariablesRegistry.ts   — classe central (CRUD, initialize/unload, sync, events)
+      typeIcons.ts               — mapping PropertyType → Lucide icon
+      inferPropertyType.ts       — regex-based type inference (number/date/datetime/checkbox/text)
+      propertiesEditor.ts        — componente DOM (render + inline edit + add row + confirm remove)
+      propertiesPopover.ts       — wrapper popover via view.addAction
+      caseVariablesView.ts       — painel lateral (ItemView)
+      caseVariablesViewTypes.ts  — constante CASE_VARIABLES_VIEW_TYPE
     ...                      — DataManager, CodeDefinitionRegistry, settings, types
   markdown/                  — CodeMirror 6 engine para markdown
     cm6/
@@ -60,6 +70,7 @@ src/
     coordConverters.ts       — conversao de coords por engine (PDF, Image, Media)
     exportModal.ts           — modal pre-export (formato, toggle sources, disclaimer CSV)
     exportCommands.ts        — commands na palette + botao no analytics
+    caseVariablesXml.ts      — QDPX helpers (renderVariableXml, variableTypeToQdpx, renderVariablesForFile, renderCasesXml)
   import/                    — REFI-QDA import (QDC + QDPX)
     qdcImporter.ts           — parse XML codebook, popular registry
     qdpxImporter.ts          — orquestra import completo (ZIP → vault)
@@ -122,7 +133,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1810 testes em 77 suites (Vitest + jsdom)
+- `npm run test` — 1902 testes em 90 suites (Vitest + jsdom)
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView

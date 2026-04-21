@@ -190,3 +190,78 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 - [ ] K1: autoRevealOnSegmentClick toggle no settingTab pode estar orfao apos remocao do Detail View — verificar se Explorer ainda usa
 - [ ] K2: Drag-drop visual feedback poderia ser mais forte (cor mais visivel, animacao de transicao)
 - [ ] K3: Virtual scroll reconstroi todos os rows visiveis no scroll — considerar row recycling para 5000+ codes
+
+---
+
+## 15. Case Variables — edge cases marginais pendentes
+
+Smoke test de 2026-04-21 cobriu os cenários principais. Faltam validações de borda:
+
+- Nome de variável com **emoji** ou **caracteres exóticos** (acentuação já funciona, confirmado durante smoke test)
+- **Valor vazio** ao adicionar — deveria rejeitar ou aceitar como string vazia?
+- **Hot-reload do plugin** com popover aberto — o listener do addOnMutate fica órfão?
+- **Multi-pane:** edição de frontmatter direto no editor markdown (não via popover) — popover na outra pane atualiza?
+- **Multi-pane racing:** dois popovers do mesmo arquivo abertos simultâneamente (hoje não é possível — clicar num fecha o outro — mas se multi-popover vier no futuro)
+
+Risco/retorno baixo. Fazer numa sessão dedicada de 20-30 min quando houver outro trigger pra mexer em Case Variables.
+
+---
+
+## 14. Analytics engine — repassada geral (PRIORIDADE ALTA)
+
+**Bug crítico descoberto 2026-04-21 durante smoke test do corpus sintético.**
+
+Após o commit `46b90e8` (Phase C — codes string[] → CodeApplication[]), `extractCodes` foi atualizado pra retornar `codeId`, mas `consolidateCodes` e os 6 stats engines (`frequency`, `cooccurrence`, `evolution`, `sequential`, `inferential`, `textAnalysis`) continuaram indexando por `name`. Consequências:
+
+- `consolidateCodes` cria entradas DUPLICADAS no `codeMap`: uma por `def.name` (count=0 sempre, porque nenhum marker bate) e outra por `codeId` (com count real)
+- Lista CODES no painel de Analytics mostra `adocao (0)` enquanto o gráfico mostra `c_42` com barras cheias — inconsistência visível
+- Labels do gráfico saem como `c_XX` em vez do nome do código
+- Cores caem no fallback `#6200EE` porque `codeColors.get(codeId)` falha (map indexado por nome)
+- Filtros por código provavelmente quebrados também
+
+**Por que dormiu sem ser notado:** seus markers antigos pré-Phase-C tinham `codeId = name` (vindo da migração inline em `loadMarkers`) — por acidente, lookup funcionava. Markers novos pós-Phase-C (codeId real `c_XX`) expõem o bug.
+
+**Fix proposto (mínimo invasivo, ~30-45 min):**
+- `dataTypes.ts`: adicionar `id?: string` em `UnifiedCode`
+- `dataConsolidator.ts`: popular `id` no `consolidateCodes`, mergear por nome mas guardando id
+- `statsHelpers.ts`: helper `buildIdToNameMap(codes)` reutilizável
+- `frequency.ts`, `cooccurrence.ts`, `evolution.ts`, `sequential.ts`, `inferential.ts`, `textAnalysis.ts`, `mdsEngine.ts`, `decisionTreeEngine.ts`: usar resolver pra mapear codeId → nome antes de indexar
+- 17 arquivos de teste podem precisar ajustes (a maioria usa nomes literais e não vai quebrar)
+
+**Outros itens pra repassada geral do analytics** (a serem listados conforme aparecem):
+- Verificar que filtro de Case Variables funciona corretamente nos 6 engines (smoke test do corpus pendente)
+- Verificar invalidação de cache quando code é renomeado/deletado (especialmente após o id-vs-name fix)
+- Auditoria do `consolidationCache` pra confirmar que dirty flags propagam por engine corretamente
+- Considerar tipos discriminados pra evitar bugs como esse (tipo `CodeId = Branded<string, 'codeId'>`)
+
+**Manifestações adicionais do mesmo bug** (descobertas 2026-04-21 durante teste de QDPX round-trip no vault B):
+- **Painel "All Codes" no Codebook sidebar** mostra todas as contagens como `0` — independente do número real de markers. Mesma raiz: a contagem é feita por nome do código, mas os markers referenciam codeId. Fix será o mesmo do consolidator (popular id em UnifiedCode + helper buildIdToNameMap).
+
+**Quando atacar:** próxima sessão dedicada a Analytics. Idealmente antes de novos bugs do filtro de Case Variables serem reportados (o smoke test do corpus pode encobrir mais bugs do engine).
+
+---
+
+## 13. Migrar ImageCodingView / AudioView / VideoView para `FileView`
+
+**Contexto:** essas 3 views estendem `ItemView` por inercia historica (herdado dos plugins independentes pre-consolidacao, commit `d7eb286` 2026-03-02). CSV ja e `FileView`. Markdown/PDF sao `FileView` nativos do Obsidian. As 3 views custom ficaram foras do padrao.
+
+**Consequencias atuais:**
+- Case Variables precisa helper `getFileFromItemView` pra extrair TFile (workaround pela falta de `view.file` padrao).
+- Cada view expoe o file por um campo diferente: `currentFile` (image), `core.file` (media). Sem contrato uniforme.
+- Qualquer feature futura que itere "todas as views com arquivo" (ex: export per-view, migrations, hooks de ciclo de vida) precisa conhecer o pattern de cada uma.
+- `_caseVariablesActionAdded` flag inline na view e uma gambiarra que seria desnecessaria se `FileView.onLoadFile`/`onUnloadFile` fossem usados como ponto de engate.
+
+**Ganho de migrar para `FileView`:**
+- `view.file: TFile` padrao — elimina helpers e getters custom.
+- `onLoadFile(file)` / `onUnloadFile(file)` como pontos de integracao limpos (Case Vars, future features) em vez de depender de `active-leaf-change` + guard.
+- Alinhamento com CSV e com as views nativas do Obsidian.
+- Remove necessidade de file interceptor re-checar file-association (o proprio Obsidian ja lida quando a view e `FileView` + `registerExtensions`).
+
+**Custo/risco:**
+- Refatorar lifecycle das 3 views: `setState`/`getState` deixam de carregar file manualmente; `onLoadFile` assume.
+- `MediaViewCore.loadMedia` precisa ser chamado de dentro de `onLoadFile` em vez de `setState`.
+- Precisa reavaliar `setupFileInterceptor` — talvez pare de ser necessario pra essas 3 views se `registerExtensions` for usado.
+- Testes e2e dependem de `getViewType()` e transicoes de view — pode precisar ajuste.
+- **Risco:** regressao em persistencia de state (zoom/pan per-file), file association, hot-reload.
+
+**Quando atacar:** depois do merge de Case Variables Phase 1, com plano dedicado. Testar cada engine em isolamento. Estimativa: 150-300 LOC + ajuste de testes.

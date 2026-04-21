@@ -53,6 +53,8 @@ export interface FilterConfig {
   codes: string[];
   excludeCodes: string[];
   minFrequency: number;
+  /** Filter markers to files whose case variable has this value. Requires registry passed to applyFilters. */
+  caseVariableFilter?: { name: string; value: string };
 }
 
 export interface FrequencyResult {

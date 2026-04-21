@@ -3,6 +3,7 @@ import { Modal, Setting, Notice } from 'obsidian';
 import type { App } from 'obsidian';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import { previewQdpx, importQdpx, type ImportOptions, type ImportPreview } from './qdpxImporter';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
 import { parseXml } from './xmlParser';
@@ -10,6 +11,7 @@ import { parseXml } from './xmlParser';
 export class ImportModal extends Modal {
   private dataManager: DataManager;
   private registry: CodeDefinitionRegistry;
+  private caseVariablesRegistry?: CaseVariablesRegistry;
   private format: 'qdpx' | 'qdc';
   private zipData: ArrayBuffer | null = null;
   private xmlString: string | null = null;
@@ -22,10 +24,12 @@ export class ImportModal extends Modal {
     dataManager: DataManager,
     registry: CodeDefinitionRegistry,
     format: 'qdpx' | 'qdc',
+    caseVariablesRegistry?: CaseVariablesRegistry,
   ) {
     super(app);
     this.dataManager = dataManager;
     this.registry = registry;
+    this.caseVariablesRegistry = caseVariablesRegistry;
     this.format = format;
   }
 
@@ -146,7 +150,7 @@ export class ImportModal extends Modal {
         conflictStrategy: this.conflictStrategy,
         keepOriginalSources: this.keepOriginalSources,
         projectName: this.preview.projectName,
-      } as ImportOptions);
+      } as ImportOptions, this.caseVariablesRegistry);
 
       const parts = [
         `${result.codesCreated} codes created`,

@@ -12,6 +12,7 @@ export function registerExportCommands(plugin: QualiaCodingPlugin): void {
         plugin.sharedRegistry,
         'qdpx',
         plugin.manifest.version,
+        plugin.caseVariablesRegistry,
       ).open();
     },
   });
@@ -26,6 +27,7 @@ export function registerExportCommands(plugin: QualiaCodingPlugin): void {
         plugin.sharedRegistry,
         'qdc',
         plugin.manifest.version,
+        plugin.caseVariablesRegistry,
       ).open();
     },
   });
@@ -39,5 +41,6 @@ export function openExportModal(plugin: QualiaCodingPlugin, defaultFormat: 'qdc'
     plugin.sharedRegistry,
     defaultFormat,
     plugin.manifest.version,
+    plugin.caseVariablesRegistry,
   ).open();
 }
