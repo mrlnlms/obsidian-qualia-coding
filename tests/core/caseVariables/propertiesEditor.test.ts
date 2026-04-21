@@ -101,3 +101,111 @@ describe('PropertiesEditor — rendering', () => {
     expect(container.querySelector('.case-variables-empty')).toBeTruthy();
   });
 });
+
+describe('PropertiesEditor — inline edit', () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  it('renders text input for text type', () => {
+    const registry = {
+      getVariables: () => ({ grupo: 'controle' }),
+      getType: () => 'text',
+      getAllVariableNames: () => ['grupo'],
+      getValuesForVariable: () => [],
+      setVariable: vi.fn(), removeVariable: vi.fn(),
+      addOnMutate: vi.fn(), removeOnMutate: vi.fn(),
+    } as any;
+
+    new PropertiesEditor(container, { fileId: 'jane.jpg', registry });
+    const input = container.querySelector('.case-variables-row input[type="text"]') as HTMLInputElement;
+    expect(input).toBeTruthy();
+    expect(input.value).toBe('controle');
+  });
+
+  it('calls setVariable on text input blur', () => {
+    const setVariable = vi.fn();
+    const registry = {
+      getVariables: () => ({ grupo: 'controle' }),
+      getType: () => 'text',
+      getAllVariableNames: () => ['grupo'],
+      getValuesForVariable: () => [],
+      setVariable, removeVariable: vi.fn(),
+      addOnMutate: vi.fn(), removeOnMutate: vi.fn(),
+    } as any;
+
+    new PropertiesEditor(container, { fileId: 'jane.jpg', registry });
+    const input = container.querySelector('input[type="text"]') as HTMLInputElement;
+    input.value = 'tratamento';
+    input.dispatchEvent(new Event('blur'));
+
+    expect(setVariable).toHaveBeenCalledWith('jane.jpg', 'grupo', 'tratamento');
+  });
+
+  it('renders number input for number type and coerces value', () => {
+    const setVariable = vi.fn();
+    const registry = {
+      getVariables: () => ({ idade: 30 }),
+      getType: () => 'number',
+      getAllVariableNames: () => ['idade'],
+      getValuesForVariable: () => [],
+      setVariable, removeVariable: vi.fn(),
+      addOnMutate: vi.fn(), removeOnMutate: vi.fn(),
+    } as any;
+
+    new PropertiesEditor(container, { fileId: 'jane.jpg', registry });
+    const input = container.querySelector('input[type="number"]') as HTMLInputElement;
+    input.value = '35';
+    input.dispatchEvent(new Event('blur'));
+
+    expect(setVariable).toHaveBeenCalledWith('jane.jpg', 'idade', 35);
+  });
+
+  it('renders checkbox for checkbox type', () => {
+    const setVariable = vi.fn();
+    const registry = {
+      getVariables: () => ({ ativo: true }),
+      getType: () => 'checkbox',
+      getAllVariableNames: () => ['ativo'],
+      getValuesForVariable: () => [],
+      setVariable, removeVariable: vi.fn(),
+      addOnMutate: vi.fn(), removeOnMutate: vi.fn(),
+    } as any;
+
+    new PropertiesEditor(container, { fileId: 'jane.jpg', registry });
+    const cb = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(cb.checked).toBe(true);
+    cb.checked = false;
+    cb.dispatchEvent(new Event('change'));
+
+    expect(setVariable).toHaveBeenCalledWith('jane.jpg', 'ativo', false);
+  });
+
+  it('shows confirmation modal on remove click', async () => {
+    const removeVariable = vi.fn();
+    const registry = {
+      getVariables: () => ({ grupo: 'controle' }),
+      getType: () => 'text',
+      getAllVariableNames: () => ['grupo'],
+      getValuesForVariable: () => [],
+      setVariable: vi.fn(), removeVariable,
+      addOnMutate: vi.fn(), removeOnMutate: vi.fn(),
+    } as any;
+
+    new PropertiesEditor(container, { fileId: 'jane.jpg', registry });
+    const removeBtn = container.querySelector('.case-variables-remove') as HTMLElement;
+    removeBtn.click();
+
+    const modal = document.querySelector('.case-variables-confirm-modal');
+    expect(modal).toBeTruthy();
+
+    const confirmBtn = modal!.querySelector('button.mod-warning') as HTMLButtonElement;
+    confirmBtn.click();
+    await Promise.resolve();
+
+    expect(removeVariable).toHaveBeenCalledWith('jane.jpg', 'grupo');
+  });
+});

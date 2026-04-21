@@ -1,5 +1,5 @@
 import type { CaseVariablesRegistry } from './caseVariablesRegistry';
-import type { VariableValue } from './caseVariablesTypes';
+import type { PropertyType, VariableValue } from './caseVariablesTypes';
 import { TYPE_ICONS } from './typeIcons';
 import { setIcon } from 'obsidian';
 
@@ -59,9 +59,73 @@ export class PropertiesEditor {
     setIcon(iconEl, TYPE_ICONS[type]);
 
     row.createSpan({ cls: 'case-variables-name', text: name });
-    row.createSpan({ cls: 'case-variables-value', text: String(value) });
 
-    // Inline edit + remove implemented in Task 13
+    const valueContainer = row.createDiv({ cls: 'case-variables-value' });
+    this.renderInputForType(valueContainer, name, type, value);
+
+    const removeBtn = row.createSpan({ cls: 'case-variables-remove', text: '×' });
+    removeBtn.addEventListener('click', () => this.confirmRemove(name));
+  }
+
+  private renderInputForType(
+    container: HTMLElement,
+    name: string,
+    type: PropertyType,
+    value: VariableValue,
+  ): void {
+    const handleChange = (newValue: VariableValue) => {
+      void this.config.registry.setVariable(this.config.fileId, name, newValue);
+    };
+
+    if (type === 'checkbox') {
+      const cb = container.createEl('input', { type: 'checkbox' });
+      cb.checked = Boolean(value);
+      cb.addEventListener('change', () => handleChange(cb.checked));
+      return;
+    }
+
+    const inputType =
+      type === 'number' ? 'number' :
+      type === 'date' ? 'date' :
+      type === 'datetime' ? 'datetime-local' :
+      'text';
+
+    const input = container.createEl('input', { type: inputType });
+    input.value = value == null ? '' : String(value);
+    input.addEventListener('blur', () => {
+      const raw = input.value;
+      const coerced: VariableValue = type === 'number' ? Number(raw) : raw;
+      handleChange(coerced);
+    });
+  }
+
+  private confirmRemove(name: string): void {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'case-variables-confirm-modal-wrapper';
+    const modalBox = document.createElement('div');
+    modalBox.className = 'case-variables-confirm-modal';
+    const p = document.createElement('p');
+    p.textContent = `Remove property "${name}" from this file?`;
+    modalBox.appendChild(p);
+    const actions = document.createElement('div');
+    actions.className = 'case-variables-confirm-actions';
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    const remove = document.createElement('button');
+    remove.textContent = 'Remove';
+    remove.className = 'mod-warning';
+    actions.appendChild(cancel);
+    actions.appendChild(remove);
+    modalBox.appendChild(actions);
+    wrapper.appendChild(modalBox);
+    document.body.appendChild(wrapper);
+
+    const close = () => wrapper.remove();
+    cancel.addEventListener('click', close);
+    remove.addEventListener('click', async () => {
+      await this.config.registry.removeVariable(this.config.fileId, name);
+      close();
+    });
   }
 
   private renderAddRow(): void {
