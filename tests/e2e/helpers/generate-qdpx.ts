@@ -1,4 +1,4 @@
-// scripts/generate-test-qdpx.ts
+// tests/e2e/helpers/generate-qdpx.ts
 import { zipSync, strToU8 } from 'fflate';
 import { writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
