@@ -149,6 +149,9 @@ export default class QualiaCodingPlugin extends Plugin {
 		// Registry mutations → invalidate codes
 		this.sharedRegistry.addOnMutate(() => consolidationCache.invalidateRegistry());
 
+		// Case variable mutations affect filter results across all analytics
+		this.caseVariablesRegistry.addOnMutate(() => consolidationCache.invalidateAll());
+
 		const pdfAdapter = new PdfSidebarAdapter(pdfModel);
 		const imageAdapter = new ImageSidebarAdapter(imageModel);
 		const csvAdapter = new CsvSidebarAdapter(csvModel);
