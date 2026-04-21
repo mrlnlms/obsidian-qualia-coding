@@ -96,6 +96,66 @@ export class CaseVariablesRegistry {
     }
   }
 
+  async removeVariable(fileId: string, name: string): Promise<void> {
+    if (fileId.endsWith('.md')) {
+      const file = this.app.vault.getAbstractFileByPath(fileId) as TFile | null;
+      if (!file) return;
+      this.writingInProgress.add(fileId);
+      try {
+        await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+          delete fm[name];
+        });
+      } finally {
+        setTimeout(() => this.writingInProgress.delete(fileId), 0);
+      }
+      return;
+    }
+    const entry = this.mirror[fileId];
+    if (!entry) return;
+    delete entry[name];
+    if (Object.keys(entry).length === 0) delete this.mirror[fileId];
+    this.persist();
+    this.notify();
+  }
+
+  removeAllForFile(fileId: string): void {
+    if (!this.mirror[fileId]) return;
+    delete this.mirror[fileId];
+    this.persist();
+    this.notify();
+  }
+
+  migrateFilePath(oldFileId: string, newFileId: string): void {
+    const entry = this.mirror[oldFileId];
+    if (!entry) return;
+    this.mirror[newFileId] = entry;
+    delete this.mirror[oldFileId];
+    this.persist();
+    this.notify();
+  }
+
+  getValuesForVariable(name: string): VariableValue[] {
+    const values = new Set<VariableValue>();
+    for (const vars of Object.values(this.mirror)) {
+      if (name in vars) values.add(vars[name] as VariableValue);
+    }
+    return [...values];
+  }
+
+  getFilesByVariable(name: string, value?: VariableValue): string[] {
+    const files: string[] = [];
+    for (const [fileId, vars] of Object.entries(this.mirror)) {
+      if (name in vars && (value === undefined || vars[name] === value)) {
+        files.push(fileId);
+      }
+    }
+    return files;
+  }
+
+  getFilesByCase(caseId: string): string[] {
+    return this.getFilesByVariable('caseId', caseId);
+  }
+
   private persist(): void {
     this.data.setSection('caseVariables', {
       values: this.mirror,

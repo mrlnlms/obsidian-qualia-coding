@@ -143,3 +143,74 @@ describe('CaseVariablesRegistry — setVariable (markdown)', () => {
     expect(wasGuarded).toBe(true);
   });
 });
+
+describe('CaseVariablesRegistry — removeVariable / removeAllForFile / migrateFilePath', () => {
+  it('removes a single variable from binary', async () => {
+    const app = createMockApp();
+    const data = createMockDataManager({ values: { 'jane.jpg': { idade: 30, grupo: 'c' } }, types: {} });
+    const reg = new CaseVariablesRegistry(app, data as any);
+    await reg.initialize();
+
+    await reg.removeVariable('jane.jpg', 'idade');
+
+    expect(reg.getVariables('jane.jpg')).toEqual({ grupo: 'c' });
+  });
+
+  it('removes all variables of a file', async () => {
+    const app = createMockApp();
+    const data = createMockDataManager({ values: { 'jane.jpg': { idade: 30 } }, types: {} });
+    const reg = new CaseVariablesRegistry(app, data as any);
+    await reg.initialize();
+
+    reg.removeAllForFile('jane.jpg');
+
+    expect(reg.getVariables('jane.jpg')).toEqual({});
+  });
+
+  it('migrates file path on rename', async () => {
+    const app = createMockApp();
+    const data = createMockDataManager({ values: { 'old.jpg': { idade: 30 } }, types: {} });
+    const reg = new CaseVariablesRegistry(app, data as any);
+    await reg.initialize();
+
+    reg.migrateFilePath('old.jpg', 'new.jpg');
+
+    expect(reg.getVariables('old.jpg')).toEqual({});
+    expect(reg.getVariables('new.jpg')).toEqual({ idade: 30 });
+  });
+});
+
+describe('CaseVariablesRegistry — autocomplete helpers', () => {
+  it('returns all values for a variable across files', async () => {
+    const app = createMockApp();
+    const data = createMockDataManager({
+      values: {
+        'a.jpg': { grupo: 'controle' },
+        'b.jpg': { grupo: 'tratamento' },
+        'c.jpg': { grupo: 'controle' },  // duplicado — deduplicado no retorno
+      },
+      types: {},
+    });
+    const reg = new CaseVariablesRegistry(app, data as any);
+    await reg.initialize();
+
+    const values = reg.getValuesForVariable('grupo');
+    expect(values.sort()).toEqual(['controle', 'tratamento']);
+  });
+
+  it('returns files that have a specific variable', async () => {
+    const app = createMockApp();
+    const data = createMockDataManager({
+      values: {
+        'a.jpg': { grupo: 'c' },
+        'b.jpg': { idade: 30 },
+      },
+      types: {},
+    });
+    const reg = new CaseVariablesRegistry(app, data as any);
+    await reg.initialize();
+
+    expect(reg.getFilesByVariable('grupo').sort()).toEqual(['a.jpg']);
+    expect(reg.getFilesByVariable('idade').sort()).toEqual(['b.jpg']);
+  });
+});
