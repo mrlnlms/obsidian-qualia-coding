@@ -209,3 +209,37 @@ describe('PropertiesEditor — inline edit', () => {
     expect(removeVariable).toHaveBeenCalledWith('jane.jpg', 'grupo');
   });
 });
+
+describe('PropertiesEditor — add row', () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  it('creates new property via add row (type inferred)', async () => {
+    const setVariable = vi.fn();
+    const registry = {
+      getVariables: () => ({}),
+      getType: () => 'text',
+      getAllVariableNames: () => [],
+      getValuesForVariable: () => [],
+      setVariable, removeVariable: vi.fn(),
+      addOnMutate: vi.fn(), removeOnMutate: vi.fn(),
+    } as any;
+
+    new PropertiesEditor(container, { fileId: 'jane.jpg', registry });
+    const addRow = container.querySelector('.case-variables-add-row') as HTMLElement;
+    const nameInput = addRow.querySelector('input[data-role="name"]') as HTMLInputElement;
+    const valueInput = addRow.querySelector('input[data-role="value"]') as HTMLInputElement;
+    const addBtn = addRow.querySelector('button[data-role="add"]') as HTMLButtonElement;
+
+    nameInput.value = 'idade';
+    valueInput.value = '30';
+    addBtn.click();
+    await Promise.resolve();
+
+    expect(setVariable).toHaveBeenCalledWith('jane.jpg', 'idade', 30);
+  });
+});

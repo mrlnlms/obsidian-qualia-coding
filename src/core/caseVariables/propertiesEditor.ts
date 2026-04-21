@@ -1,6 +1,7 @@
 import type { CaseVariablesRegistry } from './caseVariablesRegistry';
 import type { PropertyType, VariableValue } from './caseVariablesTypes';
 import { TYPE_ICONS } from './typeIcons';
+import { inferPropertyType } from './inferPropertyType';
 import { setIcon } from 'obsidian';
 
 export interface PropertiesEditorConfig {
@@ -130,7 +131,37 @@ export class PropertiesEditor {
 
   private renderAddRow(): void {
     const row = this.container.createDiv({ cls: 'case-variables-add-row' });
-    row.createSpan({ cls: 'case-variables-add-icon', text: '+' });
-    // Full add row (name input + value input + button) implemented in Task 13b
+
+    const nameInput = row.createEl('input', { type: 'text' });
+    nameInput.dataset.role = 'name';
+    nameInput.placeholder = 'Property name';
+
+    const valueInput = row.createEl('input', { type: 'text' });
+    valueInput.dataset.role = 'value';
+    valueInput.placeholder = 'Value';
+
+    const addBtn = row.createEl('button', { text: 'Add' });
+    addBtn.dataset.role = 'add';
+
+    const handleAdd = async () => {
+      const name = nameInput.value.trim();
+      const rawValue = valueInput.value;
+      if (!name) return;
+
+      const type = inferPropertyType(rawValue);
+      const coerced: VariableValue =
+        type === 'number' ? Number(rawValue) :
+        type === 'checkbox' ? /^true$/i.test(rawValue) :
+        rawValue;
+
+      await this.config.registry.setVariable(this.config.fileId, name, coerced);
+      nameInput.value = '';
+      valueInput.value = '';
+    };
+
+    addBtn.addEventListener('click', () => void handleAdd());
+    valueInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') void handleAdd();
+    });
   }
 }
