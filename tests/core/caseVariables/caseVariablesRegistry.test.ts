@@ -59,3 +59,31 @@ describe('CaseVariablesRegistry — initialize', () => {
     expect(reg.getVariables('jane-photo.jpg')).toEqual({ idade: 30, grupo: 'controle' });
   });
 });
+
+describe('CaseVariablesRegistry — setVariable (binary)', () => {
+  it('writes to mirror and persists', async () => {
+    const app = createMockApp();
+    const data = createMockDataManager();
+    const reg = new CaseVariablesRegistry(app, data as any);
+    await reg.initialize();
+
+    await reg.setVariable('jane.jpg', 'idade', 30);
+
+    expect(reg.getVariables('jane.jpg')).toEqual({ idade: 30 });
+    expect(data.setSection).toHaveBeenCalledWith('caseVariables', expect.objectContaining({
+      values: { 'jane.jpg': { idade: 30 } },
+    }));
+  });
+
+  it('notifies listeners on write', async () => {
+    const app = createMockApp();
+    const reg = new CaseVariablesRegistry(app, createMockDataManager() as any);
+    await reg.initialize();
+    const listener = vi.fn();
+    reg.addOnMutate(listener);
+
+    await reg.setVariable('jane.jpg', 'idade', 30);
+
+    expect(listener).toHaveBeenCalled();
+  });
+});

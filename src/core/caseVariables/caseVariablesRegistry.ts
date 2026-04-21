@@ -72,6 +72,24 @@ export class CaseVariablesRegistry {
     this.onMutateListeners.delete(fn);
   }
 
+  async setVariable(fileId: string, name: string, value: VariableValue): Promise<void> {
+    if (fileId.endsWith('.md')) {
+      // markdown path — implementado em task 7
+      throw new Error('not implemented');
+    }
+    this.mirror[fileId] ??= {};
+    this.mirror[fileId][name] = value;
+    this.persist();
+    this.notify();
+  }
+
+  private persist(): void {
+    this.data.setSection('caseVariables', {
+      values: this.mirror,
+      types: this.types,
+    });
+  }
+
   private syncFromFrontmatter(file: TFile): void {
     const fm = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
     const filtered: Record<string, VariableValue> = {};
