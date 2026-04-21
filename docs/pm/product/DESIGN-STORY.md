@@ -77,7 +77,7 @@ Onwuegbuzie's DIME model (Descriptive, Inferential, Measurement, Exploratory) pr
 | Measurement | MCA, MDS | Crossover analysis — quantitative techniques on qualitative data |
 | Exploratory | dendrogram, decision-tree, polar-coords | Multivariate classification |
 
-> The full mapping of all 19 ViewModes to DIME levels and their theoretical grounding is documented in the ecosystem reference (`ecossistema-qualia-historia-e-cases.md`). This table highlights representative modes to illustrate the structural relationship.
+> The full mapping of all 20 ViewModes (19 DIME-aligned + Relations Network) to DIME levels and their theoretical grounding is documented in the ecosystem reference (`ecossistema-qualia-historia-e-cases.md`). This table highlights representative modes to illustrate the structural relationship.
 
 ### Derived Design Principles
 

@@ -22,7 +22,7 @@ The 7-engine architecture isn't over-engineering — it's the minimum viable sco
 
 The decision to support 6 coding formats (text, PDF, CSV, image, audio, video) plus cross-format analytics wasn't feature creep — it was driven by **mixed-methods research methodology**. Real qualitative studies involve interview transcripts (markdown), published papers (PDF), survey data (CSV), fieldwork photos (image), interview recordings (audio), observation footage (video). A tool that only codes one format forces the researcher to switch between applications and manually reconcile findings.
 
-The unified `CodeDefinitionRegistry` (one code system across all formats) and the Analytics engine (19 ViewModes + Research Board that consolidate markers from all 6 sources) exist precisely because mixed-methods analysis requires **cross-format pattern discovery**. The co-occurrence matrix, document-code matrix, and source-comparison views are only meaningful when they can see all data simultaneously.
+The unified `CodeDefinitionRegistry` (one code system across all formats) and the Analytics engine (20 ViewModes + Research Board that consolidate markers from all 6 sources) exist precisely because mixed-methods analysis requires **cross-format pattern discovery**. The co-occurrence matrix, document-code matrix, and source-comparison views are only meaningful when they can see all data simultaneously.
 
 **Code evidence:**
 - `ConsolidatedData` / `UnifiedMarker[]` in Analytics — a single data structure that merges markers from all 6 engines (`analytics/index.ts`)
@@ -64,7 +64,7 @@ The system starts with a single global workspace. All codes and markers exist wi
 
 ### 1.5 Data Transformation as Design Principle
 
-The analytics engine was not designed as a dashboard feature — it was informed by mixed analysis theory, specifically the continuum between quantitization (qualitative → quantitative) and qualitization (quantitative → qualitative). Each of the 19 ViewModes operationalizes a specific level of the DIME model (Descriptive, Inferential, Measurement, Exploratory) as defined by Onwuegbuzie (2025).
+The analytics engine was not designed as a dashboard feature — it was informed by mixed analysis theory, specifically the continuum between quantitization (qualitative → quantitative) and qualitization (quantitative → qualitative). Each of the 20 ViewModes operationalizes a specific level of the DIME model (Descriptive, Inferential, Measurement, Exploratory) as defined by Onwuegbuzie (2025), plus a Relations Network view for direct visualization of code relationships.
 
 The guiding insight: qualitative data analysis and quantitative data analysis are not separate activities but movements on a continuous spectrum. Crossover mixed analysis — applying analytical techniques from one tradition to data from another — is what makes the analytics engine more than a chart generator. The co-occurrence matrix quantitizes qualitative codes; the Research Board qualitizes quantitative patterns back into interpretive space.
 
