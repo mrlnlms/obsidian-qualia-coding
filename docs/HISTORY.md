@@ -292,7 +292,7 @@ A experiência de portar cada engine gerou um checklist definitivo de 11 pontos 
 ### O que estava feito em 2026-03-02
 - 7 engines funcionais em plugin único
 - Sidebar unificada (Explorer + Detail) para todos os formatos
-- 19 ViewModes analíticos + Research Board
+- 19 ViewModes analíticos + Research Board (hoje: 20, com Relations Network adicionada em Fase E)
 - Settings consolidado
 - ~29.000 linhas de TypeScript
 - Build passando (`npm run build`)
@@ -597,7 +597,7 @@ Originalmente A (hierarquia) era a primeira. Brainstorm descobriu que C (`codes`
 
 ### Spec de referencia
 
-`docs/superpowers/specs/2026-03-22-codebook-evolution-design.md` — design completo das 5 fases (C, A, B, D, E) com decisoes, data model, UI, e integracao REFI-QDA. Documento superseded: `docs/archive/codebook-design/codebook-evolution.md`.
+`docs/superpowers/specs/2026-03-22-codebook-evolution-design.md` — design completo das 5 fases (C, A, B, D, E) com decisoes, data model, UI, e integracao REFI-QDA. Documento superseded: `docs/archive/claude_sources/plans/20260322-codebook-evolution-superseded.md`.
 
 ### Patterns emergentes desta fase
 
