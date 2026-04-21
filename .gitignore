@@ -8,4 +8,3 @@ coverage/
 .claude/
 tests/screenshots/actual/
 tests/screenshots/diff/
-.superpowers/
