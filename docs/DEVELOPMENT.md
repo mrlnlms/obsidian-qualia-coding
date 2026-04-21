@@ -353,7 +353,7 @@ Todos os plugins usam a mesma copia. Se precisar resetar: `rm -rf ~/.cache/obsid
 - Config: `wdio.conf.mts` (usa `obsidian-e2e-visual-test-kit` de `github:mrlnlms/obsidian-e2e-visual-test-kit`)
 - Commands:
   ```bash
-  npm run test:e2e                                          # roda todos os 18 specs
+  npm run test:e2e                                          # roda todos os 19 specs
   npm run test:e2e -- --spec tests/e2e/specs/smoke.e2e.ts  # spec especifico
   npm run test:visual:update                                # regenera baselines
   ```
@@ -364,6 +364,15 @@ Todos os plugins usam a mesma copia. Se precisar resetar: `rm -rf ~/.cache/obsid
 - `tests/screenshots/actual/` e `tests/screenshots/diff/` sao gitignored (artefatos de run)
 - Resolution-dependent — mesma maquina pra baseline e comparacao
 - CI roda so smoke test (Linux rendering difere de macOS)
+
+### Helpers
+
+- `tests/e2e/helpers/qualia.ts` — helpers de navegacao/assertion reusados pelos specs
+- `tests/e2e/helpers/generate-qdpx.ts` — gera `sample-import.qdpx` no vault de visual tests.
+  Executar manualmente quando precisar regenerar o fixture:
+  ```bash
+  npx tsx tests/e2e/helpers/generate-qdpx.ts
+  ```
 
 ### Test Catalog
 
