@@ -2,6 +2,7 @@
 import type { SourceType } from "../data/dataTypes";
 import type { AnalyticsViewContext, ViewMode } from "./analyticsViewContext";
 import { MODE_REGISTRY } from "./modes/modeRegistry";
+import type { CaseVariablesRegistry } from "../../core/caseVariables/caseVariablesRegistry";
 
 export function renderSourcesSection(ctx: AnalyticsViewContext): void {
   if (!ctx.configPanelEl || !ctx.data) return;
@@ -186,4 +187,57 @@ export function renderMinFreqSection(ctx: AnalyticsViewContext): void {
       ctx.scheduleUpdate();
     }
   });
+}
+
+export function renderCaseVariablesFilter(
+  container: HTMLElement,
+  registry: CaseVariablesRegistry,
+  state: { filter: { name: string; value: string } | null },
+  onChange: (filter: { name: string; value: string } | null) => void,
+): void {
+  const varNames = registry.getAllVariableNames();
+  if (varNames.length === 0) return;
+
+  const section = container.createDiv({ cls: "codemarker-config-section" });
+  section.createDiv({ cls: "codemarker-config-section-title", text: "Filter by case variable" });
+
+  const nameSelect = section.createEl("select", { cls: "codemarker-config-select" });
+  nameSelect.appendChild(new Option("— none —", ""));
+  for (const name of varNames) {
+    nameSelect.appendChild(new Option(name, name));
+  }
+
+  const valueSelect = section.createEl("select", { cls: "codemarker-config-select" });
+  valueSelect.appendChild(new Option("— any —", ""));
+
+  const updateValueOptions = (varName: string) => {
+    valueSelect.innerHTML = "";
+    valueSelect.appendChild(new Option("— any —", ""));
+    if (varName) {
+      for (const v of registry.getValuesForVariable(varName)) {
+        const s = String(v);
+        valueSelect.appendChild(new Option(s, s));
+      }
+    }
+  };
+
+  const emit = () => {
+    const name = nameSelect.value;
+    const value = valueSelect.value;
+    if (name && value) onChange({ name, value });
+    else onChange(null);
+  };
+
+  nameSelect.addEventListener("change", () => {
+    updateValueOptions(nameSelect.value);
+    emit();
+  });
+  valueSelect.addEventListener("change", emit);
+
+  // Initial state
+  if (state.filter) {
+    nameSelect.value = state.filter.name;
+    updateValueOptions(state.filter.name);
+    valueSelect.value = state.filter.value;
+  }
 }

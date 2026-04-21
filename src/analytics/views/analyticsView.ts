@@ -8,7 +8,7 @@ import type { MDSMode } from "../data/mdsEngine";
 export type { ViewMode, SortMode, MatrixSortMode, GroupMode, DisplayMode, CooccSortMode } from "./analyticsViewContext";
 import type { ViewMode, SortMode, MatrixSortMode, GroupMode, DisplayMode, CooccSortMode } from "./analyticsViewContext";
 import { MODE_REGISTRY } from "./modes/modeRegistry";
-import { renderSourcesSection, renderViewModeSection, renderCodesSection, renderMinFreqSection } from "./configSections";
+import { renderSourcesSection, renderViewModeSection, renderCodesSection, renderMinFreqSection, renderCaseVariablesFilter } from "./configSections";
 
 export const ANALYTICS_VIEW_TYPE = "codemarker-analytics";
 
@@ -75,6 +75,9 @@ export class AnalyticsView extends ItemView {
 
   // Relations Network state
   relationsLevel: 'code' | 'both' = 'both';
+
+  // Case variable filter state
+  caseVariableFilter: { name: string; value: string } | null = null;
 
   // Text Retrieval state
   trSearch = "";
@@ -297,6 +300,12 @@ export class AnalyticsView extends ItemView {
     if (entry.renderOptions) entry.renderOptions(this);
     renderCodesSection(this);
     renderMinFreqSection(this);
+    renderCaseVariablesFilter(
+      this.configPanelEl,
+      this.plugin.caseVariablesRegistry,
+      { filter: this.caseVariableFilter },
+      (f) => { this.caseVariableFilter = f; this.scheduleUpdate(); },
+    );
   }
 
   // ─── Core logic ───
@@ -310,7 +319,12 @@ export class AnalyticsView extends ItemView {
       codes: [], // empty = all (filtering via excludeCodes instead)
       excludeCodes,
       minFrequency: this.minFrequency,
+      caseVariableFilter: this.caseVariableFilter ?? undefined,
     };
+  }
+
+  getCaseVariablesRegistry() {
+    return this.plugin.caseVariablesRegistry;
   }
 
   scheduleUpdate(): void {
@@ -328,7 +342,27 @@ export class AnalyticsView extends ItemView {
     }
     this.chartContainer.empty();
     this.renderGeneration++;
-    MODE_REGISTRY[this.viewMode].render(this, this.buildFilterConfig());
+
+    // Pre-filter data by case variable so all 20 modes benefit automatically
+    const savedData = this.data;
+    if (this.caseVariableFilter) {
+      const { name, value } = this.caseVariableFilter;
+      const registry = this.plugin.caseVariablesRegistry;
+      this.data = {
+        ...savedData,
+        markers: savedData.markers.filter((m) => {
+          const vars = registry.getVariables(m.fileId);
+          return vars[name] === value;
+        }),
+      };
+    }
+
+    try {
+      MODE_REGISTRY[this.viewMode].render(this, this.buildFilterConfig());
+    } finally {
+      this.data = savedData;
+    }
+
     this.updateFooter();
   }
 

@@ -4,6 +4,7 @@ import { openExportModal } from "../export/exportCommands";
 import { openImportModal } from "../import/importCommands";
 import type { CodeDefinitionRegistry } from "../core/codeDefinitionRegistry";
 import type { DataManager } from "../core/dataManager";
+import type { CaseVariablesRegistry } from "../core/caseVariables/caseVariablesRegistry";
 import { ANALYTICS_VIEW_TYPE, AnalyticsView } from "./views/analyticsView";
 import { BOARD_VIEW_TYPE, BoardView } from "./views/boardView";
 import { readAllData } from "./data/dataReader";
@@ -19,6 +20,7 @@ export interface AnalyticsPluginAPI {
   app: App;
   registry: CodeDefinitionRegistry;
   dataManager: DataManager;
+  caseVariablesRegistry: CaseVariablesRegistry;
   data: ConsolidatedData | null;
   loadConsolidatedData(): Promise<ConsolidatedData>;
   addChartToBoard(title: string, dataUrl: string, viewMode: string): Promise<void>;
@@ -55,6 +57,7 @@ export function registerAnalyticsEngine(plugin: QualiaCodingPlugin, cache?: Cons
     app: plugin.app,
     registry: plugin.sharedRegistry,
     dataManager: plugin.dataManager,
+    caseVariablesRegistry: plugin.caseVariablesRegistry,
     data: null,
 
     async loadConsolidatedData(): Promise<ConsolidatedData> {

@@ -163,6 +163,7 @@ vi.mock('../../src/analytics/views/configSections', () => ({
 	renderViewModeSection: vi.fn(),
 	renderCodesSection: vi.fn(),
 	renderMinFreqSection: vi.fn(),
+	renderCaseVariablesFilter: vi.fn(),
 }));
 
 // Mock statsEngine to avoid real calculations during export tests
@@ -176,7 +177,7 @@ vi.mock('../../src/analytics/data/statsEngine', () => ({
 import { AnalyticsView, ANALYTICS_VIEW_TYPE } from '../../src/analytics/views/analyticsView';
 
 // Re-import mocked modules so we can assert on them
-import { renderSourcesSection, renderViewModeSection, renderCodesSection, renderMinFreqSection } from '../../src/analytics/views/configSections';
+import { renderSourcesSection, renderViewModeSection, renderCodesSection, renderMinFreqSection, renderCaseVariablesFilter } from '../../src/analytics/views/configSections';
 import { renderDashboard } from '../../src/analytics/views/modes/dashboardMode';
 import { renderFrequencyChart, renderSortSection, renderGroupSection } from '../../src/analytics/views/modes/frequencyMode';
 import { renderCooccurrenceMatrix, renderDisplaySection, renderCooccSortSection } from '../../src/analytics/views/modes/cooccurrenceMode';
@@ -226,7 +227,12 @@ function createMockAPI(data: ConsolidatedData | null = null): AnalyticsPluginAPI
 		addKpiCardToBoard: vi.fn().mockResolvedValue(undefined),
 		addCodeCardToBoard: vi.fn().mockResolvedValue(undefined),
 		addExcerptToBoard: vi.fn().mockResolvedValue(undefined),
-	};
+		caseVariablesRegistry: {
+			getAllVariableNames: vi.fn().mockReturnValue([]),
+			getVariables: vi.fn().mockReturnValue({}),
+			getValuesForVariable: vi.fn().mockReturnValue([]),
+		} as any,
+	} as any;
 }
 
 function createView(data?: ConsolidatedData | null): AnalyticsView {
