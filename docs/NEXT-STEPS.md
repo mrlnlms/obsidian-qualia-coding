@@ -1,6 +1,18 @@
 # Qualia Coding — Proximos Passos
 
-> Visao organizada por area de design de tudo que esta pendente (features, debt, gaps). Para detalhes de implementacao, ver ROADMAP.md (features) e BACKLOG.md (debt tecnica).
+> Visao organizada por area de design do que esta pendente (features, debt, gaps). Para detalhes de implementacao, ver `ROADMAP.md` (features) e `BACKLOG.md` (debt tecnica).
+>
+> Ultima atualizacao: 2026-04-21 (apos Codebook Evolution completo).
+
+---
+
+## Features prioritarias (proximas a atacar)
+
+| Item | Complexidade | Ref | Motivacao |
+|------|-------------|-----|-----------|
+| **Toggle Visibility por Codigo** | Media | ROADMAP #7 | Resolve "color soup" com 20+ codigos — proximo passo natural apos per-code blending |
+| **Case Variables por Documento** | Alta | ROADMAP #18 | Core de mixed methods — cruza codigos com metadata demografica. Todos os concorrentes tem |
+| **Intercoder Reliability (kappa/alpha)** | Alta | ROADMAP §Gaps | Credibilidade academica — blocker pra pesquisa em equipe |
 
 ---
 
@@ -8,11 +20,9 @@
 
 | Item | Tipo | Complexidade | Ref |
 |------|------|-------------|-----|
-| Per-Code Decorations (N highlights por marker) | Feature | Media | ROADMAP #16 |
 | Margin Panel Customization (left/right, espessura) | Feature | Baixa-Media | ROADMAP #11 |
-| Margin Panel Resize Handle | Feature | Media | ROADMAP #17 |
-| z-index scrollDOM stacking | Debt | Atacar com #16/#17 | BACKLOG §z-index |
-| `marginPanelExtension.ts` 548 LOC | Debt | Split futuro (sessao conjunta mirror-notes) | BACKLOG §Arquivos grandes |
+| Margin Panel Resize Handle | Feature | Media | ROADMAP #17 (POC stashed) |
+| `marginPanelExtension.ts` 548 LOC | Debt | Split futuro | BACKLOG §Arquivos grandes |
 
 ---
 
@@ -20,12 +30,9 @@
 
 | Item | Tipo | Complexidade | Ref |
 |------|------|-------------|-----|
-| **Code Hierarchy (parentId)** | Feature | **Alta — prioridade #1** | ROADMAP #1 |
-| Code → Theme Hierarchy (tag agrupador) | Feature | Media | ROADMAP #4 |
-| FuzzySuggestModal "Add Existing Code" | Feature | **~30 LOC** | ROADMAP #5 |
-| Quick Switcher (Cmd+Shift+C) | Feature | **~30 LOC** | ROADMAP #6 |
 | Toggle Visibility por Codigo | Feature | Media | ROADMAP #7 |
-| Magnitude Coding | Feature | Baixa | ROADMAP #14 |
+| Code → Theme Hierarchy (tag agrupador) | Feature | Media | ROADMAP #4 |
+| Analytic Memo View (integracao analytics) | Feature | Media | ROADMAP #3 (resto pendente) |
 
 ---
 
@@ -33,10 +40,7 @@
 
 | Item | Tipo | Complexidade | Ref |
 |------|------|-------------|-----|
-| Cross-source Comparison | Feature | Media | ROADMAP #8 |
-| Code × Metadata | Feature | Media | ROADMAP #9 |
-| Code Overlap Analysis (textual) | Feature | Media | ROADMAP #10 |
-| Analytic Memo View (integracao) | Feature | Media | ROADMAP #3 |
+| Code × Metadata | Feature | Media | ROADMAP #9 (depende de #18 Case Variables) |
 | Analytical Memos (reflexoes) | Feature | Media | ROADMAP #19 |
 
 ---
@@ -46,7 +50,6 @@
 | Item | Tipo | Complexidade | Ref |
 |------|------|-------------|-----|
 | Drag do Explorer, sync, templates, export | Feature | Media | ROADMAP #12 |
-| Board refresh on open (stale data) | Enhancement | Media | BACKLOG §Board snapshot |
 
 ---
 
@@ -54,8 +57,8 @@
 
 | Item | Tipo | Complexidade | Ref |
 |------|------|-------------|-----|
-| Parquet evolucao (lazy loading, pagination) | Feature | Media | ROADMAP #2 |
-| Case Variables por Documento | Feature | Media | ROADMAP #18 |
+| Parquet lazy loading (pagination, server-side row model) | Feature | Media-Alta | ROADMAP #2 |
+| Case Variables por Documento | Feature | Alta | ROADMAP #18 |
 
 ---
 
@@ -63,9 +66,21 @@
 
 | Item | Tipo | Complexidade | Ref |
 |------|------|-------------|-----|
-| Projects + Workspace | Feature | **Alta** | ROADMAP #13 |
-| Export (CSV, JSON, QDPX, PNG) | Feature | Media-Alta | ROADMAP #15 |
-| Intercoder Reliability (kappa/alpha) | Gap estrategico | Media | ROADMAP §Gaps |
+| Projects + Workspace | Feature | Alta | ROADMAP #13 (reavaliar data model) |
+| Export JSON full / PNG Dashboard composite | Feature | Baixa-Media | ROADMAP #15 |
+| Intercoder Reliability (kappa/alpha) | Gap estrategico | Alta | ROADMAP §Gaps |
+| AI-Assisted Coding (local-first, Ollama) | Gap estrategico | Alta | docs/pm/gaps/2026-03-03-analysis.md |
+| Community plugin listing | Gap estrategico | Media | docs/pm/gaps/2026-03-03-analysis.md |
+
+---
+
+## Debt tecnico prioritario
+
+| Item | Razao | Ref |
+|------|------|-----|
+| z-index scrollDOM stacking (ataca junto com #17 Resize Handle) | Duas features tocam o mesmo container | BACKLOG §z-index |
+| Codebook Panel polish (K1-K3) | Virtual scroll, drag-drop feedback, autoReveal toggle orfao | BACKLOG §Codebook Panel polish |
+| Export/Import REFI-QDA refinements | Offsets PDF aproximados, shape markers PDF ignorados | BACKLOG §11 Export/Import |
 
 ---
 
@@ -75,3 +90,4 @@
 |------|-------|
 | 3 `as any` PDF viewer | API interna Obsidian nao exporta tipos |
 | 3 `as any` dataManager deepMerge | Type gymnastics generica |
+| fflate bundled (~8KB gzip) | Dependencia do QDPX export — sem alternativa nativa |

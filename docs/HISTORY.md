@@ -20,7 +20,9 @@
 2026-02-28       APPROACH3.md (execução final)
 2026-02-28..03-01  Camadas 1-11 do merge executadas
 2026-03-01       Plugin consolidado funcional — 7 engines, sidebar unificada
-2026-03-02       Documentação unificada (este arquivo)
+2026-03-02       Documentação unificada + per-code blending em markdown e PDF
+2026-03-07..19   Consolidacao tecnica (refactor 7→1, testes 0→1.568, cache incremental, e2e harness)
+2026-03-22..23   Codebook Evolution (Fases C, A, B, D, E + REFI-QDA export/import)
 ```
 
 ---
@@ -283,9 +285,11 @@ A experiência de portar cada engine gerou um checklist definitivo de 11 pontos 
 
 ---
 
-## Fase 4: Estado Atual (2026-03-02)
+## Fase 4: Post-Merge Snapshot (2026-03-02)
 
-### O que está feito
+> **Snapshot historico** — estado logo apos consolidacao. Evolucao posterior esta nas secoes "Consolidacao tecnica (2026-03-07..19)" e "Fase 5: Codebook Evolution (2026-03-22..23)".
+
+### O que estava feito em 2026-03-02
 - 7 engines funcionais em plugin único
 - Sidebar unificada (Explorer + Detail) para todos os formatos
 - 19 ViewModes analíticos + Research Board
@@ -293,7 +297,7 @@ A experiência de portar cada engine gerou um checklist definitivo de 11 pontos 
 - ~29.000 linhas de TypeScript
 - Build passando (`npm run build`)
 
-### O que falta
+### O que faltava (naquele momento)
 - ~~**Camada 12**: Lazy Loading~~ — descartado (ESM incompatível com Obsidian, 2.17 MB não é problema real). Ver `ARCHITECTURE.md` §3.10.
 - **Features novas**: Code Hierarchy, Projects/Workspace, e mais (ver `ROADMAP.md`)
 - **Documentation cleanup**: Remover docs antigos do merge após validação
@@ -534,6 +538,73 @@ Alguns arquivos foram adaptados de projetos open-source:
 - `qualia:clear-all` event — views limpam state em memoria independentemente
 - `qualia:registry-changed` + `qualia:code-renamed` — sidebar views refresham
 - `waitUntilReady()` promise — substitui polling em views com setup assincrono
+
+---
+
+## Fase 5: Codebook Evolution (2026-03-22..23)
+
+> Dois dias decisivos (54 commits) em que o plugin saiu de **codificacao flat com strings** para **codebook hierarquico com magnitude, relacoes, pastas virtuais e interoperabilidade REFI-QDA completa**.
+
+### Metricas de evolucao
+
+| Metrica | Antes (2026-03-21) | Depois (2026-03-23) |
+|---------|-------------------|---------------------|
+| `BaseMarker.codes` | `string[]` (nome) | `CodeApplication[]` (`{codeId, magnitude?, relations?}`) |
+| `CodeDefinition` | `{id, name, color, description}` | `+ parentId, childrenOrder, folder, magnitude, relations, mergedFrom` |
+| Analytics views | 19 | 20 (+ Relations Network) |
+| Testes | 1.548 (54 suites) | 1.810 (77 suites) |
+| Interop REFI-QDA | nenhum | Export + Import QDC + QDPX |
+
+### Fases (ordem de execucao)
+
+| Fase | Descricao | Commits | Pre-requisito |
+|------|-----------|---------|---------------|
+| **C** | codes: string[] → CodeApplication[] com `codeId` estavel. Rename atomico no registry (elimina `renameCode` propagation) | ~16 | — |
+| **A** | Hierarquia (`parentId`, `childrenOrder`, `mergedFrom`). MergeModal com busca fuzzy, virtual scrolling, drag-drop (reorganizar/merge), context menu, 3-level stack nav (list → code → marker) | ~12 | Fase C |
+| **B** | Pastas virtuais (`folder` field + `FolderDefinition` no registry). Containers organizacionais SEM significado analitico | ~6 | Fase A |
+| **D** | Magnitude (nominal / ordinal / continuous) com picker fechado. Config no CodeDefinition, valor no CodeApplication | ~8 | Fase C |
+| **E** | Relacoes (codigo-level + segmento-level). Label livre com autocomplete. Relations Network (20a view analytics). QDPX `<Link>` | ~12 | Fase A + D |
+
+### Decisao chave: Fase C antes de Fase A
+
+Originalmente A (hierarquia) era a primeira. Brainstorm descobriu que C (`codes` como `CodeApplication[]` com `codeId`) destrava rename atomico, eliminava `renameCode` em todos os engines, e removia necessidade de migration. A ordem final `C → A → B → D → E` foi decidida em sessao de alignment antes da execucao.
+
+### Interop REFI-QDA (export + import)
+
+**Export** (`qdcExporter.ts` + `qdpxExporter.ts`):
+- QDC = codebook XML (hierarquia por nesting)
+- QDPX = projeto completo (codigos + sources + segments + memos + links + magnitude)
+- `coordConverters.ts`: conversao por engine (PDF bottom-left↔top-left, Image normalized↔pixels, Media ms↔seconds)
+- Modal pre-export com toggle sources e disclaimer CSV
+
+**Import** (`qdcImporter.ts` + `qdpxImporter.ts`):
+- ZIP → vault: 5 source types (markdown, PDF, image, audio, video) + memos standalone como `.md`
+- Magnitude via `[Magnitude: X]` Notes, Relations via `<Link>`
+- Modal com preview, resolucao de conflitos (merge / separate), botao analytics
+- Round-trip integration test garante que export → import preserva hierarquia, magnitude e relations
+
+### Modulos novos
+
+- `core/codeApplicationHelpers.ts` — hasCode, getCodeIds, addCodeApplication, removeCodeApplication, getMagnitude, setMagnitude, getRelations, addRelation, removeRelation
+- `core/hierarchyHelpers.ts` — buildFlatTree, buildCountIndex, getDirectCount, getAggregateCount
+- `core/relationHelpers.ts` — collectAllLabels, buildRelationEdges
+- `core/mergeModal.ts` — busca fuzzy, preview de impacto, executeMerge
+- `core/codebookTreeRenderer.ts` — virtual scrolling com hierarquia e pastas
+- `core/codebookContextMenu.ts` e `codebookDragDrop.ts` — CRUD e reparenting
+- `core/baseCodeDetailView.ts` — 3-level stack navigation
+- `export/` e `import/` — QDC + QDPX completos
+- `analytics/data/relationsEngine.ts` e `views/modes/relationsNetworkMode.ts` — 20a view
+
+### Spec de referencia
+
+`docs/superpowers/specs/2026-03-22-codebook-evolution-design.md` — design completo das 5 fases (C, A, B, D, E) com decisoes, data model, UI, e integracao REFI-QDA. Documento superseded: `docs/archive/codebook-design/codebook-evolution.md`.
+
+### Patterns emergentes desta fase
+
+- **Rename atomico** (Fase C): markers referenciam `codeId` estavel; `registry.update()` muda apenas o nome no registry. Eliminou `renameCode` em todos os engines
+- **Stack-based navigation** (Fase A): `baseCodeDetailView.ts` implementa list → code → marker com historico. Back button nativo do Obsidian
+- **Shared popover sections** (Fases D+E): `renderMagnitudeSection` e `renderRelationsSection` em `baseCodingMenu.ts` — 6 engines reusam
+- **Registry pub/sub multi-listener** (Fase A): `addOnMutate` / `removeOnMutate` substitui `setOnMutate` (single-slot) — permite analytics cache + sidebar cache + export independentes
 
 ---
 

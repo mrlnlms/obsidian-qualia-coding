@@ -77,23 +77,22 @@ Comando `quick-code`: seleciona texto → abre fuzzy modal → aplica código. R
 - No Code Explorer, toggle para mostrar/esconder highlights de um código específico no editor
 - Resolve o problema de "color soup" com 20+ códigos
 
-### 8. Analytics: Cross-source Comparison
+### ~~8. Analytics: Cross-source Comparison~~ — FEITO (2026-03-02)
 
-- Painel comparativo: como os mesmos códigos se comportam em markdown vs CSV vs PDF
-- Métricas por source type
-- Code × Metadata: cruzamento de códigos com variáveis demográficas por source
-- Multi-tab spreadsheet export (one tab per source type, summary tab)
+Implementado como `sourceComparisonMode.ts`. Painel comparativo mostra métricas por source type (markdown, PDF, CSV, image, audio, video).
+
+**O que ainda falta** (spin-off):
+- Multi-tab spreadsheet export (one tab per source type, summary tab) — relacionado a #15 Export
+- Code × Metadata específico (cruzar códigos com variáveis demográficas por source) — depende de #18 Case Variables
 
 ### 9. Analytics: Code × Metadata
 
 - Se CSV tem colunas de metadata (gênero, idade, etc.), cruzar com códigos
 - Tabelas de contingência por variável demográfica
 
-### 10. Code Overlap Analysis
+### ~~10. Code Overlap Analysis~~ — FEITO
 
-- Which codes share textual regions (not just co-occur on same marker)
-- Distinct from co-occurrence — about shared text spans
-- Analytics enhancement: heatmap of overlapping code pairs by character count
+Implementado como `overlapMode.ts` em analytics. Heatmap de pares de códigos com span textual compartilhado (distinto de co-occurrence, que é sobre markers no mesmo arquivo).
 
 ### 11. Margin Panel Customization
 
@@ -231,23 +230,22 @@ Implementado como parte do Codebook Evolution.
 | JSON full export | PENDENTE |
 | PNG/PDF (Dashboard composite) | PENDENTE |
 
-### 16. Per-Code Decorations (Phase 3 original)
+### ~~16. Per-Code Decorations~~ — FEITO (2026-03-02, markdown + PDF)
 
-**Conceito**: 1 `Decoration.mark()` por **código** no marker (não por marker). Marker com 3 códigos = 3 decorations overlapping com opacity blending.
+Implementado nos dois engines de texto que renderizam highlights por range:
 
-**Riscos**: Com 20+ códigos, palette management se torna crítico. Algoritmo de contraste mínimo necessário.
+- **Markdown** (`src/markdown/cm6/markerStateField.ts:272-295`): quando um marker tem N códigos, emite N `Decoration.mark()` sobrepostas, cada uma com `settings.markerOpacity / N`. Single-code mantém opacidade cheia. `colorOverride` bypassa blending (cor única vence)
+- **PDF** (`src/pdf/highlightRenderer.ts:149-180`): N retângulos sobrepostos no DOM overlay, cada um com `BASE_OPACITY / N`. Hover aumenta proporcionalmente
+- **Mix-blend-mode**: `multiply` em ambos — cores se compõem visualmente em cor única de "mistura"
 
-**Status**: Parcialmente implementado (opacity blending no markdown), mas não expandido para N decorations por marker.
+**Fórmula documentada** em `docs/pm/product/DESIGN-PRINCIPLES.md §3.2 (Opacity Blending)`.
 
-**Gutter bars**: Optional companion — vertical color bars in the gutter per code.
+**Engines sem blending** (decisão intencional, paradigma diferente):
+- Image (fabric.js) — regiões são shapes, não ranges
+- Audio/Video (wavesurfer) — regiões de waveform
+- CSV (AG Grid cells) — chips de tag, não sobreposição
 
-**4 visual approaches** (combinatorial analysis reference):
-- **A**: Background highlight only (current)
-- **B**: Gutter bars only
-- **C**: Background + gutter bars combined
-- **D**: Per-code `Decoration.mark()` with opacity blending
-
-**D alone is most pragmatic starting point** — already partially implemented, minimal UI surface.
+**Toggle Visibility por código** (item #7) é o próximo passo para resolver "color soup" com 20+ códigos em um documento.
 
 ### 17. Margin Panel Resize Handle
 
