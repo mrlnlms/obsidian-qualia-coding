@@ -1,4 +1,4 @@
-import { Plugin, FileView, type View } from 'obsidian';
+import { Plugin, FileView, TFile, type View } from 'obsidian';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
@@ -27,7 +27,7 @@ import { registerAnalyticsEngine } from './analytics';
 import { ConsolidationCache } from './analytics/data/consolidationCache';
 import { registerExportCommands } from './export/exportCommands';
 import { registerImportCommands } from './import/importCommands';
-import { setupFileInterceptor } from './core/fileInterceptor';
+import { setupFileInterceptor, registerFileRename } from './core/fileInterceptor';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -74,6 +74,28 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
 			if (leaf?.view instanceof FileView) {
 				this.addCaseVariablesActionToView(leaf.view);
+			}
+		}));
+
+		// Case variables: migrate on rename, clear on delete
+		const CASE_VAR_EXTENSIONS = new Set([
+			'md',
+			'pdf',
+			'jpg', 'jpeg', 'png', 'webp',
+			'mp3', 'wav', 'm4a', 'ogg',
+			'mp4', 'mov', 'webm',
+		]);
+
+		registerFileRename({
+			extensions: CASE_VAR_EXTENSIONS,
+			onRename: (oldPath, newPath) => {
+				this.caseVariablesRegistry.migrateFilePath(oldPath, newPath);
+			},
+		});
+
+		this.registerEvent(this.app.vault.on('delete', (file) => {
+			if (file instanceof TFile && CASE_VAR_EXTENSIONS.has(file.extension)) {
+				this.caseVariablesRegistry.removeAllForFile(file.path);
 			}
 		}));
 
