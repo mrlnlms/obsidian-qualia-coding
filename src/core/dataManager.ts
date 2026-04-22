@@ -96,7 +96,7 @@ export class DataManager {
 		this.data.markdown = { markers: {}, settings: this.data.markdown.settings };
 		this.data.csv = { segmentMarkers: [], rowMarkers: [] };
 		this.data.image = { markers: [], settings: this.data.image.settings };
-		this.data.pdf = { markers: [], shapes: [] };
+		this.data.pdf = { markers: [], shapes: [], settings: this.data.pdf.settings };
 		this.data.audio = { files: [], settings: this.data.audio.settings };
 		this.data.video = { files: [], settings: this.data.video.settings };
 		this.data.caseVariables = { values: {}, types: {} };

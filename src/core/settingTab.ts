@@ -124,12 +124,12 @@ export class QualiaSettingTab extends PluginSettingTab {
 		const imageSettings = this.plugin.dataManager.section('image').settings;
 
 		new Setting(containerEl)
-			.setName('Auto-open images')
+			.setName('Open images in coding view')
 			.setDesc('Open images in the coding view instead of the default viewer')
 			.addToggle(toggle => toggle
-				.setValue(imageSettings.autoOpenImages)
+				.setValue(imageSettings.autoOpen)
 				.onChange((value) => {
-					imageSettings.autoOpenImages = value;
+					imageSettings.autoOpen = value;
 					save();
 				}));
 

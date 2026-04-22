@@ -60,7 +60,7 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 		extensions: IMAGE_EXTENSIONS,
 		targetViewType: IMAGE_CODING_VIEW_TYPE,
 		sourceViewType: 'image',
-		shouldIntercept: () => model.settings.autoOpenImages,
+		shouldIntercept: () => model.settings.autoOpen,
 	});
 
 	// File rename tracking (centralized)

@@ -116,11 +116,12 @@ export interface QualiaData {
 	general: GeneralSettings;
 	markdown: { markers: Record<string, Marker[]>; settings: CodeMarkerSettings };
 	csv: { segmentMarkers: SegmentMarker[]; rowMarkers: RowMarker[] };
-	image: { markers: ImageMarker[]; settings: { autoOpenImages: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> } };
-	pdf: { markers: PdfMarker[]; shapes: PdfShapeMarker[] };
+	image: { markers: ImageMarker[]; settings: { autoOpen: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> } };
+	pdf: { markers: PdfMarker[]; shapes: PdfShapeMarker[]; settings: { autoOpen: boolean } };
 	audio: {
 		files: AudioFile[];
 		settings: {
+			autoOpen: boolean;
 			defaultZoom: number;
 			regionOpacity: number;
 			showLabelsOnRegions: boolean;
@@ -130,6 +131,7 @@ export interface QualiaData {
 	video: {
 		files: VideoFile[];
 		settings: {
+			autoOpen: boolean;
 			defaultZoom: number;
 			regionOpacity: number;
 			showLabelsOnRegions: boolean;
@@ -154,15 +156,15 @@ export function createDefaultData(): QualiaData {
 			showRibbonButton: true,
 		} },
 		csv: { segmentMarkers: [], rowMarkers: [] },
-		image: { markers: [], settings: { autoOpenImages: true, fileStates: {} } },
-		pdf: { markers: [], shapes: [] },
+		image: { markers: [], settings: { autoOpen: false, fileStates: {} } },
+		pdf: { markers: [], shapes: [], settings: { autoOpen: false } },
 		audio: {
 			files: [],
-			settings: { defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, fileStates: {} },
+			settings: { autoOpen: false, defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, fileStates: {} },
 		},
 		video: {
 			files: [],
-			settings: { defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, videoFit: 'contain', fileStates: {} },
+			settings: { autoOpen: false, defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, videoFit: 'contain', fileStates: {} },
 		},
 		caseVariables: { values: {}, types: {} },
 	};
