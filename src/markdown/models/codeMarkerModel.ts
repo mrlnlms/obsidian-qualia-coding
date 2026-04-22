@@ -506,10 +506,6 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		}
 	}
 
-	getAutoRevealOnSegmentClick(): boolean {
-		return this.getSettings().autoRevealOnSegmentClick;
-	}
-
 	getSettings(): CodeMarkerSettings {
 		return this.plugin.dataManager.section('markdown').settings;
 	}

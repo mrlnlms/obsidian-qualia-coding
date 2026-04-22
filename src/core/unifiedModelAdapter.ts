@@ -91,15 +91,6 @@ export class UnifiedModelAdapter implements SidebarModelInterface {
 		for (const m of this.models) m.deleteCode(codeId);
 	}
 
-	getAutoRevealOnSegmentClick(): boolean {
-		for (const m of this.models) {
-			if (m.getAutoRevealOnSegmentClick) {
-				return m.getAutoRevealOnSegmentClick();
-			}
-		}
-		return true;
-	}
-
 	setHoverState(markerId: string | null, codeName: string | null, hoveredIds?: string[]): void {
 		for (const m of this.models) {
 			if (markerId === null) {
