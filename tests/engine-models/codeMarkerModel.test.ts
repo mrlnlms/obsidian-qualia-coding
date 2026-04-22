@@ -700,6 +700,49 @@ describe('loadMarkers', () => {
 		model.loadMarkers();
 		expect(model.getAllMarkers()).toEqual([]);
 	});
+
+	it('persists normalized markers when any codeId was rewritten', () => {
+		// Register a code — its id is a UUID, its name is 'LegacyCode'
+		const def = registry.create('LegacyCode', '#FF0000');
+		// Feed a marker whose codeId is the name (legacy shape)
+		const legacyMarker = makeMarker({ fileId: 'file.md', id: 'id-legacy', codes: [{ codeId: 'LegacyCode' }] });
+		plugin = createMockPlugin({
+			markers: { 'file.md': [legacyMarker] },
+		});
+		model = new CodeMarkerModel(plugin as any, registry);
+		plugin.dataManager.setSection.mockClear();
+
+		model.loadMarkers();
+
+		// codeId should now be the canonical UUID
+		const loaded = model.getMarkerById('id-legacy');
+		expect(loaded).not.toBeNull();
+		expect(loaded!.codes[0].codeId).toBe(def.id);
+
+		// saveMarkers must have been called (mutated = true branch)
+		expect(plugin.dataManager.setSection).toHaveBeenCalled();
+	});
+
+	it('does not persist when all markers already have canonical codeIds', () => {
+		const def = registry.create('CanonicalCode', '#00FF00');
+		// Feed a marker whose codeId is already the canonical UUID
+		const canonicalMarker = makeMarker({ fileId: 'file.md', id: 'id-canonical', codes: [{ codeId: def.id }] });
+		plugin = createMockPlugin({
+			markers: { 'file.md': [canonicalMarker] },
+		});
+		model = new CodeMarkerModel(plugin as any, registry);
+		plugin.dataManager.setSection.mockClear();
+
+		model.loadMarkers();
+
+		// Marker should be unchanged
+		const loaded = model.getMarkerById('id-canonical');
+		expect(loaded).not.toBeNull();
+		expect(loaded!.codes[0].codeId).toBe(def.id);
+
+		// saveMarkers must NOT have been called (mutated = false branch)
+		expect(plugin.dataManager.setSection).not.toHaveBeenCalled();
+	});
 });
 
 // ── 22. clearAllMarkers ──
