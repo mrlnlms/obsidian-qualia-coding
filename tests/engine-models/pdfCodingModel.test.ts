@@ -486,6 +486,55 @@ describe('load', () => {
 		expect(model.getAllMarkers()).toEqual([]);
 		expect(model.getAllShapes()).toEqual([]);
 	});
+
+	it('persists normalized markers/shapes when any codeId was rewritten', () => {
+		// Register a code — its id is a UUID, its name is 'LegacyCode'
+		const def = registry.create('LegacyCode', '#FF0000');
+		// Feed a shape whose codeId is the name (legacy format)
+		const existing = {
+			pdf: {
+				markers: [],
+				shapes: [{ id: 's-legacy', fileId: 'doc.pdf', page: 1, shape: 'rect', coords: rectCoords, codes: [{ codeId: 'LegacyCode' }], createdAt: 1, updatedAt: 1 }],
+			},
+		};
+		dm = createMockDm(existing);
+		model = new PdfCodingModel(dm as any, registry);
+		dm.setSection.mockClear();
+
+		model.load();
+
+		// codeId should now be the canonical UUID
+		const shape = model.findShapeById('s-legacy');
+		expect(shape).toBeDefined();
+		expect(shape!.codes[0].codeId).toBe(def.id);
+
+		// save() must have been called (mutated = true branch)
+		expect(dm.setSection).toHaveBeenCalled();
+	});
+
+	it('does not persist when all codeIds are canonical', () => {
+		const def = registry.create('CanonicalCode', '#00FF00');
+		// Feed a marker whose codeId is already the canonical UUID
+		const existing = {
+			pdf: {
+				markers: [{ id: 'm-canonical', fileId: 'doc.pdf', page: 1, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 5, text: 'hi', codes: [{ codeId: def.id }], createdAt: 1, updatedAt: 1 }],
+				shapes: [],
+			},
+		};
+		dm = createMockDm(existing);
+		model = new PdfCodingModel(dm as any, registry);
+		dm.setSection.mockClear();
+
+		model.load();
+
+		// Marker should be unchanged
+		const marker = model.findMarkerById('m-canonical');
+		expect(marker).toBeDefined();
+		expect(marker!.codes[0].codeId).toBe(def.id);
+
+		// save() must NOT have been called (mutated = false branch)
+		expect(dm.setSection).not.toHaveBeenCalled();
+	});
 });
 
 describe('save', () => {
