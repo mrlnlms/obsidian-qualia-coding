@@ -1160,6 +1160,40 @@ Qualquer popover criado fora da árvore DOM da view (appended ao `document.body`
 
 ---
 
+## 17. Invariante codeId → CodeDefinition (sem orphans)
+
+**Invariante:** todo `CodeApplication.codeId` em um marker persistido aponta pra um `CodeDefinition.id` vivo no registry. Não há orphans (codeIds "quebrados" apontando pra código deletado).
+
+**Por que isso importa:** `buildCountIndex`, `consolidateCodes`, Analytics, Codebook sidebar — todos indexam markers por `codeId` assumindo que o código existe. Orphan = conta-zero silenciosa, cor default, label errado.
+
+**Os 6 fluxos que mantêm a invariante:**
+
+| # | Fluxo | Arquivo | Mecanismo |
+|---|-------|---------|-----------|
+| 1 | Delete de código via UI | `core/baseSidebarAdapter.ts:118-132` `deleteCode()` | Remove `codeId` de todos os markers (via `removeCodeFromMarker`) + deleta markers com `codes: []` **antes** de `registry.delete(codeId)`. Cascade é atômico |
+| 2 | Merge de códigos | `core/mergeModal.ts:31-76` `executeMerge()` | Itera `model.getAllMarkers()` (todos os 6 engines via UnifiedModelAdapter): remove source-id, adiciona destination-id. Só aí `registry.delete(srcId)` |
+| 3 | Import QDPX/QDC | `import/qdpxImporter.ts:511-530` `resolveCodeApplications()` | Filtra `codeGuids` que não bateram no `codeGuidMap` **antes** de criar o marker — orphan nunca chega a ser escrito |
+| 4 | Import post-sync | `main.ts:332-342` `reloadAfterImport()` | Chama load/reload em todos os 5 models → dispara `normalizeCodeApplications` em cascata como safety net final |
+| 5 | Clear All Markers | `markdown/index.ts:171-205` | Sequência atômica: `registry.clear()` + `model.clearAllMarkers()` em todos engines + `dataManager.clearAllSections()` |
+| 6 | File rename | Per-model `migrateFilePath()` | Só toca `fileId`, não tem relação com codeId |
+
+**Safety net no load** (`normalizeCodeApplications` em `core/codeApplicationHelpers.ts`, wire no load de cada marker model):
+- Se `codeId` é UUID válido: mantém.
+- Se `codeId` é nome legacy (pré-Phase-C): rewrite pra `def.id` via `getByName`.
+- Se `codeId` não bate nem como id nem como name: **drop silencioso** (orphan).
+
+Na prática de produção, o drop nunca dispara — os 6 fluxos acima já selam a criação/manutenção. É defesa contra corrupção manual do `data.json`, e nada mais.
+
+**Decisão de design (2026-04-22):** `NormalizeResult` expõe apenas `{ normalized, changed }`. O campo `dropped` foi removido depois de auditar todos os fluxos e confirmar que orphans não emergem via uso normal. Ver histórico git (`BACKLOG §14 follow-up`).
+
+### Consequência prática pra futuros refactors
+
+- **Não adicionar** cleanup-de-orphans em novos fluxos de import ou merge sem antes checar se o fluxo já respeita os padrões acima (filtrar na origem; cascade antes do delete).
+- **Se você precisa** adicionar um fluxo que manipula markers em massa, siga o pattern §17 #1-#3: remover referências **antes** de deletar a entidade.
+- **Teste de regressão**: qualquer fluxo novo que manipula `codeId` deve ter um teste que `getAllMarkers()` after the flow → `normalizeCodeApplications(codes, registry).changed === false`.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

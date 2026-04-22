@@ -124,7 +124,6 @@ describe('codeApplicationHelpers', () => {
 			const result = normalizeCodeApplications([{ codeId: 'c_1' }], reg);
 			expect(result.normalized).toEqual([{ codeId: 'c_1' }]);
 			expect(result.changed).toBe(false);
-			expect(result.dropped).toBe(0);
 		});
 
 		it('rewrites name-based legacy codeId to id', () => {
@@ -132,7 +131,6 @@ describe('codeApplicationHelpers', () => {
 			const result = normalizeCodeApplications([{ codeId: 'Hierarquia' }], reg);
 			expect(result.normalized).toEqual([{ codeId: 'c_1' }]);
 			expect(result.changed).toBe(true);
-			expect(result.dropped).toBe(0);
 		});
 
 		it('drops orphan applications (codeId matches neither id nor name)', () => {
@@ -140,7 +138,6 @@ describe('codeApplicationHelpers', () => {
 			const result = normalizeCodeApplications([{ codeId: 'ghost' }], reg);
 			expect(result.normalized).toEqual([]);
 			expect(result.changed).toBe(true);
-			expect(result.dropped).toBe(1);
 		});
 
 		it('preserves magnitude and relations when rewriting id', () => {
@@ -157,7 +154,6 @@ describe('codeApplicationHelpers', () => {
 				relations: [{ label: 'causa', target: 'Hierarquia', directed: true }],
 			}]);
 			expect(result.changed).toBe(true);
-			expect(result.dropped).toBe(0);
 		});
 
 		it('handles mixed array: valid + legacy + orphan', () => {
@@ -168,7 +164,6 @@ describe('codeApplicationHelpers', () => {
 			);
 			expect(result.normalized).toEqual([{ codeId: 'c_1' }, { codeId: 'c_2' }]);
 			expect(result.changed).toBe(true);
-			expect(result.dropped).toBe(1);
 		});
 
 		it('returns empty with changed=false for empty input', () => {
@@ -176,7 +171,6 @@ describe('codeApplicationHelpers', () => {
 			const result = normalizeCodeApplications([], reg);
 			expect(result.normalized).toEqual([]);
 			expect(result.changed).toBe(false);
-			expect(result.dropped).toBe(0);
 		});
 
 		it('returns same reference (not a copy) when nothing changed', () => {

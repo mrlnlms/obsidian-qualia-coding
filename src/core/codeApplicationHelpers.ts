@@ -60,8 +60,6 @@ export function removeRelation(codes: CodeApplication[], codeId: string, label: 
 export interface NormalizeResult {
 	normalized: CodeApplication[];
 	changed: boolean;
-	/** count of applications dropped because they referenced neither a valid id nor a known name */
-	dropped: number;
 }
 
 /**
@@ -79,10 +77,9 @@ export function normalizeCodeApplications(
 	apps: CodeApplication[],
 	registry: CodeDefinitionRegistry,
 ): NormalizeResult {
-	if (apps.length === 0) return { normalized: apps, changed: false, dropped: 0 };
+	if (apps.length === 0) return { normalized: apps, changed: false };
 
 	let changed = false;
-	let dropped = 0;
 	const out: CodeApplication[] = [];
 
 	for (const app of apps) {
@@ -96,9 +93,8 @@ export function normalizeCodeApplications(
 			changed = true;
 			continue;
 		}
-		dropped++;
 		changed = true;
 	}
 
-	return { normalized: changed ? out : apps, changed, dropped };
+	return { normalized: changed ? out : apps, changed };
 }
