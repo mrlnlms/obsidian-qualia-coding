@@ -1055,15 +1055,16 @@ return renderCodeRow(node, ...);
 
 **Gotcha**: FlatCodeNode tem `.def` (CodeDefinition), FlatFolderNode tem `.folderId` + `.name`. Acessar `.def` sem type guard causa erro de tipo.
 
-### 14.2 Folder expanded state com prefixo
+### 14.2 Expanded state tipado (ExpandedState)
 
-`baseCodeDetailView.ts` mantem dois Sets separados: `treeExpanded` (code IDs) e `folderExpanded` (folder IDs). O `getTreeState()` unifica num unico Set com prefixo `folder:` para folders:
+`hierarchyHelpers.ts` expõe `ExpandedState { codes: Set<string>; folders: Set<string> }` + helper `createExpandedState()`. `baseCodeDetailView.ts` mantém um único campo `expanded: ExpandedState` (antes eram dois Sets paralelos `treeExpanded`/`folderExpanded` + merge com prefixo `folder:${id}` no `getTreeState()`).
 
 ```typescript
-for (const fId of this.folderExpanded) merged.add(`folder:${fId}`);
+protected expanded: ExpandedState = createExpandedState();
+// Consumidores: expanded.codes.has(id) / expanded.folders.has(id)
 ```
 
-`buildFlatTree` espera `folder:{id}` no Set `expanded` para expandir pastas.
+**Por que não string-prefix:** `folder:${id}` era convenção implícita entre produtor (`getTreeState`) e consumidor (`buildFlatTree` em `hierarchyHelpers`) — colisão silenciosa se ID começasse com `folder:`, e futuro dev precisaria lembrar de agrupar seletores. Discriminated state elimina a convenção; TypeScript força o call site a ser explícito. **Aplicável genericamente:** quando tiver dois Sets paralelos que viram um com prefixo, vira `ExpandedState`-like. Extensão futura adiciona campo (ex: `themes: Set<string>`) sem re-encoding.
 
 ### 14.3 Contagem hierarquica (buildCountIndex)
 
@@ -1122,6 +1123,40 @@ Qualquer situação onde o plugin escreve em estado do Obsidian (frontmatter, va
 ### Onde está implementado
 
 `src/core/caseVariables/caseVariablesRegistry.ts` — CaseVariablesRegistry, método `setValues()` e listener `metadataCache.on('changed')`.
+
+---
+
+## 16. Popover global tracking pra cleanup no onunload
+
+### Problema
+
+Popover renderizado via `document.body.appendChild()` (ex: `openPropertiesPopover`) fica órfão no DOM durante hot-reload do plugin. `view.register()` só limpa quando a view é destruída — e views de arquivo persistem através do reload.
+
+### Pattern
+
+Plugin trackea o `close` do popover atualmente aberto + chama no `onunload()`:
+
+```typescript
+// No plugin class
+private activePopoverClose: (() => void) | null = null;
+
+// Ao abrir
+this.activePopoverClose = openPopover(button, {
+  onClose: () => { this.activePopoverClose = null; },
+});
+
+// Em onunload()
+this.activePopoverClose?.();
+this.activePopoverClose = null;
+```
+
+### Quando generalizar
+
+Qualquer popover criado fora da árvore DOM da view (appended ao `document.body`, overlays globais). Só um popover por vez? Campo único; senão, `Set<() => void>`.
+
+### Onde está implementado
+
+`src/main.ts` — `activePopoverClose` do Case Variables popover (§15 FEITO 2026-04-22).
 
 ---
 
