@@ -3,7 +3,7 @@
  * Extracted from pdfCodingMenu.ts to avoid duplication across engines.
  */
 
-import { TextComponent, ToggleComponent, setIcon } from 'obsidian';
+import { ButtonComponent, ExtraButtonComponent, TextComponent, ToggleComponent, setIcon } from 'obsidian';
 import type { CodeDefinition } from './types';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import { CodeBrowserModal } from './codeBrowserModal';
@@ -595,33 +595,28 @@ export function renderRelationsSection(
 			const addRow = document.createElement('div');
 			addRow.className = 'codemarker-tooltip-relation-add';
 
-			const labelIn = document.createElement('input');
-			labelIn.className = 'codemarker-tooltip-relation-input';
-			labelIn.placeholder = 'Label...';
-			applyInputTheme(labelIn);
-			addRow.appendChild(labelIn);
+			const labelComp = new TextComponent(addRow);
+			labelComp.setPlaceholder('Label...');
+			labelComp.inputEl.classList.add('codemarker-tooltip-relation-input');
+			applyInputTheme(labelComp.inputEl);
 
-			const targetIn = document.createElement('input');
-			targetIn.className = 'codemarker-tooltip-relation-input';
-			targetIn.placeholder = 'Target...';
-			applyInputTheme(targetIn);
-			addRow.appendChild(targetIn);
+			const targetComp = new TextComponent(addRow);
+			targetComp.setPlaceholder('Target...');
+			targetComp.inputEl.classList.add('codemarker-tooltip-relation-input');
+			applyInputTheme(targetComp.inputEl);
 
-			const dirBtn = document.createElement('button');
-			dirBtn.className = 'codemarker-tooltip-relation-dir-btn';
 			let directed = true;
-			const updateDir = () => { dirBtn.innerHTML = ''; setIcon(dirBtn, directed ? 'arrow-right' : 'minus'); };
-			updateDir();
-			dirBtn.addEventListener('click', (e) => { e.stopPropagation(); directed = !directed; updateDir(); });
-			addRow.appendChild(dirBtn);
+			const dirComp = new ExtraButtonComponent(addRow)
+				.setIcon('arrow-right')
+				.onClick(() => {
+					directed = !directed;
+					dirComp.setIcon(directed ? 'arrow-right' : 'minus');
+				});
+			dirComp.extraSettingsEl.classList.add('codemarker-tooltip-relation-dir-btn');
 
-			const addBtn = document.createElement('button');
-			addBtn.className = 'codemarker-tooltip-relation-add-btn';
-			addBtn.textContent = '+';
-			addBtn.addEventListener('click', (e) => {
-				e.stopPropagation();
-				const label = labelIn.value.trim();
-				const targetName = targetIn.value.trim();
+			const submit = () => {
+				const label = labelComp.inputEl.value.trim();
+				const targetName = targetComp.inputEl.value.trim();
 				if (!label || !targetName) return;
 				let targetDef = registry.getByName(targetName);
 				if (!targetDef) {
@@ -631,13 +626,17 @@ export function renderRelationsSection(
 				if (dup) return;
 				setRelations(codeId, [...rels, { label, target: targetDef.id, directed }]);
 				buildContent(codeIds);
-			});
-			addRow.appendChild(addBtn);
+			};
 
-			for (const inp of [labelIn, targetIn]) {
+			const addComp = new ButtonComponent(addRow)
+				.setButtonText('+')
+				.onClick(submit);
+			addComp.buttonEl.classList.add('codemarker-tooltip-relation-add-btn');
+
+			for (const inp of [labelComp.inputEl, targetComp.inputEl]) {
 				inp.addEventListener('mousedown', (e) => e.stopPropagation());
 				inp.addEventListener('keydown', (e) => {
-					if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
+					if (e.key === 'Enter') { e.preventDefault(); submit(); }
 					e.stopPropagation();
 				});
 			}
