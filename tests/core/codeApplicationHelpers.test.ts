@@ -156,6 +156,8 @@ describe('codeApplicationHelpers', () => {
 				magnitude: 'ALTA',
 				relations: [{ label: 'causa', target: 'Hierarquia', directed: true }],
 			}]);
+			expect(result.changed).toBe(true);
+			expect(result.dropped).toBe(0);
 		});
 
 		it('handles mixed array: valid + legacy + orphan', () => {
