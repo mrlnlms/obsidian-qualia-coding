@@ -225,6 +225,26 @@ Risco/retorno baixo. Fazer numa sessão dedicada de 20-30 min quando houver outr
 
 ---
 
+## 16. Audio/Video — scroll persistence não restaura ao reabrir arquivo
+
+**Sintoma:** em `AudioView`/`VideoView`, após rolar a waveform em um arquivo, trocar pra outro e voltar, o scroll abre no início em vez de restaurar a posição anterior. Bug **pré-existente** (anterior à consolidação de 2026-04-22; confirmado com Marlon em `chore/fileview-consolidation` smoke test).
+
+**Hipóteses de causa** (não investigadas a fundo ainda):
+
+1. `renderer.setScroll(scrollPos)` no handler `ready` está sendo executado antes do WaveSurfer estar pronto pra aceitar scroll. O `requestAnimationFrame` pode não ser suficiente — WaveSurfer tem sua própria sequência de renderização interna (waveform, timeline, etc.) que pode não estar completa no momento do `ready`.
+2. `fileStates[file.path].lastPosition` pode estar sendo salvo como 0 em algum caminho — verificar se o save em `cleanup(file)` está lendo `getScroll()` em momento válido (antes do `renderer.destroy()`, já confirmado na ordem atual).
+3. Zoom restoration pode estar re-disparando o scroll para 0 ao alterar a escala da waveform (`renderer.zoom(zoom)` pode resetar scroll interno).
+
+**Como investigar:**
+- Adicionar `console.log` em `saveScrollPosition` (valor lido) e no `ready` handler (valor restaurado) pra confirmar qual lado falha.
+- Checar `data.json` após uma troca: `fileStates[audioA].lastPosition` está > 0?
+- Se sim, o bug é no restore (hipótese 1 ou 3). Tentar `setTimeout(() => setScroll(...), 50)` ou escutar evento `redraw` do WaveSurfer.
+- Se não, é no save — revisar `renderer.getScroll()` e o lifecycle de WaveSurfer.
+
+**Escopo:** sessão curta (30-60 min). Fix provavelmente pequeno — mover `setScroll` pra um evento posterior ao `ready` ou re-aplicar após zoom restore.
+
+---
+
 ## ~~14. Analytics engine — repassada geral~~ — FEITO (2026-04-21)
 
 **Resolução:** UnifiedCode ganhou `id` obrigatório, `consolidateCodes` indexa por id, `consolidate()` normaliza markers legacy (codeId=name → real id via lookup em defsByName), 6 stats engines + 2 auxiliares atualizados (lookup por id, render por nome), `enabledCodes` Set<id>, dropdowns value=id label=name. 33 arquivos, +350/-299 LOC, 1902 testes passam. Commit: `1422bb7`.
