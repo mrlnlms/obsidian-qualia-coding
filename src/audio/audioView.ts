@@ -6,7 +6,7 @@ import { openAudioCodingPopover } from './audioCodingMenu';
 
 export const AUDIO_VIEW_TYPE = 'qualia-audio-view';
 
-const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'wma', 'aiff', 'opus', 'webm']);
+export const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'wma', 'aiff', 'opus', 'webm']);
 
 export class AudioView extends FileView {
   readonly core: MediaViewCore;
@@ -34,8 +34,8 @@ export class AudioView extends FileView {
     this.leaf.updateHeader?.();
   }
 
-  async onUnloadFile(_file: TFile): Promise<void> {
-    this.core.cleanup();
+  async onUnloadFile(file: TFile): Promise<void> {
+    this.core.cleanup(file);
     this.contentEl.empty();
   }
 }

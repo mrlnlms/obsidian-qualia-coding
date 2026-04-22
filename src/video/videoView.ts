@@ -6,7 +6,7 @@ import { openVideoCodingPopover } from './videoCodingMenu';
 
 export const VIDEO_VIEW_TYPE = 'qualia-video-view';
 
-const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'ogv']);
+export const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'ogv']);
 
 export class VideoView extends FileView {
   readonly core: MediaViewCore;
@@ -35,8 +35,8 @@ export class VideoView extends FileView {
     this.leaf.updateHeader?.();
   }
 
-  async onUnloadFile(_file: TFile): Promise<void> {
-    this.core.cleanup();
+  async onUnloadFile(file: TFile): Promise<void> {
+    this.core.cleanup(file);
     this.contentEl.empty();
   }
 }

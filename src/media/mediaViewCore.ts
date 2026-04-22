@@ -19,7 +19,9 @@ export class MediaViewCore {
   private regionRenderer: MediaRegionRenderer | null = null;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
   private keydownEl: HTMLElement | null = null;
-  private currentFile: TFile | null = null;
+  // Internal tracking for save-scroll when loadMedia runs without a prior cleanup
+  // (safety net for rapid file swaps). NOT a mirror of view.file — do not expose.
+  private loadedFile: TFile | null = null;
   private videoElement: HTMLVideoElement | null = null;
   private waveformEl: HTMLElement | null = null;
   private playBtn: HTMLElement | null = null;
@@ -42,13 +44,7 @@ export class MediaViewCore {
     this.renderer = new WaveformRenderer();
   }
 
-  get file(): TFile | null { return this.currentFile; }
-
   waitUntilReady(): Promise<void> { return this.readyPromise; }
-
-  getState(): Record<string, unknown> {
-    return { file: this.currentFile?.path ?? '' };
-  }
 
   async loadMedia(
     contentEl: HTMLElement,
@@ -56,7 +52,9 @@ export class MediaViewCore {
     registerEvent: (ref: EventRef) => void,
   ): Promise<void> {
     this.readyPromise = new Promise(r => { this.readyResolve = r; });
-    this.saveScrollPosition();
+    // Safety net: if cleanup(file) wasn't called (e.g. rapid swap without unload),
+    // persist scroll of the previously loaded file before discarding state.
+    if (this.loadedFile) this.saveScrollPosition(this.loadedFile);
     this.stopTimeUpdates();
     if (this.changeListener) {
       this.model.offChange(this.changeListener);
@@ -68,7 +66,7 @@ export class MediaViewCore {
     }
     this.renderer.destroy();
 
-    this.currentFile = file;
+    this.loadedFile = file;
 
     const prefix = this.config.cssPrefix;
     contentEl.empty();
@@ -124,14 +122,12 @@ export class MediaViewCore {
       const val = parseInt(this.zoomSlider!.value);
       this.renderer.zoom(val);
       if (this.zoomLabel) this.zoomLabel.textContent = `Zoom ${val}`;
-      if (this.currentFile) {
-        const states = this.model.settings.fileStates;
-        states[this.currentFile.path] = {
-          ...(states[this.currentFile.path] ?? { lastPosition: 0 }),
-          zoom: val,
-        };
-        this.model.save();
-      }
+      const states = this.model.settings.fileStates;
+      states[file.path] = {
+        ...(states[file.path] ?? { lastPosition: 0 }),
+        zoom: val,
+      };
+      this.model.save();
     });
 
     // Separator
@@ -193,14 +189,10 @@ export class MediaViewCore {
       this.updateTimeDisplay();
       this.startTimeUpdates();
 
-      if (this.regionRenderer && this.currentFile) {
-        this.regionRenderer.restoreRegions(this.currentFile.path);
-      }
+      this.regionRenderer?.restoreRegions(file.path);
 
       this.changeListener = () => {
-        if (this.regionRenderer && this.currentFile) {
-          this.regionRenderer.restoreRegions(this.currentFile.path);
-        }
+        this.regionRenderer?.restoreRegions(file.path);
       };
       this.model.onChange(this.changeListener);
 
@@ -232,8 +224,6 @@ export class MediaViewCore {
       regionsPlugin.on('region-created', (region: any) => {
         if (this.regionRenderer?.isRestoring) return;
         if (this.regionRenderer?.getMarkerIdForRegion(region.id)) return;
-        const filePath = this.currentFile?.path;
-        if (!filePath) return;
 
         const waveformRect = this.waveformEl?.getBoundingClientRect();
         const fakeEvent = {
@@ -242,7 +232,7 @@ export class MediaViewCore {
         } as MouseEvent;
 
         this.config.openPopover(
-          fakeEvent, this.model, filePath, region.start, region.end,
+          fakeEvent, this.model, file.path, region.start, region.end,
           this.regionRenderer!, () => { region.remove(); }, this.app,
         );
       });
@@ -275,11 +265,11 @@ export class MediaViewCore {
         const markerId = this.regionRenderer?.getMarkerIdForRegion(region.id);
         if (!markerId) return;
         const marker = this.model.findMarkerById(markerId);
-        if (!marker || !this.currentFile) return;
+        if (!marker) return;
         e.stopPropagation();
 
         this.config.openPopover(
-          e, this.model, this.currentFile.path, marker.from, marker.to,
+          e, this.model, file.path, marker.from, marker.to,
           this.regionRenderer!, () => {}, this.app,
         );
       });
@@ -321,13 +311,13 @@ export class MediaViewCore {
     this.keydownEl = contentEl;
   }
 
-  cleanup(): void {
+  cleanup(file?: TFile): void {
     if (this.keydownHandler && this.keydownEl) {
       this.keydownEl.removeEventListener('keydown', this.keydownHandler);
       this.keydownHandler = null;
       this.keydownEl = null;
     }
-    this.saveScrollPosition();
+    if (file) this.saveScrollPosition(file);
     this.stopTimeUpdates();
     if (this.changeListener) {
       this.model.offChange(this.changeListener);
@@ -339,6 +329,7 @@ export class MediaViewCore {
       this.regionRenderer = null;
     }
     this.renderer.destroy();
+    this.loadedFile = null;
   }
 
   private updatePlayIcon(): void {
@@ -370,12 +361,11 @@ export class MediaViewCore {
     }
   }
 
-  private saveScrollPosition(): void {
-    if (!this.currentFile) return;
+  private saveScrollPosition(file: TFile): void {
     const scroll = this.renderer.getScroll();
     const states = this.model.settings.fileStates;
-    states[this.currentFile.path] = {
-      ...(states[this.currentFile.path] ?? { zoom: this.model.settings.defaultZoom }),
+    states[file.path] = {
+      ...(states[file.path] ?? { zoom: this.model.settings.defaultZoom }),
       lastPosition: scroll,
     };
     this.model.save();

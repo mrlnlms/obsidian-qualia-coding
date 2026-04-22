@@ -7,9 +7,7 @@ import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
 import { ImageCodingModel } from './imageCodingModel';
-import { ImageCodingView, IMAGE_CODING_VIEW_TYPE } from './views/imageView';
-
-const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'avif', 'svg']);
+import { ImageCodingView, IMAGE_CODING_VIEW_TYPE, IMAGE_EXTENSIONS } from './views/imageView';
 
 export { IMAGE_CODING_VIEW_TYPE };
 

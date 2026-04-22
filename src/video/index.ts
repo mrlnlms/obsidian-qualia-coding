@@ -7,9 +7,7 @@ import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
 import { VideoCodingModel } from './videoCodingModel';
-import { VideoView, VIDEO_VIEW_TYPE } from './videoView';
-
-const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'ogv']);
+import { VideoView, VIDEO_VIEW_TYPE, VIDEO_EXTENSIONS } from './videoView';
 
 export { VIDEO_VIEW_TYPE };
 
