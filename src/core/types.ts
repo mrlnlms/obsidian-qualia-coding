@@ -58,9 +58,6 @@ export interface SidebarModelInterface {
 	/** Delete a code definition and remove it from all markers. */
 	deleteCode(codeId: string): void;
 
-	/** Optional: whether clicking a segment auto-navigates to the document. */
-	getAutoRevealOnSegmentClick?(): boolean;
-
 	// Hover state (bidirectional: sidebar ↔ main view)
 	setHoverState(markerId: string | null, codeName: string | null, hoveredIds?: string[]): void;
 	getHoverMarkerId(): string | null;
@@ -155,7 +152,6 @@ export function createDefaultData(): QualiaData {
 			showMenuOnSelection: true,
 			showMenuOnRightClick: true,
 			showRibbonButton: true,
-			autoRevealOnSegmentClick: true,
 		} },
 		csv: { segmentMarkers: [], rowMarkers: [] },
 		image: { markers: [], settings: { autoOpenImages: true, fileStates: {} } },

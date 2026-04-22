@@ -175,7 +175,7 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 | E4 | Baixa | `imageToPixels` | `createImageBitmap` pode falhar para alguns formatos de imagem — fallback necessario |
 | I1 | Media | `qdpxImporter.ts` | PDF text selections no import usam page size default 612x792 (US Letter) — dimensoes reais do PDF nao disponiveis em tempo de import. Marker shape coords aproximadas |
 | I2 | Media | `qdpxImporter.ts` | PDF text selections (PlainTextSelection dentro de PDFSource) ignoradas com warning — mapeamento offset→spanIndex nao implementado |
-| I3 | Baixa | `qdpxImporter.ts` | `createTextMarker` no first pass e dead code — text markers criados inteiramente no batch `createTextMarkers`. Limpar ou remover funcao |
+| ~~I3~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`createTextMarker` no first pass era dead code — removido. Text markers criados exclusivamente via `createTextMarkers` (plural) em pass dedicado.~~ (2026-04-22) |
 | I4 | Baixa | `qdpxImporter.ts` | `guidMap` dual-purpose (code GUIDs + source file paths) — risco teorico de colisao se GUID de source = GUID de code. Separar em dois Maps |
 | I6 | Baixa | `importModal.ts` | `relative://` paths no ZIP resolvidos mas nao testados — sources com path relativo podem nao ser encontrados no ZIP |
 
@@ -205,7 +205,7 @@ Quatro bugs críticos descobertos durante teste manual de round-trip QDPX (vault
 
 ## 12. Codebook Panel polish (K1-K3)
 
-- [ ] K1: autoRevealOnSegmentClick toggle no settingTab pode estar orfao apos remocao do Detail View — verificar se Explorer ainda usa
+- [x] K1: autoRevealOnSegmentClick — confirmado órfão (aggregator em `unifiedModelAdapter.ts` sem consumer externo). Removido: setting + toggle + getter em 6 arquivos. (2026-04-22)
 - [ ] K2: Drag-drop visual feedback poderia ser mais forte (cor mais visivel, animacao de transicao)
 - [ ] K3: Virtual scroll reconstroi todos os rows visiveis no scroll — considerar row recycling para 5000+ codes
 

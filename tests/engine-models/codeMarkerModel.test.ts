@@ -870,15 +870,7 @@ describe('getSettings / updateSettings', () => {
 	});
 });
 
-// ── 28. getAutoRevealOnSegmentClick ──
-
-describe('getAutoRevealOnSegmentClick', () => {
-	it('returns default value', () => {
-		expect(model.getAutoRevealOnSegmentClick()).toBe(true);
-	});
-});
-
-// ── 29. setCodeDescription / getCodeDescription ──
+// ── 28. setCodeDescription / getCodeDescription ──
 
 describe('setCodeDescription / getCodeDescription', () => {
 	it('sets and gets description', () => {

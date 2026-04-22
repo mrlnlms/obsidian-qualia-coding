@@ -6,7 +6,6 @@ export interface CodeMarkerSettings {
 	showMenuOnSelection: boolean;
 	showMenuOnRightClick: boolean;
 	showRibbonButton: boolean;
-	autoRevealOnSegmentClick: boolean;
 }
 
 export const DEFAULT_SETTINGS: CodeMarkerSettings = {
@@ -17,5 +16,4 @@ export const DEFAULT_SETTINGS: CodeMarkerSettings = {
 	showMenuOnSelection: true,
 	showMenuOnRightClick: true,
 	showRibbonButton: true,
-	autoRevealOnSegmentClick: true,
 };

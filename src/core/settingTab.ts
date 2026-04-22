@@ -133,19 +133,6 @@ export class QualiaSettingTab extends PluginSettingTab {
 					save();
 				}));
 
-		// ── Sidebar ─────────────────────────────────────────────
-		containerEl.createEl('h2', { text: 'Sidebar' });
-
-		new Setting(containerEl)
-			.setName('Auto-reveal on segment click')
-			.setDesc('Navigate to the marker in the document when clicking a segment in the sidebar')
-			.addToggle(toggle => toggle
-				.setValue(settings.autoRevealOnSegmentClick)
-				.onChange((value) => {
-					settings.autoRevealOnSegmentClick = value;
-					save();
-				}));
-
 		// ── Export ──────────────────────────────────────────────
 		containerEl.createEl('h2', { text: 'Export' });
 
