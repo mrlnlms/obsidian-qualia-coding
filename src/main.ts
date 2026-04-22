@@ -87,6 +87,8 @@ export default class QualiaCodingPlugin extends Plugin {
 		};
 		this.app.workspace.onLayoutReady(addActionToAllLeaves);
 		this.registerEvent(this.app.workspace.on('layout-change', addActionToAllLeaves));
+		// Also react to file-open: covers splits where layout-change fires before view.file is loaded.
+		this.registerEvent(this.app.workspace.on('file-open', addActionToAllLeaves));
 
 		// Case variables: migrate on rename, clear on delete
 		const CASE_VAR_EXTENSIONS = new Set([
@@ -334,7 +336,12 @@ export default class QualiaCodingPlugin extends Plugin {
 
 	private addCaseVariablesActionToView(view: View): void {
 		if (!(view instanceof FileView)) return;
-		if (this.caseVariablesViewListeners.has(view)) return;
+		if (this.caseVariablesViewListeners.has(view)) {
+			// View already registered — file may have changed on the same leaf (e.g. md→md navigation).
+			// The stored listener is `() => updateBadge()`, so invoking it re-reads view.file?.path.
+			this.caseVariablesViewListeners.get(view)?.();
+			return;
+		}
 		if (!view.file) return;
 
 		// Resolve fileId dynamically — TFile.path mutates on rename; closure capture would stale.
