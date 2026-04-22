@@ -542,9 +542,8 @@ async function createMarkersForSource(
       const ts = resolveTimestamp(sel.createdAt);
 
       switch (src.type) {
-        case 'text':
-          count += createTextMarker(sel, filePath, codes, memo, ts, app, dataManager, result);
-          break;
+        // 'text' is handled in a separate batch after sources are extracted
+        // (see createTextMarkers below — needs file content for offset→lineCh).
         case 'pdf':
           count += createPdfMarker(sel, filePath, codes, memo, ts, dataManager, result);
           break;
@@ -571,41 +570,6 @@ async function createMarkersForSource(
     }
   }
   return count;
-}
-
-function createTextMarker(
-  sel: ParsedSelection,
-  filePath: string,
-  codes: CodeApplication[],
-  memo: string | undefined,
-  ts: number,
-  app: App,
-  dataManager: DataManager,
-  result: ImportResult,
-): number {
-  if (sel.startPosition === undefined || sel.endPosition === undefined) return 0;
-
-  const file = app.vault.getAbstractFileByPath(filePath);
-  if (!file) {
-    result.warnings.push(`File not found for text marker: ${filePath}`);
-    return 0;
-  }
-
-  // We need file content to convert offsets — but we can't do async here easily.
-  // Store markers with offsets and convert later, OR read synchronously via cache.
-  // For now, store the raw positions and mark for post-processing.
-
-  // Since we created the file ourselves, we know the content. We'll use a simplified approach:
-  // Read the content from the vault cache.
-  const mdData = dataManager.section('markdown');
-  if (!mdData.markers[filePath]) {
-    mdData.markers[filePath] = [];
-  }
-
-  // We need to defer offset conversion — store temporarily with special flag
-  // Actually, let's just return 0 and handle text markers in a separate batch after all sources are extracted.
-  // This is cleaner because we need file content for offset→lineCh conversion.
-  return 0;
 }
 
 function createPdfMarker(
