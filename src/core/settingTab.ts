@@ -118,18 +118,55 @@ export class QualiaSettingTab extends PluginSettingTab {
 					save();
 				}));
 
-		// ── Image ──────────────────────────────────────────────
-		containerEl.createEl('h2', { text: 'Image' });
+		// ── Media ──────────────────────────────────────────────
+		containerEl.createEl('h2', { text: 'Media' });
+		containerEl.createEl('p', {
+			text: 'When enabled, files open in the plugin\'s Coding View instead of the native Obsidian viewer. When disabled, files open in the native viewer (no coding features active).',
+			cls: 'setting-item-description',
+		});
 
 		const imageSettings = this.plugin.dataManager.section('image').settings;
+		const audioSettings = this.plugin.dataManager.section('audio').settings;
+		const videoSettings = this.plugin.dataManager.section('video').settings;
+		const pdfSettings = this.plugin.dataManager.section('pdf').settings;
 
 		new Setting(containerEl)
 			.setName('Open images in coding view')
-			.setDesc('Open images in the coding view instead of the default viewer')
+			.setDesc('PNG, JPG, WebP, SVG, etc.')
 			.addToggle(toggle => toggle
 				.setValue(imageSettings.autoOpen)
 				.onChange((value) => {
 					imageSettings.autoOpen = value;
+					save();
+				}));
+
+		new Setting(containerEl)
+			.setName('Open audio in coding view')
+			.setDesc('MP3, WAV, OGG, M4A, etc.')
+			.addToggle(toggle => toggle
+				.setValue(audioSettings.autoOpen)
+				.onChange((value) => {
+					audioSettings.autoOpen = value;
+					save();
+				}));
+
+		new Setting(containerEl)
+			.setName('Open video in coding view')
+			.setDesc('MP4, WebM, MKV, MOV, etc.')
+			.addToggle(toggle => toggle
+				.setValue(videoSettings.autoOpen)
+				.onChange((value) => {
+					videoSettings.autoOpen = value;
+					save();
+				}));
+
+		new Setting(containerEl)
+			.setName('Enable coding on PDF files')
+			.setDesc('Adds highlight/shape/selection-to-code overlay on the native PDF viewer. When off, PDF opens as a regular Obsidian PDF (no plugin decoration).')
+			.addToggle(toggle => toggle
+				.setValue(pdfSettings.autoOpen)
+				.onChange((value) => {
+					pdfSettings.autoOpen = value;
 					save();
 				}));
 
