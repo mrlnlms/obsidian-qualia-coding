@@ -16,7 +16,7 @@ import { type RegionHighlightState, setupRegionHighlight } from '../regionHighli
 
 export const IMAGE_CODING_VIEW_TYPE = 'qualia-image-coding';
 
-const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'avif', 'svg']);
+export const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'avif', 'svg']);
 
 export class ImageCodingView extends FileView {
 	private plugin: QualiaCodingPlugin;

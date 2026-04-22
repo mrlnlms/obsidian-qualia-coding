@@ -7,9 +7,7 @@ import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
 import { AudioCodingModel } from './audioCodingModel';
-import { AudioView, AUDIO_VIEW_TYPE } from './audioView';
-
-const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'wma', 'aiff', 'opus', 'webm']);
+import { AudioView, AUDIO_VIEW_TYPE, AUDIO_EXTENSIONS } from './audioView';
 
 export { AUDIO_VIEW_TYPE };
 

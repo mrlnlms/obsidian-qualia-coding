@@ -6,7 +6,7 @@ import { openVideoCodingPopover } from './videoCodingMenu';
 
 export const VIDEO_VIEW_TYPE = 'qualia-video-view';
 
-const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'ogv']);
+export const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'ogv']);
 
 export class VideoView extends FileView {
   readonly core: MediaViewCore;
