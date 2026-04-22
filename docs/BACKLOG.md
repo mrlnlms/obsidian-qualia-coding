@@ -207,9 +207,19 @@ Risco/retorno baixo. Fazer numa sessão dedicada de 20-30 min quando houver outr
 
 ---
 
-## 14. Analytics engine — repassada geral (PRIORIDADE ALTA)
+## ~~14. Analytics engine — repassada geral~~ — FEITO (2026-04-21)
 
-**Bug crítico descoberto 2026-04-21 durante smoke test do corpus sintético.**
+**Resolução:** UnifiedCode ganhou `id` obrigatório, `consolidateCodes` indexa por id, `consolidate()` normaliza markers legacy (codeId=name → real id via lookup em defsByName), 6 stats engines + 2 auxiliares atualizados (lookup por id, render por nome), `enabledCodes` Set<id>, dropdowns value=id label=name. 33 arquivos, +350/-299 LOC, 1902 testes passam. Commit: `1422bb7`.
+
+**Verificado pós-fix (smoke test):** Frequency, Co-occurrence, Source Comparison, demais modos exibem nomes corretos; filtro de Case Variables muda gráfico como esperado; lista CODES no painel mostra contagens reais (sem mais entradas duplicadas).
+
+**Possível ponto residual:** Painel "All Codes" do Codebook sidebar (renderizado por `buildCountIndex` em `hierarchyHelpers.ts`, não passa pelo consolidator). Pros markers pré-Phase-C com `codeId = name`, lookup por `def.id` (UUID) ainda falha. Smoke test pós-fix sugere que o caminho alternativo (UnifiedModelAdapter cache rebuilt) corrigiu, mas vale validar próxima vez. Se reproduzir, fix análogo: normalizar markers no rebuild do `UnifiedModelAdapter`.
+
+**Considerar:** tipos discriminados (`CodeId = Branded<string, 'codeId'>`) pra prevenir regressões similares.
+
+---
+
+### Histórico do bug original (referência)
 
 Após o commit `46b90e8` (Phase C — codes string[] → CodeApplication[]), `extractCodes` foi atualizado pra retornar `codeId`, mas `consolidateCodes` e os 6 stats engines (`frequency`, `cooccurrence`, `evolution`, `sequential`, `inferential`, `textAnalysis`) continuaram indexando por `name`. Consequências:
 

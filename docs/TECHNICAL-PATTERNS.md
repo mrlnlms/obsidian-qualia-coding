@@ -704,6 +704,27 @@ flush():
 
 Se `markDirty()` dispara durante um save ativo, defere em vez de dropar. Sem esse pattern, saves concorrentes causam data loss.
 
+### 9.8.5 Codes — index por `id` no analytics, render por `name`
+
+Markers post-Phase-C (commit `46b90e8`) referenciam codes via `codeId` (UUID `c_XX`), não nome. Dois aprendizados expostos pelo bug do BACKLOG §14 (corrigido em commit `1422bb7`):
+
+1. **Sempre indexe estruturas internas por `id`** — Maps de cores, sets de "habilitados", lookups em filtros — todos por id. Display em UI usa `name` via lookup `codeById.get(id)?.name ?? id`.
+2. **Markers legacy podem ter `codeId = nome`** — a migração inline em `loadMarkers` converte `codes: string[]` (formato antigo) pra `codes: [{codeId: name}]` por compat. Esses markers não batem com `def.id` (UUID).
+
+Pattern usado no consolidator (`src/analytics/data/dataConsolidator.ts`) — normaliza legacy ANTES de `consolidateCodes`:
+
+```typescript
+const defsByName = new Map<string, string>();
+for (const def of Object.values(defs)) defsByName.set(def.name, def.id);
+for (const m of markers) {
+  m.codes = m.codes.map((ref) => defsByName.get(ref) ?? ref);
+}
+```
+
+`UnifiedCode` tem `id: string` obrigatório. Stats engines (`frequency`, `cooccurrence`, `evolution`, `sequential`, `inferential`, `textAnalysis`, `mdsEngine`, `decisionTreeEngine`) usam `codeById = new Map(data.codes.map(c => [c.id, c]))` pra lookup, e `def?.name ?? codeId` pra display.
+
+**Anti-pattern já corrigido:** `enabledCodes: Set<name>` no `AnalyticsView` causava mismatch silencioso com `m.codes` (ids). Set agora é `Set<id>`. Dropdowns (polar, decision tree) usam `value=id, label=name`.
+
 ### 9.9 File Rename Tracking
 
 Todos os engines agora suportam rename via `fileInterceptor.ts` centralizado + `model.migrateFilePath()`:
