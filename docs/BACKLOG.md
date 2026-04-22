@@ -249,9 +249,13 @@ Resolvido em sessão de higiene:
 
 **Verificado pós-fix (smoke test):** Frequency, Co-occurrence, Source Comparison, demais modos exibem nomes corretos; filtro de Case Variables muda gráfico como esperado; lista CODES no painel mostra contagens reais (sem mais entradas duplicadas).
 
-**Possível ponto residual:** Painel "All Codes" do Codebook sidebar (renderizado por `buildCountIndex` em `hierarchyHelpers.ts`, não passa pelo consolidator). Pros markers pré-Phase-C com `codeId = name`, lookup por `def.id` (UUID) ainda falha. Smoke test pós-fix sugere que o caminho alternativo (UnifiedModelAdapter cache rebuilt) corrigiu, mas vale validar próxima vez. Se reproduzir, fix análogo: normalizar markers no rebuild do `UnifiedModelAdapter`.
+**~~Possível ponto residual~~ — RESOLVIDO (2026-04-22, merge `cf09894`):** `buildCountIndex` agora opera sobre markers canônicos porque a normalização acontece no load de cada model (`normalizeCodeApplications` em `codeApplicationHelpers.ts`). 5 marker models (markdown, pdf, image, csv, media) rodam `normalizeCodeApplications(m.codes, registry)` no primeiro load: legacy `codeId = name` vira `codeId = UUID`, orphans dropados. Uma vez por vault. Compensação in-memory do `dataConsolidator` removida (era workaround da mesma classe de bug). Fallbacks defensivos removidos de PDF `load()`/`addCodeToMarker`/`addCodeToShape`, Image constructor, Media `addCodeToMarker`. 16 commits, +14 testes net (1923 total). Workbench vault auditado pré e pós-fix — 241/241 canônico em ambos (zero legacy, migração é no-op pra esse vault; seria invocada em vaults com data pré-Phase-C).
 
 **Considerar:** tipos discriminados (`CodeId = Branded<string, 'codeId'>`) pra prevenir regressões similares.
+
+**Follow-ups opcionais (não-blockers):**
+- `NormalizeResult.dropped` field não é consumido — podia feed uma Notice quando orphan drop > 0 no primeiro load de um vault (visibilidade da migração one-shot)
+- `extractCodes` em `dataConsolidator.ts` sem unit tests standalone (coberto indiretamente pelos 31 testes do consolidator)
 
 ---
 
