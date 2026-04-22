@@ -5,7 +5,7 @@
 import { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
-import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
+import { registerFileRename } from '../core/fileInterceptor';
 import { AudioCodingModel } from './audioCodingModel';
 import { AudioView, AUDIO_VIEW_TYPE } from './audioView';
 
@@ -25,11 +25,8 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 		new AudioView(leaf, plugin, model),
 	);
 
-	// Intercept audio file opens (via unified interceptor)
-	registerFileIntercept({
-		extensions: AUDIO_EXTENSIONS,
-		targetViewType: AUDIO_VIEW_TYPE,
-	});
+	// Register audio extensions to be opened by AudioView natively
+	plugin.registerExtensions([...AUDIO_EXTENSIONS], AUDIO_VIEW_TYPE);
 
 	// Context menu on audio files
 	const fileMenuRef = plugin.app.workspace.on('file-menu', (menu, file) => {
@@ -96,8 +93,7 @@ async function openAudioAndSeek(plugin: QualiaCodingPlugin, _model: AudioCodingM
 	const leaves = plugin.app.workspace.getLeavesOfType(AUDIO_VIEW_TYPE);
 	for (const leaf of leaves) {
 		const view = leaf.view as AudioView;
-		const state = view.getState();
-		if (state.file === filePath) {
+		if (view.file?.path === filePath) {
 			plugin.app.workspace.revealLeaf(leaf);
 			await view.core.waitUntilReady();
 			view.renderer.seekTo(seekTo);
