@@ -29,7 +29,7 @@ export interface BaseMediaSettings {
 	defaultZoom: number;
 	regionOpacity: number;
 	showLabelsOnRegions: boolean;
-	fileStates: Record<string, { zoom: number; lastPosition: number }>;
+	fileStates: Record<string, { zoom: number; lastPosition: number; lastCurrentTime?: number }>;
 }
 
 /** Default values for BaseMediaSettings fields. */
