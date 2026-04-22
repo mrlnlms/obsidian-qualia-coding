@@ -649,7 +649,7 @@ async function createImageMarker(
     return 0;
   }
 
-  // Get image dimensions (tries createImageBitmap, falls back to <img> decode for SVG/TIFF/HEIC etc.)
+  // Get image dimensions (tries createImageBitmap, falls back to <img> decode for SVG)
   let imgWidth = 1000, imgHeight = 1000; // fallback for truly unsupported formats
   const dims = await getImageDimensions(app.vault, filePath);
   if (dims) {

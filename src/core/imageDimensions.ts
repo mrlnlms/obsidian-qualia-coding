@@ -23,8 +23,6 @@ const MIME_BY_EXT: Record<string, string> = {
  * Obsidian can display the file, this path reads its dimensions.
  *
  * Returns null if both paths fail (unsupported binary, not an image, etc.).
- * HEIC/HEIF are not supported here — Obsidian can't render them natively;
- * users must run the "Convert HEIC/HEIF to PNG" command first.
  */
 export async function getImageDimensions(
     vault: Vault,
