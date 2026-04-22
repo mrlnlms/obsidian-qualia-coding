@@ -43,8 +43,8 @@ export async function loadAndRenderTextStats(
     codes: s.codes.filter(c => enabledCodes.has(c)),
   })).filter(s => s.codes.length > 0);
 
-  const codeColors = new Map(ctx.data.codes.map((c) => [c.name, c.color]));
-  const result = calculateTextStats(filteredSegments, codeColors);
+  const codeDisplay = new Map(ctx.data.codes.map((c) => [c.id, { name: c.name, color: c.color }]));
+  const result = calculateTextStats(filteredSegments, codeDisplay);
 
   if (result.codes.length === 0) {
     ctx.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "No text data available." });
@@ -169,8 +169,8 @@ export function exportTextStatsCSV(ctx: AnalyticsViewContext, date: string): voi
       ...s,
       codes: s.codes.filter(c => enabledCodes.has(c)),
     })).filter(s => s.codes.length > 0);
-    const codeColors = new Map(ctx.data!.codes.map((c) => [c.name, c.color]));
-    const result = calculateTextStats(filteredSegments, codeColors);
+    const codeDisplay = new Map(ctx.data!.codes.map((c) => [c.id, { name: c.name, color: c.color }]));
+    const result = calculateTextStats(filteredSegments, codeDisplay);
 
     const rows: string[][] = [["code", "segments", "total_words", "unique_words", "ttr", "avg_words_per_segment", "avg_chars_per_segment"]];
     for (const e of result.codes) {

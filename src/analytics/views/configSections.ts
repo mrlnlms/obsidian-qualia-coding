@@ -91,13 +91,13 @@ export function renderCodesSection(ctx: AnalyticsViewContext): void {
   const deselectAll = actions.createSpan({ cls: "codemarker-config-action", text: "Deselect All" });
 
   selectAll.addEventListener("click", () => {
-    ctx.enabledCodes = new Set((ctx.data?.codes ?? []).map((c) => c.name));
+    ctx.enabledCodes = new Set((ctx.data?.codes ?? []).map((c) => c.id));
     ctx.disabledCodes.clear();
     renderCodesSection(ctx);
     ctx.scheduleUpdate();
   });
   deselectAll.addEventListener("click", () => {
-    for (const name of ctx.enabledCodes) ctx.disabledCodes.add(name);
+    for (const id of ctx.enabledCodes) ctx.disabledCodes.add(id);
     ctx.enabledCodes.clear();
     renderCodesSection(ctx);
     ctx.scheduleUpdate();
@@ -139,7 +139,7 @@ function renderCodesList(ctx: AnalyticsViewContext, container: HTMLElement): voi
   for (const code of filtered) {
     const row = container.createDiv({ cls: "codemarker-config-row" });
     const cb = row.createEl("input", { type: "checkbox" });
-    cb.checked = ctx.enabledCodes.has(code.name);
+    cb.checked = ctx.enabledCodes.has(code.id);
 
     const swatch = row.createDiv({ cls: "codemarker-config-swatch" });
     swatch.style.backgroundColor = code.color;
@@ -147,16 +147,16 @@ function renderCodesList(ctx: AnalyticsViewContext, container: HTMLElement): voi
     row.createSpan({ text: code.name });
     row.createSpan({
       cls: "codemarker-config-count",
-      text: `(${freq.get(code.name) ?? 0})`,
+      text: `(${freq.get(code.id) ?? 0})`,
     });
 
     cb.addEventListener("change", () => {
       if (cb.checked) {
-        ctx.enabledCodes.add(code.name);
-        ctx.disabledCodes.delete(code.name);
+        ctx.enabledCodes.add(code.id);
+        ctx.disabledCodes.delete(code.id);
       } else {
-        ctx.enabledCodes.delete(code.name);
-        ctx.disabledCodes.add(code.name);
+        ctx.enabledCodes.delete(code.id);
+        ctx.disabledCodes.add(code.id);
       }
       ctx.scheduleUpdate();
     });

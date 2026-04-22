@@ -201,7 +201,7 @@ import { renderOverlapMatrix, exportOverlapCSV } from '../../src/analytics/views
 // ── Helpers ──
 
 function makeCode(name: string, color = '#6200EE'): UnifiedCode {
-	return { name, color, sources: ['markdown'] };
+	return { id: name, name, color, sources: ['markdown'] };
 }
 
 function makeMarker(id: string, source: SourceType, fileId: string, codes: string[]): UnifiedMarker {

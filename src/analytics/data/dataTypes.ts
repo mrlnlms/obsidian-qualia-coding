@@ -28,6 +28,12 @@ export interface UnifiedMarker {
 }
 
 export interface UnifiedCode {
+  /**
+   * Stable codeId. Markers reference codes by id (post Phase C migration).
+   * Stats engines should index by id; UI displays `name`.
+   * Falls back to the orphan id when a marker references a codeId with no matching definition.
+   */
+  id: string;
   name: string;
   color: string;
   description?: string;

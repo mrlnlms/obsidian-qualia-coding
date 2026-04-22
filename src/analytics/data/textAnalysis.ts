@@ -4,9 +4,12 @@ import type { ExtractedSegment } from "./textExtractor";
 
 const TOKEN_RE = /[\s,.;:!?()[\]{}"'''""…—–\-\/\\|@#$%^&*+=<>~`\d]+/;
 
+/** Map keyed by codeId; values carry display name + color for output rendering. */
+export type CodeDisplayMap = Map<string, { name: string; color: string }>;
+
 export function calculateTextStats(
   segments: ExtractedSegment[],
-  codeColors: Map<string, string>,
+  codeDisplay: CodeDisplayMap,
 ): TextStatsResult {
   // Filter usable segments once
   const usable = segments.filter(s => s.text && s.source !== "image");
@@ -37,7 +40,7 @@ export function calculateTextStats(
 
   const codes: TextStatsResult["codes"] = [];
 
-  for (const [code, segs] of byCode) {
+  for (const [codeId, segs] of byCode) {
     const allWords: string[] = [];
     const uniqueSet = new Set<string>();
     let totalChars = 0;
@@ -54,10 +57,11 @@ export function calculateTextStats(
     const segCount = segs.length;
     const totalWords = allWords.length;
     const uniqueWords = uniqueSet.size;
+    const display = codeDisplay.get(codeId);
 
     codes.push({
-      code,
-      color: codeColors.get(code) ?? "#6200EE",
+      code: display?.name ?? codeId,
+      color: display?.color ?? "#6200EE",
       segmentCount: segCount,
       totalWords,
       uniqueWords,

@@ -19,30 +19,30 @@ export function calculateCooccurrence(
     }
   }
 
-  const codes: string[] = [];
-  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
-
-  for (const [code, count] of freq) {
+  const codeById = new Map(data.codes.map((c) => [c.id, c]));
+  const idsKept: string[] = [];
+  for (const [codeId, count] of freq) {
     if (count < filters.minFrequency) continue;
-    codes.push(code);
+    idsKept.push(codeId);
   }
-  codes.sort((a, b) => a.localeCompare(b));
-  const sortedColors = codes.map((c) => codeColors.get(c) ?? "#6200EE");
+  idsKept.sort((a, b) => (codeById.get(a)?.name ?? a).localeCompare(codeById.get(b)?.name ?? b));
+  const codes: string[] = idsKept.map((id) => codeById.get(id)?.name ?? id);
+  const sortedColors: string[] = idsKept.map((id) => codeById.get(id)?.color ?? "#6200EE");
 
-  const n = codes.length;
-  const codeIndex = new Map(codes.map((c, i) => [c, i]));
+  const n = idsKept.length;
+  const codeIndex = new Map(idsKept.map((id, i) => [id, i]));
   const matrix: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
 
   for (const m of markers) {
-    const relevantCodes = m.codes.filter((c) => codeIndex.has(c));
-    for (const c of relevantCodes) {
+    const relevantIds = m.codes.filter((c) => codeIndex.has(c));
+    for (const c of relevantIds) {
       const i = codeIndex.get(c)!;
       matrix[i]![i]!++;
     }
-    for (let a = 0; a < relevantCodes.length; a++) {
-      for (let b = a + 1; b < relevantCodes.length; b++) {
-        const i = codeIndex.get(relevantCodes[a]!)!;
-        const j = codeIndex.get(relevantCodes[b]!)!;
+    for (let a = 0; a < relevantIds.length; a++) {
+      for (let b = a + 1; b < relevantIds.length; b++) {
+        const i = codeIndex.get(relevantIds[a]!)!;
+        const j = codeIndex.get(relevantIds[b]!)!;
         matrix[i]![j]!++;
         matrix[j]![i]!++;
       }
@@ -114,27 +114,28 @@ export function calculateOverlap(
   filters: FilterConfig,
 ): OverlapResult {
   const markers = applyFilters(data, filters);
-  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+  const codeById = new Map(data.codes.map((c) => [c.id, c]));
 
   const codeFreq = new Map<string, number>();
   for (const m of markers) {
-    for (const code of m.codes) {
-      if (filters.excludeCodes.includes(code)) continue;
-      if (filters.codes.length > 0 && !filters.codes.includes(code)) continue;
-      codeFreq.set(code, (codeFreq.get(code) ?? 0) + 1);
+    for (const codeId of m.codes) {
+      if (filters.excludeCodes.includes(codeId)) continue;
+      if (filters.codes.length > 0 && !filters.codes.includes(codeId)) continue;
+      codeFreq.set(codeId, (codeFreq.get(codeId) ?? 0) + 1);
     }
   }
 
-  const codes: string[] = [];
-  for (const [code, count] of codeFreq) {
+  const idsKept: string[] = [];
+  for (const [codeId, count] of codeFreq) {
     if (count < filters.minFrequency) continue;
-    codes.push(code);
+    idsKept.push(codeId);
   }
-  codes.sort((a, b) => a.localeCompare(b));
-  const sortedColors = codes.map((c) => codeColors.get(c) ?? "#6200EE");
+  idsKept.sort((a, b) => (codeById.get(a)?.name ?? a).localeCompare(codeById.get(b)?.name ?? b));
+  const codes: string[] = idsKept.map((id) => codeById.get(id)?.name ?? id);
+  const sortedColors: string[] = idsKept.map((id) => codeById.get(id)?.color ?? "#6200EE");
 
-  const n = codes.length;
-  const codeIndex = new Map(codes.map((c, i) => [c, i]));
+  const n = idsKept.length;
+  const codeIndex = new Map(idsKept.map((id, i) => [id, i]));
   const matrix: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
 
   const skippedSet = new Set<SourceType>();

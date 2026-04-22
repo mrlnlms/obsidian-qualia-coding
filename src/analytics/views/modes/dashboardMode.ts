@@ -34,7 +34,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
   freq.sort((a, b) => b.total - a.total);
 
   const totalMarkers = filtered.length;
-  const totalCodes = ctx.data.codes.filter(c => enabledCodes.has(c.name)).length;
+  const totalCodes = ctx.data.codes.filter(c => enabledCodes.has(c.id)).length;
   const totalFiles = new Set(filtered.map((m) => m.fileId)).size;
   const enabledSources = ctx.enabledSources;
   const sourceEntries: [string[], boolean][] = [

@@ -6,6 +6,7 @@ exports[`consolidator refactor — snapshot parity > consolidate() output matche
     {
       "color": "#FF0000",
       "description": undefined,
+      "id": "id-a",
       "name": "Alpha",
       "sources": [
         "markdown",
@@ -19,6 +20,7 @@ exports[`consolidator refactor — snapshot parity > consolidate() output matche
     {
       "color": "#00FF00",
       "description": undefined,
+      "id": "id-b",
       "name": "Beta",
       "sources": [
         "markdown",
@@ -34,8 +36,8 @@ exports[`consolidator refactor — snapshot parity > consolidate() output matche
   "markers": [
     {
       "codes": [
-        "Alpha",
-        "Beta",
+        "id-a",
+        "id-b",
       ],
       "fileId": "note.md",
       "id": "m1",
@@ -50,7 +52,7 @@ exports[`consolidator refactor — snapshot parity > consolidate() output matche
     },
     {
       "codes": [
-        "Alpha",
+        "id-a",
       ],
       "fileId": "data.csv",
       "id": "c1",
@@ -67,7 +69,7 @@ exports[`consolidator refactor — snapshot parity > consolidate() output matche
     },
     {
       "codes": [
-        "Beta",
+        "id-b",
       ],
       "fileId": "data.csv",
       "id": "c2",
@@ -82,7 +84,7 @@ exports[`consolidator refactor — snapshot parity > consolidate() output matche
     },
     {
       "codes": [
-        "Alpha",
+        "id-a",
       ],
       "fileId": "img.png",
       "id": "i1",
@@ -96,7 +98,7 @@ exports[`consolidator refactor — snapshot parity > consolidate() output matche
     },
     {
       "codes": [
-        "Alpha",
+        "id-a",
       ],
       "fileId": "doc.pdf",
       "id": "p1",
@@ -111,7 +113,7 @@ exports[`consolidator refactor — snapshot parity > consolidate() output matche
     },
     {
       "codes": [
-        "Beta",
+        "id-b",
       ],
       "fileId": "doc.pdf",
       "id": "p2",
@@ -126,7 +128,7 @@ exports[`consolidator refactor — snapshot parity > consolidate() output matche
     },
     {
       "codes": [
-        "Alpha",
+        "id-a",
       ],
       "fileId": "clip.mp3",
       "id": "a1",
@@ -139,7 +141,7 @@ exports[`consolidator refactor — snapshot parity > consolidate() output matche
     },
     {
       "codes": [
-        "Beta",
+        "id-b",
       ],
       "fileId": "clip.mp4",
       "id": "v1",

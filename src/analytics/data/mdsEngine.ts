@@ -60,17 +60,17 @@ async function computeCodesMDS(
     }
   }
 
-  // Only codes with at least 1 marker
-  const activeCodes = codes.filter((c) => (codeMarkers.get(c.name)?.size ?? 0) > 0);
+  // Only codes with at least 1 marker (markers reference codes by id)
+  const activeCodes = codes.filter((c) => (codeMarkers.get(c.id)?.size ?? 0) > 0);
   if (activeCodes.length < 3) return null;
 
-  const n = activeCodes.length;
   const names = activeCodes.map((c) => c.name);
   const colors = activeCodes.map((c) => c.color);
-  const sizes = activeCodes.map((c) => codeMarkers.get(c.name)?.size ?? 0);
+  const ids = activeCodes.map((c) => c.id);
+  const sizes = ids.map((id) => codeMarkers.get(id)?.size ?? 0);
 
-  // Jaccard distance matrix
-  const D = buildJaccardDistanceMatrix(names.map((name) => codeMarkers.get(name)!));
+  // Jaccard distance matrix uses id-keyed marker sets
+  const D = buildJaccardDistanceMatrix(ids.map((id) => codeMarkers.get(id)!));
 
   return runClassicalMDS(D, names, colors, sizes, "codes");
 }

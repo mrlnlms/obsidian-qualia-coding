@@ -10,15 +10,15 @@ export function renderDecisionTreeOptionsSection(ctx: AnalyticsViewContext): voi
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
   section.createDiv({ cls: "codemarker-config-section-title", text: "Decision Tree" });
 
-  // Outcome code dropdown
+  // Outcome code dropdown — value=id, label=name
   section.createDiv({ cls: "codemarker-config-sublabel", text: "Outcome Code" });
   const select = section.createEl("select", { cls: "codemarker-config-select" });
-  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
-  if (!ctx.dtOutcomeCode && codes.length > 0) ctx.dtOutcomeCode = codes[0]!;
-  if (ctx.dtOutcomeCode && !ctx.enabledCodes.has(ctx.dtOutcomeCode)) ctx.dtOutcomeCode = codes[0] ?? "";
-  for (const code of codes) {
-    const opt = select.createEl("option", { text: code, value: code });
-    if (code === ctx.dtOutcomeCode) opt.selected = true;
+  const enabledDefs = ctx.data.codes.filter(c => ctx.enabledCodes.has(c.id)).slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (!ctx.dtOutcomeCode && enabledDefs.length > 0) ctx.dtOutcomeCode = enabledDefs[0]!.id;
+  if (ctx.dtOutcomeCode && !ctx.enabledCodes.has(ctx.dtOutcomeCode)) ctx.dtOutcomeCode = enabledDefs[0]?.id ?? "";
+  for (const def of enabledDefs) {
+    const opt = select.createEl("option", { text: def.name, value: def.id });
+    if (def.id === ctx.dtOutcomeCode) opt.selected = true;
   }
   select.addEventListener("change", () => {
     ctx.dtOutcomeCode = select.value;
@@ -47,9 +47,9 @@ export function renderDecisionTreeView(ctx: AnalyticsViewContext, filters: Filte
   if (!ctx.data || !ctx.chartContainer) return;
   const container = ctx.chartContainer;
 
-  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
-  if (!ctx.dtOutcomeCode && codes.length > 0) ctx.dtOutcomeCode = codes[0]!;
-  if (ctx.dtOutcomeCode && !ctx.enabledCodes.has(ctx.dtOutcomeCode)) ctx.dtOutcomeCode = codes[0] ?? "";
+  const enabledDefs = ctx.data.codes.filter(c => ctx.enabledCodes.has(c.id)).slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (!ctx.dtOutcomeCode && enabledDefs.length > 0) ctx.dtOutcomeCode = enabledDefs[0]!.id;
+  if (ctx.dtOutcomeCode && !ctx.enabledCodes.has(ctx.dtOutcomeCode)) ctx.dtOutcomeCode = enabledDefs[0]?.id ?? "";
 
   const result = buildDecisionTree(ctx.data, filters, ctx.dtOutcomeCode, ctx.dtMaxDepth, 2);
 
@@ -172,10 +172,10 @@ export function renderTreeNode(
 
 export function renderMiniDecisionTree(ctx: AnalyticsViewContext, canvas: HTMLCanvasElement, filters: FilterConfig): void {
   if (!ctx.data) return;
-  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
-  const outcome = codes[0] ?? "";
-  if (!outcome) return;
-  const result = buildDecisionTree(ctx.data, filters, outcome, 3, 2);
+  const enabledDefs = ctx.data.codes.filter(c => ctx.enabledCodes.has(c.id)).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const outcomeId = enabledDefs[0]?.id ?? "";
+  if (!outcomeId) return;
+  const result = buildDecisionTree(ctx.data, filters, outcomeId, 3, 2);
 
   const W = canvas.width;
   const H = canvas.height;

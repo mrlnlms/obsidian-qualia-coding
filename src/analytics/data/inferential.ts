@@ -35,7 +35,7 @@ export function calculateChiSquare(
   groupBy: "source" | "file",
 ): ChiSquareResult {
   const markers = applyFilters(data, filters);
-  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+  const codeById = new Map(data.codes.map((c) => [c.id, c]));
 
   const catSet = new Set<string>();
   for (const m of markers) {
@@ -67,12 +67,12 @@ export function calculateChiSquare(
   const entries: ChiSquareEntry[] = [];
   const N = markers.length;
 
-  for (const [code, freq] of codeFreq) {
+  for (const [codeId, freq] of codeFreq) {
     if (freq < filters.minFrequency) continue;
 
     const present = new Array(K).fill(0);
     for (const m of markers) {
-      if (!m.codes.includes(code)) continue;
+      if (!m.codes.includes(codeId)) continue;
       const ci = catIndex.get(groupBy === "source" ? m.source : m.fileId);
       if (ci != null) present[ci]++;
     }
@@ -100,9 +100,10 @@ export function calculateChiSquare(
     const pValue = Math.round(chiSquareSurvival(chiSq, df) * 10000) / 10000;
     const cramersV = N > 0 ? Math.round(Math.sqrt(chiSq / N) * 1000) / 1000 : 0;
 
+    const def = codeById.get(codeId);
     entries.push({
-      code,
-      color: codeColors.get(code) ?? "#6200EE",
+      code: def?.name ?? codeId,
+      color: def?.color ?? "#6200EE",
       chiSquare: chiSq,
       df,
       pValue,

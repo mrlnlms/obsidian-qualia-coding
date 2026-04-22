@@ -261,33 +261,52 @@ export function consolidateCodes(
   definitions: Record<string, CodeDefinition>,
   activeEngines: EngineType[],
 ): UnifiedCode[] {
-  const codeMap = new Map<string, { color: string; description?: string; sources: Set<SourceType> }>();
+  // Index by id (post Phase C: markers reference codes by codeId, not name).
+  const codeMap = new Map<string, { id: string; name: string; color: string; description?: string; sources: Set<SourceType> }>();
 
-  // Merge definitions for each active engine
+  // Loop 1: registered definitions go in by id.
   if (definitions) {
     for (const engine of activeEngines) {
       const source = ENGINE_DEF_SOURCE[engine];
       for (const def of Object.values(definitions)) {
-        mergeDef(codeMap, def.name, def.color, def.description, source);
+        const existing = codeMap.get(def.id);
+        if (existing) {
+          existing.sources.add(source);
+        } else {
+          codeMap.set(def.id, {
+            id: def.id,
+            name: def.name,
+            color: def.color ?? "#6200EE",
+            description: def.description,
+            sources: new Set([source]),
+          });
+        }
       }
     }
   }
 
-  // Discover codes that appear in markers but not in definitions
+  // Loop 2: discover orphan codes — markers referencing an id not in definitions.
   for (const m of allMarkers) {
-    for (const code of m.codes) {
-      if (!codeMap.has(code)) {
-        codeMap.set(code, { color: "#6200EE", sources: new Set([m.source]) });
+    for (const codeId of m.codes) {
+      const existing = codeMap.get(codeId);
+      if (existing) {
+        existing.sources.add(m.source);
       } else {
-        codeMap.get(code)!.sources.add(m.source);
+        codeMap.set(codeId, {
+          id: codeId,
+          name: codeId,  // orphan: no definition, fall back to codeId as display name
+          color: "#6200EE",
+          sources: new Set([m.source]),
+        });
       }
     }
   }
 
   const codes: UnifiedCode[] = [];
-  for (const [name, info] of codeMap) {
+  for (const info of codeMap.values()) {
     codes.push({
-      name,
+      id: info.id,
+      name: info.name,
       color: info.color,
       description: info.description,
       sources: Array.from(info.sources),
@@ -352,6 +371,14 @@ export function consolidate(
   if (pdf.hasData) activeEngines.push('pdf');
   if (aud.hasData) activeEngines.push('audio');
   if (vid.hasData) activeEngines.push('video');
+
+  // Normalize legacy marker codeRefs: pre-Phase-C markers carry name as codeId.
+  // Resolve name → real codeId via defsByName so downstream filters match by id.
+  const defsByName = new Map<string, string>();
+  for (const def of Object.values(defs)) defsByName.set(def.name, def.id);
+  for (const m of markers) {
+    m.codes = m.codes.map((ref) => defsByName.get(ref) ?? ref);
+  }
 
   const codes = consolidateCodes(markers, defs, activeEngines);
 

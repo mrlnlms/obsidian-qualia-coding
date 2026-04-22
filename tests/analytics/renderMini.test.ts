@@ -177,8 +177,8 @@ function createMockCtx(overrides = {}): any {
 		data: {
 			markers: [{ id: 'm1', source: 'markdown', fileId: 'f.md', codes: ['A'] }],
 			codes: [
-				{ name: 'A', color: '#f00', sources: ['markdown'] },
-				{ name: 'B', color: '#0f0', sources: ['markdown'] },
+				{ id: 'A', name: 'A', color: '#f00', sources: ['markdown'] },
+				{ id: 'B', name: 'B', color: '#0f0', sources: ['markdown'] },
 			],
 			sources: ['markdown'],
 			files: ['f.md'],
@@ -407,8 +407,8 @@ describe('renderMini* functions', () => {
 						{ id: 'm3', source: 'markdown', fileId: 'g.md', codes: ['A'] },
 					],
 					codes: [
-						{ name: 'A', color: '#f00', sources: ['markdown'] },
-						{ name: 'B', color: '#0f0', sources: ['markdown'] },
+						{ id: 'A', name: 'A', color: '#f00', sources: ['markdown'] },
+						{ id: 'B', name: 'B', color: '#0f0', sources: ['markdown'] },
 					],
 					sources: ['markdown'],
 					files: ['f.md', 'g.md'],

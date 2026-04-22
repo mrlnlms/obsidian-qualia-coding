@@ -171,7 +171,7 @@ function findBestSplit(
 function buildNode(
   rows: MarkerRow[],
   availablePredictors: string[],
-  codeColors: Map<string, string>,
+  codeById: Map<string, { name: string; color: string }>,
   depth: number,
   maxDepth: number,
   minNodeSize: number,
@@ -214,19 +214,20 @@ function buildNode(
 
   const remainingPredictors = availablePredictors.filter((p) => p !== split.predictor);
 
+  const splitName = codeById.get(split.predictor)?.name ?? split.predictor;
   const leftChild = buildNode(
-    rowsAbsent, remainingPredictors, codeColors, depth + 1, maxDepth, minNodeSize,
-    `${path} → ${split.predictor}=0`, errorLeaves,
+    rowsAbsent, remainingPredictors, codeById, depth + 1, maxDepth, minNodeSize,
+    `${path} → ${splitName}=0`, errorLeaves,
   );
   const rightChild = buildNode(
-    rowsPresent, remainingPredictors, codeColors, depth + 1, maxDepth, minNodeSize,
-    `${path} → ${split.predictor}=1`, errorLeaves,
+    rowsPresent, remainingPredictors, codeById, depth + 1, maxDepth, minNodeSize,
+    `${path} → ${splitName}=1`, errorLeaves,
   );
 
   return {
     id, n, nPositive, nNegative, prediction, accuracy, correct, errors,
     markerIds: [],
-    split: { ...split, predictorColor: codeColors.get(split.predictor) ?? "#6200EE" },
+    split: { ...split, predictor: splitName, predictorColor: codeById.get(split.predictor)?.color ?? "#6200EE" },
     children: [leftChild, rightChild],
     depth,
   };
@@ -251,7 +252,7 @@ export function buildDecisionTree(
   nextNodeId = 0;
 
   const markers = applyFilters(data, filters);
-  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+  const codeById = new Map(data.codes.map((c) => [c.id, { name: c.name, color: c.color }]));
 
   // Collect valid predictor codes (exclude outcome, respect filters)
   const codeFreq = new Map<string, number>();
@@ -282,7 +283,7 @@ export function buildDecisionTree(
   const aPriori = totalMarkers > 0 ? Math.round((Math.max(nPositive, totalMarkers - nPositive) / totalMarkers) * 1000) / 1000 : 0;
 
   const errorLeaves: DecisionTreeResult["errorLeaves"] = [];
-  const root = buildNode(rows, predictors, codeColors, 0, maxDepth, minNodeSize, "Root", errorLeaves);
+  const root = buildNode(rows, predictors, codeById, 0, maxDepth, minNodeSize, "Root", errorLeaves);
 
   // Calculate overall accuracy from leaf nodes
   let totalCorrect = 0;
@@ -300,15 +301,16 @@ export function buildDecisionTree(
   const accuracy = totalN > 0 ? Math.round((totalCorrect / totalN) * 1000) / 1000 : 0;
   const tau = aPriori < 1 ? Math.round(((accuracy - aPriori) / (1 - aPriori)) * 1000) / 1000 : 0;
 
+  const outcomeDef = codeById.get(outcomeCode);
   return {
-    outcomeCode,
-    outcomeColor: codeColors.get(outcomeCode) ?? "#6200EE",
+    outcomeCode: outcomeDef?.name ?? outcomeCode,
+    outcomeColor: outcomeDef?.color ?? "#6200EE",
     root,
     accuracy,
     aPriori,
     tau,
     totalMarkers,
-    predictors,
+    predictors: predictors.map((id) => codeById.get(id)?.name ?? id),
     errorLeaves,
   };
 }

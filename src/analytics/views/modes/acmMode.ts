@@ -39,10 +39,15 @@ export function renderACMOptionsSection(ctx: AnalyticsViewContext): void {
 export function renderACMBiplot(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 
-  const enabledCodeNames = Array.from(ctx.enabledCodes);
-  const enabledColors = enabledCodeNames.map((name) => {
-    const def = ctx.data!.codes.find((c) => c.name === name);
+  const enabledCodeIds = Array.from(ctx.enabledCodes);
+  const enabledColors = enabledCodeIds.map((id) => {
+    const def = ctx.data!.codes.find((c) => c.id === id);
     return def?.color ?? "#888888";
+  });
+  // Display labels (names) for chart axes
+  const enabledCodeNames = enabledCodeIds.map((id) => {
+    const def = ctx.data!.codes.find((c) => c.id === id);
+    return def?.name ?? id;
   });
 
   const enabledCodesSet = ctx.enabledCodes;
@@ -239,17 +244,16 @@ export function renderMiniACM(canvas: HTMLCanvasElement, ctx: AnalyticsViewConte
   const H = canvas.height;
   const isDark = document.body.classList.contains("theme-dark");
 
-  // Quick sync MCA computation for thumbnail — respect enabledCodes
+  // Quick sync MCA computation for thumbnail — respect enabledCodes (set of ids)
   const enabledCodes = ctx.enabledCodes;
-  const enabledDefs = ctx.data.codes.filter((c) => enabledCodes.has(c.name));
-  const codes = enabledDefs.map((c) => c.name);
-  const colors = enabledDefs.map((c) => c.color);
+  const enabledDefs = ctx.data.codes.filter((c) => enabledCodes.has(c.id));
+  const ids = enabledDefs.map((c) => c.id);
   const filtered = ctx.data.markers.filter((m) =>
     filters.sources.includes(m.source) &&
     m.codes.some((c) => enabledCodes.has(c))
   ).map(m => ({ ...m, codes: m.codes.filter(c => enabledCodes.has(c)) }));
 
-  if (filtered.length < 2 || codes.length < 2) {
+  if (filtered.length < 2 || ids.length < 2) {
     canvasCtx.fillStyle = isDark ? "#b0b0b0" : "#888";
     canvasCtx.font = "11px sans-serif";
     canvasCtx.textAlign = "center";
@@ -258,23 +262,23 @@ export function renderMiniACM(canvas: HTMLCanvasElement, ctx: AnalyticsViewConte
   }
 
   // Build indicator matrix inline (simplified sync version)
-  const codeSet = new Set(codes);
-  const valid = filtered.filter((m) => m.codes.some((c) => codeSet.has(c)));
+  const idSet = new Set(ids);
+  const valid = filtered.filter((m) => m.codes.some((c) => idSet.has(c)));
   if (valid.length < 2) return;
 
   // Just draw a placeholder scatter with code positions approximated
   const codeFreqs = new Map<string, number>();
   for (const m of valid) {
     for (const c of m.codes) {
-      if (codeSet.has(c)) codeFreqs.set(c, (codeFreqs.get(c) ?? 0) + 1);
+      if (idSet.has(c)) codeFreqs.set(c, (codeFreqs.get(c) ?? 0) + 1);
     }
   }
 
-  const activeCodes = codes.filter((c) => (codeFreqs.get(c) ?? 0) > 0);
-  if (activeCodes.length < 2) return;
+  const activeIds = ids.filter((id) => (codeFreqs.get(id) ?? 0) > 0);
+  if (activeIds.length < 2) return;
 
   // Simple circular layout as thumbnail placeholder
-  const n = Math.min(activeCodes.length, 12);
+  const n = Math.min(activeIds.length, 12);
   const cx = W / 2;
   const cy = H / 2;
   const radius = Math.min(W, H) * 0.35;
@@ -289,8 +293,8 @@ export function renderMiniACM(canvas: HTMLCanvasElement, ctx: AnalyticsViewConte
     const angle = (2 * Math.PI * i) / n;
     const x = cx + Math.cos(angle) * radius;
     const y = cy + Math.sin(angle) * radius;
-    const cIdx = ctx.data.codes.findIndex((c) => c.name === activeCodes[i]);
-    const color = cIdx >= 0 ? ctx.data.codes[cIdx]!.color : "#888";
+    const def = ctx.data.codes.find((c) => c.id === activeIds[i]);
+    const color = def?.color ?? "#888";
 
     canvasCtx.beginPath();
     canvasCtx.arc(x, y, 5, 0, Math.PI * 2);
@@ -302,11 +306,9 @@ export function renderMiniACM(canvas: HTMLCanvasElement, ctx: AnalyticsViewConte
 export function exportACMCSV(ctx: AnalyticsViewContext, date: string): void {
   if (!ctx.data) return;
   const filters = ctx.buildFilterConfig();
-  const codes = Array.from(ctx.enabledCodes);
-  const colors = codes.map((name) => {
-    const def = ctx.data!.codes.find((c) => c.name === name);
-    return def?.color ?? "#888888";
-  });
+  const ids = Array.from(ctx.enabledCodes);
+  const codes = ids.map((id) => ctx.data!.codes.find((c) => c.id === id)?.name ?? id);
+  const colors = ids.map((id) => ctx.data!.codes.find((c) => c.id === id)?.color ?? "#888888");
 
   const enabledCodesSet = ctx.enabledCodes;
   const filtered = ctx.data.markers.filter((m) =>

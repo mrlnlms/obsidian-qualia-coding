@@ -19,27 +19,28 @@ export function calculateLagSequential(
   lag: number,
 ): LagResult {
   const markers = applyFilters(data, filters);
-  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+  const codeById = new Map(data.codes.map((c) => [c.id, c]));
 
   const codeFreq = new Map<string, number>();
   for (const m of markers) {
-    for (const code of m.codes) {
-      if (filters.excludeCodes.includes(code)) continue;
-      if (filters.codes.length > 0 && !filters.codes.includes(code)) continue;
-      codeFreq.set(code, (codeFreq.get(code) ?? 0) + 1);
+    for (const codeId of m.codes) {
+      if (filters.excludeCodes.includes(codeId)) continue;
+      if (filters.codes.length > 0 && !filters.codes.includes(codeId)) continue;
+      codeFreq.set(codeId, (codeFreq.get(codeId) ?? 0) + 1);
     }
   }
 
-  const codes: string[] = [];
-  for (const [code, count] of codeFreq) {
+  const idsKept: string[] = [];
+  for (const [codeId, count] of codeFreq) {
     if (count < filters.minFrequency) continue;
-    codes.push(code);
+    idsKept.push(codeId);
   }
-  codes.sort((a, b) => a.localeCompare(b));
-  const sortedColors = codes.map((c) => codeColors.get(c) ?? "#6200EE");
+  idsKept.sort((a, b) => (codeById.get(a)?.name ?? a).localeCompare(codeById.get(b)?.name ?? b));
+  const codes: string[] = idsKept.map((id) => codeById.get(id)?.name ?? id);
+  const sortedColors: string[] = idsKept.map((id) => codeById.get(id)?.color ?? "#6200EE");
 
-  const n = codes.length;
-  const codeIndex = new Map(codes.map((c, i) => [c, i]));
+  const n = idsKept.length;
+  const codeIndex = new Map(idsKept.map((id, i) => [id, i]));
   const transitions: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
 
   const byFile = new Map<string, UnifiedMarker[]>();
@@ -102,13 +103,21 @@ export function calculateLagSequential(
   return { codes, colors: sortedColors, lag, transitions, expected, zScores, totalTransitions };
 }
 
+/**
+ * focalCode is a codeId. The result.focalCode in the output is the display name.
+ */
 export function calculatePolarCoordinates(
   data: ConsolidatedData,
   filters: FilterConfig,
-  focalCode: string,
+  focalCodeId: string,
   maxLag = 5,
 ): PolarCoordResult {
-  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+  const codeById = new Map(data.codes.map((c) => [c.id, c]));
+  const focalDef = codeById.get(focalCodeId);
+  const focalName = focalDef?.name ?? focalCodeId;
+  const focalColor = focalDef?.color ?? "#6200EE";
+  // calculateLagSequential returns codes as display names — index by name from here on
+  const codeByName = new Map(data.codes.map((c) => [c.name, c]));
 
   const lagResults: LagResult[] = [];
   for (let lag = 1; lag <= maxLag; lag++) {
@@ -117,22 +126,12 @@ export function calculatePolarCoordinates(
 
   const refResult = lagResults[0];
   if (!refResult || refResult.codes.length === 0) {
-    return {
-      focalCode,
-      focalColor: codeColors.get(focalCode) ?? "#6200EE",
-      vectors: [],
-      maxLag,
-    };
+    return { focalCode: focalName, focalColor, vectors: [], maxLag };
   }
 
-  const focalIdx = refResult.codes.indexOf(focalCode);
+  const focalIdx = refResult.codes.indexOf(focalName);
   if (focalIdx < 0) {
-    return {
-      focalCode,
-      focalColor: codeColors.get(focalCode) ?? "#6200EE",
-      vectors: [],
-      maxLag,
-    };
+    return { focalCode: focalName, focalColor, vectors: [], maxLag };
   }
 
   const n = refResult.codes.length;
@@ -146,7 +145,7 @@ export function calculatePolarCoordinates(
     let validLags = 0;
 
     for (const lr of lagResults) {
-      const fi = lr.codes.indexOf(focalCode);
+      const fi = lr.codes.indexOf(focalName);
       const ji = lr.codes.indexOf(refResult.codes[j]!);
       if (fi < 0 || ji < 0) continue;
       sumProspective += lr.zScores[fi]![ji]!;
@@ -168,9 +167,10 @@ export function calculatePolarCoordinates(
     else if (zP < 0 && zR < 0) quadrant = 3;
     else quadrant = 4;
 
+    const condName = refResult.codes[j]!;
     vectors.push({
-      code: refResult.codes[j]!,
-      color: codeColors.get(refResult.codes[j]!) ?? "#6200EE",
+      code: condName,
+      color: codeByName.get(condName)?.color ?? "#6200EE",
       zProspective: zP,
       zRetrospective: zR,
       radius,
@@ -182,10 +182,5 @@ export function calculatePolarCoordinates(
 
   vectors.sort((a, b) => b.radius - a.radius);
 
-  return {
-    focalCode,
-    focalColor: codeColors.get(focalCode) ?? "#6200EE",
-    vectors,
-    maxLag,
-  };
+  return { focalCode: focalName, focalColor, vectors, maxLag };
 }

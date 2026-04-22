@@ -17,7 +17,7 @@ function mkMarker(id: string, source: SourceType, fileId: string, codes: string[
 }
 
 function mkCode(name: string, color = '#6200EE'): UnifiedCode {
-	return { name, color, sources: ['markdown'] };
+	return { id: name, name, color, sources: ['markdown'] };
 }
 
 function mkData(markers: UnifiedMarker[], codes: UnifiedCode[]): ConsolidatedData {

@@ -6,8 +6,8 @@ function mkMarker(id: string, codes: string[], fileId: string, source: SourceTyp
 	return { id, source, fileId, codes };
 }
 
-function mkCode(name: string, color = '#6200EE'): UnifiedCode {
-	return { name, color, sources: ['markdown'] };
+function mkCode(name: string, color = '#6200EE'): UnifiedCode { /* id=name simplifies fixtures */
+	return { id: name, name, color, sources: ['markdown'] };
 }
 
 const ALL_SOURCES: SourceType[] = ['markdown', 'csv-segment', 'csv-row', 'image', 'pdf', 'audio', 'video'];

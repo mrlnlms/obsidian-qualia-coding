@@ -121,10 +121,10 @@ async function renderWordCloudChart(ctx: AnalyticsViewContext, results: WordFreq
   const maxCount = results[0]?.count ?? 1;
   const minCount = results[results.length - 1]?.count ?? 1;
 
-  // Map code names to colors from data
+  // Map code id → color (segment.codes carries codeIds post Phase C)
   const codeColorMap = new Map<string, string>();
   if (ctx.data) {
-    for (const c of ctx.data.codes) codeColorMap.set(c.name, c.color);
+    for (const c of ctx.data.codes) codeColorMap.set(c.id, c.color);
   }
 
   // Color each word by its most frequent code

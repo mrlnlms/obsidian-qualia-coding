@@ -118,7 +118,7 @@ vi.mock('../../src/analytics/data/clusterEngine', () => ({
 // ── Helpers ──
 
 function makeCode(name: string, color: string = '#6200EE'): UnifiedCode {
-	return { name, color, sources: ['markdown'] };
+	return { id: name, name, color, sources: ['markdown'] };
 }
 
 function createTestData(codes: UnifiedCode[] = []): ConsolidatedData {

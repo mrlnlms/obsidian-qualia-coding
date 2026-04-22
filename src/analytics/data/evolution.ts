@@ -7,25 +7,26 @@ export function calculateEvolution(
   filters: FilterConfig
 ): EvolutionResult {
   const markers = applyFilters(data, filters);
-  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+  const codeById = new Map(data.codes.map((c) => [c.id, c]));
 
   const codeFreq = new Map<string, number>();
   for (const m of markers) {
-    for (const code of m.codes) {
-      if (filters.excludeCodes.includes(code)) continue;
-      if (filters.codes.length > 0 && !filters.codes.includes(code)) continue;
-      codeFreq.set(code, (codeFreq.get(code) ?? 0) + 1);
+    for (const codeId of m.codes) {
+      if (filters.excludeCodes.includes(codeId)) continue;
+      if (filters.codes.length > 0 && !filters.codes.includes(codeId)) continue;
+      codeFreq.set(codeId, (codeFreq.get(codeId) ?? 0) + 1);
     }
   }
 
-  const codes: string[] = [];
-  for (const [code, count] of codeFreq) {
+  const idsKept: string[] = [];
+  for (const [codeId, count] of codeFreq) {
     if (count < filters.minFrequency) continue;
-    codes.push(code);
+    idsKept.push(codeId);
   }
-  codes.sort((a, b) => a.localeCompare(b));
-  const sortedColors = codes.map((c) => codeColors.get(c) ?? "#6200EE");
-  const codeSet = new Set(codes);
+  idsKept.sort((a, b) => (codeById.get(a)?.name ?? a).localeCompare(codeById.get(b)?.name ?? b));
+  const codes: string[] = idsKept.map((id) => codeById.get(id)?.name ?? id);
+  const sortedColors: string[] = idsKept.map((id) => codeById.get(id)?.color ?? "#6200EE");
+  const idSet = new Set(idsKept);
 
   const maxLineByFile = new Map<string, number>();
   for (const m of markers) {
@@ -44,12 +45,13 @@ export function calculateEvolution(
     const maxLine = maxLineByFile.get(m.fileId) ?? 1;
     const position = maxLine > 0 ? m.meta.fromLine / maxLine : 0;
 
-    for (const code of m.codes) {
-      if (!codeSet.has(code)) continue;
+    for (const codeId of m.codes) {
+      if (!idSet.has(codeId)) continue;
       fileSet.add(m.fileId);
+      const def = codeById.get(codeId);
       points.push({
-        code,
-        color: codeColors.get(code) ?? "#6200EE",
+        code: def?.name ?? codeId,
+        color: def?.color ?? "#6200EE",
         fileId: m.fileId,
         position: Math.min(1, Math.max(0, position)),
         fromLine: m.meta.fromLine,
@@ -71,25 +73,23 @@ export function calculateTemporal(data: ConsolidatedData, filters: FilterConfig)
   for (const m of filtered) {
     const ts = m.meta?.createdAt;
     if (ts == null) continue;
-    for (const code of m.codes) {
-      if (filters.excludeCodes.includes(code)) continue;
-      if (filters.codes.length > 0 && !filters.codes.includes(code)) continue;
-      let arr = codeTimestamps.get(code);
-      if (!arr) { arr = []; codeTimestamps.set(code, arr); }
+    for (const codeId of m.codes) {
+      if (filters.excludeCodes.includes(codeId)) continue;
+      if (filters.codes.length > 0 && !filters.codes.includes(codeId)) continue;
+      let arr = codeTimestamps.get(codeId);
+      if (!arr) { arr = []; codeTimestamps.set(codeId, arr); }
       arr.push(ts);
     }
   }
 
-  const qualifiedCodes: string[] = [];
-  for (const [code, timestamps] of codeTimestamps) {
+  const codeById = new Map(data.codes.map((c) => [c.id, c]));
+  const qualifiedIds: string[] = [];
+  for (const [codeId, timestamps] of codeTimestamps) {
     if (timestamps.length >= filters.minFrequency) {
-      qualifiedCodes.push(code);
+      qualifiedIds.push(codeId);
     }
   }
-  qualifiedCodes.sort();
-
-  const codeColorMap = new Map<string, string>();
-  for (const c of data.codes) codeColorMap.set(c.name, c.color);
+  qualifiedIds.sort((a, b) => (codeById.get(a)?.name ?? a).localeCompare(codeById.get(b)?.name ?? b));
 
   const codes: string[] = [];
   const colors: string[] = [];
@@ -98,22 +98,24 @@ export function calculateTemporal(data: ConsolidatedData, filters: FilterConfig)
   let globalMin = Infinity;
   let globalMax = -Infinity;
 
-  for (const code of qualifiedCodes) {
-    const timestamps = codeTimestamps.get(code)!;
+  for (const codeId of qualifiedIds) {
+    const timestamps = codeTimestamps.get(codeId)!;
     timestamps.sort((a, b) => a - b);
 
     if (timestamps[0]! < globalMin) globalMin = timestamps[0]!;
     if (timestamps[timestamps.length - 1]! > globalMax) globalMax = timestamps[timestamps.length - 1]!;
 
-    const color = codeColorMap.get(code) ?? "#6200EE";
-    codes.push(code);
+    const def = codeById.get(codeId);
+    const displayName = def?.name ?? codeId;
+    const color = def?.color ?? "#6200EE";
+    codes.push(displayName);
     colors.push(color);
 
     const points: Array<{ date: number; count: number }> = [];
     for (let i = 0; i < timestamps.length; i++) {
       points.push({ date: timestamps[i]!, count: i + 1 });
     }
-    series.push({ code, color, points });
+    series.push({ code: displayName, color, points });
   }
 
   return {

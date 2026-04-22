@@ -37,7 +37,7 @@ function makeMarker(id: string, source: SourceType, fileId: string, codes: strin
 }
 
 function makeCode(name: string, color: string = '#6200EE'): UnifiedCode {
-	return { name, color, sources: ['markdown'] };
+	return { id: name, name, color, sources: ['markdown'] };
 }
 
 function createTestData(markers: UnifiedMarker[], codes: UnifiedCode[]): ConsolidatedData {
@@ -348,7 +348,7 @@ describe('calculateTextStats', () => {
 		const segments: ExtractedSegment[] = [
 			{ markerId: 'm1', source: 'markdown', fileId: 'f1', codes: ['A'], text: 'hello world foo' },
 		];
-		const colors = new Map([['A', '#AAA']]);
+		const colors = new Map([['A', { name: 'A', color: '#AAA' }]]);
 		const result = calculateTextStats(segments, colors);
 		expect(result.codes).toHaveLength(1);
 		expect(result.codes[0].totalWords).toBe(3);

@@ -37,13 +37,14 @@ export function calculateFrequency(
   }
 
   const results: FrequencyResult[] = [];
-  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+  const codeById = new Map(data.codes.map((c) => [c.id, c]));
 
-  for (const [code, entry] of map) {
+  for (const [codeId, entry] of map) {
     if (entry.total < filters.minFrequency) continue;
+    const def = codeById.get(codeId);
     results.push({
-      code,
-      color: codeColors.get(code) ?? "#6200EE",
+      code: def?.name ?? codeId,
+      color: def?.color ?? "#6200EE",
       total: entry.total,
       bySource: entry.bySource,
       byFile: entry.byFile,
@@ -58,44 +59,41 @@ export function calculateDocumentCodeMatrix(
   filters: FilterConfig
 ): DocCodeMatrixResult {
   const markers = applyFilters(data, filters);
-  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+  const codeById = new Map(data.codes.map((c) => [c.id, c]));
 
   const codeFreq = new Map<string, number>();
   for (const m of markers) {
-    for (const code of m.codes) {
-      if (filters.excludeCodes.includes(code)) continue;
-      if (filters.codes.length > 0 && !filters.codes.includes(code)) continue;
-      codeFreq.set(code, (codeFreq.get(code) ?? 0) + 1);
+    for (const codeId of m.codes) {
+      if (filters.excludeCodes.includes(codeId)) continue;
+      if (filters.codes.length > 0 && !filters.codes.includes(codeId)) continue;
+      codeFreq.set(codeId, (codeFreq.get(codeId) ?? 0) + 1);
     }
   }
 
-  const codes: string[] = [];
-  const colors: string[] = [];
-  for (const [code, count] of codeFreq) {
-    if (count < filters.minFrequency) continue;
-    codes.push(code);
-    colors.push(codeColors.get(code) ?? "#6200EE");
-  }
-  codes.sort((a, b) => a.localeCompare(b));
-  const sortedColors = codes.map((c) => codeColors.get(c) ?? "#6200EE");
+  // Build (id, name) pairs to sort by display name; output uses display names for backward compat with chart labels.
+  const idsKept = [...codeFreq.entries()].filter(([, count]) => count >= filters.minFrequency).map(([id]) => id);
+  idsKept.sort((a, b) => (codeById.get(a)?.name ?? a).localeCompare(codeById.get(b)?.name ?? b));
+  const codes: string[] = idsKept.map((id) => codeById.get(id)?.name ?? id);
+  const colors: string[] = idsKept.map((id) => codeById.get(id)?.color ?? "#6200EE");
 
   const fileSet = new Set<string>();
+  const idsKeptSet = new Set(idsKept);
   for (const m of markers) {
-    if (m.codes.some((c) => codes.includes(c))) {
+    if (m.codes.some((c) => idsKeptSet.has(c))) {
       fileSet.add(m.fileId);
     }
   }
   const files = Array.from(fileSet).sort();
 
-  const codeIndex = new Map(codes.map((c, i) => [c, i]));
+  const codeIndex = new Map(idsKept.map((id, i) => [id, i]));
   const fileIndex = new Map(files.map((f, i) => [f, i]));
   const matrix: number[][] = Array.from({ length: files.length }, () => new Array(codes.length).fill(0));
 
   for (const m of markers) {
     const fi = fileIndex.get(m.fileId);
     if (fi == null) continue;
-    for (const code of m.codes) {
-      const ci = codeIndex.get(code);
+    for (const codeId of m.codes) {
+      const ci = codeIndex.get(codeId);
       if (ci != null) matrix[fi]![ci]!++;
     }
   }
@@ -107,7 +105,7 @@ export function calculateDocumentCodeMatrix(
     }
   }
 
-  return { files, codes, colors: sortedColors, matrix, maxValue };
+  return { files, codes, colors, matrix, maxValue };
 }
 
 export function calculateSourceComparison(
@@ -115,7 +113,7 @@ export function calculateSourceComparison(
   filters: FilterConfig,
 ): SourceComparisonResult {
   const markers = applyFilters(data, filters);
-  const codeColors = new Map(data.codes.map((c) => [c.name, c.color]));
+  const codeById = new Map(data.codes.map((c) => [c.id, c]));
 
   const allSources: SourceType[] = ["markdown", "csv-segment", "csv-row", "image", "pdf", "audio", "video"];
   const emptyBySource = (): Record<SourceType, number> =>
@@ -126,13 +124,13 @@ export function calculateSourceComparison(
 
   for (const m of markers) {
     sourceTotals[m.source]++;
-    for (const code of m.codes) {
-      if (filters.excludeCodes.includes(code)) continue;
-      if (filters.codes.length > 0 && !filters.codes.includes(code)) continue;
-      let entry = map.get(code);
+    for (const codeId of m.codes) {
+      if (filters.excludeCodes.includes(codeId)) continue;
+      if (filters.codes.length > 0 && !filters.codes.includes(codeId)) continue;
+      let entry = map.get(codeId);
       if (!entry) {
         entry = { total: 0, bySource: emptyBySource() };
-        map.set(code, entry);
+        map.set(codeId, entry);
       }
       entry.total++;
       entry.bySource[m.source]++;
@@ -144,19 +142,22 @@ export function calculateSourceComparison(
   const codes: string[] = [];
   const colors: string[] = [];
 
-  for (const [code, entry] of map) {
+  for (const [codeId, entry] of map) {
     if (entry.total < filters.minFrequency) continue;
+    const def = codeById.get(codeId);
+    const displayName = def?.name ?? codeId;
+    const color = def?.color ?? "#6200EE";
     const pctOfCode = emptyBySource();
     const pctOfSrc = emptyBySource();
     for (const s of allSources) {
       pctOfCode[s] = entry.total > 0 ? Math.round((entry.bySource[s] / entry.total) * 1000) / 10 : 0;
       pctOfSrc[s] = sourceTotals[s] > 0 ? Math.round((entry.bySource[s] / sourceTotals[s]) * 1000) / 10 : 0;
     }
-    codes.push(code);
-    colors.push(codeColors.get(code) ?? "#6200EE");
+    codes.push(displayName);
+    colors.push(color);
     entries.push({
-      code,
-      color: codeColors.get(code) ?? "#6200EE",
+      code: displayName,
+      color,
       total: entry.total,
       bySource: entry.bySource,
       bySourcePctOfCode: pctOfCode,

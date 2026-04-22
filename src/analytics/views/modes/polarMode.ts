@@ -8,14 +8,14 @@ export function renderPolarOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
   section.createDiv({ cls: "codemarker-config-section-title", text: "Polar Coordinates" });
 
-  // Focal code dropdown
+  // Focal code dropdown — value=id, label=name
   const focalLabel = section.createDiv({ cls: "codemarker-config-sublabel", text: "Focal Code" });
   const select = section.createEl("select", { cls: "codemarker-config-select" });
-  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
-  if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = codes[0] ?? "";
-  for (const code of codes) {
-    const opt = select.createEl("option", { text: code, value: code });
-    if (code === ctx.polarFocalCode) opt.selected = true;
+  const enabledDefs = ctx.data.codes.filter(c => ctx.enabledCodes.has(c.id)).slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = enabledDefs[0]?.id ?? "";
+  for (const def of enabledDefs) {
+    const opt = select.createEl("option", { text: def.name, value: def.id });
+    if (def.id === ctx.polarFocalCode) opt.selected = true;
   }
   select.addEventListener("change", () => {
     ctx.polarFocalCode = select.value;
@@ -45,9 +45,9 @@ export function renderPolarCoordinates(ctx: AnalyticsViewContext, filters: Filte
   if (!ctx.data || !ctx.chartContainer) return;
   const container = ctx.chartContainer;
 
-  // Ensure focal code is set
-  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
-  if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = codes[0] ?? "";
+  // Ensure focal code is set (id-keyed)
+  const enabledDefs = ctx.data.codes.filter(c => ctx.enabledCodes.has(c.id)).slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = enabledDefs[0]?.id ?? "";
 
   const result = calculatePolarCoordinates(ctx.data, filters, ctx.polarFocalCode, ctx.polarMaxLag);
   if (result.vectors.length === 0) {
@@ -202,10 +202,10 @@ export function renderPolarCoordinates(ctx: AnalyticsViewContext, filters: Filte
 
 export function renderMiniPolar(ctx: AnalyticsViewContext, canvas: HTMLCanvasElement, filters: FilterConfig): void {
   if (!ctx.data) return;
-  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
-  const focal = codes[0] ?? "";
-  if (!focal) return;
-  const result = calculatePolarCoordinates(ctx.data, filters, focal, 5);
+  const enabledDefs = ctx.data.codes.filter(c => ctx.enabledCodes.has(c.id)).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const focalId = enabledDefs[0]?.id ?? "";
+  if (!focalId) return;
+  const result = calculatePolarCoordinates(ctx.data, filters, focalId, 5);
 
   const W = canvas.width;
   const H = canvas.height;
@@ -257,8 +257,8 @@ export function renderMiniPolar(ctx: AnalyticsViewContext, canvas: HTMLCanvasEle
 export function exportPolarCSV(ctx: AnalyticsViewContext, date: string): void {
   if (!ctx.data) return;
   const filters = ctx.buildFilterConfig();
-  const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
-  if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = codes[0] ?? "";
+  const enabledDefs = ctx.data.codes.filter(c => ctx.enabledCodes.has(c.id)).slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = enabledDefs[0]?.id ?? "";
   const result = calculatePolarCoordinates(ctx.data, filters, ctx.polarFocalCode, ctx.polarMaxLag);
 
   const rows: string[][] = [["focal", "conditioned", "z_prospective", "z_retrospective", "radius", "angle", "quadrant", "significant"]];

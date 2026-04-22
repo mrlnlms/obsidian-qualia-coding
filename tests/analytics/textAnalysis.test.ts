@@ -24,7 +24,7 @@ describe('calculateTextStats', () => {
 	it('counts words correctly', () => {
 		const res = calculateTextStats(
 			[mkSegment({ codes: ['a'], text: 'hello world foo' })],
-			new Map([['a', '#F00']]),
+			new Map([['a', { name: 'a', color: '#F00' }]]),
 		);
 		expect(res.codes[0].totalWords).toBe(3);
 		expect(res.codes[0].uniqueWords).toBe(3);
@@ -116,7 +116,7 @@ describe('calculateTextStats', () => {
 	it('assigns correct color from map', () => {
 		const res = calculateTextStats(
 			[mkSegment({ codes: ['joy'], text: 'happy words' })],
-			new Map([['joy', '#FF0']]),
+			new Map([['joy', { name: 'joy', color: '#FF0' }]]),
 		);
 		expect(res.codes[0].color).toBe('#FF0');
 	});

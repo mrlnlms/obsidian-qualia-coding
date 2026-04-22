@@ -13,7 +13,7 @@ function makeFixture(): AllEngineData {
 		markdown: {
 			markers: {
 				'note.md': [
-					{ id: 'm1', codes: ['Alpha', 'Beta'], range: { from: { line: 0, ch: 0 }, to: { line: 1, ch: 10 } }, fileId: 'note.md', createdAt: 1000 },
+					{ id: 'm1', codes: ['id-a', 'id-b'], range: { from: { line: 0, ch: 0 }, to: { line: 1, ch: 10 } }, fileId: 'note.md', createdAt: 1000 },
 				],
 			},
 			settings: {} as any,
@@ -21,7 +21,7 @@ function makeFixture(): AllEngineData {
 		},
 		csv: {
 			segmentMarkers: [
-				{ id: 'c1', codes: ['Alpha'], fileId: 'data.csv', row: 0, column: 'col1', from: 0, to: 5, createdAt: 2000 },
+				{ id: 'c1', codes: ['id-a'], fileId: 'data.csv', row: 0, column: 'col1', from: 0, to: 5, createdAt: 2000 },
 			],
 			rowMarkers: [],
 			registry: { definitions: defs },

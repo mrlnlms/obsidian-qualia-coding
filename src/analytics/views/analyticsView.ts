@@ -114,7 +114,7 @@ export class AnalyticsView extends ItemView {
     this.data = await this.plugin.loadConsolidatedData();
     // Enable all codes by default
     if (this.data) {
-      this.enabledCodes = new Set(this.data.codes.map((c) => c.name));
+      this.enabledCodes = new Set(this.data.codes.map((c) => c.id));
     }
     this.renderView();
 
@@ -147,12 +147,12 @@ export class AnalyticsView extends ItemView {
       // Only add codes that are genuinely new (not seen before)
       const knownCodes = new Set([...this.enabledCodes, ...this.disabledCodes]);
       for (const c of this.data.codes) {
-        if (!knownCodes.has(c.name)) {
-          this.enabledCodes.add(c.name);
+        if (!knownCodes.has(c.id)) {
+          this.enabledCodes.add(c.id);
         }
       }
       // Remove codes that no longer exist from both sets
-      const currentNames = new Set(this.data.codes.map(c => c.name));
+      const currentNames = new Set(this.data.codes.map(c => c.id));
       for (const name of this.enabledCodes) {
         if (!currentNames.has(name)) this.enabledCodes.delete(name);
       }
@@ -214,7 +214,7 @@ export class AnalyticsView extends ItemView {
       this.data = await this.plugin.loadConsolidatedData();
       if (this.data) {
         // Reset all filters on empty-state refresh
-        this.enabledCodes = new Set(this.data.codes.map((c) => c.name));
+        this.enabledCodes = new Set(this.data.codes.map((c) => c.id));
         this.disabledCodes.clear();
       }
       this.renderView();
@@ -234,10 +234,10 @@ export class AnalyticsView extends ItemView {
         // Only add genuinely new codes, respect disabled
         const knownCodes = new Set([...this.enabledCodes, ...this.disabledCodes]);
         for (const c of this.data.codes) {
-          if (!knownCodes.has(c.name)) this.enabledCodes.add(c.name);
+          if (!knownCodes.has(c.id)) this.enabledCodes.add(c.id);
         }
         // Remove codes that no longer exist
-        const currentNames = new Set(this.data.codes.map(c => c.name));
+        const currentNames = new Set(this.data.codes.map(c => c.id));
         for (const name of this.enabledCodes) {
           if (!currentNames.has(name)) this.enabledCodes.delete(name);
         }
@@ -311,8 +311,8 @@ export class AnalyticsView extends ItemView {
   // ─── Core logic ───
 
   buildFilterConfig(): FilterConfig {
-    const allCodeNames = this.data?.codes.map((c) => c.name) ?? [];
-    const excludeCodes = allCodeNames.filter((c) => !this.enabledCodes.has(c));
+    const allCodeIds = this.data?.codes.map((c) => c.id) ?? [];
+    const excludeCodes = allCodeIds.filter((c) => !this.enabledCodes.has(c));
 
     return {
       sources: Array.from(this.enabledSources),

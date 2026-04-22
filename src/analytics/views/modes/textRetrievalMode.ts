@@ -122,14 +122,18 @@ function renderSegments(ctx: AnalyticsViewContext, container: HTMLElement, segme
     return;
   }
 
-  // Code color map
+  // Code maps keyed by id (segment.codes carry codeIds post Phase C)
   const codeColorMap = new Map<string, string>();
+  const codeNameMap = new Map<string, string>();
   if (ctx.data) {
-    for (const c of ctx.data.codes) codeColorMap.set(c.name, c.color);
+    for (const c of ctx.data.codes) {
+      codeColorMap.set(c.id, c.color);
+      codeNameMap.set(c.id, c.name);
+    }
   }
 
   if (ctx.trGroupBy === "code") {
-    // Group by code
+    // Group by code (key=codeId)
     const byCode = new Map<string, ExtractedSegment[]>();
     for (const seg of filtered) {
       for (const code of seg.codes) {
@@ -138,9 +142,9 @@ function renderSegments(ctx: AnalyticsViewContext, container: HTMLElement, segme
         byCode.set(code, list);
       }
     }
-    const sortedCodes = Array.from(byCode.keys()).sort();
-    for (const code of sortedCodes) {
-      renderCodeGroup(ctx, container, code, byCode.get(code)!, codeColorMap);
+    const sortedCodeIds = Array.from(byCode.keys()).sort((a, b) => (codeNameMap.get(a) ?? a).localeCompare(codeNameMap.get(b) ?? b));
+    for (const codeId of sortedCodeIds) {
+      renderCodeGroup(ctx, container, codeId, codeNameMap.get(codeId) ?? codeId, byCode.get(codeId)!, codeColorMap, codeNameMap);
     }
   } else {
     // Group by file
@@ -152,7 +156,7 @@ function renderSegments(ctx: AnalyticsViewContext, container: HTMLElement, segme
     }
     const sortedFiles = Array.from(byFile.keys()).sort();
     for (const file of sortedFiles) {
-      renderFileGroup(ctx, container, file, byFile.get(file)!, codeColorMap);
+      renderFileGroup(ctx, container, file, byFile.get(file)!, codeColorMap, codeNameMap);
     }
   }
 }
@@ -160,28 +164,30 @@ function renderSegments(ctx: AnalyticsViewContext, container: HTMLElement, segme
 function renderCodeGroup(
   ctx: AnalyticsViewContext,
   container: HTMLElement,
-  code: string,
+  codeId: string,
+  displayName: string,
   segments: ExtractedSegment[],
-  codeColorMap: Map<string, string>
+  codeColorMap: Map<string, string>,
+  codeNameMap: Map<string, string>,
 ): void {
   const section = container.createDiv({ cls: "codemarker-tr-section" });
   const header = section.createDiv({ cls: "codemarker-tr-section-header" });
-  const isCollapsed = ctx.trCollapsed.has("code:" + code);
+  const isCollapsed = ctx.trCollapsed.has("code:" + codeId);
 
   const chevron = header.createDiv({ cls: "codemarker-tr-chevron" + (isCollapsed ? " is-collapsed" : "") });
   setIcon(chevron, "chevron-down");
 
   const swatch = header.createDiv({ cls: "codemarker-tr-swatch" });
-  swatch.style.backgroundColor = codeColorMap.get(code) ?? "#6200EE";
+  swatch.style.backgroundColor = codeColorMap.get(codeId) ?? "#6200EE";
 
-  header.createDiv({ cls: "codemarker-tr-section-title", text: code });
+  header.createDiv({ cls: "codemarker-tr-section-title", text: displayName });
   header.createDiv({ cls: "codemarker-tr-section-count", text: `(${segments.length})` });
 
   const body = section.createDiv({ cls: "codemarker-tr-section-body" });
   if (isCollapsed) body.style.display = "none";
 
   header.addEventListener("click", () => {
-    const key = "code:" + code;
+    const key = "code:" + codeId;
     if (ctx.trCollapsed.has(key)) {
       ctx.trCollapsed.delete(key);
       body.style.display = "";
@@ -194,7 +200,7 @@ function renderCodeGroup(
   });
 
   for (const seg of segments) {
-    renderSegmentCard(ctx, body, seg, codeColorMap);
+    renderSegmentCard(ctx, body, seg, codeColorMap, codeNameMap);
   }
 }
 
@@ -203,7 +209,8 @@ function renderFileGroup(
   container: HTMLElement,
   file: string,
   segments: ExtractedSegment[],
-  codeColorMap: Map<string, string>
+  codeColorMap: Map<string, string>,
+  codeNameMap: Map<string, string>,
 ): void {
   const section = container.createDiv({ cls: "codemarker-tr-section" });
   const header = section.createDiv({ cls: "codemarker-tr-section-header" });
@@ -236,7 +243,7 @@ function renderFileGroup(
   });
 
   for (const seg of segments) {
-    renderSegmentCard(ctx, body, seg, codeColorMap);
+    renderSegmentCard(ctx, body, seg, codeColorMap, codeNameMap);
   }
 }
 
@@ -244,7 +251,8 @@ function renderSegmentCard(
   ctx: AnalyticsViewContext,
   container: HTMLElement,
   seg: ExtractedSegment,
-  codeColorMap: Map<string, string>
+  codeColorMap: Map<string, string>,
+  codeNameMap: Map<string, string>,
 ): void {
   const card = container.createDiv({ cls: "codemarker-tr-card" });
 
@@ -301,13 +309,13 @@ function renderSegmentCard(
   // Footer row: code chips + add-to-board button
   const footer = card.createDiv({ cls: "codemarker-tr-card-footer" });
 
-  // Code chips
+  // Code chips (seg.codes carries codeIds; render display names)
   const chips = footer.createDiv({ cls: "codemarker-tr-chips" });
-  for (const code of seg.codes) {
+  for (const codeId of seg.codes) {
     const chip = chips.createDiv({ cls: "codemarker-tr-chip" });
     const dot = chip.createDiv({ cls: "codemarker-tr-chip-dot" });
-    dot.style.backgroundColor = codeColorMap.get(code) ?? "#6200EE";
-    chip.createSpan({ text: code });
+    dot.style.backgroundColor = codeColorMap.get(codeId) ?? "#6200EE";
+    chip.createSpan({ text: codeNameMap.get(codeId) ?? codeId });
   }
 
   // Add to Board button
