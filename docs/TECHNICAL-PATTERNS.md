@@ -491,6 +491,8 @@ class MyView extends FileView {
 
 **Lifecycle chave:** `onLoadFile` é disparado automaticamente quando `leaf.setViewState({type, state: {file}})` é chamado — o próprio `FileView.setState` (herdado) processa `state.file` e chama `onUnloadFile` da anterior + `onLoadFile` da nova. Não precisa `setState` manual na subclasse. Isso vale **mesmo sem `registerExtensions`** — se a view é registrada como FileView e alguém chama `setViewState` com `{file}`, o lifecycle roda. Isso habilita o pattern do Qualia: `registerFileIntercept` redireciona leaves pra view custom via `setViewState`, e o Obsidian dispara `onLoadFile` automaticamente (ver §8.6).
 
+**Cleanup parametrizado em cores por composição:** quando uma FileView delega a um core via composição (ex.: `AudioView`/`VideoView` → `MediaViewCore`), **não** duplique `this.file` dentro do core. Assinatura preferida: `core.cleanup(file?: TFile)` recebe o file de `onUnloadFile(file)`, e callbacks criados dentro de `core.loadMedia(contentEl, file, …)` capturam `file` via closure. Isso elimina a divergência silenciosa que ocorre quando existe `core.currentFile` espelhando `view.file` — ambas são "qual arquivo está carregado" e se desincronizam se alguém chamar `core.loadMedia(otro)` diretamente. Se precisar de tracking interno (p.ex. safety-net para salvar scroll quando `loadMedia` roda sem `cleanup` prévio), deixe o field estritamente privado, com nome distinto (`loadedFile`) e comentário explícito "não é mirror de view.file". Qualia aplicou isso em `MediaViewCore` (ver commit `a758a54`).
+
 ---
 
 ## 7. WaveSurfer.js v7
