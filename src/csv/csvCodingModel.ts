@@ -1,7 +1,7 @@
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { SegmentMarker, RowMarker, CsvMarker, CodingSnapshot } from './csvCodingTypes';
-import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication } from '../core/codeApplicationHelpers';
+import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 
 type ChangeListener = () => void;
 type HoverListener = (markerId: string | null, codeName: string | null) => void;
@@ -30,8 +30,27 @@ export class CsvCodingModel {
 
 	private loadFromDataManager(): void {
 		const data = this.dm.section('csv');
-		if (data.segmentMarkers) this.segmentMarkers = data.segmentMarkers;
-		if (data.rowMarkers) this.rowMarkers = data.rowMarkers;
+		let mutated = false;
+
+		this.segmentMarkers = data.segmentMarkers;
+		for (const m of this.segmentMarkers) {
+			const result = normalizeCodeApplications(m.codes, this.registry);
+			if (result.changed) {
+				m.codes = result.normalized;
+				mutated = true;
+			}
+		}
+
+		this.rowMarkers = data.rowMarkers;
+		for (const m of this.rowMarkers) {
+			const result = normalizeCodeApplications(m.codes, this.registry);
+			if (result.changed) {
+				m.codes = result.normalized;
+				mutated = true;
+			}
+		}
+
+		if (mutated) this.saveMarkers();
 	}
 
 	/** Reload marker state from DataManager and notify listeners. Used after bulk imports. */
