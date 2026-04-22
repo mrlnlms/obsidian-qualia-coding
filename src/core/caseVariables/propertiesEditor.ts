@@ -190,8 +190,13 @@ export class PropertiesEditor {
 
     const handleAdd = async () => {
       const name = nameInput.value.trim();
-      const rawValue = valueInput.value;
+      const rawValue = valueInput.value.trim();
       if (!name) return;
+      if (!rawValue) {
+        new Notice('Property value cannot be empty.');
+        valueInput.select();
+        return;
+      }
 
       if (OBSIDIAN_RESERVED.includes(name)) {
         new Notice(`"${name}" is reserved by Obsidian and cannot be used as a Case Variable.`);

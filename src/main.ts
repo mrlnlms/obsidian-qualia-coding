@@ -42,6 +42,10 @@ export default class QualiaCodingPlugin extends Plugin {
 	// on same-leaf navigation (.get(view)?.()). Cleanup happens via view.register() —
 	// this map is NOT responsible for listener teardown.
 	private caseVariablesViewListeners = new WeakMap<View, () => void>();
+	// Active Case Variables popover — tracked so it can be closed on plugin unload
+	// (prevents orphan DOM + dead listeners during hot-reload). Only one popover
+	// can be open at a time by design (clicking another button closes the previous).
+	private activePopoverClose: (() => void) | null = null;
 	updateFileMarkersEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
 	setFileIdEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
 	markdownModel?: import('./markdown/models/codeMarkerModel').CodeMarkerModel;
@@ -360,8 +364,12 @@ export default class QualiaCodingPlugin extends Plugin {
 			closeCurrent = openPropertiesPopover(button, {
 				fileId: currentFileId,
 				registry: this.caseVariablesRegistry,
-				onClose: () => { closeCurrent = null; },
+				onClose: () => {
+					closeCurrent = null;
+					this.activePopoverClose = null;
+				},
 			});
+			this.activePopoverClose = closeCurrent;
 		});
 		button.addClass('case-variables-action');
 
@@ -387,6 +395,9 @@ export default class QualiaCodingPlugin extends Plugin {
 
 	async onunload() {
 		clearFileInterceptRules();
+		// Close any open Case Variables popover before tearing down the registry
+		this.activePopoverClose?.();
+		this.activePopoverClose = null;
 		this.app.workspace.detachLeavesOfType(CODE_EXPLORER_VIEW_TYPE);
 		this.app.workspace.detachLeavesOfType(CODE_DETAIL_VIEW_TYPE);
 		this.app.workspace.detachLeavesOfType(CASE_VARIABLES_VIEW_TYPE);

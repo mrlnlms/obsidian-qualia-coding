@@ -311,7 +311,7 @@ describe('PropertiesEditor — add row', () => {
     document.body.appendChild(container);
   });
 
-  it('creates new property via add row (type inferred)', async () => {
+  function makeAddRowContext() {
     const setVariable = vi.fn();
     const registry = {
       getVariables: () => ({}),
@@ -324,15 +324,59 @@ describe('PropertiesEditor — add row', () => {
 
     new PropertiesEditor(container, { fileId: 'jane.jpg', registry });
     const addRow = container.querySelector('.case-variables-add-row') as HTMLElement;
-    const nameInput = addRow.querySelector('input[data-role="name"]') as HTMLInputElement;
-    const valueInput = addRow.querySelector('input[data-role="value"]') as HTMLInputElement;
-    const addBtn = addRow.querySelector('button[data-role="add"]') as HTMLButtonElement;
+    return {
+      setVariable,
+      nameInput: addRow.querySelector('input[data-role="name"]') as HTMLInputElement,
+      valueInput: addRow.querySelector('input[data-role="value"]') as HTMLInputElement,
+      addBtn: addRow.querySelector('button[data-role="add"]') as HTMLButtonElement,
+    };
+  }
 
+  it('creates new property via add row (type inferred)', async () => {
+    const { setVariable, nameInput, valueInput, addBtn } = makeAddRowContext();
     nameInput.value = 'idade';
     valueInput.value = '30';
     addBtn.click();
     await Promise.resolve();
-
     expect(setVariable).toHaveBeenCalledWith('jane.jpg', 'idade', 30);
+  });
+
+  it('rejects empty value with Notice', async () => {
+    NoticeSpy.mockClear();
+    const { setVariable, nameInput, valueInput, addBtn } = makeAddRowContext();
+    nameInput.value = 'mood';
+    valueInput.value = '';
+    addBtn.click();
+    await Promise.resolve();
+    expect(setVariable).not.toHaveBeenCalled();
+    expect(NoticeSpy).toHaveBeenCalledWith(expect.stringContaining('value'));
+  });
+
+  it('rejects whitespace-only value', async () => {
+    NoticeSpy.mockClear();
+    const { setVariable, nameInput, valueInput, addBtn } = makeAddRowContext();
+    nameInput.value = 'mood';
+    valueInput.value = '   ';
+    addBtn.click();
+    await Promise.resolve();
+    expect(setVariable).not.toHaveBeenCalled();
+  });
+
+  it('accepts emoji in property name', async () => {
+    const { setVariable, nameInput, valueInput, addBtn } = makeAddRowContext();
+    nameInput.value = '🌟 mood';
+    valueInput.value = 'great';
+    addBtn.click();
+    await Promise.resolve();
+    expect(setVariable).toHaveBeenCalledWith('jane.jpg', '🌟 mood', 'great');
+  });
+
+  it('accepts accented characters in value', async () => {
+    const { setVariable, nameInput, valueInput, addBtn } = makeAddRowContext();
+    nameInput.value = 'cidade';
+    valueInput.value = 'São Paulo';
+    addBtn.click();
+    await Promise.resolve();
+    expect(setVariable).toHaveBeenCalledWith('jane.jpg', 'cidade', 'São Paulo');
   });
 });
