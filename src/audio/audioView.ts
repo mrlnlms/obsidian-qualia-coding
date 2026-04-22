@@ -34,8 +34,8 @@ export class AudioView extends FileView {
     this.leaf.updateHeader?.();
   }
 
-  async onUnloadFile(_file: TFile): Promise<void> {
-    this.core.cleanup();
+  async onUnloadFile(file: TFile): Promise<void> {
+    this.core.cleanup(file);
     this.contentEl.empty();
   }
 }
