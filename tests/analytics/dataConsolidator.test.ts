@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { consolidate } from '../../src/analytics/data/dataConsolidator';
+import { consolidate, extractCodes } from '../../src/analytics/data/dataConsolidator';
 
 describe('consolidate', () => {
   // ── Empty / null data ──────────────────────────────────────
@@ -435,5 +435,39 @@ describe('consolidate', () => {
     const code = result.codes.find(c => c.name === 'imgCode');
     expect(code).toBeDefined();
     expect(code!.sources).toContain('image');
+  });
+});
+
+describe('extractCodes', () => {
+  it('returns empty for non-array input', () => {
+    expect(extractCodes(null)).toEqual([]);
+    expect(extractCodes(undefined)).toEqual([]);
+    expect(extractCodes('string')).toEqual([]);
+    expect(extractCodes(42)).toEqual([]);
+    expect(extractCodes({})).toEqual([]);
+  });
+
+  it('returns empty for empty array', () => {
+    expect(extractCodes([])).toEqual([]);
+  });
+
+  it('extracts codeId from a single CodeApplication', () => {
+    expect(extractCodes([{ codeId: 'c_1' }])).toEqual(['c_1']);
+  });
+
+  it('extracts codeIds from multiple CodeApplications preserving order', () => {
+    expect(extractCodes([{ codeId: 'c_1' }, { codeId: 'c_2' }, { codeId: 'c_3' }])).toEqual(['c_1', 'c_2', 'c_3']);
+  });
+
+  it('ignores bare string entries (removed legacy branch)', () => {
+    expect(extractCodes(['c_1', 'c_2'])).toEqual([]);
+  });
+
+  it('ignores {name} entries (removed legacy branch)', () => {
+    expect(extractCodes([{ name: 'c_1' }])).toEqual([]);
+  });
+
+  it('ignores null, undefined, and non-objects inside the array', () => {
+    expect(extractCodes([null, undefined, 42, 'str', { codeId: 'c_1' }])).toEqual(['c_1']);
   });
 });
