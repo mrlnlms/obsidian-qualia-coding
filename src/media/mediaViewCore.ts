@@ -203,8 +203,17 @@ export class MediaViewCore {
       if (this.zoomLabel) this.zoomLabel.textContent = `Zoom ${zoom}`;
 
       const scrollPos = savedState?.lastPosition ?? 0;
+      console.log('[Qualia/scroll] ready handler', { file: file.path, savedLastPosition: scrollPos, zoom });
       if (scrollPos > 0) {
-        requestAnimationFrame(() => this.renderer.setScroll(scrollPos));
+        requestAnimationFrame(() => {
+          const before = this.renderer.getScroll();
+          this.renderer.setScroll(scrollPos);
+          const afterImmediate = this.renderer.getScroll();
+          console.log('[Qualia/scroll] rAF setScroll', { file: file.path, intended: scrollPos, before, afterImmediate });
+          setTimeout(() => {
+            console.log('[Qualia/scroll] 150ms later', { file: file.path, actualScroll: this.renderer.getScroll() });
+          }, 150);
+        });
       }
     });
 
@@ -363,6 +372,7 @@ export class MediaViewCore {
 
   private saveScrollPosition(file: TFile): void {
     const scroll = this.renderer.getScroll();
+    console.log('[Qualia/scroll] saveScrollPosition', { file: file.path, scroll });
     const states = this.model.settings.fileStates;
     states[file.path] = {
       ...(states[file.path] ?? { zoom: this.model.settings.defaultZoom }),
