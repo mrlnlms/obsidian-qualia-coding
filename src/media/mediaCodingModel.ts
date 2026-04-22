@@ -215,11 +215,6 @@ export class MediaCodingModel<
 		if (!marker) return;
 		if (hasCode(marker.codes, codeId)) return;
 
-		if (!this.registry.getById(codeId)) {
-			const def = this.registry.getByName(codeId);
-			if (!def) this.registry.create(codeId);
-		}
-
 		marker.codes = addCodeApplication(marker.codes, codeId);
 		marker.updatedAt = Date.now();
 		this.notify();

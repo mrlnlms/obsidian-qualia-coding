@@ -133,11 +133,11 @@ describe('getAllFileIds', () => {
 // ── addCodeToMarker ──
 
 describe('addCodeToMarker', () => {
-	it('adds code to marker and creates definition in registry', () => {
+	it('adds code to marker given a valid codeId', () => {
+		const def = registry.create('Theme A');
 		const marker = model.findOrCreateMarker('file.mp3', 0, 5);
-		model.addCodeToMarker(marker.id, 'Theme A');
-		expect(hasCode(marker.codes, 'Theme A')).toBe(true);
-		expect(registry.getByName('Theme A')).toBeDefined();
+		model.addCodeToMarker(marker.id, def.id);
+		expect(hasCode(marker.codes, def.id)).toBe(true);
 	});
 
 	it('does not add duplicate code', () => {
