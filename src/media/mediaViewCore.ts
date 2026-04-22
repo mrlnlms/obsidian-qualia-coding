@@ -22,6 +22,13 @@ export class MediaViewCore {
   // Internal tracking for save-scroll when loadMedia runs without a prior cleanup
   // (safety net for rapid file swaps). NOT a mirror of view.file — do not expose.
   private loadedFile: TFile | null = null;
+  // Local mirror of the WaveSurfer scroll position. We can't rely on
+  // renderer.getScroll() at cleanup time: between the user's last scroll
+  // gesture and Obsidian's onUnloadFile callback, WaveSurfer's internal
+  // scroll state gets reset to 0 (likely due to DOM teardown). Keeping a
+  // mirror updated from the 'scroll' event captures the last known value
+  // before the reset.
+  private lastKnownScroll = 0;
   private videoElement: HTMLVideoElement | null = null;
   private waveformEl: HTMLElement | null = null;
   private playBtn: HTMLElement | null = null;
@@ -55,6 +62,7 @@ export class MediaViewCore {
     // Safety net: if cleanup(file) wasn't called (e.g. rapid swap without unload),
     // persist scroll of the previously loaded file before discarding state.
     if (this.loadedFile) this.saveScrollPosition(this.loadedFile);
+    this.lastKnownScroll = 0;
     this.stopTimeUpdates();
     if (this.changeListener) {
       this.model.offChange(this.changeListener);
@@ -202,9 +210,25 @@ export class MediaViewCore {
       if (this.zoomSlider) this.zoomSlider.value = String(zoom);
       if (this.zoomLabel) this.zoomLabel.textContent = `Zoom ${zoom}`;
 
+      // Mirror WaveSurfer's scroll position as it changes. Needed because
+      // getScroll() at cleanup time returns 0 (WaveSurfer resets its internal
+      // state before onUnloadFile runs).
+      this.renderer.on('scroll', (_visibleStart: number, _visibleEnd: number, scrollLeft: number) => {
+        this.lastKnownScroll = scrollLeft;
+      });
+
       const scrollPos = savedState?.lastPosition ?? 0;
-      if (scrollPos > 0) {
-        requestAnimationFrame(() => this.renderer.setScroll(scrollPos));
+      const currentTime = savedState?.lastCurrentTime ?? 0;
+      if (scrollPos > 0 || currentTime > 0) {
+        // autoCenter: true (WaveSurfer option) would center the playhead in the
+        // viewport and override our setScroll. Keep it OFF during the restore;
+        // re-enable it on 'play' below — that's when autoCenter is actually
+        // useful (playhead following during playback).
+        this.renderer.setAutoCenter(false);
+        if (currentTime > 0) this.renderer.seekTo(currentTime);
+        if (scrollPos > 0) {
+          requestAnimationFrame(() => this.renderer.setScroll(scrollPos));
+        }
       }
     });
 
@@ -276,7 +300,12 @@ export class MediaViewCore {
     }
 
     // Update play icon on play/pause events
-    this.renderer.on('play', () => this.updatePlayIcon());
+    this.renderer.on('play', () => {
+      // Re-enable autoCenter on first play — now the playhead should follow
+      // the viewport. (Disabled during restore to protect the saved scroll.)
+      this.renderer.setAutoCenter(true);
+      this.updatePlayIcon();
+    });
     this.renderer.on('pause', () => this.updatePlayIcon());
     this.renderer.on('finish', () => this.updatePlayIcon());
     this.renderer.on('seeking', () => this.updateTimeDisplay());
@@ -362,11 +391,11 @@ export class MediaViewCore {
   }
 
   private saveScrollPosition(file: TFile): void {
-    const scroll = this.renderer.getScroll();
     const states = this.model.settings.fileStates;
     states[file.path] = {
       ...(states[file.path] ?? { zoom: this.model.settings.defaultZoom }),
-      lastPosition: scroll,
+      lastPosition: this.lastKnownScroll,
+      lastCurrentTime: this.renderer.getCurrentTime(),
     };
     this.model.save();
   }

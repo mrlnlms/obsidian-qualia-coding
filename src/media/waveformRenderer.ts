@@ -172,6 +172,10 @@ export class WaveformRenderer {
     this.ws?.setScroll(pixels);
   }
 
+  setAutoCenter(on: boolean): void {
+    this.ws?.setOptions({ autoCenter: on });
+  }
+
   setScrollTime(seconds: number): void {
     this.ws?.setScrollTime(seconds);
   }
