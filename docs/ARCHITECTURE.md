@@ -39,13 +39,16 @@ Cada um tem um `CodingModel` próprio mas **todos** implementam a interface `Sid
 
 ### File Intercept Strategy
 
-| Engine | Método | Por quê |
-|--------|--------|---------|
-| Markdown | `registerEditorExtension()` | Integração direta com CM6 — é o editor nativo |
-| CSV | `registerExtensions(['csv'])` | Obsidian não tem handler nativo pra CSV |
-| PDF, Image, Audio, Video | `active-leaf-change` listener | Non-invasive — não conflita com handlers nativos |
+| Engine | View base | Método de associação | Por quê |
+|--------|-----------|----------------------|---------|
+| Markdown | `MarkdownView` (nativo) | `registerEditorExtension()` | Integração direta com CM6 — é o editor nativo |
+| CSV | `FileView` custom | `registerExtensions(['csv', 'parquet'])` | Obsidian não tem handler nativo para tabular |
+| PDF | (viewer nativo) | Instrumentação via MutationObserver | Reusa o viewer nativo do Obsidian |
+| Image, Audio, Video | `FileView` custom | `registerFileIntercept` (active-leaf-change) | Obsidian já trata nativamente png/mp3/mp4; `registerExtensions` joga exceção nessas ext |
 
-**Regra**: NUNCA usar `registerExtensions` para áudio/vídeo — conflita com o player nativo do Obsidian e causa falha no carregamento do plugin.
+**Regra**: NUNCA usar `registerExtensions` para `png/jpg/mp3/mp4/webm/...` — Obsidian já tem handler nativo e joga `Error: Attempting to register an existing file extension`, quebrando o plugin no onload. Image mantém setting `autoOpenImages` pra permitir opt-out do interceptor (abre no viewer nativo).
+
+**FileView lifecycle:** as 4 views custom (CSV, Image, Audio, Video) estendem `FileView`. Ao `setViewState({type, state: {file}})` — seja por user click, command, interceptor ou restore — Obsidian dispara automaticamente `onLoadFile(file)` / `onUnloadFile(file)`. Views usam `this.file: TFile` padrão (sem campos custom tipo `currentFile`).
 
 ---
 
@@ -413,7 +416,7 @@ Sistema de propriedades tipadas por arquivo (mixed-methods: cruzar códigos × m
 
 ### Integração com o resto do sistema
 
-- **Lifecycle de arquivos**: `registerFileRename` + `vault.on('delete')` propagam rename/delete para o registry. Botão de ação injetado em todo FileView via `active-leaf-change` listener no `main.ts`.
+- **Lifecycle de arquivos**: `registerFileRename` + `vault.on('delete')` propagam rename/delete para o registry. Botão de ação injetado em todo `FileView` via triplo listener em `main.ts`: `active-leaf-change` (user navega entre leaves), `layout-change` (splits e reconfigurações de painéis) e `file-open` (cobre race onde layout-change vê `view.file===null`). Dedupe por `WeakMap<View, listener>`; no early-return o listener armazenado é re-invocado pra refresh de badge (cobre caso same-view-new-file).
 - **Analytics filter**: `caseVariableFilter` em `FilterConfig` — aplicado no nível da `AnalyticsView` antes de qualquer mode module. Não toca nos 6 stats engines.
 - **Cache invalidation**: `caseVariablesRegistry.addOnMutate(() => consolidationCache.invalidateAll())` — mudança em qualquer variável invalida o cache analítico global.
 - **QDPX export/import**: `src/export/caseVariablesXml.ts` gera `<Variable>` dentro de cada `<Source>` + seção `<Cases>` com `<SourceRef>`. Round-trip preserva tipos (number permanece number, boolean permanece boolean).

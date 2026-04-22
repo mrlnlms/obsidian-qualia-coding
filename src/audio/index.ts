@@ -25,7 +25,9 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 		new AudioView(leaf, plugin, model),
 	);
 
-	// Intercept audio file opens (via unified interceptor)
+	// Intercept audio file opens (via unified interceptor).
+	// Note: cannot use plugin.registerExtensions() — Obsidian throws on core-native
+	// extensions (mp3, wav, etc. are handled by the native audio player).
 	registerFileIntercept({
 		extensions: AUDIO_EXTENSIONS,
 		targetViewType: AUDIO_VIEW_TYPE,
@@ -96,8 +98,7 @@ async function openAudioAndSeek(plugin: QualiaCodingPlugin, _model: AudioCodingM
 	const leaves = plugin.app.workspace.getLeavesOfType(AUDIO_VIEW_TYPE);
 	for (const leaf of leaves) {
 		const view = leaf.view as AudioView;
-		const state = view.getState();
-		if (state.file === filePath) {
+		if (view.file?.path === filePath) {
 			plugin.app.workspace.revealLeaf(leaf);
 			await view.core.waitUntilReady();
 			view.renderer.seekTo(seekTo);

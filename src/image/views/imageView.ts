@@ -1,4 +1,4 @@
-import { ItemView, TFile, WorkspaceLeaf } from 'obsidian';
+import { FileView, TFile, WorkspaceLeaf } from 'obsidian';
 import type QualiaCodingPlugin from '../../main';
 import type { ImageCodingModel } from '../imageCodingModel';
 import {
@@ -16,7 +16,9 @@ import { type RegionHighlightState, setupRegionHighlight } from '../regionHighli
 
 export const IMAGE_CODING_VIEW_TYPE = 'qualia-image-coding';
 
-export class ImageCodingView extends ItemView {
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'avif', 'svg']);
+
+export class ImageCodingView extends FileView {
 	private plugin: QualiaCodingPlugin;
 	private model: ImageCodingModel;
 	private fabricState: FabricCanvasState | null = null;
@@ -27,16 +29,13 @@ export class ImageCodingView extends ItemView {
 	private codingMenu: CodingMenu | null = null;
 	private regionLabels: RegionLabels | null = null;
 	private regionHighlight: RegionHighlightState | null = null;
-	private currentFile: TFile | null = null;
 	private clearAllHandler: (() => void) | null = null;
 	private readyResolve: (() => void) | null = null;
 	private readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
 	private loadGeneration = 0;
 
-	/** Resolves when loadImage completes and canvas is ready. */
+	/** Resolves when onLoadFile completes and canvas is ready. */
 	waitUntilReady(): Promise<void> { return this.readyPromise; }
-
-	get file(): TFile | null { return this.currentFile; }
 
 	constructor(leaf: WorkspaceLeaf, plugin: QualiaCodingPlugin, model: ImageCodingModel) {
 		super(leaf);
@@ -56,34 +55,21 @@ export class ImageCodingView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return this.currentFile?.basename ?? 'Image Coding';
+		return this.file?.basename ?? 'Image Coding';
 	}
 
 	getIcon(): string {
 		return 'image';
 	}
 
-	async setState(state: unknown, result: any): Promise<void> {
-		const s = state as Record<string, unknown>;
-		const filePath = s?.file as string | undefined;
-		if (filePath) {
-			const file = this.app.vault.getAbstractFileByPath(filePath);
-			if (file instanceof TFile) {
-				await this.loadImage(file);
-			}
-		}
-		await super.setState(state, result);
+	canAcceptExtension(ext: string): boolean {
+		return IMAGE_EXTENSIONS.has(ext.toLowerCase());
 	}
 
-	getState(): Record<string, unknown> {
-		return { file: this.currentFile?.path ?? '' };
-	}
-
-	async loadImage(file: TFile): Promise<void> {
+	async onLoadFile(file: TFile): Promise<void> {
 		this.cleanup();
 		this.readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
 		const thisGeneration = ++this.loadGeneration;
-		this.currentFile = file;
 		this.leaf.updateHeader?.();
 
 		const { contentEl } = this;
@@ -96,7 +82,7 @@ export class ImageCodingView extends ItemView {
 
 		try {
 			const fabricState = await setupFabricCanvas(container, imageUrl);
-			// Stale load — a newer loadImage or cleanup was called while we awaited
+			// Stale load — a newer onLoadFile or cleanup was called while we awaited
 			if (thisGeneration !== this.loadGeneration) {
 				teardownFabricCanvas(fabricState);
 				return;
@@ -158,10 +144,10 @@ export class ImageCodingView extends ItemView {
 
 			// Toolbar
 			const saveView = () => {
-				if (this.currentFile && this.fabricState) {
+				if (this.fabricState) {
 					const c = this.fabricState.canvas;
 					const vt = c.viewportTransform;
-					this.model.saveFileViewState(this.currentFile.path, c.getZoom(), vt[4], vt[5]);
+					this.model.saveFileViewState(file.path, c.getZoom(), vt[4], vt[5]);
 				}
 				this.regionLabels?.refreshAll();
 			};
@@ -251,7 +237,7 @@ export class ImageCodingView extends ItemView {
 	}
 
 	private cleanup(): void {
-		// Invalidate any pending async loadImage
+		// Invalidate any pending async onLoadFile
 		this.loadGeneration++;
 		if (this.clearAllHandler) {
 			document.removeEventListener('qualia:clear-all', this.clearAllHandler);
@@ -275,8 +261,7 @@ export class ImageCodingView extends ItemView {
 		this.fabricState = null;
 	}
 
-	async onClose(): Promise<void> {
+	async onUnloadFile(_file: TFile): Promise<void> {
 		this.cleanup();
-		this.currentFile = null;
 	}
 }

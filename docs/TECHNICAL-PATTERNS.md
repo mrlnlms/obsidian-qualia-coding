@@ -476,17 +476,20 @@ Papa.parse(raw, { header: true, skipEmptyLines: true })
 ```typescript
 // plugin onload:
 this.registerView(VIEW_TYPE, (leaf) => new MyView(leaf));
-this.registerExtensions(["csv"], VIEW_TYPE);
+this.registerExtensions(["csv"], VIEW_TYPE); // ONLY for non-core-native ext
 
 // view.ts:
 class MyView extends FileView {
   async onLoadFile(file: TFile) { /* load content */ }
-  async onUnloadFile() { /* cleanup */ }
+  async onUnloadFile(_file: TFile) { /* cleanup */ }
   getViewType() { return VIEW_TYPE; }
+  getDisplayText() { return this.file?.basename ?? 'Fallback'; }
   canAcceptExtension(ext: string) { return ext === 'csv'; }
 }
 // contentEl needs explicit height: wrapper.style.height = "calc(100% - 40px)"
 ```
+
+**Lifecycle chave:** `onLoadFile` é disparado automaticamente quando `leaf.setViewState({type, state: {file}})` é chamado — o próprio `FileView.setState` (herdado) processa `state.file` e chama `onUnloadFile` da anterior + `onLoadFile` da nova. Não precisa `setState` manual na subclasse. Isso vale **mesmo sem `registerExtensions`** — se a view é registrada como FileView e alguém chama `setViewState` com `{file}`, o lifecycle roda. Isso habilita o pattern do Qualia: `registerFileIntercept` redireciona leaves pra view custom via `setViewState`, e o Obsidian dispara `onLoadFile` automaticamente (ver §8.6).
 
 ---
 
@@ -586,15 +589,39 @@ class CodeSuggestModal extends FuzzySuggestModal<CodeDefinition> {
 
 ### 8.6 registerExtensions Conflicts
 
-`registerExtensions(['mp3', 'wav', ...])` conflita com o handler nativo de áudio do Obsidian. Plugin falha ao carregar.
+`plugin.registerExtensions([ext], viewType)` **joga `Error: Attempting to register an existing file extension`** em toda extensão que Obsidian trata nativamente: `mp3, m4a, wav, ogg, flac, aac, mp4, webm, ogv, png, jpg, jpeg, gif, bmp, avif, svg`. Exception no `onload` derruba o plugin inteiro.
 
-**Fix**: Usar `active-leaf-change` interceptor para substituir a view.
+**Funciona apenas** em extensões que Obsidian não trata nativamente (`csv`, `parquet`).
 
-### 8.7 WeakSet para Double-Instrumentation
+**Fix pra extensões core-native**: usar `registerFileIntercept` (`src/core/fileInterceptor.ts`). Um listener de `active-leaf-change` detecta a extensão e redireciona via `setViewState({type: customView, state: {file}})`. Tem flash curto (Obsidian abre nativo antes de trocar), mas o plugin não quebra. FileView funciona com esse pattern — `onLoadFile` dispara automaticamente no `setViewState` (ver §6.3).
+
+**Evidência:** commit `66afc93` tentou migrar Audio pra `registerExtensions([mp3, wav, ...])` → plugin quebrou no onload. Revertido em `0a46869`. Ver memory/reference_obsidian_register_extensions.md.
+
+### 8.7 Case Variables Sync — Same View, Different File
+
+Padrão geral: quando um botão ou action é registrado num FileView via `view.addAction(...)` no `active-leaf-change`, o dedupe tradicional (`if (alreadyRegistered.has(view)) return`) causa dois bugs:
+
+1. **Badge stale** — se a mesma `MarkdownView` navega entre `A.md` e `B.md` (Obsidian reusa a view, só troca `this.file`), o early-return bloqueia qualquer refresh do button.
+2. **Split race** — se `layout-change` dispara antes de `view.file` estar setado (caso comum em splits), o `if (!view.file) return;` bloqueia o registro, e depois não há evento que re-dispare.
+
+**Fix dual:**
+- No dedupe guard, **invocar** a função de refresh armazenada no Map em vez de só retornar:
+  ```ts
+  if (listeners.has(view)) { listeners.get(view)?.(); return; }
+  ```
+- Adicionar `file-open` como listener extra (além de `active-leaf-change` e `layout-change`):
+  ```ts
+  this.registerEvent(app.workspace.on('file-open', addActionToAllLeaves));
+  ```
+  `file-open` dispara após `onLoadFile` completar, cobrindo a race.
+
+**Fonte:** `src/main.ts` na função `addCaseVariablesActionToView`. Commit `c115821`.
+
+### 8.8 WeakSet para Double-Instrumentation
 
 `WeakSet<PDFViewerChild>` garante que cada PDF viewer é instrumentado só uma vez. `mouseup` listener checa `child.unloaded` e faz self-remove para evitar memory leaks.
 
-### 8.8 PDF DOM Hierarchy
+### 8.9 PDF DOM Hierarchy
 
 ```
 containerEl
@@ -613,7 +640,7 @@ containerEl
 
 Crítico para debugging de renderização PDF.
 
-### 8.9 Layout Shifts sem CM6 Events
+### 8.10 Layout Shifts sem CM6 Events
 
 Inline title toggle e theme switches não disparam CM6 resize/viewport events. MutationObserver é necessário para detectar essas mudanças.
 

@@ -1,4 +1,4 @@
-import { Plugin, FileView, ItemView, TFile, type View } from 'obsidian';
+import { Plugin, FileView, TFile, type View } from 'obsidian';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
@@ -33,10 +33,6 @@ import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
 import type { AudioCodingModel } from './audio/audioCodingModel';
 import type { VideoCodingModel } from './video/videoCodingModel';
-import { ImageCodingView } from './image/views/imageView';
-import { AudioView } from './audio/audioView';
-import { VideoView } from './video/videoView';
-
 export default class QualiaCodingPlugin extends Plugin {
 	dataManager!: DataManager;
 	sharedRegistry!: CodeDefinitionRegistry;
@@ -76,7 +72,7 @@ export default class QualiaCodingPlugin extends Plugin {
 
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
 			const view = leaf?.view;
-			if (view instanceof ItemView) {
+			if (view instanceof FileView) {
 				this.addCaseVariablesActionToView(view);
 			}
 		}));
@@ -84,13 +80,15 @@ export default class QualiaCodingPlugin extends Plugin {
 		// Cover leaves that don't fire active-leaf-change (e.g. second pane at boot)
 		const addActionToAllLeaves = () => {
 			this.app.workspace.iterateAllLeaves((leaf) => {
-				if (leaf.view instanceof ItemView) {
+				if (leaf.view instanceof FileView) {
 					this.addCaseVariablesActionToView(leaf.view);
 				}
 			});
 		};
 		this.app.workspace.onLayoutReady(addActionToAllLeaves);
 		this.registerEvent(this.app.workspace.on('layout-change', addActionToAllLeaves));
+		// Also react to file-open: covers splits where layout-change fires before view.file is loaded.
+		this.registerEvent(this.app.workspace.on('file-open', addActionToAllLeaves));
 
 		// Case variables: migrate on rename, clear on delete
 		const CASE_VAR_EXTENSIONS = new Set([
@@ -336,19 +334,18 @@ export default class QualiaCodingPlugin extends Plugin {
 		document.dispatchEvent(new Event('qualia:registry-changed'));
 	}
 
-	private getFileFromItemView(view: ItemView): TFile | null {
-		if (view instanceof FileView) return view.file;
-		if (view instanceof ImageCodingView) return view.file;
-		if (view instanceof AudioView || view instanceof VideoView) return view.core.file;
-		return null;
-	}
-
-	private addCaseVariablesActionToView(view: ItemView): void {
-		if ((view as unknown as { _caseVariablesActionAdded?: boolean })._caseVariablesActionAdded) return;
-		if (!this.getFileFromItemView(view)) return;
+	private addCaseVariablesActionToView(view: View): void {
+		if (!(view instanceof FileView)) return;
+		if (this.caseVariablesViewListeners.has(view)) {
+			// View already registered — file may have changed on the same leaf (e.g. md→md navigation).
+			// The stored listener is `() => updateBadge()`, so invoking it re-reads view.file?.path.
+			this.caseVariablesViewListeners.get(view)?.();
+			return;
+		}
+		if (!view.file) return;
 
 		// Resolve fileId dynamically — TFile.path mutates on rename; closure capture would stale.
-		const currentFileId = (): string | null => this.getFileFromItemView(view)?.path ?? null;
+		const currentFileId = (): string | null => view.file?.path ?? null;
 
 		let closeCurrent: (() => void) | null = null;
 		const button = view.addAction('clipboard-list', 'Case Variables', () => {
@@ -382,8 +379,7 @@ export default class QualiaCodingPlugin extends Plugin {
 		const listener = () => updateBadge();
 		this.caseVariablesRegistry.addOnMutate(listener);
 		this.caseVariablesViewListeners.set(view, listener);
-
-		(view as unknown as { _caseVariablesActionAdded?: boolean })._caseVariablesActionAdded = true;
+		view.register(() => this.caseVariablesRegistry.removeOnMutate(listener));
 	}
 
 	async onunload() {

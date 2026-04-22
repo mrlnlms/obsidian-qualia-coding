@@ -4575,3 +4575,258 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	box-shadow: var(--shadow-s);
 	z-index: 100;
 }
+
+/* ========================================================================
+   Case Variables — popover, editor, confirm modal, sidebar panel
+   ======================================================================== */
+
+.case-variables-popover {
+	min-width: 340px;
+	max-width: 440px;
+	padding: 10px 12px 12px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	box-shadow: var(--shadow-s);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	z-index: 2000;
+}
+
+.case-variables-popover-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding-bottom: 8px;
+	margin-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.case-variables-popover-title {
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+}
+
+.case-variables-popover-close {
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: 18px;
+	line-height: 1;
+	padding: 0 4px;
+	border-radius: var(--radius-s);
+	transition: background 0.12s ease, color 0.12s ease;
+}
+
+.case-variables-popover-close:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.case-variables-popover-body {
+	max-height: 420px;
+	overflow-y: auto;
+}
+
+.case-variables-editor {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.case-variables-empty {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	padding: 6px 2px;
+}
+
+.case-variables-row {
+	display: grid;
+	grid-template-columns: 18px minmax(90px, 1fr) minmax(120px, 1.4fr) 20px;
+	align-items: center;
+	gap: 8px;
+	padding: 3px 2px;
+	border-radius: var(--radius-s);
+}
+
+.case-variables-row:hover {
+	background: var(--background-modifier-hover);
+}
+
+.case-variables-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-muted);
+}
+
+.case-variables-icon .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+.case-variables-name {
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.case-variables-value input[type="text"],
+.case-variables-value input[type="number"],
+.case-variables-value input[type="date"],
+.case-variables-value input[type="datetime-local"] {
+	width: 100%;
+	padding: 3px 6px;
+	font-size: var(--font-ui-small);
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	color: var(--text-normal);
+}
+
+.case-variables-value input:focus {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+	outline: none;
+}
+
+.case-variables-value input[type="checkbox"] {
+	margin: 0;
+}
+
+.case-variables-remove {
+	cursor: pointer;
+	text-align: center;
+	color: var(--text-faint);
+	font-size: 16px;
+	line-height: 1;
+	border-radius: var(--radius-s);
+	opacity: 0;
+	transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.case-variables-row:hover .case-variables-remove {
+	opacity: 1;
+}
+
+.case-variables-remove:hover {
+	color: var(--text-error, var(--text-normal));
+	background: var(--background-modifier-hover);
+}
+
+.case-variables-add-row {
+	display: grid;
+	grid-template-columns: minmax(90px, 1fr) minmax(120px, 1.4fr) auto;
+	gap: 8px;
+	align-items: center;
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.case-variables-add-row input[type="text"] {
+	width: 100%;
+	padding: 4px 8px;
+	font-size: var(--font-ui-small);
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	color: var(--text-normal);
+}
+
+.case-variables-add-row input:focus {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+	outline: none;
+}
+
+.case-variables-add-row button {
+	padding: 4px 12px;
+	font-size: var(--font-ui-small);
+}
+
+/* Badge na action button do header quando file tem properties */
+.case-variables-action {
+	position: relative;
+}
+
+.case-variables-action.has-properties::after {
+	content: attr(data-count);
+	position: absolute;
+	top: 0;
+	right: 0;
+	min-width: 14px;
+	height: 14px;
+	padding: 0 3px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-radius: 7px;
+	font-size: 10px;
+	line-height: 14px;
+	font-weight: var(--font-semibold);
+	text-align: center;
+	pointer-events: none;
+	box-sizing: border-box;
+}
+
+/* Confirm modal (remove property) */
+.case-variables-confirm-modal-wrapper {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.45);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 3000;
+}
+
+.case-variables-confirm-modal {
+	min-width: 320px;
+	max-width: 420px;
+	padding: 16px 20px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	box-shadow: var(--shadow-s);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.case-variables-confirm-modal p {
+	margin: 0 0 12px;
+}
+
+.case-variables-confirm-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+/* Sidebar panel (CaseVariablesView) */
+.case-variables-panel-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px;
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+}
+
+.case-variables-panel-row:hover {
+	background: var(--background-modifier-hover);
+}
+
+.case-variables-panel-name {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.case-variables-panel-type,
+.case-variables-panel-count {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}

@@ -95,8 +95,7 @@ async function openVideoAndSeek(plugin: QualiaCodingPlugin, _model: VideoCodingM
 	const leaves = plugin.app.workspace.getLeavesOfType(VIDEO_VIEW_TYPE);
 	for (const leaf of leaves) {
 		const view = leaf.view as VideoView;
-		const state = view.getState();
-		if (state.file === filePath) {
+		if (view.file?.path === filePath) {
 			plugin.app.workspace.revealLeaf(leaf);
 			await view.core.waitUntilReady();
 			view.renderer.seekTo(seekTo);

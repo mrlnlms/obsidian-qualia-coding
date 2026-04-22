@@ -147,6 +147,14 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 
 ## 10. Propostas tecnicas
 
+### Toggle opt-in Audio/Video Coding (similar a autoOpenImages)
+
+**Contexto:** hoje Audio e Video abrem sempre em Coding View (via `registerFileIntercept` incondicional). Image tem setting `autoOpenImages` que permite abrir no viewer nativo. Motivação do usuario: poder ouvir/ver um arquivo sem overhead de Coding View — interfaces nativas do Obsidian sao muito diferentes, util ter como opcao.
+
+**Design sugerido:** padrao desligado, um botao na toolbar do viewer nativo (estilo do botao Case Variables) pra promover pra Coding View em nova aba.
+
+**Escopo:** nao entra na migracao FileView atual. Pos-merge.
+
 ### ~~Incremental refresh/cache por engine~~ — FEITO (2026-03-20)
 Implementado em duas camadas: `ConsolidationCache` (analytics pipeline, dirty flags por engine + registry) e cache com indices no `UnifiedModelAdapter` (sidebar views, dirty flag global + Map por fileId/id). Views Explorer/Detail com debounce rAF via `scheduleRefresh`.
 
@@ -261,27 +269,12 @@ Após o commit `46b90e8` (Phase C — codes string[] → CodeApplication[]), `ex
 
 ---
 
-## 13. Migrar ImageCodingView / AudioView / VideoView para `FileView`
+## ~~13. Migrar ImageCodingView / AudioView / VideoView para `FileView`~~ — FEITO (2026-04-22)
 
-**Contexto:** essas 3 views estendem `ItemView` por inercia historica (herdado dos plugins independentes pre-consolidacao, commit `d7eb286` 2026-03-02). CSV ja e `FileView`. Markdown/PDF sao `FileView` nativos do Obsidian. As 3 views custom ficaram foras do padrao.
+Image/Audio/Video agora estendem `FileView` (commits `0a46869`/`f87285d`/`4898f6f` na branch `feat/fileview-migration`). Case Variables limpa: `getFileFromItemView` removido, flag `_caseVariablesActionAdded` substituída por dedupe via `caseVariablesViewListeners.has(view)` (commit `857906a`), listener leak corrigido via `view.register()` (commit `e14ead0`), sync md→md e splits tardios corrigidos (commit `c115821`).
 
-**Consequencias atuais:**
-- Case Variables precisa helper `getFileFromItemView` pra extrair TFile (workaround pela falta de `view.file` padrao).
-- Cada view expoe o file por um campo diferente: `currentFile` (image), `core.file` (media). Sem contrato uniforme.
-- Qualquer feature futura que itere "todas as views com arquivo" (ex: export per-view, migrations, hooks de ciclo de vida) precisa conhecer o pattern de cada uma.
-- `_caseVariablesActionAdded` flag inline na view e uma gambiarra que seria desnecessaria se `FileView.onLoadFile`/`onUnloadFile` fossem usados como ponto de engate.
+**Decisão de design:** `plugin.registerExtensions()` **não é utilizável** para essas views — Obsidian joga `Error: Attempting to register an existing file extension` em extensões core-native (mp3, mp4, png, etc.). Por isso todas as 3 mantêm `registerFileIntercept`. O ganho real da migração foi o lifecycle limpo (`onLoadFile`/`onUnloadFile` + `this.file` padrão), não o mecanismo de associação de extensão. Documentado em `reference_obsidian_register_extensions.md` no memory.
 
-**Ganho de migrar para `FileView`:**
-- `view.file: TFile` padrao — elimina helpers e getters custom.
-- `onLoadFile(file)` / `onUnloadFile(file)` como pontos de integracao limpos (Case Vars, future features) em vez de depender de `active-leaf-change` + guard.
-- Alinhamento com CSV e com as views nativas do Obsidian.
-- Remove necessidade de file interceptor re-checar file-association (o proprio Obsidian ja lida quando a view e `FileView` + `registerExtensions`).
-
-**Custo/risco:**
-- Refatorar lifecycle das 3 views: `setState`/`getState` deixam de carregar file manualmente; `onLoadFile` assume.
-- `MediaViewCore.loadMedia` precisa ser chamado de dentro de `onLoadFile` em vez de `setState`.
-- Precisa reavaliar `setupFileInterceptor` — talvez pare de ser necessario pra essas 3 views se `registerExtensions` for usado.
-- Testes e2e dependem de `getViewType()` e transicoes de view — pode precisar ajuste.
-- **Risco:** regressao em persistencia de state (zoom/pan per-file), file association, hot-reload.
-
-**Quando atacar:** depois do merge de Case Variables Phase 1, com plano dedicado. Testar cada engine em isolamento. Estimativa: 150-300 LOC + ajuste de testes.
+**Dívidas técnicas abertas (pós-migração):**
+- Sets de extensão duplicados entre `*View.ts` e `*/index.ts` (AUDIO_EXTENSIONS / VIDEO_EXTENSIONS / IMAGE_EXTENSIONS). Cada um está no lugar natural (view declara via `canAcceptExtension`; index filtra menu/rename). Consolidar se virar dor.
+- `MediaViewCore.currentFile` segue como state paralelo a `FileView.file` no Audio/Video. `loadMedia()` re-assign ambos em sync, mas há 2 fontes de verdade ("qual arquivo está carregado"). Se alguém chamar `core.loadMedia(otherFile)` divergindo de `view.file`, diverge silencioso. Opção: remover o field do core e passar `file` como parâmetro em cada chamada que precisa. Não crítico — Audio/Video só chamam `loadMedia` via `onLoadFile`.
