@@ -35,7 +35,7 @@ function makeFixture(): AllEngineData {
 			markers: [
 				{ id: 'i1', codes: [{codeId: 'id-a'}], fileId: 'img.png', shape: 'rect', coords: { type: 'rect', x: 0, y: 0, w: 100, h: 100 }, createdAt: 4000 },
 			],
-			settings: { autoOpenImages: false, fileStates: {} },
+			settings: { autoOpen: false, fileStates: {} },
 			registry: { definitions: defs },
 		},
 		pdf: {

@@ -277,7 +277,7 @@ describe('analytics performance benchmark', () => {
 			const fixture = {
 				markdown: { markers: {}, settings: {} as any, codeDefinitions: {} },
 				csv: { segmentMarkers: [], rowMarkers: [], registry: { definitions: {} } },
-				image: { markers: [], settings: { autoOpenImages: false, fileStates: {} }, registry: { definitions: {} } },
+				image: { markers: [], settings: { autoOpen: false, fileStates: {} }, registry: { definitions: {} } },
 				pdf: { markers: [], shapes: [], registry: { definitions: {} } },
 				audio: { files: [], settings: {}, codeDefinitions: { definitions: {} } },
 				video: { files: [], settings: {}, codeDefinitions: { definitions: {} } },

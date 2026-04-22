@@ -26,7 +26,7 @@ function makeFixture(): AllEngineData {
 			rowMarkers: [],
 			registry: { definitions: defs },
 		},
-		image: { markers: [], settings: { autoOpenImages: false, fileStates: {} }, registry: { definitions: defs } },
+		image: { markers: [], settings: { autoOpen: false, fileStates: {} }, registry: { definitions: defs } },
 		pdf: { markers: [], shapes: [], registry: { definitions: defs } },
 		audio: { files: [], settings: {}, codeDefinitions: { definitions: defs } },
 		video: { files: [], settings: {}, codeDefinitions: { definitions: defs } },

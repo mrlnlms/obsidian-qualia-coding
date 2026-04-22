@@ -15,7 +15,7 @@ function createMockDm(initial: Record<string, any> = {}) {
 	const store: Record<string, any> = { ...initial };
 	return {
 		section: (k: string) => {
-			if (!store[k]) store[k] = { markers: [], settings: { autoOpenImages: true, fileStates: {} } };
+			if (!store[k]) store[k] = { markers: [], settings: { autoOpen: true, fileStates: {} } };
 			return store[k];
 		},
 		setSection: (k: string, v: any) => { store[k] = v; },
@@ -212,7 +212,7 @@ describe('constructor normalization', () => {
 		const existing = {
 			image: {
 				markers: [{ id: 'm-legacy', fileId: 'img.png', shape: 'rect', coords: rectCoords, codes: [{ codeId: 'LegacyCode' }], createdAt: 1, updatedAt: 1 }],
-				settings: { autoOpenImages: true, fileStates: {} },
+				settings: { autoOpen: true, fileStates: {} },
 			},
 		};
 		const dmLegacy = createMockDm(existing);
@@ -231,7 +231,7 @@ describe('constructor normalization', () => {
 		const existing = {
 			image: {
 				markers: [{ id: 'm-canonical', fileId: 'img.png', shape: 'rect', coords: rectCoords, codes: [{ codeId: def.id }], createdAt: 1, updatedAt: 1 }],
-				settings: { autoOpenImages: true, fileStates: {} },
+				settings: { autoOpen: true, fileStates: {} },
 			},
 		};
 		const dmCanonical = createMockDm(existing);

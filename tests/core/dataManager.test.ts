@@ -205,7 +205,7 @@ describe('clearAllSections', () => {
 	it('preserves per-engine settings', async () => {
 		const initial = createDefaultData();
 		initial.markdown.settings.defaultColor = '#CUSTOM';
-		initial.image.settings.autoOpenImages = false;
+		initial.image.settings.autoOpen = false;
 		initial.audio.settings.defaultZoom = 100;
 		initial.video.settings.videoFit = 'cover';
 		plugin = createMockPlugin(initial);
@@ -214,7 +214,7 @@ describe('clearAllSections', () => {
 		await dm.clearAllSections();
 		const data = dm.getAll();
 		expect(data.markdown.settings.defaultColor).toBe('#CUSTOM');
-		expect(data.image.settings.autoOpenImages).toBe(false);
+		expect(data.image.settings.autoOpen).toBe(false);
 		expect(data.audio.settings.defaultZoom).toBe(100);
 		expect(data.video.settings.videoFit).toBe('cover');
 	});
@@ -234,7 +234,7 @@ describe('settings deep merge on load', () => {
 			registry: { definitions: {}, nextPaletteIndex: 0 },
 			markdown: { markers: {}, settings: { defaultColor: '#custom' } },
 			csv: { segmentMarkers: [], rowMarkers: [] },
-			image: { markers: [], settings: { autoOpenImages: false } },
+			image: { markers: [], settings: { autoOpen: false } },
 			pdf: { markers: [], shapes: [] },
 			audio: { files: [], settings: { defaultZoom: 80 } },
 			video: { files: [], settings: { defaultZoom: 80, videoFit: 'cover' } },
@@ -247,7 +247,7 @@ describe('settings deep merge on load', () => {
 		expect(dm.section('markdown').settings.markerOpacity).toBe(0.4);
 
 		// image: custom preserved, defaults filled
-		expect(dm.section('image').settings.autoOpenImages).toBe(false);
+		expect(dm.section('image').settings.autoOpen).toBe(false);
 		expect(dm.section('image').settings.fileStates).toEqual({});
 
 		// audio: custom preserved, defaults filled
@@ -276,7 +276,7 @@ describe('settings deep merge on load', () => {
 		await dm.load();
 
 		expect(dm.section('markdown').settings.defaultColor).toBe('#6200EE');
-		expect(dm.section('image').settings.autoOpenImages).toBe(true);
+		expect(dm.section('image').settings.autoOpen).toBe(false);
 		expect(dm.section('audio').settings.defaultZoom).toBe(50);
 		expect(dm.section('video').settings.videoFit).toBe('contain');
 	});
@@ -288,7 +288,7 @@ describe('settings deep merge on load', () => {
 			registry: { definitions: {}, nextPaletteIndex: 0 },
 			markdown: { markers: {}, settings: { defaultColor: '#custom' } },
 			csv: { segmentMarkers: [], rowMarkers: [] },
-			image: { markers: [], settings: { autoOpenImages: false, fileStates: { 'img.png': { zoom: 2, panX: 10, panY: 20 } } } },
+			image: { markers: [], settings: { autoOpen: false, fileStates: { 'img.png': { zoom: 2, panX: 10, panY: 20 } } } },
 			pdf: { markers: [], shapes: [] },
 			audio: { files: [], settings: { defaultZoom: 80, fileStates: { 'a.mp3': { zoom: 3, lastPosition: 42 } } } },
 			video: { files: [], settings: { defaultZoom: 80, videoFit: 'cover', fileStates: {} } },
