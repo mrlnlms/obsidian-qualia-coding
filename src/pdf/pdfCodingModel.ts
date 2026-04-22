@@ -175,10 +175,6 @@ export class PdfCodingModel {
 	// ── Code assignment ──
 
 	addCodeToMarker(markerId: string, codeId: string): void {
-		if (!this.registry.getById(codeId)) {
-			this.registry.create(codeId);
-		}
-
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 		if (!hasCode(marker.codes, codeId)) {
@@ -371,9 +367,6 @@ export class PdfCodingModel {
 	}
 
 	addCodeToShape(shapeId: string, codeId: string): void {
-		if (!this.registry.getById(codeId)) {
-			this.registry.create(codeId);
-		}
 		const shape = this.findShapeById(shapeId);
 		if (!shape) return;
 		if (!hasCode(shape.codes, codeId)) {
