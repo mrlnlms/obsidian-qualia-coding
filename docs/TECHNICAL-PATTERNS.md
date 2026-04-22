@@ -962,6 +962,55 @@ Fix: `new Uint8Array(buf)` re-cria no realm correto antes de passar para `zipSyn
 
 Source builders geram `srcGuid = uuidV4()` e armazenam em `guidMap.set('source:' + filePath, srcGuid)`. O orchestrator usa esse mesmo GUID para nomear o entry no ZIP (`sources/{guid}.{ext}`). Sem isso, XML referencia um GUID e o ZIP contém outro.
 
+### 13.6 guidMap compartilhado entre Codebook e Selections
+
+Quando dois módulos geram XML que referenciam os mesmos IDs internos, **precisam compartilhar o mesmo `guidMap`**. O bug de round-trip de 2026-04-21 veio de `qdcExporter.buildCodebookXml` emitir `<Code guid="${code.id}">` enquanto `qdpxExporter.buildCodingXml` chamava `ensureGuid(codeId, localGuidMap)` pra gerar UUIDs novos nos CodeRefs.
+
+Pattern: `buildCodebookXml(registry, { ensureCodeGuid: (id) => ensureGuid(id, guidMap) })` — quando chamada standalone (QDC puro), passa só `{ namespace }`; quando embarcada em QDPX, compartilha o mesmo `guidMap` do resto do projeto.
+
+**Invariante testável:** todo `<CodeRef targetGUID>` no XML exportado deve existir como `<Code guid>` no codebook. Teste de regressão em `tests/export/qdpxGuidConsistency.test.ts`.
+
+### 13.7 `vault.adapter.write` em batch imports (vs `vault.create`)
+
+`app.vault.create(path, data)` retorna `Promise<TFile>` mas pode deixar o arquivo em cache interno do Obsidian sem flush imediato no FS. Se o usuário fecha o vault logo depois do import, os arquivos somem do disco (enquanto o `data.json` do plugin — que usa `plugin.saveData` via adapter — persiste normalmente).
+
+Pattern para batch imports: **ir direto pelo adapter**:
+```ts
+await vault.adapter.write(mdPath, text);          // text
+await vault.adapter.writeBinary(path, buffer);    // binary
+await vault.adapter.mkdir(folderPath);            // folder
+if (await vault.adapter.exists(path)) { ... }
+const content = await vault.adapter.read(path);
+```
+
+Trade-off: `adapter.*` bypassa o cache do Vault, então `vault.getAbstractFileByPath(path)` pode retornar `null` até Obsidian detectar via file watcher. Em batch imports isso não importa — já temos o path como string. Se precisar do TFile depois, aguarde o próximo tick ou aceite o path como referência.
+
+**Quando usar `vault.create`:** operações unitárias disparadas por UI (ex: criar memo por clique), onde a reatividade do cache importa.
+
+### 13.8 Sync de models após batch writes externos
+
+Engine models com cache interno (`CodeMarkerModel` via `Map<string, Marker[]>`, `PdfCodingModel` via `private markers`, `CsvCodingModel` via `private segmentMarkers/rowMarkers`, `MediaCodingModel` via `this.files`) **não observam mudanças no DataManager**. Se um batch (import QDPX, migration, restore) escreve direto via `dataManager.setSection`, os models ficam desatualizados até alguém chamar `load()` manualmente.
+
+`ImageCodingModel` é a exceção: lê direto do dataManager via getter (`get markers() { return this.dataManager.section('image').markers; }`) — mutações in-place aparecem automaticamente. `MediaCodingModel` funciona por acidente similar: constructor faz `this.files = section.files` compartilhando a referência.
+
+Pattern para batch writes que bypassam a API dos models:
+```ts
+// Em main.ts — método público do plugin:
+reloadAfterImport(): void {
+  this.markdownModel?.loadMarkers();
+  this.markdownModel?.notifyChange();
+  this.pdfModel?.load();
+  this.pdfModel?.notify();
+  this.imageModel?.notify();        // read-through, só precisa notify
+  this.csvModel?.reload();
+  this.audioModel?.reload();
+  this.videoModel?.reload();
+  document.dispatchEvent(new Event('qualia:registry-changed'));
+}
+```
+
+Cada model deve expor `reload()` (re-ler do DataManager) e `notify()/notifyChange()` público. Sem essa chamada, o sidebar/codebook mostra counts=0 até o plugin ser recarregado (abrir/fechar vault).
+
 ---
 
 ## 14. Codebook Panel — Hierarchy & Folders

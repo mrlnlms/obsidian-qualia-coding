@@ -169,8 +169,18 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 | I2 | Media | `qdpxImporter.ts` | PDF text selections (PlainTextSelection dentro de PDFSource) ignoradas com warning — mapeamento offset→spanIndex nao implementado |
 | I3 | Baixa | `qdpxImporter.ts` | `createTextMarker` no first pass e dead code — text markers criados inteiramente no batch `createTextMarkers`. Limpar ou remover funcao |
 | I4 | Baixa | `qdpxImporter.ts` | `guidMap` dual-purpose (code GUIDs + source file paths) — risco teorico de colisao se GUID de source = GUID de code. Separar em dois Maps |
-| I5 | Baixa | `qdpxImporter.ts` | Frontmatter stripping em `createTextMarkers` usa `indexOf('\n---\n', 4)` — fragil se Obsidian normalizar o frontmatter apos criacao do arquivo |
 | I6 | Baixa | `importModal.ts` | `relative://` paths no ZIP resolvidos mas nao testados — sources com path relativo podem nao ser encontrados no ZIP |
+
+### ~~11.1 Round-trip integrity~~ — FEITO (2026-04-21)
+
+Quatro bugs críticos descobertos durante teste manual de round-trip QDPX (vault real) e corrigidos na mesma sessão:
+
+1. **GUID mismatch Codebook ↔ CodeRef** — `qdcExporter.buildCodebookXml` emitia `<Code guid="${code.id}">` enquanto `qdpxExporter` mintava UUIDs via `ensureGuid` pros CodeRefs. Codebook e selections referenciavam o mesmo código com GUIDs diferentes, importador não resolvia nada. Fix: `buildCodebookXml` aceita `options.ensureCodeGuid` e compartilha o `guidMap` com o resto do projeto. Teste de regressão em `tests/export/qdpxGuidConsistency.test.ts`.
+2. **Frontmatter duplicado** — `extractSource` prepend um bloco YAML com metadados de import mesmo quando o arquivo original já tinha frontmatter próprio. Obsidian renderizava properties duplicadas e os markers ficavam deslocados pelo número de linhas do frontmatter. Fix: escrever o plainText como veio do QDPX, sem prepend. Os campos (`imported_from`, `original_guid`, `import_date`) não eram lidos em lugar nenhum.
+3. **`vault.create` não persistindo** — arquivos criados via `app.vault.create()` ficavam em cache interno do Obsidian e nem sempre flushavam pro FS antes do usuário fechar. Resultado: `data.json` com markers referenciando arquivos que não existiam no disco. Fix: usar `vault.adapter.write/writeBinary/mkdir` direto no FS.
+4. **Models com cache não sincronizavam após import** — `CodeMarkerModel`, `PdfCodingModel`, `CsvCodingModel`, `MediaCodingModel` mantêm cópia em memória dos markers. O importer grava via `dataManager.setSection` sem passar pela API do model. UI mostrava counts=0 até o usuário fechar/reabrir o vault. Fix: método `reloadAfterImport()` no plugin que sincroniza todos os models + dispatch `qualia:registry-changed`.
+
+**Arquivos tocados:** `qdcExporter.ts`, `qdpxExporter.ts`, `qdpxImporter.ts`, `importModal.ts`, `importCommands.ts`, `main.ts`, `codeMarkerModel.ts`, `csvCodingModel.ts`, `mediaCodingModel.ts`. Teste novo: `qdpxGuidConsistency.test.ts` (3 casos). 1905 testes passam.
 
 ---
 

@@ -34,6 +34,12 @@ export class CsvCodingModel {
 		if (data.rowMarkers) this.rowMarkers = data.rowMarkers;
 	}
 
+	/** Reload marker state from DataManager and notify listeners. Used after bulk imports. */
+	reload(): void {
+		this.loadFromDataManager();
+		for (const fn of this.listeners) fn();
+	}
+
 	saveMarkers(): void {
 		this.dm.setSection('csv', {
 			segmentMarkers: this.segmentMarkers,

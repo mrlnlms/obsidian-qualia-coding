@@ -323,6 +323,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 
 	onChange(fn: () => void): void { this._changeListeners.add(fn); }
 	offChange(fn: () => void): void { this._changeListeners.delete(fn); }
+	notifyChange(): void { this._notifyChange(); }
 	private _notifyChange(): void { for (const fn of this._changeListeners) fn(); }
 
 	// ─── Hover state (bidirectional: sidebar ↔ editor) ──────

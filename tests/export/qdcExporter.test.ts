@@ -40,7 +40,7 @@ describe('buildCodebookXml', () => {
   });
 
   it('includes namespace when provided (standalone QDC)', () => {
-    const xml = buildCodebookXml(registry, 'urn:QDA-XML:codebook:1.0');
+    const xml = buildCodebookXml(registry, { namespace: 'urn:QDA-XML:codebook:1.0' });
     expect(xml).toContain('xmlns="urn:QDA-XML:codebook:1.0"');
   });
 });

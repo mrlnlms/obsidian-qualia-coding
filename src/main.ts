@@ -199,6 +199,14 @@ export default class QualiaCodingPlugin extends Plugin {
 		const audioModel = audio.model;
 		const videoModel = video.model;
 
+		// Expose on plugin so bulk operations (import, clear all) can reload model state
+		this.markdownModel = mdModel;
+		this.pdfModel = pdfModel;
+		this.imageModel = imageModel;
+		this.csvModel = csvModel;
+		this.audioModel = audioModel;
+		this.videoModel = videoModel;
+
 		// Wire engine models → consolidation cache invalidation
 		mdModel.onChange(() => consolidationCache.invalidateEngine('markdown'));
 		pdfModel.onChange(() => consolidationCache.invalidateEngine('pdf'));
@@ -310,6 +318,22 @@ export default class QualiaCodingPlugin extends Plugin {
 				this.app.workspace.revealLeaf(leaf);
 			}
 		}
+	}
+
+	/**
+	 * Sync each engine model with DataManager and notify listeners.
+	 * Call after bulk writes bypass the model API (e.g. REFI-QDA import).
+	 */
+	reloadAfterImport(): void {
+		this.markdownModel?.loadMarkers();
+		this.markdownModel?.notifyChange();
+		this.pdfModel?.load();
+		this.pdfModel?.notify();
+		this.imageModel?.notify();
+		this.csvModel?.reload();
+		this.audioModel?.reload();
+		this.videoModel?.reload();
+		document.dispatchEvent(new Event('qualia:registry-changed'));
 	}
 
 	private getFileFromItemView(view: ItemView): TFile | null {

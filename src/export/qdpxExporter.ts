@@ -322,8 +322,11 @@ export function buildProjectXml(
   casesXml: string,
   vaultName: string,
   pluginVersion: string,
+  guidMap?: Map<string, string>,
 ): string {
-  const codebook = buildCodebookXml(registry);
+  const codebook = guidMap
+    ? buildCodebookXml(registry, { ensureCodeGuid: (id) => ensureGuid(id, guidMap) })
+    : buildCodebookXml(registry);
   const sourcesSection = sourcesXml ? `<Sources>\n${sourcesXml}\n</Sources>` : '';
   const notesSection = notesXml ? `<Notes>\n${notesXml}\n</Notes>` : '';
   const linksSection = linksXml ? `<Links>\n${linksXml}\n</Links>` : '';
@@ -515,7 +518,7 @@ export async function exportProject(
   const allDefs = registry.getAll();
   const linksXml = buildLinksXml(allDefs, allMarkersForLinks, guidMap);
   const casesXml = renderCasesXml(caseVariablesRegistry, sourceGuidByFileId);
-  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, casesXml, options.vaultName, options.pluginVersion);
+  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, casesXml, options.vaultName, options.pluginVersion, guidMap);
   const zipData = createQdpxZip(projectXml, sourceFiles);
 
   return { data: zipData, fileName: options.fileName, warnings };

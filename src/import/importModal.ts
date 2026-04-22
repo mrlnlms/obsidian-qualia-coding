@@ -4,6 +4,7 @@ import type { App } from 'obsidian';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
+import type QualiaCodingPlugin from '../main';
 import { previewQdpx, importQdpx, type ImportOptions, type ImportPreview } from './qdpxImporter';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
 import { parseXml } from './xmlParser';
@@ -12,6 +13,7 @@ export class ImportModal extends Modal {
   private dataManager: DataManager;
   private registry: CodeDefinitionRegistry;
   private caseVariablesRegistry?: CaseVariablesRegistry;
+  private plugin?: QualiaCodingPlugin;
   private format: 'qdpx' | 'qdc';
   private zipData: ArrayBuffer | null = null;
   private xmlString: string | null = null;
@@ -25,11 +27,13 @@ export class ImportModal extends Modal {
     registry: CodeDefinitionRegistry,
     format: 'qdpx' | 'qdc',
     caseVariablesRegistry?: CaseVariablesRegistry,
+    plugin?: QualiaCodingPlugin,
   ) {
     super(app);
     this.dataManager = dataManager;
     this.registry = registry;
     this.caseVariablesRegistry = caseVariablesRegistry;
+    this.plugin = plugin;
     this.format = format;
   }
 
@@ -164,6 +168,7 @@ export class ImportModal extends Modal {
       if (result.warnings.length > 0) {
         console.warn('[Qualia Import] Warnings:', result.warnings);
       }
+      this.plugin?.reloadAfterImport();
       this.close();
     } catch (err) {
       new Notice(`Import failed: ${(err as Error).message}`);
@@ -178,6 +183,7 @@ export class ImportModal extends Modal {
     await this.dataManager.flush();
 
     new Notice(`Codebook imported: ${result.created} created, ${result.merged} merged`);
+    this.plugin?.reloadAfterImport();
     this.close();
   }
 

@@ -432,8 +432,8 @@ export async function importQdpx(
 // ─── Source extraction ───
 
 async function ensureFolder(vault: Vault, path: string): Promise<void> {
-  if (!vault.getAbstractFileByPath(path)) {
-    await vault.createFolder(path);
+  if (!(await vault.adapter.exists(path))) {
+    await vault.adapter.mkdir(path);
   }
 }
 
@@ -447,23 +447,15 @@ async function extractSource(
   const destPath = `${importDir}/${src.name}`;
 
   if (src.type === 'text') {
-    // TextSource → .md
+    // TextSource → .md. Write the plainText as-is so QDPX offsets map 1:1 to the vault file.
+    // Use adapter.write (direct FS) so files persist even if Obsidian closes before vault flush.
     const txtPath = resolveInternalPath(src.plainTextPath);
     const txtData = txtPath ? zipFiles[txtPath] : undefined;
     if (!txtData) return null;
 
     const text = strFromU8(txtData);
     const mdPath = destPath.replace(/\.\w+$/, '.md');
-    const frontmatter = [
-      '---',
-      'imported_from: "QDPX"',
-      `original_name: "${src.name}"`,
-      `original_guid: "${src.guid}"`,
-      `import_date: "${new Date().toISOString().split('T')[0]}"`,
-      '---',
-      '',
-    ].join('\n');
-    await vault.create(mdPath, frontmatter + text);
+    await vault.adapter.write(mdPath, text);
     return mdPath;
   }
 
@@ -471,7 +463,7 @@ async function extractSource(
   const binPath = resolveInternalPath(src.path);
   const binData = binPath ? zipFiles[binPath] : undefined;
   if (!binData) return null;
-  await vault.createBinary(destPath, binData.buffer as ArrayBuffer);
+  await vault.adapter.writeBinary(destPath, binData.buffer as ArrayBuffer);
   return destPath;
 }
 
@@ -763,14 +755,10 @@ export async function createTextMarkers(
     const filePath = guidMap.get(src.guid);
     if (!filePath) continue;
 
-    const file = app.vault.getAbstractFileByPath(filePath);
-    if (!file || !('extension' in file)) continue;
-
-    const content = await app.vault.cachedRead(file as TFile);
-    // Strip frontmatter for offset calculation
-    const fmEnd = content.indexOf('\n---\n', 4);
-    const bodyStart = fmEnd >= 0 ? fmEnd + 5 : 0;
-    const body = content.slice(bodyStart);
+    // Read via adapter (direct FS) instead of cachedRead — file was written with adapter.write
+    // and vault cache may not have picked it up yet.
+    if (!(await app.vault.adapter.exists(filePath))) continue;
+    const content = await app.vault.adapter.read(filePath);
 
     const mdData = dataManager.section('markdown');
     if (!mdData.markers[filePath]) mdData.markers[filePath] = [];
@@ -779,8 +767,8 @@ export async function createTextMarkers(
       if (sel.type !== 'PlainTextSelection') continue;
       if (sel.startPosition === undefined || sel.endPosition === undefined) continue;
 
-      const fromPos = offsetToLineCh(body, sel.startPosition);
-      const toPos = offsetToLineCh(body, sel.endPosition);
+      const fromPos = offsetToLineCh(content, sel.startPosition);
+      const toPos = offsetToLineCh(content, sel.endPosition);
       if (!fromPos || !toPos) {
         warnings.push(`Text offset out of range in ${src.name}: ${sel.startPosition}-${sel.endPosition}`);
         continue;

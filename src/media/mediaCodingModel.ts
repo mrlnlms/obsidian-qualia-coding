@@ -73,6 +73,13 @@ export class MediaCodingModel<
 		for (const fn of this.changeListeners) fn();
 	}
 
+	/** Reload file/marker state from DataManager and notify listeners. Used after bulk imports. */
+	reload(): void {
+		const section = this.dm.section(this.sectionName);
+		this.files = (section.files as F[]) ?? [];
+		for (const fn of this.changeListeners) fn();
+	}
+
 	// ── Change events ──
 
 	onChange(fn: () => void): void {
