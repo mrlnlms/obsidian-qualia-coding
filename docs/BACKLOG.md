@@ -142,7 +142,6 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 | !important 66 instancias | Maioria AG Grid defensivos |
 | Inline styles ~15 estaticos | Migrar quando tocar nos arquivos |
 | fflate bundled (~8KB gzip) | Dependencia do QDPX export — sem alternativa nativa no Obsidian |
-| heic2any + libheif bundled (~1.3MB) | Decodifica HEIC/HEIF (iPhone default) pra canvas render + export. Sem alternativa nativa — Electron não tem decoder. Impacto significativo no bundle (main.js: 2.2M → 3.5M); se vier a pesar em produção, considerar code splitting no esbuild config. |
 
 ---
 
@@ -173,8 +172,8 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 | E1 | Media | `qdpxExporter.ts` | Offsets de texto PDF no QDPX sao aproximados (por content-item, nao codepoints absolutos). Requer extracao completa do texto PDF para offsets precisos. Warning exibido ao usuario |
 | E2 | Media | `qdpxExporter.ts` | Shape markers de PDF ignorados no export — dimensoes de pagina nao disponiveis em tempo de export. Solucao: cachear dimensoes no PDF viewer durante visualizacao |
 | E3 | Baixa | Modal de export | Markers CSV nao exportaveis via REFI-QDA (limitacao do formato). Documentado no disclaimer do modal |
-| ~~E4~~ | ~~FEITO~~ | `core/imageDimensions.ts`, `image/convertHeicCommand.ts` | ~~Util `getImageDimensions` com fallback `createImageBitmap` → `<img>` decode (MIME type no Blob pra SVG funcionar — Chromium rejeita `<img src=blob:...>` sem `image/svg+xml` por XSS concern). SVG validado round-trip completo. HEIC/HEIF tratado via command one-shot "Convert HEIC/HEIF to PNG" (usa `heic2any`/libheif, roda uma vez por arquivo pra evitar memory leak do WASM heap; mantém original .heic no vault). Runtime decode dentro da view foi tentado e revertido (3 problemas: intercept incompleto pra formatos não-core, artefatos do libheif em decodes concorrentes, memory leak após múltiplas aberturas). TIFF em §11 E5.~~ (2026-04-22) |
-| E5 | Baixa (futuro) | `imageDecode.ts` | Suporte a TIFF via `utif` ou `tiff` (~80-200KB). Só atacar se usuário real reportar demanda. Microscopia, imagens médicas, scanning arquivístico usam TIFF mas público-alvo do plugin pode não precisar. |
+| ~~E4~~ | ~~FEITO (SVG)~~ | `core/imageDimensions.ts` | ~~Util `getImageDimensions` com fallback `createImageBitmap` → `<img>` decode. Gotcha: Blob precisa de MIME type pra SVG (`image/svg+xml`) senão Chromium rejeita silenciosamente por XSS concern. SVG validado round-trip completo.~~ (2026-04-22) |
+| E5 | Won't-fix | HEIC / TIFF / HEIF | Electron não decodifica esses formatos nativamente. Tentativa com `heic2any`/libheif em runtime foi abandonada (intercept falho + artefatos de decode + memory leak do WASM + 1.3MB de bundle). Tentativa com command one-shot de conversão também rejeitada (quebra o fluxo natural "abre e codifica"). Workaround pro usuário: converter externamente no Preview do macOS → Export As PNG antes de trazer pro vault. Se aparecer demanda consistente em produção, avaliar decoder via worker thread separado. |
 | I1 | Media | `qdpxImporter.ts` | PDF text selections no import usam page size default 612x792 (US Letter) — dimensoes reais do PDF nao disponiveis em tempo de import. Marker shape coords aproximadas |
 | I2 | Media | `qdpxImporter.ts` | PDF text selections (PlainTextSelection dentro de PDFSource) ignoradas com warning — mapeamento offset→spanIndex nao implementado |
 | ~~I3~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`createTextMarker` no first pass era dead code — removido. Text markers criados exclusivamente via `createTextMarkers` (plural) em pass dedicado.~~ (2026-04-22) |
