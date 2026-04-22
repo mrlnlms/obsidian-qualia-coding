@@ -7,7 +7,7 @@ import type { DataManager } from '../core/dataManager';
 import type { MediaMarker, MediaFile, BaseMediaSettings } from './mediaTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CodeApplication, CodeDefinition, QualiaData } from '../core/types';
-import { hasCode, addCodeApplication, removeCodeApplication } from '../core/codeApplicationHelpers';
+import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import { formatTime } from './formatTime';
 
 const TOLERANCE = 0.01;
@@ -41,12 +41,20 @@ export class MediaCodingModel<
 		this.settings = { ...defaultSettings, ...(section.settings as Partial<S>) };
 
 		// Migration: backfill fields for markers created before they existed
+		let mutated = false;
 		for (const f of this.files) {
 			for (const m of f.markers) {
-				if (!m.updatedAt) m.updatedAt = m.createdAt ?? Date.now();
-				if (!m.fileId) m.fileId = f.path;
+				if (!m.updatedAt) { m.updatedAt = m.createdAt ?? Date.now(); mutated = true; }
+				if (!m.fileId) { m.fileId = f.path; mutated = true; }
+
+				const result = normalizeCodeApplications(m.codes, this.registry);
+				if (result.changed) {
+					m.codes = result.normalized;
+					mutated = true;
+				}
 			}
 		}
+		if (mutated) this.save();
 	}
 
 	// ── Persistence ──

@@ -390,6 +390,64 @@ describe('onHoverChange / offHoverChange', () => {
 	});
 });
 
+// ── constructor normalization ──
+
+describe('constructor normalization', () => {
+	it('persists normalized markers when any codeId was rewritten in constructor', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('LegacyCode', '#FF0000');
+		const existing = {
+			testSection: {
+				files: [
+					{
+						path: 'audio.mp3',
+						markers: [
+							{ id: 'm-legacy', fileId: 'audio.mp3', from: 0, to: 5, codes: [{ codeId: 'LegacyCode' }], createdAt: 1, updatedAt: 1 },
+						],
+					},
+				],
+			},
+		};
+		const dmLegacy = createMockDm(existing);
+		const setSection = vi.spyOn(dmLegacy, 'setSection');
+		new MediaCodingModel(dmLegacy as any, reg, 'testSection', DEFAULT_SETTINGS);
+
+		// codeId should now be the canonical UUID
+		const marker = dmLegacy.section('testSection').files[0].markers[0];
+		expect(marker.codes[0].codeId).toBe(def.id);
+
+		// setSection must have been called (mutated = true branch)
+		expect(setSection).toHaveBeenCalled();
+	});
+
+	it('does not persist when all codeIds are canonical', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('CanonicalCode', '#00FF00');
+		const existing = {
+			testSection: {
+				files: [
+					{
+						path: 'audio.mp3',
+						markers: [
+							{ id: 'm-canonical', fileId: 'audio.mp3', from: 0, to: 5, codes: [{ codeId: def.id }], createdAt: 1, updatedAt: 1 },
+						],
+					},
+				],
+			},
+		};
+		const dmCanonical = createMockDm(existing);
+		const setSection = vi.spyOn(dmCanonical, 'setSection');
+		new MediaCodingModel(dmCanonical as any, reg, 'testSection', DEFAULT_SETTINGS);
+
+		// Marker should be unchanged
+		const marker = dmCanonical.section('testSection').files[0].markers[0];
+		expect(marker.codes[0].codeId).toBe(def.id);
+
+		// setSection must NOT have been called (mutated = false branch)
+		expect(setSection).not.toHaveBeenCalled();
+	});
+});
+
 // ── Migration backfill ──
 
 describe('migration backfill', () => {
