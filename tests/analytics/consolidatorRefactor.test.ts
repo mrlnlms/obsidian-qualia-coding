@@ -16,7 +16,7 @@ function makeFixture(): AllEngineData {
 		markdown: {
 			markers: {
 				'note.md': [
-					{ id: 'm1', codes: ['id-a', 'id-b'], range: { from: { line: 0, ch: 0 }, to: { line: 1, ch: 10 } }, fileId: 'note.md', createdAt: 1000 },
+					{ id: 'm1', codes: [{codeId: 'id-a'}, {codeId: 'id-b'}], range: { from: { line: 0, ch: 0 }, to: { line: 1, ch: 10 } }, fileId: 'note.md', createdAt: 1000 },
 				],
 			},
 			settings: {} as any,
@@ -24,39 +24,39 @@ function makeFixture(): AllEngineData {
 		},
 		csv: {
 			segmentMarkers: [
-				{ id: 'c1', codes: ['id-a'], fileId: 'data.csv', row: 0, column: 'col1', from: 0, to: 5, createdAt: 2000 },
+				{ id: 'c1', codes: [{codeId: 'id-a'}], fileId: 'data.csv', row: 0, column: 'col1', from: 0, to: 5, createdAt: 2000 },
 			],
 			rowMarkers: [
-				{ id: 'c2', codes: ['id-b'], fileId: 'data.csv', row: 1, column: 'col2', createdAt: 3000 },
+				{ id: 'c2', codes: [{codeId: 'id-b'}], fileId: 'data.csv', row: 1, column: 'col2', createdAt: 3000 },
 			],
 			registry: { definitions: defs },
 		},
 		image: {
 			markers: [
-				{ id: 'i1', codes: ['id-a'], fileId: 'img.png', shape: 'rect', coords: { type: 'rect', x: 0, y: 0, w: 100, h: 100 }, createdAt: 4000 },
+				{ id: 'i1', codes: [{codeId: 'id-a'}], fileId: 'img.png', shape: 'rect', coords: { type: 'rect', x: 0, y: 0, w: 100, h: 100 }, createdAt: 4000 },
 			],
 			settings: { autoOpenImages: false, fileStates: {} },
 			registry: { definitions: defs },
 		},
 		pdf: {
 			markers: [
-				{ id: 'p1', codes: ['id-a'], fileId: 'doc.pdf', page: 0, text: 'hello', createdAt: 5000 },
+				{ id: 'p1', codes: [{codeId: 'id-a'}], fileId: 'doc.pdf', page: 0, text: 'hello', createdAt: 5000 },
 			],
 			shapes: [
-				{ id: 'p2', codes: ['id-b'], fileId: 'doc.pdf', page: 1, shape: 'rect', createdAt: 6000 },
+				{ id: 'p2', codes: [{codeId: 'id-b'}], fileId: 'doc.pdf', page: 1, shape: 'rect', createdAt: 6000 },
 			],
 			registry: { definitions: defs },
 		},
 		audio: {
 			files: [
-				{ path: 'clip.mp3', markers: [{ id: 'a1', codes: ['id-a'], from: 0, to: 5, createdAt: 7000 }] },
+				{ path: 'clip.mp3', markers: [{ id: 'a1', codes: [{codeId: 'id-a'}], from: 0, to: 5, createdAt: 7000 }] },
 			],
 			settings: {},
 			codeDefinitions: { definitions: defs },
 		},
 		video: {
 			files: [
-				{ path: 'clip.mp4', markers: [{ id: 'v1', codes: ['id-b'], from: 0, to: 10, createdAt: 8000 }] },
+				{ path: 'clip.mp4', markers: [{ id: 'v1', codes: [{codeId: 'id-b'}], from: 0, to: 10, createdAt: 8000 }] },
 			],
 			settings: {},
 			codeDefinitions: { definitions: defs },
