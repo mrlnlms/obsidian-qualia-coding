@@ -77,7 +77,7 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 
 		// Find or open the image coding view
 		const leaves = plugin.app.workspace.getLeavesOfType(IMAGE_CODING_VIEW_TYPE);
-		const existingLeaf = leaves.find(l => (l.view as ImageCodingView).getState().file === data.file);
+		const existingLeaf = leaves.find(l => (l.view as ImageCodingView).file?.path === data.file);
 
 		if (existingLeaf) {
 			plugin.app.workspace.setActiveLeaf(existingLeaf);
