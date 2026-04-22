@@ -115,11 +115,11 @@ describe('consolidate', () => {
   it('merges code definitions from multiple engines', () => {
     const mdData = {
       markers: { 'f.md': [{ id: 'm1', codes: [{codeId: 'shared'}], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } } }] },
-      codeDefinitions: { d1: { name: 'shared', color: '#F00' } },
+      codeDefinitions: { d1: { id: 'shared', name: 'shared', color: '#F00' } },
     };
     const pdfData = {
       markers: [{ id: 'p1', fileId: 'f.pdf', codes: [{codeId: 'shared'}], page: 1, text: 'x' }],
-      registry: { definitions: { d2: { name: 'shared', color: '#0F0' } } },
+      registry: { definitions: { d2: { id: 'shared', name: 'shared', color: '#0F0' } } },
     };
     const result = consolidate(mdData, null, null, pdfData);
     // 'shared' appears in both but should be deduplicated in codes
@@ -290,7 +290,7 @@ describe('consolidate', () => {
       files: [
         { path: 'a.mp3', markers: [{ id: 'a1', codes: [{codeId: 'beat'}], from: 0, to: 1 }] },
       ],
-      codeDefinitions: { definitions: { d1: { name: 'beat', color: '#F0F', description: 'Beat pattern' } } },
+      codeDefinitions: { definitions: { d1: { id: 'beat', name: 'beat', color: '#F0F', description: 'Beat pattern' } } },
     };
     const result = consolidate(null, null, null, null, audioData);
     const code = result.codes.find(c => c.name === 'beat');
@@ -340,7 +340,7 @@ describe('consolidate', () => {
       files: [
         { path: 'v.mp4', markers: [{ id: 'v1', codes: [{codeId: 'action'}], from: 0, to: 10 }] },
       ],
-      codeDefinitions: { definitions: { d1: { name: 'action', color: '#F00' } } },
+      codeDefinitions: { definitions: { d1: { id: 'action', name: 'action', color: '#F00' } } },
     };
     const result = consolidate(null, null, null, null, null, videoData);
     const code = result.codes.find(c => c.name === 'action');
@@ -429,7 +429,7 @@ describe('consolidate', () => {
       markers: [
         { id: 'i1', fileId: 'img.png', codes: [{codeId: 'imgCode'}], shape: 'rect' },
       ],
-      registry: { definitions: { d1: { name: 'imgCode', color: '#00F' } } },
+      registry: { definitions: { d1: { id: 'imgCode', name: 'imgCode', color: '#00F' } } },
     };
     const result = consolidate(null, null, imageData);
     const code = result.codes.find(c => c.name === 'imgCode');

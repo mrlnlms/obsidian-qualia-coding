@@ -392,8 +392,8 @@ export function consolidate(
 export function extractCodes(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((c) => (c && typeof c === "object" && "codeId" in c) ? (c as { codeId: string }).codeId : "")
-    .filter(Boolean);
+    .filter((c): c is { codeId: string } => c != null && typeof c === "object" && "codeId" in c)
+    .map((c) => c.codeId);
 }
 
 export function mergeDef(
