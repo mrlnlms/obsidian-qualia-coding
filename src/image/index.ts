@@ -8,6 +8,7 @@ import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
 import { ImageCodingModel } from './imageCodingModel';
 import { ImageCodingView, IMAGE_CODING_VIEW_TYPE, IMAGE_EXTENSIONS } from './views/imageView';
+import { convertAllHeicToPng } from './convertHeicCommand';
 
 export { IMAGE_CODING_VIEW_TYPE };
 
@@ -40,6 +41,13 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			}
 			return true;
 		},
+	});
+
+	// Command: convert HEIC/HEIF files to PNG (one-shot, runs libheif via heic2any)
+	plugin.addCommand({
+		id: 'convert-heic-to-png',
+		name: 'Convert HEIC/HEIF files to PNG',
+		callback: () => { void convertAllHeicToPng(plugin); },
 	});
 
 	// File menu: "Open in Image Coding"
