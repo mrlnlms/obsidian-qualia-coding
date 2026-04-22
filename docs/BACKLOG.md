@@ -127,7 +127,7 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
-| E1 | Low | `relationsNetworkMode.ts` | Force-directed layout é estático (calculado uma vez). Sem drag nos nós. Considerar d3-force se crescer |
+| ~~E1~~ | ~~FEITO~~ | ~~`relationsNetworkMode.ts`~~ | ~~Drag de nós adicionado. Simulação continua estática (200 iterações upfront); drag só reposiciona o nó + redraw incremental sem re-simular. Handlers `mousedown`/`mouseup`/`mouseleave` + `draggedIndex` state. `redraw()` extraído do pass único pra permitir múltiplas renderizações. Cursor muda pra `grab`/`grabbing`. Tooltip suspende durante drag.~~ (2026-04-22) |
 | ~~E2~~ | ~~FEITO~~ | ~~`relationUI.ts`~~ | ~~Substituído `<datalist>` HTML5 por `AbstractInputSuggest<string>` (Obsidian API). `StringFuzzySuggest` inline usa `prepareFuzzySearch` com score descendente. Inputs continuam free-text (picker não trava a seleção). `this.app` threaded via `renderCodeDetail`/`renderMarkerDetail`. Guard `!e.defaultPrevented` no Enter pra não firar Add ao selecionar sugestão.~~ (2026-04-22) |
 | ~~E3~~ | ~~FEITO~~ | ~~`baseCodingMenu.ts`~~ | ~~Inline add-row de Relations migrado pra `TextComponent` (2 inputs), `ExtraButtonComponent` (toggle direção), `ButtonComponent` (+). Segue o pattern do `renderCodeInput`. Classes CSS compactas preservadas.~~ (2026-04-22)|
 

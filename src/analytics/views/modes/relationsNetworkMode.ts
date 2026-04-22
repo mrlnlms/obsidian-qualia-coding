@@ -264,6 +264,9 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 
 	const edgeBaseColor = isDark ? "rgba(180, 180, 200, {a})" : "rgba(80, 80, 100, {a})";
 
+	const redraw = () => {
+	c2d.clearRect(0, 0, W, H);
+
 	// Edges
 	for (const se of simEdges) {
 		const ni = simNodes[se.si]!;
@@ -340,6 +343,9 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 		c2d.fillStyle = isLightColor(nd.color) ? "#1a1a1a" : "#f0f0f0";
 		c2d.fillText(label, node.x, node.y);
 	}
+	};
+
+	redraw();
 
 	// Tooltip on hover (edges)
 	const tooltip = wrapper.createDiv({ cls: "codemarker-analytics-tooltip" });
@@ -358,10 +364,53 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 
 	const HIT_THRESHOLD = 6;
 
+	// Drag state — released nodes stick in place (no re-simulation)
+	let draggedIndex: number | null = null;
+	let dragOffsetX = 0;
+	let dragOffsetY = 0;
+
+	const endDrag = () => {
+		if (draggedIndex !== null) {
+			draggedIndex = null;
+			canvas.style.cursor = "default";
+		}
+	};
+
+	canvas.addEventListener("mousedown", (e) => {
+		const cr = canvas.getBoundingClientRect();
+		const mx = e.clientX - cr.left;
+		const my = e.clientY - cr.top;
+		for (let i = 0; i < n; i++) {
+			const node = simNodes[i]!;
+			const dx = mx - node.x;
+			const dy = my - node.y;
+			if (dx * dx + dy * dy <= node.radius * node.radius) {
+				draggedIndex = i;
+				dragOffsetX = dx;
+				dragOffsetY = dy;
+				canvas.style.cursor = "grabbing";
+				tooltip.style.display = "none";
+				e.preventDefault();
+				return;
+			}
+		}
+	});
+
+	canvas.addEventListener("mouseup", endDrag);
+
 	canvas.addEventListener("mousemove", (e) => {
 		const cr = canvas.getBoundingClientRect();
 		const mx = e.clientX - cr.left;
 		const my = e.clientY - cr.top;
+
+		// Drag takes priority over tooltip
+		if (draggedIndex !== null) {
+			const node = simNodes[draggedIndex]!;
+			node.x = Math.max(node.radius + 5, Math.min(W - node.radius - 5, mx - dragOffsetX));
+			node.y = Math.max(node.radius + 5, Math.min(H - node.radius - 5, my - dragOffsetY));
+			redraw();
+			return;
+		}
 
 		// Check nodes first
 		for (let i = 0; i < n; i++) {
@@ -384,7 +433,7 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 				tooltip.style.display = "";
 				tooltip.style.left = `${mx + 14}px`;
 				tooltip.style.top = `${my + 14}px`;
-				canvas.style.cursor = "pointer";
+				canvas.style.cursor = "grab";
 				return;
 			}
 		}
@@ -414,6 +463,7 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 	});
 
 	canvas.addEventListener("mouseleave", () => {
+		endDrag();
 		tooltip.style.display = "none";
 		canvas.style.cursor = "default";
 	});
