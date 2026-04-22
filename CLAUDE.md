@@ -25,6 +25,7 @@ src/
     baseCodeDetailView.ts    — abstract base: 3-level stack navigation (list → code → marker)
     baseCodeExplorerView.ts  — abstract base: Code Explorer tree (Code → File → Segment)
     mergeModal.ts            — MergeModal com busca fuzzy, preview de impacto, executeMerge
+    dialogs.ts               — PromptModal / ConfirmModal genéricos (substituem prompt/confirm nativos)
     drawToolbarFactory.ts    — factory compartilhada de toolbar drawing (PDF + Image)
     caseVariables/           — Case Variables: propriedades tipadas por arquivo (mixed-methods)
       caseVariablesTypes.ts      — PropertyType, VariableValue, CaseVariablesSection, OBSIDIAN_RESERVED
@@ -133,7 +134,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1902 testes em 90 suites (Vitest + jsdom)
+- `npm run test` — 1909 testes em 91 suites (Vitest + jsdom)
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView

@@ -21,6 +21,16 @@ declare module 'obsidian' {
 		updateHeader?(): void;
 	}
 
+	interface MenuItem {
+		/**
+		 * Convert the item into a submenu parent. Returns the child Menu so
+		 * items can be appended. Nesting more than one level is buggy — keep
+		 * submenus at a single level.
+		 * Source: forum.obsidian.md/t/74618
+		 */
+		setSubmenu(): Menu;
+	}
+
 	interface Workspace {
 		on(name: 'qualia-csv:navigate', callback: (data: { file: string; row: number; column?: string }) => void): EventRef;
 		on(name: 'qualia-csv:detail', callback: (data: { markerId: string; codeName: string }) => void): EventRef;

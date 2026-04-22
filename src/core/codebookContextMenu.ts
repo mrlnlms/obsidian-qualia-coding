@@ -41,7 +41,35 @@ export function showCodeContextMenu(
 	menu.addSeparator();
 
 	const folders = registry.getAllFolders();
-	if (folders.length > 0) {
+	const SUBMENU_THRESHOLD = 5;
+	if (folders.length === 0) {
+		menu.addItem(item =>
+			item.setTitle('Move to folder...')
+				.setIcon('folder-input')
+				.setDisabled(true),
+		);
+	} else if (folders.length > SUBMENU_THRESHOLD) {
+		menu.addItem(item => {
+			item.setTitle('Move to folder...').setIcon('folder-input');
+			const submenu = item.setSubmenu();
+			for (const folder of folders) {
+				submenu.addItem(sub =>
+					sub.setTitle(folder.name)
+						.setIcon('folder')
+						.setChecked(def.folder === folder.id)
+						.onClick(() => callbacks.promptMoveTo(codeId, folder.id)),
+				);
+			}
+			if (def.folder) {
+				submenu.addSeparator();
+				submenu.addItem(sub =>
+					sub.setTitle('Remove from folder')
+						.setIcon('folder-minus')
+						.onClick(() => callbacks.promptMoveTo(codeId, undefined)),
+				);
+			}
+		});
+	} else {
 		for (const folder of folders) {
 			menu.addItem(item =>
 				item.setTitle(`Move to ${folder.name}`)
@@ -57,12 +85,6 @@ export function showCodeContextMenu(
 					.onClick(() => callbacks.promptMoveTo(codeId, undefined)),
 			);
 		}
-	} else {
-		menu.addItem(item =>
-			item.setTitle('Move to folder...')
-				.setIcon('folder-input')
-				.setDisabled(true),
-		);
 	}
 	if (def.parentId) {
 		menu.addItem(item =>
