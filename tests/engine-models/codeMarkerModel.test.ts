@@ -687,44 +687,6 @@ describe('loadMarkers', () => {
 		expect(model.getMarkerById('id-1')).not.toBeNull();
 	});
 
-	it('migrates old code field to codes array', () => {
-		const oldMarker = {
-			id: 'id-old',
-			fileId: 'file.md',
-			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
-			color: '#6200EE',
-			code: 'legacyCode',
-			text: 'sample',
-			createdAt: 1000,
-			updatedAt: 1000,
-		};
-		plugin = createMockPlugin({ markers: { 'file.md': [oldMarker] } });
-		model = new CodeMarkerModel(plugin as any, registry);
-		model.loadMarkers();
-		const loaded = model.getMarkerById('id-old');
-		expect(loaded).not.toBeNull();
-		expect(loaded!.codes).toEqual([{ codeId: 'legacyCode' }]);
-		expect((loaded as any).code).toBeUndefined();
-	});
-
-	it('migrates empty code field to empty codes array', () => {
-		const oldMarker = {
-			id: 'id-old2',
-			fileId: 'file.md',
-			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
-			color: '#6200EE',
-			code: '',
-			text: 'sample',
-			createdAt: 1000,
-			updatedAt: 1000,
-		};
-		plugin = createMockPlugin({ markers: { 'file.md': [oldMarker] } });
-		model = new CodeMarkerModel(plugin as any, registry);
-		model.loadMarkers();
-		const loaded = model.getMarkerById('id-old2');
-		expect(loaded!.codes).toEqual([]);
-	});
-
 	it('handles empty markers object', () => {
 		plugin = createMockPlugin({ markers: {} });
 		model = new CodeMarkerModel(plugin as any, registry);

@@ -6,7 +6,7 @@ import { CodeItem, SelectionSnapshot } from '../menu/menuTypes';
 import { getViewForFile as getViewForFileLookup } from '../cm6/utils/viewLookupUtils';
 import { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
 import type { CodeApplication, SidebarModelInterface } from '../../core/types';
-import { hasCode, addCodeApplication, removeCodeApplication } from '../../core/codeApplicationHelpers';
+import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../../core/codeApplicationHelpers';
 import { setFileIdEffect } from '../cm6/markerStateField';
 
 export interface Marker {
@@ -50,35 +50,29 @@ export class CodeMarkerModel implements SidebarModelInterface {
 	loadMarkers() {
 		const markdownData = this.plugin.dataManager.section('markdown');
 		const rawMarkers = markdownData.markers;
+		if (!rawMarkers) return;
 
-		if (rawMarkers) {
-			for (const fileId in rawMarkers) {
-				const fileMarkers: Marker[] = rawMarkers[fileId]!.map((m) => {
-					const legacy = m as unknown as Record<string, unknown>;
-					// Migration: convert old `code: string` to `codes: CodeApplication[]`
-					if ('code' in legacy && !('codes' in legacy)) {
-						const codeName = legacy.code as string;
-						const codes: CodeApplication[] = codeName ? [{ codeId: codeName }] : [];
-						const { code: _, ...rest } = legacy;
-						return { ...rest, codes } as unknown as Marker;
-					}
-					// Migration: convert old `codes: string[]` to `codes: CodeApplication[]`
-					if (Array.isArray(legacy.codes) && legacy.codes.length > 0 && typeof legacy.codes[0] === 'string') {
-						const codes: CodeApplication[] = (legacy.codes as string[]).map(name => ({ codeId: name }));
-						return { ...m, codes } as unknown as Marker;
-					}
-					return m;
-				});
-				this.markers.set(fileId, fileMarkers);
-			}
-
-			// Update all open views
-			const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
-			for (const leaf of leaves) {
-				const view = leaf.view;
-				if (view instanceof MarkdownView && view.file) {
-					this.updateMarkersForFile(view.file.path);
+		let mutated = false;
+		for (const fileId in rawMarkers) {
+			const fileMarkers = rawMarkers[fileId]! as Marker[];
+			for (const m of fileMarkers) {
+				const result = normalizeCodeApplications(m.codes, this.registry);
+				if (result.changed) {
+					m.codes = result.normalized;
+					mutated = true;
 				}
+			}
+			this.markers.set(fileId, fileMarkers);
+		}
+
+		if (mutated) this.saveMarkers();
+
+		// Update all open views
+		const leaves = this.plugin.app.workspace.getLeavesOfType('markdown');
+		for (const leaf of leaves) {
+			const view = leaf.view;
+			if (view instanceof MarkdownView && view.file) {
+				this.updateMarkersForFile(view.file.path);
 			}
 		}
 	}
