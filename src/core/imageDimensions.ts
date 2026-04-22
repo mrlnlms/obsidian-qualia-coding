@@ -1,5 +1,23 @@
 import type { TFile, Vault } from 'obsidian';
 
+// SVG via <img src=blob:...> only works when the Blob carries an image MIME
+// type — without it, Chromium rejects the decode silently. Other formats
+// generally tolerate missing type, but keeping a mapping is cheap and makes
+// the behaviour deterministic.
+const MIME_BY_EXT: Record<string, string> = {
+    svg: 'image/svg+xml',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    bmp: 'image/bmp',
+    tif: 'image/tiff',
+    tiff: 'image/tiff',
+    heic: 'image/heic',
+    heif: 'image/heif',
+};
+
 /**
  * Read width × height from an image file in the vault.
  *
@@ -18,7 +36,9 @@ export async function getImageDimensions(
     if (!file || !('extension' in file)) return null;
 
     const data = await vault.readBinary(file as TFile);
-    const blob = new Blob([data]);
+    const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+    const mime = MIME_BY_EXT[ext];
+    const blob = new Blob([data], mime ? { type: mime } : {});
 
     try {
         const bitmap = await createImageBitmap(blob);
