@@ -41,25 +41,21 @@ export class PdfCodingModel {
 		const section = this.dataManager.section('pdf');
 		let mutated = false;
 
-		if (section.markers) {
-			this.markers = section.markers;
-			for (const m of this.markers) {
-				const result = normalizeCodeApplications(m.codes, this.registry);
-				if (result.changed) {
-					m.codes = result.normalized;
-					mutated = true;
-				}
+		this.markers = section.markers;
+		for (const m of this.markers) {
+			const result = normalizeCodeApplications(m.codes, this.registry);
+			if (result.changed) {
+				m.codes = result.normalized;
+				mutated = true;
 			}
 		}
 
-		if (section.shapes) {
-			this.shapes = section.shapes;
-			for (const s of this.shapes) {
-				const result = normalizeCodeApplications(s.codes, this.registry);
-				if (result.changed) {
-					s.codes = result.normalized;
-					mutated = true;
-				}
+		this.shapes = section.shapes;
+		for (const s of this.shapes) {
+			const result = normalizeCodeApplications(s.codes, this.registry);
+			if (result.changed) {
+				s.codes = result.normalized;
+				mutated = true;
 			}
 		}
 
