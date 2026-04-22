@@ -3,66 +3,6 @@ import type { CooccurrenceResult, ConsolidatedData, FilterConfig, UnifiedMarker,
 import type { AnalyticsViewContext, ViewMode, SortMode, GroupMode, DisplayMode, CooccSortMode } from '../../src/analytics/views/analyticsViewContext';
 import type { ExtractedSegment } from '../../src/analytics/data/textExtractor';
 
-// ── Patch HTMLElement with Obsidian-specific methods ──
-// Obsidian extends HTMLElement prototype with helpers like empty(), createDiv(), etc.
-
-function patchEl(el: HTMLElement): HTMLElement {
-	if (!('empty' in el)) {
-		(el as any).empty = function () { this.innerHTML = ''; };
-	}
-	if (!('addClass' in el)) {
-		(el as any).addClass = function (...cls: string[]) { this.classList.add(...cls); };
-	}
-	if (!('removeClass' in el)) {
-		(el as any).removeClass = function (...cls: string[]) { this.classList.remove(...cls); };
-	}
-	if (!('createDiv' in el)) {
-		(el as any).createDiv = function (opts?: { cls?: string; text?: string }) {
-			const div = document.createElement('div');
-			if (opts?.cls) div.className = opts.cls;
-			if (opts?.text) div.textContent = opts.text;
-			patchEl(div);
-			this.appendChild(div);
-			return div;
-		};
-	}
-	if (!('createEl' in el)) {
-		(el as any).createEl = function (tag: string, opts?: { cls?: string; text?: string; type?: string; attr?: Record<string, string> }) {
-			const el = document.createElement(tag);
-			if (opts?.cls) el.className = opts.cls;
-			if (opts?.text) el.textContent = opts.text;
-			if (opts?.type) (el as any).type = opts.type;
-			if (opts?.attr) {
-				for (const [k, v] of Object.entries(opts.attr)) {
-					el.setAttribute(k, v);
-				}
-			}
-			patchEl(el);
-			this.appendChild(el);
-			return el;
-		};
-	}
-	if (!('createSpan' in el)) {
-		(el as any).createSpan = function (opts?: { cls?: string; text?: string }) {
-			const span = document.createElement('span');
-			if (opts?.cls) span.className = opts.cls;
-			if (opts?.text) span.textContent = opts.text;
-			patchEl(span);
-			this.appendChild(span);
-			return span;
-		};
-	}
-	return el;
-}
-
-// Patch document.createElement so all new elements get Obsidian methods
-const origCreateElement = document.createElement.bind(document);
-document.createElement = function (tag: string, options?: ElementCreationOptions) {
-	const el = origCreateElement(tag, options);
-	patchEl(el);
-	return el;
-} as typeof document.createElement;
-
 import { reorderCooccurrence, renderDisplaySection, renderCooccSortSection } from '../../src/analytics/views/modes/cooccurrenceMode';
 import { renderSortSection, renderGroupSection } from '../../src/analytics/views/modes/frequencyMode';
 

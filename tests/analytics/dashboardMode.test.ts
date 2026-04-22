@@ -17,63 +17,6 @@ vi.mock('../../src/analytics/data/statsEngine', () => ({
 	calculateTemporal: vi.fn(() => ({ codes: [], colors: [], series: [], dateRange: [0, 0] })),
 }));
 
-// ── Patch HTMLElement with Obsidian-specific DOM helpers ─────────────
-// Obsidian extends HTMLElement prototype with createDiv(), createEl(), etc.
-
-function patchEl(el: HTMLElement): HTMLElement {
-	if (!('empty' in el)) {
-		(el as any).empty = function () { this.innerHTML = ''; };
-	}
-	if (!('addClass' in el)) {
-		(el as any).addClass = function (...cls: string[]) { this.classList.add(...cls); };
-	}
-	if (!('createDiv' in el)) {
-		(el as any).createDiv = function (opts?: { cls?: string; text?: string }) {
-			const div = document.createElement('div');
-			if (opts?.cls) div.className = opts.cls;
-			if (opts?.text) div.textContent = opts.text;
-			patchEl(div);
-			this.appendChild(div);
-			return div;
-		};
-	}
-	if (!('createEl' in el)) {
-		(el as any).createEl = function (tag: string, opts?: { cls?: string; text?: string; type?: string; attr?: Record<string, string> }) {
-			const child = document.createElement(tag);
-			if (opts?.cls) child.className = opts.cls;
-			if (opts?.text) child.textContent = opts.text;
-			if (opts?.type) (child as any).type = opts.type;
-			if (opts?.attr) {
-				for (const [k, v] of Object.entries(opts.attr)) {
-					child.setAttribute(k, v);
-				}
-			}
-			patchEl(child);
-			this.appendChild(child);
-			return child;
-		};
-	}
-	if (!('createSpan' in el)) {
-		(el as any).createSpan = function (opts?: { cls?: string; text?: string }) {
-			const span = document.createElement('span');
-			if (opts?.cls) span.className = opts.cls;
-			if (opts?.text) span.textContent = opts.text;
-			patchEl(span);
-			this.appendChild(span);
-			return span;
-		};
-	}
-	return el;
-}
-
-// Patch document.createElement so all new elements have these methods
-const origCreateElement = document.createElement.bind(document);
-document.createElement = function (tag: string, options?: ElementCreationOptions) {
-	const el = origCreateElement(tag, options);
-	patchEl(el);
-	return el;
-} as typeof document.createElement;
-
 // ── Imports ─────────────────────────────────────────────────────────
 
 import { renderDashboard } from '../../src/analytics/views/modes/dashboardMode';

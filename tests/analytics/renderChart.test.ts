@@ -61,51 +61,6 @@ import { renderACMBiplot } from '../../src/analytics/views/modes/acmMode';
 import { renderMDSMap } from '../../src/analytics/views/modes/mdsMode';
 import { renderWordCloud } from '../../src/analytics/views/modes/wordCloudMode';
 
-// ── Patch HTMLElement ──
-
-function patchEl(el: HTMLElement): HTMLElement {
-	if (!('createDiv' in el)) {
-		(el as any).createDiv = function (opts?: { cls?: string; text?: string }) {
-			const div = document.createElement('div');
-			if (opts?.cls) div.className = opts.cls;
-			if (opts?.text) div.textContent = opts.text;
-			patchEl(div);
-			this.appendChild(div);
-			return div;
-		};
-	}
-	if (!('createEl' in el)) {
-		(el as any).createEl = function (tag: string, opts?: any) {
-			const el = document.createElement(tag);
-			if (opts?.cls) el.className = opts.cls;
-			if (opts?.text) el.textContent = opts.text;
-			patchEl(el);
-			this.appendChild(el);
-			return el;
-		};
-	}
-	if (!('createSpan' in el)) {
-		(el as any).createSpan = function (opts?: any) {
-			const span = document.createElement('span');
-			if (opts?.text) span.textContent = opts.text;
-			patchEl(span);
-			this.appendChild(span);
-			return span;
-		};
-	}
-	if (!('empty' in el)) {
-		(el as any).empty = function () { this.innerHTML = ''; };
-	}
-	return el;
-}
-
-const origCreateElement = document.createElement.bind(document);
-document.createElement = function (tag: string, options?: ElementCreationOptions) {
-	const el = origCreateElement(tag, options);
-	patchEl(el);
-	return el;
-} as typeof document.createElement;
-
 // ── Async helper ──
 
 async function flushPromises(): Promise<void> {
@@ -137,7 +92,6 @@ function createFilters(): FilterConfig {
 
 function createMockCtx(overrides: Partial<AnalyticsViewContext> = {}): AnalyticsViewContext {
 	const container = document.createElement('div');
-	patchEl(container);
 	return {
 		plugin: { app: { vault: {} } } as any,
 		data: createTestData(),
