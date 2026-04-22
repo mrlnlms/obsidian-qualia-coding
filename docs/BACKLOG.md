@@ -178,7 +178,7 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 | I2 | Media | `qdpxImporter.ts` | PDF text selections (PlainTextSelection dentro de PDFSource) ignoradas com warning — mapeamento offset→spanIndex nao implementado |
 | ~~I3~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`createTextMarker` no first pass era dead code — removido. Text markers criados exclusivamente via `createTextMarkers` (plural) em pass dedicado.~~ (2026-04-22) |
 | ~~I4~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`guidMap` dual-purpose substituído por interface `GuidResolver` com 3 Maps tipados: `codes`, `sources`, `selections`. `applyLinks` resolve origin/target em ordem explícita (code first, depois marker). `CodebookResult.guidMap` renomeado pra `codeGuidMap`. `importStandaloneMemos` perdeu param dead.~~ (2026-04-22) |
-| I6 | Baixa | `importModal.ts` | `relative://` paths no ZIP resolvidos mas nao testados — sources com path relativo podem nao ser encontrados no ZIP |
+| ~~I6~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`resolveInternalPath` agora exportado + 5 unit tests cobrindo `internal://`, `relative://` (plain + nested), `undefined`, strings sem prefix válido. Contrato da função validado — sources com path relativo de exports de outros softwares são resolvidos corretamente.~~ (2026-04-22) |
 
 ### ~~11.1 Round-trip integrity~~ — FEITO (2026-04-21)
 

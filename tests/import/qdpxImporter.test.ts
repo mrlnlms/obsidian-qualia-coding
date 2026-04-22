@@ -5,6 +5,7 @@ import {
   parseNotes,
   parseLinks,
   applyLinks,
+  resolveInternalPath,
   type ParsedLink,
 } from '../../src/import/qdpxImporter';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
@@ -208,5 +209,29 @@ describe('applyLinks', () => {
     const mockDm = { section: () => ({ markers: {}, shapes: [], files: [] }), setSection: () => {} } as any;
     const count = applyLinks(links, resolver, registry, mockDm);
     expect(count).toBe(0);
+  });
+});
+
+describe('resolveInternalPath', () => {
+  it('maps internal:// to sources/ subfolder (our own exports)', () => {
+    expect(resolveInternalPath('internal://abc-123.mp3')).toBe('sources/abc-123.mp3');
+  });
+
+  it('strips relative:// prefix without adding sources/ (third-party exports)', () => {
+    expect(resolveInternalPath('relative://my-audio.mp3')).toBe('my-audio.mp3');
+  });
+
+  it('preserves nested paths after the relative:// prefix', () => {
+    expect(resolveInternalPath('relative://interviews/batch-2/p07.mp3')).toBe('interviews/batch-2/p07.mp3');
+  });
+
+  it('returns undefined for undefined input', () => {
+    expect(resolveInternalPath(undefined)).toBeUndefined();
+  });
+
+  it('returns undefined for paths without a recognized prefix', () => {
+    expect(resolveInternalPath('just-a-filename.pdf')).toBeUndefined();
+    expect(resolveInternalPath('https://example.com/file.mp3')).toBeUndefined();
+    expect(resolveInternalPath('')).toBeUndefined();
   });
 });

@@ -486,7 +486,7 @@ async function extractSource(
   return destPath;
 }
 
-function resolveInternalPath(path: string | undefined): string | undefined {
+export function resolveInternalPath(path: string | undefined): string | undefined {
   if (!path) return undefined;
   if (path.startsWith('internal://')) {
     return `sources/${path.slice('internal://'.length)}`;
