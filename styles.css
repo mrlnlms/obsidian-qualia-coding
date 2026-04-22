@@ -2660,13 +2660,25 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
    Code Form Modal
    ======================================== */
 
-.codemarker-code-form .cm-form-actions {
+.codemarker-code-form .cm-form-actions,
+.codemarker-dialog .cm-form-actions {
 	display: flex;
 	justify-content: flex-end;
 	gap: 8px;
 	padding-top: 16px;
 	margin-top: 16px;
 	border-top: 1px solid var(--background-modifier-border);
+}
+
+.codemarker-dialog h3 {
+	margin-top: 0;
+	margin-bottom: 12px;
+}
+
+.codemarker-dialog-message {
+	margin: 8px 0 4px;
+	color: var(--text-muted);
+	line-height: 1.5;
 }
 
 /* ========================================
