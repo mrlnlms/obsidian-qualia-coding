@@ -38,6 +38,9 @@ export default class QualiaCodingPlugin extends Plugin {
 	sharedRegistry!: CodeDefinitionRegistry;
 	caseVariablesRegistry!: CaseVariablesRegistry;
 	private cleanups: EngineCleanup[] = [];
+	// Tracks the refresh listener per FileView for dedupe (.has) and re-invocation
+	// on same-leaf navigation (.get(view)?.()). Cleanup happens via view.register() —
+	// this map is NOT responsible for listener teardown.
 	private caseVariablesViewListeners = new WeakMap<View, () => void>();
 	updateFileMarkersEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
 	setFileIdEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
