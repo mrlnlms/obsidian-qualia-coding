@@ -372,6 +372,7 @@ export default class QualiaCodingPlugin extends Plugin {
 		const listener = () => updateBadge();
 		this.caseVariablesRegistry.addOnMutate(listener);
 		this.caseVariablesViewListeners.set(view, listener);
+		view.register(() => this.caseVariablesRegistry.removeOnMutate(listener));
 	}
 
 	async onunload() {
