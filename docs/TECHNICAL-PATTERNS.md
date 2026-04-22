@@ -617,11 +617,11 @@ Padrão geral: quando um botão ou action é registrado num FileView via `view.a
 
 **Fonte:** `src/main.ts` na função `addCaseVariablesActionToView`. Commit `c115821`.
 
-### 8.7 WeakSet para Double-Instrumentation
+### 8.8 WeakSet para Double-Instrumentation
 
 `WeakSet<PDFViewerChild>` garante que cada PDF viewer é instrumentado só uma vez. `mouseup` listener checa `child.unloaded` e faz self-remove para evitar memory leaks.
 
-### 8.8 PDF DOM Hierarchy
+### 8.9 PDF DOM Hierarchy
 
 ```
 containerEl
@@ -640,7 +640,7 @@ containerEl
 
 Crítico para debugging de renderização PDF.
 
-### 8.9 Layout Shifts sem CM6 Events
+### 8.10 Layout Shifts sem CM6 Events
 
 Inline title toggle e theme switches não disparam CM6 resize/viewport events. MutationObserver é necessário para detectar essas mudanças.
 
