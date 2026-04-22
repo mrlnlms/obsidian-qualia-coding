@@ -211,17 +211,15 @@ Quatro bugs críticos descobertos durante teste manual de round-trip QDPX (vault
 
 ---
 
-## 15. Case Variables — edge cases marginais pendentes
+## ~~15. Case Variables — edge cases marginais pendentes~~ — FEITO (2026-04-22)
 
-Smoke test de 2026-04-21 cobriu os cenários principais. Faltam validações de borda:
+Resolvido em sessão de higiene:
 
-- Nome de variável com **emoji** ou **caracteres exóticos** (acentuação já funciona, confirmado durante smoke test)
-- **Valor vazio** ao adicionar — deveria rejeitar ou aceitar como string vazia?
-- **Hot-reload do plugin** com popover aberto — o listener do addOnMutate fica órfão?
-- **Multi-pane:** edição de frontmatter direto no editor markdown (não via popover) — popover na outra pane atualiza?
-- **Multi-pane racing:** dois popovers do mesmo arquivo abertos simultâneamente (hoje não é possível — clicar num fecha o outro — mas se multi-popover vier no futuro)
-
-Risco/retorno baixo. Fazer numa sessão dedicada de 20-30 min quando houver outro trigger pra mexer em Case Variables.
+- ~~**Emoji/unicode no nome**~~ — já funcionava (YAML + Obsidian aceitam unicode). Teste empírico adicionado (`propertiesEditor.test.ts`).
+- ~~**Valor vazio** ao adicionar~~ — FIX: rejeita com `Notice('Property value cannot be empty.')` e seleciona input, simétrico ao comportamento já existente pra nome vazio. Aplica também em whitespace-only.
+- ~~**Hot-reload do plugin** com popover aberto~~ — FIX: `main.ts` trackea `activePopoverClose` e chama no `onunload()`. Popover não fica mais órfão no DOM.
+- ~~**Multi-pane sync via metadataCache**~~ — já funcionava via `syncFromFrontmatter` + `metadataCache.on('changed')`. Teste adicionado que simula edit externo disparando re-sync + notify.
+- **Multi-pane racing (dois popovers simultâneos)** — won't-fix: arquitetura atual só permite um popover por vez (single `activePopoverClose`). Se no futuro vier multi-popover, revisar.
 
 ---
 
