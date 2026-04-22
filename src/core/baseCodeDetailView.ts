@@ -419,7 +419,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			setContext: (mid, c) => this.setContext(mid, c),
 			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
 			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
-		});
+		}, this.app);
 	}
 
 	// ─── Marker-Focused Detail ──────────────────────────────
@@ -443,7 +443,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			renderCustomSection: (el, m) => this.renderCustomSection(el, m),
 			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
 			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
-		});
+		}, this.app);
 	}
 
 	// ─── Hover sync (model → sidebar) ───────────────────────

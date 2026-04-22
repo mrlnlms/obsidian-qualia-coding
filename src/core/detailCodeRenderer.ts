@@ -5,7 +5,7 @@
  * hierarchy (parent/children), flat segment list, file-grouped tree, audit trail, and delete button.
  */
 
-import { setIcon, ToggleComponent } from 'obsidian';
+import { App, setIcon, ToggleComponent } from 'obsidian';
 import type { BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import { hasCode } from './codeApplicationHelpers';
@@ -33,6 +33,7 @@ export function renderCodeDetail(
 	codeId: string,
 	model: SidebarModelInterface,
 	callbacks: CodeRendererCallbacks,
+	app: App,
 ): void {
 	renderBreadcrumb(container, codeId, model.registry, callbacks);
 
@@ -93,7 +94,7 @@ export function renderCodeDetail(
 	if (def) renderMagnitudeConfigSection(container, def, model, callbacks);
 
 	// Relations code-level
-	if (def) renderRelationsSection(container, def, model, callbacks);
+	if (def) renderRelationsSection(container, def, model, callbacks, app);
 
 	// All markers with this code (across all files)
 	const allMarkers = def
@@ -613,6 +614,7 @@ function renderRelationsSection(
 	def: CodeDefinition,
 	model: SidebarModelInterface,
 	callbacks: Pick<CodeRendererCallbacks, 'showCodeDetail' | 'suspendRefresh' | 'resumeRefresh'>,
+	app: App,
 ): void {
 	const section = container.createDiv({ cls: 'codemarker-detail-section codemarker-detail-relations' });
 
@@ -666,7 +668,7 @@ function renderRelationsSection(
 		renderAddRelationRow(body, def, model.registry, allLabels, () => {
 			saveRelations();
 			renderRows();
-		}, callbacks);
+		}, callbacks, app);
 	};
 
 	renderRows();

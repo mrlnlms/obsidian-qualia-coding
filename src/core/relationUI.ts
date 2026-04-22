@@ -1,4 +1,4 @@
-import { setIcon } from 'obsidian';
+import { AbstractInputSuggest, App, prepareFuzzySearch, setIcon } from 'obsidian';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import type { CodeRelation } from './types';
 
@@ -8,8 +8,40 @@ interface FocusCallbacks {
 }
 
 /**
+ * Inline fuzzy autocomplete over a list of strings. Free-text is preserved —
+ * picking a suggestion just fills the input, it does not lock to the list.
+ */
+class StringFuzzySuggest extends AbstractInputSuggest<string> {
+	constructor(app: App, inputEl: HTMLInputElement, private getItems: () => string[]) {
+		super(app, inputEl);
+	}
+
+	protected getSuggestions(query: string): string[] {
+		const items = this.getItems();
+		if (!query) return items.slice(0, this.limit);
+		const fuzzy = prepareFuzzySearch(query);
+		const scored: Array<{ item: string; score: number }> = [];
+		for (const item of items) {
+			const match = fuzzy(item);
+			if (match) scored.push({ item, score: match.score });
+		}
+		scored.sort((a, b) => b.score - a.score);
+		return scored.map(s => s.item);
+	}
+
+	renderSuggestion(value: string, el: HTMLElement): void {
+		el.setText(value);
+	}
+
+	selectSuggestion(value: string): void {
+		this.setValue(value);
+		this.close();
+	}
+}
+
+/**
  * Shared "add relation" row used by detailCodeRenderer and detailMarkerRenderer.
- * Renders: label input (with datalist autocomplete) + target input + direction toggle + add button.
+ * Renders: label input (fuzzy autocomplete) + target input (fuzzy autocomplete) + direction toggle + add button.
  */
 export function renderAddRelationRow(
 	parent: HTMLElement,
@@ -18,32 +50,21 @@ export function renderAddRelationRow(
 	allLabels: string[],
 	onSave: () => void,
 	callbacks: FocusCallbacks,
+	app: App,
 ): void {
 	const addRow = parent.createDiv({ cls: 'codemarker-detail-relation-add' });
 
-	// Datalist for label autocomplete
-	const labelListId = `relation-labels-${Date.now()}`;
-	const datalist = addRow.createEl('datalist', { attr: { id: labelListId } });
-	for (const label of allLabels) {
-		datalist.createEl('option', { attr: { value: label } });
-	}
-
 	const labelInput = addRow.createEl('input', {
 		cls: 'codemarker-detail-relation-input',
-		attr: { type: 'text', placeholder: 'Label...', list: labelListId },
+		attr: { type: 'text', placeholder: 'Label...' },
 	});
-
-	// Datalist for target code autocomplete
-	const targetListId = `relation-targets-${Date.now()}`;
-	const targetDatalist = addRow.createEl('datalist', { attr: { id: targetListId } });
-	for (const def of registry.getAll()) {
-		targetDatalist.createEl('option', { attr: { value: def.name } });
-	}
+	new StringFuzzySuggest(app, labelInput, () => allLabels);
 
 	const targetInput = addRow.createEl('input', {
 		cls: 'codemarker-detail-relation-input',
-		attr: { type: 'text', placeholder: 'Target code...', list: targetListId },
+		attr: { type: 'text', placeholder: 'Target code...' },
 	});
+	new StringFuzzySuggest(app, targetInput, () => registry.getAll().map(d => d.name));
 
 	const dirToggle = addRow.createEl('button', { cls: 'codemarker-detail-relation-dir-btn' });
 	let directed = true;
@@ -84,7 +105,8 @@ export function renderAddRelationRow(
 		inp.addEventListener('focus', () => callbacks.suspendRefresh());
 		inp.addEventListener('blur', () => callbacks.resumeRefresh());
 		inp.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
+			// Skip if suggester already handled Enter (selected a suggestion).
+			if (e.key === 'Enter' && !e.defaultPrevented) { e.preventDefault(); addBtn.click(); }
 			e.stopPropagation();
 		});
 	}

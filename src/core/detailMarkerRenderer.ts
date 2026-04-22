@@ -5,7 +5,7 @@
  * memo, color override, code chips, and delete button.
  */
 
-import { setIcon } from 'obsidian';
+import { App, setIcon } from 'obsidian';
 import type { BaseMarker, CodeApplication, CodeDefinition, SidebarModelInterface } from './types';
 import { renderBackButton } from './detailCodeRenderer';
 import { getCodeIds } from './codeApplicationHelpers';
@@ -33,6 +33,7 @@ export function renderMarkerDetail(
 	codeId: string,
 	model: SidebarModelInterface,
 	callbacks: MarkerRendererCallbacks,
+	app: App,
 ): void {
 	const codeDef = model.registry.getById(codeId);
 	const codeName = codeDef?.name ?? codeId;
@@ -71,7 +72,7 @@ export function renderMarkerDetail(
 	renderMagnitudePerCode(container, marker, model);
 
 	// Relations segment-level per code
-	renderRelationsPerCode(container, marker, model, callbacks);
+	renderRelationsPerCode(container, marker, model, callbacks, app);
 
 	// -- Segment color override --
 	renderColorSection(container, marker, model, callbacks);
@@ -159,6 +160,7 @@ function renderRelationsPerCode(
 	marker: BaseMarker,
 	model: SidebarModelInterface,
 	callbacks: MarkerRendererCallbacks,
+	app: App,
 ) {
 	const section = container.createDiv({ cls: 'codemarker-detail-section codemarker-detail-relations' });
 	section.createEl('h6', { text: 'Relations' });
@@ -212,8 +214,8 @@ function renderRelationsPerCode(
 				});
 			}
 
-			// Shared add-relation row (with datalist autocomplete)
-			renderAddRelationRow(relBody, ca, model.registry, allLabels, saveAndRebuild, callbacks);
+			// Shared add-relation row (fuzzy autocomplete)
+			renderAddRelationRow(relBody, ca, model.registry, allLabels, saveAndRebuild, callbacks, app);
 		};
 
 		rebuild();
