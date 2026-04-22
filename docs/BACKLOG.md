@@ -176,7 +176,7 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 | I1 | Media | `qdpxImporter.ts` | PDF text selections no import usam page size default 612x792 (US Letter) — dimensoes reais do PDF nao disponiveis em tempo de import. Marker shape coords aproximadas |
 | I2 | Media | `qdpxImporter.ts` | PDF text selections (PlainTextSelection dentro de PDFSource) ignoradas com warning — mapeamento offset→spanIndex nao implementado |
 | ~~I3~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`createTextMarker` no first pass era dead code — removido. Text markers criados exclusivamente via `createTextMarkers` (plural) em pass dedicado.~~ (2026-04-22) |
-| I4 | Baixa | `qdpxImporter.ts` | `guidMap` dual-purpose (code GUIDs + source file paths) — risco teorico de colisao se GUID de source = GUID de code. Separar em dois Maps |
+| ~~I4~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`guidMap` dual-purpose substituído por interface `GuidResolver` com 3 Maps tipados: `codes`, `sources`, `selections`. `applyLinks` resolve origin/target em ordem explícita (code first, depois marker). `CodebookResult.guidMap` renomeado pra `codeGuidMap`. `importStandaloneMemos` perdeu param dead.~~ (2026-04-22) |
 | I6 | Baixa | `importModal.ts` | `relative://` paths no ZIP resolvidos mas nao testados — sources com path relativo podem nao ser encontrados no ZIP |
 
 ### ~~11.1 Round-trip integrity~~ — FEITO (2026-04-21)

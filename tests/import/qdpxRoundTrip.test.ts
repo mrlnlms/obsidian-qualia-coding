@@ -191,23 +191,27 @@ describe('QDPX round-trip integration', () => {
       const links = parseLinks(doc);
       const registry = new CodeDefinitionRegistry();
       const cbResult = applyCodebook(cb, registry, 'merge', notes);
-      const guidMap = cbResult.guidMap;
+      const resolver = {
+        codes: cbResult.codeGuidMap,
+        sources: new Map<string, string>(),
+        selections: new Map<string, string>(),
+      };
 
       const mockDm = {
         section: () => ({ markers: {}, shapes: [], files: [] }),
         setSection: () => {},
       } as any;
 
-      const count = applyLinks(links, guidMap, registry, mockDm);
+      const count = applyLinks(links, resolver, registry, mockDm);
       expect(count).toBe(2);
 
-      const joyId = guidMap.get('c-joy')!;
+      const joyId = resolver.codes.get('c-joy')!;
       const joy = registry.getById(joyId)!;
       expect(joy.relations).toHaveLength(1);
       expect(joy.relations![0]!.label).toBe('causes');
       expect(joy.relations![0]!.directed).toBe(true);
 
-      const costId = guidMap.get('c-cost')!;
+      const costId = resolver.codes.get('c-cost')!;
       const cost = registry.getById(costId)!;
       expect(cost.relations).toHaveLength(1);
       expect(cost.relations![0]!.label).toBe('relates_to');

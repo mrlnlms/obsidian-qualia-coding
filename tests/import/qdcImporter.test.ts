@@ -141,13 +141,13 @@ describe('applyCodebook', () => {
     expect(registry.getByName('Existing (imported)')).toBeDefined();
   });
 
-  it('guidMap maps QDPX GUIDs to Qualia IDs', () => {
+  it('codeGuidMap maps QDPX GUIDs to Qualia IDs', () => {
     const registry = new CodeDefinitionRegistry();
     const codebook = {
       codes: [{ guid: 'qdpx-guid-123', name: 'Code', color: '#ff0000', childrenGuids: [], noteGuids: [] }],
     };
     const result = applyCodebook(codebook, registry, 'merge');
-    const qualiaId = result.guidMap.get('qdpx-guid-123');
+    const qualiaId = result.codeGuidMap.get('qdpx-guid-123');
     expect(qualiaId).toBeDefined();
     expect(registry.getById(qualiaId!)).toBeDefined();
   });

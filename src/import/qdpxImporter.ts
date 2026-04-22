@@ -86,6 +86,20 @@ export interface ImportResult {
   warnings: string[];
 }
 
+/**
+ * Resolves QDPX GUIDs to their Qualia-side equivalents during import.
+ * Each category lives in its own Map to prevent cross-namespace collisions
+ * (a source GUID should never resolve to a code id, etc.).
+ */
+export interface GuidResolver {
+  /** QDPX code guid → Qualia CodeDefinition.id */
+  codes: Map<string, string>;
+  /** QDPX source guid → vault file path */
+  sources: Map<string, string>;
+  /** QDPX selection guid → Qualia marker id */
+  selections: Map<string, string>;
+}
+
 // ─── Parsing ───
 
 const MAGNITUDE_RE = /^\[Magnitude:\s*(.+?)\]$/;
@@ -365,7 +379,11 @@ export async function importQdpx(
   result.codesCreated = cbResult.created;
   result.codesMerged = cbResult.merged;
   result.warnings.push(...cbResult.warnings);
-  const guidMap = cbResult.guidMap; // QDPX GUID → Qualia ID
+  const resolver: GuidResolver = {
+    codes: cbResult.codeGuidMap,
+    sources: new Map(),
+    selections: new Map(),
+  };
 
   // 4. Extract source files to vault
   const importDir = `imports/${options.projectName}`;
@@ -375,12 +393,12 @@ export async function importQdpx(
     try {
       const filePath = await extractSource(src, files, app.vault, importDir, options.keepOriginalSources);
       if (filePath) {
-        guidMap.set(src.guid, filePath); // map source GUID to vault path
+        resolver.sources.set(src.guid, filePath);
         result.sourcesImported++;
 
         // 5. Create markers from selections
         const created = await createMarkersForSource(
-          src, filePath, guidMap, notes, app, dataManager, result,
+          src, filePath, resolver, notes, app, dataManager, result,
         );
         result.segmentsCreated += created;
       }
@@ -390,14 +408,14 @@ export async function importQdpx(
   }
 
   // 6. Create text markers (second pass — needs file content for offset→lineCh)
-  const textResult = await createTextMarkers(sources, guidMap, notes, app, dataManager, registry);
+  const textResult = await createTextMarkers(sources, resolver, notes, app, dataManager, registry);
   result.segmentsCreated += textResult.count;
   result.warnings.push(...textResult.warnings);
 
   // 6b. Apply case variables (Variables per source + Case groupings)
   if (caseVariablesRegistry) {
     for (const src of sources) {
-      const fileId = guidMap.get(src.guid);
+      const fileId = resolver.sources.get(src.guid);
       if (!fileId || src.variables.length === 0) continue;
       await caseVariablesRegistry.applyVariablesBatch(
         fileId,
@@ -408,7 +426,7 @@ export async function importQdpx(
     const cases = parseCases(doc);
     for (const c of cases) {
       for (const guid of c.sourceGuids) {
-        const fileId = guidMap.get(guid);
+        const fileId = resolver.sources.get(guid);
         if (fileId) {
           await caseVariablesRegistry.setVariable(fileId, 'caseId', c.name);
         }
@@ -417,10 +435,10 @@ export async function importQdpx(
   }
 
   // 7. Import standalone memos (Source-level, Project-level, loose)
-  result.memosImported += await importStandaloneMemos(doc, sources, notes, guidMap, app.vault, importDir);
+  result.memosImported += await importStandaloneMemos(doc, sources, notes, app.vault, importDir);
 
   // 8. Import relations (Links)
-  result.relationsImported = applyLinks(links, guidMap, registry, dataManager);
+  result.relationsImported = applyLinks(links, resolver, registry, dataManager);
 
   // 9. Flush
   dataManager.markDirty();
@@ -492,11 +510,11 @@ function resolveTimestamp(isoStr?: string): number {
 
 function resolveCodeApplications(
   sel: ParsedSelection,
-  guidMap: Map<string, string>,
+  resolver: GuidResolver,
   notes: Map<string, ParsedNote>,
 ): CodeApplication[] {
   return sel.codeGuids.map(codeGuid => {
-    const codeId = guidMap.get(codeGuid);
+    const codeId = resolver.codes.get(codeGuid);
     if (!codeId) return null;
     const ca: CodeApplication = { codeId };
 
@@ -525,7 +543,7 @@ function resolveMemo(sel: ParsedSelection, notes: Map<string, ParsedNote>): stri
 async function createMarkersForSource(
   src: ParsedSource,
   filePath: string,
-  guidMap: Map<string, string>,
+  resolver: GuidResolver,
   notes: Map<string, ParsedNote>,
   app: App,
   dataManager: DataManager,
@@ -535,7 +553,7 @@ async function createMarkersForSource(
 
   for (const sel of src.selections) {
     try {
-      const codes = resolveCodeApplications(sel, guidMap, notes);
+      const codes = resolveCodeApplications(sel, resolver, notes);
       if (codes.length === 0) continue;
 
       const memo = resolveMemo(sel, notes);
@@ -561,7 +579,7 @@ async function createMarkersForSource(
       // Map selection GUID for link resolution
       if (sel.guid) {
         const markerId = `import_${sel.guid}`;
-        guidMap.set(sel.guid, markerId);
+        resolver.selections.set(sel.guid, markerId);
       }
 
       if (memo) result.memosImported++;
@@ -705,7 +723,7 @@ function createMediaMarker(
  */
 export async function createTextMarkers(
   sources: ParsedSource[],
-  guidMap: Map<string, string>,
+  resolver: GuidResolver,
   notes: Map<string, ParsedNote>,
   app: App,
   dataManager: DataManager,
@@ -716,7 +734,7 @@ export async function createTextMarkers(
 
   const textSources = sources.filter(s => s.type === 'text');
   for (const src of textSources) {
-    const filePath = guidMap.get(src.guid);
+    const filePath = resolver.sources.get(src.guid);
     if (!filePath) continue;
 
     // Read via adapter (direct FS) instead of cachedRead — file was written with adapter.write
@@ -738,7 +756,7 @@ export async function createTextMarkers(
         continue;
       }
 
-      const codes = resolveCodeApplications(sel, guidMap, notes);
+      const codes = resolveCodeApplications(sel, resolver, notes);
       if (codes.length === 0) continue;
 
       const memo = resolveMemo(sel, notes);
@@ -759,7 +777,7 @@ export async function createTextMarkers(
         updatedAt: ts,
       };
       mdData.markers[filePath]!.push(marker);
-      guidMap.set(sel.guid, marker.id);
+      resolver.selections.set(sel.guid, marker.id);
       count++;
     }
     dataManager.setSection('markdown', mdData);
@@ -776,16 +794,17 @@ export async function createTextMarkers(
  */
 export function applyLinks(
   links: ParsedLink[],
-  guidMap: Map<string, string>,
+  resolver: GuidResolver,
   registry: CodeDefinitionRegistry,
   dataManager: DataManager,
 ): number {
   let applied = 0;
 
   for (const link of links) {
-    const originId = guidMap.get(link.originGuid);
-    const targetId = guidMap.get(link.targetGuid);
-    if (!originId || !targetId) continue;
+    // Target can be either a code or a marker (segment). Resolve both namespaces
+    // — whichever hits first wins. Same for origin (code vs marker).
+    const targetId = resolver.codes.get(link.targetGuid) ?? resolver.selections.get(link.targetGuid);
+    if (!targetId) continue;
 
     const relation: CodeRelation = {
       label: link.label,
@@ -793,22 +812,27 @@ export function applyLinks(
       directed: link.directed,
     };
 
-    // Try code-level first
-    const originDef = registry.getById(originId);
-    if (originDef) {
-      const existing = originDef.relations ?? [];
-      const dup = existing.some(r => r.label === relation.label && r.target === relation.target);
-      if (!dup) {
-        registry.update(originId, { relations: [...existing, relation] });
-        applied++;
+    // Try code-level origin first
+    const originCodeId = resolver.codes.get(link.originGuid);
+    if (originCodeId) {
+      const originDef = registry.getById(originCodeId);
+      if (originDef) {
+        const existing = originDef.relations ?? [];
+        const dup = existing.some(r => r.label === relation.label && r.target === relation.target);
+        if (!dup) {
+          registry.update(originCodeId, { relations: [...existing, relation] });
+          applied++;
+        }
       }
       continue;
     }
 
-    // Otherwise, try segment-level (marker → code relation)
-    // Walk all engine markers looking for marker with this id
-    const markerRelation = applyMarkerRelation(originId, relation, dataManager);
-    if (markerRelation) applied++;
+    // Otherwise, segment-level (marker → code/marker relation)
+    const originMarkerId = resolver.selections.get(link.originGuid);
+    if (originMarkerId) {
+      const markerRelation = applyMarkerRelation(originMarkerId, relation, dataManager);
+      if (markerRelation) applied++;
+    }
   }
 
   return applied;
@@ -878,7 +902,6 @@ async function importStandaloneMemos(
   doc: Document,
   sources: ParsedSource[],
   notes: Map<string, ParsedNote>,
-  guidMap: Map<string, string>,
   vault: Vault,
   importDir: string,
 ): Promise<number> {

@@ -179,14 +179,16 @@ describe('applyLinks', () => {
     const registry = new CodeDefinitionRegistry();
     const c1 = registry.create('A', '#f00');
     const c2 = registry.create('B', '#0f0');
-    const guidMap = new Map<string, string>();
-    guidMap.set('g1', c1.id);
-    guidMap.set('g2', c2.id);
+    const resolver = {
+      codes: new Map<string, string>([['g1', c1.id], ['g2', c2.id]]),
+      sources: new Map<string, string>(),
+      selections: new Map<string, string>(),
+    };
     const links: ParsedLink[] = [
       { guid: 'l1', label: 'causes', directed: true, originGuid: 'g1', targetGuid: 'g2' },
     ];
     const mockDm = { section: () => ({ markers: {}, shapes: [], files: [] }), setSection: () => {} } as any;
-    const count = applyLinks(links, guidMap, registry, mockDm);
+    const count = applyLinks(links, resolver, registry, mockDm);
     expect(count).toBe(1);
     expect(registry.getById(c1.id)!.relations).toHaveLength(1);
     expect(registry.getById(c1.id)!.relations![0]!.label).toBe('causes');
@@ -195,12 +197,16 @@ describe('applyLinks', () => {
 
   it('skips links with unmapped GUIDs', () => {
     const registry = new CodeDefinitionRegistry();
-    const guidMap = new Map<string, string>();
+    const resolver = {
+      codes: new Map<string, string>(),
+      sources: new Map<string, string>(),
+      selections: new Map<string, string>(),
+    };
     const links: ParsedLink[] = [
       { guid: 'l1', label: 'x', directed: false, originGuid: 'unknown1', targetGuid: 'unknown2' },
     ];
     const mockDm = { section: () => ({ markers: {}, shapes: [], files: [] }), setSection: () => {} } as any;
-    const count = applyLinks(links, guidMap, registry, mockDm);
+    const count = applyLinks(links, resolver, registry, mockDm);
     expect(count).toBe(0);
   });
 });

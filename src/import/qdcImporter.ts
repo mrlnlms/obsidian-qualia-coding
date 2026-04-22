@@ -19,7 +19,7 @@ export interface ParsedCodebook {
 export type ConflictStrategy = 'merge' | 'separate';
 
 export interface CodebookImportResult {
-  guidMap: Map<string, string>;
+  codeGuidMap: Map<string, string>;
   created: number;
   merged: number;
   warnings: string[];
@@ -79,7 +79,7 @@ export function applyCodebook(
   strategy: ConflictStrategy,
   notes?: Map<string, { text: string; magnitude?: string }>,
 ): CodebookImportResult {
-  const guidMap = new Map<string, string>();
+  const codeGuidMap = new Map<string, string>();
   let created = 0;
   let merged = 0;
   const warnings: string[] = [];
@@ -89,27 +89,27 @@ export function applyCodebook(
 
     if (existing) {
       if (strategy === 'merge') {
-        guidMap.set(pc.guid, existing.id);
+        codeGuidMap.set(pc.guid, existing.id);
         merged++;
         continue;
       }
       const newName = `${pc.name} (imported)`;
-      const parentId = pc.parentGuid ? guidMap.get(pc.parentGuid) : undefined;
+      const parentId = pc.parentGuid ? codeGuidMap.get(pc.parentGuid) : undefined;
       const def = registry.create(newName, pc.color, pc.description, parentId);
-      guidMap.set(pc.guid, def.id);
+      codeGuidMap.set(pc.guid, def.id);
       created++;
       continue;
     }
 
-    const parentId = pc.parentGuid ? guidMap.get(pc.parentGuid) : undefined;
+    const parentId = pc.parentGuid ? codeGuidMap.get(pc.parentGuid) : undefined;
     const noteDesc = resolveCodeNotes(pc.noteGuids, notes);
     const description = mergeDescriptions(pc.description, noteDesc);
     const def = registry.create(pc.name, pc.color, description, parentId);
-    guidMap.set(pc.guid, def.id);
+    codeGuidMap.set(pc.guid, def.id);
     created++;
   }
 
-  return { guidMap, created, merged, warnings };
+  return { codeGuidMap, created, merged, warnings };
 }
 
 function resolveCodeNotes(
