@@ -276,6 +276,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	plugin.registerEvent(
 		plugin.app.workspace.on('active-leaf-change', (leaf) => {
 			if (!leaf) return;
+			if (!model.settings.autoOpen) return;
 			const view = leaf.view as any;
 			if (view?.getViewType?.() === 'pdf' && view.viewer) {
 				instrumentPdfView(view);
@@ -284,12 +285,14 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	);
 
 	// Instrument already-open PDF views
-	plugin.app.workspace.iterateAllLeaves((leaf) => {
-		const view = leaf.view as any;
-		if (view?.getViewType?.() === 'pdf' && view.viewer) {
-			instrumentPdfView(view);
-		}
-	});
+	if (model.settings.autoOpen) {
+		plugin.app.workspace.iterateAllLeaves((leaf) => {
+			const view = leaf.view as any;
+			if (view?.getViewType?.() === 'pdf' && view.viewer) {
+				instrumentPdfView(view);
+			}
+		});
+	}
 
 	// Clean up observers when leaves close
 	plugin.registerEvent(

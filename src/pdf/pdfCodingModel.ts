@@ -35,6 +35,10 @@ export class PdfCodingModel {
 		this.registry = registry;
 	}
 
+	get settings() {
+		return this.dataManager.section('pdf').settings;
+	}
+
 	// ── Persistence ──
 
 	load(): void {
