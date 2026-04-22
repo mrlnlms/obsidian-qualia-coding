@@ -27,6 +27,7 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 	registerFileIntercept({
 		extensions: VIDEO_EXTENSIONS,
 		targetViewType: VIDEO_VIEW_TYPE,
+		shouldIntercept: () => model.settings.autoOpen,
 	});
 
 	// Context menu on video files

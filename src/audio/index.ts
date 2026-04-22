@@ -29,6 +29,7 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 	registerFileIntercept({
 		extensions: AUDIO_EXTENSIONS,
 		targetViewType: AUDIO_VIEW_TYPE,
+		shouldIntercept: () => model.settings.autoOpen,
 	});
 
 	// Context menu on audio files
