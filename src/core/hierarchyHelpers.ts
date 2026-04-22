@@ -28,6 +28,19 @@ export interface FlatFolderNode {
 
 export type FlatTreeNode = FlatCodeNode | FlatFolderNode;
 
+/**
+ * Expanded state for tree rendering.
+ * Separates codes and folders to avoid string-prefix discriminators.
+ */
+export interface ExpandedState {
+	codes: Set<string>;
+	folders: Set<string>;
+}
+
+export function createExpandedState(): ExpandedState {
+	return { codes: new Set<string>(), folders: new Set<string>() };
+}
+
 export interface CountEntry {
 	direct: number;
 	aggregate: number;
@@ -47,7 +60,7 @@ export type CountIndex = Map<string, CountEntry>;
  */
 export function buildFlatTree(
 	registry: CodeDefinitionRegistry,
-	expanded: Set<string>,
+	expanded: ExpandedState,
 	searchQuery?: string,
 ): FlatTreeNode[] {
 	const folders = registry.getAllFolders();
@@ -55,13 +68,13 @@ export function buildFlatTree(
 	// If searching, compute which codes/folders to show and which to force-expand
 	let visibleCodeIds: Set<string> | null = null;
 	let visibleFolderIds: Set<string> | null = null;
-	let forceExpanded: Set<string> | null = null;
+	let forceExpanded: ExpandedState | null = null;
 
 	if (searchQuery && searchQuery.trim().length > 0) {
 		const query = searchQuery.trim().toLowerCase();
 		visibleCodeIds = new Set<string>();
 		visibleFolderIds = new Set<string>();
-		forceExpanded = new Set<string>();
+		forceExpanded = createExpandedState();
 
 		for (const def of registry.getAll()) {
 			if (def.name.toLowerCase().includes(query)) {
@@ -69,12 +82,12 @@ export function buildFlatTree(
 				// Add all ancestors
 				for (const ancestor of registry.getAncestors(def.id)) {
 					visibleCodeIds.add(ancestor.id);
-					forceExpanded.add(ancestor.id);
+					forceExpanded.codes.add(ancestor.id);
 				}
 				// Auto-expand containing folder
 				if (def.folder) {
 					visibleFolderIds.add(def.folder);
-					forceExpanded.add(`folder:${def.folder}`);
+					forceExpanded.folders.add(def.folder);
 				}
 			}
 		}
@@ -88,7 +101,7 @@ export function buildFlatTree(
 
 			const children = registry.getChildren(def.id);
 			const hasChildren = children.length > 0;
-			const isExpanded = forceExpanded?.has(def.id) || expanded.has(def.id);
+			const isExpanded = forceExpanded?.codes.has(def.id) || expanded.codes.has(def.id);
 
 			result.push({ type: 'code', def, depth, hasChildren, isExpanded: hasChildren && isExpanded });
 
@@ -105,8 +118,7 @@ export function buildFlatTree(
 		const codesInFolder = registry.getCodesInFolder(folder.id);
 		const folderCodeIds = new Set(codesInFolder.map(c => c.id));
 		const rootCodesInFolder = codesInFolder.filter(c => !c.parentId || !folderCodeIds.has(c.parentId));
-		const folderExpKey = `folder:${folder.id}`;
-		const isExpanded = forceExpanded?.has(folderExpKey) || expanded.has(folderExpKey);
+		const isExpanded = forceExpanded?.folders.has(folder.id) || expanded.folders.has(folder.id);
 
 		result.push({
 			type: 'folder',

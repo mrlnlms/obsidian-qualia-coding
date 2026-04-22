@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
-import { buildFlatTree, buildCountIndex } from '../../src/core/hierarchyHelpers';
+import { buildFlatTree, buildCountIndex, createExpandedState } from '../../src/core/hierarchyHelpers';
 import type { BaseMarker, CodeApplication } from '../../src/core/types';
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -35,7 +35,7 @@ describe('hierarchy stress tests', () => {
 		for (let i = 0; i < 5000; i++) {
 			registry.create(`code_${String(i).padStart(5, '0')}`);
 		}
-		const expanded = new Set<string>();
+		const expanded = createExpandedState();
 
 		const ms = bench('flatTree-5000-flat', () => {
 			buildFlatTree(registry, expanded);
@@ -58,7 +58,8 @@ describe('hierarchy stress tests', () => {
 		}
 
 		// Expand all roots
-		const expanded = new Set<string>(rootIds);
+		const expanded = createExpandedState();
+		for (const id of rootIds) expanded.codes.add(id);
 
 		const ms = bench('flatTree-5000-hierarchical', () => {
 			buildFlatTree(registry, expanded);
@@ -115,9 +116,9 @@ describe('hierarchy stress tests', () => {
 		expect(depth).toBe(99);
 
 		// buildFlatTree should not stack overflow
-		const expanded = new Set<string>();
+		const expanded = createExpandedState();
 		for (const def of registry.getAll()) {
-			expanded.add(def.id);
+			expanded.codes.add(def.id);
 		}
 		const tree = buildFlatTree(registry, expanded);
 		expect(tree.length).toBe(100);
@@ -154,7 +155,7 @@ describe('hierarchy stress tests', () => {
 		for (let i = 0; i < 5000; i++) {
 			registry.create(`search_code_${String(i).padStart(5, '0')}`);
 		}
-		const expanded = new Set<string>();
+		const expanded = createExpandedState();
 
 		const ms = bench('search-5000', () => {
 			// Search for a substring that matches ~50 codes

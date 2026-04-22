@@ -7,9 +7,17 @@ import {
 	getAggregateCount,
 	getCountBreakdown,
 	buildCountIndex,
+	createExpandedState,
 	type FlatTreeNode,
 	type FlatCodeNode,
+	type ExpandedState,
 } from '../../src/core/hierarchyHelpers';
+
+function expandedCodes(...ids: string[]): ExpandedState {
+	const s = createExpandedState();
+	for (const id of ids) s.codes.add(id);
+	return s;
+}
 
 /** Helper: extract only code nodes from flat tree. */
 function codeNodes(nodes: FlatTreeNode[]): FlatCodeNode[] {
@@ -53,7 +61,7 @@ describe('buildFlatTree', () => {
 		registry.create('Alpha');
 		registry.create('Mu');
 
-		const nodes = codeNodes(buildFlatTree(registry, new Set()));
+		const nodes = codeNodes(buildFlatTree(registry, createExpandedState()));
 		expect(nodes.map(n => n.def.name)).toEqual(['Zeta', 'Alpha', 'Mu']);
 		expect(nodes.every(n => n.depth === 0)).toBe(true);
 		expect(nodes.every(n => !n.hasChildren)).toBe(true);
@@ -62,7 +70,7 @@ describe('buildFlatTree', () => {
 
 	it('shows only parent when collapsed', () => {
 		const { registry, rootA, rootB } = setupHierarchy();
-		const nodes = codeNodes(buildFlatTree(registry, new Set()));
+		const nodes = codeNodes(buildFlatTree(registry, createExpandedState()));
 
 		// Only root codes visible
 		expect(nodes.map(n => n.def.name)).toEqual(['Alpha', 'Beta']);
@@ -77,7 +85,7 @@ describe('buildFlatTree', () => {
 
 	it('shows children when parent is expanded', () => {
 		const { registry, rootA, childA1, childA2 } = setupHierarchy();
-		const expanded = new Set([rootA]);
+		const expanded = expandedCodes(rootA);
 		const nodes = codeNodes(buildFlatTree(registry, expanded));
 
 		const names = nodes.map(n => n.def.name);
@@ -100,7 +108,7 @@ describe('buildFlatTree', () => {
 		const parentDef = registry.getById(rootA)!;
 		parentDef.childrenOrder = [childA2, childA1];
 
-		const expanded = new Set([rootA]);
+		const expanded = expandedCodes(rootA);
 		const nodes = codeNodes(buildFlatTree(registry, expanded));
 
 		const childNames = nodes.filter(n => n.depth === 1).map(n => n.def.name);
@@ -109,7 +117,7 @@ describe('buildFlatTree', () => {
 
 	it('shows deep nesting with correct depths', () => {
 		const { registry, rootA, childA1, grandA1a } = setupHierarchy();
-		const expanded = new Set([rootA, childA1]);
+		const expanded = expandedCodes(rootA, childA1);
 		const nodes = codeNodes(buildFlatTree(registry, expanded));
 
 		const grandNode = nodes.find(n => n.def.id === grandA1a)!;
@@ -119,7 +127,7 @@ describe('buildFlatTree', () => {
 
 	it('does not show grandchildren when only root is expanded', () => {
 		const { registry, rootA, grandA1a } = setupHierarchy();
-		const expanded = new Set([rootA]);
+		const expanded = expandedCodes(rootA);
 		const nodes = codeNodes(buildFlatTree(registry, expanded));
 
 		expect(nodes.find(n => n.def.id === grandA1a)).toBeUndefined();
@@ -128,7 +136,7 @@ describe('buildFlatTree', () => {
 	it('search filter shows match and ancestor path', () => {
 		const { registry, rootA, childA1, grandA1a } = setupHierarchy();
 		// Search for the grandchild
-		const nodes = codeNodes(buildFlatTree(registry, new Set(), 'Alpha-1a'));
+		const nodes = codeNodes(buildFlatTree(registry, createExpandedState(), 'Alpha-1a'));
 
 		// Should include grandchild and its ancestors (Alpha, Alpha-1)
 		const ids = nodes.map(n => n.def.id);
@@ -146,7 +154,7 @@ describe('buildFlatTree', () => {
 
 	it('search is case-insensitive', () => {
 		const { registry, rootB } = setupHierarchy();
-		const nodes = codeNodes(buildFlatTree(registry, new Set(), 'beta'));
+		const nodes = codeNodes(buildFlatTree(registry, createExpandedState(), 'beta'));
 		expect(nodes.map(n => n.def.id)).toContain(rootB);
 	});
 });

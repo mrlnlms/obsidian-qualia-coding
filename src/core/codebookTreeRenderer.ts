@@ -7,7 +7,7 @@
 
 import { setIcon } from 'obsidian';
 import type { SidebarModelInterface } from './types';
-import { buildFlatTree, buildCountIndex, type FlatTreeNode, type FlatCodeNode, type FlatFolderNode, type CountIndex } from './hierarchyHelpers';
+import { buildFlatTree, buildCountIndex, type FlatTreeNode, type FlatCodeNode, type FlatFolderNode, type CountIndex, type ExpandedState } from './hierarchyHelpers';
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -26,7 +26,7 @@ export interface CodebookTreeCallbacks {
 }
 
 export interface CodebookTreeState {
-	expanded: Set<string>;
+	expanded: ExpandedState;
 	searchQuery: string;
 	dragMode: 'reorganize' | 'merge';
 }
