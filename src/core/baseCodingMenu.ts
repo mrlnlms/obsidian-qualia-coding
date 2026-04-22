@@ -406,7 +406,7 @@ export function renderMagnitudeSection(
 
 		for (const { id, def } of codesWithMag) {
 			const row = document.createElement('div');
-			row.className = 'codemarker-tooltip-magnitude-row';
+			row.className = 'codemarker-magnitude-row';
 
 			const swatch = document.createElement('span');
 			swatch.className = 'codemarker-popover-swatch';
@@ -414,17 +414,17 @@ export function renderMagnitudeSection(
 			row.appendChild(swatch);
 
 			const nameEl = document.createElement('span');
-			nameEl.className = 'codemarker-tooltip-magnitude-code-name';
+			nameEl.className = 'codemarker-magnitude-code-name';
 			nameEl.textContent = def!.name;
 			row.appendChild(nameEl);
 
 			const chipContainer = document.createElement('div');
-			chipContainer.className = 'codemarker-tooltip-magnitude-chips';
+			chipContainer.className = 'codemarker-magnitude-chips';
 
 			const currentValue = getMagnitude(id);
 			for (const val of def!.magnitude!.values) {
 				const chip = document.createElement('span');
-				chip.className = 'codemarker-tooltip-magnitude-chip';
+				chip.className = 'codemarker-magnitude-chip';
 				chip.textContent = val;
 				if (val === currentValue) chip.addClass('is-selected');
 				chip.addEventListener('click', (e) => {
@@ -546,13 +546,13 @@ export function renderRelationsSection(
 			codeGroup.className = 'codemarker-tooltip-relations-code-group';
 
 			const codeHeader = document.createElement('div');
-			codeHeader.className = 'codemarker-tooltip-magnitude-row';
+			codeHeader.className = 'codemarker-magnitude-row';
 			const swatch = document.createElement('span');
 			swatch.className = 'codemarker-popover-swatch';
 			swatch.style.backgroundColor = def.color;
 			codeHeader.appendChild(swatch);
 			const nameEl = document.createElement('span');
-			nameEl.className = 'codemarker-tooltip-magnitude-code-name';
+			nameEl.className = 'codemarker-magnitude-code-name';
 			nameEl.textContent = def.name;
 			codeHeader.appendChild(nameEl);
 			codeGroup.appendChild(codeHeader);

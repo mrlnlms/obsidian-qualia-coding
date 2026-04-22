@@ -196,7 +196,7 @@ Quatro bugs críticos descobertos durante teste manual de round-trip QDPX (vault
 
 | Item | Severidade | Detalhe |
 |------|-----------|---------|
-| CSS chip styles duplicados | Baixa | Chips de magnitude e relações têm class names distintos no popover vs. no detail view — CSS consolidado mas dois seletores separados ainda existem |
+| ~~CSS chip styles duplicados~~ | ~~FEITO~~ | ~~Magnitude chips unificados em 4 classes canônicas (`codemarker-magnitude-{row,code-name,chips,chip}`) — sem prefixo `tooltip-`/`detail-`. Seletores agrupados no CSS → single rule. Relations mantidas separadas (variantes intencionais de compactação: popover usa gap/padding/svg menores que detail view).~~ (2026-04-22)|
 | Magnitude popover sem empty state | Won't-fix | Seção de magnitude some inteiramente quando nenhum código aplicado tem magnitude configurada — decisão UX intencional, não exibe mensagem |
 | Continuous type — step decimal | Baixa | Range generator do tipo continuous não refina exibição de step decimal (ex: 0.5 exibido como "0.5" sem arredondamento configurável) |
 | Relations Network — sem edge bundling | Baixa | Modo grafo básico: sem edge bundling, sem detecção de comunidades, sem layout por cluster — expansão futura quando a base de usuários justificar |

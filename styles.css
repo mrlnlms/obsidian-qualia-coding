@@ -4326,25 +4326,24 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 .codemarker-tooltip-magnitude-body {
 	padding: var(--size-2-1) var(--size-4-2);
 }
-.codemarker-tooltip-magnitude-row {
+/* Shared magnitude chip styles (popover + marker detail) */
+.codemarker-magnitude-row {
 	display: flex;
 	align-items: center;
 	gap: var(--size-2-1);
 	margin-bottom: var(--size-2-1);
 }
-.codemarker-tooltip-magnitude-code-name {
+.codemarker-magnitude-code-name {
 	font-size: var(--font-ui-small);
 	color: var(--text-muted);
 	min-width: 60px;
 }
-.codemarker-tooltip-magnitude-chips {
+.codemarker-magnitude-chips {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 4px;
 }
-/* Shared magnitude chip styles (popover + detail) */
-.codemarker-tooltip-magnitude-chip,
-.codemarker-detail-magnitude-chip {
+.codemarker-magnitude-chip {
 	font-size: var(--font-ui-small);
 	padding: 2px 8px;
 	border-radius: var(--radius-s);
@@ -4353,12 +4352,10 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	background: var(--background-primary);
 	color: var(--text-normal);
 }
-.codemarker-tooltip-magnitude-chip:hover,
-.codemarker-detail-magnitude-chip:hover {
+.codemarker-magnitude-chip:hover {
 	background: var(--background-modifier-hover);
 }
-.codemarker-tooltip-magnitude-chip.is-selected,
-.codemarker-detail-magnitude-chip.is-selected {
+.codemarker-magnitude-chip.is-selected {
 	background: var(--interactive-accent);
 	color: white;
 	border-color: var(--interactive-accent);
@@ -4367,24 +4364,6 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	font-size: var(--font-ui-small);
 	color: var(--text-muted);
 	padding: var(--size-2-1) 0;
-}
-
-/* ── Magnitude in marker detail (Level 3) ── */
-.codemarker-detail-magnitude-row {
-	display: flex;
-	align-items: center;
-	gap: var(--size-2-1);
-	margin-bottom: var(--size-2-1);
-}
-.codemarker-detail-magnitude-code-name {
-	font-size: var(--font-ui-small);
-	color: var(--text-muted);
-	min-width: 60px;
-}
-.codemarker-detail-magnitude-chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
 }
 
 /* ── Relations ──────────────────────────────────── */

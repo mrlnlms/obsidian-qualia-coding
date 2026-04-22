@@ -127,7 +127,7 @@ function renderMagnitudePerCode(
 		chipContainer.empty();
 		for (const v of def.magnitude!.values) {
 			const c = chipContainer.createEl('span', {
-				cls: 'codemarker-detail-magnitude-chip',
+				cls: 'codemarker-magnitude-chip',
 				text: v,
 			});
 			if (v === ca.magnitude) c.addClass('is-selected');
@@ -144,12 +144,12 @@ function renderMagnitudePerCode(
 	section.createEl('h6', { text: 'Magnitude' });
 
 	for (const { ca, def } of codesWithMag) {
-		const row = section.createDiv({ cls: 'codemarker-detail-magnitude-row' });
+		const row = section.createDiv({ cls: 'codemarker-magnitude-row' });
 		const swatch = row.createSpan({ cls: 'codemarker-detail-chip-dot' });
 		swatch.style.backgroundColor = def!.color;
-		row.createSpan({ text: def!.name, cls: 'codemarker-detail-magnitude-code-name' });
+		row.createSpan({ text: def!.name, cls: 'codemarker-magnitude-code-name' });
 
-		const chipContainer = row.createDiv({ cls: 'codemarker-detail-magnitude-chips' });
+		const chipContainer = row.createDiv({ cls: 'codemarker-magnitude-chips' });
 		rebuildChips(chipContainer, ca, def!);
 	}
 }
@@ -170,10 +170,10 @@ function renderRelationsPerCode(
 		if (!def) continue;
 
 		const codeRow = section.createDiv({ cls: 'codemarker-detail-relation-code-group' });
-		const codeHeader = codeRow.createDiv({ cls: 'codemarker-detail-magnitude-row' });
+		const codeHeader = codeRow.createDiv({ cls: 'codemarker-magnitude-row' });
 		const swatch = codeHeader.createSpan({ cls: 'codemarker-detail-chip-dot' });
 		swatch.style.backgroundColor = def.color;
-		codeHeader.createSpan({ text: def.name, cls: 'codemarker-detail-magnitude-code-name' });
+		codeHeader.createSpan({ text: def.name, cls: 'codemarker-magnitude-code-name' });
 
 		const relBody = codeRow.createDiv();
 
