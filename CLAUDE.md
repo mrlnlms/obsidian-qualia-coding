@@ -2,6 +2,20 @@
 
 Plugin Obsidian para analise qualitativa de dados (QDA). Codifica texto, PDF, CSV, imagens, audio e video.
 
+## STATUS: EM DESENVOLVIMENTO — ZERO USUÁRIOS
+
+**Plugin NÃO está publicado. ZERO usuários reais. ZERO produção.** Não existe "vault existente de usuário", "backcompat", "migration path pra data.json salvo", nem "não quebrar quem já usa". Quando eu mudar um default, muda e pronto. Quando renomear um campo, renomeia e pronto. Sem migration code inline, sem fallback defensivo pra data antiga. Se o vault workbench precisa ser atualizado, migração one-shot e deleta o código.
+
+Pensar em backcompat aqui é ruído que enviesa decisão de design. Se eu me pegar perguntando "e os vaults existentes?" — é sinal de que errei. A resposta é sempre: não existem.
+
+**Vault de teste real:** `/Users/mosx/Desktop/obsidian-plugins-workbench/` (o vault que contém este repo). `data.json` em `.obsidian/plugins/qualia-coding/data.json` na raiz do vault. NÃO usar `demo/` como fonte de verdade — é vault de demonstração com dados sintéticos.
+
+**Raiz do vault vs repo do plugin:**
+- Vault (o que o usuário abre no Obsidian): `/Users/mosx/Desktop/obsidian-plugins-workbench/`
+- Repo do plugin (subpasta): `/Users/mosx/Desktop/obsidian-plugins-workbench/.obsidian/plugins/obsidian-qualia-coding/`
+
+Arquivos de teste/notas pro usuário ver no Obsidian vão na **raiz do vault**, nunca dentro do repo.
+
 ## Workflow: no git worktrees
 
 **Nunca** criar git worktree neste projeto (nem project-local, nem global). Trabalhar sempre direto no working dir atual, em branch normal (`git checkout -b ...`).
