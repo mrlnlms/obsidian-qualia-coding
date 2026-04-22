@@ -26,6 +26,7 @@ export interface MediaFile<M extends MediaMarker = MediaMarker> {
 
 /** Shared settings for time-based media engines. */
 export interface BaseMediaSettings {
+	autoOpen: boolean;
 	defaultZoom: number;
 	regionOpacity: number;
 	showLabelsOnRegions: boolean;
@@ -34,6 +35,7 @@ export interface BaseMediaSettings {
 
 /** Default values for BaseMediaSettings fields. */
 export const DEFAULT_MEDIA_SETTINGS: BaseMediaSettings = {
+	autoOpen: false,
 	defaultZoom: 50,
 	regionOpacity: 0.4,
 	showLabelsOnRegions: true,
