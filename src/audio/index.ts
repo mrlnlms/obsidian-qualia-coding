@@ -5,7 +5,7 @@
 import { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
-import { registerFileRename } from '../core/fileInterceptor';
+import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
 import { AudioCodingModel } from './audioCodingModel';
 import { AudioView, AUDIO_VIEW_TYPE } from './audioView';
 
@@ -25,8 +25,13 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 		new AudioView(leaf, plugin, model),
 	);
 
-	// Register audio extensions to be opened by AudioView natively
-	plugin.registerExtensions([...AUDIO_EXTENSIONS], AUDIO_VIEW_TYPE);
+	// Intercept audio file opens (via unified interceptor).
+	// Note: cannot use plugin.registerExtensions() — Obsidian throws on core-native
+	// extensions (mp3, wav, etc. are handled by the native audio player).
+	registerFileIntercept({
+		extensions: AUDIO_EXTENSIONS,
+		targetViewType: AUDIO_VIEW_TYPE,
+	});
 
 	// Context menu on audio files
 	const fileMenuRef = plugin.app.workspace.on('file-menu', (menu, file) => {
