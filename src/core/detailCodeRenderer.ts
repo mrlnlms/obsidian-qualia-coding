@@ -12,6 +12,7 @@ import { hasCode } from './codeApplicationHelpers';
 import { getCountBreakdown } from './hierarchyHelpers';
 import { collectAllLabels } from './relationHelpers';
 import { renderAddRelationRow } from './relationUI';
+import { generateContinuousRange } from './magnitudeRange';
 
 export interface CodeRendererCallbacks {
 	getMarkerLabel(marker: BaseMarker): string;
@@ -520,16 +521,9 @@ function renderMagnitudeConfigSection(
 		});
 		const genBtn = quickFill.createEl('button', { text: 'Generate', cls: 'codemarker-detail-magnitude-gen-btn' });
 		genBtn.addEventListener('click', () => {
-			const min = parseFloat(minInput.value);
-			const max = parseFloat(maxInput.value);
-			const step = parseFloat(stepInput.value) || 1;
-			if (isNaN(min) || isNaN(max) || step <= 0 || min > max) return;
 			if (!def.magnitude) return;
-			const values: string[] = [];
-			for (let v = min; v <= max + step * 0.001; v += step) {
-				values.push(String(Math.round(v * 1000) / 1000));
-			}
-			if (values.length > 100) return; // safety cap
+			const values = generateContinuousRange(minInput.value, maxInput.value, stepInput.value);
+			if (!values) return;
 			def.magnitude.values = values;
 			save();
 			rerender();

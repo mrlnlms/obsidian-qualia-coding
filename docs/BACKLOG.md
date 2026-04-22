@@ -199,7 +199,7 @@ Quatro bugs críticos descobertos durante teste manual de round-trip QDPX (vault
 |------|-----------|---------|
 | ~~CSS chip styles duplicados~~ | ~~FEITO~~ | ~~Magnitude chips unificados em 4 classes canônicas (`codemarker-magnitude-{row,code-name,chips,chip}`) — sem prefixo `tooltip-`/`detail-`. Seletores agrupados no CSS → single rule. Relations mantidas separadas (variantes intencionais de compactação: popover usa gap/padding/svg menores que detail view).~~ (2026-04-22)|
 | Magnitude popover sem empty state | Won't-fix | Seção de magnitude some inteiramente quando nenhum código aplicado tem magnitude configurada — decisão UX intencional, não exibe mensagem |
-| Continuous type — step decimal | Baixa | Range generator do tipo continuous não refina exibição de step decimal (ex: 0.5 exibido como "0.5" sem arredondamento configurável) |
+| ~~Continuous type — step decimal~~ | ~~FEITO~~ | Extraído `generateContinuousRange` em `core/magnitudeRange.ts`. Decimais inferidos do step string (ex: step `"0.5"` → `["0.0", "0.5", "1.0"]`, step `"0.01"` → `["0.00", "0.01", ...]`). Bug adicional pego: step=0 antes virava 1 por `|| 1` truthy check — agora rejeita explicitamente. 9 unit tests. (2026-04-22) |
 | Relations Network — sem edge bundling | Baixa | Modo grafo básico: sem edge bundling, sem detecção de comunidades, sem layout por cluster — expansão futura quando a base de usuários justificar |
 
 ---
