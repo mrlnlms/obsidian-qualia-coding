@@ -22,6 +22,7 @@ import { createExpandedState, type ExpandedState } from './hierarchyHelpers';
 import { showCodeContextMenu, showFolderContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
 import { setupDragDrop } from './codebookDragDrop';
 import { MergeModal, executeMerge } from './mergeModal';
+import { PromptModal, ConfirmModal } from './dialogs';
 
 export abstract class BaseCodeDetailView extends ItemView {
 	protected model: SidebarModelInterface;
@@ -252,23 +253,36 @@ export abstract class BaseCodeDetailView extends ItemView {
 					promptRenameFolder: (id) => {
 						const folder = this.model.registry.getFolderById(id);
 						if (!folder) return;
-						const newName = prompt('Rename folder:', folder.name);
-						if (newName && newName.trim() && newName.trim() !== folder.name) {
-							const ok = this.model.registry.renameFolder(id, newName.trim());
-							if (ok) {
-								this.model.saveMarkers();
-							} else {
-								new Notice('A folder with that name already exists.');
-							}
-						}
+						new PromptModal({
+							app: this.app,
+							title: 'Rename folder',
+							initialValue: folder.name,
+							confirmLabel: 'Rename',
+							onSubmit: (newName) => {
+								if (newName === folder.name) return;
+								const ok = this.model.registry.renameFolder(id, newName);
+								if (ok) {
+									this.model.saveMarkers();
+								} else {
+									new Notice('A folder with that name already exists.');
+								}
+							},
+						}).open();
 					},
 					promptDeleteFolder: (id) => {
 						const folder = this.model.registry.getFolderById(id);
 						if (!folder) return;
-						if (confirm(`Delete folder "${folder.name}"? Codes will be moved to root.`)) {
-							this.model.registry.deleteFolder(id);
-							this.model.saveMarkers();
-						}
+						new ConfirmModal({
+							app: this.app,
+							title: 'Delete folder',
+							message: `Delete folder "${folder.name}"? Codes will be moved to root.`,
+							confirmLabel: 'Delete',
+							destructive: true,
+							onConfirm: () => {
+								this.model.registry.deleteFolder(id);
+								this.model.saveMarkers();
+							},
+						}).open();
 					},
 				});
 			},
@@ -306,23 +320,34 @@ export abstract class BaseCodeDetailView extends ItemView {
 			promptRename: (codeId: string) => {
 				const def = this.model.registry.getById(codeId);
 				if (!def) return;
-				const newName = prompt('Rename code:', def.name);
-				if (newName && newName.trim() && newName.trim() !== def.name) {
-					const ok = this.model.registry.update(codeId, { name: newName.trim() });
-					if (ok) {
-						this.model.saveMarkers();
-					} else {
-						new Notice('A code with that name already exists.');
-					}
-				}
+				new PromptModal({
+					app: this.app,
+					title: 'Rename code',
+					initialValue: def.name,
+					confirmLabel: 'Rename',
+					onSubmit: (newName) => {
+						if (newName === def.name) return;
+						const ok = this.model.registry.update(codeId, { name: newName });
+						if (ok) {
+							this.model.saveMarkers();
+						} else {
+							new Notice('A code with that name already exists.');
+						}
+					},
+				}).open();
 			},
 			promptAddChild: (parentId: string) => {
-				const name = prompt('New child code name:');
-				if (name && name.trim()) {
-					this.model.registry.create(name.trim(), undefined, undefined, parentId);
-					this.model.saveMarkers();
-					this.expanded.codes.add(parentId);
-				}
+				new PromptModal({
+					app: this.app,
+					title: 'New child code',
+					placeholder: 'Code name',
+					confirmLabel: 'Create',
+					onSubmit: (name) => {
+						this.model.registry.create(name, undefined, undefined, parentId);
+						this.model.saveMarkers();
+						this.expanded.codes.add(parentId);
+					},
+				}).open();
 			},
 			promptMoveTo: (codeId: string, folderId: string | undefined) => {
 				this.model.registry.setCodeFolder(codeId, folderId);
@@ -332,10 +357,17 @@ export abstract class BaseCodeDetailView extends ItemView {
 			promptDelete: (codeId: string) => {
 				const def = this.model.registry.getById(codeId);
 				if (!def) return;
-				if (confirm(`Delete code "${def.name}"? Children will be promoted to top-level.`)) {
-					this.model.deleteCode(codeId);
-					this.showList();
-				}
+				new ConfirmModal({
+					app: this.app,
+					title: 'Delete code',
+					message: `Delete code "${def.name}"? Children will be promoted to top-level.`,
+					confirmLabel: 'Delete',
+					destructive: true,
+					onConfirm: () => {
+						this.model.deleteCode(codeId);
+						this.showList();
+					},
+				}).open();
 			},
 			promptColor: (codeId: string) => {
 				const def = this.model.registry.getById(codeId);
