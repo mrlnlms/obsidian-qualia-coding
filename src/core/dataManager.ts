@@ -26,6 +26,7 @@ export class DataManager {
 			raw.image.settings = deepMerge(defaults.image.settings, raw.image.settings);
 			raw.audio.settings = deepMerge(defaults.audio.settings, raw.audio.settings);
 			raw.video.settings = deepMerge(defaults.video.settings, raw.video.settings);
+			raw.pdf.settings = deepMerge(defaults.pdf.settings, raw.pdf.settings);
 			raw.general = deepMerge(defaults.general, raw.general);
 			this.data = raw as QualiaData;
 		} else {
