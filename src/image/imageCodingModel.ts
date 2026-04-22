@@ -5,7 +5,7 @@
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { ImageMarker, RegionShape, NormalizedCoords } from './imageCodingTypes';
-import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication } from '../core/codeApplicationHelpers';
+import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 
 export type ChangeListener = () => void;
 
@@ -23,6 +23,17 @@ export class ImageCodingModel {
 	constructor(dataManager: DataManager, registry: CodeDefinitionRegistry) {
 		this.dataManager = dataManager;
 		this.registry = registry;
+
+		const section = this.dataManager.section('image');
+		let mutated = false;
+		for (const m of section.markers) {
+			const result = normalizeCodeApplications(m.codes, this.registry);
+			if (result.changed) {
+				m.codes = result.normalized;
+				mutated = true;
+			}
+		}
+		if (mutated) this.dataManager.markDirty();
 	}
 
 	private get markers(): ImageMarker[] {

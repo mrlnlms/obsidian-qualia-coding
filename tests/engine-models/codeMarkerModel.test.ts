@@ -687,44 +687,6 @@ describe('loadMarkers', () => {
 		expect(model.getMarkerById('id-1')).not.toBeNull();
 	});
 
-	it('migrates old code field to codes array', () => {
-		const oldMarker = {
-			id: 'id-old',
-			fileId: 'file.md',
-			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
-			color: '#6200EE',
-			code: 'legacyCode',
-			text: 'sample',
-			createdAt: 1000,
-			updatedAt: 1000,
-		};
-		plugin = createMockPlugin({ markers: { 'file.md': [oldMarker] } });
-		model = new CodeMarkerModel(plugin as any, registry);
-		model.loadMarkers();
-		const loaded = model.getMarkerById('id-old');
-		expect(loaded).not.toBeNull();
-		expect(loaded!.codes).toEqual([{ codeId: 'legacyCode' }]);
-		expect((loaded as any).code).toBeUndefined();
-	});
-
-	it('migrates empty code field to empty codes array', () => {
-		const oldMarker = {
-			id: 'id-old2',
-			fileId: 'file.md',
-			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
-			color: '#6200EE',
-			code: '',
-			text: 'sample',
-			createdAt: 1000,
-			updatedAt: 1000,
-		};
-		plugin = createMockPlugin({ markers: { 'file.md': [oldMarker] } });
-		model = new CodeMarkerModel(plugin as any, registry);
-		model.loadMarkers();
-		const loaded = model.getMarkerById('id-old2');
-		expect(loaded!.codes).toEqual([]);
-	});
-
 	it('handles empty markers object', () => {
 		plugin = createMockPlugin({ markers: {} });
 		model = new CodeMarkerModel(plugin as any, registry);
@@ -737,6 +699,49 @@ describe('loadMarkers', () => {
 		model = new CodeMarkerModel(plugin as any, registry);
 		model.loadMarkers();
 		expect(model.getAllMarkers()).toEqual([]);
+	});
+
+	it('persists normalized markers when any codeId was rewritten', () => {
+		// Register a code — its id is a UUID, its name is 'LegacyCode'
+		const def = registry.create('LegacyCode', '#FF0000');
+		// Feed a marker whose codeId is the name (legacy shape)
+		const legacyMarker = makeMarker({ fileId: 'file.md', id: 'id-legacy', codes: [{ codeId: 'LegacyCode' }] });
+		plugin = createMockPlugin({
+			markers: { 'file.md': [legacyMarker] },
+		});
+		model = new CodeMarkerModel(plugin as any, registry);
+		plugin.dataManager.setSection.mockClear();
+
+		model.loadMarkers();
+
+		// codeId should now be the canonical UUID
+		const loaded = model.getMarkerById('id-legacy');
+		expect(loaded).not.toBeNull();
+		expect(loaded!.codes[0].codeId).toBe(def.id);
+
+		// saveMarkers must have been called (mutated = true branch)
+		expect(plugin.dataManager.setSection).toHaveBeenCalled();
+	});
+
+	it('does not persist when all markers already have canonical codeIds', () => {
+		const def = registry.create('CanonicalCode', '#00FF00');
+		// Feed a marker whose codeId is already the canonical UUID
+		const canonicalMarker = makeMarker({ fileId: 'file.md', id: 'id-canonical', codes: [{ codeId: def.id }] });
+		plugin = createMockPlugin({
+			markers: { 'file.md': [canonicalMarker] },
+		});
+		model = new CodeMarkerModel(plugin as any, registry);
+		plugin.dataManager.setSection.mockClear();
+
+		model.loadMarkers();
+
+		// Marker should be unchanged
+		const loaded = model.getMarkerById('id-canonical');
+		expect(loaded).not.toBeNull();
+		expect(loaded!.codes[0].codeId).toBe(def.id);
+
+		// saveMarkers must NOT have been called (mutated = false branch)
+		expect(plugin.dataManager.setSection).not.toHaveBeenCalled();
 	});
 });
 

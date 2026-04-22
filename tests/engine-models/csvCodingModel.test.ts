@@ -12,7 +12,10 @@ function ca(...codeIds: string[]): CodeApplication[] {
 function createMockDm(initial: Record<string, any> = {}) {
 	const store: Record<string, any> = { ...initial };
 	return {
-		section: (k: string) => store[k] ?? {},
+		section: (k: string) => {
+			if (!store[k]) store[k] = { segmentMarkers: [], rowMarkers: [] };
+			return store[k];
+		},
 		setSection: (k: string, v: any) => { store[k] = v; },
 		markDirty: vi.fn(),
 	};
@@ -264,5 +267,49 @@ describe('getMarkerLabel', () => {
 		const row = model.findOrCreateRowMarker('f.csv', 0, 'name');
 		const label = model.getMarkerLabel(row);
 		expect(label).toBe('Row 1 · name');
+	});
+});
+
+// ── constructor normalization ──
+
+describe('constructor normalization', () => {
+	it('persists normalized markers when any codeId was rewritten', () => {
+		const def = registry.create('LegacyCode', '#FF0000');
+		const existing = {
+			csv: {
+				segmentMarkers: [{ id: 's-legacy', fileId: 'data.csv', row: 0, column: 'text', from: 0, to: 5, codes: [{ codeId: 'LegacyCode' }], createdAt: 1, updatedAt: 1 }],
+				rowMarkers: [],
+			},
+		};
+		const dmLegacy = createMockDm(existing);
+		const setSection = vi.spyOn(dmLegacy, 'setSection');
+		new CsvCodingModel(dmLegacy as any, registry);
+
+		// codeId should now be the canonical UUID
+		const marker = dmLegacy.section('csv').segmentMarkers[0];
+		expect(marker.codes[0].codeId).toBe(def.id);
+
+		// setSection must have been called (mutated = true branch)
+		expect(setSection).toHaveBeenCalled();
+	});
+
+	it('does not persist when all codeIds are canonical', () => {
+		const def = registry.create('CanonicalCode', '#00FF00');
+		const existing = {
+			csv: {
+				segmentMarkers: [],
+				rowMarkers: [{ id: 'r-canonical', fileId: 'data.csv', row: 0, column: 'name', codes: [{ codeId: def.id }], createdAt: 1, updatedAt: 1 }],
+			},
+		};
+		const dmCanonical = createMockDm(existing);
+		const setSection = vi.spyOn(dmCanonical, 'setSection');
+		new CsvCodingModel(dmCanonical as any, registry);
+
+		// Marker should be unchanged
+		const marker = dmCanonical.section('csv').rowMarkers[0];
+		expect(marker.codes[0].codeId).toBe(def.id);
+
+		// setSection must NOT have been called (mutated = false branch)
+		expect(setSection).not.toHaveBeenCalled();
 	});
 });

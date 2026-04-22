@@ -133,18 +133,19 @@ describe('getAllFileIds', () => {
 // ── addCodeToMarker ──
 
 describe('addCodeToMarker', () => {
-	it('adds code to marker and creates definition in registry', () => {
+	it('adds code to marker given a valid codeId', () => {
+		const def = registry.create('Theme A');
 		const marker = model.findOrCreateMarker('file.mp3', 0, 5);
-		model.addCodeToMarker(marker.id, 'Theme A');
-		expect(hasCode(marker.codes, 'Theme A')).toBe(true);
-		expect(registry.getByName('Theme A')).toBeDefined();
+		model.addCodeToMarker(marker.id, def.id);
+		expect(hasCode(marker.codes, def.id)).toBe(true);
 	});
 
 	it('does not add duplicate code', () => {
+		const def = registry.create('Theme A');
 		const marker = model.findOrCreateMarker('file.mp3', 0, 5);
-		model.addCodeToMarker(marker.id, 'Theme A');
-		model.addCodeToMarker(marker.id, 'Theme A');
-		expect(marker.codes.filter(c => c.codeId === 'Theme A')).toHaveLength(1);
+		model.addCodeToMarker(marker.id, def.id);
+		model.addCodeToMarker(marker.id, def.id);
+		expect(marker.codes.filter(c => c.codeId === def.id)).toHaveLength(1);
 	});
 
 	it('does nothing for unknown marker id', () => {
@@ -387,6 +388,64 @@ describe('onHoverChange / offHoverChange', () => {
 		model.offHoverChange(fn);
 		model.setHoverState('m2', 'code2');
 		expect(fn).toHaveBeenCalledTimes(1);
+	});
+});
+
+// ── constructor normalization ──
+
+describe('constructor normalization', () => {
+	it('persists normalized markers when any codeId was rewritten in constructor', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('LegacyCode', '#FF0000');
+		const existing = {
+			testSection: {
+				files: [
+					{
+						path: 'audio.mp3',
+						markers: [
+							{ id: 'm-legacy', fileId: 'audio.mp3', from: 0, to: 5, codes: [{ codeId: 'LegacyCode' }], createdAt: 1, updatedAt: 1 },
+						],
+					},
+				],
+			},
+		};
+		const dmLegacy = createMockDm(existing);
+		const setSection = vi.spyOn(dmLegacy, 'setSection');
+		new MediaCodingModel(dmLegacy as any, reg, 'testSection', DEFAULT_SETTINGS);
+
+		// codeId should now be the canonical UUID
+		const marker = dmLegacy.section('testSection').files[0].markers[0];
+		expect(marker.codes[0].codeId).toBe(def.id);
+
+		// setSection must have been called (mutated = true branch)
+		expect(setSection).toHaveBeenCalled();
+	});
+
+	it('does not persist when all codeIds are canonical', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('CanonicalCode', '#00FF00');
+		const existing = {
+			testSection: {
+				files: [
+					{
+						path: 'audio.mp3',
+						markers: [
+							{ id: 'm-canonical', fileId: 'audio.mp3', from: 0, to: 5, codes: [{ codeId: def.id }], createdAt: 1, updatedAt: 1 },
+						],
+					},
+				],
+			},
+		};
+		const dmCanonical = createMockDm(existing);
+		const setSection = vi.spyOn(dmCanonical, 'setSection');
+		new MediaCodingModel(dmCanonical as any, reg, 'testSection', DEFAULT_SETTINGS);
+
+		// Marker should be unchanged
+		const marker = dmCanonical.section('testSection').files[0].markers[0];
+		expect(marker.codes[0].codeId).toBe(def.id);
+
+		// setSection must NOT have been called (mutated = false branch)
+		expect(setSection).not.toHaveBeenCalled();
 	});
 });
 

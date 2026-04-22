@@ -2,7 +2,7 @@ import type { PdfMarker, PdfShapeMarker, NormalizedShapeCoords } from './pdfCodi
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinition, CodeApplication } from '../core/types';
-import { hasCode, addCodeApplication, removeCodeApplication } from '../core/codeApplicationHelpers';
+import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 
 // ── Undo types ──
 interface UndoEntry {
@@ -39,8 +39,27 @@ export class PdfCodingModel {
 
 	load(): void {
 		const section = this.dataManager.section('pdf');
-		if (section.markers) this.markers = section.markers;
-		if (section.shapes) this.shapes = section.shapes;
+		let mutated = false;
+
+		this.markers = section.markers;
+		for (const m of this.markers) {
+			const result = normalizeCodeApplications(m.codes, this.registry);
+			if (result.changed) {
+				m.codes = result.normalized;
+				mutated = true;
+			}
+		}
+
+		this.shapes = section.shapes;
+		for (const s of this.shapes) {
+			const result = normalizeCodeApplications(s.codes, this.registry);
+			if (result.changed) {
+				s.codes = result.normalized;
+				mutated = true;
+			}
+		}
+
+		if (mutated) this.save();
 	}
 
 	save(): void {
@@ -156,10 +175,6 @@ export class PdfCodingModel {
 	// ── Code assignment ──
 
 	addCodeToMarker(markerId: string, codeId: string): void {
-		if (!this.registry.getById(codeId)) {
-			this.registry.create(codeId);
-		}
-
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 		if (!hasCode(marker.codes, codeId)) {
@@ -352,9 +367,6 @@ export class PdfCodingModel {
 	}
 
 	addCodeToShape(shapeId: string, codeId: string): void {
-		if (!this.registry.getById(codeId)) {
-			this.registry.create(codeId);
-		}
 		const shape = this.findShapeById(shapeId);
 		if (!shape) return;
 		if (!hasCode(shape.codes, codeId)) {

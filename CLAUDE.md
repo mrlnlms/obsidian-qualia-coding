@@ -2,6 +2,14 @@
 
 Plugin Obsidian para analise qualitativa de dados (QDA). Codifica texto, PDF, CSV, imagens, audio e video.
 
+## Workflow: no git worktrees
+
+**Nunca** criar git worktree neste projeto (nem project-local, nem global). Trabalhar sempre direto no working dir atual, em branch normal (`git checkout -b ...`).
+
+Motivo: o plugin é desenvolvido de dentro do vault `obsidian-plugins-workbench`. Worktree project-local duplica o repo dentro de `.obsidian/` (Obsidian indexa e quebra); worktree global quebra o hot-reload que depende do artefato `main.js` ficar em `.obsidian/plugins/qualia-coding/`.
+
+Skills que normalmente exigem worktree (`superpowers:subagent-driven-development`, `superpowers:executing-plans`, `superpowers:brainstorming` Phase 4) ficam overridden por este CLAUDE.md. Quando algum skill pedir worktree, pular o setup e criar branch direto.
+
 ## Estrutura
 
 ```

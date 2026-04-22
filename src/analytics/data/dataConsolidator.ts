@@ -372,14 +372,6 @@ export function consolidate(
   if (aud.hasData) activeEngines.push('audio');
   if (vid.hasData) activeEngines.push('video');
 
-  // Normalize legacy marker codeRefs: pre-Phase-C markers carry name as codeId.
-  // Resolve name → real codeId via defsByName so downstream filters match by id.
-  const defsByName = new Map<string, string>();
-  for (const def of Object.values(defs)) defsByName.set(def.name, def.id);
-  for (const m of markers) {
-    m.codes = m.codes.map((ref) => defsByName.get(ref) ?? ref);
-  }
-
   const codes = consolidateCodes(markers, defs, activeEngines);
 
   return {
@@ -398,17 +390,10 @@ export function consolidate(
 }
 
 export function extractCodes(raw: unknown): string[] {
-  if (!raw) return [];
-  if (Array.isArray(raw)) {
-    // Handles string[] (legacy/consolidated), {codeId: string}[] (CodeApplication), or {name: string}[]
-    return raw.map((c) => {
-      if (typeof c === "string") return c;
-      if (c && typeof c === "object" && "codeId" in c) return (c as { codeId: string }).codeId;
-      if (c && typeof c === "object" && "name" in c) return (c as { name: string }).name;
-      return "";
-    }).filter(Boolean);
-  }
-  return [];
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((c): c is { codeId: string } => c != null && typeof c === "object" && "codeId" in c)
+    .map((c) => c.codeId);
 }
 
 export function mergeDef(

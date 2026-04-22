@@ -27,7 +27,7 @@ describe('consolidate', () => {
     const mdData = {
       markers: {
         'file.md': [
-          { id: 'm1', fileId: 'file.md', codes: ['codeA'], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 10 } } },
+          { id: 'm1', fileId: 'file.md', codes: [{codeId: 'codeA'}], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 10 } } },
         ],
       },
     };
@@ -41,7 +41,7 @@ describe('consolidate', () => {
   it('consolidates a single PDF marker with page', () => {
     const pdfData = {
       markers: [
-        { id: 'p1', fileId: 'doc.pdf', codes: ['codeB'], page: 3, text: 'highlighted' },
+        { id: 'p1', fileId: 'doc.pdf', codes: [{codeId: 'codeB'}], page: 3, text: 'highlighted' },
       ],
     };
     const result = consolidate(null, null, null, pdfData);
@@ -54,7 +54,7 @@ describe('consolidate', () => {
   it('consolidates a single CSV segment marker', () => {
     const csvData = {
       segmentMarkers: [
-        { id: 'c1', fileId: 'data.csv', codes: ['codeC'], row: 5, column: 'col1', from: 0, to: 10 },
+        { id: 'c1', fileId: 'data.csv', codes: [{codeId: 'codeC'}], row: 5, column: 'col1', from: 0, to: 10 },
       ],
     };
     const result = consolidate(null, csvData, null);
@@ -66,7 +66,7 @@ describe('consolidate', () => {
   it('consolidates a single image marker', () => {
     const imageData = {
       markers: [
-        { id: 'i1', fileId: 'photo.png', codes: ['codeD'], shape: 'rect', coords: { y: 10, height: 50 } },
+        { id: 'i1', fileId: 'photo.png', codes: [{codeId: 'codeD'}], shape: 'rect', coords: { y: 10, height: 50 } },
       ],
     };
     const result = consolidate(null, null, imageData);
@@ -81,7 +81,7 @@ describe('consolidate', () => {
         {
           path: 'audio.mp3',
           markers: [
-            { id: 'a1', codes: ['codeE'], from: 5.0, to: 10.0 },
+            { id: 'a1', codes: [{codeId: 'codeE'}], from: 5.0, to: 10.0 },
           ],
         },
       ],
@@ -99,7 +99,7 @@ describe('consolidate', () => {
         {
           path: 'video.mp4',
           markers: [
-            { id: 'v1', codes: ['codeF'], from: 60, to: 90 },
+            { id: 'v1', codes: [{codeId: 'codeF'}], from: 60, to: 90 },
           ],
         },
       ],
@@ -114,12 +114,12 @@ describe('consolidate', () => {
 
   it('merges code definitions from multiple engines', () => {
     const mdData = {
-      markers: { 'f.md': [{ id: 'm1', codes: ['shared'], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } } }] },
-      codeDefinitions: { d1: { name: 'shared', color: '#F00' } },
+      markers: { 'f.md': [{ id: 'm1', codes: [{codeId: 'shared'}], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } } }] },
+      codeDefinitions: { d1: { id: 'shared', name: 'shared', color: '#F00' } },
     };
     const pdfData = {
-      markers: [{ id: 'p1', fileId: 'f.pdf', codes: ['shared'], page: 1, text: 'x' }],
-      registry: { definitions: { d2: { name: 'shared', color: '#0F0' } } },
+      markers: [{ id: 'p1', fileId: 'f.pdf', codes: [{codeId: 'shared'}], page: 1, text: 'x' }],
+      registry: { definitions: { d2: { id: 'shared', name: 'shared', color: '#0F0' } } },
     };
     const result = consolidate(mdData, null, null, pdfData);
     // 'shared' appears in both but should be deduplicated in codes
@@ -131,10 +131,10 @@ describe('consolidate', () => {
 
   it('deduplicates codes appearing from different engines', () => {
     const mdData = {
-      markers: { 'f.md': [{ id: 'm1', codes: ['dup'], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } } }] },
+      markers: { 'f.md': [{ id: 'm1', codes: [{codeId: 'dup'}], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } } }] },
     };
     const csvData = {
-      segmentMarkers: [{ id: 'c1', fileId: 'f.csv', codes: ['dup'], row: 0, column: 'c' }],
+      segmentMarkers: [{ id: 'c1', fileId: 'f.csv', codes: [{codeId: 'dup'}], row: 0, column: 'c' }],
     };
     const result = consolidate(mdData, csvData, null);
     const dupCodes = result.codes.filter(c => c.name === 'dup');
@@ -153,20 +153,6 @@ describe('consolidate', () => {
     expect(result.markers.length).toBe(0);
   });
 
-  // ── Codes with {name: string} format ───────────────────────
-
-  it('handles codes as objects with name property', () => {
-    const mdData = {
-      markers: {
-        'f.md': [
-          { id: 'm1', codes: [{ name: 'objCode' }], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } } },
-        ],
-      },
-    };
-    const result = consolidate(mdData, null, null);
-    expect(result.markers[0]!.codes).toEqual(['objCode']);
-  });
-
   // ── lastUpdated ────────────────────────────────────────────
 
   it('includes lastUpdated timestamp', () => {
@@ -180,7 +166,7 @@ describe('consolidate', () => {
   it('consolidates CSV row markers', () => {
     const csvData = {
       rowMarkers: [
-        { id: 'r1', fileId: 'data.csv', codes: ['rowCode'], row: 2, column: 'all' },
+        { id: 'r1', fileId: 'data.csv', codes: [{codeId: 'rowCode'}], row: 2, column: 'all' },
       ],
     };
     const result = consolidate(null, csvData, null);
@@ -193,7 +179,7 @@ describe('consolidate', () => {
   it('consolidates PDF shape marker without text', () => {
     const pdfData = {
       markers: [
-        { id: 'ps1', fileId: 'doc.pdf', codes: ['shapeCode'], page: 2, text: null, isShape: true },
+        { id: 'ps1', fileId: 'doc.pdf', codes: [{codeId: 'shapeCode'}], page: 2, text: null, isShape: true },
       ],
     };
     const result = consolidate(null, null, null, pdfData);
@@ -207,8 +193,8 @@ describe('consolidate', () => {
     const pdfData = {
       markers: [],
       shapes: [
-        { id: 'sh1', fileId: 'doc.pdf', page: 3, shape: 'rect', coords: {}, codes: ['shapeA'], createdAt: 1700000000, updatedAt: 1700000000 },
-        { id: 'sh2', fileId: 'doc.pdf', page: 5, shape: 'ellipse', coords: {}, codes: ['shapeB'], createdAt: 1700000001, updatedAt: 1700000001 },
+        { id: 'sh1', fileId: 'doc.pdf', page: 3, shape: 'rect', coords: {}, codes: [{codeId: 'shapeA'}], createdAt: 1700000000, updatedAt: 1700000000 },
+        { id: 'sh2', fileId: 'doc.pdf', page: 5, shape: 'ellipse', coords: {}, codes: [{codeId: 'shapeB'}], createdAt: 1700000001, updatedAt: 1700000001 },
       ],
     };
     const result = consolidate(null, null, null, pdfData);
@@ -235,7 +221,7 @@ describe('consolidate', () => {
   it('consolidates PDF marker with createdAt in meta', () => {
     const pdfData = {
       markers: [
-        { id: 'ps2', fileId: 'doc.pdf', codes: ['codeX'], page: 5, text: 'text', createdAt: 1700000000 },
+        { id: 'ps2', fileId: 'doc.pdf', codes: [{codeId: 'codeX'}], page: 5, text: 'text', createdAt: 1700000000 },
       ],
     };
     const result = consolidate(null, null, null, pdfData);
@@ -245,9 +231,9 @@ describe('consolidate', () => {
   it('consolidates PDF with registry definitions', () => {
     const pdfData = {
       markers: [
-        { id: 'p1', fileId: 'doc.pdf', codes: ['pdfCode'], page: 1, text: 'x' },
+        { id: 'p1', fileId: 'doc.pdf', codes: [{codeId: 'pdfCode'}], page: 1, text: 'x' },
       ],
-      registry: { definitions: { d1: { name: 'pdfCode', color: '#ABC', description: 'PDF specific' } } },
+      registry: { definitions: { d1: { id: 'pdfCode', name: 'pdfCode', color: '#ABC', description: 'PDF specific' } } },
     };
     const result = consolidate(null, null, null, pdfData);
     const code = result.codes.find(c => c.name === 'pdfCode');
@@ -265,14 +251,14 @@ describe('consolidate', () => {
         {
           path: 'track1.mp3',
           markers: [
-            { id: 'a1', codes: ['intro'], from: 0, to: 5 },
-            { id: 'a2', codes: ['chorus'], from: 30, to: 60, createdAt: 1700000000 },
+            { id: 'a1', codes: [{codeId: 'intro'}], from: 0, to: 5 },
+            { id: 'a2', codes: [{codeId: 'chorus'}], from: 30, to: 60, createdAt: 1700000000 },
           ],
         },
         {
           path: 'track2.mp3',
           markers: [
-            { id: 'a3', codes: ['verse'], from: 10, to: 25 },
+            { id: 'a3', codes: [{codeId: 'verse'}], from: 10, to: 25 },
           ],
         },
       ],
@@ -290,7 +276,7 @@ describe('consolidate', () => {
         {
           path: 'audio.mp3',
           markers: [
-            { id: 'a1', codes: ['code'], from: 0, to: 5, createdAt: 1700000000 },
+            { id: 'a1', codes: [{codeId: 'code'}], from: 0, to: 5, createdAt: 1700000000 },
           ],
         },
       ],
@@ -302,9 +288,9 @@ describe('consolidate', () => {
   it('consolidates audio with code definitions', () => {
     const audioData = {
       files: [
-        { path: 'a.mp3', markers: [{ id: 'a1', codes: ['beat'], from: 0, to: 1 }] },
+        { path: 'a.mp3', markers: [{ id: 'a1', codes: [{codeId: 'beat'}], from: 0, to: 1 }] },
       ],
-      codeDefinitions: { definitions: { d1: { name: 'beat', color: '#F0F', description: 'Beat pattern' } } },
+      codeDefinitions: { definitions: { d1: { id: 'beat', name: 'beat', color: '#F0F', description: 'Beat pattern' } } },
     };
     const result = consolidate(null, null, null, null, audioData);
     const code = result.codes.find(c => c.name === 'beat');
@@ -320,14 +306,14 @@ describe('consolidate', () => {
         {
           path: 'clip1.mp4',
           markers: [
-            { id: 'v1', codes: ['scene1'], from: 0, to: 30 },
+            { id: 'v1', codes: [{codeId: 'scene1'}], from: 0, to: 30 },
           ],
         },
         {
           path: 'clip2.mp4',
           markers: [
-            { id: 'v2', codes: ['scene2'], from: 60, to: 120 },
-            { id: 'v3', codes: ['scene3'], from: 120, to: 180, createdAt: 1700000000 },
+            { id: 'v2', codes: [{codeId: 'scene2'}], from: 60, to: 120 },
+            { id: 'v3', codes: [{codeId: 'scene3'}], from: 120, to: 180, createdAt: 1700000000 },
           ],
         },
       ],
@@ -342,7 +328,7 @@ describe('consolidate', () => {
   it('includes createdAt in video marker meta when present', () => {
     const videoData = {
       files: [
-        { path: 'v.mp4', markers: [{ id: 'v1', codes: ['c'], from: 0, to: 5, createdAt: 9999 }] },
+        { path: 'v.mp4', markers: [{ id: 'v1', codes: [{codeId: 'c'}], from: 0, to: 5, createdAt: 9999 }] },
       ],
     };
     const result = consolidate(null, null, null, null, null, videoData);
@@ -352,9 +338,9 @@ describe('consolidate', () => {
   it('consolidates video with code definitions', () => {
     const videoData = {
       files: [
-        { path: 'v.mp4', markers: [{ id: 'v1', codes: ['action'], from: 0, to: 10 }] },
+        { path: 'v.mp4', markers: [{ id: 'v1', codes: [{codeId: 'action'}], from: 0, to: 10 }] },
       ],
-      codeDefinitions: { definitions: { d1: { name: 'action', color: '#F00' } } },
+      codeDefinitions: { definitions: { d1: { id: 'action', name: 'action', color: '#F00' } } },
     };
     const result = consolidate(null, null, null, null, null, videoData);
     const code = result.codes.find(c => c.name === 'action');
@@ -388,7 +374,7 @@ describe('consolidate', () => {
   it('discovers codes from markers not present in definitions', () => {
     const pdfData = {
       markers: [
-        { id: 'p1', fileId: 'doc.pdf', codes: ['orphan'], page: 1, text: 'x' },
+        { id: 'p1', fileId: 'doc.pdf', codes: [{codeId: 'orphan'}], page: 1, text: 'x' },
       ],
       // No registry definitions for 'orphan'
     };
@@ -403,8 +389,8 @@ describe('consolidate', () => {
     const mdData = {
       markers: {
         'f.md': [
-          { id: 'm1', codes: ['zebra'], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } } },
-          { id: 'm2', codes: ['alpha'], range: { from: { line: 1, ch: 0 }, to: { line: 1, ch: 5 } } },
+          { id: 'm1', codes: [{codeId: 'zebra'}], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } } },
+          { id: 'm2', codes: [{codeId: 'alpha'}], range: { from: { line: 1, ch: 0 }, to: { line: 1, ch: 5 } } },
         ],
       },
     };
@@ -416,7 +402,7 @@ describe('consolidate', () => {
   it('consolidates image marker without coords', () => {
     const imageData = {
       markers: [
-        { id: 'i1', fileId: 'img.png', codes: ['tag'], shape: 'ellipse' },
+        { id: 'i1', fileId: 'img.png', codes: [{codeId: 'tag'}], shape: 'ellipse' },
       ],
     };
     const result = consolidate(null, null, imageData);
@@ -427,9 +413,9 @@ describe('consolidate', () => {
   it('handles CSV registry definitions', () => {
     const csvData = {
       segmentMarkers: [
-        { id: 'c1', fileId: 'data.csv', codes: ['csvCode'], row: 0, column: 'c' },
+        { id: 'c1', fileId: 'data.csv', codes: [{codeId: 'csvCode'}], row: 0, column: 'c' },
       ],
-      registry: { definitions: { d1: { name: 'csvCode', color: '#0F0', description: 'CSV code' } } },
+      registry: { definitions: { d1: { id: 'csvCode', name: 'csvCode', color: '#0F0', description: 'CSV code' } } },
     };
     const result = consolidate(null, csvData, null);
     const code = result.codes.find(c => c.name === 'csvCode');
@@ -441,9 +427,9 @@ describe('consolidate', () => {
   it('handles image registry definitions', () => {
     const imageData = {
       markers: [
-        { id: 'i1', fileId: 'img.png', codes: ['imgCode'], shape: 'rect' },
+        { id: 'i1', fileId: 'img.png', codes: [{codeId: 'imgCode'}], shape: 'rect' },
       ],
-      registry: { definitions: { d1: { name: 'imgCode', color: '#00F' } } },
+      registry: { definitions: { d1: { id: 'imgCode', name: 'imgCode', color: '#00F' } } },
     };
     const result = consolidate(null, null, imageData);
     const code = result.codes.find(c => c.name === 'imgCode');
