@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
-import { buildFlatTree, buildCountIndex } from '../../src/core/hierarchyHelpers';
+import { buildFlatTree, buildCountIndex, createExpandedState } from '../../src/core/hierarchyHelpers';
 import type { BaseMarker } from '../../src/core/types';
 
 let registry: CodeDefinitionRegistry;
@@ -29,7 +29,7 @@ describe('buildFlatTree with folders', () => {
 		registry.setCodeFolder(c1.id, folder.id);
 		registry.setCodeFolder(c2.id, folder.id);
 
-		const nodes = buildFlatTree(registry, new Set());
+		const nodes = buildFlatTree(registry, createExpandedState());
 		expect(nodes[0]!.type).toBe('folder');
 		expect((nodes[0] as any).name).toBe('Emocoes');
 		const unfiledIdx = nodes.findIndex(n => n.type === 'code' && n.type === 'code' && n.def.name === 'Neutro');
@@ -41,7 +41,7 @@ describe('buildFlatTree with folders', () => {
 		const code = registry.create('A');
 		registry.setCodeFolder(code.id, folder.id);
 
-		const nodes = buildFlatTree(registry, new Set());
+		const nodes = buildFlatTree(registry, createExpandedState());
 		const codeNodes = nodes.filter(n => n.type === 'code');
 		expect(codeNodes.find(n => n.type === 'code' && n.def.name === 'A')).toBeUndefined();
 	});
@@ -51,7 +51,8 @@ describe('buildFlatTree with folders', () => {
 		const code = registry.create('A');
 		registry.setCodeFolder(code.id, folder.id);
 
-		const expanded = new Set<string>([`folder:${folder.id}`]);
+		const expanded = createExpandedState();
+		expanded.folders.add(folder.id);
 		const nodes = buildFlatTree(registry, expanded);
 		const codeNode = nodes.find(n => n.type === 'code' && n.def.name === 'A');
 		expect(codeNode).toBeDefined();
@@ -65,7 +66,9 @@ describe('buildFlatTree with folders', () => {
 		registry.setCodeFolder(parent.id, folder.id);
 		registry.setParent(child.id, parent.id);
 
-		const expanded = new Set<string>([`folder:${folder.id}`, parent.id]);
+		const expanded = createExpandedState();
+		expanded.folders.add(folder.id);
+		expanded.codes.add(parent.id);
 		const nodes = buildFlatTree(registry, expanded);
 		const parentNode = nodes.find(n => n.type === 'code' && n.def.name === 'Parent');
 		const childNode = nodes.find(n => n.type === 'code' && n.def.name === 'Child');
@@ -79,7 +82,7 @@ describe('buildFlatTree with folders', () => {
 		registry.setCodeFolder(code.id, folder.id);
 		registry.create('Neutro');
 
-		const nodes = buildFlatTree(registry, new Set(), 'Ale');
+		const nodes = buildFlatTree(registry, createExpandedState(), 'Ale');
 		expect(nodes.some(n => n.type === 'folder' && (n as any).name === 'Emocoes')).toBe(true);
 		expect(nodes.some(n => n.type === 'code' && n.def.name === 'Alegria')).toBe(true);
 		expect(nodes.some(n => n.type === 'code' && n.def.name === 'Neutro')).toBe(false);
@@ -87,7 +90,7 @@ describe('buildFlatTree with folders', () => {
 
 	it('empty folder still appears in tree', () => {
 		registry.createFolder('Empty');
-		const nodes = buildFlatTree(registry, new Set());
+		const nodes = buildFlatTree(registry, createExpandedState());
 		expect(nodes.some(n => n.type === 'folder' && (n as any).name === 'Empty')).toBe(true);
 	});
 
@@ -98,7 +101,7 @@ describe('buildFlatTree with folders', () => {
 		registry.setCodeFolder(c1.id, folder.id);
 		registry.setCodeFolder(c2.id, folder.id);
 
-		const nodes = buildFlatTree(registry, new Set());
+		const nodes = buildFlatTree(registry, createExpandedState());
 		const folderNode = nodes.find(n => n.type === 'folder')!;
 		expect((folderNode as any).codeCount).toBe(2);
 	});
@@ -128,7 +131,9 @@ describe('folder edge cases in tree', () => {
 		registry.setCodeFolder(code.id, f1.id);
 		registry.setCodeFolder(code.id, f2.id);
 
-		const expanded = new Set<string>([`folder:${f1.id}`, `folder:${f2.id}`]);
+		const expanded = createExpandedState();
+		expanded.folders.add(f1.id);
+		expanded.folders.add(f2.id);
 		const nodes = buildFlatTree(registry, expanded);
 		const codeNodes = nodes.filter(n => n.type === 'code' && n.def.name === 'A');
 		expect(codeNodes.length).toBe(1);
@@ -137,7 +142,7 @@ describe('folder edge cases in tree', () => {
 	it('search that matches no codes shows empty tree', () => {
 		registry.createFolder('F1');
 		registry.create('Alpha');
-		const nodes = buildFlatTree(registry, new Set(), 'zzzzz');
+		const nodes = buildFlatTree(registry, createExpandedState(), 'zzzzz');
 		expect(nodes.length).toBe(0);
 	});
 });

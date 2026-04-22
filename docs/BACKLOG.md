@@ -116,7 +116,7 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
-| CB1 | Low | `baseCodeDetailView.ts` | `folderExpanded` e `treeExpanded` sao dois Sets paralelos com prefixo `folder:` pra distinguir — fragil pra futuro dev. Considerar unificar num unico Set tipado |
+| ~~CB1~~ | ~~FEITO~~ | ~~`baseCodeDetailView.ts`~~ | ~~`folderExpanded` e `treeExpanded` unificados em `ExpandedState { codes; folders }` (em `hierarchyHelpers.ts`). Encoding `folder:${id}` eliminado do call path. `getTreeState()` não aloca Set por render.~~ (2026-04-22)|
 | CB2 | Low | `codebookContextMenu.ts` | "Move to folder" lista pastas inline no menu principal — com muitas pastas pode ficar longo. Considerar submenu quando > 5 pastas |
 | ~~CB3~~ | ~~Won't-fix~~ | `hierarchyHelpers.ts` | ~~Search em `buildFlatTree` busca só nomes de códigos — decisão correta. Pastas são organizacionais (sem significado analítico, confirmado em CLAUDE.md); usuário conhece suas pastas e navega direto. Quando um código casa, a pasta que o contém já é auto-revelada e expandida (linhas 74-78). Buscar por nome de pasta resolveria problema inexistente.~~ (2026-04-22)|
 | CB4 | Low | `baseCodeDetailView.ts` | `prompt()` / `confirm()` nativos para rename/delete — funcional mas feio no Electron. Migrar pra Obsidian Modal quando tocar nos arquivos |

@@ -18,6 +18,7 @@ import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
 import type { CodebookTreeState } from './codebookTreeRenderer';
+import { createExpandedState, type ExpandedState } from './hierarchyHelpers';
 import { showCodeContextMenu, showFolderContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
 import { setupDragDrop } from './codebookDragDrop';
 import { MergeModal, executeMerge } from './mergeModal';
@@ -28,8 +29,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	protected codeId: string | null = null;
 
 	// Tree state for codebook panel
-	protected treeExpanded: Set<string> = new Set<string>();
-	protected folderExpanded: Set<string> = new Set<string>();
+	protected expanded: ExpandedState = createExpandedState();
 	protected treeDragMode: 'reorganize' | 'merge' = 'reorganize';
 
 	private searchQuery = '';
@@ -142,12 +142,8 @@ export abstract class BaseCodeDetailView extends ItemView {
 	// ─── List Mode ──────────────────────────────────────────
 
 	protected getTreeState(): CodebookTreeState {
-		const merged = new Set<string>(this.treeExpanded);
-		for (const fId of this.folderExpanded) {
-			merged.add(`folder:${fId}`);
-		}
 		return {
-			expanded: merged,
+			expanded: this.expanded,
 			searchQuery: this.searchQuery,
 			dragMode: this.treeDragMode,
 		};
@@ -174,7 +170,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 							this.model.registry.setCodeFolder(codeId, undefined);
 						}
 						this.model.saveMarkers();
-						if (newParentId) this.treeExpanded.add(newParentId);
+						if (newParentId) this.expanded.codes.add(newParentId);
 					},
 					onMergeDrop: (sourceId, targetId) => {
 						const modal = new MergeModal({
@@ -201,7 +197,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 					onMoveToFolder: (codeId, folderId) => {
 						this.model.registry.setCodeFolder(codeId, folderId);
 						this.model.saveMarkers();
-						if (folderId) this.folderExpanded.add(folderId);
+						if (folderId) this.expanded.folders.add(folderId);
 					},
 					setDragMode: (mode) => {
 						this.treeDragMode = mode;
@@ -229,10 +225,10 @@ export abstract class BaseCodeDetailView extends ItemView {
 				}
 			},
 			onToggleExpand: (codeId: string) => {
-				if (this.treeExpanded.has(codeId)) {
-					this.treeExpanded.delete(codeId);
+				if (this.expanded.codes.has(codeId)) {
+					this.expanded.codes.delete(codeId);
 				} else {
-					this.treeExpanded.add(codeId);
+					this.expanded.codes.add(codeId);
 				}
 				if (this.listContentZone) {
 					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
@@ -242,10 +238,10 @@ export abstract class BaseCodeDetailView extends ItemView {
 				showCodeContextMenu(event, codeId, this.model.registry, this.contextMenuCallbacks());
 			},
 			onFolderToggleExpand: (folderId: string) => {
-				if (this.folderExpanded.has(folderId)) {
-					this.folderExpanded.delete(folderId);
+				if (this.expanded.folders.has(folderId)) {
+					this.expanded.folders.delete(folderId);
 				} else {
-					this.folderExpanded.add(folderId);
+					this.expanded.folders.add(folderId);
 				}
 				if (this.listContentZone) {
 					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
@@ -325,13 +321,13 @@ export abstract class BaseCodeDetailView extends ItemView {
 				if (name && name.trim()) {
 					this.model.registry.create(name.trim(), undefined, undefined, parentId);
 					this.model.saveMarkers();
-					this.treeExpanded.add(parentId);
+					this.expanded.codes.add(parentId);
 				}
 			},
 			promptMoveTo: (codeId: string, folderId: string | undefined) => {
 				this.model.registry.setCodeFolder(codeId, folderId);
 				this.model.saveMarkers();
-				if (folderId) this.folderExpanded.add(folderId);
+				if (folderId) this.expanded.folders.add(folderId);
 			},
 			promptDelete: (codeId: string) => {
 				const def = this.model.registry.getById(codeId);
