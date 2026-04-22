@@ -141,10 +141,11 @@ describe('addCodeToMarker', () => {
 	});
 
 	it('does not add duplicate code', () => {
+		const def = registry.create('Theme A');
 		const marker = model.findOrCreateMarker('file.mp3', 0, 5);
-		model.addCodeToMarker(marker.id, 'Theme A');
-		model.addCodeToMarker(marker.id, 'Theme A');
-		expect(marker.codes.filter(c => c.codeId === 'Theme A')).toHaveLength(1);
+		model.addCodeToMarker(marker.id, def.id);
+		model.addCodeToMarker(marker.id, def.id);
+		expect(marker.codes.filter(c => c.codeId === def.id)).toHaveLength(1);
 	});
 
 	it('does nothing for unknown marker id', () => {
