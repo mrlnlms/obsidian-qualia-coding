@@ -172,7 +172,7 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 | E1 | Media | `qdpxExporter.ts` | Offsets de texto PDF no QDPX sao aproximados (por content-item, nao codepoints absolutos). Requer extracao completa do texto PDF para offsets precisos. Warning exibido ao usuario |
 | E2 | Media | `qdpxExporter.ts` | Shape markers de PDF ignorados no export — dimensoes de pagina nao disponiveis em tempo de export. Solucao: cachear dimensoes no PDF viewer durante visualizacao |
 | E3 | Baixa | Modal de export | Markers CSV nao exportaveis via REFI-QDA (limitacao do formato). Documentado no disclaimer do modal |
-| E4 | Baixa | `imageToPixels` | `createImageBitmap` pode falhar para alguns formatos de imagem — fallback necessario |
+| ~~E4~~ | ~~FEITO~~ | `core/imageDimensions.ts` | ~~Util compartilhada `getImageDimensions(vault, filePath)` com fallback `createImageBitmap` → `<img>` decode. SVG/TIFF/HEIC/BMP passam pelo fallback universal. Usada por `qdpxExporter` e `qdpxImporter`.~~ (2026-04-22) |
 | I1 | Media | `qdpxImporter.ts` | PDF text selections no import usam page size default 612x792 (US Letter) — dimensoes reais do PDF nao disponiveis em tempo de import. Marker shape coords aproximadas |
 | I2 | Media | `qdpxImporter.ts` | PDF text selections (PlainTextSelection dentro de PDFSource) ignoradas com warning — mapeamento offset→spanIndex nao implementado |
 | ~~I3~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`createTextMarker` no first pass era dead code — removido. Text markers criados exclusivamente via `createTextMarkers` (plural) em pass dedicado.~~ (2026-04-22) |
