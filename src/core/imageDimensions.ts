@@ -1,44 +1,21 @@
-import type { TFile, Vault } from 'obsidian';
-
-// SVG via <img src=blob:...> only works when the Blob carries an image MIME
-// type — without it, Chromium rejects the decode silently. Other formats
-// generally tolerate missing type, but keeping a mapping is cheap and makes
-// the behaviour deterministic.
-const MIME_BY_EXT: Record<string, string> = {
-    svg: 'image/svg+xml',
-    png: 'image/png',
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    webp: 'image/webp',
-    gif: 'image/gif',
-    bmp: 'image/bmp',
-    tif: 'image/tiff',
-    tiff: 'image/tiff',
-    heic: 'image/heic',
-    heif: 'image/heif',
-};
+import type { Vault } from 'obsidian';
+import { loadRenderableBlob } from './imageDecode';
 
 /**
  * Read width × height from an image file in the vault.
  *
- * Tries `createImageBitmap` first (fast, off-main-thread, but format-limited —
- * Chrome/Electron rejects SVG/TIFF/HEIC and some exotic formats). Falls back to
- * an `<img>` tag decode, which works for anything the browser can render —
- * if Obsidian can display the file, this path reads its dimensions.
+ * Delegates to `loadRenderableBlob` so HEIC/HEIF are decoded first. Tries
+ * `createImageBitmap` (fast), falls back to `<img>` decode (universal across
+ * formats the browser can render).
  *
- * Returns null if both paths fail (unsupported binary, not an image, etc.).
+ * Returns null if the file cannot be loaded/decoded.
  */
 export async function getImageDimensions(
     vault: Vault,
     filePath: string,
 ): Promise<{ width: number; height: number } | null> {
-    const file = vault.getAbstractFileByPath(filePath);
-    if (!file || !('extension' in file)) return null;
-
-    const data = await vault.readBinary(file as TFile);
-    const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-    const mime = MIME_BY_EXT[ext];
-    const blob = new Blob([data], mime ? { type: mime } : {});
+    const blob = await loadRenderableBlob(vault, filePath);
+    if (!blob) return null;
 
     try {
         const bitmap = await createImageBitmap(blob);

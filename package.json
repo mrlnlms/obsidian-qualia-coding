@@ -22,6 +22,7 @@
     "date-fns": "^4.1.0",
     "fabric": "^6.9.1",
     "fflate": "^0.8.2",
+    "heic2any": "^0.0.4",
     "hyparquet": "^1.25.1",
     "hyparquet-compressors": "^1.1.1",
     "papaparse": "^5.4.1",

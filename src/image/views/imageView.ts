@@ -13,10 +13,11 @@ import { RegionManager } from '../canvas/regionManager';
 import { CodingMenu } from '../imageCodingMenu';
 import { RegionLabels } from '../regionLabels';
 import { type RegionHighlightState, setupRegionHighlight } from '../regionHighlight';
+import { loadRenderableUrl } from '../../core/imageDecode';
 
 export const IMAGE_CODING_VIEW_TYPE = 'qualia-image-coding';
 
-export const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'avif', 'svg']);
+export const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'avif', 'svg', 'heic', 'heif']);
 
 export class ImageCodingView extends FileView {
 	private plugin: QualiaCodingPlugin;
@@ -30,6 +31,9 @@ export class ImageCodingView extends FileView {
 	private regionLabels: RegionLabels | null = null;
 	private regionHighlight: RegionHighlightState | null = null;
 	private clearAllHandler: (() => void) | null = null;
+	// blob: URL created for HEIC/HEIF decode; must be revoked at cleanup
+	// (plain getResourcePath returns app://... and isn't a managed URL).
+	private revokableUrl: string | null = null;
 	private readyResolve: (() => void) | null = null;
 	private readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
 	private loadGeneration = 0;
@@ -78,7 +82,26 @@ export class ImageCodingView extends FileView {
 		contentEl.addClass('codemarker-image-view');
 
 		const container = contentEl.createDiv({ cls: 'codemarker-canvas-container' });
-		const imageUrl = this.app.vault.getResourcePath(file);
+
+		// HEIC/HEIF needs JS decode (Chromium doesn't handle them natively);
+		// other formats go straight through getResourcePath.
+		const ext = file.extension.toLowerCase();
+		let imageUrl: string;
+		if (ext === 'heic' || ext === 'heif') {
+			const decodedUrl = await loadRenderableUrl(this.app.vault, file.path);
+			if (!decodedUrl) {
+				container.createDiv({
+					cls: 'codemarker-image-error',
+					text: `Failed to decode ${ext.toUpperCase()} image.`,
+				});
+				this.readyResolve?.();
+				return;
+			}
+			imageUrl = decodedUrl;
+			this.revokableUrl = decodedUrl;
+		} else {
+			imageUrl = this.app.vault.getResourcePath(file);
+		}
 
 		try {
 			const fabricState = await setupFabricCanvas(container, imageUrl);
@@ -259,6 +282,10 @@ export class ImageCodingView extends FileView {
 		this.toolbarState = null;
 		teardownFabricCanvas(this.fabricState);
 		this.fabricState = null;
+		if (this.revokableUrl) {
+			URL.revokeObjectURL(this.revokableUrl);
+			this.revokableUrl = null;
+		}
 	}
 
 	async onUnloadFile(_file: TFile): Promise<void> {
