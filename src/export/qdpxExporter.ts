@@ -12,6 +12,7 @@ import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
 import { lineChToOffset, mediaToMs, imageToPixels, pdfShapeToRect } from './coordConverters';
 import type { DataManager } from '../core/dataManager';
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
+import { getImageDimensions } from '../core/imageDimensions';
 import { renderVariablesForFile, renderCasesXml } from './caseVariablesXml';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -561,17 +562,3 @@ async function addSourceFile(
   sourceFiles.set(`sources/${guid}.${ext}`, new Uint8Array(data));
 }
 
-async function getImageDimensions(vault: Vault, filePath: string): Promise<{ width: number; height: number } | null> {
-  try {
-    const file = vault.getAbstractFileByPath(filePath);
-    if (!file || !('extension' in file)) return null;
-    const data = await vault.readBinary(file as TFile);
-    const blob = new Blob([data]);
-    const bitmap = await createImageBitmap(blob);
-    const result = { width: bitmap.width, height: bitmap.height };
-    bitmap.close();
-    return result;
-  } catch {
-    return null;
-  }
-}

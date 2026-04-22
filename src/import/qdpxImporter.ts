@@ -4,6 +4,7 @@ import type { App, TFile, Vault } from 'obsidian';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CodeApplication, CodeRelation } from '../core/types';
+import { getImageDimensions } from '../core/imageDimensions';
 import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { MediaMarker } from '../media/mediaTypes';
 import type { ImageMarker } from '../image/imageCodingTypes';
@@ -648,19 +649,13 @@ async function createImageMarker(
     return 0;
   }
 
-  // Get image dimensions
-  let imgWidth = 1000, imgHeight = 1000; // fallback
-  try {
-    const file = app.vault.getAbstractFileByPath(filePath);
-    if (file && 'extension' in file) {
-      const data = await app.vault.readBinary(file as TFile);
-      const blob = new Blob([data]);
-      const bitmap = await createImageBitmap(blob);
-      imgWidth = bitmap.width;
-      imgHeight = bitmap.height;
-      bitmap.close();
-    }
-  } catch {
+  // Get image dimensions (tries createImageBitmap, falls back to <img> decode for SVG/TIFF/HEIC etc.)
+  let imgWidth = 1000, imgHeight = 1000; // fallback for truly unsupported formats
+  const dims = await getImageDimensions(app.vault, filePath);
+  if (dims) {
+    imgWidth = dims.width;
+    imgHeight = dims.height;
+  } else {
     result.warnings.push(`Cannot read dimensions for ${filePath}, using fallback`);
   }
 
