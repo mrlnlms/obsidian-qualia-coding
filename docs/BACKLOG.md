@@ -129,7 +129,7 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 |---|-----------|---------|----------|
 | E1 | Low | `relationsNetworkMode.ts` | Force-directed layout é estático (calculado uma vez). Sem drag nos nós. Considerar d3-force se crescer |
 | E2 | Low | `relationUI.ts` | `<datalist>` nativo não suporta fuzzy search — só prefix match. Considerar custom dropdown se UX insuficiente |
-| E3 | Low | `baseCodingMenu.ts` | Inline add-row no popover usa `document.createElement` — inconsistente com o resto que usa componentes Obsidian |
+| ~~E3~~ | ~~FEITO~~ | ~~`baseCodingMenu.ts`~~ | ~~Inline add-row de Relations migrado pra `TextComponent` (2 inputs), `ExtraButtonComponent` (toggle direção), `ButtonComponent` (+). Segue o pattern do `renderCodeInput`. Classes CSS compactas preservadas.~~ (2026-04-22)|
 
 ---
 
