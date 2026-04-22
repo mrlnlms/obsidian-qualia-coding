@@ -142,6 +142,7 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 | !important 66 instancias | Maioria AG Grid defensivos |
 | Inline styles ~15 estaticos | Migrar quando tocar nos arquivos |
 | fflate bundled (~8KB gzip) | Dependencia do QDPX export — sem alternativa nativa no Obsidian |
+| heic2any + libheif bundled (~1.3MB) | Decodifica HEIC/HEIF (iPhone default) pra canvas render + export. Sem alternativa nativa — Electron não tem decoder. Impacto significativo no bundle (main.js: 2.2M → 3.5M); se vier a pesar em produção, considerar code splitting no esbuild config. |
 
 ---
 
@@ -172,7 +173,8 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 | E1 | Media | `qdpxExporter.ts` | Offsets de texto PDF no QDPX sao aproximados (por content-item, nao codepoints absolutos). Requer extracao completa do texto PDF para offsets precisos. Warning exibido ao usuario |
 | E2 | Media | `qdpxExporter.ts` | Shape markers de PDF ignorados no export — dimensoes de pagina nao disponiveis em tempo de export. Solucao: cachear dimensoes no PDF viewer durante visualizacao |
 | E3 | Baixa | Modal de export | Markers CSV nao exportaveis via REFI-QDA (limitacao do formato). Documentado no disclaimer do modal |
-| ~~E4~~ | ~~FEITO~~ | `core/imageDimensions.ts` | ~~Util compartilhada `getImageDimensions(vault, filePath)` com fallback `createImageBitmap` → `<img>` decode. Gotcha: o Blob precisa de MIME type pra SVG (`image/svg+xml`) senão Chromium rejeita silenciosamente por XSS concern. Mapa `MIME_BY_EXT` inferindo pela extensão. SVG validado em round-trip completo (export + import, marker restaurado na posição correta). TIFF/HEIC não suportados — Electron não renderiza nativamente, Obsidian delega pro OS; fora do alcance do plugin. Usada por `qdpxExporter` e `qdpxImporter`.~~ (2026-04-22) |
+| ~~E4~~ | ~~FEITO~~ | `core/imageDimensions.ts`, `core/imageDecode.ts` | ~~Util compartilhada `getImageDimensions(vault, filePath)` com fallback `createImageBitmap` → `<img>` decode. Gotcha: o Blob precisa de MIME type pra SVG (`image/svg+xml`) senão Chromium rejeita silenciosamente por XSS concern. Mapa `MIME_BY_EXT` inferindo pela extensão. SVG validado em round-trip completo. HEIC/HEIF suportado via `heic2any` (decoder WASM, carregado dinamicamente quando arquivo HEIC é aberto — bundle +1.3MB). TIFF fica pra futuro (ver §11 E5).~~ (2026-04-22) |
+| E5 | Baixa (futuro) | `imageDecode.ts` | Suporte a TIFF via `utif` ou `tiff` (~80-200KB). Só atacar se usuário real reportar demanda. Microscopia, imagens médicas, scanning arquivístico usam TIFF mas público-alvo do plugin pode não precisar. |
 | I1 | Media | `qdpxImporter.ts` | PDF text selections no import usam page size default 612x792 (US Letter) — dimensoes reais do PDF nao disponiveis em tempo de import. Marker shape coords aproximadas |
 | I2 | Media | `qdpxImporter.ts` | PDF text selections (PlainTextSelection dentro de PDFSource) ignoradas com warning — mapeamento offset→spanIndex nao implementado |
 | ~~I3~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`createTextMarker` no first pass era dead code — removido. Text markers criados exclusivamente via `createTextMarkers` (plural) em pass dedicado.~~ (2026-04-22) |
