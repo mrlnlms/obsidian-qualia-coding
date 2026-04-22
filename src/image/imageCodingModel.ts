@@ -25,17 +25,15 @@ export class ImageCodingModel {
 		this.registry = registry;
 
 		const section = this.dataManager.section('image');
-		if (Array.isArray(section.markers)) {
-			let mutated = false;
-			for (const m of section.markers) {
-				const result = normalizeCodeApplications(m.codes, this.registry);
-				if (result.changed) {
-					m.codes = result.normalized;
-					mutated = true;
-				}
+		let mutated = false;
+		for (const m of section.markers) {
+			const result = normalizeCodeApplications(m.codes, this.registry);
+			if (result.changed) {
+				m.codes = result.normalized;
+				mutated = true;
 			}
-			if (mutated) this.dataManager.markDirty();
 		}
+		if (mutated) this.dataManager.markDirty();
 	}
 
 	private get markers(): ImageMarker[] {
