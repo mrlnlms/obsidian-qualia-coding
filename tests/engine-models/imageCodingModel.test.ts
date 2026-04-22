@@ -204,6 +204,48 @@ describe('getMarkerLabel', () => {
 	});
 });
 
+// ── constructor normalization ──
+
+describe('constructor normalization', () => {
+	it('persists normalized markers when any codeId was rewritten in constructor', () => {
+		const def = registry.create('LegacyCode', '#FF0000');
+		const existing = {
+			image: {
+				markers: [{ id: 'm-legacy', fileId: 'img.png', shape: 'rect', coords: rectCoords, codes: [{ codeId: 'LegacyCode' }], createdAt: 1, updatedAt: 1 }],
+				settings: { autoOpenImages: true, fileStates: {} },
+			},
+		};
+		const dmLegacy = createMockDm(existing);
+		new ImageCodingModel(dmLegacy as any, registry);
+
+		// codeId should now be the canonical UUID
+		const marker = dmLegacy.section('image').markers[0];
+		expect(marker.codes[0].codeId).toBe(def.id);
+
+		// markDirty must have been called (mutated = true branch)
+		expect(dmLegacy.markDirty).toHaveBeenCalled();
+	});
+
+	it('does not markDirty when all codeIds are canonical', () => {
+		const def = registry.create('CanonicalCode', '#00FF00');
+		const existing = {
+			image: {
+				markers: [{ id: 'm-canonical', fileId: 'img.png', shape: 'rect', coords: rectCoords, codes: [{ codeId: def.id }], createdAt: 1, updatedAt: 1 }],
+				settings: { autoOpenImages: true, fileStates: {} },
+			},
+		};
+		const dmCanonical = createMockDm(existing);
+		new ImageCodingModel(dmCanonical as any, registry);
+
+		// Marker should be unchanged
+		const marker = dmCanonical.section('image').markers[0];
+		expect(marker.codes[0].codeId).toBe(def.id);
+
+		// markDirty must NOT have been called (mutated = false branch)
+		expect(dmCanonical.markDirty).not.toHaveBeenCalled();
+	});
+});
+
 // ── setHoverState / getHoverMarkerIds ──
 
 describe('setHoverState / getHoverMarkerIds', () => {
