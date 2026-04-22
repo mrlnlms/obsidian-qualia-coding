@@ -1,4 +1,5 @@
 import type { CodeApplication, CodeRelation } from './types';
+import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 
 export function hasCode(codes: CodeApplication[], codeId: string): boolean {
 	return codes.some(c => c.codeId === codeId);
@@ -54,4 +55,50 @@ export function removeRelation(codes: CodeApplication[], codeId: string, label: 
 	const filtered = existing.filter(r => !(r.label === label && r.target === target));
 	if (filtered.length === existing.length) return codes;
 	return codes.map((c, i) => i === idx ? { ...c, relations: filtered } : c);
+}
+
+export interface NormalizeResult {
+	normalized: CodeApplication[];
+	changed: boolean;
+	/** count of applications dropped because they referenced neither a valid id nor a known name */
+	dropped: number;
+}
+
+/**
+ * Canonicalize codeIds on a set of applications against a registry.
+ *
+ * Each application must end up with `codeId` equal to a live `CodeDefinition.id`.
+ * Legacy data from pre-Phase-C vaults carries the name in that field; newer data
+ * carries the real id. This helper resolves both, and drops orphans whose code
+ * has since been deleted from the registry.
+ *
+ * If no application needs rewriting and none is dropped, the returned `normalized`
+ * is the same array reference as the input.
+ */
+export function normalizeCodeApplications(
+	apps: CodeApplication[],
+	registry: CodeDefinitionRegistry,
+): NormalizeResult {
+	if (apps.length === 0) return { normalized: apps, changed: false, dropped: 0 };
+
+	let changed = false;
+	let dropped = 0;
+	const out: CodeApplication[] = [];
+
+	for (const app of apps) {
+		if (registry.getById(app.codeId)) {
+			out.push(app);
+			continue;
+		}
+		const def = registry.getByName(app.codeId);
+		if (def) {
+			out.push({ ...app, codeId: def.id });
+			changed = true;
+			continue;
+		}
+		dropped++;
+		changed = true;
+	}
+
+	return { normalized: changed ? out : apps, changed, dropped };
 }

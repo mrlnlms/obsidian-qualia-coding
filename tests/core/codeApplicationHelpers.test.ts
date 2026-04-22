@@ -7,8 +7,10 @@ import {
 	removeCodeApplication,
 	getMagnitude,
 	setMagnitude,
+	normalizeCodeApplications,
 } from '../../src/core/codeApplicationHelpers';
-import type { CodeApplication } from '../../src/core/types';
+import type { CodeApplication, CodeDefinition } from '../../src/core/types';
+import type { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 
 describe('codeApplicationHelpers', () => {
 	const codes: CodeApplication[] = [
@@ -99,6 +101,88 @@ describe('codeApplicationHelpers', () => {
 		it('preserves other code applications', () => {
 			const result = setMagnitude(codes, 'code_a', 'BAIXA');
 			expect(findCodeApplication(result, 'code_b')?.magnitude).toBe('ALTA');
+		});
+	});
+
+	describe('normalizeCodeApplications', () => {
+		function makeRegistry(defs: CodeDefinition[]): CodeDefinitionRegistry {
+			const byId = new Map(defs.map(d => [d.id, d]));
+			const byName = new Map(defs.map(d => [d.name, d]));
+			return {
+				getById: (id: string) => byId.get(id),
+				getByName: (name: string) => byName.get(name),
+			} as unknown as CodeDefinitionRegistry;
+		}
+
+		const defs: CodeDefinition[] = [
+			{ id: 'c_1', name: 'Hierarquia', color: '#000' } as CodeDefinition,
+			{ id: 'c_2', name: 'Frustração', color: '#111' } as CodeDefinition,
+		];
+
+		it('keeps applications already referencing a valid id', () => {
+			const reg = makeRegistry(defs);
+			const result = normalizeCodeApplications([{ codeId: 'c_1' }], reg);
+			expect(result.normalized).toEqual([{ codeId: 'c_1' }]);
+			expect(result.changed).toBe(false);
+			expect(result.dropped).toBe(0);
+		});
+
+		it('rewrites name-based legacy codeId to id', () => {
+			const reg = makeRegistry(defs);
+			const result = normalizeCodeApplications([{ codeId: 'Hierarquia' }], reg);
+			expect(result.normalized).toEqual([{ codeId: 'c_1' }]);
+			expect(result.changed).toBe(true);
+			expect(result.dropped).toBe(0);
+		});
+
+		it('drops orphan applications (codeId matches neither id nor name)', () => {
+			const reg = makeRegistry(defs);
+			const result = normalizeCodeApplications([{ codeId: 'ghost' }], reg);
+			expect(result.normalized).toEqual([]);
+			expect(result.changed).toBe(true);
+			expect(result.dropped).toBe(1);
+		});
+
+		it('preserves magnitude and relations when rewriting id', () => {
+			const reg = makeRegistry(defs);
+			const input = [{
+				codeId: 'Frustração',
+				magnitude: 'ALTA',
+				relations: [{ label: 'causa', target: 'Hierarquia', directed: true }],
+			}];
+			const result = normalizeCodeApplications(input, reg);
+			expect(result.normalized).toEqual([{
+				codeId: 'c_2',
+				magnitude: 'ALTA',
+				relations: [{ label: 'causa', target: 'Hierarquia', directed: true }],
+			}]);
+		});
+
+		it('handles mixed array: valid + legacy + orphan', () => {
+			const reg = makeRegistry(defs);
+			const result = normalizeCodeApplications(
+				[{ codeId: 'c_1' }, { codeId: 'Frustração' }, { codeId: 'ghost' }],
+				reg,
+			);
+			expect(result.normalized).toEqual([{ codeId: 'c_1' }, { codeId: 'c_2' }]);
+			expect(result.changed).toBe(true);
+			expect(result.dropped).toBe(1);
+		});
+
+		it('returns empty with changed=false for empty input', () => {
+			const reg = makeRegistry(defs);
+			const result = normalizeCodeApplications([], reg);
+			expect(result.normalized).toEqual([]);
+			expect(result.changed).toBe(false);
+			expect(result.dropped).toBe(0);
+		});
+
+		it('returns same reference (not a copy) when nothing changed', () => {
+			const reg = makeRegistry(defs);
+			const input: CodeApplication[] = [{ codeId: 'c_1' }, { codeId: 'c_2' }];
+			const result = normalizeCodeApplications(input, reg);
+			expect(result.normalized).toBe(input);
+			expect(result.changed).toBe(false);
 		});
 	});
 });
