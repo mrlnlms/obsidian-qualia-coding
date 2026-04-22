@@ -55,7 +55,10 @@ export function renderCodebookTree(
 
 	let lastStart = -1;
 	let lastEnd = -1;
-	const rowEls: HTMLElement[] = [];
+	// Row pool keyed by node index — rows that stay in view across scroll
+	// events are preserved (no remove+recreate churn). Only newly-entering
+	// indexes are rendered; only newly-leaving ones are removed.
+	const rowPool = new Map<number, HTMLElement>();
 
 	const renderVisibleRows = () => {
 		const scrollTop = scrollEl.scrollTop;
@@ -68,16 +71,21 @@ export function renderCodebookTree(
 		lastStart = startIdx;
 		lastEnd = endIdx;
 
-		// Remove old rows
-		for (const el of rowEls) el.remove();
-		rowEls.length = 0;
+		// Remove rows that left the visible range
+		for (const [idx, el] of rowPool) {
+			if (idx < startIdx || idx >= endIdx) {
+				el.remove();
+				rowPool.delete(idx);
+			}
+		}
 
-		// Render visible rows
+		// Add rows that entered the visible range (skip rows already rendered)
 		for (let i = startIdx; i < endIdx; i++) {
+			if (rowPool.has(i)) continue;
 			const node = nodes[i]!;
 			const rowEl = renderRow(node, counts, i, callbacks);
 			spacer.appendChild(rowEl);
-			rowEls.push(rowEl);
+			rowPool.set(i, rowEl);
 		}
 	};
 

@@ -208,7 +208,7 @@ Quatro bugs críticos descobertos durante teste manual de round-trip QDPX (vault
 
 - [x] K1: autoRevealOnSegmentClick — confirmado órfão (aggregator em `unifiedModelAdapter.ts` sem consumer externo). Removido: setting + toggle + getter em 6 arquivos. (2026-04-22)
 - [ ] K2: Drag-drop visual feedback poderia ser mais forte (cor mais visivel, animacao de transicao)
-- [ ] K3: Virtual scroll reconstroi todos os rows visiveis no scroll — considerar row recycling para 5000+ codes
+- [x] K3: Virtual scroll com row recycling — `codebookTreeRenderer` agora preserva rows via `Map<nodeIndex, HTMLElement>` entre scroll events; só cria quando entra no range e remove quando sai. 5 stress tests (5000 codes) validam recycling + ausência de leak. Polyfills de `createDiv/createEl/createSpan/empty/addClass` adicionados em `tests/setup.ts`. (2026-04-22)
 
 ---
 
