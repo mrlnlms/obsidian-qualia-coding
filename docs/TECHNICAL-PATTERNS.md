@@ -1194,6 +1194,63 @@ Na prática de produção, o drop nunca dispara — os 6 fluxos acima já selam 
 
 ---
 
+## 18. WaveSurfer v7 — scroll persistence + autoCenter
+
+**Contexto:** ao reabrir um arquivo de audio/video, restaurar o scroll horizontal da waveform e a posição do playhead. Atravessa duas armadilhas da API do WaveSurfer v7.
+
+### Armadilha 1: `getScroll()` retorna 0 no momento do cleanup
+
+Entre o último scroll event do user e o momento em que Obsidian chama `onUnloadFile(file)` → `cleanup(file)`, WaveSurfer reseta seu estado interno de scroll pra 0. Provável causa: o DOM do container começa a ser teardown antes do callback do Obsidian, e WaveSurfer observa isso.
+
+**Sintoma:** `renderer.getScroll()` chamado em `cleanup` sempre retorna 0, mesmo que o user tenha rolado até 860px.
+
+**Solução:** manter um mirror local atualizado via `on('scroll')`:
+
+```ts
+private lastKnownScroll = 0;
+
+// No ready handler:
+this.renderer.on('scroll', (_s, _e, scrollLeft: number) => {
+  this.lastKnownScroll = scrollLeft;
+});
+
+// No save:
+states[file.path] = { ..., lastPosition: this.lastKnownScroll };
+```
+
+### Armadilha 2: `autoCenter: true` sobrescreve `setScroll` após load
+
+Com `autoCenter: true`, WaveSurfer mantém o playhead centralizado na viewport. Logo após `create()`, `currentTime === 0`, então qualquer `setScroll(N)` é sobrescrito por WaveSurfer pra centralizar em time=0 → scroll volta pra 0.
+
+**Sintoma:** `setScroll` aplica imediatamente (evidência: `getScroll()` retorna o valor logo depois), mas em alguns frames WaveSurfer reseta.
+
+**Solução:** desligar autoCenter durante restore, religar no primeiro `play`:
+
+```ts
+if (scrollPos > 0 || currentTime > 0) {
+  this.renderer.setAutoCenter(false);
+  if (currentTime > 0) this.renderer.seekTo(currentTime);
+  if (scrollPos > 0) {
+    requestAnimationFrame(() => this.renderer.setScroll(scrollPos));
+  }
+}
+
+this.renderer.on('play', () => {
+  this.renderer.setAutoCenter(true);  // autoCenter é útil durante playback
+  this.updatePlayIcon();
+});
+```
+
+### Onde está implementado
+
+`src/media/mediaViewCore.ts` (lógica compartilhada audio+video) + `src/media/waveformRenderer.ts` (método `setAutoCenter`). BACKLOG §16 FEITO 2026-04-22, merge `8d38939`.
+
+### Takeaway
+
+WaveSurfer não é fonte confiável pra "posição atual" durante teardown. Sempre mirror o estado via eventos. E `autoCenter: true` é conflitante com `setScroll` manual — tratar como mutuamente exclusivos.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

@@ -223,23 +223,26 @@ Resolvido em sessão de higiene:
 
 ---
 
-## 16. Audio/Video — scroll persistence não restaura ao reabrir arquivo
+## ~~16. Audio/Video — scroll persistence não restaura ao reabrir arquivo~~ — FEITO (2026-04-22, merge `8d38939`)
 
-**Sintoma:** em `AudioView`/`VideoView`, após rolar a waveform em um arquivo, trocar pra outro e voltar, o scroll abre no início em vez de restaurar a posição anterior. Bug **pré-existente** (anterior à consolidação de 2026-04-22; confirmado com Marlon em `chore/fileview-consolidation` smoke test).
+**Duas causas diferentes, uma no save, outra no restore:**
 
-**Hipóteses de causa** (não investigadas a fundo ainda):
+1. **Save retornava 0.** `renderer.getScroll()` no `cleanup(file)` sempre retornava 0 porque WaveSurfer reseta seu scroll interno ANTES de Obsidian chamar `onUnloadFile` (provavelmente pela teardown do container DOM). Evidência nos logs: último `scroll` event reportava `getScrollReturns: 860`; milissegundos depois, no `cleanup ENTRY`, `getScroll()` já retornava 0.
+   - **Fix:** mirror local `lastKnownScroll` atualizado via listener `on('scroll')`. Save usa o mirror em vez de `getScroll()`.
 
-1. `renderer.setScroll(scrollPos)` no handler `ready` está sendo executado antes do WaveSurfer estar pronto pra aceitar scroll. O `requestAnimationFrame` pode não ser suficiente — WaveSurfer tem sua própria sequência de renderização interna (waveform, timeline, etc.) que pode não estar completa no momento do `ready`.
-2. `fileStates[file.path].lastPosition` pode estar sendo salvo como 0 em algum caminho — verificar se o save em `cleanup(file)` está lendo `getScroll()` em momento válido (antes do `renderer.destroy()`, já confirmado na ordem atual).
-3. Zoom restoration pode estar re-disparando o scroll para 0 ao alterar a escala da waveform (`renderer.zoom(zoom)` pode resetar scroll interno).
+2. **Restore era sobrescrito por autoCenter.** WaveSurfer é criado com `autoCenter: true`, que força o playhead a ficar centralizado na viewport. Após `setScroll(pos)`, o próximo tick do WaveSurfer centralizava no cursor (que estava em 0) → scroll voltava pra 0.
+   - **Fix:** `setAutoCenter(false)` durante restore; re-habilita no primeiro `play` (que é quando autoCenter faz sentido — playhead seguindo viewport durante playback).
 
-**Como investigar:**
-- Adicionar `console.log` em `saveScrollPosition` (valor lido) e no `ready` handler (valor restaurado) pra confirmar qual lado falha.
-- Checar `data.json` após uma troca: `fileStates[audioA].lastPosition` está > 0?
-- Se sim, o bug é no restore (hipótese 1 ou 3). Tentar `setTimeout(() => setScroll(...), 50)` ou escutar evento `redraw` do WaveSurfer.
-- Se não, é no save — revisar `renderer.getScroll()` e o lifecycle de WaveSurfer.
+**Também salvando `lastCurrentTime`:** user esperava que cursor e tempo de playback também fossem restaurados, não só a posição visual da waveform. `seekTo(lastCurrentTime)` antes do `setScroll`, autoCenter=false pra não interferir.
 
-**Escopo:** sessão curta (30-60 min). Fix provavelmente pequeno — mover `setScroll` pra um evento posterior ao `ready` ou re-aplicar após zoom restore.
+**Arquivos tocados:**
+- `src/media/mediaViewCore.ts` — `lastKnownScroll` field, scroll listener, restore logic, autoCenter OFF→ON no play
+- `src/media/mediaTypes.ts` — `lastCurrentTime?: number` no `fileStates`
+- `src/media/waveformRenderer.ts` — novo método `setAutoCenter(on)`
+
+**Validação manual:** funcionou em ambos audio e video (MediaViewCore é a base compartilhada).
+
+Pattern documentado em `docs/TECHNICAL-PATTERNS.md` §18.
 
 ---
 
