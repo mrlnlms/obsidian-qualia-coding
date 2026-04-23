@@ -32,4 +32,24 @@ describe('resolveMarkerOffsets', () => {
 		const result = resolveMarkerOffsets('page one\fpage two', [0, 9], { page: 0, text: 'two' });
 		expect(result).toBeNull();
 	});
+
+	it('casa mesmo quando plainText tem espaços extras que DOM não tinha', () => {
+		// pdfjs joined items geram double spaces: "International  Handbook"
+		// DOM capturou como single: "International Handbook"
+		const plainText = 'International  Handbook  of Survey';
+		const result = resolveMarkerOffsets(plainText, [0], {
+			page: 0,
+			text: 'nternational Handbook of Survey',
+		});
+		expect(result).not.toBeNull();
+		// offset retorna no plainText original (com doubles)
+		expect(plainText.slice(result!.start, result!.end)).toContain('nternational');
+		expect(plainText.slice(result!.start, result!.end)).toContain('Survey');
+	});
+
+	it('whitespace normalization também funciona com newlines/tabs', () => {
+		const plainText = 'hello\n\tworld';
+		const result = resolveMarkerOffsets(plainText, [0], { page: 0, text: 'hello world' });
+		expect(result).not.toBeNull();
+	});
 });
