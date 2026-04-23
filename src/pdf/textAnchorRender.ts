@@ -9,16 +9,22 @@ import { findAnchor } from './textAnchor';
 import type { PdfAnchor } from './pdfCodingTypes';
 
 function orderedTextLayerNodes(pageEl: HTMLElement): HTMLElement[] {
-	const nodes = Array.from(pageEl.querySelectorAll<HTMLElement>('.textLayerNode'));
-	const hasDataIdx = nodes.some((n) => n.hasAttribute('data-idx'));
-	if (!hasDataIdx) return nodes;
-	const sorted = [...nodes];
-	sorted.sort((a, b) => {
+	const all = Array.from(pageEl.querySelectorAll<HTMLElement>('.textLayerNode'));
+	const outer = all.filter((node) => {
+		let p = node.parentElement;
+		while (p && p !== pageEl) {
+			if (p.classList.contains('textLayerNode')) return false;
+			p = p.parentElement;
+		}
+		return true;
+	});
+	const hasDataIdx = outer.some((n) => n.hasAttribute('data-idx'));
+	if (!hasDataIdx) return outer;
+	return outer.slice().sort((a, b) => {
 		const ai = parseInt(a.getAttribute('data-idx') ?? '0', 10);
 		const bi = parseInt(b.getAttribute('data-idx') ?? '0', 10);
 		return ai - bi;
 	});
-	return sorted;
 }
 
 interface PageLayout {

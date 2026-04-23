@@ -2,8 +2,9 @@
  * Captures a text anchor (text + contextBefore + contextAfter + occurrenceIndex)
  * from a DOM range within a PDF page's .textLayer.
  *
- * Mirrors the convention used by pdfPlainText.ts: textLayerNode contents are
- * joined with ' ' to form the page-level text.
+ * Handles Obsidian's nested textLayerNode structure (each char can be its own
+ * span inside an outer span with data-idx). Only outer spans are used for
+ * pageText composition.
  */
 
 import type { PdfAnchor } from './pdfCodingTypes';
@@ -17,36 +18,52 @@ export interface DomRangeLike {
 	endOffset: number;
 }
 
-/** Returns the `.textLayerNode` ancestor of a node (or the node itself if it's one). */
-function findTextLayerNode(node: Node | null): HTMLElement | null {
+/**
+ * Returns the OUTERMOST `.textLayerNode` ancestor of a node (the one that's
+ * a direct child of `.textLayer`, not a nested char span).
+ */
+function findOuterTextLayerNode(node: Node | null, pageEl: HTMLElement): HTMLElement | null {
+	let outermost: HTMLElement | null = null;
 	let current: Node | null = node;
-	while (current) {
+	while (current && current !== pageEl) {
 		if (current.nodeType === Node.ELEMENT_NODE) {
 			const el = current as HTMLElement;
-			if (el.classList?.contains('textLayerNode')) return el;
+			if (el.classList?.contains('textLayerNode')) {
+				outermost = el;
+			}
 		}
 		current = current.parentNode;
 	}
-	return null;
+	return outermost;
 }
 
-/** Ordered list of textLayerNode children, respecting data-idx when present. */
+/**
+ * Ordered list of OUTER `.textLayerNode` elements (ignoring any nested
+ * `.textLayerNode` descendants used for per-char positioning).
+ * Sorted by data-idx when present; falls back to DOM order.
+ */
 function orderedTextLayerNodes(pageEl: HTMLElement): HTMLElement[] {
-	const nodes = Array.from(pageEl.querySelectorAll<HTMLElement>('.textLayerNode'));
-	const hasDataIdx = nodes.some((n) => n.hasAttribute('data-idx'));
-	if (!hasDataIdx) return nodes;
-	const sorted = [...nodes];
-	sorted.sort((a, b) => {
+	const all = Array.from(pageEl.querySelectorAll<HTMLElement>('.textLayerNode'));
+	const outer = all.filter((node) => {
+		let p = node.parentElement;
+		while (p && p !== pageEl) {
+			if (p.classList.contains('textLayerNode')) return false;
+			p = p.parentElement;
+		}
+		return true;
+	});
+	const hasDataIdx = outer.some((n) => n.hasAttribute('data-idx'));
+	if (!hasDataIdx) return outer;
+	return outer.slice().sort((a, b) => {
 		const ai = parseInt(a.getAttribute('data-idx') ?? '0', 10);
 		const bi = parseInt(b.getAttribute('data-idx') ?? '0', 10);
 		return ai - bi;
 	});
-	return sorted;
 }
 
 interface PageLayout {
 	pageText: string;
-	/** For each textLayerNode (in logical order), its starting char offset in pageText. */
+	/** For each outer textLayerNode (in logical order), its starting char offset in pageText. */
 	nodeOffsets: Map<HTMLElement, number>;
 }
 
@@ -66,28 +83,29 @@ function layoutPage(pageEl: HTMLElement): PageLayout {
 /** Maps a (node, offsetInNode) position into its char offset in pageText. */
 function domPositionToPageOffset(
 	layout: PageLayout,
+	pageEl: HTMLElement,
 	container: Node,
 	offsetInNode: number,
 ): number | null {
-	const layerNode = findTextLayerNode(container);
-	if (!layerNode) return null;
-	const baseOffset = layout.nodeOffsets.get(layerNode);
+	const outer = findOuterTextLayerNode(container, pageEl);
+	if (!outer) return null;
+	const baseOffset = layout.nodeOffsets.get(outer);
 	if (baseOffset === undefined) return null;
 
-	// If container is the layerNode itself, offsetInNode counts child nodes;
-	// approximate by summing their textContent lengths.
-	if (container === layerNode) {
+	// If container is the outer itself, offsetInNode counts child nodes (element or text);
+	// sum their textContent lengths up to offsetInNode.
+	if (container === outer) {
 		let acc = 0;
-		for (let i = 0; i < offsetInNode && i < layerNode.childNodes.length; i++) {
-			acc += layerNode.childNodes[i]!.textContent?.length ?? 0;
+		for (let i = 0; i < offsetInNode && i < outer.childNodes.length; i++) {
+			acc += outer.childNodes[i]!.textContent?.length ?? 0;
 		}
 		return baseOffset + acc;
 	}
 
-	// Container is (presumably) a descendant text node of layerNode. Walk children
-	// in order, accumulating textContent lengths up to `container`, then add offsetInNode.
+	// Container is a descendant — walk text nodes inside `outer` in document order
+	// until we hit the container, accumulating lengths.
 	let acc = 0;
-	const walker = document.createTreeWalker(layerNode, NodeFilter.SHOW_TEXT);
+	const walker = document.createTreeWalker(outer, NodeFilter.SHOW_TEXT);
 	let current: Node | null = walker.nextNode();
 	while (current) {
 		if (current === container) {
@@ -104,8 +122,8 @@ export function captureAnchorFromDomRange(
 	range: DomRangeLike,
 ): PdfAnchor | null {
 	const layout = layoutPage(pageEl);
-	const startOffset = domPositionToPageOffset(layout, range.startContainer, range.startOffset);
-	const endOffset = domPositionToPageOffset(layout, range.endContainer, range.endOffset);
+	const startOffset = domPositionToPageOffset(layout, pageEl, range.startContainer, range.startOffset);
+	const endOffset = domPositionToPageOffset(layout, pageEl, range.endContainer, range.endOffset);
 	if (startOffset === null || endOffset === null) return null;
 	if (endOffset <= startOffset) return null;
 
