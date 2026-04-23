@@ -74,6 +74,23 @@ export function clearFileInterceptRules(): void {
 	renameRules.length = 0;
 }
 
+/**
+ * Tracks the last file path this interceptor "handled" per leaf. When the user
+ * explicitly swaps view type on an already-handled (leaf, file) pair — e.g. via
+ * the media toggle button — the intercept must not re-trigger and drag them
+ * back. Entries naturally drop when leaves are GC'd (WeakMap).
+ */
+const handledByLeaf = new WeakMap<object, string>();
+
+/**
+ * Mark a (leaf, file) pair as handled without firing the intercept. Called by
+ * the media toggle button when the user manually swaps view type, so the next
+ * active-leaf-change (triggered by the view swap itself) is ignored.
+ */
+export function markLeafHandled(leaf: object, filePath: string): void {
+	handledByLeaf.set(leaf, filePath);
+}
+
 export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 	// Centralized rename handler — dispatches to all registered engines
 	plugin.registerEvent(
@@ -102,10 +119,14 @@ export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 				const ext = filePath.split('.').pop()?.toLowerCase();
 				if (!ext || !matchesInterceptRule(rule, viewType, ext)) continue;
 
+				// If the user just toggled view type on this same (leaf, file), skip.
+				if (handledByLeaf.get(leaf) === filePath) continue;
+
 				// Verify file exists
 				const file = plugin.app.vault.getAbstractFileByPath(filePath);
 				if (!(file instanceof TFile)) continue;
 
+				handledByLeaf.set(leaf, filePath);
 				leaf.setViewState({
 					type: rule.targetViewType,
 					state: { file: file.path },

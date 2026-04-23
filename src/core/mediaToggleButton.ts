@@ -1,6 +1,7 @@
 import { FileView, TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import { resolveToggleTarget, isMediaViewType, type MediaKind } from './viewToggleHelpers';
+import { markLeafHandled } from './fileInterceptor';
 
 const INJECTED = new WeakSet<FileView>();
 
@@ -69,6 +70,9 @@ export async function performToggleCommand(plugin: QualiaCodingPlugin, view: Fil
 
 	const openInNewTab = plugin.dataManager.section('general').openToggleInNewTab;
 	const leaf = openInNewTab ? plugin.app.workspace.getLeaf('tab') : view.leaf;
+	// Mark the leaf as handled so the file interceptor doesn't immediately
+	// drag the user back when they explicitly swap view type.
+	markLeafHandled(leaf, file.path);
 	await leaf.setViewState({ type: target, state: { file: file.path } });
 	plugin.app.workspace.revealLeaf(leaf);
 }
