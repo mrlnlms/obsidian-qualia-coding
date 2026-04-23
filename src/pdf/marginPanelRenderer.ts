@@ -10,6 +10,7 @@ import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import { computeMergedHighlightRects } from './highlightGeometry';
 import { getMarkerVerticalBounds } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
+import { runtimeIndicesFromAnchor } from './runtimeIndicesFromAnchor';
 import { getShapeVerticalBounds } from './drawLayer';
 
 // ── Constants ──
@@ -75,20 +76,23 @@ export function renderMarginPanelForPage(
 		for (const marker of markers) {
 			if (marker.codes.length === 0) continue;
 
+			const idx = runtimeIndicesFromAnchor(pageView.div, marker);
+			if (!idx) continue;
+
 			let mergedRects;
 			try {
 				mergedRects = computeMergedHighlightRects(
 					textLayerInfo,
-					marker.beginIndex,
-					marker.beginOffset,
-					marker.endIndex,
-					marker.endOffset,
+					idx.beginIndex,
+					idx.beginOffset,
+					idx.endIndex,
+					idx.endOffset,
 				);
 			} catch {
 				continue;
 			}
 
-			const bounds = getMarkerVerticalBounds(mergedRects, pageView);
+			const bounds = getMarkerVerticalBounds(mergedRects, pageView as unknown as { pdfPage: { view: [number, number, number, number] } });
 			if (!bounds) continue;
 
 			for (const ca of marker.codes) {

@@ -34,8 +34,12 @@ const rectCoords: RectCoords = { type: 'rect', x: 0.1, y: 0.1, w: 0.5, h: 0.5 };
 const ellipseCoords: EllipseCoords = { type: 'ellipse', cx: 0.5, cy: 0.5, rx: 0.3, ry: 0.2 };
 const polyCoords: PolygonCoords = { type: 'polygon', points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0.5, y: 1 }] };
 
+function anchor(text: string, before = '', after = '', occ = 0): import('../../src/pdf/pdfCodingTypes').PdfAnchor {
+	return { text, contextBefore: before, contextAfter: after, occurrenceIndex: occ };
+}
+
 function createMarkerVia(model: PdfCodingModel, file = 'doc.pdf', page = 1, text = 'hello world') {
-	return model.findOrCreateMarker(file, page, 0, 0, 0, 10, text);
+	return model.findOrCreateMarker(file, page, anchor(text));
 }
 
 let model: PdfCodingModel;
@@ -54,62 +58,67 @@ beforeEach(() => {
 
 describe('findOrCreateMarker', () => {
 	it('creates a new marker with correct fields', () => {
-		const m = model.findOrCreateMarker('doc.pdf', 2, 3, 5, 7, 11, 'some text');
+		const m = model.findOrCreateMarker('doc.pdf', 2, anchor('some text', 'before ', ' after', 0));
 		expect(m.id).toBeTruthy();
 		expect(m.fileId).toBe('doc.pdf');
 		expect(m.page).toBe(2);
-		expect(m.beginIndex).toBe(3);
-		expect(m.beginOffset).toBe(5);
-		expect(m.endIndex).toBe(7);
-		expect(m.endOffset).toBe(11);
 		expect(m.text).toBe('some text');
+		expect(m.contextBefore).toBe('before ');
+		expect(m.contextAfter).toBe(' after');
+		expect(m.occurrenceIndex).toBe(0);
 		expect(m.codes).toEqual([]);
 		expect(m.createdAt).toBeGreaterThan(0);
 		expect(m.updatedAt).toBeGreaterThan(0);
 	});
 
 	it('returns existing marker when params match exactly', () => {
-		const m1 = model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'hello');
-		const m2 = model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'hello');
+		const m1 = model.findOrCreateMarker('doc.pdf', 1, anchor('hello'));
+		const m2 = model.findOrCreateMarker('doc.pdf', 1, anchor('hello'));
 		expect(m1).toBe(m2);
 	});
 
 	it('creates separate markers when params differ', () => {
-		const m1 = model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'a');
-		const m2 = model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 20, 'b');
+		const m1 = model.findOrCreateMarker('doc.pdf', 1, anchor('a'));
+		const m2 = model.findOrCreateMarker('doc.pdf', 1, anchor('b'));
+		expect(m1.id).not.toBe(m2.id);
+	});
+
+	it('distinguishes markers by occurrenceIndex', () => {
+		const m1 = model.findOrCreateMarker('doc.pdf', 1, anchor('foo', '', '', 0));
+		const m2 = model.findOrCreateMarker('doc.pdf', 1, anchor('foo', '', '', 1));
 		expect(m1.id).not.toBe(m2.id);
 	});
 });
 
 describe('findExistingMarker', () => {
 	it('finds marker by exact params', () => {
-		const m = model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'hello');
-		const found = model.findExistingMarker('doc.pdf', 1, 0, 0, 0, 10);
+		const m = model.findOrCreateMarker('doc.pdf', 1, anchor('hello'));
+		const found = model.findExistingMarker('doc.pdf', 1, anchor('hello'));
 		expect(found).toBe(m);
 	});
 
 	it('returns undefined when no match', () => {
-		model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'hello');
-		expect(model.findExistingMarker('doc.pdf', 1, 0, 0, 0, 99)).toBeUndefined();
+		model.findOrCreateMarker('doc.pdf', 1, anchor('hello'));
+		expect(model.findExistingMarker('doc.pdf', 1, anchor('other'))).toBeUndefined();
 	});
 
 	it('returns undefined when file differs', () => {
-		model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'hello');
-		expect(model.findExistingMarker('other.pdf', 1, 0, 0, 0, 10)).toBeUndefined();
+		model.findOrCreateMarker('doc.pdf', 1, anchor('hello'));
+		expect(model.findExistingMarker('other.pdf', 1, anchor('hello'))).toBeUndefined();
 	});
 
 	it('returns undefined when page differs', () => {
-		model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'hello');
-		expect(model.findExistingMarker('doc.pdf', 2, 0, 0, 0, 10)).toBeUndefined();
+		model.findOrCreateMarker('doc.pdf', 1, anchor('hello'));
+		expect(model.findExistingMarker('doc.pdf', 2, anchor('hello'))).toBeUndefined();
 	});
 });
 
 describe('getMarkersForPage', () => {
 	it('filters by file and page', () => {
-		model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'a');
-		model.findOrCreateMarker('doc.pdf', 1, 1, 0, 1, 10, 'b');
-		model.findOrCreateMarker('doc.pdf', 2, 0, 0, 0, 10, 'c');
-		model.findOrCreateMarker('other.pdf', 1, 0, 0, 0, 10, 'd');
+		model.findOrCreateMarker('doc.pdf', 1, anchor('a'));
+		model.findOrCreateMarker('doc.pdf', 1, anchor('b'));
+		model.findOrCreateMarker('doc.pdf', 2, anchor('c'));
+		model.findOrCreateMarker('other.pdf', 1, anchor('d'));
 		expect(model.getMarkersForPage('doc.pdf', 1)).toHaveLength(2);
 		expect(model.getMarkersForPage('doc.pdf', 2)).toHaveLength(1);
 		expect(model.getMarkersForPage('other.pdf', 1)).toHaveLength(1);
@@ -119,9 +128,9 @@ describe('getMarkersForPage', () => {
 
 describe('getMarkersForFile', () => {
 	it('filters by file only', () => {
-		model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'a');
-		model.findOrCreateMarker('doc.pdf', 2, 0, 0, 0, 10, 'b');
-		model.findOrCreateMarker('other.pdf', 1, 0, 0, 0, 10, 'c');
+		model.findOrCreateMarker('doc.pdf', 1, anchor('a'));
+		model.findOrCreateMarker('doc.pdf', 2, anchor('b'));
+		model.findOrCreateMarker('other.pdf', 1, anchor('c'));
 		expect(model.getMarkersForFile('doc.pdf')).toHaveLength(2);
 		expect(model.getMarkersForFile('other.pdf')).toHaveLength(1);
 		expect(model.getMarkersForFile('none.pdf')).toEqual([]);
@@ -274,20 +283,19 @@ describe('removeAllCodesFromMarker', () => {
 // Range update
 // ══════════════════════════════════════════════════════════════
 
-describe('updateMarkerRange', () => {
-	it('updates range fields', () => {
+describe('updateMarkerAnchor', () => {
+	it('updates anchor fields', () => {
 		const m = createMarkerVia(model);
-		model.updateMarkerRange(m.id, { beginIndex: 5, endIndex: 15, text: 'new text' });
-		expect(m.beginIndex).toBe(5);
-		expect(m.endIndex).toBe(15);
+		model.updateMarkerAnchor(m.id, { text: 'new text', contextBefore: 'before ' });
 		expect(m.text).toBe('new text');
+		expect(m.contextBefore).toBe('before ');
 	});
 
 	it('calls notify', () => {
 		const listener = vi.fn();
 		model.onChange(listener);
 		const m = createMarkerVia(model);
-		model.updateMarkerRange(m.id, { beginOffset: 2 });
+		model.updateMarkerAnchor(m.id, { contextAfter: ' x' });
 		expect(listener).toHaveBeenCalled();
 	});
 
@@ -295,36 +303,35 @@ describe('updateMarkerRange', () => {
 		const m = createMarkerVia(model);
 		const before = m.updatedAt;
 		vi.spyOn(Date, 'now').mockReturnValue(before + 5000);
-		model.updateMarkerRange(m.id, { endOffset: 20 });
+		model.updateMarkerAnchor(m.id, { occurrenceIndex: 2 });
 		expect(m.updatedAt).toBe(before + 5000);
 		vi.restoreAllMocks();
 	});
 
 	it('does nothing for unknown marker', () => {
-		model.updateMarkerRange('nonexistent', { beginIndex: 5 });
+		model.updateMarkerAnchor('nonexistent', { text: 'x' });
 		// Should not throw
 	});
 });
 
-describe('updateMarkerRangeSilent', () => {
+describe('updateMarkerAnchorSilent', () => {
 	it('updates fields without notify', () => {
 		const listener = vi.fn();
 		model.onChange(listener);
 		const m = createMarkerVia(model);
-		model.updateMarkerRangeSilent(m.id, { beginIndex: 5, text: 'silent' });
-		expect(m.beginIndex).toBe(5);
+		model.updateMarkerAnchorSilent(m.id, { text: 'silent' });
 		expect(m.text).toBe('silent');
 		expect(listener).not.toHaveBeenCalled();
 	});
 
 	it('does not push undo entry', () => {
 		const m = createMarkerVia(model);
-		model.updateMarkerRangeSilent(m.id, { beginIndex: 5 });
+		model.updateMarkerAnchorSilent(m.id, { text: 'silent' });
 		expect(model.undo()).toBe(false);
 	});
 
 	it('does nothing for unknown marker', () => {
-		model.updateMarkerRangeSilent('nonexistent', { beginIndex: 5 });
+		model.updateMarkerAnchorSilent('nonexistent', { text: 'x' });
 		// Should not throw
 	});
 });
@@ -384,16 +391,16 @@ describe('undo', () => {
 		expect(restored!.codes).toEqual(ca(idA, idB));
 	});
 
-	it('undoes resizeMarker — restores original range', () => {
+	it('undoes resizeMarker — restores original anchor', () => {
 		const m = createMarkerVia(model);
-		const origBegin = m.beginIndex;
-		const origEnd = m.endIndex;
 		const origText = m.text;
-		model.updateMarkerRange(m.id, { beginIndex: 99, endIndex: 200, text: 'changed' });
+		const origBefore = m.contextBefore;
+		const origOcc = m.occurrenceIndex;
+		model.updateMarkerAnchor(m.id, { text: 'changed', contextBefore: 'new ', occurrenceIndex: 5 });
 		model.undo();
-		expect(m.beginIndex).toBe(origBegin);
-		expect(m.endIndex).toBe(origEnd);
 		expect(m.text).toBe(origText);
+		expect(m.contextBefore).toBe(origBefore);
+		expect(m.occurrenceIndex).toBe(origOcc);
 	});
 
 	it('returns false when undo stack is empty', () => {
@@ -409,9 +416,9 @@ describe('undo', () => {
 	it('caps undo stack at MAX_UNDO (50)', () => {
 		const m = createMarkerVia(model);
 		model.addCodeToMarker(m.id, cid('base'));
-		// Push 55 undo entries via resize
+		// Push 55 undo entries via anchor update
 		for (let i = 0; i < 55; i++) {
-			model.updateMarkerRange(m.id, { beginIndex: i });
+			model.updateMarkerAnchor(m.id, { occurrenceIndex: i });
 		}
 		// Should be able to undo exactly 50 times (MAX_UNDO), then one more for addCode = 51 total
 		// Actually: 55 resize + 1 addCode = 56, capped at 50
@@ -457,7 +464,7 @@ describe('load', () => {
 	it('reads markers from dataManager section', () => {
 		const existing = {
 			pdf: {
-				markers: [{ id: 'x', fileId: 'doc.pdf', page: 1, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 5, text: 'hi', codes: [{ codeId: 'A' }], createdAt: 1, updatedAt: 1 }],
+				markers: [{ id: 'x', fileId: 'doc.pdf', page: 1, text: 'hi', contextBefore: '', contextAfter: '', occurrenceIndex: 0, codes: [{ codeId: 'A' }], createdAt: 1, updatedAt: 1 }],
 				shapes: [],
 			},
 		};
@@ -517,7 +524,7 @@ describe('load', () => {
 		// Feed a marker whose codeId is already the canonical UUID
 		const existing = {
 			pdf: {
-				markers: [{ id: 'm-canonical', fileId: 'doc.pdf', page: 1, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 5, text: 'hi', codes: [{ codeId: def.id }], createdAt: 1, updatedAt: 1 }],
+				markers: [{ id: 'm-canonical', fileId: 'doc.pdf', page: 1, text: 'hi', contextBefore: '', contextAfter: '', occurrenceIndex: 0, codes: [{ codeId: def.id }], createdAt: 1, updatedAt: 1 }],
 				shapes: [],
 			},
 		};
@@ -663,8 +670,8 @@ describe('setHoverState', () => {
 
 describe('migrateFilePath', () => {
 	it('updates fileId on all matching markers', () => {
-		model.findOrCreateMarker('old.pdf', 1, 0, 0, 0, 10, 'a');
-		model.findOrCreateMarker('old.pdf', 2, 0, 0, 0, 10, 'b');
+		model.findOrCreateMarker('old.pdf', 1, anchor('a'));
+		model.findOrCreateMarker('old.pdf', 2, anchor('b'));
 		model.migrateFilePath('old.pdf', 'new.pdf');
 		expect(model.getMarkersForFile('new.pdf')).toHaveLength(2);
 		expect(model.getMarkersForFile('old.pdf')).toEqual([]);
@@ -681,7 +688,7 @@ describe('migrateFilePath', () => {
 	it('calls save and listeners when changes found', () => {
 		const listener = vi.fn();
 		model.onChange(listener);
-		model.findOrCreateMarker('old.pdf', 1, 0, 0, 0, 10, 'a');
+		model.findOrCreateMarker('old.pdf', 1, anchor('a'));
 		listener.mockClear();
 		dm.setSection.mockClear();
 		model.migrateFilePath('old.pdf', 'new.pdf');
@@ -690,7 +697,7 @@ describe('migrateFilePath', () => {
 	});
 
 	it('does nothing for unknown path', () => {
-		model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'a');
+		model.findOrCreateMarker('doc.pdf', 1, anchor('a'));
 		const listener = vi.fn();
 		model.onChange(listener);
 		model.migrateFilePath('nonexistent.pdf', 'new.pdf');
@@ -923,7 +930,7 @@ describe('getShapeLabel', () => {
 
 describe('getMarkerText', () => {
 	it('returns the marker text field', () => {
-		const m = model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'selected text');
+		const m = model.findOrCreateMarker('doc.pdf', 1, anchor('selected text'));
 		expect(model.getMarkerText(m)).toBe('selected text');
 	});
 });

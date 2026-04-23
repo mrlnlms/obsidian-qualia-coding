@@ -8,9 +8,11 @@
  */
 
 import type { PDFPageView } from './pdfTypings';
-import type { PdfMarker } from './pdfCodingTypes';
+import type { PdfMarker, PdfAnchor } from './pdfCodingTypes';
 import { getTextLayerInfo, getTextLayerNode, getOffsetInTextLayerNode } from './pdfViewerAccess';
 import type { MarkerRenderInfo } from './highlightRenderer';
+import { mapAnchorToDomRange } from './textAnchorRender';
+import { captureAnchorFromDomRange } from './textAnchorCapture';
 
 // ── Proportional sizing (matches markdown ratios) ──
 // Markdown: ballSize = fontSize * 0.75, barW = fontSize * 0.125, barL = lineHeight * 1.1
@@ -41,17 +43,9 @@ const HANDLE_START_CLASS = 'codemarker-pdf-handle-start';
 const HANDLE_END_CLASS = 'codemarker-pdf-handle-end';
 
 export interface DragHandleCallbacks {
-	onRangeUpdate: (markerId: string, changes: {
-		beginIndex?: number; beginOffset?: number;
-		endIndex?: number; endOffset?: number;
-		text?: string;
-	}) => void;
+	onAnchorUpdate: (markerId: string, anchor: Partial<PdfAnchor>) => void;
 	/** Live preview during drag — updates model silently + re-renders highlights only (no handle rebuild). */
-	onRangePreview?: (markerId: string, changes: {
-		beginIndex?: number; beginOffset?: number;
-		endIndex?: number; endOffset?: number;
-		text?: string;
-	}) => void;
+	onAnchorPreview?: (markerId: string, anchor: Partial<PdfAnchor>) => void;
 	onDragStateChange?: (isDragging: boolean) => void;
 	onHandleHover?: (markerId: string | null) => void;
 }
@@ -220,39 +214,44 @@ function setupDrag(
 
 		let lastMoveTime = 0;
 
+		const computeNewAnchor = (clientX: number, clientY: number): PdfAnchor | null => {
+			const caret = caretPositionFromPoint(clientX, clientY);
+			if (!caret) return null;
+
+			const pageEl = pageView.div;
+			if (!pageEl.contains(caret.node)) return null;
+
+			const mapped = mapAnchorToDomRange(pageEl, marker);
+			if (!mapped) return null;
+
+			const newDomRange = type === 'start'
+				? {
+					startContainer: caret.node,
+					startOffset: caret.offset,
+					endContainer: mapped.endContainer,
+					endOffset: mapped.endOffset,
+				}
+				: {
+					startContainer: mapped.startContainer,
+					startOffset: mapped.startOffset,
+					endContainer: caret.node,
+					endOffset: caret.offset,
+				};
+
+			return captureAnchorFromDomRange(pageEl, newDomRange);
+		};
+
 		const onMove = (moveEvt: MouseEvent) => {
 			moveEvt.preventDefault();
-
-			// Throttle to ~60fps
 			const now = Date.now();
 			if (now - lastMoveTime < 16) return;
 			lastMoveTime = now;
 
-			// Hit-test at current cursor position
-			const hitResult = hitTestTextLayer(pageView, moveEvt.clientX, moveEvt.clientY);
-			if (!hitResult) return;
+			const newAnchor = computeNewAnchor(moveEvt.clientX, moveEvt.clientY);
+			if (!newAnchor) return;
 
-			// Validate range won't invert
-			const preview = callbacks.onRangePreview ?? callbacks.onRangeUpdate;
-			if (type === 'start') {
-				if (hitResult.index > marker.endIndex ||
-					(hitResult.index === marker.endIndex && hitResult.offset >= marker.endOffset)) return;
-				const newText = extractText(pageView, hitResult.index, hitResult.offset, marker.endIndex, marker.endOffset);
-				preview(marker.id, {
-					beginIndex: hitResult.index,
-					beginOffset: hitResult.offset,
-					text: newText ?? marker.text,
-				});
-			} else {
-				if (hitResult.index < marker.beginIndex ||
-					(hitResult.index === marker.beginIndex && hitResult.offset <= marker.beginOffset)) return;
-				const newText = extractText(pageView, marker.beginIndex, marker.beginOffset, hitResult.index, hitResult.offset);
-				preview(marker.id, {
-					endIndex: hitResult.index,
-					endOffset: hitResult.offset,
-					text: newText ?? marker.text,
-				});
-			}
+			const commit = callbacks.onAnchorPreview ?? callbacks.onAnchorUpdate;
+			commit(marker.id, newAnchor);
 		};
 
 		const onUp = (upEvt: MouseEvent) => {
@@ -261,36 +260,10 @@ function setupDrag(
 			document.body.classList.remove('codemarker-pdf-dragging');
 			callbacks.onDragStateChange?.(false);
 
-			// Hit-test the text layer at the drop position
-			const hitResult = hitTestTextLayer(pageView, upEvt.clientX, upEvt.clientY);
-			if (!hitResult) return;
+			const newAnchor = computeNewAnchor(upEvt.clientX, upEvt.clientY);
+			if (!newAnchor) return;
 
-			// Validate: start can't go past end, end can't go before start
-			if (type === 'start') {
-				if (hitResult.index > marker.endIndex ||
-					(hitResult.index === marker.endIndex && hitResult.offset >= marker.endOffset)) {
-					return; // Would invert the range
-				}
-
-				const newText = extractText(pageView, hitResult.index, hitResult.offset, marker.endIndex, marker.endOffset);
-				callbacks.onRangeUpdate(marker.id, {
-					beginIndex: hitResult.index,
-					beginOffset: hitResult.offset,
-					text: newText ?? marker.text,
-				});
-			} else {
-				if (hitResult.index < marker.beginIndex ||
-					(hitResult.index === marker.beginIndex && hitResult.offset <= marker.beginOffset)) {
-					return; // Would invert the range
-				}
-
-				const newText = extractText(pageView, marker.beginIndex, marker.beginOffset, hitResult.index, hitResult.offset);
-				callbacks.onRangeUpdate(marker.id, {
-					endIndex: hitResult.index,
-					endOffset: hitResult.offset,
-					text: newText ?? marker.text,
-				});
-			}
+			callbacks.onAnchorUpdate(marker.id, newAnchor);
 		};
 
 		document.addEventListener('mousemove', onMove);
@@ -298,93 +271,16 @@ function setupDrag(
 	});
 }
 
-// ── Text Layer Hit Test ──
+// ── Caret Hit Test ──
 
-interface HitTestResult {
-	index: number;
-	offset: number;
-}
-
-/**
- * Convert a client coordinate to a text layer index/offset.
- * Uses caretPositionFromPoint (or caretRangeFromPoint fallback) to find
- * the character position under the cursor.
- */
-function hitTestTextLayer(pageView: PDFPageView, clientX: number, clientY: number): HitTestResult | null {
-	const textLayerInfo = getTextLayerInfo(pageView);
-	if (!textLayerInfo) return null;
-
-	let node: Node | null = null;
-	let offsetInNode = 0;
-
+/** Returns the DOM text node and offset under a client coordinate. */
+function caretPositionFromPoint(clientX: number, clientY: number): { node: Node; offset: number } | null {
 	if ('caretPositionFromPoint' in document) {
 		const pos = (document as Document & { caretPositionFromPoint(x: number, y: number): { offsetNode: Node; offset: number } | null }).caretPositionFromPoint(clientX, clientY);
-		if (pos) {
-			node = pos.offsetNode;
-			offsetInNode = pos.offset;
-		}
+		if (pos) return { node: pos.offsetNode, offset: pos.offset };
 	} else if ('caretRangeFromPoint' in document) {
 		const range = (document as Document & { caretRangeFromPoint(x: number, y: number): Range | null }).caretRangeFromPoint(clientX, clientY);
-		if (range) {
-			node = range.startContainer;
-			offsetInNode = range.startOffset;
-		}
+		if (range) return { node: range.startContainer, offset: range.startOffset };
 	}
-
-	if (!node) return null;
-
-	const pageEl = pageView.div;
-	const textLayerNode = getTextLayerNode(pageEl, node);
-	if (!textLayerNode) return null;
-
-	const idxAttr = textLayerNode.getAttribute('data-idx');
-	let index: number;
-	if (idxAttr !== null) {
-		index = parseInt(idxAttr, 10);
-	} else {
-		const parent = textLayerNode.parentElement;
-		if (!parent) return null;
-		const nodes = parent.querySelectorAll('.textLayerNode');
-		let found = -1;
-		for (let i = 0; i < nodes.length; i++) {
-			if (nodes[i] === textLayerNode) { found = i; break; }
-		}
-		if (found < 0) return null;
-		index = found;
-	}
-
-	const offset = getOffsetInTextLayerNode(textLayerNode, node, offsetInNode);
-	if (offset === null) return null;
-
-	return { index, offset };
-}
-
-/**
- * Extract text from the text layer between two index/offset positions.
- */
-function extractText(
-	pageView: PDFPageView,
-	beginIndex: number, beginOffset: number,
-	endIndex: number, endOffset: number,
-): string | null {
-	const textLayerInfo = getTextLayerInfo(pageView);
-	if (!textLayerInfo) return null;
-
-	const { textContentItems } = textLayerInfo;
-	let result = '';
-
-	for (let i = beginIndex; i <= endIndex; i++) {
-		const item = textContentItems[i];
-		if (!item) continue;
-
-		const str = item.str;
-		const from = i === beginIndex ? beginOffset : 0;
-		const to = i === endIndex ? endOffset : str.length;
-		result += str.slice(from, to);
-
-		if (i < endIndex && item.hasEOL) result += '\n';
-		else if (i < endIndex) result += ' ';
-	}
-
-	return result.trim() || null;
+	return null;
 }

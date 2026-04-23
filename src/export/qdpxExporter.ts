@@ -428,12 +428,15 @@ export async function exportProject(
   const pdfData = dataManager.section('pdf');
   const pdfByFile = groupByFileId(pdfData.markers, pdfData.shapes);
   for (const [fileId, { textMarkers, shapeMarkers }] of pdfByFile) {
+    // TODO F4: rewrite PDF export using buildPlainText + findAnchor to resolve
+    // absolute offsets from marker.anchor. For now, emit placeholder offsets
+    // so the XML builds (round-trip broken until F4 lands).
     const textOffsets = new Map<string, { start: number; end: number }>();
     for (const m of textMarkers) {
-      textOffsets.set(m.id, { start: m.beginOffset, end: m.endOffset });
+      textOffsets.set(m.id, { start: 0, end: m.text.length });
     }
     if (textMarkers.length > 0) {
-      warnings.push(`PDF text offsets for ${fileId} are approximate (per-content-item, not absolute)`);
+      warnings.push(`PDF export for ${fileId}: offsets are placeholders (F4 pending)`);
     }
     const pageDims: Record<number, { width: number; height: number }> | null = null;
     if (shapeMarkers.length > 0) {

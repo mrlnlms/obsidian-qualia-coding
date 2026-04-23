@@ -6,14 +6,9 @@
  * joined with ' ' to form the page-level text.
  */
 
-const CONTEXT_CHARS = 30;
+import type { PdfAnchor } from './pdfCodingTypes';
 
-export interface Anchor {
-	text: string;
-	contextBefore: string;
-	contextAfter: string;
-	occurrenceIndex: number;
-}
+const CONTEXT_CHARS = 30;
 
 export interface DomRangeLike {
 	startContainer: Node;
@@ -107,7 +102,7 @@ function domPositionToPageOffset(
 export function captureAnchorFromDomRange(
 	pageEl: HTMLElement,
 	range: DomRangeLike,
-): Anchor | null {
+): PdfAnchor | null {
 	const layout = layoutPage(pageEl);
 	const startOffset = domPositionToPageOffset(layout, range.startContainer, range.startOffset);
 	const endOffset = domPositionToPageOffset(layout, range.endContainer, range.endOffset);

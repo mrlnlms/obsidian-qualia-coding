@@ -6,7 +6,7 @@
  */
 
 import { findAnchor } from './textAnchor';
-import type { Anchor } from './textAnchorCapture';
+import type { PdfAnchor } from './pdfCodingTypes';
 
 function orderedTextLayerNodes(pageEl: HTMLElement): HTMLElement[] {
 	const nodes = Array.from(pageEl.querySelectorAll<HTMLElement>('.textLayerNode'));
@@ -84,7 +84,7 @@ export interface MappedRange {
 
 export function mapAnchorToDomRange(
 	pageEl: HTMLElement,
-	anchor: Anchor,
+	anchor: PdfAnchor,
 ): MappedRange | null {
 	const layout = layoutPage(pageEl);
 	const match = findAnchor(
