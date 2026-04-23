@@ -206,7 +206,7 @@ Quatro bugs críticos descobertos durante teste manual de round-trip QDPX (vault
 | ~~CSS chip styles duplicados~~ | ~~FEITO~~ | ~~Magnitude chips unificados em 4 classes canônicas (`codemarker-magnitude-{row,code-name,chips,chip}`) — sem prefixo `tooltip-`/`detail-`. Seletores agrupados no CSS → single rule. Relations mantidas separadas (variantes intencionais de compactação: popover usa gap/padding/svg menores que detail view).~~ (2026-04-22)|
 | Magnitude popover sem empty state | Won't-fix | Seção de magnitude some inteiramente quando nenhum código aplicado tem magnitude configurada — decisão UX intencional, não exibe mensagem |
 | ~~Continuous type — step decimal~~ | ~~FEITO~~ | Extraído `generateContinuousRange` em `core/magnitudeRange.ts`. Decimais inferidos do step string (ex: step `"0.5"` → `["0.0", "0.5", "1.0"]`, step `"0.01"` → `["0.00", "0.01", ...]`). Bug adicional pego: step=0 antes virava 1 por `|| 1` truthy check — agora rejeita explicitamente. 9 unit tests. (2026-04-22) |
-| Relations Network — polish visual pendente | Baixa | Modo grafo atual desenha linhas retas — em grafos densos (20+ códigos, dezenas de relações) vira spaghetti visual. Caminhos viáveis, do mais leve ao mais caro: **(a)** curvas de Bézier simples em vez de retas (~30 min, impacto visual já considerável); **(b)** opacity por peso — edges mais usados mais opacos (~15 min); **(c)** hover-focus — destacar edges do nó sob cursor, escurecer o resto (~45 min); **(d)** filtro "só edges com N+ aplicações" (~30 min); **(e)** edge bundling real (FDEB/HEB, 3-4h MVP + 1-2 dias polido, adiciona lib ou implementação de ~150-300 LOC, só vale com 50+ edges densos). Ordem recomendada: a → c → d → b → e. Atacar oportunístico ou quando usuário reportar "tá confuso". |
+| Relations Network — polish visual | Parcial | **FEITO (2026-04-23):** (a) curvas de Bézier quadráticas com control point perpendicular ao midpoint — edges bidirecionais (A→B e B→A) curvam pra lados opostos automaticamente por causa da orientação do vetor source→target; (b) opacity proporcional ao weight (0.25 + 0.6 × weight/maxWeight) — edges frequentes ficam opacos, raros desbotam. Arrowhead usa tangente da curva em t=1 (passando control point como "from"); label em t=0.5 da curva. Hit test mantido como distância ponto-reta (aproximação suficiente com curvatura 15%). `relationsNetworkMode.ts:265-330`. **Ainda aberto:** (c) hover-focus — destacar edges do nó sob cursor, escurecer o resto (~45 min); (d) filtro "só edges com N+ aplicações" (~30 min); (e) edge bundling real (FDEB/HEB, 3-4h MVP + 1-2 dias polido, só vale com 50+ edges densos). Atacar oportunístico. |
 
 ---
 
@@ -270,7 +270,6 @@ Pattern documentado em `docs/TECHNICAL-PATTERNS.md` §18.
 **Considerar:** tipos discriminados (`CodeId = Branded<string, 'codeId'>`) pra prevenir regressões similares.
 
 **Follow-ups opcionais (não-blockers):**
-- `NormalizeResult.dropped` field não é consumido — podia feed uma Notice quando orphan drop > 0 no primeiro load de um vault (visibilidade da migração one-shot)
 - `extractCodes` em `dataConsolidator.ts` sem unit tests standalone (coberto indiretamente pelos 31 testes do consolidator)
 
 ---

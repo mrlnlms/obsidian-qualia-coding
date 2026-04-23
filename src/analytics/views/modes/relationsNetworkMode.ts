@@ -264,17 +264,34 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 
 	const edgeBaseColor = isDark ? "rgba(180, 180, 200, {a})" : "rgba(80, 80, 100, {a})";
 
+	// Peak edge weight for opacity scaling — heavier edges render more opaque,
+	// lighter ones fade out so the user's eye is drawn to the frequent relations.
+	const maxWeight = Math.max(1, ...edges.map(e => e.weight));
+	const BEZIER_CURVATURE = 0.15;
+
 	const redraw = () => {
 	c2d.clearRect(0, 0, W, H);
 
-	// Edges
+	// Edges — quadratic bezier with perpendicular control point. Edges curve
+	// consistently to one side relative to the source→target vector, which
+	// means bidirectional pairs (A→B and B→A) naturally split apart instead
+	// of overlapping.
 	for (const se of simEdges) {
 		const ni = simNodes[se.si]!;
 		const nj = simNodes[se.ti]!;
 		const edge = se.edge;
 		const thickness = Math.min(1 + edge.weight, 8);
-		const opacity = 0.5;
+		const opacity = 0.25 + 0.6 * (edge.weight / maxWeight);
 		const color = edgeBaseColor.replace("{a}", String(opacity));
+
+		const dx = nj.x - ni.x;
+		const dy = nj.y - ni.y;
+		const len = Math.hypot(dx, dy) || 1;
+		const offset = len * BEZIER_CURVATURE;
+		const mx = (ni.x + nj.x) / 2;
+		const my = (ni.y + nj.y) / 2;
+		const cx = mx + (-dy / len) * offset;
+		const cy = my + (dx / len) * offset;
 
 		c2d.save();
 		c2d.beginPath();
@@ -291,25 +308,27 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 		}
 
 		c2d.moveTo(ni.x, ni.y);
-		c2d.lineTo(nj.x, nj.y);
+		c2d.quadraticCurveTo(cx, cy, nj.x, nj.y);
 		c2d.stroke();
 		c2d.setLineDash([]);
 		c2d.restore();
 
-		// Arrowhead for directed edges
+		// Arrowhead — passing the control point as the "from" coord so the
+		// angle is the curve's tangent at t=1 (direction of approach), not the
+		// straight-line direction. drawArrowhead itself stays geometry-agnostic.
 		if (edge.directed) {
-			drawArrowhead(c2d, ni.x, ni.y, nj.x, nj.y, simNodes[se.ti]!.radius, color);
+			drawArrowhead(c2d, cx, cy, nj.x, nj.y, simNodes[se.ti]!.radius, color);
 		}
 
-		// Edge label
+		// Edge label — midpoint of the bezier (t=0.5), not the straight midpoint.
 		if (ctx.showEdgeLabels && edge.label) {
-			const mx = (ni.x + nj.x) / 2;
-			const my = (ni.y + nj.y) / 2;
+			const bmx = 0.25 * ni.x + 0.5 * cx + 0.25 * nj.x;
+			const bmy = 0.25 * ni.y + 0.5 * cy + 0.25 * nj.y;
 			c2d.font = "10px sans-serif";
 			c2d.fillStyle = isDark ? "rgba(180,180,200,0.85)" : "rgba(80,80,100,0.85)";
 			c2d.textAlign = "center";
 			c2d.textBaseline = "middle";
-			c2d.fillText(edge.label, mx, my - 6);
+			c2d.fillText(edge.label, bmx, bmy - 6);
 		}
 	}
 
