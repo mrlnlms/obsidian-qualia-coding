@@ -15,6 +15,7 @@ import { renderHighlightsForPage, clearHighlightsForPage, updateHighlightRectsFo
 import { renderMarginPanelForPage, clearMarginPanelForPage, applyHoverToMarginPanel } from './marginPanelRenderer';
 import { renderDrawLayerForPage, clearDrawLayerForPage, applyHoverToDrawLayer, type DrawLayerCallbacks } from './drawLayer';
 import { attachDragHandles } from './dragHandles';
+import { isMarkerPending, resolvePendingIndices } from './resolvePendingIndices';
 
 export interface PageObserverCallbacks {
 	onMarkerClick: (markerId: string, codeName: string) => void;
@@ -174,6 +175,24 @@ export class PdfPageObserver {
 		if (!pageView.div.dataset.loaded) return;
 
 		const markers = this.model.getMarkersForPage(filePath, pageNumber);
+
+		// Resolve placeholder indices on imported markers (indices = 0,0,0,0)
+		// via DOM text-search. Once resolved, the normal render path paints them.
+		let resolvedAny = false;
+		for (const m of markers) {
+			if (isMarkerPending(m) && m.text) {
+				const resolved = resolvePendingIndices(pageView.div, m.text);
+				if (resolved) {
+					m.beginIndex = resolved.beginIndex;
+					m.beginOffset = resolved.beginOffset;
+					m.endIndex = resolved.endIndex;
+					m.endOffset = resolved.endOffset;
+					m.updatedAt = Date.now();
+					resolvedAny = true;
+				}
+			}
+		}
+		if (resolvedAny) this.model.save();
 
 		const highlightCallbacks: HighlightCallbacks = {
 			onClick: this.callbacks.onMarkerClick,
