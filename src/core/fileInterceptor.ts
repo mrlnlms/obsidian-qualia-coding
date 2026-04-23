@@ -75,20 +75,24 @@ export function clearFileInterceptRules(): void {
 }
 
 /**
- * Tracks the last file path this interceptor "handled" per leaf. When the user
- * explicitly swaps view type on an already-handled (leaf, file) pair — e.g. via
- * the media toggle button — the intercept must not re-trigger and drag them
- * back. Entries naturally drop when leaves are GC'd (WeakMap).
+ * Marks leaves whose next active-leaf-change should be ignored by the intercept.
+ * Used by the media toggle button: the swap itself would otherwise dispatch an
+ * active-leaf-change that immediately re-intercepts back to coding view (loop).
+ * One-shot: cleared on first hit.
+ *
+ * Semantics: the setting is the source of truth. autoOpen=true means "open in
+ * coding view". The button is a quick ad-hoc override for the current action
+ * only — subsequent opens of the same or any other file respect the setting.
  */
-const handledByLeaf = new WeakMap<object, string>();
+const ignoreNextLeafChange = new WeakSet<object>();
 
 /**
- * Mark a (leaf, file) pair as handled without firing the intercept. Called by
- * the media toggle button when the user manually swaps view type, so the next
- * active-leaf-change (triggered by the view swap itself) is ignored.
+ * Suppress the next intercept dispatch for this leaf. Call immediately before
+ * `leaf.setViewState` when manually swapping view type, so the event triggered
+ * by the swap itself doesn't drag the user back.
  */
-export function markLeafHandled(leaf: object, filePath: string): void {
-	handledByLeaf.set(leaf, filePath);
+export function markLeafHandled(leaf: object): void {
+	ignoreNextLeafChange.add(leaf);
 }
 
 export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
@@ -103,6 +107,12 @@ export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 	plugin.registerEvent(
 		plugin.app.workspace.on('active-leaf-change', (leaf) => {
 			if (!leaf) return;
+
+			// One-shot suppression for manual view swaps (toggle button / command).
+			if (ignoreNextLeafChange.has(leaf)) {
+				ignoreNextLeafChange.delete(leaf);
+				return;
+			}
 
 			const viewType = leaf.view.getViewType();
 
@@ -119,14 +129,10 @@ export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 				const ext = filePath.split('.').pop()?.toLowerCase();
 				if (!ext || !matchesInterceptRule(rule, viewType, ext)) continue;
 
-				// If the user just toggled view type on this same (leaf, file), skip.
-				if (handledByLeaf.get(leaf) === filePath) continue;
-
 				// Verify file exists
 				const file = plugin.app.vault.getAbstractFileByPath(filePath);
 				if (!(file instanceof TFile)) continue;
 
-				handledByLeaf.set(leaf, filePath);
 				leaf.setViewState({
 					type: rule.targetViewType,
 					state: { file: file.path },
