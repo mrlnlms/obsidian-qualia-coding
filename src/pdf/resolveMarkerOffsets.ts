@@ -46,9 +46,12 @@ export function resolveMarkerOffsets(
 	pageStartOffsets: number[],
 	marker: { page: number; text: string },
 ): OffsetResult | null {
-	const pageStart = pageStartOffsets[marker.page];
+	// marker.page comes from the Obsidian PDF viewer (1-based data-page-number),
+	// while pageStartOffsets is 0-based (first page at index 0).
+	const pageIdx = marker.page - 1;
+	const pageStart = pageStartOffsets[pageIdx];
 	if (pageStart === undefined) return null;
-	const pageEnd = pageStartOffsets[marker.page + 1] ?? plainText.length;
+	const pageEnd = pageStartOffsets[pageIdx + 1] ?? plainText.length;
 	const pageText = plainText.slice(pageStart, pageEnd);
 
 	// Fast path: direct exact match

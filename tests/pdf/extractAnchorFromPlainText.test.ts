@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { extractAnchorFromPlainText } from '../../src/pdf/extractAnchorFromPlainText';
 
 describe('extractAnchorFromPlainText', () => {
-	it('extrai text + page de selection em página única', () => {
+	it('extrai text e retorna page 1-based (primeira página)', () => {
 		const result = extractAnchorFromPlainText('hello world foo', [0], 6, 11);
-		expect(result).toEqual({ page: 0, text: 'world' });
+		expect(result).toEqual({ page: 1, text: 'world' });
 	});
 
-	it('determina page correta em PlainText multi-página', () => {
+	it('retorna page 2 (1-based) pra selection na segunda página', () => {
 		const result = extractAnchorFromPlainText('page one\fpage two content', [0, 9], 14, 17);
-		expect(result).toEqual({ page: 1, text: 'two' });
+		expect(result).toEqual({ page: 2, text: 'two' });
 	});
 
 	it('retorna null quando startPosition fora do plainText', () => {

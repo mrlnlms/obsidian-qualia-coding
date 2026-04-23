@@ -18,12 +18,13 @@ export function extractAnchorFromPlainText(
 		return null;
 	}
 
-	let page = 0;
+	let pageIdx = 0;
 	for (let i = 0; i < pageStartOffsets.length; i++) {
-		if (pageStartOffsets[i]! <= startPosition) page = i;
+		if (pageStartOffsets[i]! <= startPosition) pageIdx = i;
 		else break;
 	}
 
 	const text = plainText.slice(startPosition, endPosition);
-	return { page, text };
+	// Convert 0-based page index to 1-based (consistent with the viewer).
+	return { page: pageIdx + 1, text };
 }
