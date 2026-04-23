@@ -208,6 +208,13 @@ export abstract class BaseCodeDetailView extends ItemView {
 							renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
 						}
 					},
+					onFolderHoverExpand: (folderId) => {
+						if (this.expanded.folders.has(folderId)) return;
+						this.expanded.folders.add(folderId);
+						if (this.listContentZone) {
+							renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+						}
+					},
 				},
 			);
 		}

@@ -1372,6 +1372,40 @@ export function teardownActions(): void {
 
 ---
 
+## 20. Drag-drop com overlay visual — memoizar hit target em vez de confiar no `e.target`
+
+**Armadilha:** quando se adiciona um elemento visual flutuante sobre a hit surface do drop (ex: linha indicadora entre rows com `position: absolute`), o `drop` event pode chegar com `e.target` sendo o próprio overlay ou o container em vez da row abaixo do cursor. Mesmo com `pointer-events: none` no overlay, o hit test em pontos limítrofes (borda exata entre dois rows) pode passar por cima do overlay em alguns browsers/frames. Resultado: `findRow(e.target)` retorna null e o drop falha silenciosamente.
+
+**Pattern:** memoizar o último alvo válido no `dragover` (que roda continuamente e tem `e.target` confiável porque o cursor está "dentro" da row) e consultar essa memória no `drop`, com fallback pro hit test tradicional:
+
+```ts
+let lastHoverRow: HTMLElement | null = null;
+let lastHoverZone: DropZone | null = null;
+
+const onDragOver = (e: DragEvent) => {
+    // ... hit test normal, atualiza memo ao final:
+    lastHoverRow = row;
+    lastHoverZone = zone;
+};
+
+const onDrop = (e: DragEvent) => {
+    // Preferir memo; fallback pra hit test caso drag começou fora do tree ou evento tenha vindo sem dragover anterior
+    const row = lastHoverRow ?? findRow(e.target);
+    const zone = lastHoverZone ?? getDropZone(row, e.clientY);
+    // ... resto do handler
+};
+```
+
+**Observado durante a validação de §12 K2 (2026-04-23):** usuário relatou "não consigo mais colocar código entre outros". O drop indicator 3px de altura com `position: absolute` cobria a borda superior de cada row — quando o cursor parava bem ali (zone='before'), `e.target` virava o indicator ou o container. Memoização do último hover resolveu — zero impacto em performance, mais simples que `document.elementsFromPoint(e.clientX, e.clientY)` pra re-hit-test.
+
+**Generalizar:** sempre que você adicionar overlay visual sobre a zona ativa de drag-drop (indicators, ghost previews, badges), não confie no `e.target` do drop event. Memoizar o último estado válido do dragover é o padrão mais barato e robusto.
+
+**Cleanup:** resetar a memo no `cleanupDrag()` pra não vazar estado entre drags sucessivos.
+
+**Onde está implementado:** `setupDragDrop` em `src/core/codebookDragDrop.ts` (lastHoverRow/lastHoverZone/lastHoverFolderRow). Fix 2026-04-23.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

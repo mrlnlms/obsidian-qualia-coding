@@ -213,7 +213,13 @@ Quatro bugs críticos descobertos durante teste manual de round-trip QDPX (vault
 ## 12. Codebook Panel polish (K1-K3)
 
 - [x] K1: autoRevealOnSegmentClick — confirmado órfão (aggregator em `unifiedModelAdapter.ts` sem consumer externo). Removido: setting + toggle + getter em 6 arquivos. (2026-04-22)
-- [ ] K2: Drag-drop visual feedback poderia ser mais forte (cor mais visivel, animacao de transicao)
+- [x] K2: Drag-drop visual feedback — sessão completa de polish. (2026-04-23)
+  - **CSS polish:** `is-dragging` com ghost effect (opacity 0.35 + scale 0.98), linhas de drop 3px com glow via `box-shadow`, `is-drop-inside` com tint accent + `translateX` + label `→ nest`, `is-merge-target` com pulse vermelho infinito + label `⚡ merge`, folder drop target com outline sólido 2px + scale up.
+  - **Feedback pós-ação:** `is-just-dropped` pulsa accent 600ms no código movido (ou no target em merge) após o tree re-renderizar. `is-drop-rejected` shake horizontal 280ms + `Notice` quando user tenta criar ciclo (reparent num descendente).
+  - **Drop indicator flutuante:** substitui `border-top/bottom` nas rows por `<div class="codebook-drop-indicator">` absolute, anima `top` entre posições (transition 80ms) → ilusão de continuidade estilo Finder/VSCode. Classes `is-drop-before/after` desapareceram do CSS (obsoletas).
+  - **Interações extras:** `body.codebook-dragging *` cursor `grabbing !important` durante drag inteiro. Pasta collapsed auto-expande após hover de 600ms (novo callback `onFolderHoverExpand`). Scroll position preserved após drop via snapshot/restore no rAF seguinte.
+  - **Fix de bug descoberto na validação:** drops "entre códigos" (zona before/after) quebravam quando o dropIndicator cobria o ponto exato do cursor — `e.target` durante drop virava o indicator ou container. Solução: memoizar `lastHoverRow`/`lastHoverZone`/`lastHoverFolderRow` no `onDragOver` e usar no `onDrop` com fallback pro hit-test tradicional. Mais robusto que depender do event target durante drop, pattern reutilizável quando tiver overlay visual sobre hit surface.
+  - **Arquivos:** `src/core/codebookDragDrop.ts` (refactor completo), `src/core/baseCodeDetailView.ts` (callback), `styles.css`. Documentado em `TECHNICAL-PATTERNS.md §20`.
 - [x] K3: Virtual scroll com row recycling — `codebookTreeRenderer` agora preserva rows via `Map<nodeIndex, HTMLElement>` entre scroll events; só cria quando entra no range e remove quando sai. 5 stress tests (5000 codes) validam recycling + ausência de leak. Polyfills de `createDiv/createEl/createSpan/empty/addClass` adicionados em `tests/setup.ts`. (2026-04-22)
 
 ---
