@@ -14,13 +14,17 @@ function ca(...codeIds: string[]): CodeApplication[] {
 function createMockDm(initialData: Record<string, any> = {}) {
 	const store: Record<string, any> = { ...initialData };
 	return {
-		section: (key: string) => store[key] ?? {},
+		section: (key: string) => {
+			if (!store[key]) store[key] = {};
+			return store[key];
+		},
 		setSection: (key: string, value: any) => { store[key] = value; },
 		markDirty: () => {},
 	};
 }
 
 const DEFAULT_SETTINGS: BaseMediaSettings = {
+	autoOpen: false,
 	defaultZoom: 50,
 	regionOpacity: 0.4,
 	showLabelsOnRegions: true,

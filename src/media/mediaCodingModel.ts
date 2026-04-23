@@ -21,7 +21,6 @@ export class MediaCodingModel<
 	private sectionName: string;
 	registry: CodeDefinitionRegistry;
 	files: F[] = [];
-	settings: S;
 
 	private changeListeners: Set<() => void> = new Set();
 	private hoverListeners: Set<() => void> = new Set();
@@ -30,15 +29,24 @@ export class MediaCodingModel<
 	private hoveredCodeName: string | null = null;
 	private _hoveredMarkerIds: string[] = [];
 
+	/**
+	 * Live reference to the dataManager-owned settings object. Always reflects
+	 * the current value — edits from settingTab propagate immediately without
+	 * requiring re-instantiation.
+	 */
+	get settings(): S {
+		return this.dm.section(this.sectionName).settings as S;
+	}
+
 	constructor(dm: DataManager, registry: CodeDefinitionRegistry, sectionName: string, defaultSettings: S) {
 		this.dm = dm;
 		this.registry = registry;
 		this.sectionName = sectionName;
-		this.settings = { ...defaultSettings };
 
 		const section = dm.section(sectionName);
 		this.files = (section.files as F[]) ?? [];
-		this.settings = { ...defaultSettings, ...(section.settings as Partial<S>) };
+		// Backfill any missing default fields directly on the section (shared reference).
+		section.settings = { ...defaultSettings, ...(section.settings ?? {}) };
 
 		// Migration: backfill fields for markers created before they existed
 		let mutated = false;
