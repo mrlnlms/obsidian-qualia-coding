@@ -3,69 +3,33 @@ import { resolveMarkerOffsets } from '../../src/pdf/resolveMarkerOffsets';
 
 describe('resolveMarkerOffsets', () => {
 	it('resolve offset absoluto em página única', () => {
-		const plainText = 'hello world foo';
-		const pageStartOffsets = [0];
-		const result = resolveMarkerOffsets(plainText, pageStartOffsets, {
-			page: 0,
-			text: 'world',
-			contextBefore: 'hello ',
-			contextAfter: ' foo',
-			occurrenceIndex: 0,
-		});
-		expect(result).toEqual({ start: 6, end: 11 });
+		const result = resolveMarkerOffsets('hello world foo', [0], { page: 0, text: 'world' });
+		expect(result).toEqual({ start: 6, end: 11, ambiguous: false });
 	});
 
 	it('resolve offset absoluto em página > 0 (adiciona pageStart)', () => {
-		const plainText = 'page one\fpage two';
-		//                 0         10
-		// page 1 começa no offset 9 (depois do \f); pageText(1) = 'page two'
-		const pageStartOffsets = [0, 9];
-		const result = resolveMarkerOffsets(plainText, pageStartOffsets, {
-			page: 1,
-			text: 'two',
-			contextBefore: 'page ',
-			contextAfter: '',
-			occurrenceIndex: 0,
-		});
-		expect(result).toEqual({ start: 14, end: 17 });
+		const result = resolveMarkerOffsets('page one\fpage two', [0, 9], { page: 1, text: 'two' });
+		expect(result).toEqual({ start: 14, end: 17, ambiguous: false });
 	});
 
-	it('retorna null quando anchor não casa na página', () => {
-		const plainText = 'hello world';
-		const pageStartOffsets = [0];
-		const result = resolveMarkerOffsets(plainText, pageStartOffsets, {
-			page: 0,
-			text: 'xyz',
-			contextBefore: '',
-			contextAfter: '',
-			occurrenceIndex: 0,
-		});
+	it('sinaliza ambiguidade quando text aparece múltiplas vezes na página', () => {
+		const result = resolveMarkerOffsets('foo bar foo', [0], { page: 0, text: 'foo' });
+		expect(result).toEqual({ start: 0, end: 3, ambiguous: true });
+	});
+
+	it('retorna null quando text não existe na página', () => {
+		const result = resolveMarkerOffsets('hello', [0], { page: 0, text: 'xyz' });
 		expect(result).toBeNull();
 	});
 
 	it('retorna null quando page está fora do range', () => {
-		const plainText = 'hello';
-		const pageStartOffsets = [0];
-		const result = resolveMarkerOffsets(plainText, pageStartOffsets, {
-			page: 5,
-			text: 'hello',
-			contextBefore: '',
-			contextAfter: '',
-			occurrenceIndex: 0,
-		});
+		const result = resolveMarkerOffsets('hello', [0], { page: 5, text: 'hello' });
 		expect(result).toBeNull();
 	});
 
-	it('respeita occurrenceIndex dentro da página', () => {
-		const plainText = 'aaa aaa aaa\fbbb';
-		const pageStartOffsets = [0, 12];
-		const result = resolveMarkerOffsets(plainText, pageStartOffsets, {
-			page: 0,
-			text: 'aaa',
-			contextBefore: '',
-			contextAfter: '',
-			occurrenceIndex: 1,
-		});
-		expect(result).toEqual({ start: 4, end: 7 });
+	it('não encontra text de outra página (escopo é por página)', () => {
+		// 'two' só existe na page 1, não na page 0
+		const result = resolveMarkerOffsets('page one\fpage two', [0, 9], { page: 0, text: 'two' });
+		expect(result).toBeNull();
 	});
 });

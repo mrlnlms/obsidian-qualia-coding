@@ -537,7 +537,10 @@ export async function exportProject(
         warnings.push(`PDF marker ${m.id} (${fileId}, page ${m.page}): text "${m.text.slice(0, 40)}…" not found in PDF plain text — skip`);
         continue;
       }
-      textOffsets.set(m.id, offsets);
+      if (offsets.ambiguous) {
+        warnings.push(`PDF marker ${m.id} (${fileId}, page ${m.page}): text appears multiple times on page — exported first occurrence`);
+      }
+      textOffsets.set(m.id, { start: offsets.start, end: offsets.end });
     }
 
     const { xml, reprGuid } = buildPdfSourceXmlWithRepr(fileId, textMarkers, shapeMarkers, pageDims, textOffsets, guidMap, notes, options.includeSources);

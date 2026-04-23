@@ -10,7 +10,6 @@ import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import { computeMergedHighlightRects } from './highlightGeometry';
 import { getMarkerVerticalBounds } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
-import { runtimeIndicesFromAnchor } from './runtimeIndicesFromAnchor';
 import { getShapeVerticalBounds } from './drawLayer';
 
 // ── Constants ──
@@ -76,17 +75,14 @@ export function renderMarginPanelForPage(
 		for (const marker of markers) {
 			if (marker.codes.length === 0) continue;
 
-			const idx = runtimeIndicesFromAnchor(pageView.div, marker);
-			if (!idx) continue;
-
 			let mergedRects;
 			try {
 				mergedRects = computeMergedHighlightRects(
 					textLayerInfo,
-					idx.beginIndex,
-					idx.beginOffset,
-					idx.endIndex,
-					idx.endOffset,
+					marker.beginIndex,
+					marker.beginOffset,
+					marker.endIndex,
+					marker.endOffset,
 				);
 			} catch {
 				continue;

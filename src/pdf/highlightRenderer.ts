@@ -11,8 +11,6 @@ import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { MergedRect } from './highlightGeometry';
 import { computeMergedHighlightRects } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
-import { runtimeIndicesFromAnchor, type RuntimeIndices } from './runtimeIndicesFromAnchor';
-import { renderAnchorRectsInPage } from './anchorHighlight';
 import type { PdfViewState } from './pdfViewState';
 
 const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
@@ -100,7 +98,6 @@ export interface HighlightCallbacks {
 /** Per-marker rendering result (first/last rects + merged geometry for handles). */
 export interface MarkerRenderInfo {
 	marker: PdfMarker;
-	indices: RuntimeIndices;
 	firstRectEl: HTMLElement;
 	lastRectEl: HTMLElement;
 	mergedRects: MergedRect[];
@@ -152,38 +149,54 @@ export function renderHighlightsForPage(
 		const codeColors = resolveCodeColors(marker, registry);
 		const perCodeOpacity = codeColors.length > 1 ? BASE_OPACITY / codeColors.length : undefined;
 
-		const idx = runtimeIndicesFromAnchor(pageDiv, marker);
-		if (!idx) continue;
+		let mergedRects: MergedRect[];
+		try {
+			mergedRects = computeMergedHighlightRects(
+				textLayerInfo,
+				marker.beginIndex,
+				marker.beginOffset,
+				marker.endIndex,
+				marker.endOffset,
+			);
+		} catch {
+			continue;
+		}
 
-		// Visual rects come straight from Range.getClientRects() — bypasses pdfjs
-		// textContentItems indexing entirely. Indices (idx) are kept only for
-		// hit-testing/layering comparisons.
+		if (mergedRects.length === 0) continue;
+
 		let firstRectEl: HTMLElement | null = null;
 		let lastRectEl: HTMLElement | null = null;
-		const codeNames = marker.codes
-			.map((ca) => registry.getById(ca.codeId)?.name ?? ca.codeId)
-			.join(', ');
 
-		for (const color of codeColors) {
-			const els = renderAnchorRectsInPage(pageDiv, layer, marker, HIGHLIGHT_CLASS);
-			if (!els || els.length === 0) continue;
-			for (const el of els) {
-				el.dataset.markerId = marker.id;
-				el.style.backgroundColor = color;
-				if (perCodeOpacity !== undefined) el.style.opacity = String(perCodeOpacity);
+		for (const { rect } of mergedRects) {
+			let lastLayerEl: HTMLElement | null = null;
+			for (const color of codeColors) {
+				const rectEl = placeRectInPage(rect, pageView, layer, HIGHLIGHT_CLASS);
+				rectEl.dataset.markerId = marker.id;
+				rectEl.style.backgroundColor = color;
+				if (perCodeOpacity !== undefined) {
+					rectEl.style.opacity = String(perCodeOpacity);
+				}
+				lastLayerEl = rectEl;
 			}
-			if (!firstRectEl) firstRectEl = els[0]!;
-			lastRectEl = els[els.length - 1]!;
-			if (lastRectEl) setTooltip(lastRectEl, codeNames);
+
+			if (!firstRectEl) firstRectEl = lastLayerEl;
+			lastRectEl = lastLayerEl;
+
+			// Tooltip with code names on the topmost layer
+			if (lastLayerEl) {
+				const codeNames = marker.codes
+					.map(ca => registry.getById(ca.codeId)?.name ?? ca.codeId)
+					.join(', ');
+				setTooltip(lastLayerEl, codeNames);
+			}
 		}
 
 		if (firstRectEl && lastRectEl) {
 			renderInfos.push({
 				marker,
-				indices: idx,
 				firstRectEl,
 				lastRectEl,
-				mergedRects: [],
+				mergedRects,
 				color: codeColors[0]!,
 			});
 		}
@@ -210,7 +223,7 @@ function attachLayerHoverTracking(
 	if (renderInfos.length === 0) return;
 
 	// Build a flat list of all rects with their marker info for hit-testing
-	const hitTargets: { rectEl: HTMLElement; marker: PdfMarker; indices: RuntimeIndices }[] = [];
+	const hitTargets: { rectEl: HTMLElement; marker: PdfMarker }[] = [];
 	for (const info of renderInfos) {
 		const layer = info.firstRectEl.parentElement;
 		if (!layer) continue;
@@ -218,7 +231,7 @@ function attachLayerHoverTracking(
 			`.${HIGHLIGHT_CLASS}[data-marker-id="${info.marker.id}"]`,
 		);
 		for (const rectEl of Array.from(rects)) {
-			hitTargets.push({ rectEl, marker: info.marker, indices: info.indices });
+			hitTargets.push({ rectEl, marker: info.marker });
 		}
 	}
 
@@ -230,16 +243,16 @@ function attachLayerHoverTracking(
 		if (document.body.classList.contains('codemarker-pdf-dragging')) return;
 
 		// Hit-test: collect ALL markers under cursor, then pick the smallest
-		const hits: { rectEl: HTMLElement; marker: PdfMarker; indices: RuntimeIndices }[] = [];
+		const hits: { rectEl: HTMLElement; marker: PdfMarker }[] = [];
 		const seenMarkers = new Set<string>();
 
-		for (const { rectEl, marker, indices } of hitTargets) {
+		for (const { rectEl, marker } of hitTargets) {
 			const r = rectEl.getBoundingClientRect();
 			if (e.clientX >= r.left && e.clientX <= r.right &&
 				e.clientY >= r.top && e.clientY <= r.bottom) {
 				if (!seenMarkers.has(marker.id)) {
 					seenMarkers.add(marker.id);
-					hits.push({ rectEl, marker, indices });
+					hits.push({ rectEl, marker });
 				}
 			}
 		}
@@ -254,18 +267,19 @@ function attachLayerHoverTracking(
 		} else if (hits.length > 1) {
 			// Check if this is a partial intersection (no containment) vs nesting
 			isPartialIntersection = !hits.some((a, i) =>
-				hits.some((b, j) => i !== j && indicesContains(a.indices, b.indices)),
+				hits.some((b, j) => i !== j && markerContains(a.marker, b.marker)),
 			);
 
 			// Smart layering: smallest (most specific) marker wins
 			hits.sort((a, b) => {
-				const aContainsB = indicesContains(a.indices, b.indices);
-				const bContainsA = indicesContains(b.indices, a.indices);
+				const am = a.marker, bm = b.marker;
+				const aContainsB = markerContains(am, bm);
+				const bContainsA = markerContains(bm, am);
 
-				if (aContainsB) return 1;
-				if (bContainsA) return -1;
-				if (a.indices.beginIndex !== b.indices.beginIndex) return b.indices.beginIndex - a.indices.beginIndex;
-				return b.indices.beginOffset - a.indices.beginOffset;
+				if (aContainsB) return 1;  // B is nested inside A → B wins
+				if (bContainsA) return -1; // A is nested inside B → A wins
+				if (am.beginIndex !== bm.beginIndex) return bm.beginIndex - am.beginIndex;
+				return bm.beginOffset - am.beginOffset;
 			});
 			hitMarker = hits[0]!.marker;
 			hitRect = hits[0]!.rectEl;
@@ -421,21 +435,36 @@ export function updateHighlightRectsForMarker(
 	const codeColors = resolveCodeColors(marker, registry);
 	const perCodeOpacity = codeColors.length > 1 ? BASE_OPACITY / codeColors.length : undefined;
 
+	let mergedRects: MergedRect[];
+	try {
+		mergedRects = computeMergedHighlightRects(
+			textLayerInfo,
+			marker.beginIndex, marker.beginOffset,
+			marker.endIndex, marker.endOffset,
+		);
+	} catch { return; }
+
+	if (mergedRects.length === 0) return;
+
 	let firstRectEl: HTMLElement | null = null;
 	let lastRectEl: HTMLElement | null = null;
 
-	for (const color of codeColors) {
-		const els = renderAnchorRectsInPage(pageDiv, layer, marker, HIGHLIGHT_CLASS);
-		if (!els || els.length === 0) continue;
-		for (const el of els) {
-			el.dataset.markerId = marker.id;
-			el.style.backgroundColor = color;
-			if (perCodeOpacity !== undefined) el.style.opacity = String(perCodeOpacity);
+	for (const { rect } of mergedRects) {
+		let lastLayerEl: HTMLElement | null = null;
+		for (const color of codeColors) {
+			const rectEl = placeRectInPage(rect, pageView, layer, HIGHLIGHT_CLASS);
+			rectEl.dataset.markerId = marker.id;
+			rectEl.style.backgroundColor = color;
+			if (perCodeOpacity !== undefined) {
+				rectEl.style.opacity = String(perCodeOpacity);
+			}
+			lastLayerEl = rectEl;
 		}
-		if (!firstRectEl) firstRectEl = els[0]!;
-		lastRectEl = els[els.length - 1]!;
+		if (!firstRectEl) firstRectEl = lastLayerEl;
+		lastRectEl = lastLayerEl;
 	}
 
+	// Reposition existing handles to match new rects
 	if (firstRectEl && lastRectEl) {
 		repositionHandlesForMarker(layer, marker.id, firstRectEl, lastRectEl);
 	}
@@ -480,10 +509,10 @@ export function clearHighlightsForPage(pageDiv: HTMLElement): void {
 }
 
 /**
- * Check if range A fully contains range B (A starts before/at B and ends after/at B).
+ * Check if marker A fully contains marker B (A starts before/at B and ends after/at B).
  * Used for smart layering: nested (smaller) markers get priority over containers.
  */
-function indicesContains(a: RuntimeIndices, b: RuntimeIndices): boolean {
+function markerContains(a: PdfMarker, b: PdfMarker): boolean {
 	const aStartsBefore =
 		a.beginIndex < b.beginIndex ||
 		(a.beginIndex === b.beginIndex && a.beginOffset <= b.beginOffset);
@@ -519,11 +548,28 @@ const PREVIEW_CLASS = 'codemarker-pdf-selection-preview';
  */
 export function renderSelectionPreview(
 	pageView: PDFPageView,
-	anchor: import('./pdfCodingTypes').PdfAnchor,
+	beginIndex: number, beginOffset: number,
+	endIndex: number, endOffset: number,
 ): (() => void) | null {
+	const textLayerInfo = getTextLayerInfo(pageView);
+	if (!textLayerInfo) return null;
+
+	let mergedRects: MergedRect[];
+	try {
+		mergedRects = computeMergedHighlightRects(textLayerInfo, beginIndex, beginOffset, endIndex, endOffset);
+	} catch {
+		return null;
+	}
+	if (mergedRects.length === 0) return null;
+
 	const layer = getOrCreateHighlightLayer(pageView.div);
-	const elements = renderAnchorRectsInPage(pageView.div, layer, anchor, PREVIEW_CLASS);
-	if (!elements || elements.length === 0) return null;
+	const elements: HTMLElement[] = [];
+
+	for (const { rect } of mergedRects) {
+		const el = placeRectInPage(rect, pageView, layer, PREVIEW_CLASS);
+		elements.push(el);
+	}
+
 	return () => {
 		for (const el of elements) el.remove();
 	};

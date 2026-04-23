@@ -42,14 +42,18 @@ export function openPdfCodingPopover(
 	// Lazy marker resolution (created on first code add)
 	const getMarkers = (): PdfMarker[] =>
 		results.map(r =>
-			model.findOrCreateMarker(r.file, r.page, r.anchor),
+			model.findOrCreateMarker(r.file, r.page, r.beginIndex, r.beginOffset, r.endIndex, r.endOffset, r.text),
 		);
 
 	// Determine hover vs selection mode
 	const firstResult = results[0]!;
 	const existingMarker = hoverMarkerId
 		? model.findMarkerById(hoverMarkerId)
-		: model.findExistingMarker(firstResult.file, firstResult.page, firstResult.anchor);
+		: model.findExistingMarker(
+			firstResult.file, firstResult.page,
+			firstResult.beginIndex, firstResult.beginOffset,
+			firstResult.endIndex, firstResult.endOffset,
+		);
 	const isHoverMode = !!hoverMarkerId && !!existingMarker;
 
 	const adapter: CodingPopoverAdapter = {
@@ -57,7 +61,11 @@ export function openPdfCodingPopover(
 		getActiveCodes: () => {
 			const current = hoverMarkerId
 				? model.findMarkerById(hoverMarkerId)
-				: model.findExistingMarker(firstResult.file, firstResult.page, firstResult.anchor);
+				: model.findExistingMarker(
+					firstResult.file, firstResult.page,
+					firstResult.beginIndex, firstResult.beginOffset,
+					firstResult.endIndex, firstResult.endOffset,
+				);
 			if (!current) return [];
 			return current.codes
 				.map(c => model.registry.getById(c.codeId)?.name)
@@ -76,7 +84,11 @@ export function openPdfCodingPopover(
 		getMemo: () => {
 			const m = hoverMarkerId
 				? model.findMarkerById(hoverMarkerId)
-				: model.findExistingMarker(firstResult.file, firstResult.page, firstResult.anchor);
+				: model.findExistingMarker(
+					firstResult.file, firstResult.page,
+					firstResult.beginIndex, firstResult.beginOffset,
+					firstResult.endIndex, firstResult.endOffset,
+				);
 			return m?.memo ?? '';
 		},
 		setMemo: (value) => {
@@ -91,7 +103,11 @@ export function openPdfCodingPopover(
 		getMagnitudeForCode: (codeId) => {
 			const m = hoverMarkerId
 				? model.findMarkerById(hoverMarkerId)
-				: model.findExistingMarker(firstResult.file, firstResult.page, firstResult.anchor);
+				: model.findExistingMarker(
+					firstResult.file, firstResult.page,
+					firstResult.beginIndex, firstResult.beginOffset,
+					firstResult.endIndex, firstResult.endOffset,
+				);
 			if (!m) return undefined;
 			return findCodeApplication(m.codes, codeId)?.magnitude;
 		},
@@ -106,7 +122,11 @@ export function openPdfCodingPopover(
 		getRelationsForCode: (codeId) => {
 			const m = hoverMarkerId
 				? model.findMarkerById(hoverMarkerId)
-				: model.findExistingMarker(firstResult.file, firstResult.page, firstResult.anchor);
+				: model.findExistingMarker(
+					firstResult.file, firstResult.page,
+					firstResult.beginIndex, firstResult.beginOffset,
+					firstResult.endIndex, firstResult.endOffset,
+				);
 			return findCodeApplication(m?.codes ?? [], codeId)?.relations ?? [];
 		},
 		setRelationsForCode: (codeId, relations) => {
@@ -156,7 +176,7 @@ export function openPdfCodingPopover(
 			icon: 'trash',
 			onDelete: () => {
 				for (const r of results) {
-					const existing = model.findExistingMarker(r.file, r.page, r.anchor);
+					const existing = model.findExistingMarker(r.file, r.page, r.beginIndex, r.beginOffset, r.endIndex, r.endOffset);
 					if (existing) model.removeAllCodesFromMarker(existing.id);
 				}
 				onHighlightRefresh();

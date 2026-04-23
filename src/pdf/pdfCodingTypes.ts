@@ -3,9 +3,9 @@ export type { ShapeType, RectCoords, EllipseCoords, PolygonCoords, NormalizedSha
 import type { CodeApplication } from '../core/types';
 
 /**
- * Portable text anchor — survives round-trip across vaults/PDFs as long as the
- * underlying text is present. Runtime (render/drag) and export/import all use
- * this as the single source of truth.
+ * Portable text anchor — used only by the QDPX export/import pipeline to
+ * locate text in the consolidated PlainText. NOT persisted on markers; markers
+ * use DOM-aligned indices as before.
  */
 export interface PdfAnchor {
 	text: string;
@@ -18,10 +18,11 @@ export interface PdfMarker {
 	id: string;
 	fileId: string;
 	page: number;
+	beginIndex: number;
+	beginOffset: number;
+	endIndex: number;
+	endOffset: number;
 	text: string;
-	contextBefore: string;
-	contextAfter: string;
-	occurrenceIndex: number;
 	codes: CodeApplication[];
 	memo?: string;
 	colorOverride?: string;

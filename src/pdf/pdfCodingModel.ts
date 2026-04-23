@@ -1,4 +1,4 @@
-import type { PdfMarker, PdfShapeMarker, NormalizedShapeCoords, PdfAnchor } from './pdfCodingTypes';
+import type { PdfMarker, PdfShapeMarker, NormalizedShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinition, CodeApplication } from '../core/types';
@@ -16,15 +16,6 @@ const MAX_UNDO = 50;
 // ── PdfCodingModel ──
 type ChangeListener = () => void;
 type HoverListener = (markerId: string | null, codeName: string | null) => void;
-
-function anchorsEqual(a: PdfAnchor, b: PdfAnchor): boolean {
-	return (
-		a.text === b.text &&
-		a.contextBefore === b.contextBefore &&
-		a.contextAfter === b.contextAfter &&
-		a.occurrenceIndex === b.occurrenceIndex
-	);
-}
 
 export class PdfCodingModel {
 	readonly registry: CodeDefinitionRegistry;
@@ -79,7 +70,6 @@ export class PdfCodingModel {
 		this.dataManager.setSection('pdf', {
 			markers: this.markers,
 			shapes: this.shapes,
-			settings: this.settings,
 		});
 	}
 
@@ -151,25 +141,25 @@ export class PdfCodingModel {
 
 	// ── Marker operations ──
 
-	/** Find an existing marker by fileId+page+anchor (no creation). */
-	findExistingMarker(fileId: string, page: number, anchor: PdfAnchor): PdfMarker | undefined {
-		return this.markers.find((m) =>
-			m.fileId === fileId && m.page === page && anchorsEqual(m, anchor),
+	/** Find an existing marker without creating one (for read-only checks). */
+	findExistingMarker(file: string, page: number, beginIndex: number, beginOffset: number, endIndex: number, endOffset: number): PdfMarker | undefined {
+		return this.markers.find(m =>
+			m.fileId === file && m.page === page &&
+			m.beginIndex === beginIndex && m.beginOffset === beginOffset &&
+			m.endIndex === endIndex && m.endOffset === endOffset
 		);
 	}
 
-	findOrCreateMarker(fileId: string, page: number, anchor: PdfAnchor): PdfMarker {
-		const existing = this.findExistingMarker(fileId, page, anchor);
+	findOrCreateMarker(file: string, page: number, beginIndex: number, beginOffset: number, endIndex: number, endOffset: number, text: string): PdfMarker {
+		const existing = this.findExistingMarker(file, page, beginIndex, beginOffset, endIndex, endOffset);
 		if (existing) return existing;
 
 		const marker: PdfMarker = {
 			id: this.generateId(),
-			fileId,
-			page,
-			text: anchor.text,
-			contextBefore: anchor.contextBefore,
-			contextAfter: anchor.contextAfter,
-			occurrenceIndex: anchor.occurrenceIndex,
+			fileId: file, page,
+			beginIndex, beginOffset,
+			endIndex, endOffset,
+			text,
 			codes: [],
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
@@ -226,9 +216,10 @@ export class PdfCodingModel {
 		this.notify();
 	}
 
-	// ── Anchor update (drag resize) ──
+	// ── Range update (drag resize) ──
 
-	updateMarkerAnchor(markerId: string, changes: Partial<PdfAnchor>): void {
+	updateMarkerRange(markerId: string, changes: Partial<Pick<PdfMarker,
+		'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 		this.pushUndo({ type: 'resizeMarker', markerId, data: { ...marker, codes: [...marker.codes] } });
@@ -238,10 +229,11 @@ export class PdfCodingModel {
 	}
 
 	/**
-	 * Update marker anchor without triggering notify (no save, no listener callbacks).
-	 * Used during drag for flicker-free preview — final commit via updateMarkerAnchor().
+	 * Update marker range without triggering notify (no save, no listener callbacks).
+	 * Used during drag for flicker-free preview — final commit via updateMarkerRange().
 	 */
-	updateMarkerAnchorSilent(markerId: string, changes: Partial<PdfAnchor>): void {
+	updateMarkerRangeSilent(markerId: string, changes: Partial<Pick<PdfMarker,
+		'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 		Object.assign(marker, changes);
@@ -285,10 +277,11 @@ export class PdfCodingModel {
 			case 'resizeMarker': {
 				const marker = this.findMarkerById(entry.markerId);
 				if (marker) {
+					marker.beginIndex = entry.data.beginIndex;
+					marker.beginOffset = entry.data.beginOffset;
+					marker.endIndex = entry.data.endIndex;
+					marker.endOffset = entry.data.endOffset;
 					marker.text = entry.data.text;
-					marker.contextBefore = entry.data.contextBefore;
-					marker.contextAfter = entry.data.contextAfter;
-					marker.occurrenceIndex = entry.data.occurrenceIndex;
 					marker.updatedAt = Date.now();
 				}
 				break;

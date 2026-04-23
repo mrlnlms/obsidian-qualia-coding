@@ -631,14 +631,19 @@ function createPdfMarker(
       result.warnings.push(`PDF text selection ${sel.guid}: offset ${sel.startPosition}-${sel.endPosition} out of plain text bounds`);
       return 0;
     }
+    // Imported marker: text preserved; indices will be resolved when the PDF
+    // opens (via a runtime text-search hook). Until then, indices are zero
+    // placeholders — the marker won't render highlights but the code/memo are
+    // attached and visible in the sidebar.
     const marker: PdfMarker = {
       id: `import_${sel.guid}`,
       fileId: filePath,
       page: extracted.page,
-      text: extracted.anchor.text,
-      contextBefore: extracted.anchor.contextBefore,
-      contextAfter: extracted.anchor.contextAfter,
-      occurrenceIndex: extracted.anchor.occurrenceIndex,
+      beginIndex: 0,
+      beginOffset: 0,
+      endIndex: 0,
+      endOffset: 0,
+      text: extracted.text,
       codes,
       memo,
       createdAt: ts,

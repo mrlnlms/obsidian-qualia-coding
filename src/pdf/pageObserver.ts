@@ -193,12 +193,12 @@ export class PdfPageObserver {
 		// Attach drag handles to each rendered marker
 		for (const info of renderInfos) {
 			attachDragHandles(info, pageView, {
-				onAnchorUpdate: (markerId, anchor) => {
-					this.model.updateMarkerAnchor(markerId, anchor);
+				onRangeUpdate: (markerId, changes) => {
+					this.model.updateMarkerRange(markerId, changes);
 				},
-				onAnchorPreview: (markerId, anchor) => {
+				onRangePreview: (markerId, changes) => {
 					// Silent update (no save/notify) + partial re-render (rects only, handles preserved)
-					this.model.updateMarkerAnchorSilent(markerId, anchor);
+					this.model.updateMarkerRangeSilent(markerId, changes);
 					const marker = this.model.findMarkerById(markerId);
 					if (marker) {
 						updateHighlightRectsForMarker(pageView, marker, this.model.registry);

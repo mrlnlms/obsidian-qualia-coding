@@ -39,12 +39,11 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 		const selectionResult: PdfSelectionResult = {
 			file: marker.fileId,
 			page: marker.page,
-			anchor: {
-				text: marker.text,
-				contextBefore: marker.contextBefore,
-				contextAfter: marker.contextAfter,
-				occurrenceIndex: marker.occurrenceIndex,
-			},
+			beginIndex: marker.beginIndex,
+			beginOffset: marker.beginOffset,
+			endIndex: marker.endIndex,
+			endOffset: marker.endOffset,
+			text: marker.text,
 		};
 		const rect = anchorEl.getBoundingClientRect();
 		const pos = { x: rect.left, y: rect.bottom };
@@ -229,7 +228,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 							try {
 								const pv = child.getPage(r.page);
 								if (pv) {
-									const cleanup = renderSelectionPreview(pv, r.anchor);
+									const cleanup = renderSelectionPreview(pv, r.beginIndex, r.beginOffset, r.endIndex, r.endOffset);
 									if (cleanup) cleanups.push(cleanup);
 								}
 							} catch { /* skip */ }
@@ -258,7 +257,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 					try {
 						const pv = child.getPage(result.page);
 						if (pv) {
-							previewCleanup = renderSelectionPreview(pv, result.anchor);
+							previewCleanup = renderSelectionPreview(pv, result.beginIndex, result.beginOffset, result.endIndex, result.endOffset);
 						}
 					} catch { /* skip */ }
 
