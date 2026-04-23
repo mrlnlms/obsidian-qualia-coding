@@ -3,8 +3,9 @@ import type QualiaCodingPlugin from '../main';
 import { MediaViewCore } from '../media/mediaViewCore';
 import type { AudioCodingModel } from './audioCodingModel';
 import { openAudioCodingPopover } from './audioCodingMenu';
+import { AUDIO_VIEW_TYPE } from '../core/mediaViewTypes';
 
-export const AUDIO_VIEW_TYPE = 'qualia-audio-view';
+export { AUDIO_VIEW_TYPE };
 
 export const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'wma', 'aiff', 'opus', 'webm']);
 

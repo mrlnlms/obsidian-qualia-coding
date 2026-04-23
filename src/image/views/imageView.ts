@@ -13,8 +13,9 @@ import { RegionManager } from '../canvas/regionManager';
 import { CodingMenu } from '../imageCodingMenu';
 import { RegionLabels } from '../regionLabels';
 import { type RegionHighlightState, setupRegionHighlight } from '../regionHighlight';
+import { IMAGE_CODING_VIEW_TYPE } from '../../core/mediaViewTypes';
 
-export const IMAGE_CODING_VIEW_TYPE = 'qualia-image-coding';
+export { IMAGE_CODING_VIEW_TYPE };
 
 export const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'avif', 'svg']);
 

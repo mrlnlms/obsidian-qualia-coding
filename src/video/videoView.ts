@@ -3,8 +3,9 @@ import type QualiaCodingPlugin from '../main';
 import { MediaViewCore } from '../media/mediaViewCore';
 import type { VideoCodingModel } from './videoCodingModel';
 import { openVideoCodingPopover } from './videoCodingMenu';
+import { VIDEO_VIEW_TYPE } from '../core/mediaViewTypes';
 
-export const VIDEO_VIEW_TYPE = 'qualia-video-view';
+export { VIDEO_VIEW_TYPE };
 
 export const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'ogv']);
 
