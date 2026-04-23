@@ -1251,6 +1251,92 @@ WaveSurfer não é fonte confiável pra "posição atual" durante teardown. Semp
 
 ---
 
+## 19. Media Opening Toggle — patterns aprendidos
+
+### 19.1 `MediaCodingModel.settings` como getter, não campo
+
+**Armadilha:** `MediaCodingModel` original fazia `this.settings = {...defaultSettings, ...section.settings}` no construtor. Essa cópia ficava stale quando o `settingTab` editava `dm.section('audio').settings.autoOpen` — o model lia o valor antigo.
+
+**Pattern:** settings expostos via getter retornando direto da section do dataManager. Edições no tab propagam imediatamente sem re-instantiation.
+
+```ts
+get settings(): S {
+    return this.dm.section(this.sectionName).settings as S;
+}
+```
+
+Constructor ainda backfilla defaults *na própria section* (não numa cópia local), pra cobrir casos de dados persistidos sem chaves novas:
+
+```ts
+section.settings = { ...defaultSettings, ...(section.settings ?? {}) };
+```
+
+**Generalizar:** qualquer classe que guarda reference-type settings persistido pelo dataManager deve usar getter. O bug só aparece quando: (a) settings mudam em runtime, (b) outra parte do código (ex: settingTab) edita a section direto. `ImageCodingModel` e `PdfCodingModel` já faziam isso, só `MediaCodingModel` era a exceção.
+
+**Também:** quando adicionar chave nova em section já persistida, `DataManager.load()` precisa do `deepMerge(defaults.X.settings, raw.X.settings)` pra preencher. Esqueci isso pro `pdf.settings` na primeira iteração e o plugin crashou no boot com `Cannot read properties of undefined (reading 'autoOpen')`. Adicionar ao deep merge list sempre que uma section ganha settings.
+
+### 19.2 Pin per (leaf, file) no fileInterceptor pra override manual
+
+**Armadilha:** com `autoOpen=true`, `fileInterceptor` re-intercepta a cada `active-leaf-change`. Quando user toggla view type via botão (do coding view pro native), o `setViewState` triggera um novo `active-leaf-change` → intercept → puxa de volta. Loop.
+
+**Tentativa 1 (one-shot):** `WeakSet` que suprime o próximo `active-leaf-change` da leaf. Fixava o loop imediato mas quebrava "voltar à aba": usuário muda de aba e volta → intercept dispara limpo → volta pra coding view contra a vontade.
+
+**Tentativa 2 (persistent sem cleanup):** `WeakMap<leaf, filePath>` pin persistente. Entries sobreviviam ao hot-reload do plugin (o módulo JS não é descartado, só a classe do plugin), bloqueando intercepts legítimos em sessões futuras.
+
+**Pattern final:** `WeakMap<leaf, filePath>` **com reset no `clearFileInterceptRules()`** (chamado em onunload). Pin respeita a escolha manual do user enquanto ele fica no mesmo arquivo; abre outro arquivo na mesma leaf → intercept volta a agir (setting é a fonte da verdade). Hot-reload reseta.
+
+```ts
+let pinnedFileByLeaf = new WeakMap<object, string>();
+
+export function markLeafHandled(leaf: object, filePath: string): void {
+    pinnedFileByLeaf.set(leaf, filePath);
+}
+
+export function clearFileInterceptRules(): void {
+    rules.length = 0;
+    renameRules.length = 0;
+    pinnedFileByLeaf = new WeakMap(); // reset no hot-reload
+}
+
+// No handler:
+if (pinnedFileByLeaf.get(leaf) === filePath) continue;
+```
+
+**Generalizar:** qualquer `WeakMap`/`WeakSet` declarado em module-scope que rastreie estado de sessão precisa ser resetado no onunload (via função de cleanup exportada). Hot-reload descarta a instância do Plugin mas não o módulo JS.
+
+### 19.3 Instrumentação in-place vs view swap (PDF)
+
+**Assimetria:** os 4 engines (Image/Audio/Video/PDF) compartilham conceito de UX (toggle entre nativo e coding), mas o PDF não tem view custom — é sempre o PDF viewer nativo do Obsidian com (ou sem) uma camada de observers/decorators/listeners por cima.
+
+**Pattern:** pro PDF, toggle é **instrumentação on/off in-place**. View nunca é trocada, scroll e página preservados. Instrument adiciona observers no `child.containerEl`; deinstrument chama `stop()`/`unmount()` nos mesmos maps (`observers`, `drawInteractions`, `drawToolbars`, `childListeners`) e limpa `instrumentedViewers` WeakSet.
+
+```ts
+plugin.togglePdfInstrumentation = (view: unknown) => {
+    const child = (view as any)?.viewer?.child;
+    if (!child) return;
+    const shouldBeInstrumented = model.settings.autoOpen;
+    const isInstrumented = instrumentedViewers.has(child);
+    if (shouldBeInstrumented && !isInstrumented) instrumentPdfView(view);
+    else if (!shouldBeInstrumented && isInstrumented) deinstrumentPdfView(view);
+};
+```
+
+**Implicação de UX:** pro PDF o toggle muda o setting **globalmente** (em vez de per-leaf como nos outros 3), porque todos os PDFs usam a mesma view nativa. Consistente com a arquitetura.
+
+**Generalizar:** Markdown tem arquitetura parecida (CM6 extension em cima da view nativa). Se algum dia precisar de "pause coding no markdown", mesmo pattern serve — `start()`/`stop()` no ViewPlugin sem trocar editor.
+
+### 19.4 Constantes isoladas de view type pra testes jsdom
+
+**Armadilha:** `viewToggleHelpers.ts` inicialmente importava `IMAGE_CODING_VIEW_TYPE` de `src/image/views/imageView.ts`. Isso arrastava o grafo inteiro: `imageView` → `CodingMenu` → `baseCodingMenu` → `codeBrowserModal` → `FuzzySuggestModal` (Obsidian). jsdom não mocka `FuzzySuggestModal` → `TypeError: Class extends value undefined`.
+
+**Pattern:** constantes de string-only num módulo leve (`src/core/mediaViewTypes.ts`, sem imports de Obsidian) e re-exportadas pelos arquivos de view. Testes importam do módulo leve; views usam o mesmo source.
+
+**Generalizar:** qualquer constante compartilhada entre código de runtime e testes unitários deve ficar num arquivo "leaf" do grafo de imports (sem dependências que requerem Obsidian). Se precisar importar do grafo pesado pra compatibilidade, re-exportar do arquivo leaf.
+
+**Onde está implementado:** `src/core/viewToggleHelpers.ts`, `src/core/mediaToggleButton.ts`, `src/core/fileInterceptor.ts`, `src/pdf/index.ts`. BACKLOG §10 FEITO 2026-04-23, merge `d820e92`.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

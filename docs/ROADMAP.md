@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam riscados como registro.
-> Última atualização: 2026-04-21.
+> Última atualização: 2026-04-23.
 
 ---
 

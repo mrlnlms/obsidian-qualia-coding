@@ -430,9 +430,11 @@ Cobertos indiretamente por: interacao manual no Obsidian
 
 ### Settings tab
 
-A aba de settings tem duas secoes:
+A aba de settings tem as seguintes secoes:
 
-- **General** — `showMagnitudeInPopover`, `showRelationsInPopover`
+- **General** — `showMagnitudeInPopover`, `showRelationsInPopover`, `openToggleInNewTab`
+- **Markdown** — cor padrao, opacity, handles on hover, menus (selection / right-click / ribbon)
+- **Media** — 4 pares de toggles (Image / Audio / Video / PDF): `autoOpen` + `showButton` per-media
 - **Export** — botoes para exportar QDPX (projeto completo) e QDC (codebook)
 
 ### Palette commands
@@ -445,6 +447,52 @@ A aba de settings tem duas secoes:
 | `import-qdc` | Importa codebook (QDC) |
 
 Os comandos de export tambem aparecem no botao de analytics (toolbar do AnalyticsView). Os comandos de import abrem `importModal.ts` com resolucao de conflitos.
+
+---
+
+## 5d. Media Opening Toggle
+
+### Settings (seção "Media")
+
+Cada mídia tem 2 toggles. Ambos persistem no namespace do engine (`image.settings`, `audio.settings`, `video.settings`, `pdf.settings`):
+
+| Setting | Default | Efeito |
+|---------|---------|--------|
+| `autoOpen` | `false` | Se `true`, abre o arquivo na Coding View do plugin (ou, pro PDF, instrumenta o viewer nativo). Se `false`, cai no viewer nativo do Obsidian sem decoração. |
+| `showButton` | `true` | Se `true`, adiciona botão `replace-all` no header da view pra alternar entre os dois modos. |
+
+Setting global em `general.settings`:
+
+| Setting | Default | Efeito |
+|---------|---------|--------|
+| `openToggleInNewTab` | `false` | Se `true`, o botão/command abre a view alternada em nova aba em vez de substituir a atual. Não se aplica ao PDF (toggle sempre in-place). |
+
+### Palette commands
+
+| Command ID | Descrição |
+|-----------|-----------|
+| `toggle-image-coding` | Alterna entre view nativa e Image Coding View |
+| `toggle-audio-coding` | Alterna entre view nativa e Audio Coding View |
+| `toggle-video-coding` | Alterna entre view nativa e Video Coding View |
+| `toggle-pdf-coding` | Liga/desliga instrumentação de coding no PDF nativo |
+
+Commands seguem a mesma lógica do botão no header — bidirecional, respeitam `openToggleInNewTab`.
+
+### Teste manual
+
+Fluxo mínimo pra validar após mudanças nessa área:
+
+1. Com `data.json` limpo (ou reset manual dos settings): abrir `.png`/`.mp3`/`.mp4`/`.pdf` → todos vão pra viewer nativo com ícone `replace-all` no header.
+2. Ligar cada `autoOpen` → reabrir arquivo → abre em Coding View (ou, pro PDF, com instrumentação ativa).
+3. Clicar botão no header → troca modo **pra aquele arquivo/leaf**. Mudar aba e voltar → continua no modo escolhido (setting não re-intercepta). Abrir arquivo diferente na mesma leaf → setting volta a agir.
+4. Desligar `showButton` de uma mídia → botão some nas views daquela mídia. Palette command continua funcionando.
+5. Ligar `openToggleInNewTab` → botão abre modo alternativo em nova aba, preservando current. PDF ignora esse setting.
+
+### Armadilhas
+
+- **Hot-reload do plugin**: o `pinnedFileByLeaf` (rastreador do override manual) é resetado em `clearFileInterceptRules()`. Se esse clear for removido, overrides antigos sobrevivem e bloqueiam intercepts legítimos.
+- **Adicionar setting nova num engine**: precisa adicionar ao `DataManager.load()` deep merge (ex: `raw.pdf.settings = deepMerge(defaults.pdf.settings, raw.pdf.settings)`). Senão vaults com data antigo crasham no boot acessando `.autoOpen` em `undefined`.
+- **`MediaCodingModel.settings`**: é getter (`this.dm.section(...).settings`), não cópia. Não voltar a `this.settings = {...}` no construtor — edits do tab não propagam.
 
 ---
 
