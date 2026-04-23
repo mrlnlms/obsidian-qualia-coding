@@ -485,14 +485,15 @@ Fluxo mínimo pra validar após mudanças nessa área:
 1. Com `data.json` limpo (ou reset manual dos settings): abrir `.png`/`.mp3`/`.mp4`/`.pdf` → todos vão pra viewer nativo com ícone `replace-all` no header.
 2. Ligar cada `autoOpen` → reabrir arquivo → abre em Coding View (ou, pro PDF, com instrumentação ativa).
 3. Clicar botão no header → troca modo **pra aquele arquivo/leaf**. Mudar aba e voltar → continua no modo escolhido (setting não re-intercepta). Abrir arquivo diferente na mesma leaf → setting volta a agir.
-4. Desligar `showButton` de uma mídia → botão some nas views daquela mídia. Palette command continua funcionando.
+4. Desligar `showButton` de uma mídia com uma view aberta → botão some **imediatamente** do header (sem precisar trocar de aba). Religar → botão reaparece na mesma view. Palette command continua funcionando independente do `showButton`.
 5. Ligar `openToggleInNewTab` → botão abre modo alternativo em nova aba, preservando current. PDF ignora esse setting.
 
 ### Armadilhas
 
-- **Hot-reload do plugin**: o `pinnedFileByLeaf` (rastreador do override manual) é resetado em `clearFileInterceptRules()`. Se esse clear for removido, overrides antigos sobrevivem e bloqueiam intercepts legítimos.
+- **Hot-reload do plugin**: o `pinnedFileByLeaf` (rastreador do override manual) é resetado em `clearFileInterceptRules()`. Se esse clear for removido, overrides antigos sobrevivem e bloqueiam intercepts legítimos. Mesma regra pro `INJECTED_ACTIONS`/`TRACKED_VIEWS` em `mediaToggleButton.ts` — `teardownMediaToggleButtons()` roda no `onunload` pra limpar DOM + reset module state. Sem isso, disable/enable pulava re-injeção do botão.
 - **Adicionar setting nova num engine**: precisa adicionar ao `DataManager.load()` deep merge (ex: `raw.pdf.settings = deepMerge(defaults.pdf.settings, raw.pdf.settings)`). Senão vaults com data antigo crasham no boot acessando `.autoOpen` em `undefined`.
 - **`MediaCodingModel.settings`**: é getter (`this.dm.section(...).settings`), não cópia. Não voltar a `this.settings = {...}` no construtor — edits do tab não propagam.
+- **Qualquer `view.addAction` sobrevive no DOM após disable**: Obsidian não limpa actions do plugin. Se adicionar um novo action, trackear + detach no onunload (ver `TECHNICAL-PATTERNS.md §19.5`).
 
 ---
 

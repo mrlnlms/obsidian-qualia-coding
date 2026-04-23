@@ -38,7 +38,7 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 		if (!(file instanceof TFile)) return;
 		if (!AUDIO_EXTENSIONS.has(file.extension.toLowerCase())) return;
 		menu.addItem((item) => {
-			item.setTitle('Open in Audio Coding')
+			item.setTitle('Toggle audio coding')
 				.setIcon('audio-lines')
 				.onClick(() => openAudioView(plugin, model, file));
 		});

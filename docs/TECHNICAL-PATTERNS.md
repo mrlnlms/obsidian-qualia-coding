@@ -1335,6 +1335,41 @@ plugin.togglePdfInstrumentation = (view: unknown) => {
 
 **Onde está implementado:** `src/core/viewToggleHelpers.ts`, `src/core/mediaToggleButton.ts`, `src/core/fileInterceptor.ts`, `src/pdf/index.ts`. BACKLOG §10 FEITO 2026-04-23, merge `d820e92`.
 
+### 19.5 `view.addAction` precisa detach manual no onunload
+
+**Armadilha:** Obsidian **não** remove actions adicionadas por plugin quando o plugin desabilita. O botão fica órfão no DOM do header. No re-enable, o novo plugin chama `view.addAction(...)` de novo → dois botões lado a lado. Visível no Case Variables badge (duplicou) e parcialmente no media toggle button (mesma raiz, sintoma diferente porque a WeakMap módulo-scope bloqueava re-injeção).
+
+**Pattern:** qualquer action injetada via `view.addAction` precisa ser trackeada em estrutura iterável e detachada explicitamente no `onunload`.
+
+```ts
+// module-scope OR plugin property
+let INJECTED_ACTIONS = new WeakMap<FileView, HTMLElement>();
+const TRACKED_VIEWS = new Set<FileView>();
+
+function tryInject(plugin, view) {
+    if (INJECTED_ACTIONS.has(view)) return;
+    const action = view.addAction(icon, title, handler);
+    INJECTED_ACTIONS.set(view, action);
+    TRACKED_VIEWS.add(view);
+}
+
+export function teardownActions(): void {
+    for (const view of TRACKED_VIEWS) {
+        INJECTED_ACTIONS.get(view)?.detach();
+    }
+    TRACKED_VIEWS.clear();
+    INJECTED_ACTIONS = new WeakMap(); // module-scope reassign pra hot-reload
+}
+```
+
+**Por que `Set` paralelo à `WeakMap`:** `WeakMap` não é iterable. Sem Set, impossível detach em batch no onunload. Set é limpo pela mesma função de teardown, e entries de view destruídas entre onload/onunload ficam no Set até o próximo teardown (aceitável — Set vive dentro do plugin lifecycle).
+
+**Alternativa pra state em plugin property** (ex: Case Variables): usar `Map<View, HTMLElement>` + `view.register(() => map.delete(view))` pra limpeza em runtime, e iterar no onunload. Map segura referência da view mas o `view.register` garante que entries são removidas quando a view fecha — sem leak durante sessão.
+
+**Generalizar:** o mesmo princípio vale para `setInterval`, event listeners em `document`/`window`, observers em elementos fora do container do plugin, qualquer DOM mutation que sobreviva ao ciclo de vida do plugin. Se não foi via `plugin.register*()`, você precisa limpar na mão.
+
+**Onde está implementado:** `teardownMediaToggleButtons` em `src/core/mediaToggleButton.ts` (module-scope WeakMap + Set) e `caseVariablesButtons` em `src/main.ts` (plugin-property Map + view.register cleanup). Fix 2026-04-23.
+
 ---
 
 ## Fontes

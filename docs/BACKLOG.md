@@ -155,6 +155,12 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 
 **Arquivos principais:** `src/core/viewToggleHelpers.ts` (pure: `resolveToggleTarget`, `isMediaViewType`), `src/core/mediaToggleButton.ts` (injeção via `view.addAction` + `performToggleCommand`), `src/core/mediaViewTypes.ts` (constantes isoladas pra testes), `src/pdf/index.ts` (instrument/deinstrument in-place + `togglePdfInstrumentation` no plugin), `src/core/fileInterceptor.ts` (pin per leaf+file), `src/core/settingTab.ts` (seção "Media" unificada), `src/core/types.ts` (schema). 11 testes novos em `tests/core/viewToggleHelpers.test.ts`.
 
+**Higiene cosmética follow-up — FEITO (2026-04-23):**
+- File-menu items renomeados `"Open in X Coding"` → `"Toggle [media] coding"` (image/audio/video) pra casar com command palette. CSV mantém `"Open in Tabular Coding"` (sem toggle).
+- `showButton` agora atualiza live — flipar a setting com view aberta injeta/remove o botão sem precisar de `active-leaf-change`. Implementado via `refreshMediaToggleButtons(plugin)` no `mediaToggleButton.ts` + chamada no `onChange` do settingTab.
+- `teardownMediaToggleButtons()` no `plugin.onunload()` — limpa DOM + reseta `WeakMap`/`Set` de tracking. Sem isso, disable/enable deixava `INJECTED_ACTIONS` poluída (module-scope sobrevive hot-reload) e o bootstrap do enable pulava re-injeção porque `has(view)` ainda era `true` pra views que Obsidian clarou do DOM.
+- Mesmo pattern aplicado ao badge de Case Variables (`caseVariablesButtons: Map<View, HTMLElement>` no plugin + detach no onunload). Antes duplicava no reload. Documentado em `TECHNICAL-PATTERNS.md §19.5`.
+
 ### ~~Incremental refresh/cache por engine~~ — FEITO (2026-03-20)
 Implementado em duas camadas: `ConsolidationCache` (analytics pipeline, dirty flags por engine + registry) e cache com indices no `UnifiedModelAdapter` (sidebar views, dirty flag global + Map por fileId/id). Views Explorer/Detail com debounce rAF via `scheduleRefresh`.
 

@@ -36,7 +36,7 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 		if (!(file instanceof TFile)) return;
 		if (!VIDEO_EXTENSIONS.has(file.extension.toLowerCase())) return;
 		menu.addItem((item) => {
-			item.setTitle('Open in Video Coding')
+			item.setTitle('Toggle video coding')
 				.setIcon('video')
 				.onClick(() => openVideoView(plugin, file));
 		});

@@ -9,6 +9,7 @@ import { openPropertiesPopover } from './core/caseVariables/propertiesPopover';
 import type { EngineCleanup } from './core/types';
 import { BaseCodeDetailView } from './core/baseCodeDetailView';
 import { clearFileInterceptRules } from './core/fileInterceptor';
+import { teardownMediaToggleButtons } from './core/mediaToggleButton';
 import { UnifiedModelAdapter } from './core/unifiedModelAdapter';
 import { UnifiedCodeExplorerView, CODE_EXPLORER_VIEW_TYPE } from './core/unifiedExplorerView';
 import { UnifiedCodeDetailView, CODE_DETAIL_VIEW_TYPE } from './core/unifiedDetailView';
@@ -43,6 +44,10 @@ export default class QualiaCodingPlugin extends Plugin {
 	// on same-leaf navigation (.get(view)?.()). Cleanup happens via view.register() —
 	// this map is NOT responsible for listener teardown.
 	private caseVariablesViewListeners = new WeakMap<View, () => void>();
+	// Tracks injected action buttons for teardown on plugin disable. Obsidian does
+	// not remove plugin-added actions on unload; without explicit detach, re-enable
+	// adds a duplicate button next to the orphan. Map entry auto-deleted on view close.
+	private caseVariablesButtons = new Map<View, HTMLElement>();
 	// Active Case Variables popover — tracked so it can be closed on plugin unload
 	// (prevents orphan DOM + dead listeners during hot-reload). Only one popover
 	// can be open at a time by design (clicking another button closes the previous).
@@ -395,14 +400,22 @@ export default class QualiaCodingPlugin extends Plugin {
 		const listener = () => updateBadge();
 		this.caseVariablesRegistry.addOnMutate(listener);
 		this.caseVariablesViewListeners.set(view, listener);
-		view.register(() => this.caseVariablesRegistry.removeOnMutate(listener));
+		this.caseVariablesButtons.set(view, button);
+		view.register(() => {
+			this.caseVariablesRegistry.removeOnMutate(listener);
+			this.caseVariablesButtons.delete(view);
+		});
 	}
 
 	async onunload() {
 		clearFileInterceptRules();
+		teardownMediaToggleButtons();
 		// Close any open Case Variables popover before tearing down the registry
 		this.activePopoverClose?.();
 		this.activePopoverClose = null;
+		// Detach Case Variables action buttons so hot-reload doesn't leave orphans.
+		for (const button of this.caseVariablesButtons.values()) button.detach();
+		this.caseVariablesButtons.clear();
 		this.app.workspace.detachLeavesOfType(CODE_EXPLORER_VIEW_TYPE);
 		this.app.workspace.detachLeavesOfType(CODE_DETAIL_VIEW_TYPE);
 		this.app.workspace.detachLeavesOfType(CASE_VARIABLES_VIEW_TYPE);

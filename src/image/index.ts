@@ -46,12 +46,11 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 	});
 
 
-	// File menu: "Open in Image Coding"
 	const fileMenuRef = plugin.app.workspace.on('file-menu', (menu, file) => {
 		if (!(file instanceof TFile)) return;
 		if (!IMAGE_EXTENSIONS.has(file.extension.toLowerCase())) return;
 		menu.addItem((item) => {
-			item.setTitle('Open in Image Coding')
+			item.setTitle('Toggle image coding')
 				.setIcon('image')
 				.onClick(() => openImageCodingView(plugin, file));
 		});

@@ -3,7 +3,30 @@ import type QualiaCodingPlugin from '../main';
 import { resolveToggleTarget, isMediaViewType, type MediaKind } from './viewToggleHelpers';
 import { markLeafHandled } from './fileInterceptor';
 
-const INJECTED = new WeakSet<FileView>();
+let INJECTED_ACTIONS = new WeakMap<FileView, HTMLElement>();
+const TRACKED_VIEWS = new Set<FileView>();
+
+function tryInject(plugin: QualiaCodingPlugin, view: FileView): void {
+	if (INJECTED_ACTIONS.has(view)) return;
+	const kind = isMediaViewType(view.getViewType());
+	if (!kind) return;
+	const settings = getSettingsForKind(plugin, kind);
+	if (!settings.showButton) return;
+
+	const action = view.addAction('replace-all', tooltipFor(kind, view.getViewType()), () => {
+		void performToggleCommand(plugin, view, kind);
+	});
+	INJECTED_ACTIONS.set(view, action);
+	TRACKED_VIEWS.add(view);
+}
+
+function tryRemove(view: FileView): void {
+	const action = INJECTED_ACTIONS.get(view);
+	if (!action) return;
+	action.detach();
+	INJECTED_ACTIONS.delete(view);
+	TRACKED_VIEWS.delete(view);
+}
 
 /**
  * Install a workspace listener that injects a "toggle coding view" action into
@@ -11,30 +34,49 @@ const INJECTED = new WeakSet<FileView>();
  * active, respecting each media's `showButton` setting.
  */
 export function setupMediaToggleButton(plugin: QualiaCodingPlugin): void {
-	const tryInject = (view: FileView) => {
-		if (INJECTED.has(view)) return;
-		const kind = isMediaViewType(view.getViewType());
-		if (!kind) return;
-		const settings = getSettingsForKind(plugin, kind);
-		if (!settings.showButton) return;
-
-		view.addAction('replace-all', tooltipFor(kind, view.getViewType()), () => {
-			void performToggleCommand(plugin, view, kind);
-		});
-		INJECTED.add(view);
-	};
-
 	plugin.registerEvent(
 		plugin.app.workspace.on('active-leaf-change', (leaf) => {
 			if (!leaf || !(leaf.view instanceof FileView)) return;
-			tryInject(leaf.view);
+			tryInject(plugin, leaf.view);
 		}),
 	);
 
 	// Bootstrap: inject into already-open media views on plugin load
 	plugin.app.workspace.iterateAllLeaves((leaf) => {
-		if (leaf.view instanceof FileView) tryInject(leaf.view);
+		if (leaf.view instanceof FileView) tryInject(plugin, leaf.view);
 	});
+}
+
+/**
+ * Re-evaluate the showButton setting for all open media views, injecting or
+ * removing the toggle action as needed. Call from the settings tab when the
+ * user flips `showButton` for any media kind.
+ */
+export function refreshMediaToggleButtons(plugin: QualiaCodingPlugin): void {
+	plugin.app.workspace.iterateAllLeaves((leaf) => {
+		const view = leaf.view;
+		if (!(view instanceof FileView)) return;
+		const kind = isMediaViewType(view.getViewType());
+		if (!kind) return;
+		const settings = getSettingsForKind(plugin, kind);
+		if (settings.showButton) tryInject(plugin, view);
+		else tryRemove(view);
+	});
+}
+
+/**
+ * Tear down all injected toggle actions and reset module state. Call from
+ * `plugin.onunload()` — without this, hot-reload leaves stale entries in the
+ * module-scope WeakMap, and the re-enabled plugin skips re-injection because
+ * `has(view)` is still true for views that Obsidian cleared from the DOM.
+ */
+export function teardownMediaToggleButtons(): void {
+	for (const view of TRACKED_VIEWS) {
+		const action = INJECTED_ACTIONS.get(view);
+		action?.detach();
+	}
+	TRACKED_VIEWS.clear();
+	INJECTED_ACTIONS = new WeakMap<FileView, HTMLElement>();
 }
 
 function getSettingsForKind(plugin: QualiaCodingPlugin, kind: MediaKind): { showButton: boolean; autoOpen: boolean } {

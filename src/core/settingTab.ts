@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import { ExportModal } from '../export/exportModal';
+import { refreshMediaToggleButtons } from './mediaToggleButton';
 
 export class QualiaSettingTab extends PluginSettingTab {
 	plugin: QualiaCodingPlugin;
@@ -149,7 +150,11 @@ export class QualiaSettingTab extends PluginSettingTab {
 				.setClass('qualia-setting-indent')
 				.addToggle(toggle => toggle
 					.setValue(settingsObj.showButton)
-					.onChange((value) => { settingsObj.showButton = value; save(); }));
+					.onChange((value) => {
+						settingsObj.showButton = value;
+						save();
+						refreshMediaToggleButtons(this.plugin);
+					}));
 		};
 
 		renderMediaPair('Open images in coding view', 'PNG, JPG, WebP, SVG, etc.', 'image', imageSettings);
