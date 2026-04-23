@@ -109,9 +109,9 @@ Extract é rápido (~ms/página pra dims, ~dezenas de ms/página pro texto). Usu
 
 - Se `meta` faltar: chama `extractPdfMetadata` on-demand (com progress) antes de exportar
 - Chama `buildPdfPlainText(meta)` → `{ text, itemOffsets }` uma vez por PDF
-- Pré-computa `textOffsets: Map<string, { start: number; end: number }>` (chave: `markerId`) iterando os markers: `start = itemOffsets.get(\`${m.page}:${m.beginIndex}\`)!.start + m.beginOffset` (e análogo pro `end`). Mantém o contrato existente de `buildPdfSourceXml(..., textOffsets, ...)` — zero mudança de assinatura
+- Pré-computa `textOffsets: Map<string, { start: number; end: number }>` (chave: `markerId`) iterando os markers: `start = itemOffsets.get(\`${m.page}:${m.beginIndex}\`)!.start + m.beginOffset` (e análogo pro `end`). **Zero mudança no contrato de `textOffsets`** — mantém a chave e shape que `buildPdfSourceXml` já espera
 - `pageDims: Record<number, { width; height }>` construído a partir de `meta.pages` e passado pro `buildPdfSourceXml`
-- `text` (PlainText do PDFSource) passa a ser incluído — assinatura de `buildPdfSourceXml` ganha param `plainText: string`
+- `buildPdfSourceXml` ganha param novo `plainText: string` pra emitir o PlainText consolidado do PDFSource (essa é a única mudança de assinatura)
 - Remove warnings E1 e E2; substitui por warning só pra PDFs sem text layer (scanned)
 
 ### 3.5 Import refactor
@@ -129,7 +129,7 @@ Extract é rápido (~ms/página pra dims, ~dezenas de ms/página pro texto). Usu
 Processamento de markers com metadata disponível:
 
 - Shape markers: `pdfRectToNormalized` recebe `meta.pages[N].{width,height}` reais (não mais default 612x792)
-- `PlainTextSelection` dentro de `PDFSource`: busca inversa no `sortedOffsets` (lazy — ver §3.2) por binary search pelo offset absoluto → `{page, beginIndex, beginOffset, endIndex, endOffset}`; cria `PdfMarker` normal
+- `PlainTextSelection` dentro de `PDFSource`: busca inversa no array retornado por `toSortedOffsets(result)` (ver §3.2) — binary search pelo offset absoluto → `{page, beginIndex, beginOffset, endIndex, endOffset}`; cria `PdfMarker` normal
 
 Fallback (PDF já no vault mas sem metadata, e importação não bundla binário): chama `extractPdfMetadata` on-demand antes de processar markers do source.
 
