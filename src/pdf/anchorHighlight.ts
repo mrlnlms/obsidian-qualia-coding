@@ -63,3 +63,32 @@ export function rectToPagePercent(
 		height: (rect.height / page.height) * 100,
 	};
 }
+
+/**
+ * Render highlight rects for an anchor into a layer element. Returns the
+ * created rect elements (in DOM order — first covers the top-left, last covers
+ * the bottom-right of the selection). Returns null if the anchor doesn't match.
+ */
+export function renderAnchorRectsInPage(
+	pageEl: HTMLElement,
+	layer: HTMLElement,
+	anchor: PdfAnchor,
+	className: string,
+): HTMLElement[] | null {
+	const rects = computeAnchorRects(pageEl, anchor);
+	if (rects === null) return null;
+
+	const elements: HTMLElement[] = [];
+	for (const rect of rects) {
+		const pct = rectToPagePercent(rect, pageEl);
+		const el = document.createElement('div');
+		el.className = className;
+		el.style.left = `${pct.left}%`;
+		el.style.top = `${pct.top}%`;
+		el.style.width = `${pct.width}%`;
+		el.style.height = `${pct.height}%`;
+		layer.appendChild(el);
+		elements.push(el);
+	}
+	return elements;
+}

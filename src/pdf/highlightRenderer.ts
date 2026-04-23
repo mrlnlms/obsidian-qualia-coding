@@ -12,6 +12,7 @@ import type { MergedRect } from './highlightGeometry';
 import { computeMergedHighlightRects } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
 import { runtimeIndicesFromAnchor, type RuntimeIndices } from './runtimeIndicesFromAnchor';
+import { renderAnchorRectsInPage } from './anchorHighlight';
 import type { PdfViewState } from './pdfViewState';
 
 const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
@@ -154,46 +155,26 @@ export function renderHighlightsForPage(
 		const idx = runtimeIndicesFromAnchor(pageDiv, marker);
 		if (!idx) continue;
 
-		let mergedRects: MergedRect[];
-		try {
-			mergedRects = computeMergedHighlightRects(
-				textLayerInfo,
-				idx.beginIndex,
-				idx.beginOffset,
-				idx.endIndex,
-				idx.endOffset,
-			);
-		} catch {
-			continue;
-		}
-
-		if (mergedRects.length === 0) continue;
-
+		// Visual rects come straight from Range.getClientRects() — bypasses pdfjs
+		// textContentItems indexing entirely. Indices (idx) are kept only for
+		// hit-testing/layering comparisons.
 		let firstRectEl: HTMLElement | null = null;
 		let lastRectEl: HTMLElement | null = null;
+		const codeNames = marker.codes
+			.map((ca) => registry.getById(ca.codeId)?.name ?? ca.codeId)
+			.join(', ');
 
-		for (const { rect } of mergedRects) {
-			let lastLayerEl: HTMLElement | null = null;
-			for (const color of codeColors) {
-				const rectEl = placeRectInPage(rect, pageView, layer, HIGHLIGHT_CLASS);
-				rectEl.dataset.markerId = marker.id;
-				rectEl.style.backgroundColor = color;
-				if (perCodeOpacity !== undefined) {
-					rectEl.style.opacity = String(perCodeOpacity);
-				}
-				lastLayerEl = rectEl;
+		for (const color of codeColors) {
+			const els = renderAnchorRectsInPage(pageDiv, layer, marker, HIGHLIGHT_CLASS);
+			if (!els || els.length === 0) continue;
+			for (const el of els) {
+				el.dataset.markerId = marker.id;
+				el.style.backgroundColor = color;
+				if (perCodeOpacity !== undefined) el.style.opacity = String(perCodeOpacity);
 			}
-
-			if (!firstRectEl) firstRectEl = lastLayerEl;
-			lastRectEl = lastLayerEl;
-
-			// Tooltip with code names on the topmost layer
-			if (lastLayerEl) {
-				const codeNames = marker.codes
-					.map(ca => registry.getById(ca.codeId)?.name ?? ca.codeId)
-					.join(', ');
-				setTooltip(lastLayerEl, codeNames);
-			}
+			if (!firstRectEl) firstRectEl = els[0]!;
+			lastRectEl = els[els.length - 1]!;
+			if (lastRectEl) setTooltip(lastRectEl, codeNames);
 		}
 
 		if (firstRectEl && lastRectEl) {
@@ -202,7 +183,7 @@ export function renderHighlightsForPage(
 				indices: idx,
 				firstRectEl,
 				lastRectEl,
-				mergedRects,
+				mergedRects: [],
 				color: codeColors[0]!,
 			});
 		}
@@ -440,39 +421,21 @@ export function updateHighlightRectsForMarker(
 	const codeColors = resolveCodeColors(marker, registry);
 	const perCodeOpacity = codeColors.length > 1 ? BASE_OPACITY / codeColors.length : undefined;
 
-	const idx = runtimeIndicesFromAnchor(pageDiv, marker);
-	if (!idx) return;
-
-	let mergedRects: MergedRect[];
-	try {
-		mergedRects = computeMergedHighlightRects(
-			textLayerInfo,
-			idx.beginIndex, idx.beginOffset,
-			idx.endIndex, idx.endOffset,
-		);
-	} catch { return; }
-
-	if (mergedRects.length === 0) return;
-
 	let firstRectEl: HTMLElement | null = null;
 	let lastRectEl: HTMLElement | null = null;
 
-	for (const { rect } of mergedRects) {
-		let lastLayerEl: HTMLElement | null = null;
-		for (const color of codeColors) {
-			const rectEl = placeRectInPage(rect, pageView, layer, HIGHLIGHT_CLASS);
-			rectEl.dataset.markerId = marker.id;
-			rectEl.style.backgroundColor = color;
-			if (perCodeOpacity !== undefined) {
-				rectEl.style.opacity = String(perCodeOpacity);
-			}
-			lastLayerEl = rectEl;
+	for (const color of codeColors) {
+		const els = renderAnchorRectsInPage(pageDiv, layer, marker, HIGHLIGHT_CLASS);
+		if (!els || els.length === 0) continue;
+		for (const el of els) {
+			el.dataset.markerId = marker.id;
+			el.style.backgroundColor = color;
+			if (perCodeOpacity !== undefined) el.style.opacity = String(perCodeOpacity);
 		}
-		if (!firstRectEl) firstRectEl = lastLayerEl;
-		lastRectEl = lastLayerEl;
+		if (!firstRectEl) firstRectEl = els[0]!;
+		lastRectEl = els[els.length - 1]!;
 	}
 
-	// Reposition existing handles to match new rects
 	if (firstRectEl && lastRectEl) {
 		repositionHandlesForMarker(layer, marker.id, firstRectEl, lastRectEl);
 	}
@@ -558,28 +521,9 @@ export function renderSelectionPreview(
 	pageView: PDFPageView,
 	anchor: import('./pdfCodingTypes').PdfAnchor,
 ): (() => void) | null {
-	const textLayerInfo = getTextLayerInfo(pageView);
-	if (!textLayerInfo) return null;
-
-	const idx = runtimeIndicesFromAnchor(pageView.div, anchor);
-	if (!idx) return null;
-
-	let mergedRects: MergedRect[];
-	try {
-		mergedRects = computeMergedHighlightRects(textLayerInfo, idx.beginIndex, idx.beginOffset, idx.endIndex, idx.endOffset);
-	} catch {
-		return null;
-	}
-	if (mergedRects.length === 0) return null;
-
 	const layer = getOrCreateHighlightLayer(pageView.div);
-	const elements: HTMLElement[] = [];
-
-	for (const { rect } of mergedRects) {
-		const el = placeRectInPage(rect, pageView, layer, PREVIEW_CLASS);
-		elements.push(el);
-	}
-
+	const elements = renderAnchorRectsInPage(pageView.div, layer, anchor, PREVIEW_CLASS);
+	if (!elements || elements.length === 0) return null;
 	return () => {
 		for (const el of elements) el.remove();
 	};
