@@ -4821,3 +4821,13 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 }
+
+/* Media section — sub-toggle indentation */
+.qualia-setting-indent {
+	padding-left: 32px;
+}
+
+.qualia-setting-indent .setting-item-name {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}

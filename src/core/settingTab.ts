@@ -121,7 +121,7 @@ export class QualiaSettingTab extends PluginSettingTab {
 		// ── Media ──────────────────────────────────────────────
 		containerEl.createEl('h2', { text: 'Media' });
 		containerEl.createEl('p', {
-			text: 'When enabled, files open in the plugin\'s Coding View instead of the native Obsidian viewer. When disabled, files open in the native viewer (no coding features active).',
+			text: 'When enabled, files open in the plugin\'s Coding View instead of the native Obsidian viewer. When disabled, files open in the native viewer (no coding features active). The header button lets you toggle between modes for any open file.',
 			cls: 'setting-item-description',
 		});
 
@@ -130,43 +130,40 @@ export class QualiaSettingTab extends PluginSettingTab {
 		const videoSettings = this.plugin.dataManager.section('video').settings;
 		const pdfSettings = this.plugin.dataManager.section('pdf').settings;
 
-		new Setting(containerEl)
-			.setName('Open images in coding view')
-			.setDesc('PNG, JPG, WebP, SVG, etc.')
-			.addToggle(toggle => toggle
-				.setValue(imageSettings.autoOpen)
-				.onChange((value) => {
-					imageSettings.autoOpen = value;
-					save();
-				}));
+		const renderMediaPair = (
+			autoOpenLabel: string,
+			autoOpenDesc: string,
+			shortName: string,
+			settingsObj: { autoOpen: boolean; showButton: boolean },
+		) => {
+			new Setting(containerEl)
+				.setName(autoOpenLabel)
+				.setDesc(autoOpenDesc)
+				.addToggle(toggle => toggle
+					.setValue(settingsObj.autoOpen)
+					.onChange((value) => { settingsObj.autoOpen = value; save(); }));
+
+			new Setting(containerEl)
+				.setName(`Show toggle button in ${shortName} header`)
+				.setDesc('Adds a header button to switch between native and coding view at any time.')
+				.setClass('qualia-setting-indent')
+				.addToggle(toggle => toggle
+					.setValue(settingsObj.showButton)
+					.onChange((value) => { settingsObj.showButton = value; save(); }));
+		};
+
+		renderMediaPair('Open images in coding view', 'PNG, JPG, WebP, SVG, etc.', 'image', imageSettings);
+		renderMediaPair('Open audio in coding view', 'MP3, WAV, OGG, M4A, etc.', 'audio', audioSettings);
+		renderMediaPair('Open video in coding view', 'MP4, WebM, MKV, MOV, etc.', 'video', videoSettings);
+		renderMediaPair('Enable coding on PDF files', 'Adds highlight/shape/selection-to-code overlay on the native PDF viewer.', 'PDF', pdfSettings);
 
 		new Setting(containerEl)
-			.setName('Open audio in coding view')
-			.setDesc('MP3, WAV, OGG, M4A, etc.')
+			.setName('Open toggle in a new tab')
+			.setDesc('When on, the header button opens the alternate view in a new tab instead of replacing the current one. Does not apply to PDF (toggle is always in-place).')
 			.addToggle(toggle => toggle
-				.setValue(audioSettings.autoOpen)
+				.setValue(generalSettings.openToggleInNewTab)
 				.onChange((value) => {
-					audioSettings.autoOpen = value;
-					save();
-				}));
-
-		new Setting(containerEl)
-			.setName('Open video in coding view')
-			.setDesc('MP4, WebM, MKV, MOV, etc.')
-			.addToggle(toggle => toggle
-				.setValue(videoSettings.autoOpen)
-				.onChange((value) => {
-					videoSettings.autoOpen = value;
-					save();
-				}));
-
-		new Setting(containerEl)
-			.setName('Enable coding on PDF files')
-			.setDesc('Adds highlight/shape/selection-to-code overlay on the native PDF viewer. When off, PDF opens as a regular Obsidian PDF (no plugin decoration).')
-			.addToggle(toggle => toggle
-				.setValue(pdfSettings.autoOpen)
-				.onChange((value) => {
-					pdfSettings.autoOpen = value;
+					generalSettings.openToggleInNewTab = value;
 					save();
 				}));
 
