@@ -206,7 +206,7 @@ Quatro bugs críticos descobertos durante teste manual de round-trip QDPX (vault
 | ~~CSS chip styles duplicados~~ | ~~FEITO~~ | ~~Magnitude chips unificados em 4 classes canônicas (`codemarker-magnitude-{row,code-name,chips,chip}`) — sem prefixo `tooltip-`/`detail-`. Seletores agrupados no CSS → single rule. Relations mantidas separadas (variantes intencionais de compactação: popover usa gap/padding/svg menores que detail view).~~ (2026-04-22)|
 | Magnitude popover sem empty state | Won't-fix | Seção de magnitude some inteiramente quando nenhum código aplicado tem magnitude configurada — decisão UX intencional, não exibe mensagem |
 | ~~Continuous type — step decimal~~ | ~~FEITO~~ | Extraído `generateContinuousRange` em `core/magnitudeRange.ts`. Decimais inferidos do step string (ex: step `"0.5"` → `["0.0", "0.5", "1.0"]`, step `"0.01"` → `["0.00", "0.01", ...]`). Bug adicional pego: step=0 antes virava 1 por `|| 1` truthy check — agora rejeita explicitamente. 9 unit tests. (2026-04-22) |
-| Relations Network — polish visual | Parcial | **FEITO (2026-04-23):** (a) curvas de Bézier quadráticas com control point perpendicular ao midpoint — edges bidirecionais (A→B e B→A) curvam pra lados opostos automaticamente por causa da orientação do vetor source→target; (b) opacity proporcional ao weight (0.25 + 0.6 × weight/maxWeight) — edges frequentes ficam opacos, raros desbotam. Arrowhead usa tangente da curva em t=1 (passando control point como "from"); label em t=0.5 da curva. Hit test mantido como distância ponto-reta (aproximação suficiente com curvatura 15%). `relationsNetworkMode.ts:265-330`. **Ainda aberto:** (c) hover-focus — destacar edges do nó sob cursor, escurecer o resto (~45 min); (d) filtro "só edges com N+ aplicações" (~30 min); (e) edge bundling real (FDEB/HEB, 3-4h MVP + 1-2 dias polido, só vale com 50+ edges densos). Atacar oportunístico. |
+| Relations Network — polish visual | Parcial | **FEITO (2026-04-23):** (a) curvas de Bézier quadráticas com control point perpendicular ao midpoint — edges bidirecionais (A→B e B→A) curvam pra lados opostos automaticamente por causa da orientação do vetor source→target; (b) opacity proporcional ao weight (0.25 + 0.6 × weight/maxWeight) — edges frequentes ficam opacos, raros desbotam. Arrowhead usa tangente da curva em t=1 (passando control point como "from"); label em t=0.5 da curva. Hit test mantido como distância ponto-reta (aproximação suficiente com curvatura 15%). `relationsNetworkMode.ts:265-330`. **Abertos (c/d/e): → ver §17**. |
 
 ---
 
@@ -316,3 +316,39 @@ Image/Audio/Video agora estendem `FileView` (commits `0a46869`/`f87285d`/`4898f6
 - ~~Sets de extensão duplicados~~ — Sets agora canônicos nos `*View.ts` (`export const`) e importados por `*/index.ts`. Acíclico (index.ts já importava a classe do view.ts). Commit `e70c3eb`.
 - ~~`MediaViewCore.currentFile` paralelo a `FileView.file`~~ — Getter público `core.file` removido; `cleanup(file?)` e `saveScrollPosition(file)` parametrizados; callbacks internos de `loadMedia` capturam `file` via closure. Mantido um `private loadedFile` apenas como safety-net para save-scroll quando `loadMedia` roda sem `cleanup` prévio (comentário explícito no field). Nenhum caller externo dependia de `core.file`. Commit `a758a54`.
 - ~~`caseVariablesViewListeners` sem docs~~ — Comentário no field esclarece que o WeakMap é para dedupe + re-invocação do refresh em navegação na mesma leaf; cleanup do listener é via `view.register()`. Commit `5b7521d`.
+
+---
+
+## 17. Polish oportunístico
+
+> Itens curtos (30min-4h) que melhoram o produto mas não bloqueiam features. Atacar
+> entre sessões grandes, quando der vontade, ou ao editar a área relacionada.
+> Baixo risco, auto-contidos, sem dependência de decisão de produto.
+
+### Analytics
+
+| Item | Esforço | Detalhe |
+|------|---------|---------|
+| Relations Network — hover-focus | ~45 min | Ao passar cursor sobre um nó, destacar edges que entram/saem dele e escurecer o resto. Reduz ruído visual em grafos densos sem precisar de bundling. `relationsNetworkMode.ts` — no loop de draw, dividir opacity por 3 pras edges que não tocam `hoveredNodeIdx` |
+| Relations Network — filtro "N+ aplicações" | ~30 min | Slider ou input no painel de config: só renderiza edges com `weight >= N`. Simples threshold no `extractRelationEdges` ou no loop de draw |
+| Relations Network — edge bundling FDEB/HEB | 3-4h MVP | Só atacar quando grafo realista tiver 50+ edges densos — curvas de Bézier atuais cobrem até isso. FDEB adiciona 150-300 LOC ou lib externa (`d3-force-bundling`). Referência conceitual — não prioritário |
+| Multi-tab spreadsheet export | 1-2h | Spin-off do ROADMAP #8. Export de Analytics com uma sheet por source type (markdown, pdf, csv, image, audio, video) + sheet summary. Usa `xlsx` ou gera múltiplos CSVs zipados |
+| Code × Metadata | 2-3h | ROADMAP #9. Depende de Case Variables (#18, FEITO). Tabelas de contingência código × variável demográfica — reusa `inferentialEngine` base |
+
+### Codebook / hierarquia
+
+| Item | Esforço | Detalhe |
+|------|---------|---------|
+| Pastas nested (pasta dentro de pasta) | 2-3h | Descoberto 2026-04-23 durante §12 K2 — hoje `FolderDefinition` não tem `parentId`, folder rows não são `draggable`. Mudanças: schema (registry), drag-drop callbacks, `buildFlatTree` (recursão), validação de ciclo. Sem backward-compat (zero users) |
+
+### Margin Panel
+
+| Item | Esforço | Detalhe |
+|------|---------|---------|
+| Margin Panel Customization (side/style) | 1-2h | ROADMAP #11. Settings `margin.side: 'left'\|'right'`, `margin.barThickness`, `margin.tickStyle`, `margin.opacity` — constantes hoje hardcoded em `marginPanelExtension.ts`. Atacar num dia dedicado ao Margin Panel junto com o Resize Handle (#17) — dívida `scrollDOM stacking context` compartilhada |
+
+### Como usar esta seção
+
+- Estimativas são best-effort — quando for atacar, recalibrar.
+- Se algum item passar de "oportunístico" pra "bloqueador" (ex: feedback de usuário), mover pra ROADMAP.md com contexto.
+- Se passar de "curto" pra "refactor grande" (>4h), considerar abrir plan dedicado.

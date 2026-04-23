@@ -89,14 +89,13 @@ Comando `quick-code`: seleciona texto → abre fuzzy modal → aplica código. R
 
 Implementado como `sourceComparisonMode.ts`. Painel comparativo mostra métricas por source type (markdown, PDF, CSV, image, audio, video).
 
-**O que ainda falta** (spin-off):
-- Multi-tab spreadsheet export (one tab per source type, summary tab) — relacionado a #15 Export
-- Code × Metadata específico (cruzar códigos com variáveis demográficas por source) — depende de #18 Case Variables
+**O que ainda falta** (spin-off): → catalogado em `BACKLOG.md §17 Polish oportunístico` (Analytics).
 
 ### 9. Analytics: Code × Metadata
 
 - Se CSV tem colunas de metadata (gênero, idade, etc.), cruzar com códigos
 - Tabelas de contingência por variável demográfica
+- → catalogado em `BACKLOG.md §17 Polish oportunístico` (Analytics)
 
 ### ~~10. Code Overlap Analysis~~ — FEITO
 
@@ -106,6 +105,7 @@ Implementado como `overlapMode.ts` em analytics. Heatmap de pares de códigos co
 
 - [ ] Setting left/right (lado da margem) — posição atualmente hardcoded à esquerda
 - [ ] Visual customization: espessura da barra, estilo de ticks, opacidade — constantes hardcoded no extension
+- → catalogado em `BACKLOG.md §17 Polish oportunístico` (Margin Panel). Atacar junto com #17 Resize Handle (dívida `scrollDOM stacking context` compartilhada)
 
 ### 12. Research Board Enhancements
 
