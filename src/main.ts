@@ -28,6 +28,7 @@ import { ConsolidationCache } from './analytics/data/consolidationCache';
 import { registerExportCommands } from './export/exportCommands';
 import { registerImportCommands } from './import/importCommands';
 import { setupFileInterceptor, registerFileRename } from './core/fileInterceptor';
+import { setupMediaToggleButton } from './core/mediaToggleButton';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -54,6 +55,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	csvModel?: CsvCodingModel;
 	audioModel?: AudioCodingModel;
 	videoModel?: VideoCodingModel;
+	togglePdfInstrumentation?: (view: unknown) => void;
 
 	async onload() {
 		console.log(`[Qualia Coding] v${this.manifest.version} loaded`);
@@ -195,6 +197,9 @@ export default class QualiaCodingPlugin extends Plugin {
 
 		// Single active-leaf-change listener for file-open interception
 		setupFileInterceptor(this);
+
+		// Toggle button in media view headers (Image/Audio/Video/PDF)
+		setupMediaToggleButton(this);
 
 		// Build unified model from all engines
 		const mdModel = markdown.model.codeMarkerModel;
