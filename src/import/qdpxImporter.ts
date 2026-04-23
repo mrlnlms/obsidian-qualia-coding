@@ -14,6 +14,7 @@ import type { VideoFile } from '../video/videoCodingTypes';
 import { parseXml, getChildElements, getAttr, getNumAttr, getTextContent, getAllElements } from './xmlParser';
 import { offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from './coordConverters';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
+import { extractAnchorFromPlainText } from '../pdf/extractAnchorFromPlainText';
 
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import type { VariableValue } from '../core/caseVariables/caseVariablesTypes';
@@ -399,7 +400,7 @@ export async function importQdpx(
 
         // 5. Create markers from selections
         const created = await createMarkersForSource(
-          src, filePath, resolver, notes, app, dataManager, result,
+          src, filePath, resolver, notes, app, dataManager, result, files,
         );
         result.segmentsCreated += created;
       }
@@ -549,8 +550,23 @@ async function createMarkersForSource(
   app: App,
   dataManager: DataManager,
   result: ImportResult,
+  zipFiles: Record<string, Uint8Array>,
 ): Promise<number> {
   let count = 0;
+
+  // Pre-load PDF plain text (from the Representation file in the zip) if this
+  // is a PDF source with any text markers. Shapes don't need plain text but
+  // may need page dims — we derive those from a default for now.
+  let pdfPlainText: string | null = null;
+  let pdfPageStartOffsets: number[] | null = null;
+  if (src.type === 'pdf') {
+    const reprPath = resolveInternalPath(src.plainTextPath);
+    const reprData = reprPath ? zipFiles[reprPath] : undefined;
+    if (reprData) {
+      pdfPlainText = strFromU8(reprData);
+      pdfPageStartOffsets = computePageStartOffsets(pdfPlainText);
+    }
+  }
 
   for (const sel of src.selections) {
     try {
@@ -564,7 +580,7 @@ async function createMarkersForSource(
         // 'text' is handled in a separate batch after sources are extracted
         // (see createTextMarkers below — needs file content for offset→lineCh).
         case 'pdf':
-          count += createPdfMarker(sel, filePath, codes, memo, ts, dataManager, result);
+          count += createPdfMarker(sel, filePath, codes, memo, ts, dataManager, result, pdfPlainText, pdfPageStartOffsets);
           break;
         case 'picture':
           count += await createImageMarker(sel, filePath, codes, memo, ts, app, dataManager, result);
@@ -599,13 +615,38 @@ function createPdfMarker(
   ts: number,
   dataManager: DataManager,
   result: ImportResult,
+  pdfPlainText: string | null,
+  pdfPageStartOffsets: number[] | null,
 ): number {
   const pdfData = dataManager.section('pdf');
 
   if (sel.type === 'PlainTextSelection') {
-    // PDF text selection — needs plain text for offset mapping. Skip for now with warning.
-    result.warnings.push(`PDF text selection ${sel.guid}: text offset mapping not yet supported`);
-    return 0;
+    if (sel.startPosition === undefined || sel.endPosition === undefined) return 0;
+    if (!pdfPlainText || !pdfPageStartOffsets) {
+      result.warnings.push(`PDF text selection ${sel.guid}: no Representation plain text in QDPX — skip`);
+      return 0;
+    }
+    const extracted = extractAnchorFromPlainText(pdfPlainText, pdfPageStartOffsets, sel.startPosition, sel.endPosition);
+    if (!extracted) {
+      result.warnings.push(`PDF text selection ${sel.guid}: offset ${sel.startPosition}-${sel.endPosition} out of plain text bounds`);
+      return 0;
+    }
+    const marker: PdfMarker = {
+      id: `import_${sel.guid}`,
+      fileId: filePath,
+      page: extracted.page,
+      text: extracted.anchor.text,
+      contextBefore: extracted.anchor.contextBefore,
+      contextAfter: extracted.anchor.contextAfter,
+      occurrenceIndex: extracted.anchor.occurrenceIndex,
+      codes,
+      memo,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    pdfData.markers.push(marker);
+    dataManager.setSection('pdf', pdfData);
+    return 1;
   }
 
   if (sel.type === 'PDFSelection') {
@@ -632,6 +673,15 @@ function createPdfMarker(
     return 1;
   }
   return 0;
+}
+
+/** Count offsets where each page (delimited by \f) begins. */
+function computePageStartOffsets(plainText: string): number[] {
+  const offsets = [0];
+  for (let i = 0; i < plainText.length; i++) {
+    if (plainText[i] === '\f') offsets.push(i + 1);
+  }
+  return offsets;
 }
 
 async function createImageMarker(

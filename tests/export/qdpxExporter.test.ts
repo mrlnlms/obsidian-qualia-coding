@@ -183,8 +183,8 @@ describe('buildPdfSourceXml', () => {
   it('builds PDFSource with Representation and PlainTextSelection for text markers', () => {
     const textMarkers: PdfMarker[] = [{
       id: 'pm-1', fileId: 'docs/paper.pdf', page: 0,
-      beginIndex: 0, beginOffset: 42, endIndex: 0, endOffset: 98,
       text: 'selected text',
+      contextBefore: '', contextAfter: '', occurrenceIndex: 0,
       codes: [{ codeId: 'code-1' }],
       createdAt: Date.now(), updatedAt: Date.now(),
     }];

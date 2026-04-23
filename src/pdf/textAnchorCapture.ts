@@ -113,13 +113,15 @@ export function captureAnchorFromDomRange(
 	const contextBefore = layout.pageText.slice(Math.max(0, startOffset - CONTEXT_CHARS), startOffset);
 	const contextAfter = layout.pageText.slice(endOffset, endOffset + CONTEXT_CHARS);
 
-	// occurrenceIndex = number of prior occurrences of `text` in pageText before startOffset
+	// occurrenceIndex counts prior matches whose contexts ALSO match — aligned with findAnchor.
 	let occurrenceIndex = 0;
 	let searchFrom = 0;
 	while (true) {
 		const idx = layout.pageText.indexOf(text, searchFrom);
 		if (idx < 0 || idx >= startOffset) break;
-		occurrenceIndex++;
+		const before = layout.pageText.slice(Math.max(0, idx - contextBefore.length), idx);
+		const after = layout.pageText.slice(idx + text.length, idx + text.length + contextAfter.length);
+		if (before === contextBefore && after === contextAfter) occurrenceIndex++;
 		searchFrom = idx + 1;
 	}
 

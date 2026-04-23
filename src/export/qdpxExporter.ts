@@ -10,6 +10,8 @@ import type { MediaMarker } from '../media/mediaTypes';
 import type { ImageMarker } from '../image/imageCodingTypes';
 import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
 import { lineChToOffset, mediaToMs, imageToPixels, pdfShapeToRect } from './coordConverters';
+import { loadPdfExportData } from '../pdf/pdfExportData';
+import { resolveMarkerOffsets } from '../pdf/resolveMarkerOffsets';
 import type { DataManager } from '../core/dataManager';
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import { getImageDimensions } from '../core/imageDimensions';
@@ -210,6 +212,7 @@ export function buildPdfSourceXml(
   guidMap: Map<string, string>,
   notes: string[],
   includeSources?: boolean,
+  plainText?: string,
 ): string {
   const srcGuid = uuidV4();
   guidMap.set(`source:${filePath}`, srcGuid);
@@ -224,6 +227,93 @@ export function buildPdfSourceXml(
     : `relative://${filePath.replace(/\.pdf$/i, '.txt')}`;
   const representationEl = textMarkers.length > 0
     ? `<Representation ${xmlAttr('guid', reprGuid)} ${xmlAttr('plainTextPath', reprPath)}/>`
+    : '';
+
+  const textSelections = textMarkers
+    .filter(m => m.codes.length > 0)
+    .map(m => {
+      const offsets = textOffsets.get(m.id);
+      if (!offsets) return '';
+      const selGuid = ensureGuid(m.id, guidMap);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+      let noteRef = '';
+      if (m.memo) {
+        const noteGuid = `note_${selGuid}`;
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        noteRef = `\n${buildNoteRefXml(noteGuid)}`;
+      }
+      return `<PlainTextSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('startPosition', offsets.start)} ${xmlAttr('endPosition', offsets.end)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PlainTextSelection>`;
+    })
+    .filter(Boolean);
+
+  const shapeSelections = shapeMarkers
+    .filter(m => m.codes.length > 0)
+    .map(m => {
+      const dim = pageDimensions?.[m.page];
+      if (!dim) return '';
+      const rect = pdfShapeToRect(m.coords, dim.width, dim.height);
+      if (!rect) return '';
+      const selGuid = ensureGuid(m.id, guidMap);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+      let noteRef = '';
+      if (m.memo) {
+        const noteGuid = `note_${selGuid}`;
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        noteRef = `\n${buildNoteRefXml(noteGuid)}`;
+      }
+      return `<PDFSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('page', m.page)} ${xmlAttr('firstX', rect.firstX)} ${xmlAttr('firstY', rect.firstY)} ${xmlAttr('secondX', rect.secondX)} ${xmlAttr('secondY', rect.secondY)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PDFSelection>`;
+    })
+    .filter(Boolean);
+
+  const allSelections = [...textSelections, ...shapeSelections].join('\n');
+  if (!allSelections) return '';
+
+  void plainText; // plainText is carried separately via the sourceFiles map in the caller
+
+  const inner = [representationEl, allSelections].filter(Boolean).join('\n');
+  return `<PDFSource ${xmlAttr('guid', srcGuid)} ${xmlAttr('name', fileName(filePath))} ${pathAttr}>\n${inner}\n</PDFSource>`;
+}
+
+/** Variant of buildPdfSourceXml that exposes the Representation GUID so the
+ *  caller can attach the consolidated PlainText as `sources/{guid}.txt`. */
+export function buildPdfSourceXmlWithRepr(
+  filePath: string,
+  textMarkers: PdfMarker[],
+  shapeMarkers: PdfShapeMarker[],
+  pageDimensions: Record<number, { width: number; height: number }> | null,
+  textOffsets: Map<string, { start: number; end: number }>,
+  guidMap: Map<string, string>,
+  notes: string[],
+  includeSources?: boolean,
+): { xml: string; reprGuid: string } {
+  const reprGuid = uuidV4();
+  const xml = buildPdfSourceXmlInternal(filePath, textMarkers, shapeMarkers, pageDimensions, textOffsets, guidMap, notes, includeSources, reprGuid);
+  return { xml, reprGuid };
+}
+
+function buildPdfSourceXmlInternal(
+  filePath: string,
+  textMarkers: PdfMarker[],
+  shapeMarkers: PdfShapeMarker[],
+  pageDimensions: Record<number, { width: number; height: number }> | null,
+  textOffsets: Map<string, { start: number; end: number }>,
+  guidMap: Map<string, string>,
+  notes: string[],
+  includeSources: boolean | undefined,
+  reprGuidOverride: string,
+): string {
+  const srcGuid = uuidV4();
+  guidMap.set(`source:${filePath}`, srcGuid);
+  const ext = filePath.split('.').pop() || '';
+  const pathAttr = includeSources
+    ? xmlAttr('path', `internal://${srcGuid}.${ext}`)
+    : xmlAttr('path', `relative://${filePath}`);
+
+  const reprPath = includeSources
+    ? `internal://${reprGuidOverride}.txt`
+    : `relative://${filePath.replace(/\.pdf$/i, '.txt')}`;
+  const representationEl = textMarkers.length > 0
+    ? `<Representation ${xmlAttr('guid', reprGuidOverride)} ${xmlAttr('plainTextPath', reprPath)}/>`
     : '';
 
   const textSelections = textMarkers
@@ -428,26 +518,37 @@ export async function exportProject(
   const pdfData = dataManager.section('pdf');
   const pdfByFile = groupByFileId(pdfData.markers, pdfData.shapes);
   for (const [fileId, { textMarkers, shapeMarkers }] of pdfByFile) {
-    // TODO F4: rewrite PDF export using buildPlainText + findAnchor to resolve
-    // absolute offsets from marker.anchor. For now, emit placeholder offsets
-    // so the XML builds (round-trip broken until F4 lands).
+    if (textMarkers.length === 0 && shapeMarkers.length === 0) continue;
+
+    let exportData;
+    try {
+      exportData = await loadPdfExportData(app.vault, fileId);
+    } catch (err) {
+      warnings.push(`PDF ${fileId}: failed to load for export (${(err as Error).message}) — skip`);
+      continue;
+    }
+
+    const { plainText, pageStartOffsets, pageDims } = exportData;
+
     const textOffsets = new Map<string, { start: number; end: number }>();
     for (const m of textMarkers) {
-      textOffsets.set(m.id, { start: 0, end: m.text.length });
+      const offsets = resolveMarkerOffsets(plainText, pageStartOffsets, m);
+      if (!offsets) {
+        warnings.push(`PDF marker ${m.id} (${fileId}, page ${m.page}): text "${m.text.slice(0, 40)}…" not found in PDF plain text — skip`);
+        continue;
+      }
+      textOffsets.set(m.id, offsets);
     }
-    if (textMarkers.length > 0) {
-      warnings.push(`PDF export for ${fileId}: offsets are placeholders (F4 pending)`);
-    }
-    const pageDims: Record<number, { width: number; height: number }> | null = null;
-    if (shapeMarkers.length > 0) {
-      warnings.push(`PDF shape markers for ${fileId} skipped (page dimensions not available at export time)`);
-    }
-    const xml = buildPdfSourceXml(fileId, textMarkers, shapeMarkers, pageDims, textOffsets, guidMap, notes, options.includeSources);
+
+    const { xml, reprGuid } = buildPdfSourceXmlWithRepr(fileId, textMarkers, shapeMarkers, pageDims, textOffsets, guidMap, notes, options.includeSources);
     if (xml) {
       const variablesXml = renderVariablesForFile(fileId, caseVariablesRegistry);
       allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
       const srcGuid = guidMap.get(`source:${fileId}`);
       if (srcGuid) sourceGuidByFileId.set(fileId, srcGuid);
+      if (options.includeSources && textMarkers.length > 0) {
+        sourceFiles.set(`sources/${reprGuid}.txt`, strToU8(plainText));
+      }
     }
     if (options.includeSources) {
       await addSourceFile(app.vault, fileId, sourceFiles, guidMap);
