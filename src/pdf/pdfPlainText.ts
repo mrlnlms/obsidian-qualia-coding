@@ -34,7 +34,14 @@ export async function buildPlainText(doc: PdfLikeDocument): Promise<PlainTextRes
 		pageStartOffsets.push(plainText.length);
 		const page = await doc.getPage(i);
 		const content = await page.getTextContent();
-		const pageText = content.items.map((item) => item.str ?? '').join(' ');
+		// Strip leading/trailing whitespace from each item so that items with
+		// embedded padding (e.g. "Language: " + " Evaluating") don't produce
+		// double spaces after join. Matches the Obsidian DOM text layer, which
+		// renders items adjacently with clean single spacing.
+		const pageText = content.items
+			.map((item) => (item.str ?? '').trim())
+			.filter((s) => s.length > 0)
+			.join(' ');
 		plainText += pageText;
 		if (i < doc.numPages) plainText += '\f';
 	}

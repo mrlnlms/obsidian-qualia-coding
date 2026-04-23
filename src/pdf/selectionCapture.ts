@@ -31,13 +31,14 @@ export function capturePdfSelection(filePath: string): PdfSelectionResult | null
 	const endPageEl = getPageElFromNode(range.endContainer);
 	if (!endPageEl || startPageEl !== endPageEl) return null;
 
-	const page = getPageNumber(startPageEl);
-	if (!page) return null;
+	const pageOneBased = getPageNumber(startPageEl);
+	if (!pageOneBased) return null;
 
 	const anchor = captureAnchorFromDomRange(startPageEl, range);
 	if (!anchor) return null;
 
-	return { file: filePath, page, anchor };
+	// Schema stores 0-based page index; viewer's data-page-number is 1-based.
+	return { file: filePath, page: pageOneBased - 1, anchor };
 }
 
 /**
@@ -120,7 +121,8 @@ export function captureCrossPageSelection(
 
 		const anchor = captureAnchorFromDomRange(pageEl, rangeLike);
 		if (!anchor) continue;
-		results.push({ file: filePath, page: pageNum, anchor });
+		// Viewer data-page-number is 1-based; schema uses 0-based.
+		results.push({ file: filePath, page: pageNum - 1, anchor });
 	}
 
 	return results.length > 0 ? results : null;

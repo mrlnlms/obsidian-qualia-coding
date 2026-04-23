@@ -43,7 +43,7 @@ describe('buildPlainText', () => {
 		expect(pageStartOffsets).toEqual([0, 6, 7]);
 	});
 
-	it('items com str undefined são tratados como vazios', async () => {
+	it('items com str undefined/vazios são filtrados (sem gerar espaços extras)', async () => {
 		const doc: PdfLikeDocument = {
 			numPages: 1,
 			getPage: async () => ({
@@ -53,7 +53,15 @@ describe('buildPlainText', () => {
 			}),
 		};
 		const { plainText } = await buildPlainText(doc);
-		expect(plainText).toBe('hello  world');
+		expect(plainText).toBe('hello world');
+	});
+
+	it('strip whitespace leading/trailing de cada item — sem duplicar espaços', async () => {
+		// Bug real observado: pdfjs retorna items com padding interno
+		// ("Language: " + " Evaluating"), que joined por ' ' vira "Language:  Evaluating"
+		// e não casa com a versão DOM ("Language: Evaluating")
+		const { plainText } = await buildPlainText(makeDoc([['Language: ', ' Evaluating', ' Obsidian']]));
+		expect(plainText).toBe('Language: Evaluating Obsidian');
 	});
 
 	it('N páginas produzem N offsets', async () => {
@@ -62,8 +70,9 @@ describe('buildPlainText', () => {
 		expect(pageStartOffsets).toEqual([0, 2, 4, 6]);
 	});
 
-	it('preserva whitespace interno dos items', async () => {
-		const { plainText } = await buildPlainText(makeDoc([['  hello  ', 'world']]));
-		expect(plainText).toBe('  hello   world');
+	it('normaliza whitespace entre items mas preserva whitespace INTERNO', async () => {
+		// Items são trimados nas pontas, mas espaço DENTRO do item sobrevive
+		const { plainText } = await buildPlainText(makeDoc([['hello  world', 'foo']]));
+		expect(plainText).toBe('hello  world foo');
 	});
 });

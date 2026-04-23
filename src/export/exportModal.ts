@@ -102,8 +102,9 @@ export class ExportModal extends Modal {
       }
 
       if (result.warnings.length > 0) {
-        new Notice(`Export complete: ${result.fileName}\n${result.warnings.length} warning(s) — see console`, 8000);
-        console.warn('[Qualia Export] Warnings:', result.warnings);
+        const preview = result.warnings.slice(0, 3).join('\n');
+        const extra = result.warnings.length > 3 ? `\n…and ${result.warnings.length - 3} more` : '';
+        new Notice(`Export complete: ${result.fileName}\n\n${result.warnings.length} warning(s):\n${preview}${extra}`, 12000);
       } else {
         new Notice(`Export complete: ${result.fileName}`);
       }
