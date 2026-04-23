@@ -1519,7 +1519,7 @@ for (const sel of source.plainTextSelections) {
     createdAt: sel.creationDateTime ?? Date.now(),
     updatedAt: Date.now(),
   };
-  pdfCodingModel.addMarker(marker);  // ou método equivalente
+  pdfData.markers.push(marker);  // consistente com pdfData.shapes.push(...) na Task 10
 }
 ```
 
