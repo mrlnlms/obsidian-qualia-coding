@@ -1,38 +1,84 @@
 # Qualia Coding — Roadmap
 
-> Features planejadas por prioridade. Items concluídos ficam riscados como registro.
+> Features planejadas por prioridade. Items concluídos ficam no registro ao final.
 > Última atualização: 2026-04-23.
 
 ---
 
-## 📍 Próximos a atacar
+## 📍 Próximos a atacar (frente)
 
-| Item | Complexidade | Motivação | Ref |
-|------|--------------|-----------|-----|
-| **Toggle Visibility por Código** | Média | Resolve "color soup" com 20+ códigos — próximo passo natural após per-code blending | [#7](#7-toggle-visibility-por-código) |
-| **Intercoder Reliability (kappa/alpha)** | Alta | Credibilidade acadêmica — blocker pra pesquisa em equipe | [§Gaps](#gaps-identificados-na-pesquisa-de-mercado) |
+Ordem de execução — livrar a frente antes de abrir novas features:
 
----
-
-## Prioridade Alta — Funcionalidades Core
-
-### ~~1. Code Hierarchy~~ — FEITO (2026-03-22)
-
-Implementado nas Fases A, B, C do Codebook Evolution:
-
-- **Fase C**: `codes: string[]` → `codes: CodeApplication[]` com `codeId` estavel. Rename atomico
-- **Fase A**: `parentId`, `childrenOrder`, `mergedFrom` no CodeDefinition. Registry com getRootCodes, getChildren, getAncestors, getDescendants, setParent (com deteccao de ciclo). Codebook Panel com 3 niveis (lista → codigo → segmento), virtual scrolling, drag-drop (reorganizar/merge), context menu, MergeModal com busca fuzzy
-- **Fase B**: Pastas virtuais — `folder?` no CodeDefinition, `FolderDefinition` no registry. Pastas sao containers organizacionais SEM significado analitico. Drag-drop em pastas, context menu (Rename, Delete), "New Folder" no toolbar
+| Ordem | Item | Esforço | Complexidade |
+|-------|------|---------|--------------|
+| 1 | **[Toggle Visibility por Código](#1-toggle-visibility-por-código)** | 150-250 LOC | Média |
+| 2 | **[Import/Export — sessão agrupada](#2-importexport--sessão-agrupada)** | 1 dia dedicado | Média |
+| 3 | **[Parquet lazy loading](#3-parquet-lazy-loading)** | 2-3 sessões | Alta |
 
 ---
 
-### 2. Parquet — Evolução futura
+## 🔜 Roadmap pós-frente-limpa (sequência narrativa)
+
+Ordem motivada pelo uso: organizar codebook → analisar → polir.
+
+| Ordem | Item | Motivação |
+|-------|------|-----------|
+| 4 | **[Coding management](#4-coding-management)** (Code→Theme + Pastas nested) | Usar decentemente com corpus grande |
+| 5 | **[Analytics — melhorias](#5-analytics--melhorias)** (Relations Network polish + Code×Metadata + Analytic Memo View) | Consequência natural de #4 |
+| 6 | **[Margin Panel — melhorias](#6-margin-panel--melhorias)** (Customization + Resize Handle) | Polish visual. **Dependência externa**: aguarda decisão em outro plugin não-mexido |
+
+---
+
+## ❓ Decisão de produto aberta
+
+Sem ordem de execução — precisam validar **se** e **como** existem antes de virar sessão.
+
+- **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability)** — gap estratégico, complexidade alta pro contexto atual
+- **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
+- **[Research Board Enhancements](#research-board-enhancements)** — escopo amplo, decidir subset
+- **[Analytical Memos](#analytical-memos)** — Obsidian já É o app de memos
+
+---
+
+## Detalhes — frente
+
+### 1. Toggle Visibility por Código
+
+- No Code Explorer, toggle para mostrar/esconder highlights de um código específico no editor
+- Resolve o problema de "color soup" com 20+ códigos
+- Decisões em aberto (brainstorming antes de implementar):
+  - Persistente vs sessão?
+  - Global vs por arquivo?
+  - Filtra Analytics ou só render?
+  - Campo `hidden?: boolean` em `CodeDefinition` ou tracking separado?
+- Ajusta os 6 engines (filtrar markers hidden antes de renderizar)
+
+### 2. Import/Export — sessão agrupada
+
+Sessão única pra matar dívidas de export e itens do ROADMAP no mesmo contexto. Round-trip QDPX entre vaults Obsidian **já funciona** (commit `1422bb7` + resolução dos 4 bugs críticos em §11.1 do BACKLOG).
+
+**Itens agrupados:**
+
+| Origem | Item | Detalhe |
+|--------|------|---------|
+| ROADMAP #15 | JSON full export | PENDENTE |
+| ROADMAP #15 | PNG/PDF Dashboard composite | PENDENTE |
+| BACKLOG §11 E1 | QDPX offsets de texto PDF aproximados | Por content-item, não codepoints absolutos. Requer extração completa do texto PDF |
+| BACKLOG §11 E2 | Shape markers PDF ignorados no export | Dimensões de página não disponíveis em tempo de export. **Pré-req: cachear dimensões no PDF viewer durante visualização** |
+| BACKLOG §11 I1 | PDF text selections no import usam 612x792 (US Letter) | Dimensões reais do PDF não disponíveis em tempo de import |
+| BACKLOG §11 I2 | PDF text selections (PlainTextSelection) ignoradas no import | Mapeamento offset→spanIndex não implementado |
+| BACKLOG §17 | Multi-tab spreadsheet export (spin-off #8 Source Comparison) | Export Analytics com sheet por source type (markdown, pdf, csv, image, audio, video) + sheet summary. Usa `xlsx` ou múltiplos CSVs zipados. ~1-2h |
+
+**Dependência compartilhada**: cache de dimensões de página PDF (resolve E2 e I1 de uma vez).
+
+### 3. Parquet lazy loading
 
 **Status**: Suporte básico já implementado (`hyparquet` + `parseTabularFile()` + `registerExtensions(['csv', 'parquet'])`).
 
 **Problema atual**: Lê arquivo inteiro pra memória. Datasets grandes (ex: export Qualtrics 2M rows) crasham o Obsidian (~500MB-2GB de memória, main thread bloqueada).
 
 **Arquitetura necessária (lazy loading)**:
+
 1. **Metadata-only open**: hyparquet lê só metadata/schema (~1KB) ao abrir. Primeira visualização instantânea
 2. **AG Grid Server-Side Row Model**: virtualiza rows — só renderiza viewport. Datasource adapter mapeia "AG Grid page request" → "hyparquet row group range"
 3. **Row group mapping**: Row groups têm tamanho variável (ex: 20 groups de 100k). Adapter precisa calcular offset interno
@@ -46,90 +92,94 @@ Implementado nas Fases A, B, C do Codebook Evolution:
 
 **Estimativa**: 2-3 sessões (POC → datasource adapter → polish + column projection + cache)
 
-**O que falta** (evolução do Parquet existente):
-- Lazy loading com `rowStart`/`rowEnd` do hyparquet (row group pagination) para datasets 100k+
-- AG Grid Server-Side Row Model for 100k+ rows
-- Column-selective loading (only decode visible columns initially)
-- Export TO Parquet (via hyparquet-writer or CSV conversion)
+**Evolução adicional**:
+- Export TO Parquet (via hyparquet-writer ou CSV conversion)
 
 ---
 
-## Prioridade Média — Enhancements
+## Detalhes — pós-frente-limpa
 
-### 3. Memo Universal (Saldaña Ch.14)
+### 4. Coding management
 
-**Status**: Implementado. `memo?: string` está presente em BaseMarker (todos os engines). UI de memo no popover funciona para todos os tipos. O que falta é apenas a integração com Analytic Memo View (analytics) — feature futura separada.
+Usabilidade do codebook com corpus grande. Dois sub-itens:
 
-- ~~Adicionar `memo?: string` a `SegmentMarker` e `RowMarker` (CSV)~~ — FEITO
-- ~~Áudio e Vídeo já têm memo; Markdown e PDF não~~ — FEITO (todos têm memo agora)
-- UI: textarea expandível no popover ou coluna de comentário — FEITO (popover)
-- Integração com Analytic Memo View no Analytics — PENDENTE
+#### 4a. Code → Theme Hierarchy
 
-### 4. Code → Theme Hierarchy (Saldaña Ch.14)
+- `theme?: string` em `CodeDefinition` (shared registry)
+- Grouping by theme no Code Explorer (nível extra na tree)
+- Filter by theme nas colunas de CSV coding
+- **Distinto de `parentId` hierarchy** — é uma flat grouping tag
 
-- `theme?: string` on `CodeDefinition` (shared registry)
-- Grouping by theme in Code Explorer (extra tree level)
-- Filter by theme in CSV coding columns
-- Distinct from `parentId` hierarchy — this is a flat grouping tag
+#### 4b. Pastas nested (folder dentro de folder)
 
-### ~~5. FuzzySuggestModal para "Add Existing Code"~~ — FEITO (2026-03-21)
+Descoberto 2026-04-23 durante §12 K2 do BACKLOG.
 
-`CodeBrowserModal` migrado de `Modal` + `SearchComponent` para `FuzzySuggestModal<CodeDefinition>` nativo. Fuzzy matching, keyboard navigation, swatch de cor. 22 LOC.
+- Hoje `FolderDefinition` não tem `parentId`; folder rows não são `draggable`
+- Mudanças necessárias:
+  - Schema do registry (adicionar `parentId?` em `FolderDefinition`)
+  - Drag-drop callbacks (folder como dragSource + dropTarget)
+  - `buildFlatTree` (recursão em níveis aninhados)
+  - Validação de ciclo (mesma lógica do `setParent` pra códigos)
+- Sem backward-compat (zero users)
+- Estimativa: 2-3h
 
-### ~~6. Quick Switcher de Códigos~~ — FEITO (2026-03-21)
+### 5. Analytics — melhorias
 
-Comando `quick-code`: seleciona texto → abre fuzzy modal → aplica código. Reutiliza `CodeBrowserModal` + `addCodeAction`. Hotkey configurável (sugestão: `Cmd+Shift+C`).
+Itens menores que se somam a uma camada de polish analítico. Ordem sugerida do mais barato ao mais caro:
 
-### 7. Toggle Visibility por Código
+| Item | Esforço | Detalhe |
+|------|---------|---------|
+| **Relations Network — hover-focus** | ~45 min | Ao passar cursor sobre um nó, destacar edges que entram/saem dele e escurecer o resto. No loop de draw do `relationsNetworkMode.ts`: dividir opacity por 3 pras edges que não tocam `hoveredNodeIdx` |
+| **Relations Network — filtro "N+ aplicações"** | ~30 min | Slider ou input no painel de config: só renderiza edges com `weight >= N`. Threshold no `extractRelationEdges` ou no loop de draw |
+| **Analytic Memo View** (ex-#3) | Médio | `memo?: string` já existe em todos os engines — só falta consumir no Analytics. Visualização dedicada agregando memos de markers por código/source |
+| **Code × Metadata** (ex-#9) | 2-3h | Tabelas de contingência código × variável demográfica. Depende de Case Variables (FEITO). Reusa `inferentialEngine` base |
+| **Relations Network — edge bundling FDEB/HEB** | 3-4h MVP | Só atacar quando grafo realista tiver 50+ edges densos — curvas de Bézier atuais cobrem até isso. FDEB adiciona 150-300 LOC ou lib externa (`d3-force-bundling`). Não prioritário |
 
-- No Code Explorer, toggle para mostrar/esconder highlights de um código específico no editor
-- Resolve o problema de "color soup" com 20+ códigos
+### 6. Margin Panel — melhorias
 
-### ~~8. Analytics: Cross-source Comparison~~ — FEITO (2026-03-02)
+**⚠️ Dependência externa**: aguarda decisão em outro plugin (não-mexido). Só atacar depois de definir tratamento lá.
 
-Implementado como `sourceComparisonMode.ts`. Painel comparativo mostra métricas por source type (markdown, PDF, CSV, image, audio, video).
+Dois sub-itens com dívida técnica compartilhada (`scrollDOM stacking context` — `handleOverlayRenderer.ts` já ocupa scrollDOM com z-index 10000+ pra drag handles de markers; os dois itens precisam coexistir no mesmo container):
 
-**O que ainda falta** (spin-off): → catalogado em `BACKLOG.md §17 Polish oportunístico` (Analytics).
+#### 6a. Margin Panel Customization (ex-#11)
 
-### 9. Analytics: Code × Metadata
+- Setting `margin.side: 'left' | 'right'` (posição hoje hardcoded à esquerda)
+- Visual: espessura da barra, estilo de ticks, opacidade — constantes hardcoded hoje em `marginPanelExtension.ts`
+- Estimativa: 1-2h
 
-- Se CSV tem colunas de metadata (gênero, idade, etc.), cruzar com códigos
-- Tabelas de contingência por variável demográfica
-- → catalogado em `BACKLOG.md §17 Polish oportunístico` (Analytics)
+#### 6b. Margin Panel Resize Handle (ex-#17)
 
-### ~~10. Code Overlap Analysis~~ — FEITO
+**POC feita e stashed** (não integrada).
 
-Implementado como `overlapMode.ts` em analytics. Heatmap de pares de códigos com span textual compartilhado (distinto de co-occurrence, que é sobre markers no mesmo arquivo).
-
-### 11. Margin Panel Customization
-
-- [ ] Setting left/right (lado da margem) — posição atualmente hardcoded à esquerda
-- [ ] Visual customization: espessura da barra, estilo de ticks, opacidade — constantes hardcoded no extension
-- → catalogado em `BACKLOG.md §17 Polish oportunístico` (Margin Panel). Atacar junto com #17 Resize Handle (dívida `scrollDOM stacking context` compartilhada)
-
-### 12. Research Board Enhancements
-
-| Feature | Detalhe |
-|---------|---------|
-| Drag do Code Explorer | Arrastar códigos direto da tree (não só da lista de frequência) |
-| Sync com registry | Atualizar cor/nome de code cards em real time |
-| Context menu "Refresh" | Atualizar contagem de code cards sob demanda |
-| Board templates | Layouts pré-definidos (e.g., 2x2 matrix, timeline) |
-| Export board | Imagem/PDF do canvas completo |
+- Conceito: Drag na borda direita do margin panel para ajustar largura. Double-click reseta para auto
+- **Lessons do POC**:
+  - Handle precisa viver no `scrollDOM` (não no panel) — `innerHTML = ''` no `renderBrackets()` destrói children
+  - Z-index mínimo 10 para ficar acima de bars/labels
+  - UX precisa de grip dots ou indicador visual mais forte
+- **Alternativas a considerar**:
+  - CSS native `resize: horizontal` no panel
+  - Setting numérico no settings tab em vez de drag interativo
 
 ---
 
-## Prioridade Baixa — Platform Features
+## Detalhes — decisão de produto aberta
 
-### 13. Projects + Workspace
+### Intercoder Reliability
 
-**Status**: Data model completo proposto, não implementado.
+Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de rigor acadêmico. NVivo, ATLAS.ti, MAXQDA, Dedoose e QualCoder oferecem.
 
-**Reflexão (2026-03-19)**: O data model abaixo reinventa gerenciamento de projetos dentro de um plugin que vive dentro de um app de organização. O Obsidian já tem o core plugin **Workspaces** (salva/restaura layout de panes). A alternativa nativa seria: 1 vault = 1 projeto, ou scoping por pasta (plugin lê só arquivos dentro de uma pasta selecionada). Integrar com Workspaces em vez de criar infraestrutura paralela. Reavaliar o data model quando for atacar — o conceito é válido, a implementação proposta não.
+**Status**: existem ideias via git-like workflow, mas a complexidade de implementação no contexto atual do plugin (single-user Obsidian) é alta. Requer modelagem de "coders" como primeira classe, reconciliação de discordâncias, agregação estatística. **Decidir antes se faz sentido atacar.**
 
-**Conceito original**: Global workspace como "state zero" — usuário codifica livremente. Projetos são criados depois para organizar subsets de dados.
+### Projects + Workspace
 
-**Data model proposto**:
+**Reflexão (2026-03-19)**: O data model proposto reinventa gerenciamento de projetos dentro de um plugin que vive dentro de um app de organização. O Obsidian já tem o core plugin **Workspaces** (salva/restaura layout de panes). A alternativa nativa seria:
+- 1 vault = 1 projeto, ou
+- Scoping por pasta (plugin lê só arquivos dentro de uma pasta selecionada)
+- Integrar com Workspaces em vez de criar infraestrutura paralela
+
+**Conceito original**: Global workspace como "state zero" — usuário codifica livremente. Projetos criados depois para organizar subsets.
+
+**Data model proposto** (preservado para referência — revisar antes de implementar):
 ```typescript
 interface Workspace {
   activeProject: string | null;
@@ -170,7 +220,7 @@ interface QDAProject {
 }
 ```
 
-**File structure**:
+**File structure proposta**:
 ```
 .obsidian/plugins/qualia-coding/
   workspace.json
@@ -183,115 +233,29 @@ interface QDAProject {
       segments.json
 ```
 
-**Decisão**: Códigos compartilhados por referência (ID). Mudança de cor/nome propaga para todos os projetos. Códigos project-specific são scoped.
+**Decisão original**: Códigos compartilhados por referência (ID). Mudança de cor/nome propaga para todos os projetos. Códigos project-specific são scoped.
 
 **Migration**: Migration de `data.json` necessária ao implementar.
 
-**DOM framework**: Decision open — Obsidian não oferece reactive components nativamente.
+**DOM framework**: decision open — Obsidian não oferece reactive components nativamente.
 
-### ~~14. Magnitude Coding (Saldaña Ch.14)~~ — FEITO (Fase D, 2026-03-22)
+### Research Board Enhancements
 
-Implementado como parte do Codebook Evolution.
+Escopo amplo — decidir subset antes de atacar:
 
-- `CodeDefinition.magnitude?: { type: 'nominal' | 'ordinal' | 'continuous'; values: string[] }` — config por código
-- `CodeApplication.magnitude?: string` — valor por aplicação (já existia no schema, agora surfaced na UI)
-- Picker fechado no popover: só valores declarados são permitidos; seção colapsável em todos os 6 engines
-- Config no Detail View Level 2: toggle de ativação, seletor de tipo, editores por tipo (chips para nominal/ordinal com numeração, range generator para continuous)
-- Picker de magnitude no Marker Detail (Level 3)
-- Settings toggle `showMagnitudeInPopover` na seção General Settings
-- Context menu "Set magnitude..." em todos os engines
-- `GeneralSettings` interface + seção `QualiaData.general`
+| Feature | Detalhe |
+|---------|---------|
+| Drag do Code Explorer | Arrastar códigos direto da tree (não só da lista de frequência) |
+| Sync com registry | Atualizar cor/nome de code cards em real time |
+| Context menu "Refresh" | Atualizar contagem de code cards sob demanda |
+| Board templates | Layouts pré-definidos (e.g., 2x2 matrix, timeline) |
+| Export board | Imagem/PDF do canvas completo |
 
-### ~~14b. Relations~~ — FEITO (Fase E, 2026-03-22)
+### Analytical Memos
 
-Implementado como parte do Codebook Evolution.
+**Reflexão (2026-03-19)**: Construir sistema de memos dentro de um plugin que vive dentro de um app de notas é irônico. **O Obsidian É o app de memos**. Alternativa nativa: "Convert to Note" que cria arquivo markdown no vault com template de memo analítico (código referenciado, data, tipo de reflexão). O pesquisador escreve no Obsidian normalmente.
 
-- `CodeDefinition.relations?: Array<{ label, target, directed }>` — relações no nível do código
-- `CodeApplication.relations?: Array<{ label, target, directed }>` — relações no nível do segmento
-- Label livre com autocomplete de todos os labels já usados
-- UI: seções colapsáveis no popover, Detail View Level 2 e Marker Detail Level 3
-- Settings toggle `showRelationsInPopover`
-- Relations Network: 20ª visualização no Analytics (modo grafo de relações entre códigos)
-- Novos arquivos: `relationHelpers.ts`, `relationUI.ts`, `relationsEngine.ts`, `relationsNetworkMode.ts`
-- Helpers `getRelations`, `addRelation`, `removeRelation` em `codeApplicationHelpers.ts`
-- `renderRelationsSection` em `baseCodingMenu.ts`
-- QDPX export inclui relations como `<Link>` elements
-
-### ~~14c. Virtual Folders (Fase B)~~ — FEITO (2026-03-22)
-
-Implementado como parte do Codebook Evolution.
-
-- `folder?: string` no `CodeDefinition` — associa um código a uma pasta organizacional
-- `FolderDefinition` no registry — containers organizacionais SEM significado analítico
-- Context menu: Rename Folder, Delete Folder (promove códigos para root), New Folder
-- Drag-drop: arrastar código para pasta; arrastar entre pastas
-- Folder tree rendering no Codebook Panel (nível superior acima dos códigos)
-- "New Folder" no toolbar do Codebook Panel
-
-### ~~15. Export~~ — PARCIALMENTE FEITO (2026-03-22)
-
-| Formato | Status |
-|---------|--------|
-| ~~REFI-QDA Export (QDPX + QDC)~~ | **FEITO** — `qdcExporter.ts` (codebook XML com hierarquia), `qdpxExporter.ts` (codigos + sources + segments + memos + links). Conversao de coordenadas por engine. Modal pre-export com formato e toggle sources |
-| ~~REFI-QDA Import (QDC + QDPX)~~ | **FEITO** — `qdcImporter.ts` (codebook XML com hierarquia + NoteRef→description), `qdpxImporter.ts` (ZIP→vault: 5 source types, segments, memos standalone como .md, magnitude via `[Magnitude: X]` Notes, relations via `<Link>`). Modal com preview, conflitos merge/separate, botao analytics. `coordConverters.ts` inversas (offset→lineCh, pdfRect→normalized, pixels→normalized, ms→seconds) |
-| ~~CSV por modo Analytics~~ | **FEITO** — Analytics exporta CSV de frequencies, co-occurrence, Doc-Code Matrix |
-| JSON full export | PENDENTE |
-| PNG/PDF (Dashboard composite) | PENDENTE |
-
-### ~~16. Per-Code Decorations~~ — FEITO (2026-03-02, markdown + PDF)
-
-Implementado nos dois engines de texto que renderizam highlights por range:
-
-- **Markdown** (`src/markdown/cm6/markerStateField.ts:272-295`): quando um marker tem N códigos, emite N `Decoration.mark()` sobrepostas, cada uma com `settings.markerOpacity / N`. Single-code mantém opacidade cheia. `colorOverride` bypassa blending (cor única vence)
-- **PDF** (`src/pdf/highlightRenderer.ts:149-180`): N retângulos sobrepostos no DOM overlay, cada um com `BASE_OPACITY / N`. Hover aumenta proporcionalmente
-- **Mix-blend-mode**: `multiply` em ambos — cores se compõem visualmente em cor única de "mistura"
-
-**Fórmula documentada** no blending engine de cada formato.
-
-**Engines sem blending** (decisão intencional, paradigma diferente):
-- Image (fabric.js) — regiões são shapes, não ranges
-- Audio/Video (wavesurfer) — regiões de waveform
-- CSV (AG Grid cells) — chips de tag, não sobreposição
-
-**Toggle Visibility por código** (item #7) é o próximo passo para resolver "color soup" com 20+ códigos em um documento.
-
-### 17. Margin Panel Resize Handle
-
-**POC feita e stashed** (não integrada).
-
-**Conceito**: Drag na borda direita do margin panel para ajustar largura. Double-click reseta para auto.
-
-**Lessons do POC**:
-- Handle precisa viver no `scrollDOM` (não no panel) — `innerHTML = ''` no `renderBrackets()` destrói children
-- Z-index mínimo 10 para ficar acima de bars/labels
-- UX precisa de grip dots ou indicador visual mais forte
-
-**Dependência: scrollDOM stacking context** (audit 2026-03-19):
-O `handleOverlayRenderer.ts` já ocupa o `scrollDOM` com z-index 10000+ para drag handles de markers. O resize handle precisa coexistir no mesmo container. Os dois itens (z-index conflicts + resize handle) devem ser atacados na mesma sessão.
-
-**Alternativas**:
-- CSS native `resize: horizontal` no panel
-- Setting numérico no settings tab em vez de drag interativo
-
-### ~~18. Case Variables por Documento~~ — FEITO (2026-04-21)
-
-Implementado como Case Variables Phase 1:
-
-- **Registry central** (`CaseVariablesRegistry`) — mirror reativo de propriedades tipadas por arquivo (text, number, date, datetime, checkbox). Inicializa/descarrega via `this.cleanups`. `addOnMutate` invalida `consolidationCache` em toda mutação.
-- **Storage 3-caminhos**: Markdown lê/grava via frontmatter (`fileManager.processFrontMatter`) com mirror em `data.json` sincronizado por `metadataCache.on('changed')` + `writingInProgress` guard. Binários (PDF, image, audio, video) persistem direto em `data.json.caseVariables.values[fileId]`. Reentrancy guard previne loops de feedback.
-- **Type resolution** em cascata: `metadataTypeManager` do Obsidian → mapa próprio do plugin → `'text'` como fallback.
-- **UI layers**: `PropertiesEditor` (componente DOM base: render + inline edit + add row + confirm remove), `PropertiesPopover` (wrapper via `view.addAction` em toda ItemView com TFile), `CaseVariablesView` (painel lateral ItemView com comando `open-case-variables-panel`).
-- **Lifecycle**: hooks `registerFileRename` + `vault.on('delete')` propagam renomear/deletar para o registry. Detecção de rename disfarçado (Obsidian emite `create+delete` em vez de `rename` quando extensão muda) via Map com basename/size matching. Botão de ação injetado em toda ItemView — cobre também image/audio/video (que herdam ItemView, não FileView) via listener + `onLayoutReady`/`layout-change` pra pegar panes secundários no boot.
-- **Analytics filter**: novo `caseVariableFilter` em `FilterConfig`, aplicado no nível da view (AnalyticsView) antes de qualquer mode — sem tocar nos 6 stats engines.
-- **QDPX round-trip**: `caseVariablesXml.ts` gera `<Variable>` por Source + seção `<Cases>` com `<SourceRef>`. Tipos preservados no import (number permanece number, boolean permanece boolean).
-- **Schema**: `QualiaData` ganhou `caseVariables: CaseVariablesSection` com default `{values:{}, types:{}}` em `createDefaultData()` e `clearAllSections()`.
-- **Novos arquivos** em `src/core/caseVariables/` (9 arquivos) + `src/export/caseVariablesXml.ts`.
-- **Testes**: 86 novos testes, 1896 total.
-- **Smoke test 2026-04-21**: 8 bugs corrigidos — popover toggle, ausência em ItemViews de binário, closure capture do fileId durante rename, badge no pane secundário no boot, rename com troca de extensão, ícones sempre `T`, validação de nomes reservados (`tags`/`aliases`/`cssclasses`/`position`), CSS inicial ausente.
-
-### 19. Analytical Memos
-
-**Reflexão (2026-03-19)**: Construir sistema de memos dentro de um plugin que vive dentro de um app de notas é irônico. O Obsidian É o app de memos. Alternativa nativa: "Convert to Note" que cria arquivo markdown no vault com template de memo analítico (código referenciado, data, tipo de reflexão). O pesquisador escreve no Obsidian normalmente. Tangencia a ideia de pesquisa de "convert to note" como feature sintética. Reavaliar abordagem quando for atacar.
+Tangencia a ideia de pesquisa de "convert to note" como feature sintética. **Reavaliar abordagem antes de implementar.**
 
 **Conceito original**:
 - Memos em códigos, documentos e relações entre códigos
@@ -300,16 +264,16 @@ Implementado como Case Variables Phase 1:
 
 ---
 
-## Gaps Identificados na Pesquisa de Mercado
+## Gaps identificados na pesquisa de mercado
 
 ### Gaps estratégicos (fundamentados em benchmark)
 
-| Gap | Por que importa | Items do roadmap relacionados |
-|-----|----------------|-------------------------------|
-| ~~**Case/Document Variables**~~ | ~~FEITO — Registry central, popover em todos file types, painel lateral, filter analytics, QDPX round-trip, rename/delete hooks~~ | ~~#18 Case Variables~~ |
-| ~~**REFI-QDA (QDPX) Export/Import**~~ | ~~FEITO — Export QDPX/QDC + Import com resolução de conflitos~~ | ~~#15 Export~~ |
-| ~~**Export CSV/Excel**~~ | ~~FEITO — Analytics exporta CSV de frequencies, co-occurrence, Doc-Code Matrix~~ | ~~#15 Export~~ |
-| **Intercoder Reliability** | Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de rigor. NVivo, ATLAS.ti, MAXQDA, Dedoose, QualCoder oferecem. | Novo item (não listado) |
+| Gap | Por que importa | Status |
+|-----|----------------|--------|
+| ~~**Case/Document Variables**~~ | ~~FEITO — Registry central, popover em todos file types, painel lateral, filter analytics, QDPX round-trip, rename/delete hooks~~ | ✅ 2026-04-21 |
+| ~~**REFI-QDA (QDPX) Export/Import**~~ | ~~FEITO — Export QDPX/QDC + Import com resolução de conflitos~~ | ✅ 2026-03-22 |
+| ~~**Export CSV/Excel**~~ | ~~FEITO — Analytics exporta CSV de frequencies, co-occurrence, Doc-Code Matrix~~ | ✅ 2026-03-22 |
+| **Intercoder Reliability** | Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers. | [❓ Decisão de produto aberta](#intercoder-reliability) |
 
 ### Diferenciais confirmados pela pesquisa
 
@@ -348,6 +312,34 @@ Implementado como Case Variables Phase 1:
 | 3 `as any` PDF viewer | API interna Obsidian não exporta tipos |
 | 3 `as any` dataManager deepMerge | Type gymnastics genérica |
 | fflate bundled (~8KB gzip) | Dependência do QDPX export — sem alternativa nativa |
+
+---
+
+## ✅ Implementados (registro)
+
+Histórico de features entregues. Mantido como registro, não reabrir.
+
+- **#1 Code Hierarchy** (Fases A/B/C) — 2026-03-22. `codes: CodeApplication[]`, `parentId`/`childrenOrder`/`mergedFrom`, Codebook Panel 3-níveis, MergeModal com busca fuzzy, pastas virtuais (`FolderDefinition`, sem significado analítico), drag-drop, context menu, "New Folder"
+- **#5 FuzzySuggestModal para "Add Existing Code"** — 2026-03-21. `CodeBrowserModal` migrado pra `FuzzySuggestModal<CodeDefinition>` nativo. 22 LOC
+- **#6 Quick Switcher de Códigos** — 2026-03-21. Command `quick-code`: seleciona texto → fuzzy modal → aplica. Reutiliza `CodeBrowserModal` + `addCodeAction`
+- **#8 Analytics Cross-source Comparison** — 2026-03-02. `sourceComparisonMode.ts`. Métricas por source type (markdown, PDF, CSV, image, audio, video)
+- **#10 Code Overlap Analysis** — implementado como `overlapMode.ts`. Heatmap de pares com span textual compartilhado
+- **#14 Magnitude Coding** (Fase D) — 2026-03-22. `CodeDefinition.magnitude` (nominal/ordinal/continuous), picker fechado, Settings toggle
+- **#14b Relations** (Fase E) — 2026-03-22. Label livre com autocomplete, seções colapsáveis, 20ª visualização Analytics (Relations Network), QDPX export como `<Link>`
+- **#14c Virtual Folders** (Fase B) — 2026-03-22. `folder?` em CodeDefinition, `FolderDefinition` no registry, drag-drop, context menu, "New Folder"
+- **#15 REFI-QDA Export + Import + CSV por modo Analytics** — 2026-03-22. `qdcExporter.ts`, `qdpxExporter.ts`, `qdpxImporter.ts`, modal pre-export/import, conversão de coordenadas por engine, CSV de frequencies/co-occurrence/Doc-Code Matrix
+- **#16 Per-Code Decorations** — 2026-03-02. Markdown (CM6) + PDF. N decorations sobrepostas com `opacity / N`, `mix-blend-mode: multiply`
+- **#18 Case Variables** — 2026-04-21. Registry central, storage 3-caminhos (frontmatter md + data.json binários), type inference, popover/painel lateral, Analytics filter, QDPX round-trip
+
+### Bug fixes e dívidas resolvidas
+
+- **§14 Analytics engine (codeId vs name)** — 2026-04-21 (commit `1422bb7`) + normalização canônica (commit `cf09894`, 2026-04-22). UnifiedCode ganhou `id`, markers normalizados no load via `normalizeCodeApplications`. Workbench vault: 241/241 canônico
+- **§11.1 Round-trip integrity** — 2026-04-21. 4 bugs críticos no export/import QDPX corrigidos (GUID mismatch, frontmatter duplicado, `vault.create` não persistindo, models sem sync pós-import)
+- **§16 Audio/Video scroll persistence** — 2026-04-22 (merge `8d38939`). Mirror `lastKnownScroll` + `setAutoCenter(false)` durante restore
+- **§10 Toggle Media Coding** — 2026-04-23. 4 mídias (Image/Audio/Video/PDF) com `autoOpen` + `showButton` simétricos, toggle per-`(leaf, arquivo)` via `pinnedFileByLeaf`, PDF usa instrument/deinstrument in-place. Higiene cosmética (file-menu rename, showButton live, detach actions no onunload) incluída
+- **§12 Codebook Panel polish (K1-K3)** — 2026-04-22/23. K1 autoReveal removido (órfão), K2 drag-drop visual completo, K3 virtual scroll com row recycling
+- **§15 Case Variables edge cases** — 2026-04-22. Emoji/unicode, valor vazio, hot-reload com popover, multi-pane sync
+- **§13 Migração Image/Audio/Video para `FileView`** — 2026-04-22. Lifecycle limpo via `onLoadFile`/`onUnloadFile`. `registerFileIntercept` mantido (core-native extensions rejeitam `registerExtensions`)
 
 ---
 

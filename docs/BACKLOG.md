@@ -173,6 +173,8 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 
 ## 11. Export/Import
 
+> **E1, E2, I1, I2** agrupados em sessão única **Import/Export** no ROADMAP (frente #2) junto com #15 (JSON full + PNG Dashboard) e Multi-tab spreadsheet export. Pré-req compartilhado: cache de dimensões de página no PDF viewer.
+
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
 | E1 | Media | `qdpxExporter.ts` | Offsets de texto PDF no QDPX sao aproximados (por content-item, nao codepoints absolutos). Requer extracao completa do texto PDF para offsets precisos. Warning exibido ao usuario |
@@ -321,31 +323,17 @@ Image/Audio/Video agora estendem `FileView` (commits `0a46869`/`f87285d`/`4898f6
 
 ## 17. Polish oportunístico
 
-> Itens curtos (30min-4h) que melhoram o produto mas não bloqueiam features. Atacar
-> entre sessões grandes, quando der vontade, ou ao editar a área relacionada.
-> Baixo risco, auto-contidos, sem dependência de decisão de produto.
+> Itens curtos que não entraram nos guarda-chuvas do ROADMAP. Atacar entre sessões
+> grandes ou ao editar a área relacionada. Baixo risco, auto-contidos.
 
-### Analytics
+**Migrados pro ROADMAP** (2026-04-23) — ver `docs/ROADMAP.md`:
+- Relations Network (hover-focus, filtro N+, edge bundling) → **Analytics — melhorias**
+- Multi-tab spreadsheet export → **Import/Export (sessão agrupada)**
+- Code × Metadata → **Analytics — melhorias**
+- Pastas nested → **Coding management**
+- Margin Panel Customization → **Margin Panel — melhorias**
 
-| Item | Esforço | Detalhe |
-|------|---------|---------|
-| Relations Network — hover-focus | ~45 min | Ao passar cursor sobre um nó, destacar edges que entram/saem dele e escurecer o resto. Reduz ruído visual em grafos densos sem precisar de bundling. `relationsNetworkMode.ts` — no loop de draw, dividir opacity por 3 pras edges que não tocam `hoveredNodeIdx` |
-| Relations Network — filtro "N+ aplicações" | ~30 min | Slider ou input no painel de config: só renderiza edges com `weight >= N`. Simples threshold no `extractRelationEdges` ou no loop de draw |
-| Relations Network — edge bundling FDEB/HEB | 3-4h MVP | Só atacar quando grafo realista tiver 50+ edges densos — curvas de Bézier atuais cobrem até isso. FDEB adiciona 150-300 LOC ou lib externa (`d3-force-bundling`). Referência conceitual — não prioritário |
-| Multi-tab spreadsheet export | 1-2h | Spin-off do ROADMAP #8. Export de Analytics com uma sheet por source type (markdown, pdf, csv, image, audio, video) + sheet summary. Usa `xlsx` ou gera múltiplos CSVs zipados |
-| Code × Metadata | 2-3h | ROADMAP #9. Depende de Case Variables (#18, FEITO). Tabelas de contingência código × variável demográfica — reusa `inferentialEngine` base |
-
-### Codebook / hierarquia
-
-| Item | Esforço | Detalhe |
-|------|---------|---------|
-| Pastas nested (pasta dentro de pasta) | 2-3h | Descoberto 2026-04-23 durante §12 K2 — hoje `FolderDefinition` não tem `parentId`, folder rows não são `draggable`. Mudanças: schema (registry), drag-drop callbacks, `buildFlatTree` (recursão), validação de ciclo. Sem backward-compat (zero users) |
-
-### Margin Panel
-
-| Item | Esforço | Detalhe |
-|------|---------|---------|
-| Margin Panel Customization (side/style) | 1-2h | ROADMAP #11. Settings `margin.side: 'left'\|'right'`, `margin.barThickness`, `margin.tickStyle`, `margin.opacity` — constantes hoje hardcoded em `marginPanelExtension.ts`. Atacar num dia dedicado ao Margin Panel junto com o Resize Handle (#17) — dívida `scrollDOM stacking context` compartilhada |
+Sem items remanescentes nesta seção no momento. Repovoar quando surgir polish curto que não cabe em nenhum guarda-chuva.
 
 ### Como usar esta seção
 
