@@ -104,6 +104,7 @@ export interface EngineRegistration<M = unknown> {
 export interface GeneralSettings {
 	showMagnitudeInPopover: boolean;
 	showRelationsInPopover: boolean;
+	openToggleInNewTab: boolean;
 }
 
 export interface QualiaData {
@@ -116,12 +117,13 @@ export interface QualiaData {
 	general: GeneralSettings;
 	markdown: { markers: Record<string, Marker[]>; settings: CodeMarkerSettings };
 	csv: { segmentMarkers: SegmentMarker[]; rowMarkers: RowMarker[] };
-	image: { markers: ImageMarker[]; settings: { autoOpen: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> } };
-	pdf: { markers: PdfMarker[]; shapes: PdfShapeMarker[]; settings: { autoOpen: boolean } };
+	image: { markers: ImageMarker[]; settings: { autoOpen: boolean; showButton: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> } };
+	pdf: { markers: PdfMarker[]; shapes: PdfShapeMarker[]; settings: { autoOpen: boolean; showButton: boolean } };
 	audio: {
 		files: AudioFile[];
 		settings: {
 			autoOpen: boolean;
+			showButton: boolean;
 			defaultZoom: number;
 			regionOpacity: number;
 			showLabelsOnRegions: boolean;
@@ -132,6 +134,7 @@ export interface QualiaData {
 		files: VideoFile[];
 		settings: {
 			autoOpen: boolean;
+			showButton: boolean;
 			defaultZoom: number;
 			regionOpacity: number;
 			showLabelsOnRegions: boolean;
@@ -145,7 +148,7 @@ export interface QualiaData {
 export function createDefaultData(): QualiaData {
 	return {
 		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, rootOrder: [] },
-		general: { showMagnitudeInPopover: true, showRelationsInPopover: true },
+		general: { showMagnitudeInPopover: true, showRelationsInPopover: true, openToggleInNewTab: false },
 		markdown: { markers: {}, settings: {
 			defaultColor: '#6200EE',
 			markerOpacity: 0.4,
@@ -156,15 +159,15 @@ export function createDefaultData(): QualiaData {
 			showRibbonButton: true,
 		} },
 		csv: { segmentMarkers: [], rowMarkers: [] },
-		image: { markers: [], settings: { autoOpen: false, fileStates: {} } },
-		pdf: { markers: [], shapes: [], settings: { autoOpen: false } },
+		image: { markers: [], settings: { autoOpen: false, showButton: true, fileStates: {} } },
+		pdf: { markers: [], shapes: [], settings: { autoOpen: false, showButton: true } },
 		audio: {
 			files: [],
-			settings: { autoOpen: false, defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, fileStates: {} },
+			settings: { autoOpen: false, showButton: true, defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, fileStates: {} },
 		},
 		video: {
 			files: [],
-			settings: { autoOpen: false, defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, videoFit: 'contain', fileStates: {} },
+			settings: { autoOpen: false, showButton: true, defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, videoFit: 'contain', fileStates: {} },
 		},
 		caseVariables: { values: {}, types: {} },
 	};

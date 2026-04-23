@@ -11,7 +11,7 @@ import type { VideoFile } from "../../video/videoCodingTypes";
 export interface AllEngineData {
   markdown: { markers: Record<string, Marker[]>; settings: CodeMarkerSettings; codeDefinitions: Record<string, CodeDefinition> };
   csv: { segmentMarkers: SegmentMarker[]; rowMarkers: RowMarker[]; registry: { definitions: Record<string, CodeDefinition> } };
-  image: { markers: ImageMarker[]; settings: { autoOpen: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> }; registry: { definitions: Record<string, CodeDefinition> } };
+  image: { markers: ImageMarker[]; settings: { autoOpen: boolean; showButton: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> }; registry: { definitions: Record<string, CodeDefinition> } };
   pdf: { markers: PdfMarker[]; shapes: PdfShapeMarker[]; registry: { definitions: Record<string, CodeDefinition> } };
   audio: { files: AudioFile[]; settings: unknown; codeDefinitions: { definitions: Record<string, CodeDefinition> } };
   video: { files: VideoFile[]; settings: unknown; codeDefinitions: { definitions: Record<string, CodeDefinition> } };

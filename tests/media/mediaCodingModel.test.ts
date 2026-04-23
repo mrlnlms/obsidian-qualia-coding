@@ -25,6 +25,7 @@ function createMockDm(initialData: Record<string, any> = {}) {
 
 const DEFAULT_SETTINGS: BaseMediaSettings = {
 	autoOpen: false,
+	showButton: true,
 	defaultZoom: 50,
 	regionOpacity: 0.4,
 	showLabelsOnRegions: true,
