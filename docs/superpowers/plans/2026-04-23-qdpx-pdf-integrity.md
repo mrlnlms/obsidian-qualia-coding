@@ -22,8 +22,11 @@
 **Create:**
 - `src/pdf/pdfMetadataExtractor.ts` — `extractPdfMetadata(vault, file)` (pdfjs headless)
 - `src/export/pdfPlainTextBuilder.ts` — `buildPdfPlainText(metadata)` + `toSortedOffsets(result)` (pure)
+- `src/export/exportProgressModal.ts` — `ExportProgressModal` + `ProgressReporter` interface (pro fallback do export on-demand)
 - `tests/export/pdfPlainTextBuilder.test.ts` — unit tests puros
 - `tests/pdf/pdfMetadataExtractor.test.ts` — unit tests com fixture real
+- `tests/import/qdpxImport.test.ts` — integration tests de PDFSource (I1 + I2)
+- `tests/export/qdpxRoundTrip.pdf.test.ts` — round-trip integration test
 - `tests/fixtures/generate-small-pdf.ts` — script determinístico de geração
 - `tests/fixtures/small.pdf` — fixture binária commitada (3 páginas, 2 tamanhos, unicode)
 
@@ -33,8 +36,9 @@
 - `src/pdf/pdfCodingModel.ts` — métodos `getFileMetadata(fileId)`, `setFileMetadata(fileId, meta)`; load/save refletem novo campo
 - `src/pdf/pdfTypings.d.ts` — estender `window.pdfjsLib` com `getDocument(data: ArrayBuffer | Uint8Array): { promise: Promise<PDFDocumentProxy> }`
 - `src/pdf/index.ts:109` — dentro de `component.then((child) => ...)`, disparar `extractPdfMetadata` em background (fire-and-forget)
-- `src/export/qdpxExporter.ts:204` (buildPdfSourceXml) — ganhar novo param `plainText: string`; mover o `Representation` pra incluir conteúdo textual
-- `src/export/qdpxExporter.ts:427-452` (bloco PDF do export) — chamar `buildPdfPlainText` + construir `textOffsets` e `pageDims` de dados reais
+- `src/export/qdpxExporter.ts:204` (buildPdfSourceXml) — assinatura ganha `plainText: string` (required) e retorna `{ xml, reprGuid }`; callers dos 3 tests existentes (linhas 195/217/232) atualizados
+- `src/export/qdpxExporter.ts:427-452` (bloco PDF do export) — chamar `buildPdfPlainText` + construir `textOffsets` e `pageDims` de dados reais; fallback extract on-demand via progressReporter
+- `src/export/exportCommands.ts` (ou caller equivalente do createQdpxZip) — abrir `ExportProgressModal` antes do export e passar como reporter
 - `src/import/qdpxImporter.ts` — branch de `PDFSource`: ordem extract PDF→writeBinary→extractMetadata→markers + processar `PlainTextSelection`
 - `tests/export/qdpxGuidConsistency.test.ts` — estender com round-trip de offsets PDF absolutos
 - `tests/export/coordConverters.test.ts` — adicionar casos com `pageDims` heterogêneos
@@ -134,12 +138,12 @@ Ler integralmente `src/pdf/pdfCodingModel.ts` pra entender o padrão de `load()`
 
 - [ ] **Step 2: Write failing tests em `tests/pdf/pdfCodingModel.test.ts`**
 
-Adicionar ao arquivo de teste existente:
+Adicionar ao arquivo de teste existente (usa helper existente `makePdfModel()` definido no topo do arquivo — linhas 4-15):
 
 ```ts
 describe('PdfCodingModel.fileMetadata', () => {
   it('setFileMetadata persists + getFileMetadata returns the same', () => {
-    const model = makeModel();  // helper existente no arquivo
+    const model = makePdfModel();
     const meta = {
       mtime: 1234567890,
       pages: [
@@ -151,12 +155,12 @@ describe('PdfCodingModel.fileMetadata', () => {
   });
 
   it('getFileMetadata returns undefined for unknown fileId', () => {
-    const model = makeModel();
+    const model = makePdfModel();
     expect(model.getFileMetadata('docs/nope.pdf')).toBeUndefined();
   });
 
   it('setFileMetadata overwrites existing entry', () => {
-    const model = makeModel();
+    const model = makePdfModel();
     model.setFileMetadata('docs/foo.pdf', { mtime: 1, pages: [] });
     model.setFileMetadata('docs/foo.pdf', { mtime: 2, pages: [{ width: 1, height: 1, textItems: [] }] });
     expect(model.getFileMetadata('docs/foo.pdf')?.mtime).toBe(2);
@@ -180,29 +184,44 @@ Adicionar após o campo `private shapes` (~linha 25):
 private fileMetadata: Record<string, PdfFileMetadata> = {};
 ```
 
-No `load()` (após carregar `shapes`):
+No `load()` (após carregar `shapes`, antes do `if (mutated) this.save();`), adicionar:
 
 ```ts
-this.fileMetadata = section.fileMetadata ?? {};
+this.fileMetadata = section.fileMetadata;
 ```
 
-Obs: o `?? {}` é só pra testes que constroem section manualmente. Em runtime normal `createDefaultData` garante o campo. Isso é aceitável como safety net no boundary de I/O (não é hedge defensivo). Se o reviewer discordar, trocar por `section.fileMetadata` direto.
+Atribuição direta — `createDefaultData` garante o campo. Tests mockando `section` precisam fornecer `fileMetadata: {}` no retorno (helper `makePdfModel` usa `mockReturnValue({})` hoje — atualizar o mock pra incluir o campo).
 
-No `save()` (dentro de `setSection('pdf', { ... })`):
+No `save()` (dentro de `setSection('pdf', { ... })`), adicionar a linha `fileMetadata`:
 
 ```ts
-this.dataManager.setSection('pdf', {
-  markers: this.markers,
-  shapes: this.shapes,
-  fileMetadata: this.fileMetadata,
-  settings: this.settings,
-});
+save(): void {
+  this.dataManager.setSection('pdf', {
+    markers: this.markers,
+    shapes: this.shapes,
+    fileMetadata: this.fileMetadata,
+  });
+}
 ```
+
+**NÃO adicionar `settings:`** — o save atual não persiste settings (são lidos via getter `get settings()` em linha 38-40 diretamente do dataManager). Preservar o shape existente.
 
 Imports no topo do arquivo:
 
 ```ts
 import type { PdfMarker, PdfShapeMarker, NormalizedShapeCoords, PdfFileMetadata } from './pdfCodingTypes';
+```
+
+Atualizar o helper `makePdfModel` em `tests/pdf/pdfCodingModel.test.ts` linha 4-15 pra retornar `fileMetadata: {}` no `section` mock:
+
+```ts
+function makePdfModel(): PdfCodingModel {
+  const dm = {
+    section: vi.fn().mockReturnValue({ markers: [], shapes: [], fileMetadata: {} }),
+    setSection: vi.fn(),
+  } as any;
+  // ... resto igual
+}
 ```
 
 Métodos públicos novos (próximos a `updateMarkerRange` pra manter agrupamento):
@@ -445,15 +464,17 @@ git add src/export/pdfPlainTextBuilder.ts tests/export/pdfPlainTextBuilder.test.
 - Create: `tests/fixtures/small.pdf` (binário commitado)
 - Modify: `package.json` (devDependency `pdfkit`)
 
-- [ ] **Step 1: Instalar `pdfkit` como devDep**
+- [ ] **Step 1: Instalar devDeps**
 
 Run:
 ```bash
-npm install --save-dev pdfkit @types/pdfkit
+npm install --save-dev pdfkit @types/pdfkit pdfjs-dist
 ```
-Expected: installs sem conflito. Commit do `package.json` + `package-lock.json` acontece na task final do chunk.
+Expected: installs sem conflito. `pdfjs-dist` é necessário pra rodar pdfjs headless em jsdom (tests/setup.ts vai importar daqui). `pdfkit` gera a fixture. Commit do `package.json` + `package-lock.json` acontece na task final do chunk.
 
 - [ ] **Step 2: Criar script `tests/fixtures/generate-small-pdf.ts`**
+
+Geração determinística requer pinar `CreationDate` e `id` (pdfkit gera ambos randômicos por default):
 
 ```ts
 /**
@@ -464,13 +485,28 @@ Expected: installs sem conflito. Commit do `package.json` + `package-lock.json` 
  * - Page 1: A4 retrato (595 x 842 pt) — "Hello" + "World"
  * - Page 2: A4 paisagem (842 x 595 pt) — "Landscape" + "Page"
  * - Page 3: A4 retrato — "Unicode: 🎉"
+ *
+ * Determinismo: CreationDate e id são pinados. Regeneração em qualquer
+ * máquina/horário produz arquivo bit-idêntico.
  */
 import PDFDocument from 'pdfkit';
 import { createWriteStream } from 'node:fs';
 import { resolve } from 'node:path';
 
+const FIXED_DATE = new Date('2026-01-01T00:00:00Z');
 const outPath = resolve(__dirname, 'small.pdf');
-const doc = new PDFDocument({ autoFirstPage: false });
+
+const doc = new PDFDocument({
+  autoFirstPage: false,
+  info: {
+    Title: 'qualia-coding test fixture',
+    CreationDate: FIXED_DATE,
+    ModDate: FIXED_DATE,
+  },
+});
+// Força id fixo pra estabilidade byte-a-byte (pdfkit gera random por default via _root.data.ID)
+(doc as any)._id = Buffer.from('qualia-coding-fixture-id-00000001', 'utf-8');
+
 doc.pipe(createWriteStream(outPath));
 
 // Page 1: A4 retrato
@@ -490,6 +526,8 @@ doc.fontSize(20).text('Unicode: 🎉', 50, 50);
 doc.end();
 console.log(`Generated ${outPath}`);
 ```
+
+Se `(doc as any)._id` não funcionar na versão do pdfkit instalada (API interna pode variar), aceitar que `.pdf` regenerado tem diff binário entre máquinas — ainda é OK porque os **tests comparam metadata semântico** (dims, textItems), não bytes. Adicionar nota no topo do arquivo explicando que diffs binários são esperados e não devem ser tratados como regressão.
 
 - [ ] **Step 3: Gerar o PDF**
 
@@ -636,7 +674,7 @@ describe('extractPdfMetadata', () => {
 
 - [ ] **Step 2: Configurar `tests/setup.ts` com pdfjs real pra jsdom**
 
-Ler `tests/setup.ts`. Adicionar (se ainda não existir):
+`pdfjs-dist` já foi instalado na Task 4 Step 1. Adicionar em `tests/setup.ts`:
 
 ```ts
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
@@ -644,11 +682,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 (globalThis as any).window.pdfjsLib = pdfjsLib;
 ```
 
-Obs: `pdfjs-dist` provavelmente já é dep transitiva via Obsidian. Se `pdfjs-dist` não estiver no `package.json`, adicionar como devDep:
-
-```bash
-npm install --save-dev pdfjs-dist
-```
+Se `pdfjs-dist/legacy/build/pdf.mjs` não for o path correto pra versão instalada, testar `pdfjs-dist` direto ou `pdfjs-dist/build/pdf.mjs`. Verificar com `ls node_modules/pdfjs-dist/`.
 
 - [ ] **Step 3: Run test to verify it fails**
 
@@ -676,12 +710,7 @@ export async function extractPdfMetadata(
   file: TFile,
 ): Promise<PdfFileMetadata> {
   const buffer = await vault.readBinary(file);
-  const pdfjsLib = (globalThis as any).window?.pdfjsLib;
-  if (!pdfjsLib || typeof pdfjsLib.getDocument !== 'function') {
-    throw new Error('pdfjsLib não disponível — requer Obsidian ou setup de teste com pdfjs-dist');
-  }
-
-  const doc = await pdfjsLib.getDocument(new Uint8Array(buffer)).promise;
+  const doc = await window.pdfjsLib.getDocument(new Uint8Array(buffer)).promise;
   try {
     const pages: PdfPageInfo[] = [];
     for (let i = 1; i <= doc.numPages; i++) {
@@ -704,7 +733,7 @@ export async function extractPdfMetadata(
 }
 ```
 
-Obs sobre o throw em linha 5: não é hedge defensivo — é validação de boundary (jsdom sem pdfjs é um bug setup, não um caminho normal). Se o reviewer sinalizar, trocar por assunção e deixar o erro do pdfjs propagar.
+Sem guards em `window.pdfjsLib` — Obsidian runtime garante que existe; jsdom test setup injeta. Se faltar, o erro do pdfjs propaga naturalmente.
 
 - [ ] **Step 5: Run test to verify it passes**
 
@@ -732,9 +761,15 @@ git add src/pdf/pdfMetadataExtractor.ts tests/pdf/pdfMetadataExtractor.test.ts t
 
 - [ ] **Step 1: Ler contexto de `instrumentPdfView`**
 
-Ler `src/pdf/index.ts` linhas 100-150 pra entender o shape do child e como `model` é acessível no closure de `instrumentPdfView`. Identificar onde o `component.then((child) => { ... })` está e qual é o acesso ao `PdfCodingModel` (provavelmente via variável de closure no módulo).
+Ler `src/pdf/index.ts` linhas 100-150 pra confirmar o shape do child e onde `component.then((child) => { ... })` está. A função `instrumentPdfView` vive dentro de `registerPdfEngine(plugin, ...)` — o `plugin: QualiaCodingPlugin` está em closure (verificar linha 18 onde `registerPdfEngine` é declarado) e expõe `plugin.app.vault`. O `PdfCodingModel` também está em closure via `const model = new PdfCodingModel(...)`.
 
 - [ ] **Step 2: Adicionar hook**
+
+Adicionar import estático no topo do arquivo (não dynamic import — esbuild bundler usa format `cjs` com `bundle: true`, dynamic import inline no mesmo bundle e não gera lazy-load real):
+
+```ts
+import { extractPdfMetadata } from './pdfMetadataExtractor';
+```
 
 Dentro do callback de `component.then((child: PDFViewerChild) => { ... })`, logo após as linhas existentes que acessam `child.file`, adicionar:
 
@@ -745,21 +780,18 @@ if (file) {
   const fileId = file.path;
   const cached = model.getFileMetadata(fileId);
   if (!cached || cached.mtime !== file.stat.mtime) {
-    import('./pdfMetadataExtractor').then(({ extractPdfMetadata }) => {
-      extractPdfMetadata(plugin.app.vault, file).then((meta) => {
-        model.setFileMetadata(fileId, meta);
-      }).catch((err) => {
-        console.warn(`[qualia-coding] PDF metadata extract falhou para ${fileId}:`, err);
-      });
+    extractPdfMetadata(plugin.app.vault, file).then((meta) => {
+      model.setFileMetadata(fileId, meta);
+    }).catch((err) => {
+      console.warn(`[qualia-coding] PDF metadata extract falhou para ${fileId}:`, err);
     });
   }
 }
 ```
 
 Notas:
-- Dynamic `import(...)` evita custo de carga quando o viewer nem é tocado. Se o bundler não suportar ou gerar chunk separado indesejado, trocar por import estático no topo do arquivo — o impacto em bundle é mínimo (~2KB).
-- `plugin.app.vault` — ajustar pro nome real da variável. Se a closure já tem `vault` direto, usar `vault`.
 - Não há `await` — é intencional. Usuário abre o PDF, extract roda em background.
+- `plugin.app.vault` é o acesso correto (confirmado: `plugin: QualiaCodingPlugin` é o parâmetro da `registerPdfEngine`, exposto via closure). Outros call sites no arquivo usam `plugin.app` (ver linhas 50, 146, 157, 190).
 
 - [ ] **Step 3: Manual smoke test no workbench vault**
 
@@ -791,45 +823,84 @@ git add src/pdf/index.ts
 **Files:**
 - Modify: `src/export/qdpxExporter.ts:204-270` (assinatura + uso do Representation)
 
-- [ ] **Step 1: Write failing test em `qdpxExporter.test.ts`**
+- [ ] **Step 1: Atualizar 3 call sites existentes + adicionar test novo**
 
-Adicionar ao arquivo existente de teste:
+Call sites existentes que precisam ganhar o novo param (confirmados em `tests/export/qdpxExporter.test.ts`):
+- Linha 195: `buildPdfSourceXml('docs/paper.pdf', textMarkers, [], null, textOffsets, guidMap, notes)`
+- Linha 217: `buildPdfSourceXml('docs/paper.pdf', [], shapes, pageHeights, new Map(), guidMap, notes)`
+- Linha 232: `buildPdfSourceXml('docs/paper.pdf', [], shapes, null, new Map(), guidMap, notes)`
+
+Em **cada** um, adicionar como 8º argumento `undefined` (posicional pro `includeSources`) e 9º `''` (plainText vazio nos testes que não exercitam Representation), OU reestruturar se o teste não precisa de plainText real. Alternativa mais limpa: os 3 tests passam `false` (includeSources) + `''` (plainText).
+
+Adicionar test novo também ao final do arquivo:
 
 ```ts
-describe('buildPdfSourceXml — plainText param', () => {
-  it('emite <Representation> com plainText incluído no export', () => {
-    const textMarkers: PdfMarker[] = [/* 1 marker com codes */];
-    const xml = buildPdfSourceXml(
+describe('buildPdfSourceXml — plainText + return shape', () => {
+  it('retorna { xml, reprGuid } e emite <Representation> quando há textMarkers', () => {
+    const markerId = 'm1';
+    const guidMap = new Map<string, string>();
+    const notes: string[] = [];
+    const textMarkers: PdfMarker[] = [{
+      id: markerId,
+      fileId: 'docs/foo.pdf',
+      page: 0,
+      beginIndex: 0,
+      beginOffset: 0,
+      endIndex: 0,
+      endOffset: 5,
+      text: 'Hello',
+      codes: [{ codeId: 'c1' }],
+      createdAt: 1700000000000,
+      updatedAt: 1700000000000,
+    }];
+    // codeId 'c1' precisa estar no guidMap pro buildCodingXml funcionar
+    guidMap.set('code:c1', 'code-guid-1');
+
+    const { xml, reprGuid } = buildPdfSourceXml(
       'docs/foo.pdf',
       textMarkers,
       [],
       null,
-      new Map([[textMarkers[0]!.id, { start: 0, end: 5 }]]),
+      new Map([[markerId, { start: 0, end: 5 }]]),
+      guidMap,
+      notes,
+      true,           // includeSources
+      'Hello\nWorld', // plainText
+    );
+
+    expect(reprGuid).toBeTruthy();
+    expect(xml).toContain('<Representation ');
+    expect(xml).toContain(`${reprGuid}.txt`);
+  });
+
+  it('retorna reprGuid=null quando não há textMarkers', () => {
+    const { reprGuid } = buildPdfSourceXml(
+      'docs/foo.pdf',
+      [],
+      [],
+      null,
+      new Map(),
       new Map(),
       [],
-      true,
-      'Hello\nWorld',  // novo param plainText
+      false,
+      '',
     );
-    // Representation referencia o plainTextPath como antes
-    expect(xml).toContain('<Representation ');
-    // O exporter caller é responsável por gravar o .txt; builder só referencia
+    expect(reprGuid).toBeNull();
   });
 });
 ```
-
-Obs: o PlainText consolidado é gravado no zip `sources/<reprGuid>.txt` pelo caller (próxima task). Aqui testamos só a assinatura.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
 ```bash
-npx vitest run tests/export/qdpxExporter.test.ts -t "plainText param"
+npx vitest run tests/export/qdpxExporter.test.ts
 ```
-Expected: FAIL (assinatura antiga aceita 8 args).
+Expected: FAIL (assinatura antiga + return type string).
 
-- [ ] **Step 3: Atualizar assinatura de `buildPdfSourceXml`**
+- [ ] **Step 3: Atualizar assinatura e retorno de `buildPdfSourceXml`**
 
-Na assinatura (linha 204-213), adicionar param:
+Em `src/export/qdpxExporter.ts:204-213`, mudar:
 
 ```ts
 export function buildPdfSourceXml(
@@ -840,21 +911,37 @@ export function buildPdfSourceXml(
   textOffsets: Map<string, { start: number; end: number }>,
   guidMap: Map<string, string>,
   notes: string[],
-  includeSources?: boolean,
-  plainText?: string,  // novo
-): string {
+  includeSources: boolean,
+  plainText: string,
+): { xml: string; reprGuid: string | null } {
 ```
 
-Obs: `plainText` fica opcional com `?` só pra não quebrar eventuais callers de teste. **Não é hedge defensivo** — é interface evolution within the same commit. Ao terminar, nenhum caller de produção passa undefined. Se reviewer preferir required, tornar obrigatório e atualizar os 2 callers (prod + test).
+**Param `plainText` é required** (sem `?`). Todos os 4 call sites (3 tests + 1 produção no `qdpxExporter.ts:442`) serão atualizados aqui ou na Task 9.
 
-Dentro da função, após a linha 220 (onde `reprPath` é construído), adicionar comentário:
+**Param `includeSources` também vira required** (hoje é opcional com `?`). Os 3 call sites de teste existentes passam `false`; o caller em produção passa `options.includeSources` explicitamente. Menos surface de bug.
+
+Body: na linha onde `representationEl` é construído (~225-227), ajustar pra retornar `null` em `reprGuid` quando não há `textMarkers`:
 
 ```ts
-// plainText é o conteúdo textual consolidado do PDF (concatenação via pdfPlainTextBuilder).
-// Caller é responsável por gravar o arquivo reprPath no zip com esse conteúdo quando includeSources=true.
+const reprGuid = textMarkers.length > 0 ? uuidV4() : null;
+const reprPath = reprGuid && includeSources
+  ? `internal://${reprGuid}.txt`
+  : reprGuid ? `relative://${filePath.replace(/\.pdf$/i, '.txt')}` : '';
+const representationEl = reprGuid
+  ? `<Representation ${xmlAttr('guid', reprGuid)} ${xmlAttr('plainTextPath', reprPath)}/>`
+  : '';
 ```
 
-Por ora, o body do `buildPdfSourceXml` não muda — `plainText` é consumido pelo caller (próxima task). Apenas a assinatura.
+No `return` final (linha 269), retornar objeto:
+
+```ts
+return {
+  xml: `<PDFSource ${xmlAttr('guid', srcGuid)} ${xmlAttr('name', fileName(filePath))} ${pathAttr}>\n${inner}\n</PDFSource>`,
+  reprGuid,
+};
+```
+
+Atualizar os 3 call sites de teste existentes (linhas 195/217/232) pra destructurar: `const { xml } = buildPdfSourceXml(..., false, '');`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -880,12 +967,49 @@ git add src/export/qdpxExporter.ts tests/export/qdpxExporter.test.ts
 
 - [ ] **Step 1: Write failing test — offsets absolutos**
 
-Em `tests/export/qdpxGuidConsistency.test.ts` (ou arquivo de round-trip novo), adicionar:
+Em `tests/export/qdpxExporter.test.ts`, adicionar novo bloco descrevendo comportamento via `buildQdpxProject` (ou a função que orquestra export — ler o arquivo pra identificar o nome real: provavelmente `createQdpxZip` ou equivalente exportado):
 
 ```ts
-describe('QDPX export — PDF offsets absolutos', () => {
-  it('exporta offsets baseados em fileMetadata, não content-item-relative', async () => {
-    // Setup: mock DataManager com 1 PDF, fileMetadata populado, 1 marker
+import { createQdpxZip } from '../../src/export/qdpxExporter';
+import type { PdfMarker } from '../../src/pdf/pdfCodingTypes';
+
+describe('QDPX export — PDF offsets absolutos (E1+E2)', () => {
+  // Helper pra setup mínimo
+  function setupExportScenario(opts: {
+    markers: PdfMarker[];
+    shapes: any[];
+    fileMetadata: Record<string, any>;
+  }) {
+    const dataManager = {
+      section: (key: string) => {
+        if (key === 'pdf') return {
+          markers: opts.markers,
+          shapes: opts.shapes,
+          fileMetadata: opts.fileMetadata,
+          settings: { autoOpen: false, showButton: true },
+        };
+        return {};  // outros engines vazios pra este teste
+      },
+    } as any;
+    const registry = { definitions: {}, folders: {}, rootOrder: [], getAll: () => [] } as any;
+    const caseVarsRegistry = { getForFile: () => ({}) } as any;
+    return { dataManager, registry, caseVarsRegistry };
+  }
+
+  it('exporta offsets absolutos baseados em fileMetadata', async () => {
+    const marker: PdfMarker = {
+      id: 'm1',
+      fileId: 'docs/foo.pdf',
+      page: 0,
+      beginIndex: 1,     // item "World"
+      beginOffset: 0,
+      endIndex: 1,
+      endOffset: 5,
+      text: 'World',
+      codes: [{ codeId: 'c1' }],
+      createdAt: 1700000000000,
+      updatedAt: 1700000000000,
+    };
     const fileMetadata = {
       'docs/foo.pdf': {
         mtime: 0,
@@ -894,57 +1018,98 @@ describe('QDPX export — PDF offsets absolutos', () => {
         ],
       },
     };
-    // marker: page 0, beginIndex=1 (item "World"), beginOffset=0 → absoluto = 6 ("Hello\n" = 6 chars)
-    const marker: PdfMarker = {
-      id: 'm1',
-      fileId: 'docs/foo.pdf',
-      page: 0,
-      beginIndex: 1,
-      beginOffset: 0,
-      endIndex: 1,
-      endOffset: 5,
-      text: 'World',
-      codes: [/* 1 code application */],
-      createdAt: 0,
-      updatedAt: 0,
-    };
-    // ... (setup do dataManager + chamar buildQdpx)
-    const { xml } = await buildQdpxProject(/* ... */);
-    // Verifica que startPosition="6" e endPosition="11"
+    const { dataManager, registry, caseVarsRegistry } = setupExportScenario({
+      markers: [marker], shapes: [], fileMetadata,
+    });
+    // registry precisa ter codeId 'c1' definido
+    registry.getAll = () => [{ id: 'c1', name: 'Test', color: '#ff0000', parentId: null, childrenOrder: [] }];
+
+    const mockApp = { vault: { adapter: { readBinary: async () => new ArrayBuffer(0) } } } as any;
+    const result = await createQdpxZip(
+      { includeSources: false },
+      dataManager,
+      registry,
+      caseVarsRegistry,
+      mockApp,
+    );
+
+    // Decodificar XML do project.qde e verificar
+    const xmlBytes = result.files.get('project.qde');
+    const xml = new TextDecoder().decode(xmlBytes!);
+    // "Hello\nWorld" → "World" começa em offset 6 (codepoint: H=0, e=1, l=2, l=3, o=4, \n=5, W=6...)
     expect(xml).toMatch(/startPosition="6"/);
     expect(xml).toMatch(/endPosition="11"/);
   });
 
   it('exporta shape markers com pageDims reais de fileMetadata', async () => {
-    // Setup com shape marker em page 0 (A4 retrato 595x842)
-    // ... e verifica que firstX/firstY usam 595 e 842
+    const shape = {
+      id: 's1',
+      fileId: 'docs/foo.pdf',
+      page: 0,
+      shape: 'rect',
+      coords: { type: 'rect', x: 0, y: 0, w: 1, h: 1 },
+      codes: [{ codeId: 'c1' }],
+      createdAt: 0,
+      updatedAt: 0,
+    };
+    const fileMetadata = {
+      'docs/foo.pdf': {
+        mtime: 0,
+        pages: [{ width: 595, height: 842, textItems: [] }],  // A4 retrato
+      },
+    };
+    const { dataManager, registry, caseVarsRegistry } = setupExportScenario({
+      markers: [], shapes: [shape], fileMetadata,
+    });
+    registry.getAll = () => [{ id: 'c1', name: 'Test', color: '#ff0000', parentId: null, childrenOrder: [] }];
+
+    const mockApp = { vault: { adapter: {} } } as any;
+    const result = await createQdpxZip(
+      { includeSources: false },
+      dataManager, registry, caseVarsRegistry, mockApp,
+    );
+    const xml = new TextDecoder().decode(result.files.get('project.qde')!);
+    // rect (0,0,1,1) em A4 retrato 595x842 → firstX=0, firstY=842, secondX=595, secondY=0
+    expect(xml).toMatch(/firstX="0"/);
+    expect(xml).toMatch(/secondX="595"/);
+    expect(xml).toMatch(/firstY="842"/);
   });
 });
 ```
+
+Nota: se `createQdpxZip` tem outro nome/assinatura, adaptar — ler o arquivo primeiro. O shape do retorno (`{ files: Map }`) é hipotético; confirmar na implementação. Se a orquestração real devolve `Uint8Array` do zip pronto, usar `fflate.unzipSync(result)` pra extrair `project.qde` antes de decodificar.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
 ```bash
-npx vitest run tests/export/qdpxGuidConsistency.test.ts -t "absolutos"
+npx vitest run tests/export/qdpxExporter.test.ts -t "absolutos"
 ```
 Expected: FAIL (exporter ainda usa beginOffset como absoluto).
 
 - [ ] **Step 3: Refatorar bloco PDF em `qdpxExporter.ts:427-452`**
 
-Substituir o bloco atual por:
+Estado final (substituir bloco inteiro):
 
 ```ts
 // --- PDF ---
 const pdfData = dataManager.section('pdf');
 const pdfByFile = groupByFileId(pdfData.markers, pdfData.shapes);
 for (const [fileId, { textMarkers, shapeMarkers }] of pdfByFile) {
-  const meta = pdfData.fileMetadata[fileId];
+  let meta = pdfData.fileMetadata[fileId];
   if (!meta) {
-    // Fallback: sem metadata, preserva comportamento degradado antigo.
-    // Em produção o hook do viewer popula; se faltou, o usuário nunca abriu o PDF na sessão.
-    warnings.push(`PDF ${fileId} sem metadata — offsets podem ficar degradados. Abra o PDF no Obsidian antes de exportar.`);
-    continue;
+    // Fallback mandatório per spec §3.3: extrair on-demand com progress modal.
+    // Progress reporter é injetado por options.progressReporter (ver Task 13).
+    if (options.progressReporter) {
+      options.progressReporter.update(`Preparing PDF: ${fileId}`);
+    }
+    const tfile = app.vault.getAbstractFileByPath(fileId);
+    if (!tfile || !('stat' in tfile)) {
+      warnings.push(`PDF ${fileId} não encontrado no vault — skip`);
+      continue;
+    }
+    meta = await extractPdfMetadata(app.vault, tfile as TFile);
+    pdfData.fileMetadata[fileId] = meta;  // popula cache in-memory (model.save() é responsabilidade externa)
   }
 
   const { text: plainText, itemOffsets } = buildPdfPlainText(meta);
@@ -968,7 +1133,7 @@ for (const [fileId, { textMarkers, shapeMarkers }] of pdfByFile) {
     pageDims[i] = { width: meta.pages[i]!.width, height: meta.pages[i]!.height };
   }
 
-  const xml = buildPdfSourceXml(
+  const { xml, reprGuid } = buildPdfSourceXml(
     fileId,
     textMarkers,
     shapeMarkers,
@@ -976,7 +1141,7 @@ for (const [fileId, { textMarkers, shapeMarkers }] of pdfByFile) {
     textOffsets,
     guidMap,
     notes,
-    options.includeSources,
+    options.includeSources ?? false,
     plainText,
   );
   if (xml) {
@@ -987,8 +1152,7 @@ for (const [fileId, { textMarkers, shapeMarkers }] of pdfByFile) {
   }
   if (options.includeSources) {
     await addSourceFile(app.vault, fileId, sourceFiles, guidMap);
-    // Gravar o .txt do Representation com plainText
-    const reprGuid = extractReprGuidFromXml(xml);  // helper; ou mover geração de reprGuid pra caller
+    // reprGuid vem direto do builder — sem hacks de extrair do XML
     if (reprGuid) {
       sourceFiles.set(`sources/${reprGuid}.txt`, strToU8(plainText));
     }
@@ -996,28 +1160,13 @@ for (const [fileId, { textMarkers, shapeMarkers }] of pdfByFile) {
 }
 ```
 
-Import no topo do arquivo:
+Imports no topo do arquivo (adicionar):
 
 ```ts
 import { buildPdfPlainText } from './pdfPlainTextBuilder';
+import { extractPdfMetadata } from '../pdf/pdfMetadataExtractor';
+import type { TFile } from 'obsidian';
 ```
-
-Obs: o `extractReprGuidFromXml` é um hack. Alternativa mais limpa: mover a geração de `reprGuid` pra fora de `buildPdfSourceXml` (retornar junto no shape `{ xml, reprGuid }`), ou aceitar `reprGuid` como param. **Fazer essa refatoração nesta task** — não deixar hack no final.
-
-Refactor `buildPdfSourceXml` pra retornar `{ xml, reprGuid }`:
-
-```ts
-export function buildPdfSourceXml(
-  // ... args
-): { xml: string; reprGuid: string | null } {
-  // ...
-  return { xml: `<PDFSource ...>`, reprGuid };
-}
-```
-
-E o caller usa `const { xml, reprGuid } = buildPdfSourceXml(...)`.
-
-Tests do qdpxExporter existentes vão quebrar — atualizar todos que destruturam o retorno.
 
 - [ ] **Step 4: Run tests**
 
@@ -1025,7 +1174,7 @@ Run:
 ```bash
 npx vitest run tests/export/
 ```
-Expected: PASS (todos os tests do export). Se houver teste legado que assume `buildPdfSourceXml` retorna `string`, atualizar.
+Expected: PASS (incluindo os 3 tests existentes atualizados na Task 8 + os 2 novos).
 
 - [ ] **Step 5: Commit**
 
@@ -1049,53 +1198,145 @@ Ler `src/import/qdpxImporter.ts` integralmente, focando em: (a) onde o `PDFSourc
 
 - [ ] **Step 2: Write failing test — dims reais**
 
+Antes de escrever: ler `src/import/qdpxImporter.ts` integralmente pra identificar (a) a função orquestradora exportada (provavelmente `importQdpxProject` ou similar), (b) o shape do objeto `source` no branch de PDFSource (como `shapes`, `plainTextSelections` são estruturados), (c) helpers existentes (`extractFromZip`, `uuidV4`).
+
 Em `tests/import/qdpxImport.test.ts` (criar se não existir):
 
 ```ts
-describe('QDPX import — PDF dims reais', () => {
-  it('usa pageDims de fileMetadata (não default 612x792)', async () => {
-    // Setup: QDPX com 1 PDFSource + 1 PDFSelection (shape) + fixture pdf (A4 retrato 595x842)
-    // Import
-    // Verifica que o ImageShape resultante tem coords normalizadas baseadas em 595x842, não 612x792
+import { describe, it, expect, vi } from 'vitest';
+import { zipSync, strToU8 } from 'fflate';
+// Ajustar import conforme export real do importer:
+import { importQdpxProject } from '../../src/import/qdpxImporter';
+
+describe('QDPX import — PDF dims reais (I1)', () => {
+  // Helper: monta um .qdpx mínimo em memória com 1 PDFSource + shape marker
+  function buildMinimalQdpx(pdfBytes: Uint8Array): Uint8Array {
+    const projectXml = `<?xml version="1.0"?>
+<Project xmlns="urn:QDA-XML:project:1.0">
+  <CodeBook>
+    <Codes>
+      <Code guid="code-1" name="TestCode" color="#ff0000"/>
+    </Codes>
+  </CodeBook>
+  <Sources>
+    <PDFSource guid="pdf-1" name="small.pdf" path="internal://pdf-1.pdf">
+      <PDFSelection guid="sel-1" page="0" firstX="0" firstY="842" secondX="595" secondY="0" creationDateTime="2026-01-01T00:00:00Z">
+        <Coding guid="cod-1"><CodeRef targetGUID="code-1"/></Coding>
+      </PDFSelection>
+    </PDFSource>
+  </Sources>
+</Project>`;
+    return zipSync({
+      'project.qde': strToU8(projectXml),
+      'sources/pdf-1.pdf': pdfBytes,
+    });
+  }
+
+  it('usa pageDims de fileMetadata extraído do PDF (não default 612x792)', async () => {
+    // Ler fixture small.pdf (page 0 é A4 retrato 595x842)
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const pdfBytes = new Uint8Array(readFileSync(resolve(__dirname, '../fixtures/small.pdf')));
+
+    const qdpxBytes = buildMinimalQdpx(pdfBytes);
+
+    // Mock vault que persiste em memória
+    const vaultFiles = new Map<string, Uint8Array>();
+    const mockApp = {
+      vault: {
+        adapter: {
+          writeBinary: vi.fn(async (path: string, data: ArrayBuffer) => {
+            vaultFiles.set(path, new Uint8Array(data));
+          }),
+          write: vi.fn(),
+          mkdir: vi.fn(),
+        },
+        getAbstractFileByPath: vi.fn((path: string) => {
+          if (!vaultFiles.has(path)) return null;
+          return { path, stat: { mtime: 0, size: vaultFiles.get(path)!.length, ctime: 0 } };
+        }),
+        readBinary: vi.fn(async (file: any) => vaultFiles.get(file.path)!.buffer),
+      },
+    } as any;
+
+    // Mock models/registry que o importer precisa. Ajustar nomes conforme API real:
+    const pdfCodingModel = {
+      setFileMetadata: vi.fn(),
+      addShapeMarker: vi.fn(),  // ou o método equivalente
+    } as any;
+    const registry = { /* ... */ } as any;
+
+    const result = await importQdpxProject(qdpxBytes, {
+      app: mockApp,
+      pdfCodingModel,
+      registry,
+      // ... outras deps conforme API real
+    });
+
+    // Shape marker deve usar 595x842, não 612x792
+    // rect (0,842,595,0) em page 595x842 → coords normalizadas x=0, y=0, w=1, h=1
+    const calls = pdfCodingModel.addShapeMarker.mock.calls;
+    expect(calls).toHaveLength(1);
+    const shape = calls[0][0];
+    expect(shape.coords.w).toBeCloseTo(1.0, 3);
+    expect(shape.coords.h).toBeCloseTo(1.0, 3);
+
+    // Metadata foi populado
+    expect(pdfCodingModel.setFileMetadata).toHaveBeenCalled();
+    const [metaFileId, meta] = pdfCodingModel.setFileMetadata.mock.calls[0];
+    expect(meta.pages[0].width).toBe(595);
+    expect(meta.pages[0].height).toBe(842);
   });
 });
 ```
 
+**Se a API real do importer divergir, adaptar:** o importante é (a) QDPX mínimo com shape marker, (b) mock de vault in-memory, (c) asserção que `setFileMetadata` foi chamado ANTES do `addShapeMarker`, (d) coords usam dims reais.
+
 - [ ] **Step 3: Reordenar pipeline do PDFSource**
 
-Dentro do branch `case 'PDFSource':` (ou equivalente), garantir ordem:
+Dentro do branch de PDFSource no `qdpxImporter.ts`, garantir ordem exata:
 
 ```ts
-// 1. Extrair binário do PDF do zip
-const pdfBytes = await extractFromZip(source.path);  // existing helper
+// 1. Extrair binário do PDF do zip (helper existente)
+const pdfBytes = extractFromZip(zipEntries, source.path);  // ajustar nome real
 
-// 2. Writer no vault
+// 2. Escrever no vault via adapter (padrão §11.1 round-trip)
 const targetPath = resolveTargetPath(source.name);
-await vault.adapter.writeBinary(targetPath, pdfBytes.buffer);
+await app.vault.adapter.writeBinary(targetPath, pdfBytes.buffer);
 
-// 3. Obter TFile
-let tfile = vault.getAbstractFileByPath(targetPath) as TFile | null;
-// Retry curto pra evitar race com o adapter.writeBinary concluído mas cache ainda warmup
+// 3. Obter TFile (writeBinary é async; após resolver, o cache de vault já tem o arquivo)
+const tfile = app.vault.getAbstractFileByPath(targetPath) as TFile | null;
 if (!tfile) {
-  await new Promise(r => setTimeout(r, 50));
-  tfile = vault.getAbstractFileByPath(targetPath) as TFile | null;
+  warnings.push(`TFile não encontrado após writeBinary: ${targetPath} — skip source`);
+  continue;
 }
-if (!tfile) throw new Error(`TFile não encontrado após writeBinary: ${targetPath}`);
 
-// 4. Extrair metadata (síncrono no pipeline do import)
-const meta = await extractPdfMetadata(vault, tfile);
+// 4. Extrair metadata SÍNCRONO no pipeline (antes de processar markers)
+const meta = await extractPdfMetadata(app.vault, tfile);
 pdfCodingModel.setFileMetadata(targetPath, meta);
 
 // 5. Processar shape markers com dims reais
 for (const shape of source.shapes) {
   const dim = meta.pages[shape.page];
   if (!dim) continue;
-  const coords = pdfRectToNormalized(shape.firstX, shape.firstY, shape.secondX, shape.secondY, dim.width, dim.height);
-  // criar PdfShapeMarker com `coords`
+  const coords = pdfRectToNormalized(
+    shape.firstX, shape.firstY, shape.secondX, shape.secondY,
+    dim.width, dim.height,
+  );
+  pdfCodingModel.addShapeMarker({
+    id: uuidV4(),
+    fileId: targetPath,
+    page: shape.page,
+    shape: 'rect',
+    coords,
+    codes: shape.codes,
+    createdAt: shape.creationDateTime ?? Date.now(),
+    updatedAt: Date.now(),
+  });
 }
 ```
 
-Obs sobre o retry de 50ms: **não é hedge genérico** — é workaround específico do Obsidian vault.getAbstractFileByPath cache warmup após writeBinary (documentado em §11.1 round-trip). Se o reviewer discordar, testar em runtime real e ajustar (pode ser que `writeBinary` resolva síncrono o suficiente; se sim, remover retry).
+**Sem retry com setTimeout** — se `getAbstractFileByPath` retorna null após `writeBinary` resolver, é bug concreto que precisa investigação, não hedge profilático. §11.1 round-trip já validou que essa sequência funciona.
 
 - [ ] **Step 4: Run tests**
 
@@ -1121,15 +1362,93 @@ git add src/import/qdpxImporter.ts tests/import/
 
 - [ ] **Step 1: Write failing test**
 
+Em `tests/import/qdpxImport.test.ts`, adicionar:
+
 ```ts
 describe('QDPX import — PlainTextSelection em PDFSource (I2)', () => {
   it('mapeia offset absoluto pra beginIndex/beginOffset via binary search', async () => {
-    // Setup: fileMetadata de fixture small.pdf + QDPX com PlainTextSelection startPosition=6 endPosition=11
-    // Import
-    // Verifica que o PdfMarker resultante tem page=0, beginIndex=1, beginOffset=0, endIndex=1, endOffset=5
+    // Fixture metadata: page 0 com textItems ['Hello', 'World']
+    // PlainText consolidado: "Hello\nWorld" (\n entre items)
+    // PlainTextSelection startPosition=6 endPosition=11 → corresponde ao item "World"
+    // Esperado: marker { page: 0, beginIndex: 1, beginOffset: 0, endIndex: 1, endOffset: 5 }
+
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const { zipSync, strToU8 } = await import('fflate');
+
+    // Criar um PDF sintético com texto "Hello" na page 0 + "World" como item separado
+    // OU usar a fixture small.pdf e calcular startPosition correto em runtime.
+    // Abordagem: usar fixture, extrair metadata primeiro pra descobrir offsets reais, construir QDPX.
+
+    const pdfBytes = new Uint8Array(readFileSync(resolve(__dirname, '../fixtures/small.pdf')));
+
+    // Setup vault mock (copiar do test anterior em Step 2 da Task 10)
+    const vaultFiles = new Map<string, Uint8Array>();
+    const mockApp = {
+      vault: {
+        adapter: {
+          writeBinary: vi.fn(async (path: string, data: ArrayBuffer) => {
+            vaultFiles.set(path, new Uint8Array(data));
+          }),
+          write: vi.fn(),
+          mkdir: vi.fn(),
+        },
+        getAbstractFileByPath: vi.fn((path: string) => {
+          if (!vaultFiles.has(path)) return null;
+          return { path, stat: { mtime: 0, size: vaultFiles.get(path)!.length, ctime: 0 } };
+        }),
+        readBinary: vi.fn(async (file: any) => vaultFiles.get(file.path)!.buffer),
+      },
+    } as any;
+
+    // Pré-computar offset esperado:
+    // Extrair metadata da fixture (page 0 tem "Hello" e "World" como items separados)
+    // PlainText = "Hello\nWorld\fLandscape\nPage\fUnicode: 🎉"
+    // startPosition de "World" = 6, endPosition = 11
+    const projectXml = `<?xml version="1.0"?>
+<Project xmlns="urn:QDA-XML:project:1.0">
+  <CodeBook>
+    <Codes><Code guid="code-1" name="Test" color="#f00"/></Codes>
+  </CodeBook>
+  <Sources>
+    <PDFSource guid="pdf-1" name="small.pdf" path="internal://pdf-1.pdf">
+      <PlainTextSelection guid="sel-1" startPosition="6" endPosition="11" creationDateTime="2026-01-01T00:00:00Z">
+        <Coding guid="cod-1"><CodeRef targetGUID="code-1"/></Coding>
+      </PlainTextSelection>
+    </PDFSource>
+  </Sources>
+</Project>`;
+
+    const qdpxBytes = zipSync({
+      'project.qde': strToU8(projectXml),
+      'sources/pdf-1.pdf': pdfBytes,
+    });
+
+    const pdfCodingModel = {
+      setFileMetadata: vi.fn(),
+      addMarker: vi.fn(),  // ou método equivalente — ajustar pro nome real
+      addShapeMarker: vi.fn(),
+    } as any;
+    const registry = { /* ... */ } as any;
+
+    await importQdpxProject(qdpxBytes, {
+      app: mockApp,
+      pdfCodingModel,
+      registry,
+    });
+
+    expect(pdfCodingModel.addMarker).toHaveBeenCalledOnce();
+    const marker = pdfCodingModel.addMarker.mock.calls[0][0];
+    expect(marker.page).toBe(0);
+    expect(marker.beginIndex).toBe(1);   // item "World" é index 1 na page 0
+    expect(marker.beginOffset).toBe(0);
+    expect(marker.endIndex).toBe(1);
+    expect(marker.endOffset).toBe(5);
   });
 });
 ```
+
+**Nota:** este test depende do pdfkit produzir "Hello" e "World" como content-items separados no page 0 da fixture. Se o pdfjs extractor concatenar os dois em 1 item (pode acontecer dependendo do layout), ajustar a fixture pra forçar 2 items (ex: `doc.fontSize(24).text('Hello', 50, 50);` seguido de `doc.moveDown(2);` antes de `.text('World', 50, 150)`).
 
 - [ ] **Step 2: Implementar binary search**
 
@@ -1213,19 +1532,149 @@ git add src/import/qdpxImporter.ts tests/import/
 
 - [ ] **Step 1: Write round-trip test**
 
+O teste integrado é custoso (precisa stubar App/Vault/models e montar o pipeline completo). Em vez de stubar tudo de novo, reusar os helpers `setupExportScenario` (Task 9) e o mock vault (Task 10). Criar `tests/export/qdpxRoundTrip.pdf.test.ts`:
+
 ```ts
+import { describe, it, expect, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { unzipSync } from 'fflate';
+import { createQdpxZip } from '../../src/export/qdpxExporter';
+import { importQdpxProject } from '../../src/import/qdpxImporter';
+import type { PdfMarker, PdfShapeMarker, PdfFileMetadata } from '../../src/pdf/pdfCodingTypes';
+
 describe('QDPX round-trip — PDF', () => {
-  it('export → import preserva offsets e dims byte-a-byte', async () => {
-    // 1. Setup: dataManager com fileMetadata fake + 2 markers texto + 1 shape
-    // 2. Export QDPX → blob
-    // 3. Import QDPX blob em novo dataManager
-    // 4. Assert:
-    //    - markers novos têm beginIndex/beginOffset iguais aos originais
-    //    - shape novo tem coords normalizadas iguais (within epsilon)
-    //    - fileMetadata foi populado no destino
+  it('export → import preserva offsets e dims', async () => {
+    const pdfBytes = new Uint8Array(readFileSync(resolve(__dirname, '../fixtures/small.pdf')));
+
+    // Fileasset metadata coerente com a fixture small.pdf (page 0 = 595x842 A4 retrato)
+    const fileMetadata: Record<string, PdfFileMetadata> = {
+      'docs/small.pdf': {
+        mtime: 0,
+        pages: [
+          { width: 595, height: 842, textItems: ['Hello', 'World'] },
+          { width: 842, height: 595, textItems: ['Landscape', 'Page'] },
+          { width: 595, height: 842, textItems: ['Unicode: 🎉'] },
+        ],
+      },
+    };
+
+    const originalMarker: PdfMarker = {
+      id: 'm-orig',
+      fileId: 'docs/small.pdf',
+      page: 0,
+      beginIndex: 1,
+      beginOffset: 0,
+      endIndex: 1,
+      endOffset: 5,
+      text: 'World',
+      codes: [{ codeId: 'c1' }],
+      createdAt: 1700000000000,
+      updatedAt: 1700000000000,
+    };
+    const originalShape: PdfShapeMarker = {
+      id: 's-orig',
+      fileId: 'docs/small.pdf',
+      page: 0,
+      shape: 'rect',
+      coords: { type: 'rect', x: 0.1, y: 0.2, w: 0.5, h: 0.3 },
+      codes: [{ codeId: 'c1' }],
+      createdAt: 1700000000000,
+      updatedAt: 1700000000000,
+    };
+
+    // ---- Export ----
+    const srcFiles = new Map<string, Uint8Array>([['docs/small.pdf', pdfBytes]]);
+    const exportApp = {
+      vault: {
+        adapter: {
+          readBinary: vi.fn(async (path: string) => srcFiles.get(path)!.buffer),
+        },
+        readBinary: vi.fn(async (file: any) => srcFiles.get(file.path)!.buffer),
+        getAbstractFileByPath: (path: string) => srcFiles.has(path)
+          ? { path, stat: { mtime: 0, size: srcFiles.get(path)!.length, ctime: 0 } }
+          : null,
+      },
+    } as any;
+    const exportDataManager = {
+      section: (key: string) => key === 'pdf'
+        ? { markers: [originalMarker], shapes: [originalShape], fileMetadata, settings: {} }
+        : {},
+    } as any;
+    const exportRegistry = {
+      getAll: () => [{ id: 'c1', name: 'Test', color: '#f00', parentId: null, childrenOrder: [] }],
+    } as any;
+    const caseVarsReg = { getForFile: () => ({}) } as any;
+
+    const exportResult = await createQdpxZip(
+      { includeSources: true },
+      exportDataManager, exportRegistry, caseVarsReg, exportApp,
+    );
+
+    // ---- Import ----
+    const importVaultFiles = new Map<string, Uint8Array>();
+    const importApp = {
+      vault: {
+        adapter: {
+          writeBinary: async (path: string, data: ArrayBuffer) => {
+            importVaultFiles.set(path, new Uint8Array(data));
+          },
+          write: vi.fn(),
+          mkdir: vi.fn(),
+        },
+        getAbstractFileByPath: (path: string) => importVaultFiles.has(path)
+          ? { path, stat: { mtime: 0, size: importVaultFiles.get(path)!.length, ctime: 0 } }
+          : null,
+        readBinary: async (file: any) => importVaultFiles.get(file.path)!.buffer,
+      },
+    } as any;
+
+    const captured = {
+      markers: [] as PdfMarker[],
+      shapes: [] as PdfShapeMarker[],
+      metadata: {} as Record<string, PdfFileMetadata>,
+    };
+    const importPdfModel = {
+      addMarker: (m: PdfMarker) => captured.markers.push(m),
+      addShapeMarker: (s: PdfShapeMarker) => captured.shapes.push(s),
+      setFileMetadata: (fileId: string, meta: PdfFileMetadata) => {
+        captured.metadata[fileId] = meta;
+      },
+    } as any;
+    const importRegistry = { /* setup mínimo */ } as any;
+
+    // Passar o Uint8Array do zip final — o importer faz unzipSync internamente
+    const qdpxBytes = exportResult.bytes;  // assumindo que createQdpxZip retorna { bytes: Uint8Array, ... }
+    await importQdpxProject(qdpxBytes, {
+      app: importApp,
+      pdfCodingModel: importPdfModel,
+      registry: importRegistry,
+    });
+
+    // ---- Assertions ----
+    expect(captured.markers).toHaveLength(1);
+    const imported = captured.markers[0]!;
+    expect(imported.page).toBe(originalMarker.page);
+    expect(imported.beginIndex).toBe(originalMarker.beginIndex);
+    expect(imported.beginOffset).toBe(originalMarker.beginOffset);
+    expect(imported.endIndex).toBe(originalMarker.endIndex);
+    expect(imported.endOffset).toBe(originalMarker.endOffset);
+
+    expect(captured.shapes).toHaveLength(1);
+    const importedShape = captured.shapes[0]!;
+    expect(importedShape.coords.x).toBeCloseTo(originalShape.coords.x, 2);
+    expect(importedShape.coords.y).toBeCloseTo(originalShape.coords.y, 2);
+    expect(importedShape.coords.w).toBeCloseTo(originalShape.coords.w, 2);
+    expect(importedShape.coords.h).toBeCloseTo(originalShape.coords.h, 2);
+
+    // Metadata foi populado no destino
+    expect(captured.metadata['docs/small.pdf']).toBeDefined();
+    expect(captured.metadata['docs/small.pdf']!.pages).toHaveLength(3);
   });
 });
 ```
+
+**Se a assinatura real de `createQdpxZip` / `importQdpxProject` divergir, ajustar** — o essencial é: export produz bytes, import consome bytes, asserções verificam preservação.
 
 - [ ] **Step 2: Run test**
 
@@ -1256,22 +1705,96 @@ git add tests/export/
 
 Run:
 ```bash
-grep -n "are approximate\|skipped (page dimensions\|text offset mapping not yet supported" src/export/ src/import/
+grep -rn "are approximate\|skipped (page dimensions\|text offset mapping not yet supported" src/export/ src/import/
 ```
 
-Remover cada ocorrência. Se algum warning ainda faz sentido (ex: "PDF sem metadata — exportado degradado"), deixar.
+Remover cada ocorrência. Preservar apenas warnings que ainda refletem comportamento real (ex: "PDF not found", "PDF scanned sem text layer").
 
 - [ ] **Step 2: Atualizar mensagem do `exportModal`**
 
 Ler `src/export/exportModal.ts` e remover/atualizar qualquer texto que diga "PDF offsets aproximados" ou similar (o comportamento melhorou — o texto fica desatualizado).
 
-- [ ] **Step 3: (Opcional) Progress modal no fallback**
+- [ ] **Step 3: Progress modal obrigatório pro fallback de extract on-demand**
 
-Se no export houver PDFs sem `fileMetadata[fileId]`, o exporter hoje só avisa. Ideal seria chamar `extractPdfMetadata` on-demand com progress. **Avaliar se cabe nesta task ou adiar pra polish** — não é bloqueador.
+Spec §3.3 manda: quando o exporter encontra PDF sem `fileMetadata`, extrai on-demand com progress modal `"Preparing N of M PDFs..."`. Isto é requirement, não polish.
 
-Se for atacar agora: criar Modal simples com `"Preparing N of M PDFs..."`, chamar extract sequencial, atualizar DataManager conforme conclui, depois prosseguir com export.
+Criar `src/export/exportProgressModal.ts`:
 
-Se adiar: adicionar TODO no código com referência a esta spec.
+```ts
+import { App, Modal } from 'obsidian';
+
+export interface ProgressReporter {
+  update(message: string): void;
+}
+
+export class ExportProgressModal extends Modal implements ProgressReporter {
+  private messageEl: HTMLElement | null = null;
+  private total: number;
+  private current = 0;
+
+  constructor(app: App, total: number) {
+    super(app);
+    this.total = total;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl('h3', { text: 'Exporting QDPX…' });
+    this.messageEl = contentEl.createEl('p', { text: 'Preparing…' });
+  }
+
+  update(message: string) {
+    this.current += 1;
+    if (this.messageEl) {
+      this.messageEl.textContent = `${message} (${this.current}/${this.total})`;
+    }
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+```
+
+Integração no `exportCommands.ts` (ou onde `createQdpxZip` é chamado pela UI):
+
+```ts
+// Antes de chamar createQdpxZip, contar PDFs sem metadata:
+const pdfData = plugin.dataManager.section('pdf');
+const pdfsNeedingExtract = new Set<string>();
+for (const m of pdfData.markers) {
+  if (!pdfData.fileMetadata[m.fileId]) pdfsNeedingExtract.add(m.fileId);
+}
+for (const s of pdfData.shapes) {
+  if (!pdfData.fileMetadata[s.fileId]) pdfsNeedingExtract.add(s.fileId);
+}
+
+const modal = pdfsNeedingExtract.size > 0
+  ? new ExportProgressModal(plugin.app, pdfsNeedingExtract.size)
+  : null;
+modal?.open();
+
+try {
+  const result = await createQdpxZip(
+    { includeSources: true, progressReporter: modal ?? undefined },
+    plugin.dataManager, plugin.sharedRegistry, plugin.caseVariables, plugin.app,
+  );
+  // ... usar result
+} finally {
+  modal?.close();
+}
+```
+
+E em `createQdpxZip` options type (ajustar a interface existente em `qdpxExporter.ts`):
+
+```ts
+export interface QdpxExportOptions {
+  includeSources?: boolean;
+  progressReporter?: ProgressReporter;  // novo
+}
+```
+
+O `progressReporter.update(...)` já é chamado no bloco PDF (Task 9 Step 3 tem a chamada no fallback).
 
 - [ ] **Step 4: Run full test suite**
 
@@ -1356,9 +1879,9 @@ git push origin main
 |---|---|---|
 | Warnings ativos em `qdpxExporter.ts` | 3 (E1, E2, dims) | 1 (PDF sem metadata, fallback) |
 | Warnings ativos em `qdpxImporter.ts` | 2 (PlainText ignorado, dims default) | 0 |
-| Testes | 1960 | ~1985+ (new: pdfPlainTextBuilder 9, pdfMetadataExtractor 5, model 3, round-trip 2, import 2) |
-| LOC novas aprox. | — | +~450 (módulos + tests) |
-| Commits | — | ~14 |
+| Testes | 1960 | ~1985+ (new: pdfPlainTextBuilder 9, pdfMetadataExtractor 5, model 3, round-trip 1, import 2, export 2) |
+| LOC novas aprox. | — | +~550 (módulos + tests + progress modal) |
+| Commits | — | ~14-16 |
 
 ## Notas finais
 
