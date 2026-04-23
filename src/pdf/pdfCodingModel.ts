@@ -70,6 +70,7 @@ export class PdfCodingModel {
 		this.dataManager.setSection('pdf', {
 			markers: this.markers,
 			shapes: this.shapes,
+			settings: this.settings,
 		});
 	}
 
