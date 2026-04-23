@@ -49,6 +49,29 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 		openPdfCodingPopover(null, model, selectionResult, onRefresh, pos, plugin.app, marker.id, undefined, state);
 	}
 
+	function deinstrumentPdfView(view: any) {
+		const child = view?.viewer?.child;
+		if (!child) return;
+
+		const obs = observers.get(child);
+		if (obs) { obs.stop(); observers.delete(child); }
+
+		const di = drawInteractions.get(child);
+		if (di) { di.stop(); drawInteractions.delete(child); }
+
+		const tb = drawToolbars.get(child);
+		if (tb) { tb.unmount(); drawToolbars.delete(child); }
+
+		const entries = childListeners.get(child);
+		if (entries) {
+			for (const { el, type, fn } of entries) el.removeEventListener(type, fn);
+			childListeners.delete(child);
+		}
+
+		destroyPdfViewState(child.containerEl);
+		instrumentedViewers.delete(child);
+	}
+
 	function cleanupOrphanedObservers() {
 		for (const [child, observer] of observers) {
 			if (child.unloaded) {
@@ -270,6 +293,17 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			}
 		},
 	});
+
+	// Expose instrument/deinstrument to the plugin so the media toggle button
+	// can flip PDF coding on/off in-place (no view swap, no reload).
+	plugin.togglePdfInstrumentation = (view: unknown) => {
+		const child = (view as any)?.viewer?.child;
+		if (!child) return;
+		const shouldBeInstrumented = model.settings.autoOpen;
+		const isInstrumented = instrumentedViewers.has(child);
+		if (shouldBeInstrumented && !isInstrumented) instrumentPdfView(view);
+		else if (!shouldBeInstrumented && isInstrumented) deinstrumentPdfView(view);
+	};
 
 	// ── Listen for PDF views ──
 
