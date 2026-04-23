@@ -173,7 +173,7 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 
 ## 11. Export/Import
 
-> **E1, E2, I2** FEITOS em 2026-04-23 (branch `feat/pdf-text-anchoring`). **I1** ainda pendente (shape markers no import usam default 612x792).
+> **E1, E2, I1, I2** FEITOS em 2026-04-23 (branch `feat/pdf-text-anchoring`). QDPX PDF round-trip completo (text + shape, com dims reais).
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
@@ -182,7 +182,7 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 | E3 | Baixa | Modal de export | Markers CSV nao exportaveis via REFI-QDA (limitacao do formato). Documentado no disclaimer do modal |
 | ~~E4~~ | ~~FEITO (SVG)~~ | `core/imageDimensions.ts` | ~~Util `getImageDimensions` com fallback `createImageBitmap` → `<img>` decode. Gotcha: Blob precisa de MIME type pra SVG (`image/svg+xml`) senão Chromium rejeita silenciosamente por XSS concern. SVG validado round-trip completo.~~ (2026-04-22) |
 | E5 | Won't-fix | HEIC / TIFF / HEIF | Electron não decodifica esses formatos nativamente. Tentativa com `heic2any`/libheif em runtime foi abandonada (intercept falho + artefatos de decode + memory leak do WASM + 1.3MB de bundle). Tentativa com command one-shot de conversão também rejeitada (quebra o fluxo natural "abre e codifica"). Workaround pro usuário: converter externamente no Preview do macOS → Export As PNG antes de trazer pro vault. Se aparecer demanda consistente em produção, avaliar decoder via worker thread separado. |
-| I1 | Media | `qdpxImporter.ts` | PDF **shape** selections no import ainda usam page size default 612x792 (US Letter). Text selections resolvidas via I2. Shape: adicionar segundo pass que carregue PDF do vault destino via `loadPdfExportData` pra obter dims reais |
+| ~~I1~~ | ~~Media~~ | ~~`qdpxImporter.ts`~~ | ~~PDF shape selections usavam 612x792 default~~ **FEITO 2026-04-23** — `createMarkersForSource` carrega `loadPdfExportData` 1x quando a source tem PDFSelection; `createPdfMarker` usa `pdfDims[sel.page]` com fallback 612x792 se load falha (warning). 3 unit tests em `tests/import/qdpxImport.shapeDims.test.ts` |
 | ~~I2~~ | ~~Media~~ | ~~`qdpxImporter.ts`~~ | ~~PlainTextSelection ignoradas no import~~ **FEITO 2026-04-23** — `extractAnchorFromPlainText` cria marker com `{text, page}` + indices placeholder (0,0,0,0). `resolvePendingIndices` popula indices via DOM text-search no primeiro render do PDF. Render normal pinta highlight |
 | ~~I3~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`createTextMarker` no first pass era dead code — removido. Text markers criados exclusivamente via `createTextMarkers` (plural) em pass dedicado.~~ (2026-04-22) |
 | ~~I4~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`guidMap` dual-purpose substituído por interface `GuidResolver` com 3 Maps tipados: `codes`, `sources`, `selections`. `applyLinks` resolve origin/target em ordem explícita (code first, depois marker). `CodebookResult.guidMap` renomeado pra `codeGuidMap`. `importStandaloneMemos` perdeu param dead.~~ (2026-04-22) |

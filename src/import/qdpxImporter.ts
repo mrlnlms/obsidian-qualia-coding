@@ -15,6 +15,7 @@ import { parseXml, getChildElements, getAttr, getNumAttr, getTextContent, getAll
 import { offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from './coordConverters';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
 import { extractAnchorFromPlainText } from '../pdf/extractAnchorFromPlainText';
+import { loadPdfExportData } from '../pdf/pdfExportData';
 
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import type { VariableValue } from '../core/caseVariables/caseVariablesTypes';
@@ -555,16 +556,26 @@ async function createMarkersForSource(
   let count = 0;
 
   // Pre-load PDF plain text (from the Representation file in the zip) if this
-  // is a PDF source with any text markers. Shapes don't need plain text but
-  // may need page dims — we derive those from a default for now.
+  // is a PDF source with any text markers. Shapes need real page dims — load
+  // them via pdfjs from the vault file when any PDFSelection is present.
   let pdfPlainText: string | null = null;
   let pdfPageStartOffsets: number[] | null = null;
+  let pdfDims: Record<number, { width: number; height: number }> | null = null;
   if (src.type === 'pdf') {
     const reprPath = resolveInternalPath(src.plainTextPath);
     const reprData = reprPath ? zipFiles[reprPath] : undefined;
     if (reprData) {
       pdfPlainText = strFromU8(reprData);
       pdfPageStartOffsets = computePageStartOffsets(pdfPlainText);
+    }
+    const hasShapes = src.selections.some(s => s.type === 'PDFSelection');
+    if (hasShapes) {
+      try {
+        const data = await loadPdfExportData(app.vault, filePath);
+        pdfDims = data.pageDims;
+      } catch (err) {
+        result.warnings.push(`PDF ${filePath}: failed to load page dims for shape markers, using US Letter default (${(err as Error).message})`);
+      }
     }
   }
 
@@ -580,7 +591,7 @@ async function createMarkersForSource(
         // 'text' is handled in a separate batch after sources are extracted
         // (see createTextMarkers below — needs file content for offset→lineCh).
         case 'pdf':
-          count += createPdfMarker(sel, filePath, codes, memo, ts, dataManager, result, pdfPlainText, pdfPageStartOffsets);
+          count += createPdfMarker(sel, filePath, codes, memo, ts, dataManager, result, pdfPlainText, pdfPageStartOffsets, pdfDims);
           break;
         case 'picture':
           count += await createImageMarker(sel, filePath, codes, memo, ts, app, dataManager, result);
@@ -607,7 +618,7 @@ async function createMarkersForSource(
   return count;
 }
 
-function createPdfMarker(
+export function createPdfMarker(
   sel: ParsedSelection,
   filePath: string,
   codes: CodeApplication[],
@@ -617,6 +628,7 @@ function createPdfMarker(
   result: ImportResult,
   pdfPlainText: string | null,
   pdfPageStartOffsets: number[] | null,
+  pdfDims: Record<number, { width: number; height: number }> | null,
 ): number {
   const pdfData = dataManager.section('pdf');
 
@@ -659,9 +671,12 @@ function createPdfMarker(
         sel.secondX === undefined || sel.secondY === undefined || sel.page === undefined) {
       return 0;
     }
-    // We don't know page dimensions at import time. Store as approximate.
-    // For now, use default PDF page size 612x792 (US Letter).
-    const coords = pdfRectToNormalized(sel.firstX, sel.firstY, sel.secondX, sel.secondY, 612, 792);
+    // Use real page dims loaded from the PDF when available; fall back to
+    // US Letter 612x792 if dims couldn't be loaded for this page.
+    const pageDim = pdfDims?.[sel.page];
+    const pageWidth = pageDim?.width ?? 612;
+    const pageHeight = pageDim?.height ?? 792;
+    const coords = pdfRectToNormalized(sel.firstX, sel.firstY, sel.secondX, sel.secondY, pageWidth, pageHeight);
     const marker: PdfShapeMarker = {
       id: `import_${sel.guid}`,
       fileId: filePath,

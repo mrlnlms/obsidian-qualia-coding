@@ -65,11 +65,11 @@ Sessão única pra matar dívidas de export e itens do ROADMAP no mesmo contexto
 | ROADMAP #15 | PNG/PDF Dashboard composite | PENDENTE |
 | ~~BACKLOG §11 E1~~ | ~~QDPX offsets de texto PDF aproximados~~ | ✅ **FEITO 2026-04-23** — `resolveMarkerOffsets` usa plainText consolidado via pdfjs + indexOf (com fallback whitespace-normalize). Offsets absolutos em codepoints |
 | ~~BACKLOG §11 E2~~ | ~~Shape markers PDF ignorados no export~~ | ✅ **FEITO 2026-04-23** — `loadPdfExportData` extrai dims via pdfjs headless no momento do export |
-| BACKLOG §11 I1 | PDF shape selections no import usam 612x792 (US Letter) | Text selections resolvidas (ver I2). Shape dims ainda usam fallback — precisa de segundo pass no importer pra extrair dims via pdfjs |
+| ~~BACKLOG §11 I1~~ | ~~PDF shape selections no import usam 612x792 (US Letter)~~ | ✅ **FEITO 2026-04-23** — `createMarkersForSource` carrega `loadPdfExportData` 1x quando a source tem PDFSelection; `createPdfMarker` aplica `pdfDims[sel.page]` com fallback 612x792 + warning se load falha |
 | ~~BACKLOG §11 I2~~ | ~~PDF text selections (PlainTextSelection) ignoradas no import~~ | ✅ **FEITO 2026-04-23** — `extractAnchorFromPlainText` cria marker com `{text, page}` + indices placeholder. `resolvePendingIndices` popula indices via DOM text-search no primeiro render |
 | BACKLOG §17 | Multi-tab spreadsheet export (spin-off #8 Source Comparison) | Export Analytics com sheet por source type (markdown, pdf, csv, image, audio, video) + sheet summary. Usa `xlsx` ou múltiplos CSVs zipados. ~1-2h |
 
-**Dependência compartilhada**: cache de dimensões de página PDF (resolve E2 e I1 de uma vez).
+**Dependência compartilhada**: ~~cache de dimensões de página PDF~~ resolvido — `loadPdfExportData` usa pdfjs headless direto do vault, sem cache persistido.
 
 ### 3. Parquet lazy loading
 
@@ -337,7 +337,7 @@ Histórico de features entregues. Mantido como registro, não reabrir.
 - **§11.1 Round-trip integrity** — 2026-04-21. 4 bugs críticos no export/import QDPX corrigidos (GUID mismatch, frontmatter duplicado, `vault.create` não persistindo, models sem sync pós-import)
 - **§16 Audio/Video scroll persistence** — 2026-04-22 (merge `8d38939`). Mirror `lastKnownScroll` + `setAutoCenter(false)` durante restore
 - **§10 Toggle Media Coding** — 2026-04-23. 4 mídias (Image/Audio/Video/PDF) com `autoOpen` + `showButton` simétricos, toggle per-`(leaf, arquivo)` via `pinnedFileByLeaf`, PDF usa instrument/deinstrument in-place. Higiene cosmética (file-menu rename, showButton live, detach actions no onunload) incluída
-- **§11 QDPX PDF round-trip** — 2026-04-23. Branch `feat/pdf-text-anchoring`. Export de text markers usa plainText consolidado via pdfjs (`pdfPlainText.buildPlainText`) + `resolveMarkerOffsets` (indexOf com fallback whitespace-normalize). Import cria marker com `{text, page}` + indices placeholder; `resolvePendingIndices` popula indices via DOM text-search no primeiro render. Shape dims reais via `loadPdfExportData`. Bug latente `PdfCodingModel.save()` sem settings também fixado
+- **§11 QDPX PDF round-trip** — 2026-04-23. Branch `feat/pdf-text-anchoring`. Export de text markers usa plainText consolidado via pdfjs (`pdfPlainText.buildPlainText`) + `resolveMarkerOffsets` (indexOf com fallback whitespace-normalize). Import cria marker com `{text, page}` + indices placeholder; `resolvePendingIndices` popula indices via DOM text-search no primeiro render. Shape dims reais via `loadPdfExportData` tanto no export (E2) quanto no import (I1, `createMarkersForSource` chama 1x quando a source tem PDFSelection; fallback 612x792 + warning se load falha). Bug latente `PdfCodingModel.save()` sem settings também fixado
 - **§12 Codebook Panel polish (K1-K3)** — 2026-04-22/23. K1 autoReveal removido (órfão), K2 drag-drop visual completo, K3 virtual scroll com row recycling
 - **§15 Case Variables edge cases** — 2026-04-22. Emoji/unicode, valor vazio, hot-reload com popover, multi-pane sync
 - **§13 Migração Image/Audio/Video para `FileView`** — 2026-04-22. Lifecycle limpo via `onLoadFile`/`onUnloadFile`. `registerFileIntercept` mantido (core-native extensions rejeitam `registerExtensions`)
