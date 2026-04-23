@@ -73,6 +73,16 @@ src/
       dragManager.ts         — ciclo de vida do drag: start, move (throttled), end, position update
       marginPanelLayout.ts   — layout algorithm puro: assignColumns, resolveLabels (reutilizavel)
   pdf/                       — PDF viewer + coding (fabric.js)
+    pdfCodingModel.ts        — model CRUD (indices DOM-alinhados: beginIndex/endIndex/offsets)
+    selectionCapture.ts      — captura seleção do viewer → indices via hitTestTextLayer
+    highlightRenderer.ts     — pinta rects via textDivs + placeRectInPage (PDF coords)
+    dragHandles.ts           — handle drag: hitTestTextLayer → updateMarkerRange
+    pageObserver.ts          — lifecycle: textlayerrendered → renderPage (+ resolvePendingIndices hook pra imports)
+    pdfPlainText.ts          — buildPlainText(doc) → plainText consolidado + pageStartOffsets (export)
+    pdfExportData.ts         — loadPdfExportData: plainText + dims por página em 1 pass (export)
+    resolveMarkerOffsets.ts  — marker.text → offset absoluto no plainText (export, fallback whitespace-normalize)
+    extractAnchorFromPlainText.ts — slice do plainText → {text, page 1-based} (import)
+    resolvePendingIndices.ts — text-search no DOM .textLayerNode → indices (import runtime resolve)
   csv/                       — CSV/Parquet engine (ag-grid, papaparse, hyparquet)
     csvCodingModel.ts        — model CRUD para markers de segmento e row
     csvCodingTypes.ts        — SegmentMarker, RowMarker, CsvMarker
@@ -162,7 +172,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1960 testes em 94 suites (Vitest + jsdom)
+- `npm run test` — 1987 testes em 98 suites (Vitest + jsdom)
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView

@@ -173,17 +173,17 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 
 ## 11. Export/Import
 
-> **E1, E2, I1, I2** agrupados em sessão única **Import/Export** no ROADMAP (frente #2) junto com #15 (JSON full + PNG Dashboard) e Multi-tab spreadsheet export. Pré-req compartilhado: cache de dimensões de página no PDF viewer.
+> **E1, E2, I2** FEITOS em 2026-04-23 (branch `feat/pdf-text-anchoring`). **I1** ainda pendente (shape markers no import usam default 612x792).
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|
-| E1 | Media | `qdpxExporter.ts` | Offsets de texto PDF no QDPX sao aproximados (por content-item, nao codepoints absolutos). Requer extracao completa do texto PDF para offsets precisos. Warning exibido ao usuario |
-| E2 | Media | `qdpxExporter.ts` | Shape markers de PDF ignorados no export — dimensoes de pagina nao disponiveis em tempo de export. Solucao: cachear dimensoes no PDF viewer durante visualizacao |
+| ~~E1~~ | ~~Media~~ | ~~`qdpxExporter.ts`~~ | ~~Offsets de texto PDF aproximados~~ **FEITO 2026-04-23** — `pdfPlainText.buildPlainText` consolida texto via pdfjs headless; `resolveMarkerOffsets` resolve `marker.text` em offsets absolutos codepoint-based (com fallback whitespace-normalize). Ver TECHNICAL-PATTERNS §21 |
+| ~~E2~~ | ~~Media~~ | ~~`qdpxExporter.ts`~~ | ~~Shape markers PDF ignorados~~ **FEITO 2026-04-23** — `loadPdfExportData` extrai dims reais via pdfjs headless no momento do export. Não precisa cache em runtime |
 | E3 | Baixa | Modal de export | Markers CSV nao exportaveis via REFI-QDA (limitacao do formato). Documentado no disclaimer do modal |
 | ~~E4~~ | ~~FEITO (SVG)~~ | `core/imageDimensions.ts` | ~~Util `getImageDimensions` com fallback `createImageBitmap` → `<img>` decode. Gotcha: Blob precisa de MIME type pra SVG (`image/svg+xml`) senão Chromium rejeita silenciosamente por XSS concern. SVG validado round-trip completo.~~ (2026-04-22) |
 | E5 | Won't-fix | HEIC / TIFF / HEIF | Electron não decodifica esses formatos nativamente. Tentativa com `heic2any`/libheif em runtime foi abandonada (intercept falho + artefatos de decode + memory leak do WASM + 1.3MB de bundle). Tentativa com command one-shot de conversão também rejeitada (quebra o fluxo natural "abre e codifica"). Workaround pro usuário: converter externamente no Preview do macOS → Export As PNG antes de trazer pro vault. Se aparecer demanda consistente em produção, avaliar decoder via worker thread separado. |
-| I1 | Media | `qdpxImporter.ts` | PDF text selections no import usam page size default 612x792 (US Letter) — dimensoes reais do PDF nao disponiveis em tempo de import. Marker shape coords aproximadas |
-| I2 | Media | `qdpxImporter.ts` | PDF text selections (PlainTextSelection dentro de PDFSource) ignoradas com warning — mapeamento offset→spanIndex nao implementado |
+| I1 | Media | `qdpxImporter.ts` | PDF **shape** selections no import ainda usam page size default 612x792 (US Letter). Text selections resolvidas via I2. Shape: adicionar segundo pass que carregue PDF do vault destino via `loadPdfExportData` pra obter dims reais |
+| ~~I2~~ | ~~Media~~ | ~~`qdpxImporter.ts`~~ | ~~PlainTextSelection ignoradas no import~~ **FEITO 2026-04-23** — `extractAnchorFromPlainText` cria marker com `{text, page}` + indices placeholder (0,0,0,0). `resolvePendingIndices` popula indices via DOM text-search no primeiro render do PDF. Render normal pinta highlight |
 | ~~I3~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`createTextMarker` no first pass era dead code — removido. Text markers criados exclusivamente via `createTextMarkers` (plural) em pass dedicado.~~ (2026-04-22) |
 | ~~I4~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`guidMap` dual-purpose substituído por interface `GuidResolver` com 3 Maps tipados: `codes`, `sources`, `selections`. `applyLinks` resolve origin/target em ordem explícita (code first, depois marker). `CodebookResult.guidMap` renomeado pra `codeGuidMap`. `importStandaloneMemos` perdeu param dead.~~ (2026-04-22) |
 | ~~I6~~ | ~~FEITO~~ | `qdpxImporter.ts` | ~~`resolveInternalPath` agora exportado + 5 unit tests cobrindo `internal://`, `relative://` (plain + nested), `undefined`, strings sem prefix válido. Contrato da função validado — sources com path relativo de exports de outros softwares são resolvidos corretamente.~~ (2026-04-22) |

@@ -1406,6 +1406,51 @@ const onDrop = (e: DragEvent) => {
 
 ---
 
+## 21. Text-anchor pra portabilidade cross-vault (QDPX PDF round-trip)
+
+### Problema
+
+Runtime PDF coding usa indices DOM-alinhados (`beginIndex/beginOffset/endIndex/endOffset` sobre `.textLayerNode`) — estáveis na sessão do viewer, **não portáveis** entre vaults. QDPX pede offsets em codepoints no PlainText consolidado. Tentar refatorar o runtime pra text-anchor quebra o render no DOM real do Obsidian (nested `.textLayerNode`, que jsdom não cobre).
+
+### Pattern
+
+Dois universos coexistindo: runtime index-based (intocado); export/import em text-space.
+
+**Export** (`resolveMarkerOffsets(plainText, pageStartOffsets, marker)`):
+1. `pageText.indexOf(marker.text)` direto. Se unique, done.
+2. Fallback: normalize whitespace (`\s+` → ` `) em ambos os lados, mapeia offsets de volta ao plainText original. Lida com PDFs onde `pdfjs items.join(' ')` gera double spaces que DOM não tinha.
+3. `ambiguous: true` quando múltiplas ocorrências (warning + primeira).
+
+**Import** (`extractAnchorFromPlainText` → placeholder → runtime resolve):
+1. Marker criado com `{text, page}` do slice de plainText.
+2. Indices = `(0,0,0,0)` sentinela ("pending").
+3. `resolvePendingIndices(pageEl, text)` invocado por `pageObserver.renderPage` no PRIMEIRO render do PDF. Usa mesmo fallback whitespace-normalize. Popula indices + save silent. Render normal pinta.
+
+### Gotchas
+
+- **Page base**: Obsidian viewer usa `data-page-number` 1-based; `pageStartOffsets` é 0-based. Converta nas bordas export/import.
+- **Whitespace**: trim cada `item.str` antes de join no `buildPlainText` (pdfjs retorna items com padding em alguns PDFs).
+- **Nested `.textLayerNode`**: Obsidian 1.8+ tem char-level spans dentro dos outer. `querySelectorAll('.textLayerNode')` pega outer + inner duplicados — filtre por "sem ancestral `.textLayerNode`".
+- **save() sem settings**: `PdfCodingModel.save()` sobrescreve section — inclua `settings: this.settings` senão perde config.
+- **Sentinel `(0,0,0,0)` é seguro**: selections nunca produzem range vazio válido (capture rejeita).
+
+### Quando aplicar
+
+Qualquer feature de interoperabilidade (export/import formato externo) onde dados runtime são DOM-dependentes. **Não refatore o runtime** se ele funciona — adicione caminho paralelo de resolução em text-space. Ver `memory/feedback_dont_refactor_working_code.md`.
+
+### Onde está implementado
+
+- `src/pdf/pdfPlainText.ts` — buildPlainText
+- `src/pdf/pdfExportData.ts` — orquestrador de export
+- `src/pdf/resolveMarkerOffsets.ts` — text → offset absoluto
+- `src/pdf/extractAnchorFromPlainText.ts` — offset absoluto → text + page
+- `src/pdf/resolvePendingIndices.ts` — runtime DOM text-search
+- `src/pdf/pageObserver.ts` (renderPage hook) — invoca resolver antes de render
+
+Implementado 2026-04-23, branch `feat/pdf-text-anchoring`.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

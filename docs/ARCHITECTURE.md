@@ -401,6 +401,24 @@ Módulo `src/export/` implementa export nos formatos QDC (codebook) e QDPX (proj
 - **importCommands.ts**: `import-qdpx`, `import-qdc` na palette + botão analytics
 - **Magnitude round-trip**: Export codifica `CodeApplication.magnitude` como Note `[Magnitude: X]` via `buildCodingXml(codes, guidMap, createdAt, notes)`. Import detecta prefixo e reconstrói magnitude no `CodeApplication`
 
+**PDF text round-trip** (2026-04-23):
+
+O PDF tem um desafio específico: runtime usa `beginIndex/beginOffset/endIndex/endOffset` alinhados com `.textLayerNode` do viewer (que são DOM-specific), mas QDPX espera `startPosition/endPosition` em codepoints no PlainText consolidado. Solução em 3 módulos novos (export) + 2 (import):
+
+Export pipeline (`loadPdfExportData` → `resolveMarkerOffsets`):
+1. `src/pdf/pdfExportData.loadPdfExportData(vault, filePath)` — carrega PDF via `window.pdfjsLib` headless, extrai dims por página E roda `buildPlainText`
+2. `src/pdf/pdfPlainText.buildPlainText(doc)` — concatena `getTextContent().items.str` com `\f` entre páginas. Strip whitespace leading/trailing de cada item pra evitar double-spaces
+3. `src/pdf/resolveMarkerOffsets(plainText, pageStartOffsets, marker)` — tenta `indexOf` exato do `marker.text` na página. Fallback: normaliza whitespace em ambos os lados (`\s+` → ` `) e busca na versão normalizada, mapeando offsets de volta pro plainText original. Sinaliza `ambiguous: true` quando text aparece múltiplas vezes (warning mas exporta primeira ocorrência)
+
+Import pipeline (`extractAnchorFromPlainText` → placeholder + runtime resolve):
+1. `src/pdf/extractAnchorFromPlainText(plainText, pageStartOffsets, startPos, endPos)` — retorna `{text, page}` (page 1-based). Chamado de `qdpxImporter.createPdfMarker`
+2. Marker criado com `text` preservado + indices placeholder (0,0,0,0)
+3. `src/pdf/resolvePendingIndices(pageEl, text)` — invocado por `pageObserver.renderPage` no primeiro render do PDF. Faz text-search no DOM `.textLayerNode`, popula indices, salva silent. Depois render normal pinta highlight
+
+**Convenção de página**: `marker.page` é 1-based (vem de `data-page-number` do viewer). `pageStartOffsets` é 0-based. Export/import convertem nas bordas.
+
+**Why:** Caminho runtime (render/capture/drag) permanece index-based e intocado. Anchor em text só vive no lado export/import — permite round-trip robusto sem mudar o schema do marker. Ver `memory/feedback_dont_refactor_working_code.md`.
+
 ---
 
 ## 6. Case Variables
