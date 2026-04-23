@@ -70,11 +70,9 @@ export async function performToggleCommand(plugin: QualiaCodingPlugin, view: Fil
 
 	const openInNewTab = plugin.dataManager.section('general').openToggleInNewTab;
 	const leaf = openInNewTab ? plugin.app.workspace.getLeaf('tab') : view.leaf;
-	// Suppress the single active-leaf-change dispatch triggered by this swap,
-	// so the intercept doesn't immediately pull the user back when autoOpen=true.
-	// After that, the intercept resumes normal behavior — the setting is the
-	// source of truth; the button is a one-shot override.
-	markLeafHandled(leaf);
+	// Pin this (leaf, file) so the intercept respects the manual swap. The pin
+	// auto-releases if the user opens a different file in the same leaf.
+	markLeafHandled(leaf, file.path);
 	await leaf.setViewState({ type: target, state: { file: file.path } });
 	plugin.app.workspace.revealLeaf(leaf);
 }

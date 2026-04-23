@@ -68,31 +68,32 @@ export function registerFileRename(rule: FileRenameRule): void {
 	renameRules.push(rule);
 }
 
-/** Clear all registered rules. Call on plugin unload to prevent accumulation on hot-reload. */
+/** Clear all registered rules and pinned leaves. Call on plugin unload to prevent accumulation on hot-reload. */
 export function clearFileInterceptRules(): void {
 	rules.length = 0;
 	renameRules.length = 0;
+	pinnedFileByLeaf = new WeakMap();
 }
 
 /**
- * Marks leaves whose next active-leaf-change should be ignored by the intercept.
- * Used by the media toggle button: the swap itself would otherwise dispatch an
- * active-leaf-change that immediately re-intercepts back to coding view (loop).
- * One-shot: cleared on first hit.
+ * Per-leaf override: when the user manually swaps view type (via toggle button
+ * or command), we remember the file path they're now "pinned" on for that leaf.
+ * The intercept respects this pin and won't re-intercept the same (leaf, file).
  *
- * Semantics: the setting is the source of truth. autoOpen=true means "open in
- * coding view". The button is a quick ad-hoc override for the current action
- * only — subsequent opens of the same or any other file respect the setting.
+ * The pin is scoped to (leaf, file). Opening a DIFFERENT file in the same leaf
+ * releases the pin and the intercept resumes normal autoOpen behavior.
+ *
+ * Reset on hot-reload via clearFileInterceptRules() so stale entries don't
+ * survive a plugin disable/enable cycle.
  */
-const ignoreNextLeafChange = new WeakSet<object>();
+let pinnedFileByLeaf = new WeakMap<object, string>();
 
 /**
- * Suppress the next intercept dispatch for this leaf. Call immediately before
- * `leaf.setViewState` when manually swapping view type, so the event triggered
- * by the swap itself doesn't drag the user back.
+ * Pin the current (leaf, file) as user-overridden. The next active-leaf-change
+ * on this same leaf+file will be ignored by the intercept.
  */
-export function markLeafHandled(leaf: object): void {
-	ignoreNextLeafChange.add(leaf);
+export function markLeafHandled(leaf: object, filePath: string): void {
+	pinnedFileByLeaf.set(leaf, filePath);
 }
 
 export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
@@ -108,12 +109,6 @@ export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 		plugin.app.workspace.on('active-leaf-change', (leaf) => {
 			if (!leaf) return;
 
-			// One-shot suppression for manual view swaps (toggle button / command).
-			if (ignoreNextLeafChange.has(leaf)) {
-				ignoreNextLeafChange.delete(leaf);
-				return;
-			}
-
 			const viewType = leaf.view.getViewType();
 
 			for (const rule of rules) {
@@ -124,6 +119,10 @@ export function setupFileInterceptor(plugin: QualiaCodingPlugin): void {
 					: undefined;
 				const filePath = resolveLeafFilePath(vs.state?.file, viewFilePath);
 				if (!filePath) continue;
+
+				// If the user has pinned this (leaf, file) via a manual swap, respect it.
+				// Opening a different file in the same leaf releases the pin automatically.
+				if (pinnedFileByLeaf.get(leaf) === filePath) continue;
 
 				// Extension + guard checks
 				const ext = filePath.split('.').pop()?.toLowerCase();
