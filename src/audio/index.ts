@@ -2,10 +2,11 @@
  * Audio engine registration — called from main.ts.
  */
 
-import { TFile } from 'obsidian';
+import { TFile, FileView } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
+import { performToggleCommand } from '../core/mediaToggleButton';
 import { AudioCodingModel } from './audioCodingModel';
 import { AudioView, AUDIO_VIEW_TYPE, AUDIO_EXTENSIONS } from './audioView';
 
@@ -44,14 +45,18 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 	});
 	plugin.registerEvent(fileMenuRef);
 
-	// Command: open current audio file
+	// Command: toggle audio coding view
 	plugin.addCommand({
-		id: 'open-audio-coding',
-		name: 'Open current audio in Audio Coding',
+		id: 'toggle-audio-coding',
+		name: 'Toggle audio coding',
 		checkCallback: (checking) => {
 			const file = plugin.app.workspace.getActiveFile();
 			if (!file || !AUDIO_EXTENSIONS.has(file.extension.toLowerCase())) return false;
-			if (!checking) openAudioView(plugin, model, file);
+			if (!checking) {
+				const view = plugin.app.workspace.activeLeaf?.view;
+				if (view instanceof FileView) void performToggleCommand(plugin, view, 'audio');
+				else openAudioView(plugin, model, file);
+			}
 			return true;
 		},
 	});

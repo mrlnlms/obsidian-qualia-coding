@@ -2,10 +2,11 @@
  * Image engine registration — called from main.ts.
  */
 
-import { TFile } from 'obsidian';
+import { TFile, FileView } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
+import { performToggleCommand } from '../core/mediaToggleButton';
 import { ImageCodingModel } from './imageCodingModel';
 import { ImageCodingView, IMAGE_CODING_VIEW_TYPE, IMAGE_EXTENSIONS } from './views/imageView';
 
@@ -30,13 +31,15 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 
 	// Command: open image in coding view
 	plugin.addCommand({
-		id: 'open-image-coding',
-		name: 'Open image in coding view',
+		id: 'toggle-image-coding',
+		name: 'Toggle image coding',
 		checkCallback: (checking) => {
 			const file = plugin.app.workspace.getActiveFile();
 			if (!file || !IMAGE_EXTENSIONS.has(file.extension.toLowerCase())) return false;
 			if (!checking) {
-				openImageCodingView(plugin, file);
+				const view = plugin.app.workspace.activeLeaf?.view;
+				if (view instanceof FileView) void performToggleCommand(plugin, view, 'image');
+				else openImageCodingView(plugin, file);
 			}
 			return true;
 		},

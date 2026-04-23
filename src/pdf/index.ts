@@ -1,4 +1,4 @@
-import { TFile, Notice } from 'obsidian';
+import { TFile, Notice, FileView } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { registerFileRename } from '../core/fileInterceptor';
@@ -13,6 +13,7 @@ import { closeActivePopover } from '../core/baseCodingMenu';
 import type { PDFViewerChild } from './pdfTypings';
 import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
 import { getPdfViewState, destroyPdfViewState, type PdfViewState } from './pdfViewState';
+import { performToggleCommand } from '../core/mediaToggleButton';
 
 export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistration<PdfCodingModel> {
 	// Use shared registry from plugin (single instance for all engines)
@@ -291,6 +292,20 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			if (!model.undo()) {
 				new Notice('Nothing to undo.');
 			}
+		},
+	});
+
+	plugin.addCommand({
+		id: 'toggle-pdf-coding',
+		name: 'Toggle PDF coding',
+		checkCallback: (checking) => {
+			const file = plugin.app.workspace.getActiveFile();
+			if (!file || file.extension.toLowerCase() !== 'pdf') return false;
+			if (!checking) {
+				const view = plugin.app.workspace.activeLeaf?.view;
+				if (view instanceof FileView) void performToggleCommand(plugin, view, 'pdf');
+			}
+			return true;
 		},
 	});
 

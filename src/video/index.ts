@@ -2,10 +2,11 @@
  * Video engine registration — called from main.ts.
  */
 
-import { TFile } from 'obsidian';
+import { TFile, FileView } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EngineRegistration } from '../core/types';
 import { registerFileIntercept, registerFileRename } from '../core/fileInterceptor';
+import { performToggleCommand } from '../core/mediaToggleButton';
 import { VideoCodingModel } from './videoCodingModel';
 import { VideoView, VIDEO_VIEW_TYPE, VIDEO_EXTENSIONS } from './videoView';
 
@@ -42,14 +43,18 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 	});
 	plugin.registerEvent(fileMenuRef);
 
-	// Command: open current video file
+	// Command: toggle video coding view
 	plugin.addCommand({
-		id: 'open-video-coding',
-		name: 'Open current video in Video Coding',
+		id: 'toggle-video-coding',
+		name: 'Toggle video coding',
 		checkCallback: (checking) => {
 			const file = plugin.app.workspace.getActiveFile();
 			if (!file || !VIDEO_EXTENSIONS.has(file.extension.toLowerCase())) return false;
-			if (!checking) openVideoView(plugin, file);
+			if (!checking) {
+				const view = plugin.app.workspace.activeLeaf?.view;
+				if (view instanceof FileView) void performToggleCommand(plugin, view, 'video');
+				else openVideoView(plugin, file);
+			}
 			return true;
 		},
 	});
