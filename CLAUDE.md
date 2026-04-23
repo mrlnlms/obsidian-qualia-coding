@@ -51,6 +51,10 @@ src/
     imageDimensions.ts       — getImageDimensions com fallback createImageBitmap → <img> (SVG via MIME map)
     magnitudeRange.ts        — generateContinuousRange puro (decimais inferidos do step, safety cap)
     drawToolbarFactory.ts    — factory compartilhada de toolbar drawing (PDF + Image)
+    mediaViewTypes.ts        — constantes isoladas de view type (sem imports Obsidian, testável em jsdom)
+    viewToggleHelpers.ts     — lógica pura: resolveToggleTarget, isMediaViewType
+    mediaToggleButton.ts     — injeção do botão `replace-all` no header + performToggleCommand (4 mídias)
+    fileInterceptor.ts       — intercept unificado + pinnedFileByLeaf pra respeitar swap manual
     caseVariables/           — Case Variables: propriedades tipadas por arquivo (mixed-methods)
       caseVariablesTypes.ts      — PropertyType, VariableValue, CaseVariablesSection, OBSIDIAN_RESERVED
       obsidianInternalsApi.ts    — encapsula metadataTypeManager do Obsidian (API interna)
@@ -158,7 +162,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1949 testes em 93 suites (Vitest + jsdom)
+- `npm run test` — 1960 testes em 94 suites (Vitest + jsdom)
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView

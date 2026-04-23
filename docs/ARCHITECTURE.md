@@ -46,9 +46,31 @@ Cada um tem um `CodingModel` próprio mas **todos** implementam a interface `Sid
 | PDF | (viewer nativo) | Instrumentação via MutationObserver | Reusa o viewer nativo do Obsidian |
 | Image, Audio, Video | `FileView` custom | `registerFileIntercept` (active-leaf-change) | Obsidian já trata nativamente png/mp3/mp4; `registerExtensions` joga exceção nessas ext |
 
-**Regra**: NUNCA usar `registerExtensions` para `png/jpg/mp3/mp4/webm/...` — Obsidian já tem handler nativo e joga `Error: Attempting to register an existing file extension`, quebrando o plugin no onload. Image mantém setting `autoOpenImages` pra permitir opt-out do interceptor (abre no viewer nativo).
+**Regra**: NUNCA usar `registerExtensions` para `png/jpg/mp3/mp4/webm/...` — Obsidian já tem handler nativo e joga `Error: Attempting to register an existing file extension`, quebrando o plugin no onload.
 
 **FileView lifecycle:** as 4 views custom (CSV, Image, Audio, Video) estendem `FileView`. Ao `setViewState({type, state: {file}})` — seja por user click, command, interceptor ou restore — Obsidian dispara automaticamente `onLoadFile(file)` / `onUnloadFile(file)`. Views usam `this.file: TFile` padrão (sem campos custom tipo `currentFile`).
+
+### Media Opening Toggle (Image/Audio/Video/PDF)
+
+Cada uma das 4 mídias tem 2 settings simétricas no namespace do engine:
+
+- `autoOpen` (default `false`) — abre em Coding View (ou, pro PDF, instrumenta). Quando `false`, cai no viewer nativo do Obsidian sem decoração do plugin.
+- `showButton` (default `true`) — adiciona botão `replace-all` no header via `view.addAction`, que alterna entre os dois modos.
+
+Setting global `general.openToggleInNewTab` (default `false`) controla se o toggle via botão/command substitui a aba atual ou abre em nova. Não se aplica ao PDF (toggle é sempre in-place).
+
+**Assimetria arquitetural escondida do usuário:**
+- Image/Audio/Video têm views custom → toggle faz `leaf.setViewState` entre tipo nativo (`image`, `audio`, `video`) e tipo coding (`qualia-image-coding`, `qualia-audio-view`, `qualia-video-view`).
+- PDF não tem view custom — sempre o PDF viewer nativo do Obsidian. Toggle liga/desliga instrumentação (observer + decorators + drawing) in-place via `plugin.togglePdfInstrumentation(view)`, exposto por `src/pdf/index.ts`. Scroll e página preservados, sem reload.
+
+**Intercept pin per (leaf, file):** com `autoOpen=true`, o interceptor re-intercepta `active-leaf-change`. Quando o user toggla manualmente, o `markLeafHandled(leaf, filePath)` registra o pin em `pinnedFileByLeaf` — o interceptor respeita aquele par `(leaf, file)` até o user abrir arquivo diferente. Pin é resetado no `clearFileInterceptRules` (onunload) pra não sobreviver hot-reload.
+
+**Commands padronizados:** `toggle-image-coding` / `toggle-audio-coding` / `toggle-video-coding` / `toggle-pdf-coding` — 4 commands bidirecionais, mesma lógica do botão.
+
+**Módulos:**
+- `src/core/mediaViewTypes.ts` — constantes isoladas (string-only, sem imports de Obsidian), pra permitir unit tests em jsdom sem arrastar o grafo de views.
+- `src/core/viewToggleHelpers.ts` — lógica pura: `resolveToggleTarget(currentViewType, mediaKind)`, `isMediaViewType(viewType)`. 11 unit tests.
+- `src/core/mediaToggleButton.ts` — injeção via `active-leaf-change` + `performToggleCommand` (reusado pelos 4 commands).
 
 ---
 

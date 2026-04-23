@@ -147,13 +147,13 @@ Implementado via PdfViewState (WeakMap per-view), keyboard scoped ao contentEl, 
 
 ## 10. Propostas tecnicas
 
-### Toggle opt-in Audio/Video Coding (similar a autoOpenImages)
+### ~~Toggle opt-in Media Coding~~ — FEITO (2026-04-23)
 
-**Contexto:** hoje Audio e Video abrem sempre em Coding View (via `registerFileIntercept` incondicional). Image tem setting `autoOpenImages` que permite abrir no viewer nativo. Motivação do usuario: poder ouvir/ver um arquivo sem overhead de Coding View — interfaces nativas do Obsidian sao muito diferentes, util ter como opcao.
+4 mídias (Image/Audio/Video/PDF) com settings simétricas: `autoOpen` (default desligado — abre no viewer nativo) e `showButton` (default ligado — adiciona botão `replace-all` no header pra toggle bidirecional). Toggle no header é override per-`(leaf, arquivo)` — pinned até o user abrir outro arquivo na mesma leaf. PDF usa semântica diferente (instrumentação on/off in-place em vez de troca de view), mas é invisível ao usuário nas settings. Commands padronizados: "Toggle [media] coding" (4 commands, 1 por mídia). Setting global `openToggleInNewTab` controla se o toggle via botão substitui a aba atual ou abre nova (não se aplica ao PDF).
 
-**Design sugerido:** padrao desligado, um botao na toolbar do viewer nativo (estilo do botao Case Variables) pra promover pra Coding View em nova aba.
+**Raiz do bug de intercept loop:** o `fileInterceptor` escuta `active-leaf-change` e, com `autoOpen=true`, puxava o user de volta pra Coding View logo após o toggle manual. Fix: `pinnedFileByLeaf` no `fileInterceptor.ts` rastreia leafs que o user swappou manualmente; `markLeafHandled(leaf, filePath)` é chamado antes de cada `setViewState` do toggle. Pin é limpo no `clearFileInterceptRules` (onunload) pra não sobreviver hot-reload.
 
-**Escopo:** nao entra na migracao FileView atual. Pos-merge.
+**Arquivos principais:** `src/core/viewToggleHelpers.ts` (pure: `resolveToggleTarget`, `isMediaViewType`), `src/core/mediaToggleButton.ts` (injeção via `view.addAction` + `performToggleCommand`), `src/core/mediaViewTypes.ts` (constantes isoladas pra testes), `src/pdf/index.ts` (instrument/deinstrument in-place + `togglePdfInstrumentation` no plugin), `src/core/fileInterceptor.ts` (pin per leaf+file), `src/core/settingTab.ts` (seção "Media" unificada), `src/core/types.ts` (schema). 11 testes novos em `tests/core/viewToggleHelpers.test.ts`.
 
 ### ~~Incremental refresh/cache por engine~~ — FEITO (2026-03-20)
 Implementado em duas camadas: `ConsolidationCache` (analytics pipeline, dirty flags por engine + registry) e cache com indices no `UnifiedModelAdapter` (sidebar views, dirty flag global + Map por fileId/id). Views Explorer/Detail com debounce rAF via `scheduleRefresh`.
