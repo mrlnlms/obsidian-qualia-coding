@@ -348,7 +348,7 @@ Same-line merging: `areRectanglesMergeable()` (horizontal adjacency + vertical o
 - Z-index 4 (between highlight layer 3 and annotation layer 5)
 - Rect/Ellipse: drag-to-draw; Polygon: click-to-place, double-click to finish
 - Keyboard: V (select), R (rect), E (ellipse), P (polygon), Del (delete)
-- Data: `PdfShapeMarker` with `NormalizedShapeCoords` (rect/ellipse/polygon union)
+- Data: `PdfShapeMarker` with `PercentShapeCoords` (rect/ellipse/polygon union; coords 0-100 matching the SVG viewBox)
 - Storage: `shapes[]` array alongside `markers[]`
 
 ### 4.5 Highlight Interaction Model
@@ -390,7 +390,7 @@ leaf.openFile(file, { eState: { subpath: '#page=N' } });
 ### 4.10 PDF Data Schema
 ```typescript
 PdfMarker { id, fileId, page, beginIndex, beginOffset, endIndex, endOffset, text, codes[], memo?, createdAt, updatedAt }
-PdfShapeMarker { id, fileId, page, shape: 'rect'|'ellipse'|'polygon', coords: NormalizedShapeCoords, codes[], memo?, createdAt, updatedAt }
+PdfShapeMarker { id, fileId, page, shape: 'rect'|'ellipse'|'polygon', coords: PercentShapeCoords, codes[], memo?, createdAt, updatedAt }
 ```
 
 ---
@@ -1433,6 +1433,8 @@ Dois universos coexistindo: runtime index-based (intocado); export/import em tex
 - **Nested `.textLayerNode`**: Obsidian 1.8+ tem char-level spans dentro dos outer. `querySelectorAll('.textLayerNode')` pega outer + inner duplicados — filtre por "sem ancestral `.textLayerNode`".
 - **save() sem settings**: `PdfCodingModel.save()` sobrescreve section — inclua `settings: this.settings` senão perde config.
 - **Sentinel `(0,0,0,0)` é seguro**: selections nunca produzem range vazio válido (capture rejeita).
+- **`window.pdfjsLib` só existe após primeiro PDF abrir**: o core PDF viewer só popula o lib sob-demanda. Em vault novo (import direto sem abrir PDF antes), `loadPdfExportData` falhava silenciosamente → fallback 612x792 US Letter → shape markers deslocados. Fix: `ensurePdfJsLoaded(app, filePath)` abre o PDF em leaf temporária (com `tabHeader.display='none'` + `containerEl.visibility='hidden'` pra esconder), aguarda `window.pdfjsLib` aparecer, detach. Timeout 5s. Aplicado no começo de `loadPdfExportData` — export e import ambos se beneficiam.
+- **Shape coords são percent (0-100), não 0-1**: draw layer SVG usa `viewBox="0 0 100 100"` e `mouseToPagePercent` retorna 0-100. Historicamente o type era `NormalizedShapeCoords` (mentira), renomeado pra `PercentShapeCoords` em 2026-04-24. `pdfShapeToRect`/`pdfRectToNormalized` dividem/multiplicam por 100 internamente antes de converter pra PDF points — antes gerava XML com firstX ~20000 (fora da spec REFI-QDA), round-trip só fechava se pageWidth fosse o mesmo nos dois vaults.
 
 ### Quando aplicar
 

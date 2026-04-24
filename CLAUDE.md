@@ -79,7 +79,7 @@ src/
     dragHandles.ts           — handle drag: hitTestTextLayer → updateMarkerRange
     pageObserver.ts          — lifecycle: textlayerrendered → renderPage (+ resolvePendingIndices hook pra imports)
     pdfPlainText.ts          — buildPlainText(doc) → plainText consolidado + pageStartOffsets (export)
-    pdfExportData.ts         — loadPdfExportData: plainText + dims por página em 1 pass (export)
+    pdfExportData.ts         — loadPdfExportData: plainText + dims por página em 1 pass (export). ensurePdfJsLoaded força carga de window.pdfjsLib em vault novo abrindo PDF em leaf escondida
     resolveMarkerOffsets.ts  — marker.text → offset absoluto no plainText (export, fallback whitespace-normalize)
     extractAnchorFromPlainText.ts — slice do plainText → {text, page 1-based} (import)
     resolvePendingIndices.ts — text-search no DOM .textLayerNode → indices (import runtime resolve)
@@ -172,7 +172,8 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1987 testes em 98 suites (Vitest + jsdom)
+- `npm run test` — 1990 testes em 99 suites (Vitest + jsdom)
+- `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView

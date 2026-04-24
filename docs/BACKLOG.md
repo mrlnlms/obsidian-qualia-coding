@@ -173,7 +173,7 @@ Implementado como "Refresh on open" via `boardReconciler.ts`. Reconcilia ao abri
 
 ## 11. Export/Import
 
-> **E1, E2, I1, I2** FEITOS em 2026-04-23 (branch `feat/pdf-text-anchoring`). QDPX PDF round-trip completo (text + shape, com dims reais).
+> **E1, E2, I1, I2** FEITOS em 2026-04-23/24 (branch `feat/pdf-text-anchoring`). QDPX PDF round-trip completo (text + shape, com dims reais). Fixes pós-validação: `ensurePdfJsLoaded` em `pdfExportData.ts` (lib pdfjs sob-demanda em vault novo), rename `NormalizedShapeCoords` → `PercentShapeCoords` (XML dentro da spec REFI-QDA), leaf temporária invisível. Smoke script em `scripts/smoke-roundtrip.sh`.
 
 | # | Severidade | Arquivo | Problema |
 |---|-----------|---------|----------|

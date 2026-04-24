@@ -406,7 +406,7 @@ Módulo `src/export/` implementa export nos formatos QDC (codebook) e QDPX (proj
 O PDF tem um desafio específico: runtime usa `beginIndex/beginOffset/endIndex/endOffset` alinhados com `.textLayerNode` do viewer (que são DOM-specific), mas QDPX espera `startPosition/endPosition` em codepoints no PlainText consolidado. Solução em 3 módulos novos (export) + 2 (import):
 
 Export pipeline (`loadPdfExportData` → `resolveMarkerOffsets`):
-1. `src/pdf/pdfExportData.loadPdfExportData(vault, filePath)` — carrega PDF via `window.pdfjsLib` headless, extrai dims por página E roda `buildPlainText`
+1. `src/pdf/pdfExportData.loadPdfExportData(app, filePath)` — carrega PDF via `window.pdfjsLib` headless, extrai dims por página E roda `buildPlainText`. `ensurePdfJsLoaded` abre um PDF em leaf temporária (com `tabHeader.display='none'` + `containerEl.visibility='hidden'`) quando `window.pdfjsLib` ainda não foi populado (typical em vault novo pré-import)
 2. `src/pdf/pdfPlainText.buildPlainText(doc)` — concatena `getTextContent().items.str` com `\f` entre páginas. Strip whitespace leading/trailing de cada item pra evitar double-spaces
 3. `src/pdf/resolveMarkerOffsets(plainText, pageStartOffsets, marker)` — tenta `indexOf` exato do `marker.text` na página. Fallback: normaliza whitespace em ambos os lados (`\s+` → ` `) e busca na versão normalizada, mapeando offsets de volta pro plainText original. Sinaliza `ambiguous: true` quando text aparece múltiplas vezes (warning mas exporta primeira ocorrência)
 
@@ -416,6 +416,8 @@ Import pipeline (`extractAnchorFromPlainText` → placeholder + runtime resolve)
 3. `src/pdf/resolvePendingIndices(pageEl, text)` — invocado por `pageObserver.renderPage` no primeiro render do PDF. Faz text-search no DOM `.textLayerNode`, popula indices, salva silent. Depois render normal pinta highlight
 
 **Convenção de página**: `marker.page` é 1-based (vem de `data-page-number` do viewer). `pageStartOffsets` é 0-based. Export/import convertem nas bordas.
+
+**Convenção de shape coords**: `PercentShapeCoords` (0-100), match do viewBox SVG `0 0 100 100`. `pdfShapeToRect`/`pdfRectToNormalized` dividem/multiplicam por 100 antes de converter pra PDF points — XML sai dentro da spec REFI-QDA. Renomeado de `NormalizedShapeCoords` em 2026-04-24 pra não induzir erro (o nome mentia — a convenção sempre foi 0-100).
 
 **Why:** Caminho runtime (render/capture/drag) permanece index-based e intocado. Anchor em text só vive no lado export/import — permite round-trip robusto sem mudar o schema do marker. Ver `memory/feedback_dont_refactor_working_code.md`.
 

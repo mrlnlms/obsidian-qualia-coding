@@ -18,8 +18,11 @@ npm install
 
 ### Scripts
 ```bash
-npm run build    # tsc -noEmit && esbuild production (minified)
-npm run dev      # esbuild watch mode (hot reload com hot-reload plugin)
+npm run build                       # tsc -noEmit && esbuild production (minified)
+npm run dev                         # esbuild watch mode (hot reload com hot-reload plugin)
+bash scripts/smoke-roundtrip.sh     # prepara vault temp em ~/Desktop/temp-roundtrip/ com plugin instalado
+                                    # pra smoke test manual do QDPX round-trip
+                                    # SKIP_BUILD=1 pra pular o build
 ```
 
 ### Output
