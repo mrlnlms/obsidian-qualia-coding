@@ -77,6 +77,15 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.model.onChange(this.scheduleRefresh);
 		this.model.onHoverChange(this.boundApplyHover);
 		document.addEventListener('qualia:registry-changed', this.scheduleRefresh);
+
+		const onVisibilityChange = () => {
+			if (this.listContentZone) {
+				renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+			}
+		};
+		this.model.registry.addVisibilityListener(onVisibilityChange);
+		this.register(() => this.model.registry.removeVisibilityListener(onVisibilityChange));
+
 		this.refreshCurrentMode();
 	}
 
@@ -295,6 +304,15 @@ export abstract class BaseCodeDetailView extends ItemView {
 			},
 			onDragModeChange: (mode: 'reorganize' | 'merge') => {
 				this.treeDragMode = mode;
+			},
+			onToggleVisibility: (codeId: string) => {
+				const def = this.model.registry.getById(codeId);
+				if (!def) return;
+				const currentlyHidden = def.hidden === true;
+				this.model.registry.setGlobalHidden(codeId, !currentlyHidden);
+				if (this.listContentZone) {
+					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+				}
 			},
 		};
 	}

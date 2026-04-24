@@ -23,6 +23,7 @@ export interface CodebookTreeCallbacks {
 	onToggleExpand(codeId: string): void;
 	onFolderToggleExpand(folderId: string): void;
 	onFolderRightClick(folderId: string, event: MouseEvent): void;
+	onToggleVisibility(codeId: string): void;
 }
 
 export interface CodebookTreeState {
@@ -210,6 +211,22 @@ function renderCodeRow(
 	swatch.className = 'codebook-tree-swatch';
 	swatch.style.backgroundColor = node.def.color;
 	row.appendChild(swatch);
+
+	// Eye toggle (global visibility)
+	const isHidden = node.def.hidden === true;
+	const eye = document.createElement('span');
+	eye.className = 'qc-code-row-eye';
+	eye.setAttribute('role', 'button');
+	eye.setAttribute('aria-label', 'Toggle visibility');
+	eye.title = 'Toggle visibility';
+	setIcon(eye, isHidden ? 'eye-off' : 'eye');
+	eye.addEventListener('click', (e) => {
+		e.stopPropagation();
+		callbacks.onToggleVisibility(node.def.id);
+	});
+	row.appendChild(eye);
+
+	if (isHidden) row.classList.add('qc-code-row-hidden');
 
 	// Name
 	const name = document.createElement('span');

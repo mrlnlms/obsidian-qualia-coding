@@ -4895,3 +4895,18 @@ body.codebook-dragging * {
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
 }
+
+/* Toggle visibility — Code Explorer */
+.qc-code-row-eye {
+	display: inline-flex;
+	align-items: center;
+	margin-right: 6px;
+	cursor: pointer;
+	color: var(--icon-color-hover);
+}
+.qc-code-row-eye:hover {
+	color: var(--icon-color);
+}
+.qc-code-row-hidden {
+	opacity: 0.5;
+}
