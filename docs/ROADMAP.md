@@ -126,6 +126,10 @@ Usabilidade do codebook com corpus grande. Dois sub-itens:
 
 #### 2a. Code Groups (renomeado de "Theme Hierarchy")
 
+> **⚠️ Leitura obrigatória antes de planejar/brainstorm esta feature:**
+> - `docs/ARCHITECTURE.md` §5.1 — explica por que `parentId` já É theme hierarchy (não re-propor isso)
+> - `memory/project_code_groups_decision.md` — decisões já travadas (flat, não nested; tier 1 primeiro)
+
 **Nome antigo enganava.** Theme hierarchy o plugin JÁ TEM via `parentId` (NVivo-style: parent code sem aplicações diretas age como theme, aggregate counts incluem filhos, Braun & Clarke method map direto). O que falta é outra coisa: **Code Groups** (padrão Atlas.ti/MAXQDA), uma **camada flat N:N cross-cutting** pra agregar análise em dimensões que não são hierárquicas.
 
 **Motivação:** usuário quer tagear códigos com dimensões analíticas ortogonais à taxonomia (ex: "Afetivo/Cognitivo", "RQ1/RQ2", "Onda 1/Onda 2") e filtrar Analytics por essas dimensões, sem refatorar a hierarquia.
