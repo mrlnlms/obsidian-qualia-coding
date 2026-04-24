@@ -4,6 +4,7 @@ import type { App, TFile, Vault } from 'obsidian';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CodeApplication, CodeRelation } from '../core/types';
+import { GROUP_PALETTE } from '../core/types';
 import { getImageDimensions } from '../core/imageDimensions';
 import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { MediaMarker } from '../media/mediaTypes';
@@ -387,6 +388,30 @@ export async function importQdpx(
     sources: new Map(),
     selections: new Map(),
   };
+
+  // 3b. Parse <Sets> (Code Groups) — pure regex over the raw XML
+  const setsResult = parseSetsFromXml(xml);
+  for (const groupData of setsResult.groups) {
+    const g = registry.createGroup(groupData.name);
+    if (groupData.hadExplicitColor) {
+      registry.setGroupColor(g.id, groupData.color);
+    }
+    if (groupData.description) {
+      registry.setGroupDescription(g.id, groupData.description);
+    }
+    const membership = setsResult.memberships.find(m => m.groupName === groupData.name);
+    if (membership) {
+      for (const memberGuid of membership.memberCodeGuids) {
+        const codeId = cbResult.codeGuidMap.get(memberGuid);
+        if (codeId) {
+          registry.addCodeToGroup(codeId, g.id);
+        } else {
+          result.warnings.push(`Set "${groupData.name}": MemberCode guid ${memberGuid} não resolve a código conhecido`);
+        }
+      }
+    }
+  }
+  result.warnings.push(...setsResult.warnings);
 
   // 4. Extract source files to vault
   const importDir = `imports/${options.projectName}`;
@@ -1039,4 +1064,94 @@ async function importStandaloneMemos(
   }
 
   return count;
+}
+
+// ─── Sets / Code Groups (Tier 1.5) ───
+
+export interface ParsedGroup {
+  name: string;
+  color: string;
+  paletteIndex: number;
+  description?: string;
+  hadExplicitColor: boolean;
+}
+
+export interface ParseSetsResult {
+  groups: ParsedGroup[];
+  memberships: Array<{ groupName: string; memberCodeGuids: string[] }>;
+  warnings: string[];
+}
+
+/**
+ * Parse <Set> elements from a CodeBook XML string.
+ * Pure function — testable in isolation.
+ *
+ * Sets sem qualia:color recebem cor auto-atribuída do GROUP_PALETTE em round-robin.
+ * <MemberSource> é ignorado com warning (fora de escopo de Code Groups).
+ */
+export function parseSetsFromXml(codebookXml: string): ParseSetsResult {
+  const groups: ParseSetsResult['groups'] = [];
+  const memberships: ParseSetsResult['memberships'] = [];
+  const warnings: string[] = [];
+
+  // Regex simples — codebook é pequeno; XML parser completo é overkill
+  const setsRegex = /<Set\s+([^>]+?)(\/>|>([\s\S]*?)<\/Set>)/g;
+  let paletteIdxCounter = 0;
+
+  let match: RegExpExecArray | null;
+  while ((match = setsRegex.exec(codebookXml)) !== null) {
+    const attrs = match[1]!;
+    const inner = match[3] ?? '';
+
+    const nameMatch = attrs.match(/name="([^"]*)"/);
+    if (!nameMatch) {
+      warnings.push('Set without name attribute, skipping');
+      continue;
+    }
+    const name = nameMatch[1]!;
+    const colorMatch = attrs.match(/qualia:color="([^"]*)"/);
+
+    let color: string;
+    let paletteIndex: number;
+    let hadExplicitColor: boolean;
+    if (colorMatch) {
+      color = colorMatch[1]!;
+      const idx = GROUP_PALETTE.findIndex(c => c.toLowerCase() === color.toLowerCase());
+      paletteIndex = idx >= 0 ? idx : -1;
+      hadExplicitColor = true;
+    } else {
+      color = GROUP_PALETTE[paletteIdxCounter % GROUP_PALETTE.length]!;
+      paletteIndex = paletteIdxCounter % GROUP_PALETTE.length;
+      paletteIdxCounter++;
+      hadExplicitColor = false;
+    }
+
+    const descMatch = inner.match(/<Description>([\s\S]*?)<\/Description>/);
+    const description = descMatch ? decodeXmlEntities(descMatch[1]!) : undefined;
+
+    const memberCodeGuids: string[] = [];
+    const memberCodeRegex = /<MemberCode\s+targetGUID="([^"]*)"\s*\/>/g;
+    let mm: RegExpExecArray | null;
+    while ((mm = memberCodeRegex.exec(inner)) !== null) {
+      memberCodeGuids.push(mm[1]!);
+    }
+
+    if (/<MemberSource\b/.test(inner)) {
+      warnings.push(`Set "${name}": contém <MemberSource> (source-level) — ignorado (fora de escopo de Code Groups)`);
+    }
+
+    groups.push({ name, color, description, paletteIndex, hadExplicitColor });
+    memberships.push({ groupName: name, memberCodeGuids });
+  }
+
+  return { groups, memberships, warnings };
+}
+
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
 }
