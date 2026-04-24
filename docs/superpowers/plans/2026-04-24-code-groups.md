@@ -1843,7 +1843,637 @@ Ao final deste chunk:
 
 ## Chunk 3: Add-to-group flow (right-click + Code Detail + Merge)
 
-TODO: will write after Chunk 2 approved.
+Esta chunk completa a UX de membership: adicionar/remover código de group via right-click (fluxo rápido na tree) e via Code Detail section (fluxo reflexivo quando olhando o código), além do comportamento de merge (target herda union dos groups).
+
+### Task 3.1: Code Detail — seção Groups
+
+**Files:**
+- Modify: `src/core/detailCodeRenderer.ts` (adicionar `renderGroupsSection` entre Description e Hierarchy)
+- Test: `tests/core/codeGroupsDetailSection.test.ts`
+
+- [ ] **Step 1: Criar test file**
+
+```ts
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import { renderGroupsSection } from '../../src/core/detailCodeRenderer';
+
+describe('Code Detail — Groups section', () => {
+  let container: HTMLElement;
+  let registry: CodeDefinitionRegistry;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    registry = new CodeDefinitionRegistry();
+  });
+
+  afterEach(() => { container.remove(); });
+
+  it('não renderiza nada quando código não tem groups E não há groups disponíveis', () => {
+    const c = registry.create('c1');
+    renderGroupsSection(container, c.id, registry, {
+      onAddGroup: () => {},
+      onRemoveGroup: () => {},
+    });
+    // Seção renderiza o header mas sem chips (pra permitir [+] e criar o primeiro group)
+    expect(container.querySelector('.codemarker-detail-groups')).toBeTruthy();
+    expect(container.querySelectorAll('.codemarker-detail-group-chip').length).toBe(0);
+  });
+
+  it('renderiza chips dos groups do código com botão × pra remover', () => {
+    const c = registry.create('c1');
+    const g1 = registry.createGroup('RQ1');
+    const g2 = registry.createGroup('Wave1');
+    registry.addCodeToGroup(c.id, g1.id);
+    registry.addCodeToGroup(c.id, g2.id);
+
+    renderGroupsSection(container, c.id, registry, {
+      onAddGroup: () => {},
+      onRemoveGroup: () => {},
+    });
+
+    const chips = container.querySelectorAll('.codemarker-detail-group-chip');
+    expect(chips.length).toBe(2);
+    expect(chips[0]!.textContent).toContain('RQ1');
+    expect(chips[1]!.textContent).toContain('Wave1');
+    // Cada chip tem button de remove
+    expect(container.querySelectorAll('.codemarker-detail-group-chip-remove').length).toBe(2);
+  });
+
+  it('click no × dispara onRemoveGroup com codeId e groupId', () => {
+    const c = registry.create('c1');
+    const g = registry.createGroup('RQ1');
+    registry.addCodeToGroup(c.id, g.id);
+
+    let capturedGroupId: string | null = null;
+    renderGroupsSection(container, c.id, registry, {
+      onAddGroup: () => {},
+      onRemoveGroup: (_codeId, gid) => { capturedGroupId = gid; },
+    });
+
+    (container.querySelector('.codemarker-detail-group-chip-remove') as HTMLElement).click();
+    expect(capturedGroupId).toBe(g.id);
+  });
+
+  it('click no [+] dispara onAddGroup com codeId', () => {
+    const c = registry.create('c1');
+    let capturedCodeId: string | null = null;
+    renderGroupsSection(container, c.id, registry, {
+      onAddGroup: (codeId) => { capturedCodeId = codeId; },
+      onRemoveGroup: () => {},
+    });
+    (container.querySelector('.codemarker-detail-groups-add-btn') as HTMLElement).click();
+    expect(capturedCodeId).toBe(c.id);
+  });
+
+  it('estado misto: código em alguns groups, outros groups disponíveis — renderiza chips dos membros + [+] ainda visível', () => {
+    const c = registry.create('c1');
+    const g1 = registry.createGroup('RQ1');
+    registry.createGroup('RQ2');  // existe mas código NÃO é membro
+    registry.addCodeToGroup(c.id, g1.id);
+
+    renderGroupsSection(container, c.id, registry, {
+      onAddGroup: () => {},
+      onRemoveGroup: () => {},
+    });
+
+    expect(container.querySelectorAll('.codemarker-detail-group-chip').length).toBe(1);
+    expect(container.querySelector('.codemarker-detail-group-chip')!.textContent).toContain('RQ1');
+    expect(container.querySelector('.codemarker-detail-groups-add-btn')).toBeTruthy();
+  });
+});
+```
+
+- [ ] **Step 2: Rodar — falha (função não existe)**
+
+- [ ] **Step 3: Implementar `renderGroupsSection` em `detailCodeRenderer.ts`**
+
+No topo do arquivo, garantir import:
+
+```ts
+import { setIcon } from 'obsidian';
+import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+```
+
+Adicionar função exportada (sugestão: ao final do arquivo, antes de `renderAuditSection`):
+
+```ts
+export interface GroupsSectionCallbacks {
+  onAddGroup(codeId: string): void;  // abrirá FuzzySuggestModal no caller
+  onRemoveGroup(codeId: string, groupId: string): void;
+}
+
+export function renderGroupsSection(
+  container: HTMLElement,
+  codeId: string,
+  registry: CodeDefinitionRegistry,
+  callbacks: GroupsSectionCallbacks,
+): void {
+  const section = container.createDiv({ cls: 'codemarker-detail-section codemarker-detail-groups' });
+
+  const header = section.createDiv({ cls: 'codemarker-detail-groups-header' });
+  header.createEl('h6', { text: 'Groups' });
+  const addBtn = header.createEl('button', {
+    cls: 'codemarker-detail-groups-add-btn',
+    attr: { 'aria-label': 'Add to group', title: 'Add to group' },
+  });
+  setIcon(addBtn, 'plus');
+  addBtn.addEventListener('click', () => callbacks.onAddGroup(codeId));
+
+  const groups = registry.getGroupsForCode(codeId);
+  if (groups.length === 0) return;
+
+  const chipsWrap = section.createDiv({ cls: 'codemarker-detail-groups-chips' });
+  for (const g of groups) {
+    const chip = chipsWrap.createDiv({ cls: 'codemarker-detail-group-chip' });
+    const dot = chip.createSpan({ cls: 'codemarker-detail-group-chip-dot' });
+    dot.style.backgroundColor = g.color;
+    chip.createSpan({ cls: 'codemarker-detail-group-chip-name', text: g.name });
+    const remove = chip.createEl('button', {
+      cls: 'codemarker-detail-group-chip-remove',
+      attr: { 'aria-label': `Remove from ${g.name}`, title: `Remove from ${g.name}` },
+    });
+    setIcon(remove, 'x');
+    remove.addEventListener('click', () => callbacks.onRemoveGroup(codeId, g.id));
+  }
+}
+```
+
+- [ ] **Step 4: Inserir chamada em `renderCodeDetail`**
+
+Em `detailCodeRenderer.ts:89`, após `renderCodeDescription` e antes de `renderHierarchySection`:
+
+```ts
+// Description — editable textarea
+renderCodeDescription(container, def, model, callbacks);
+
+// Groups (Tier 1.5) — entre Description e Hierarchy
+if (def) {
+  renderGroupsSection(container, def.id, model.registry, {
+    onAddGroup: callbacks.onAddToGroup,
+    onRemoveGroup: callbacks.onRemoveFromGroup,
+  });
+}
+
+// Hierarchy section (parent + children)
+if (def) renderHierarchySection(container, def, model.registry, callbacks);
+```
+
+- [ ] **Step 5: Estender `CodeRendererCallbacks`**
+
+Interface em `src/core/detailCodeRenderer.ts:17`. Adicionar os 2 callbacks:
+
+```ts
+export interface CodeRendererCallbacks {
+  // ... existing ...
+  onAddToGroup(codeId: string): void;
+  onRemoveFromGroup(codeId: string, groupId: string): void;
+}
+```
+
+- [ ] **Step 6: Wire callbacks no `baseCodeDetailView`**
+
+Onde o `callbacks` do `renderCodeDetail` é construído (buscar por `renderCodeDetail(` em `baseCodeDetailView.ts`), adicionar:
+
+```ts
+onAddToGroup: (codeId) => {
+  this.openAddToGroupPicker(codeId);  // método privado — ver Task 3.2
+},
+onRemoveFromGroup: (codeId, groupId) => {
+  this.model.registry.removeCodeFromGroup(codeId, groupId);
+  this.refreshCurrentMode();
+},
+```
+
+`openAddToGroupPicker` será compartilhado com o context menu (Task 3.2).
+
+- [ ] **Step 7: CSS**
+
+Append em `styles.css`:
+
+```css
+.codemarker-detail-groups-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.codemarker-detail-groups-add-btn {
+  padding: 2px 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.codemarker-detail-groups-add-btn:hover { color: var(--text-normal); }
+.codemarker-detail-groups-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.codemarker-detail-group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  font-size: var(--font-smallest);
+}
+.codemarker-detail-group-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.codemarker-detail-group-chip-remove {
+  padding: 0 2px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+}
+.codemarker-detail-group-chip-remove:hover { color: var(--text-normal); }
+```
+
+- [ ] **Step 8: Rodar tests — 4 passam**
+
+Expected: 4 PASS (groupDetailSection.test).
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/core/detailCodeRenderer.ts src/core/baseCodeDetailView.ts tests/core/codeGroupsDetailSection.test.ts styles.css
+~/.claude/scripts/commit.sh "feat(core): seção Groups no Code Detail view (chips removíveis + [+] add)"
+```
+
+### Task 3.2: `openAddToGroupPicker` helper + FuzzySuggestModal
+
+**Files:**
+- Create: `src/core/codeGroupsAddPicker.ts` (módulo isolado pra facilitar teste da lógica de seleção)
+- Modify: `src/core/baseCodeDetailView.ts` (método `openAddToGroupPicker`)
+- Test: `tests/core/codeGroupsAddPicker.test.ts`
+
+- [ ] **Step 1: Criar test da lógica pura**
+
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import { getAddToGroupCandidates } from '../../src/core/codeGroupsAddPicker';
+
+describe('getAddToGroupCandidates', () => {
+  let registry: CodeDefinitionRegistry;
+
+  beforeEach(() => {
+    registry = new CodeDefinitionRegistry();
+  });
+
+  it('retorna todos groups quando código não é membro de nenhum', () => {
+    const c = registry.create('c1');
+    const g1 = registry.createGroup('RQ1');
+    const g2 = registry.createGroup('RQ2');
+    const result = getAddToGroupCandidates(c.id, registry);
+    expect(result.map(g => g.id).sort()).toEqual([g1.id, g2.id].sort());
+  });
+
+  it('exclui groups dos quais o código já é membro', () => {
+    const c = registry.create('c1');
+    const g1 = registry.createGroup('RQ1');
+    const g2 = registry.createGroup('RQ2');
+    registry.addCodeToGroup(c.id, g1.id);
+    const result = getAddToGroupCandidates(c.id, registry);
+    expect(result.map(g => g.id)).toEqual([g2.id]);
+  });
+
+  it('retorna lista vazia quando não há groups', () => {
+    const c = registry.create('c1');
+    expect(getAddToGroupCandidates(c.id, registry)).toEqual([]);
+  });
+});
+```
+
+- [ ] **Step 2: Implementar helper puro em `codeGroupsAddPicker.ts`**
+
+```ts
+import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+import type { GroupDefinition } from './types';
+
+/**
+ * Retorna lista de groups aos quais o código ainda NÃO é membro.
+ * Usado pra popular o FuzzySuggestModal de "Add to group".
+ */
+export function getAddToGroupCandidates(
+  codeId: string,
+  registry: CodeDefinitionRegistry,
+): GroupDefinition[] {
+  const memberOf = new Set(registry.getGroupsForCode(codeId).map(g => g.id));
+  return registry.getAllGroups().filter(g => !memberOf.has(g.id));
+}
+```
+
+- [ ] **Step 3: Rodar — 3 tests passam**
+
+- [ ] **Step 4: Implementar `openAddToGroupPicker` em `baseCodeDetailView.ts`**
+
+```ts
+import { FuzzySuggestModal, Notice } from 'obsidian';
+import type { GroupDefinition } from './types';
+import { getAddToGroupCandidates } from './codeGroupsAddPicker';
+
+// Dentro da classe BaseCodeDetailView:
+
+private openAddToGroupPicker(codeId: string): void {
+  const candidates = getAddToGroupCandidates(codeId, this.model.registry);
+  const plugin = this;
+
+  class AddGroupModal extends FuzzySuggestModal<GroupDefinition | { id: '__new__'; name: string }> {
+    getItems() {
+      const items: Array<GroupDefinition | { id: '__new__'; name: string }> = [...candidates];
+      items.push({ id: '__new__', name: '+ New group...' } as any);
+      return items;
+    }
+    getItemText(item: GroupDefinition | { id: '__new__'; name: string }) {
+      return item.name;
+    }
+    onChooseItem(item: GroupDefinition | { id: '__new__'; name: string }) {
+      if (item.id === '__new__') {
+        new PromptModal({
+          app: plugin.app,
+          title: 'New group',
+          placeholder: 'Group name',
+          onSubmit: (name) => {
+            const trimmed = name.trim();
+            if (!trimmed) {
+              new Notice('Group name cannot be empty.');
+              return;
+            }
+            const g = plugin.model.registry.createGroup(trimmed);
+            plugin.model.registry.addCodeToGroup(codeId, g.id);
+            plugin.refreshCurrentMode();
+          },
+        }).open();
+      } else {
+        plugin.model.registry.addCodeToGroup(codeId, item.id);
+        plugin.refreshCurrentMode();
+      }
+    }
+  }
+
+  new AddGroupModal(this.app).open();
+}
+```
+
+Notas:
+- `FuzzySuggestModal` é importado de 'obsidian'. Mock existe em `tests/mocks/obsidian.ts` — mas classe pode não estar exposed. **Verificar** no Step 5 abaixo; se faltar, stub mínimo.
+- Pattern inspira-se em `src/core/codeBrowserModal.ts:42` — que já usa `onChooseItem(item: CodeDefinition)` single-param (TS aceita override narrower, comprovado no codebase). Plan segue o mesmo shape.
+- `const plugin = this` é pattern válido de closure pra inner class. Alternativa seria passar dependências como props (estilo `CodeBrowserModal`); ambos compilam.
+
+- [ ] **Step 5: Verificar/adicionar mock de FuzzySuggestModal se faltar**
+
+```bash
+grep -n "FuzzySuggestModal" tests/mocks/obsidian.ts
+```
+
+Se ausente, adicionar no mock:
+
+```ts
+export class FuzzySuggestModal<T> extends Modal {
+  getItems(): T[] { return []; }
+  getItemText(_item: T): string { return ''; }
+  onChooseItem(_item: T, _evt: MouseEvent | KeyboardEvent): void {}
+}
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/core/codeGroupsAddPicker.ts src/core/baseCodeDetailView.ts tests/core/codeGroupsAddPicker.test.ts tests/mocks/obsidian.ts
+~/.claude/scripts/commit.sh "feat(core): openAddToGroupPicker + FuzzySuggestModal de candidates"
+```
+
+### Task 3.3: Right-click código → submenu "Add to group"
+
+**Files:**
+- Modify: `src/core/codebookContextMenu.ts` (adicionar item entre Merge e Change color)
+- Modify: `src/core/baseCodeDetailView.ts` (adicionar callback)
+
+- [ ] **Step 1: Estender `ContextMenuCallbacks`**
+
+Em `codebookContextMenu.ts:11-21`:
+
+```ts
+export interface ContextMenuCallbacks {
+  // ... existing ...
+  promptAddToGroup(codeId: string): void;  // NEW
+}
+```
+
+- [ ] **Step 2: Adicionar item no menu**
+
+Em `codebookContextMenu.ts`, após o `menu.addItem(... 'Merge with...' ...)` e antes do separator seguinte:
+
+```ts
+menu.addItem(item =>
+  item.setTitle('Add to group...').setIcon('tag').onClick(() => callbacks.promptAddToGroup(codeId)),
+);
+```
+
+- [ ] **Step 3: Wire callback em `baseCodeDetailView`**
+
+Onde `ContextMenuCallbacks` é construído (grep por `promptRename` ou `promptMoveTo`):
+
+```ts
+promptAddToGroup: (codeId) => this.openAddToGroupPicker(codeId),
+```
+
+- [ ] **Step 4: Verificar tsc**
+
+```bash
+npx tsc --noEmit
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/core/codebookContextMenu.ts src/core/baseCodeDetailView.ts
+~/.claude/scripts/commit.sh "feat(core): right-click codigo → Add to group (reusa openAddToGroupPicker)"
+```
+
+### Task 3.4: Merge — target herda union dos groups
+
+**Files:**
+- Modify: `src/core/mergeModal.ts` (função `executeMerge`)
+- Test: `tests/core/mergeModal.test.ts` (estender se existir; senão criar `tests/core/mergeGroupsUnion.test.ts`)
+
+- [ ] **Step 1: Criar/estender test**
+
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import { executeMerge } from '../../src/core/mergeModal';
+
+describe('executeMerge — Groups union', () => {
+  let registry: CodeDefinitionRegistry;
+
+  beforeEach(() => {
+    registry = new CodeDefinitionRegistry();
+  });
+
+  it('target herda groups do source (union) quando target não tinha groups', () => {
+    const target = registry.create('target');
+    const source = registry.create('source');
+    const g1 = registry.createGroup('RQ1');
+    registry.addCodeToGroup(source.id, g1.id);
+
+    executeMerge({
+      destinationId: target.id,
+      sourceIds: [source.id],
+      registry,
+      markers: [],
+    });
+
+    expect(registry.getById(target.id)?.groups).toEqual([g1.id]);
+    // Source deletado
+    expect(registry.getById(source.id)).toBeUndefined();
+  });
+
+  it('target herda union (groups de target + source, sem duplicatas)', () => {
+    const target = registry.create('target');
+    const source = registry.create('source');
+    const g1 = registry.createGroup('RQ1');
+    const g2 = registry.createGroup('RQ2');
+    const g3 = registry.createGroup('Wave1');
+    registry.addCodeToGroup(target.id, g1.id);
+    registry.addCodeToGroup(target.id, g2.id);
+    registry.addCodeToGroup(source.id, g2.id);  // overlap
+    registry.addCodeToGroup(source.id, g3.id);
+
+    executeMerge({
+      destinationId: target.id,
+      sourceIds: [source.id],
+      registry,
+      markers: [],
+    });
+
+    const finalGroups = registry.getById(target.id)?.groups ?? [];
+    expect(finalGroups.sort()).toEqual([g1.id, g2.id, g3.id].sort());
+  });
+
+  it('multi-source merge: target herda union de todos os sources', () => {
+    const target = registry.create('target');
+    const s1 = registry.create('s1');
+    const s2 = registry.create('s2');
+    const g1 = registry.createGroup('RQ1');
+    const g2 = registry.createGroup('RQ2');
+    registry.addCodeToGroup(s1.id, g1.id);
+    registry.addCodeToGroup(s2.id, g2.id);
+
+    executeMerge({
+      destinationId: target.id,
+      sourceIds: [s1.id, s2.id],
+      registry,
+      markers: [],
+    });
+
+    expect(registry.getById(target.id)?.groups?.sort()).toEqual([g1.id, g2.id].sort());
+  });
+});
+```
+
+- [ ] **Step 2: Rodar — falha (union ainda não implementado)**
+
+- [ ] **Step 3: Implementar union dentro do bloco "Record mergedFrom" em `executeMerge`**
+
+Em `src/core/mergeModal.ts:60-66` (o bloco existente "3. Record mergedFrom"), expandir pra também computar union dos groups. `destDef` já está declarado; reusa:
+
+```ts
+// 3. Record mergedFrom + union dos groups (target + todos sources)
+const destDef = registry.getById(destinationId);
+if (destDef) {
+  if (!destDef.mergedFrom) destDef.mergedFrom = [];
+  destDef.mergedFrom.push(...sourceIds);
+  destDef.updatedAt = Date.now();
+
+  // Union dos groups: evita perder contexto analítico quando target absorve source.
+  // Roda ANTES do step 5 (delete sources) — snapshot pego enquanto srcDef ainda existe.
+  const unionGroups = new Set<string>(destDef.groups ?? []);
+  for (const srcId of sourceIds) {
+    const srcDef = registry.getById(srcId);
+    if (srcDef?.groups) {
+      for (const gid of srcDef.groups) unionGroups.add(gid);
+    }
+  }
+  if (unionGroups.size > 0) {
+    destDef.groups = Array.from(unionGroups);
+  }
+}
+```
+
+Nota: `registry.delete(srcId)` no step 5 não invoca `deleteGroup`; apenas remove o código do registry. `code.groups[]` do source some junto mas o snapshot já foi feito em `unionGroups`.
+
+- [ ] **Step 4: Rodar — 3 tests passam**
+
+- [ ] **Step 5: Verificar que tests existentes de mergeModal não quebraram**
+
+```bash
+npm run test -- tests/core/mergeModal --run 2>/dev/null || true
+npm run test -- --run
+```
+
+Expected: suite completa passa. +3 novos tests de groups union.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/core/mergeModal.ts tests/core/mergeGroupsUnion.test.ts
+~/.claude/scripts/commit.sh "feat(core): merge preserva union dos groups no target (audit trail analítico)"
+```
+
+### Task 3.5: Smoke test manual
+
+- [ ] **Step 1: Build + reload plugin**
+
+```bash
+npm run build
+```
+
+- [ ] **Step 2: Checklist manual:**
+
+1. Criar group "RQ1" via painel sidebar.
+2. Abrir Code Detail de um código qualquer.
+3. Verificar seção "Groups" visível entre Description e Hierarchy.
+4. Clicar `[+]` — FuzzySuggestModal abre com "RQ1" + "+ New group...".
+5. Selecionar "RQ1" — chip aparece no Code Detail + chip contador `🏷1` aparece na tree.
+6. Clicar `×` no chip — remove membership; chips somem.
+7. Right-click num código na tree — menu tem item "Add to group..." entre "Merge with..." e "Change color".
+8. Clicar "Add to group..." → modal abre → selecionar "RQ1" → membership criada.
+9. Adicionar 2 códigos ao RQ1 (via qualquer fluxo). Adicionar outro código a "RQ2" novo.
+10. Abrir MergeModal (right-click → "Merge with..." no código target) — na UI, selecionar os códigos-source via busca/checkbox, manter o atual como destination. Confirmar.
+11. Verificar que target agora está em ambos RQ1 e RQ2 (union).
+
+Se algo falha, fix commits antes de avançar pra Chunk 4.
+
+- [ ] **Step 3: Opcional — atualizar `docs/smoke-tests/code-groups.md`** com steps de Chunk 3.
+
+---
+
+## Chunk 3 summary
+
+Ao final:
+- Seção Groups no Code Detail (chips removíveis + [+] FuzzySuggestModal)
+- Right-click no código na tree → "Add to group..." submenu (reusa picker)
+- Merge preserva union dos groups (audit trail analítico intacto)
+- +11 testes (5 detail section + 3 add picker + 3 merge union)
+- Baseline pós-Chunk 2: ~2142 → pós-Chunk 3: ~2153
+
+**Próximo chunk:** Analytics filter integration.
+
+## Chunk 4: Analytics filter integration
+
+TODO: will write after Chunk 3 approved.
 
 ## Chunk 4: Analytics filter integration
 
