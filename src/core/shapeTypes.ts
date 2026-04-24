@@ -23,14 +23,14 @@ export interface PolygonCoords {
 	points: Array<{ x: number; y: number }>;
 }
 
-export type NormalizedShapeCoords = RectCoords | EllipseCoords | PolygonCoords;
+export type PercentShapeCoords = RectCoords | EllipseCoords | PolygonCoords;
 
 // ── Callbacks ──
 
 export interface DrawingCallbacks {
-	onShapeCreated?(coords: NormalizedShapeCoords): void;
+	onShapeCreated?(coords: PercentShapeCoords): void;
 	onShapeSelected?(shapeId: string | null): void;
-	onShapeMoved?(shapeId: string, coords: NormalizedShapeCoords): void;
+	onShapeMoved?(shapeId: string, coords: PercentShapeCoords): void;
 	onShapeDeleted?(shapeId: string): void;
 }
 

@@ -1,4 +1,4 @@
-import type { PdfMarker, PdfShapeMarker, NormalizedShapeCoords } from './pdfCodingTypes';
+import type { PdfMarker, PdfShapeMarker, PercentShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinition, CodeApplication } from '../core/types';
@@ -325,7 +325,7 @@ export class PdfCodingModel {
 
 	// ── Shape operations ──
 
-	createShape(file: string, page: number, coords: NormalizedShapeCoords): PdfShapeMarker {
+	createShape(file: string, page: number, coords: PercentShapeCoords): PdfShapeMarker {
 		const shape: PdfShapeMarker = {
 			id: this.generateId(),
 			fileId: file,
@@ -341,7 +341,7 @@ export class PdfCodingModel {
 		return shape;
 	}
 
-	updateShapeCoords(shapeId: string, coords: NormalizedShapeCoords): void {
+	updateShapeCoords(shapeId: string, coords: PercentShapeCoords): void {
 		const shape = this.findShapeById(shapeId);
 		if (!shape) return;
 		shape.coords = coords;

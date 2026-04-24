@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PdfCodingModel } from '../../src/pdf/pdfCodingModel';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
-import type { NormalizedShapeCoords, RectCoords, EllipseCoords, PolygonCoords } from '../../src/core/shapeTypes';
+import type { PercentShapeCoords, RectCoords, EllipseCoords, PolygonCoords } from '../../src/core/shapeTypes';
 import type { CodeApplication } from '../../src/core/types';
 import { hasCode } from '../../src/core/codeApplicationHelpers';
 

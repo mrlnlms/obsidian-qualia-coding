@@ -1,5 +1,5 @@
 // Re-export shared shape types from core
-export type { ShapeType, RectCoords, EllipseCoords, PolygonCoords, NormalizedShapeCoords } from '../core/shapeTypes';
+export type { ShapeType, RectCoords, EllipseCoords, PolygonCoords, PercentShapeCoords } from '../core/shapeTypes';
 import type { CodeApplication } from '../core/types';
 
 /**
@@ -35,7 +35,7 @@ export interface PdfShapeMarker {
 	fileId: string;
 	page: number;
 	shape: import('../core/shapeTypes').ShapeType;
-	coords: import('../core/shapeTypes').NormalizedShapeCoords;
+	coords: import('../core/shapeTypes').PercentShapeCoords;
 	codes: CodeApplication[];
 	memo?: string;
 	colorOverride?: string;

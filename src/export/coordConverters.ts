@@ -1,4 +1,4 @@
-import type { EllipseCoords, NormalizedShapeCoords, PolygonCoords } from '../core/shapeTypes';
+import type { EllipseCoords, PercentShapeCoords, PolygonCoords } from '../core/shapeTypes';
 import type { NormalizedCoords } from '../image/imageCodingTypes';
 
 /** Axis-aligned bounding box for an ellipse. */
@@ -72,7 +72,7 @@ export interface PdfRect {
  * Returns null for empty polygons.
  */
 export function pdfShapeToRect(
-  coords: NormalizedShapeCoords, pageWidth: number, pageHeight: number,
+  coords: PercentShapeCoords, pageWidth: number, pageHeight: number,
 ): PdfRect | null {
   let x: number, y: number, w: number, h: number;
 

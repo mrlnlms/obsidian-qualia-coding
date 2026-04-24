@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ellipseBBox, polygonBBox, lineChToOffset, pdfShapeToRect, imageToPixels, mediaToMs } from '../../src/export/coordConverters';
-import type { NormalizedShapeCoords } from '../../src/core/shapeTypes';
+import type { PercentShapeCoords } from '../../src/core/shapeTypes';
 
 describe('ellipseBBox', () => {
   it('computes bounding box from center + radii', () => {
@@ -58,7 +58,7 @@ describe('lineChToOffset', () => {
 describe('pdfShapeToRect', () => {
   // Plugin coords are in percent (0-100) — matches SVG viewBox "0 0 100 100".
   it('converts rect coords to PDF points (bottom-left origin)', () => {
-    const coords: NormalizedShapeCoords = { type: 'rect', x: 10, y: 20, w: 30, h: 40 };
+    const coords: PercentShapeCoords = { type: 'rect', x: 10, y: 20, w: 30, h: 40 };
     const result = pdfShapeToRect(coords, 612, 792);
     expect(result).toEqual({
       firstX: 61.2, firstY: 633.6,
@@ -67,14 +67,14 @@ describe('pdfShapeToRect', () => {
   });
 
   it('converts ellipse via bounding box', () => {
-    const coords: NormalizedShapeCoords = { type: 'ellipse', cx: 50, cy: 50, rx: 10, ry: 20 };
+    const coords: PercentShapeCoords = { type: 'ellipse', cx: 50, cy: 50, rx: 10, ry: 20 };
     const result = pdfShapeToRect(coords, 612, 792);
     expect(result!.firstX).toBeCloseTo(0.4 * 612);
     expect(result!.secondX).toBeCloseTo(0.6 * 612);
   });
 
   it('converts polygon via bounding box', () => {
-    const coords: NormalizedShapeCoords = {
+    const coords: PercentShapeCoords = {
       type: 'polygon',
       points: [{ x: 20, y: 30 }, { x: 80, y: 70 }],
     };
@@ -84,7 +84,7 @@ describe('pdfShapeToRect', () => {
   });
 
   it('returns null for empty polygon', () => {
-    const coords: NormalizedShapeCoords = { type: 'polygon', points: [] };
+    const coords: PercentShapeCoords = { type: 'polygon', points: [] };
     expect(pdfShapeToRect(coords, 612, 792)).toBeNull();
   });
 });

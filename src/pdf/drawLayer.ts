@@ -8,7 +8,7 @@
  */
 
 import type { PDFPageView } from './pdfTypings';
-import type { PdfShapeMarker, NormalizedShapeCoords } from './pdfCodingTypes';
+import type { PdfShapeMarker, PercentShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import { getCodeIds } from '../core/codeApplicationHelpers';
 import type { PdfViewState } from './pdfViewState';
@@ -133,7 +133,7 @@ export function renderDrawLayerForPage(
 /**
  * Create an SVG element for the given shape coordinates.
  */
-function createShapeSVG(coords: NormalizedShapeCoords, color: string): SVGElement | null {
+function createShapeSVG(coords: PercentShapeCoords, color: string): SVGElement | null {
 	switch (coords.type) {
 		case 'rect': {
 			const rect = document.createElementNS(SVG_NS, 'rect');
@@ -204,7 +204,7 @@ export function applyHoverToDrawLayer(container: HTMLElement, shapeId: string | 
  * Get the vertical bounds of a shape as CSS percentages (for margin panel integration).
  * Returns topPct and bottomPct in the 0-100 range.
  */
-export function getShapeVerticalBounds(coords: NormalizedShapeCoords): { topPct: number; bottomPct: number } {
+export function getShapeVerticalBounds(coords: PercentShapeCoords): { topPct: number; bottomPct: number } {
 	switch (coords.type) {
 		case 'rect':
 			return { topPct: coords.y, bottomPct: coords.y + coords.h };

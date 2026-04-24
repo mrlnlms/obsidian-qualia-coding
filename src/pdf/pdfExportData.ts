@@ -28,6 +28,11 @@ async function ensurePdfJsLoaded(app: App, filePath: string): Promise<void> {
 		throw new Error(`PDF not found in vault: ${filePath}`);
 	}
 	const leaf = app.workspace.getLeaf('tab');
+	// Hide the leaf chrome so the user doesn't see a momentary blank PDF tab.
+	const tabHeader = (leaf as any).tabHeaderEl as HTMLElement | undefined;
+	const container = (leaf as any).containerEl as HTMLElement | undefined;
+	tabHeader?.style.setProperty('display', 'none');
+	container?.style.setProperty('visibility', 'hidden');
 	try {
 		await leaf.openFile(file as TFile, { active: false });
 		const start = Date.now();

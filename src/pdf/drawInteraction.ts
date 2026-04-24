@@ -6,7 +6,7 @@
 
 import type { PDFViewerChild } from './pdfTypings';
 import type { PdfCodingModel } from './pdfCodingModel';
-import type { NormalizedShapeCoords } from '../core/shapeTypes';
+import type { PercentShapeCoords } from '../core/shapeTypes';
 import type { DrawMode } from '../core/shapeTypes';
 import { getPageElFromNode, getPageNumber } from './pdfViewerAccess';
 
@@ -17,9 +17,9 @@ const MIN_SHAPE_SIZE = 1; // Minimum % size to accept a drawn shape
 export type { DrawMode };
 
 export interface DrawInteractionCallbacks {
-	onShapeCreated: (file: string, page: number, coords: NormalizedShapeCoords) => void;
+	onShapeCreated: (file: string, page: number, coords: PercentShapeCoords) => void;
 	onShapeSelected: (shapeId: string | null) => void;
-	onShapeMoved: (shapeId: string, coords: NormalizedShapeCoords) => void;
+	onShapeMoved: (shapeId: string, coords: PercentShapeCoords) => void;
 }
 
 export class DrawInteraction {
@@ -38,7 +38,7 @@ export class DrawInteraction {
 	private moveState: {
 		shapeId: string;
 		startMouse: { x: number; y: number };
-		startCoords: NormalizedShapeCoords;
+		startCoords: PercentShapeCoords;
 		pageEl: HTMLElement;
 	} | null = null;
 
@@ -364,7 +364,7 @@ export class DrawInteraction {
 			return;
 		}
 
-		const coords: NormalizedShapeCoords = {
+		const coords: PercentShapeCoords = {
 			type: 'polygon',
 			points: [...this.polygonPoints],
 		};
@@ -394,7 +394,7 @@ export class DrawInteraction {
 	private buildCoords(
 		start: { x: number; y: number },
 		end: { x: number; y: number },
-	): NormalizedShapeCoords | null {
+	): PercentShapeCoords | null {
 		const x = Math.min(start.x, end.x);
 		const y = Math.min(start.y, end.y);
 		const w = Math.abs(end.x - start.x);
@@ -416,7 +416,7 @@ export class DrawInteraction {
 		return null;
 	}
 
-	private offsetCoords(coords: NormalizedShapeCoords, dx: number, dy: number): NormalizedShapeCoords {
+	private offsetCoords(coords: PercentShapeCoords, dx: number, dy: number): PercentShapeCoords {
 		switch (coords.type) {
 			case 'rect':
 				return { ...coords, x: coords.x + dx, y: coords.y + dy };
