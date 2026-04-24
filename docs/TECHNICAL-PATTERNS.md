@@ -1504,6 +1504,67 @@ Implementado 2026-04-24, branch `feat/tabular-export`.
 
 ---
 
+## 23. Fabric.js — bbox scene-coord em `canvas.toDataURL`
+
+### Problema
+
+Export PNG do Research Board saía cortado/deslocado quando o usuário tinha aplicado zoom ou pan antes de clicar Export. Com zoom 2x o crop bate num quadrante aleatório em vez da bbox dos nodes.
+
+### Causa
+
+`canvas.toDataURL({ left, top, width, height })` do Fabric interpreta `left/top/width/height` em **coords da viewport atual** — multiplicadas pelo `viewportTransform`. Os valores que passamos são **scene coords** (coords do mundo, calculadas via `getBoundingRect()` de cada objeto, que retorna world space com zoom=1 implícito).
+
+Com `viewportTransform = [2, 0, 0, 2, dx, dy]` e bbox `{left: 100, top: 50, width: 200, height: 150}`, Fabric multiplica a bbox pelo zoom → pega uma região pequena, deslocada, fora da área dos nodes.
+
+`canvas.toSVG({ viewBox })` **não sofre** do mesmo problema — viewBox SVG é conceito puro de scene coords, independente do transform do canvas.
+
+### Pattern
+
+Reset do `viewportTransform` pra identidade antes de `toDataURL`, restaura depois no `finally`:
+
+```ts
+export function exportBoardPng(canvas: Canvas, bbox: BBox, multiplier = 2): string {
+  const prevVt = [...canvas.viewportTransform] as [number, number, number, number, number, number];
+  canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+  try {
+    return canvas.toDataURL({
+      format: "png",
+      multiplier,
+      left: bbox.left, top: bbox.top, width: bbox.width, height: bbox.height,
+    });
+  } finally {
+    canvas.setViewportTransform(prevVt);
+    canvas.requestRenderAll();
+  }
+}
+```
+
+### UX — por que não flicka
+
+- `toDataURL` internamente usa `toCanvasElement()`, que cria um `HTMLCanvasElement` em buffer de memória separado. O canvas DOM visível **não** é re-renderizado no meio da operação
+- `setViewportTransform` é síncrono, seta o field mas não dispara render automático
+- `requestRenderAll` no `finally` agenda repaint do canvas DOM no próximo RAF — estado visual idêntico ao pré-export
+- Duração total do export é <100ms síncronos, dentro de um único tick JS — usuário não enxerga a mudança de transform
+
+### Gotchas
+
+- **Precisa try/finally.** Se `toDataURL` lançar (ex: OOM em bbox gigante), sem `finally` o viewportTransform fica travado em identidade → usuário vê board "resetado". Teste explícito: `restaura viewportTransform mesmo se toDataURL lançar` em `boardExport.test.ts`
+- **Cópia defensiva do vt.** Fabric reusa o mesmo array interno em alguns caminhos. `[...canvas.viewportTransform]` é obrigatório — passar a referência direta pro `setViewportTransform(prevVt)` pode salvar uma versão já mutada
+- **Não precisa pra SVG.** `canvas.toSVG({ viewBox: {x, y, width, height} })` trabalha em scene coords nativamente — sem reset
+
+### Quando aplicar
+
+Qualquer export PNG/imagem de canvas Fabric com crop scene-coord, não só no Board. Se futuros modos do Analytics exportarem charts que são Fabric canvas com zoom/pan, mesma técnica se aplica.
+
+### Onde está implementado
+
+- `src/analytics/board/boardExport.ts:50-71` — `exportBoardPng` com reset/restore
+- `tests/analytics/boardExport.test.ts` — 2 testes dedicados: happy path + throw safety
+
+Descoberto 2026-04-24 durante smoke test do cenário 5 (zoom antes do Export PNG) da feature Board Export SVG/PNG (ROADMAP #15).
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

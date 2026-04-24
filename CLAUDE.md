@@ -138,6 +138,7 @@ src/
       boardNodeHelpers.ts    — factories compartilhadas (cardBg, textbox, badges, theme, assignNodeProps)
       boardNodes.ts          — barrel re-export dos 6 node types
       nodes/                 — 1 arquivo por node type (stickyNode, snapshotNode, excerptNode, etc.)
+      boardExport.ts         — export SVG/PNG (bbox scene-coord + viewportTransform reset no PNG pra crop correto com zoom)
       fabricExtensions.d.ts  — ambient types para Fabric.js (Canvas, Rect, etc. + FabricObject methods)
     views/
       analyticsView.ts       — classe AnalyticsView (~340 LOC): lifecycle, toolbar, footer
@@ -181,7 +182,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2045 testes em 107 suites (Vitest + jsdom)
+- `npm run test` — 2060 testes em 108 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
