@@ -284,6 +284,9 @@ Instância única compartilhada entre todos os 7 engines:
 - `rootOrder: string[]` controla ordem de exibicao dos codigos root
 - `executeMerge()` em `mergeModal.ts`: reassigna markers, reparenta filhos, registra audit trail
 
+**`parentId` como theme hierarchy (NVivo / Braun & Clarke):**
+A hierarquia `parentId` NÃO é só organização estrutural — ela **É** o mecanismo de theme hierarchy do plugin. Um código pai com zero aplicações diretas (ex: `Experiencias` sem segments, só com filhos `resistencia`/`adocao`/`frustacao`) age como theme; o count agregado inclui aplicações dos filhos via `buildCountIndex`. Isso é o padrão exato do NVivo (parent/child com opção "Aggregate") e casa com a metodologia Braun & Clarke (códigos → subtemas → temas → temas abrangentes = hierarquia aninhada). Se surgir demanda por "theme hierarchy", o reflexo correto é **primeiro perguntar por que `parentId` não resolve** antes de propor nova camada. O item ROADMAP #2a ("Code Groups") é coisa DIFERENTE — grouping flat N:N cross-cutting estilo Atlas.ti, ortogonal à hierarquia.
+
 **Pastas virtuais (Phase B):**
 - `folder?: string` no CodeDefinition (ID da pasta)
 - `FolderDefinition { id, name, createdAt }` armazenado no registry
