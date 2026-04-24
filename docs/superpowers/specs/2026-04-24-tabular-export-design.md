@@ -81,14 +81,28 @@ O arquivo `.zip` é criado no **root do vault** via `vault.createBinary`. Consis
 
 ### 1. `segments.csv` — 1 linha por segmento codificado
 
-Consolida os 7 tipos de marker do plugin (`markdown`, `pdf_text`, `pdf_shape`, `image`, `audio`, `video`, `csv_segment`, `csv_row`) em uma única tabela wide. Colunas específicas por tipo ficam vazias quando não se aplicam.
+Consolida os 6 tipos persistidos de marker em 8 `sourceType`s para leitura no R. A projeção é feita no builder no momento do export (o tipo persistido `MarkerType` é 6-valued; o PDF engine tem 2 arrays separados `markers` + `shapes`, e o CSV engine tem `segmentMarkers` + `rowMarkers`, que viram 4 `sourceType`s distintos):
+
+| MarkerType persistido | sourceType no CSV |
+|---|---|
+| `markdown` | `markdown` |
+| `pdf` (texto) | `pdf_text` |
+| `pdf` (shape) | `pdf_shape` |
+| `image` | `image` |
+| `audio` | `audio` |
+| `video` | `video` |
+| `csv` (segment) | `csv_segment` |
+| `csv` (row) | `csv_row` |
+
+Também uma coluna adicional `engine` coarse (6 valores, correspondendo ao `MarkerType` persistido) para facilitar filtros: `filter(engine == "pdf")` pega text e shape juntos sem listar ambos.
 
 | Coluna | Tipo | Notas |
 |---|---|---|
 | `id` | string | ID interno do plugin |
 | `fileId` | string | Path do arquivo no vault |
-| `sourceType` | enum | `markdown` / `pdf_text` / `pdf_shape` / `image` / `audio` / `video` / `csv_segment` / `csv_row` |
-| `text` | string | Full text quando aplicável (markdown, pdf_text, csv_segment). Vazio para shapes/media/csv_row. CSV quoting padrão — suporta newlines e quotes internos |
+| `engine` | enum | `markdown` / `pdf` / `image` / `audio` / `video` / `csv` — corresponde ao `MarkerType` persistido |
+| `sourceType` | enum | `markdown` / `pdf_text` / `pdf_shape` / `image` / `audio` / `video` / `csv_segment` / `csv_row` — projeção fina |
+| `text` | string | Full text quando disponível. Ver seção "Resolução de texto" abaixo. Vazio para shapes e media. CSV quoting padrão — suporta newlines e quotes internos |
 | `memo` | string | Memo do segment (vazio se não tem) |
 | `createdAt` | ISO 8601 | `2026-04-24T10:32:15Z` |
 | `updatedAt` | ISO 8601 | idem |
@@ -98,7 +112,7 @@ Consolida os 7 tipos de marker do plugin (`markdown`, `pdf_text`, `pdf_shape`, `
 | `row` | int | CSV só (0-based) |
 | `column` | string | CSV só (nome da coluna source) |
 | `cell_from`, `cell_to` | int | CSV segment só (offset dentro da célula) |
-| `time_from`, `time_to` | ms (int) | Audio/video só |
+| `time_from`, `time_to` | ms (int) | Audio/video só. Convertido de segundos no source (`MediaMarker.from/to`) × 1000 + round |
 | `shape_type` | enum | `rect` / `ellipse` / `polygon` (quando `Include shape coords` on) |
 | `shape_coords` | JSON string | `{"type":"rect","x":10,"y":20,"w":30,"h":40}` (quando `Include shape coords` on). Escala: PDF = 0-100 (`PercentShapeCoords`), image = 0-1 (`NormalizedCoords`). Documentado no README |
 
@@ -106,6 +120,15 @@ Consolida os 7 tipos de marker do plugin (`markdown`, `pdf_text`, `pdf_shape`, `
 - `colorOverride` e `color` **não** saem no segment — cor é display concern; análise externa não precisa
 - Timestamps em ISO 8601 (padrão R/lubridate `ymd_hms`)
 - `text` sem truncamento (full text)
+
+**Resolução de texto:**
+
+- `markdown` e `pdf_text`: marker já tem `text` no data.json (populado no capture / resolvido via anchor no primeiro render)
+- `csv_segment`: marker NÃO tem `text` persistido. O orchestrator lê o arquivo CSV via `PapaParse`, extrai `record[column].slice(from, to)`, e passa um `Map<markerId, string>` pro builder. Builder continua função pura
+- `csv_row`: marker NÃO tem `text`. Orchestrator extrai o valor inteiro da célula `record[column]` (sem slice) e passa no mesmo Map
+- `pdf_shape`, `image`, `audio`, `video`: `text` fica vazio (coords/tempo são o dado)
+
+Falha ao ler CSV (arquivo movido/deletado): warning `"CSV {fileId}: cannot read source for text resolution"`, segments do engine csv saem com `text` vazio.
 
 ### 2. `code_applications.csv` — 1 linha por aplicação código × segment
 
@@ -138,8 +161,15 @@ Case Variables são propriedades tipadas por arquivo (mixed-methods). Long forma
 |---|---|---|
 | `fileId` | string | Foreign key → `segments.fileId` |
 | `variable` | string | Nome da propriedade |
-| `value` | string | Valor coerced para string (tipo fica na coluna `type`) |
-| `type` | enum | `text` / `number` / `date` / `datetime` / `checkbox` |
+| `value` | string | Valor coerced para string (ver "Serialização de valores" abaixo) |
+| `type` | enum | `text` / `multitext` / `number` / `date` / `datetime` / `checkbox` (6 valores, match do `PropertyType` persistido) |
+
+**Serialização de valores:**
+
+- `text`, `number`, `date`, `datetime`: stringify direto (`String(value)`)
+- `checkbox`: `"true"` / `"false"`
+- `multitext`: array serializado como JSON (`JSON.stringify(value)` → `["a","b"]`). User parseia no R com `jsonlite::fromJSON` se precisar
+- `null`: string vazia (célula em branco). Row ainda é emitido (semântica: "variável declarada mas valor ausente")
 
 Exemplo no R:
 ```r
@@ -153,6 +183,11 @@ vars_wide <- vars %>% pivot_wider(names_from = variable, values_from = value)
 segments %>%
   inner_join(vars %>% filter(variable == "age"), by = "fileId") %>%
   mutate(age = as.numeric(value))
+
+# Parse multitext
+vars %>%
+  filter(type == "multitext") %>%
+  mutate(parsed = map(value, jsonlite::fromJSON))
 ```
 
 ### 5. `relations.csv` — só se `Include relations` on
@@ -160,19 +195,22 @@ segments %>%
 Relations têm 2 tipos no plugin:
 
 1. **Code-level** (`CodeDefinition.relations`) — relações entre códigos do codebook ("parent-of", "similar-to", "contradicts")
-2. **Application-level** (`CodeApplication.relations`) — relações de uma aplicação específica com outro segment ou código
+2. **Application-level** (`CodeApplication.relations`) — relações de uma aplicação específica (segment + code) com outro código
 
-A tabela unifica ambos com uma coluna `scope`.
+A tabela unifica ambos com uma coluna `scope`. Em vez de um composite key string (`{segment_id}:{code_id}`), usa colunas separadas `origin_segment_id` / `origin_code_id` que são nulláveis — joins triviais no R.
 
 | Coluna | Tipo | Notas |
 |---|---|---|
-| `scope` | enum | `code` ou `application` |
-| `origin_id` | string | `code_id` se `scope=code`; composite `{segment_id}:{code_id}` se `scope=application` |
-| `target_id` | string | Mesma convenção do origin |
+| `scope` | enum | `code` (do codebook) ou `application` (de um CodeApplication específico) |
+| `origin_code_id` | string | Code id do origin. Preenchido em ambos scopes |
+| `origin_segment_id` | string (nullable) | Segment id do origin. Vazio se `scope=code` |
+| `target_code_id` | string | Code id do target (sempre code — `CodeRelation.target` é code id por convenção do plugin) |
 | `label` | string | "parent-of", "contradicts", etc. Livre (autocomplete no plugin) |
 | `directed` | bool | `true` / `false` |
 
 Se `Include relations` está `off`, esta tabela simplesmente não é criada.
+
+**Nota sobre `target`:** `CodeRelation.target` no plugin é um `string` sem discriminador de tipo; por convenção refere-se a um code id. O spec assume isso — se a convenção mudar no futuro (ex: permitir target segment), o builder precisa adicionar uma coluna `target_segment_id`.
 
 ### 6. `README.md` — embutido no zip
 
@@ -191,6 +229,17 @@ Gerado no momento do export com:
   apps %>%
     inner_join(codes, by = c("code_id" = "id")) %>%
     count(name, sort = TRUE)
+  ```
+  Nota: use `readr::read_csv` (tidyverse) em vez de `read.csv` (base R) — lida melhor com quoting multi-linha.
+- Exemplo equivalente em Python/pandas:
+  ```python
+  import pandas as pd
+  segments = pd.read_csv("segments.csv")
+  apps = pd.read_csv("code_applications.csv")
+  codes = pd.read_csv("codes.csv")
+
+  # Frequência por código
+  apps.merge(codes, left_on="code_id", right_on="id")["name"].value_counts()
   ```
 - Seção final **Warnings** (se houver)
 
@@ -260,9 +309,9 @@ ExportModal.doExport → if (format === 'tabular')
 
 | Arquivo | Mudança |
 |---|---|
-| `src/export/exportModal.ts` | Adiciona `'tabular'` ao tipo `format`, 3ª opção no dropdown, 2 toggles na seção dinâmica. Roteia para `exportTabular` quando `format==='tabular'` |
+| `src/export/exportModal.ts` | (a) Tipo `format` vira `'qdc' \| 'qdpx' \| 'tabular'`. (b) 3ª opção no dropdown. (c) `fileName` substitution no `onChange` trata `tabular` → extensão `.zip` (QDPX/QDC mantêm extensão = format). (d) 2 toggles `Include relations` / `Include shape coords` renderizados só quando `format==='tabular'`. (e) `doExport` branch: se `format==='tabular'`, chama `exportTabular(...)`; senão mantém fluxo `exportProject(...)` existente |
 | `src/export/exportCommands.ts` | Nova command `export-tabular`, factory `openExportModal` aceita `'tabular'` como default |
-| `src/settings/...` | Novo botão "Export tabular for external analysis" que chama `openExportModal(plugin, 'tabular')` |
+| `src/core/settingTab.ts` | Novo botão "Export tabular for external analysis" que chama `openExportModal(plugin, 'tabular')` |
 
 **Dependências:**
 - `fflate` — já no bundle (usado por QDPX)
@@ -280,8 +329,9 @@ Princípios: **fail-soft com warnings coletados**, igual ao QDPX exporter existe
 |---|---|
 | Segment com `codeId` órfão (código deletado mas application ficou) | Skip aplicação, warning |
 | Case variable com tipo inválido | Salva como `text`, warning |
-| Shape marker com coords malformado | Skip coords (segment ainda sai), warning |
-| Campo de tempo NaN em media marker | Skip segment, warning |
+| Shape marker com coords malformado | Skip coords (segment ainda sai com `shape_type`/`shape_coords` vazios), warning |
+| Campo de tempo NaN em media marker | Emit segment com `time_from`/`time_to` vazios, warning — não skip (mantém code applications) |
+| CSV source não legível pra resolução de texto | Segments do CSV saem com `text` vazio, warning |
 
 **Erros que abortam:**
 
