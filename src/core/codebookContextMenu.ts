@@ -18,6 +18,7 @@ export interface ContextMenuCallbacks {
 	promptColor(codeId: string): void;
 	promptDescription(codeId: string): void;
 	setParent(codeId: string, parentId: string | undefined): void;
+	promptAddToGroup(codeId: string): void;
 }
 
 export function showCodeContextMenu(
@@ -96,6 +97,9 @@ export function showCodeContextMenu(
 
 	menu.addItem(item =>
 		item.setTitle('Merge with...').setIcon('merge').onClick(() => callbacks.openMergeModal(codeId)),
+	);
+	menu.addItem(item =>
+		item.setTitle('Add to group...').setIcon('tag').onClick(() => callbacks.promptAddToGroup(codeId)),
 	);
 
 	menu.addSeparator();

@@ -590,6 +590,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 				this.model.registry.setParent(codeId, parentId);
 				this.model.saveMarkers();
 			},
+			promptAddToGroup: (codeId: string) => this.openAddToGroupPicker(codeId),
 		};
 	}
 
