@@ -7,10 +7,15 @@
 import { SearchComponent, setIcon } from 'obsidian';
 import type { BaseMarker, SidebarModelInterface } from './types';
 import { renderCodebookTree, type CodebookTreeCallbacks, type CodebookTreeState } from './codebookTreeRenderer';
+import { renderCodeGroupsPanel } from './codeGroupsPanel';
 
 export interface ListRendererCallbacks extends CodebookTreeCallbacks {
 	onSearchChange(query: string): void;
 	onDragModeChange(mode: 'reorganize' | 'merge'): void;
+	// Groups
+	onSelectGroup(groupId: string | null): void;
+	onCreateGroup(): void;
+	onGroupChipContextMenu(groupId: string, event: MouseEvent): void;
 }
 
 /**
@@ -72,6 +77,15 @@ export function renderListContent(
 	callbacks: ListRendererCallbacks,
 ): void {
 	contentZone.empty();
+
+	// Groups panel acima da tree
+	renderCodeGroupsPanel(contentZone, model.registry, {
+		selectedGroupId: treeState.selectedGroupId,
+		onSelectGroup: callbacks.onSelectGroup,
+		onCreateGroup: callbacks.onCreateGroup,
+		onChipContextMenu: callbacks.onGroupChipContextMenu,
+	});
+
 	renderCodebookTree(contentZone, model, treeState, callbacks);
 }
 

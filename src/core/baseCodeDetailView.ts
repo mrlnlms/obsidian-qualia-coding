@@ -12,7 +12,7 @@
  *   - renderCustomSection(container, marker) — optional extra section (e.g. memo)
  */
 
-import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
+import { ItemView, Menu, Notice, WorkspaceLeaf } from 'obsidian';
 import { BaseMarker, SidebarModelInterface } from './types';
 import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
@@ -316,7 +316,130 @@ export abstract class BaseCodeDetailView extends ItemView {
 					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
 				}
 			},
+			onSelectGroup: (groupId: string | null) => {
+				this.selectedGroupId = groupId;
+				this.refreshCurrentMode();
+			},
+			onCreateGroup: () => {
+				new PromptModal({
+					app: this.app,
+					title: 'New group',
+					placeholder: 'Group name',
+					onSubmit: (name) => {
+						const trimmed = name.trim();
+						if (!trimmed) {
+							new Notice('Group name cannot be empty.');
+							return;
+						}
+						this.model.registry.createGroup(trimmed);
+						this.model.saveMarkers();
+						this.refreshCurrentMode();
+					},
+				}).open();
+			},
+			onGroupChipContextMenu: (groupId: string, evt: MouseEvent) => {
+				this.openGroupChipMenu(groupId, evt);
+			},
 		};
+	}
+
+	// ─── Group chip context menu ───────────────────────────
+
+	private openGroupChipMenu(groupId: string, evt: MouseEvent): void {
+		const g = this.model.registry.getGroup(groupId);
+		if (!g) return;
+
+		const menu = new Menu();
+
+		menu.addItem((item) => item
+			.setTitle('Rename')
+			.setIcon('pencil')
+			.onClick(() => {
+				new PromptModal({
+					app: this.app,
+					title: 'Rename group',
+					initialValue: g.name,
+					onSubmit: (newName) => {
+						const trimmed = newName.trim();
+						if (!trimmed) {
+							new Notice('Group name cannot be empty.');
+							return;
+						}
+						this.model.registry.renameGroup(groupId, trimmed);
+						this.model.saveMarkers();
+						this.refreshCurrentMode();
+					},
+				}).open();
+			}),
+		);
+
+		menu.addItem((item) => item
+			.setTitle('Edit color')
+			.setIcon('palette')
+			.onClick(() => {
+				const input = document.createElement('input');
+				input.type = 'color';
+				input.value = g.color;
+				input.style.position = 'fixed';
+				input.style.left = '-9999px';
+				document.body.appendChild(input);
+				input.addEventListener('change', () => {
+					this.model.registry.setGroupColor(groupId, input.value);
+					input.remove();
+					this.model.saveMarkers();
+					this.refreshCurrentMode();
+				}, { once: true });
+				input.addEventListener('blur', () => {
+					setTimeout(() => input.remove(), 100);
+				}, { once: true });
+				input.click();
+			}),
+		);
+
+		menu.addItem((item) => item
+			.setTitle('Edit description')
+			.setIcon('file-text')
+			.onClick(() => {
+				new PromptModal({
+					app: this.app,
+					title: 'Edit description',
+					initialValue: g.description ?? '',
+					placeholder: 'Short description (optional)',
+					onSubmit: (desc) => {
+						const trimmed = desc.trim();
+						this.model.registry.setGroupDescription(groupId, trimmed || undefined);
+						this.model.saveMarkers();
+						this.refreshCurrentMode();
+					},
+				}).open();
+			}),
+		);
+
+		menu.addSeparator();
+
+		menu.addItem((item) => item
+			.setTitle('Delete')
+			.setIcon('trash')
+			.setWarning(true)
+			.onClick(() => {
+				const memberCount = this.model.registry.getGroupMemberCount(groupId);
+				new ConfirmModal({
+					app: this.app,
+					title: 'Delete group',
+					message: `Delete group "${g.name}"? ${memberCount} code(s) will lose this membership.`,
+					confirmLabel: 'Delete',
+					destructive: true,
+					onConfirm: () => {
+						this.model.registry.deleteGroup(groupId);
+						if (this.selectedGroupId === groupId) this.selectedGroupId = null;
+						this.model.saveMarkers();
+						this.refreshCurrentMode();
+					},
+				}).open();
+			}),
+		);
+
+		menu.showAtMouseEvent(evt);
 	}
 
 	// ─── Context Menu ──────────────────────────────────────
