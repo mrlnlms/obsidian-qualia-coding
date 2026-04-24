@@ -33,7 +33,7 @@ O que falta é uma **camada flat N:N cross-cutting** (padrão Atlas.ti "Code Gro
 | 6 | Analytics filter | Chips clicáveis single-select, fallback dropdown em >10 groups |
 | 7 | Herança parent/child | Independente (filhos não herdam groups do pai automaticamente) |
 | 8 | Count semantics | Número de **códigos** no group (não applications); tooltip mostra applications |
-| 9 | Cor de group | Opcional, palette **pastel separada** (8 cores) pra distinguir de códigos |
+| 9 | Cor de group | Auto-atribuída do `GROUP_PALETTE` (8 pastéis) via `nextGroupPaletteIndex` no registry (pattern dos códigos). User pode editar via right-click chip |
 | 10 | Nome duplicado | Permitido (pattern dos códigos). Sem warning no tier 1.5 |
 | 11 | Merge de códigos | Target herda **union** dos groups (source + target) |
 | 12 | Search sidebar | Não filtra por nome de group (mesma lógica de folders, decisão CB3) |
@@ -69,6 +69,7 @@ registry: {
   // NEW
   groups: Record<string, GroupDefinition>;
   groupOrder: string[];
+  nextGroupPaletteIndex: number;  // round-robin pra auto-atribuir cor em createGroup
 }
 ```
 
@@ -78,29 +79,47 @@ registry: {
 export interface GroupDefinition {
   id: string;              // g_XX (estável)
   name: string;            // livre, renameable (atômico, não propaga — códigos referenciam por id)
-  color?: string;          // opcional, palette pastel separada
+  color: string;           // REQUIRED — auto-atribuído do GROUP_PALETTE via nextGroupPaletteIndex
   description?: string;    // opcional, livre, multiline
-  parentId?: string;       // SCHEMA-READY pra tier 3 nested; UI 1.5 ignora
+  paletteIndex: number;    // índice estável no GROUP_PALETTE (pattern dos códigos)
+  parentId?: string;       // SCHEMA-READY pra tier 3 nested; UI 1.5 NUNCA escreve neste campo
   createdAt: number;
 }
 ```
 
+**Palette de group** — nova constante em `src/core/types.ts`:
+
+```ts
+export const GROUP_PALETTE: readonly string[] = [
+  '#AEC6FF',  // pastel blue
+  '#B7E4C7',  // pastel green
+  '#FFD6A5',  // pastel peach
+  '#FFADAD',  // pastel coral
+  '#CAFFBF',  // pastel mint
+  '#BDB2FF',  // pastel violet
+  '#FDFFB6',  // pastel yellow
+  '#FFC6FF',  // pastel pink
+];
+```
+
+Cores pastéis escolhidas pra **distinguir visualmente da palette saturada dos códigos** (evita confusão no chip contador `🏷N` quando ambos aparecem na mesma row). 8 cores bastam pra tier 1.5 — palette não precisa escalar porque groups são dimensões analíticas em baixo número (5-15 típico).
+
 **Notas importantes:**
 
-- `parentId?` fica no schema mas UI 1.5 renderiza 100% flat. Quando tier 3 vier, **zero migration script**.
-- `groupOrder` análogo a `rootOrder`: controla ordem dos chips no painel. Reorder via drag (opcional no tier 1.5).
-- Palette de group: 8 cores pastéis distintas da palette saturada dos códigos (evita confusão visual no chip contador).
+- `parentId?` fica no schema mas **nenhuma mutation do registry escreve neste campo em tier 1.5**. Quando tier 3 vier, adiciona `setGroupParent` com cycle detection, zero migration script.
+- `groupOrder` análogo a `rootOrder`: controla ordem dos chips no painel. **Reorder por drag fica fora do tier 1.5** — `setGroupOrder` API existe no registry mas sem UI wiring. `createGroup` apenda no final de `groupOrder`. Se user quiser reordenar, usa tier 3.
+- Delete de group: a mutation `deleteGroup` remove o id de `groupOrder` além do ripple em `code.groups[]`.
 
 ### Registry API (nova no `CodeDefinitionRegistry`)
 
 ```ts
 // Mutations (todas chamam onMutate → save + registry-changed)
-createGroup(name: string, color?: string, description?: string): GroupDefinition;
+createGroup(name: string): GroupDefinition;   // color auto-atribuído do GROUP_PALETTE; description undefined
 renameGroup(id: string, newName: string): void;
-deleteGroup(id: string): void;  // ripple: remove id de code.groups[] em todos os códigos
-setGroupColor(id: string, color: string | undefined): void;
+deleteGroup(id: string): void;  // ripple: remove id de code.groups[] em todos os códigos + remove de groupOrder
+setGroupColor(id: string, color: string): void;           // user override após create
 setGroupDescription(id: string, description: string | undefined): void;
-setGroupOrder(ids: string[]): void;
+setGroupOrder(ids: string[]): void;                        // API existe; sem UI wiring em tier 1.5
 
 // Membership
 addCodeToGroup(codeId: string, groupId: string): void;   // idempotent
@@ -111,8 +130,25 @@ getGroup(id: string): GroupDefinition | null;
 getAllGroups(): GroupDefinition[];
 getCodesInGroup(groupId: string): CodeDefinition[];
 getGroupsForCode(codeId: string): GroupDefinition[];
-getGroupCount(groupId: string): number;  // nº de códigos membros
+getGroupMemberCount(groupId: string): number;  // nº de códigos membros (self-documenting: NÃO applications)
 ```
+
+**Notas do `createGroup`:**
+
+- PromptModal pede **só o nome**. Cor é auto-atribuída via `GROUP_PALETTE[nextGroupPaletteIndex % 8]`. Description fica `undefined`.
+- User personaliza cor/description depois via right-click no chip → Edit.
+- Não há color picker no PromptModal (reduz friction de criação — maioria dos users não vai precisar customizar cor).
+
+**Semântica do `nextGroupPaletteIndex`:**
+
+- Incrementa após cada `createGroup` com sucesso. **Nunca decrementa** no `deleteGroup` (pattern do `nextPaletteIndex` dos códigos).
+- Consequência aceita: após criar 10 groups e deletar 8, os próximos 2 groups ainda recebem cores a partir de `index 10 % 8 = 2`. `paletteIndex` fica estável no group e não é "reciclado".
+
+**`setGroupColor` vs `paletteIndex`:**
+
+- Se user chama `setGroupColor(id, hex)` e `hex` é membro do `GROUP_PALETTE`, `paletteIndex` atualiza pra corresponder.
+- Se `hex` é custom (fora do `GROUP_PALETTE`), `paletteIndex` vira `-1` (convenção "custom color", mesma usada no import QDPX com cor externa).
+- Isso garante que round-trip export/import + round-trip color→palette seja idempotente.
 
 ---
 
@@ -159,10 +195,11 @@ getGroupCount(groupId: string): number;  // nº de códigos membros
 **Interações:**
 
 - Clique em chip → seleciona/desseleciona (single-select)
-- `[+]` no painel → `PromptModal` pra nome → cria group (cor default gray, editável depois)
+- `[+]` no painel → `PromptModal` pede **só o nome** → `createGroup(name)` auto-atribui cor do `GROUP_PALETTE`
 - Right-click em chip → Menu: Rename / Delete / Edit color / Edit description
-- Right-click em código na tree → submenu "Add to group" → lista + "+ New group..."
+- Right-click em código na tree → submenu "Add to group" → lista + "+ New group..." (mesma PromptModal)
 - Hover no chip contador `🏷N` na row → tooltip lista nomes dos groups + total de applications
+- Chip contador **oculto** quando `code.groups?.length === 0 || undefined` (zero poluição default)
 
 ### 2. Code Detail view
 
@@ -226,7 +263,9 @@ Nova seção acima de "Filter by case variable":
 
 **Analytics filter:**
 
-- Aplicado em `applyFilters` (`src/analytics/data/statsHelpers.ts`) junto com `caseFilter` — reduz o marker set antes de qualquer stats engine
+- `applyFilters(markers, { caseFilter, groupFilter })` ganha novo parâmetro `groupFilter: string | null`. Se `null`, skip.
+- Reduction semantics: retorna markers cujo `codeId` bate com algum código membro de `groupFilter`. Implementação: `registry.getCodesInGroup(groupFilter)` retorna `CodeDefinition[]` → extrai ids em `Set` → filtra markers por `marker.codes.some(c => memberIds.has(c.codeId))`. Cache do `Set` de memberIds local ao call (sem persistir no registry).
+- Aplicado antes de qualquer stats engine. Ordem: `markers → caseFilter → groupFilter → stats`.
 
 ---
 
@@ -240,11 +279,12 @@ Nova seção acima de "Filter by case variable":
 <CodeBook>
   <Codes>...</Codes>
   <Sets>
-    <Set guid="..." name="RQ1">
+    <Set guid="..." name="RQ1" qualia:color="#AEC6FF">
+      <Description>Research question 1</Description>
       <MemberCode targetGUID="..."/>
       <MemberCode targetGUID="..."/>
     </Set>
-    <Set guid="..." name="Wave1">
+    <Set guid="..." name="Wave1" qualia:color="#B7E4C7">
       <MemberCode targetGUID="..."/>
     </Set>
   </Sets>
@@ -252,8 +292,9 @@ Nova seção acima de "Filter by case variable":
 ```
 
 - GUID dos groups reusa o pattern `ensureGuid` do exporter (como códigos/selections).
-- `description` do group vai em `<Description>` child opcional do `<Set>`.
-- Cor do group **não** tem representação na spec REFI-QDA → preservada só em QDPX round-trip próprio (atributo custom ignorado por importers externos).
+- `description` (opcional) vai em `<Description>` child do `<Set>` — preservado na round-trip própria e em importers que leem Description (NVivo/MAXQDA respeitam).
+- **Cor** — spec REFI-QDA não define atributo pra cor em `<Set>`. Serializa como atributo custom `qualia:color="#HEX"` (namespace prefix `qualia`). Importers externos (Atlas.ti/MAXQDA/NVivo) ignoram silentemente. Round-trip **próprio** restaura a cor; import de QDPX externo inicia com cor auto-atribuída do `GROUP_PALETTE`.
+- **`paletteIndex`** — não serializado (é puramente computacional). No import, recalcula baseado na cor se matchear `GROUP_PALETTE`; caso contrário trata como custom color e `paletteIndex = -1` (convenção "custom").
 
 **Import** — `qdpxImporter.ts` estendido:
 
@@ -272,13 +313,21 @@ Nova seção acima de "Filter by case variable":
 - **Novo `groups.csv`** standalone com metadata:
   ```csv
   group_id,group_name,color,description
-  g_01,RQ1,#aec6ff,"Research question 1"
+  g_01,RQ1,#AEC6FF,"Research question 1"
   ```
 - **`README.md`** do zip documenta ambos + snippets R/Python (dplyr join com groups.csv, pandas merge).
 
 ### Round-trip
 
-Teste de regressão: export → import = estrutura idêntica. Cobre os 4 campos de GroupDefinition + membership preservation.
+Teste de regressão: export → import = estrutura idêntica. Cobertura explícita:
+
+- `id` — regenerado no import (novo id local); membership preservada via GUID mapping (pattern existente do importer).
+- `name` — preservado via atributo `name` do `<Set>`.
+- `color` — preservado via atributo custom `qualia:color`. Import externo (sem `qualia:color`) → auto-atribuído.
+- `description` — preservado via `<Description>` child element.
+- `paletteIndex` — recomputado no import (match contra `GROUP_PALETTE`).
+- Membership (`code.groups[]`) — preservado via `<MemberCode targetGUID>`.
+- `parentId` — **não serializado em tier 1.5** (schema placeholder, sempre undefined).
 
 ---
 
@@ -313,7 +362,7 @@ Teste de regressão: export → import = estrutura idêntica. Cobre os 4 campos 
   - `setGroupOrder` — valida ids, mantém consistência
 
 - **Helpers puros** — novo `tests/core/groupHelpers.test.ts`:
-  - `getCodesInGroup`, `getGroupsForCode`, `getGroupCount`
+  - `getCodesInGroup`, `getGroupsForCode`, `getGroupMemberCount`
   - Parent/child independence: parent em group NÃO implica child em group
 
 - **Merge** — extender `mergeModal.test.ts`:
@@ -337,7 +386,9 @@ Teste de regressão: export → import = estrutura idêntica. Cobre os 4 campos 
 - **QDPX round-trip** — novo `tests/export/qdpxGroupsRoundtrip.test.ts`:
   - Export gera `<Set>` + `<MemberCode>` válidos
   - Import de QDPX externo cria groups e membership
-  - Roundtrip idempotente
+  - Roundtrip idempotente pra todos os campos: `name`, `color` (via `qualia:color`), `description` (via `<Description>`), membership
+  - Import de QDPX sem `qualia:color` (ex: Atlas.ti) → cor auto-atribuída do `GROUP_PALETTE`
+  - Import de custom color (fora do `GROUP_PALETTE`) → `paletteIndex = -1`
   - `MemberSource` ignorado com warning log verificável
 
 - **Tabular CSV** — novo `tests/export/tabularGroupsExport.test.ts`:
@@ -364,7 +415,14 @@ Teste de regressão: export → import = estrutura idêntica. Cobre os 4 campos 
 
 **Meta numérica:** ~30-40 testes novos. Baseline atual: 2108 tests. Alvo: ~2140-2150.
 
-**E2E (wdio):** **não incluído**. Feature é DOM + registry puro (sem pdfjs/fabric/wavesurfer/CM6 complexo que justifique). Smoke manual no merge cobre integração com Obsidian real.
+**E2E (wdio):** **não incluído**. Feature é DOM + registry puro (sem pdfjs/fabric/wavesurfer/CM6 complexo que justifique). Smoke manual no merge cobre:
+
+1. Criar group via `[+]` no painel
+2. Assign código via right-click → "Add to group"
+3. Filtrar Analytics por group (chip click) — confirma dataset reduz
+4. Editar cor via right-click chip
+5. QDPX export → re-import → verificar round-trip
+6. Delete group com códigos membros → confirma ripple
 
 ---
 
