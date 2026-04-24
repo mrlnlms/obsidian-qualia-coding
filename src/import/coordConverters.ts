@@ -36,19 +36,19 @@ export function offsetToLineCh(content: string, cpOffset: number): { line: numbe
 }
 
 /**
- * Convert REFI-QDA PDF rect (bottom-left origin, in points) to normalized 0-1.
- * Inverse of export's pdfShapeToRect.
+ * Convert REFI-QDA PDF rect (bottom-left origin, in points) to plugin
+ * coords in percent (0-100). Inverse of export's pdfShapeToRect.
  */
 export function pdfRectToNormalized(
   firstX: number, firstY: number,
   secondX: number, secondY: number,
   pageWidth: number, pageHeight: number,
 ): { type: 'rect'; x: number; y: number; w: number; h: number } {
-  const x = firstX / pageWidth;
-  const y = 1 - firstY / pageHeight;
-  const w = (secondX - firstX) / pageWidth;
-  const h = (firstY - secondY) / pageHeight;
-  return { type: 'rect', x, y, w, h };
+  const fx = firstX / pageWidth;
+  const fy = 1 - firstY / pageHeight;
+  const fw = (secondX - firstX) / pageWidth;
+  const fh = (firstY - secondY) / pageHeight;
+  return { type: 'rect', x: fx * 100, y: fy * 100, w: fw * 100, h: fh * 100 };
 }
 
 /**

@@ -522,7 +522,7 @@ export async function exportProject(
 
     let exportData;
     try {
-      exportData = await loadPdfExportData(app.vault, fileId);
+      exportData = await loadPdfExportData(app, fileId);
     } catch (err) {
       warnings.push(`PDF ${fileId}: failed to load for export (${(err as Error).message}) — skip`);
       continue;

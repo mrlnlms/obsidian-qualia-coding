@@ -56,8 +56,9 @@ describe('lineChToOffset', () => {
 });
 
 describe('pdfShapeToRect', () => {
+  // Plugin coords are in percent (0-100) — matches SVG viewBox "0 0 100 100".
   it('converts rect coords to PDF points (bottom-left origin)', () => {
-    const coords: NormalizedShapeCoords = { type: 'rect', x: 0.1, y: 0.2, w: 0.3, h: 0.4 };
+    const coords: NormalizedShapeCoords = { type: 'rect', x: 10, y: 20, w: 30, h: 40 };
     const result = pdfShapeToRect(coords, 612, 792);
     expect(result).toEqual({
       firstX: 61.2, firstY: 633.6,
@@ -66,7 +67,7 @@ describe('pdfShapeToRect', () => {
   });
 
   it('converts ellipse via bounding box', () => {
-    const coords: NormalizedShapeCoords = { type: 'ellipse', cx: 0.5, cy: 0.5, rx: 0.1, ry: 0.2 };
+    const coords: NormalizedShapeCoords = { type: 'ellipse', cx: 50, cy: 50, rx: 10, ry: 20 };
     const result = pdfShapeToRect(coords, 612, 792);
     expect(result!.firstX).toBeCloseTo(0.4 * 612);
     expect(result!.secondX).toBeCloseTo(0.6 * 612);
@@ -75,7 +76,7 @@ describe('pdfShapeToRect', () => {
   it('converts polygon via bounding box', () => {
     const coords: NormalizedShapeCoords = {
       type: 'polygon',
-      points: [{ x: 0.2, y: 0.3 }, { x: 0.8, y: 0.7 }],
+      points: [{ x: 20, y: 30 }, { x: 80, y: 70 }],
     };
     const result = pdfShapeToRect(coords, 612, 792);
     expect(result!.firstX).toBeCloseTo(0.2 * 612);

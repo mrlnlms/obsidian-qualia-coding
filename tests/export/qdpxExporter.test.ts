@@ -205,7 +205,7 @@ describe('buildPdfSourceXml', () => {
     const shapes: PdfShapeMarker[] = [{
       id: 'ps-1', fileId: 'docs/paper.pdf', page: 0,
       shape: 'rect',
-      coords: { type: 'rect', x: 0.1, y: 0.2, w: 0.3, h: 0.4 },
+      coords: { type: 'rect', x: 10, y: 20, w: 30, h: 40 },
       codes: [{ codeId: 'code-1' }],
       createdAt: Date.now(), updatedAt: Date.now(),
     }];
@@ -223,7 +223,7 @@ describe('buildPdfSourceXml', () => {
   it('skips shape markers when page dimensions unavailable', () => {
     const shapes: PdfShapeMarker[] = [{
       id: 'ps-2', fileId: 'docs/paper.pdf', page: 5,
-      shape: 'rect', coords: { type: 'rect', x: 0.1, y: 0.2, w: 0.3, h: 0.4 },
+      shape: 'rect', coords: { type: 'rect', x: 10, y: 20, w: 30, h: 40 },
       codes: [{ codeId: 'code-1' }],
       createdAt: Date.now(), updatedAt: Date.now(),
     }];

@@ -33,14 +33,14 @@ describe('offsetToLineCh', () => {
 });
 
 describe('pdfRectToNormalized', () => {
-  it('converts PDF points (bottom-left origin) to normalized coords', () => {
+  it('converts PDF points (bottom-left origin) to percent coords (0-100)', () => {
     // PDF: firstX=61.2, firstY=633.6, secondX=244.8, secondY=316.8
-    // Page: 612 x 792
+    // Page: 612 x 792 → expect 10%, 20%, 30%, 40%
     const result = pdfRectToNormalized(61.2, 633.6, 244.8, 316.8, 612, 792);
-    expect(result.x).toBeCloseTo(0.1, 5);
-    expect(result.y).toBeCloseTo(0.2, 5);
-    expect(result.w).toBeCloseTo(0.3, 5);
-    expect(result.h).toBeCloseTo(0.4, 5);
+    expect(result.x).toBeCloseTo(10, 4);
+    expect(result.y).toBeCloseTo(20, 4);
+    expect(result.w).toBeCloseTo(30, 4);
+    expect(result.h).toBeCloseTo(40, 4);
   });
 });
 

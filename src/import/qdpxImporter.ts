@@ -571,7 +571,7 @@ async function createMarkersForSource(
     const hasShapes = src.selections.some(s => s.type === 'PDFSelection');
     if (hasShapes) {
       try {
-        const data = await loadPdfExportData(app.vault, filePath);
+        const data = await loadPdfExportData(app, filePath);
         pdfDims = data.pageDims;
       } catch (err) {
         result.warnings.push(`PDF ${filePath}: failed to load page dims for shape markers, using US Letter default (${(err as Error).message})`);

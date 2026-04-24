@@ -63,9 +63,9 @@ describe('createPdfMarker — shape dims (BACKLOG §11 I1)', () => {
 		const shapes = dm.section('pdf').shapes as PdfShapeMarker[];
 		expect(shapes).toHaveLength(1);
 		const coords = shapes[0]!.coords as { x: number; w: number };
-		// firstX=100, pageWidth=595 → x ≈ 0.168 (not 100/612 ≈ 0.163)
-		expect(coords.x).toBeCloseTo(100 / 595, 5);
-		expect(coords.w).toBeCloseTo((200 - 100) / 595, 5);
+		// firstX=100, pageWidth=595, percent scale → x ≈ 16.8% (not 100/612*100 ≈ 16.3%)
+		expect(coords.x).toBeCloseTo((100 / 595) * 100, 4);
+		expect(coords.w).toBeCloseTo(((200 - 100) / 595) * 100, 4);
 	});
 
 	it('falls back to 612x792 (US Letter) when pdfDims is null', () => {
@@ -84,8 +84,8 @@ describe('createPdfMarker — shape dims (BACKLOG §11 I1)', () => {
 		const shapes = dm.section('pdf').shapes as PdfShapeMarker[];
 		expect(shapes).toHaveLength(1);
 		const coords = shapes[0]!.coords as { x: number; w: number };
-		expect(coords.x).toBeCloseTo(100 / 612, 5);
-		expect(coords.w).toBeCloseTo((200 - 100) / 612, 5);
+		expect(coords.x).toBeCloseTo((100 / 612) * 100, 4);
+		expect(coords.w).toBeCloseTo(((200 - 100) / 612) * 100, 4);
 	});
 
 	it('falls back to 612x792 when pdfDims has dims for other pages but not this one', () => {
@@ -103,6 +103,6 @@ describe('createPdfMarker — shape dims (BACKLOG §11 I1)', () => {
 
 		const shapes = dm.section('pdf').shapes as PdfShapeMarker[];
 		const coords = shapes[0]!.coords as { x: number };
-		expect(coords.x).toBeCloseTo(100 / 612, 5);
+		expect(coords.x).toBeCloseTo((100 / 612) * 100, 4);
 	});
 });

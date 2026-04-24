@@ -66,7 +66,9 @@ export interface PdfRect {
 }
 
 /**
- * Convert a normalized shape to a REFI-QDA PDF rectangle (bottom-left origin, in points).
+ * Convert a shape in plugin-normalized coords (0-100 %) to a REFI-QDA PDF
+ * rectangle (bottom-left origin, in points). The plugin's SVG draw layer
+ * uses viewBox "0 0 100 100", so x/y/w/h are percentages, not 0-1.
  * Returns null for empty polygons.
  */
 export function pdfShapeToRect(
@@ -91,11 +93,13 @@ export function pdfShapeToRect(
     }
   }
 
+  // Percent → 0-1 → PDF points
+  const fx = x / 100, fy = y / 100, fw = w / 100, fh = h / 100;
   return {
-    firstX: x * pageWidth,
-    firstY: (1 - y) * pageHeight,
-    secondX: (x + w) * pageWidth,
-    secondY: (1 - y - h) * pageHeight,
+    firstX: fx * pageWidth,
+    firstY: (1 - fy) * pageHeight,
+    secondX: (fx + fw) * pageWidth,
+    secondY: (1 - fy - fh) * pageHeight,
   };
 }
 
