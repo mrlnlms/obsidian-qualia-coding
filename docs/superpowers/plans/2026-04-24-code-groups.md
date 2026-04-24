@@ -860,7 +860,998 @@ Ao final deste chunk:
 
 ## Chunk 2: Codebook sidebar UI (painel + chip contador)
 
-TODO: will write next after Chunk 1 approved.
+Esta chunk torna Groups visíveis no UI. Painel collapsible acima da toolbar com chips + `[+]`, chip contador `🏷N` em cada code row, destaque contextual (borda/fade) quando um group é selecionado, right-click no chip pra Rename/Edit color/Edit description/Delete.
+
+### Task 2.0: Pre-flight — confirmar APIs reais
+
+Importante ler ANTES de começar. Patterns do codebase que este chunk consome:
+
+- `PromptModal` e `ConfirmModal` em `src/core/dialogs.ts`: constructor recebe **um único objeto opts** com `app` como property (NÃO `new PromptModal(app, opts)` — está errado em versões antigas deste plan).
+  - `PromptOptions`: `{ app, title, initialValue?, placeholder?, confirmLabel?, onSubmit }`. **Não suporta multiline** — Edit description usa single-line no MVP.
+  - `ConfirmOptions`: `{ app, title, message, confirmLabel?, destructive?, onConfirm }`. Destructive usa classe `mod-warning`.
+- `BaseCodeDetailView` (ver `src/core/baseCodeDetailView.ts:137`): método `protected refreshCurrentMode()` é o canal padrão pra re-render. Em list mode, re-renderiza `renderListContent(this.listContentZone, ...)`.
+- `getTreeState(): CodebookTreeState` (`baseCodeDetailView.ts:154`) retorna state pra tree. Precisa estender pra incluir `selectedGroupId`.
+- `setIcon` é exportado pelo obsidian mock em `tests/mocks/obsidian.ts:142` como noop — testes que chamam funções que usam `setIcon` funcionam em jsdom.
+- `HTMLElement.createDiv/createEl/createSpan` polyfilled em `tests/setup.ts` — disponível nos testes.
+- `Menu` (Obsidian UI) **não tem mock default** — usar apenas em runtime, não exercitar Menu em unit test (se precisar, testar apenas o `onChipContextMenu` callback shape, não a construção do Menu em si).
+
+- [ ] **Step 1: Ler `src/core/dialogs.ts` inteiro** pra confirmar signatures exatas.
+
+```bash
+cat src/core/dialogs.ts | head -125
+```
+
+- [ ] **Step 2: Ler seção "Refresh routing" de `src/core/baseCodeDetailView.ts:130-170`** pra entender pattern.
+
+```bash
+sed -n '130,170p' src/core/baseCodeDetailView.ts
+```
+
+Nenhuma mudança nestes arquivos nesta sub-task — é só reading. Fica completa ao confirmar visualmente que os patterns fazem sentido.
+
+### Task 2.1: Módulo `codeGroupsPanel` — render + interações básicas
+
+**Files:**
+- Create: `src/core/codeGroupsPanel.ts`
+- Test: `tests/core/codeGroupsPanel.test.ts`
+
+- [ ] **Step 1: Criar test file com primeiro teste (render básico)**
+
+```ts
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import { renderCodeGroupsPanel } from '../../src/core/codeGroupsPanel';
+
+describe('codeGroupsPanel — render', () => {
+  let container: HTMLElement;
+  let registry: CodeDefinitionRegistry;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    registry = new CodeDefinitionRegistry();
+  });
+
+  afterEach(() => {
+    container.remove();  // Evita acumular divs no document.body ao longo do test file
+  });
+
+  it('não renderiza nada quando não há groups (painel collapsed-invisible)', () => {
+    renderCodeGroupsPanel(container, registry, {
+      selectedGroupId: null,
+      onSelectGroup: () => {},
+      onCreateGroup: () => {},
+      onChipContextMenu: () => {},
+    });
+    // Painel fica renderizado mas vazio ou collapsed
+    const panel = container.querySelector('.codebook-groups-panel');
+    expect(panel).toBeTruthy();
+    // Nenhum chip visível
+    expect(container.querySelectorAll('.codebook-group-chip').length).toBe(0);
+  });
+
+  it('renderiza 1 chip por group existente no groupOrder', () => {
+    registry.createGroup('RQ1');
+    registry.createGroup('RQ2');
+    renderCodeGroupsPanel(container, registry, {
+      selectedGroupId: null,
+      onSelectGroup: () => {},
+      onCreateGroup: () => {},
+      onChipContextMenu: () => {},
+    });
+    const chips = container.querySelectorAll('.codebook-group-chip');
+    expect(chips.length).toBe(2);
+    expect(chips[0]!.textContent).toContain('RQ1');
+    expect(chips[1]!.textContent).toContain('RQ2');
+  });
+
+  it('chip mostra count de códigos membros', () => {
+    const c1 = registry.create('c1');
+    const c2 = registry.create('c2');
+    const g = registry.createGroup('RQ1');
+    registry.addCodeToGroup(c1.id, g.id);
+    registry.addCodeToGroup(c2.id, g.id);
+
+    renderCodeGroupsPanel(container, registry, {
+      selectedGroupId: null,
+      onSelectGroup: () => {},
+      onCreateGroup: () => {},
+      onChipContextMenu: () => {},
+    });
+    const chip = container.querySelector('.codebook-group-chip')!;
+    expect(chip.textContent).toContain('RQ1');
+    expect(chip.textContent).toContain('2');  // count
+  });
+
+  it('aplica classe is-selected no chip ativo', () => {
+    const g = registry.createGroup('RQ1');
+    renderCodeGroupsPanel(container, registry, {
+      selectedGroupId: g.id,
+      onSelectGroup: () => {},
+      onCreateGroup: () => {},
+      onChipContextMenu: () => {},
+    });
+    const chip = container.querySelector('.codebook-group-chip')!;
+    expect(chip.classList.contains('is-selected')).toBe(true);
+  });
+});
+```
+
+- [ ] **Step 2: Rodar — falha**
+
+```bash
+npm run test -- tests/core/codeGroupsPanel.test.ts --run
+```
+
+Expected: FAIL (module not found).
+
+- [ ] **Step 3: Implementar `codeGroupsPanel.ts`**
+
+```ts
+import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+import { setIcon } from 'obsidian';
+
+export interface CodeGroupsPanelCallbacks {
+  selectedGroupId: string | null;
+  onSelectGroup(groupId: string | null): void;
+  onCreateGroup(): void;  // abre PromptModal pra nome
+  onChipContextMenu(groupId: string, event: MouseEvent): void;
+}
+
+export function renderCodeGroupsPanel(
+  container: HTMLElement,
+  registry: CodeDefinitionRegistry,
+  callbacks: CodeGroupsPanelCallbacks,
+): { cleanup: () => void } {
+  // Preserva painel existente pra permitir re-render incremental sem recriar container
+  let panel = container.querySelector('.codebook-groups-panel') as HTMLElement | null;
+  if (!panel) {
+    panel = container.createDiv({ cls: 'codebook-groups-panel' });
+  } else {
+    panel.empty();
+  }
+
+  const groups = registry.getAllGroups();
+  const hasGroups = groups.length > 0;
+
+  // Header: título + [+] botão
+  const header = panel.createDiv({ cls: 'codebook-groups-header' });
+  const title = header.createSpan({ cls: 'codebook-groups-title', text: 'Groups' });
+  const addBtn = header.createEl('button', { cls: 'codebook-groups-add-btn', attr: { 'aria-label': 'Create group', title: 'Create group' } });
+  setIcon(addBtn, 'plus');
+  addBtn.addEventListener('click', () => callbacks.onCreateGroup());
+
+  // Collapsed quando vazio (só mostra header + [+], sem chips container)
+  if (!hasGroups) {
+    panel.addClass('is-empty');
+    return { cleanup: () => {} };
+  }
+  panel.removeClass('is-empty');
+
+  // Chips container
+  const chipsWrap = panel.createDiv({ cls: 'codebook-groups-chips' });
+  for (const g of groups) {
+    const chip = chipsWrap.createEl('button', { cls: 'codebook-group-chip' });
+    if (callbacks.selectedGroupId === g.id) chip.addClass('is-selected');
+
+    // Dot de cor
+    const dot = chip.createSpan({ cls: 'codebook-group-chip-dot' });
+    dot.style.backgroundColor = g.color;
+
+    // Nome
+    chip.createSpan({ cls: 'codebook-group-chip-name', text: g.name });
+
+    // Count
+    const count = registry.getGroupMemberCount(g.id);
+    chip.createSpan({ cls: 'codebook-group-chip-count', text: String(count) });
+
+    // Click toggle: se já selected, des-seleciona; senão seleciona
+    chip.addEventListener('click', () => {
+      if (callbacks.selectedGroupId === g.id) callbacks.onSelectGroup(null);
+      else callbacks.onSelectGroup(g.id);
+    });
+
+    // Right-click: context menu
+    chip.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      callbacks.onChipContextMenu(g.id, e);
+    });
+  }
+
+  return { cleanup: () => {} };
+}
+```
+
+- [ ] **Step 4: Rodar — passam 4 testes**
+
+```bash
+npm run test -- tests/core/codeGroupsPanel.test.ts --run
+```
+
+Expected: 4 PASS.
+
+- [ ] **Step 5: Adicionar teste de click e `[+]` callback**
+
+Append:
+
+```ts
+  it('click no chip chama onSelectGroup com o id', () => {
+    const g = registry.createGroup('RQ1');
+    let selectedId: string | null | undefined;
+    renderCodeGroupsPanel(container, registry, {
+      selectedGroupId: null,
+      onSelectGroup: (id) => { selectedId = id; },
+      onCreateGroup: () => {},
+      onChipContextMenu: () => {},
+    });
+    (container.querySelector('.codebook-group-chip') as HTMLElement).click();
+    expect(selectedId).toBe(g.id);
+  });
+
+  it('click no chip já selecionado des-seleciona (onSelectGroup(null))', () => {
+    const g = registry.createGroup('RQ1');
+    let selectedId: string | null | undefined = 'initial';
+    renderCodeGroupsPanel(container, registry, {
+      selectedGroupId: g.id,
+      onSelectGroup: (id) => { selectedId = id; },
+      onCreateGroup: () => {},
+      onChipContextMenu: () => {},
+    });
+    (container.querySelector('.codebook-group-chip') as HTMLElement).click();
+    expect(selectedId).toBeNull();
+  });
+
+  it('click no botão [+] dispara onCreateGroup', () => {
+    let called = false;
+    renderCodeGroupsPanel(container, registry, {
+      selectedGroupId: null,
+      onSelectGroup: () => {},
+      onCreateGroup: () => { called = true; },
+      onChipContextMenu: () => {},
+    });
+    (container.querySelector('.codebook-groups-add-btn') as HTMLElement).click();
+    expect(called).toBe(true);
+  });
+
+  it('right-click no chip dispara onChipContextMenu com id e event', () => {
+    const g = registry.createGroup('RQ1');
+    let capturedId: string | null = null;
+    renderCodeGroupsPanel(container, registry, {
+      selectedGroupId: null,
+      onSelectGroup: () => {},
+      onCreateGroup: () => {},
+      onChipContextMenu: (id) => { capturedId = id; },
+    });
+    const chip = container.querySelector('.codebook-group-chip') as HTMLElement;
+    chip.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    expect(capturedId).toBe(g.id);
+  });
+```
+
+- [ ] **Step 6: Rodar — 8 tests passam**
+
+Expected: 8 PASS.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/core/codeGroupsPanel.ts tests/core/codeGroupsPanel.test.ts
+~/.claude/scripts/commit.sh "feat(core): módulo codeGroupsPanel (render chips + [+])"
+```
+
+### Task 2.2: Chip contador `🏷N` no codebookTreeRenderer
+
+**Files:**
+- Modify: `src/core/codebookTreeRenderer.ts:176-258` (renderCodeRow)
+- Test: `tests/core/codeGroupsChipCounter.test.ts`
+
+- [ ] **Step 1: Criar test**
+
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+
+// Não renderizamos a tree completa no unit test — validamos via helper puro
+// que decide se o chip aparece, o count, e o title/tooltip
+
+import { computeGroupChipLabel } from '../../src/core/codebookTreeRenderer';
+
+describe('codebookTreeRenderer — chip contador de groups', () => {
+  let registry: CodeDefinitionRegistry;
+
+  beforeEach(() => {
+    registry = new CodeDefinitionRegistry();
+  });
+
+  it('retorna null quando código não tem groups (chip oculto)', () => {
+    const c = registry.create('c1');
+    expect(computeGroupChipLabel(c.id, registry)).toBeNull();
+  });
+
+  it('retorna null quando code.groups é array vazio', () => {
+    const c = registry.create('c1');
+    (registry.getById(c.id) as any).groups = [];
+    expect(computeGroupChipLabel(c.id, registry)).toBeNull();
+  });
+
+  it('retorna count + tooltip com nomes quando há groups', () => {
+    const c = registry.create('c1');
+    const g1 = registry.createGroup('RQ1');
+    const g2 = registry.createGroup('Wave1');
+    registry.addCodeToGroup(c.id, g1.id);
+    registry.addCodeToGroup(c.id, g2.id);
+
+    const label = computeGroupChipLabel(c.id, registry);
+    expect(label).not.toBeNull();
+    expect(label!.count).toBe(2);
+    expect(label!.tooltip).toContain('RQ1');
+    expect(label!.tooltip).toContain('Wave1');
+  });
+});
+```
+
+- [ ] **Step 2: Rodar — falha (função não existe)**
+
+- [ ] **Step 3: Exportar helper `computeGroupChipLabel` em `codebookTreeRenderer.ts`**
+
+No final do arquivo (após `renderCodeRow`), exportar:
+
+```ts
+/**
+ * Decide se o chip contador de groups (`🏷N`) aparece na row de um código
+ * e retorna count + tooltip com nomes dos groups. null = sem chip.
+ */
+export function computeGroupChipLabel(
+  codeId: string,
+  registry: CodeDefinitionRegistry,
+): { count: number; tooltip: string } | null {
+  const groups = registry.getGroupsForCode(codeId);
+  if (groups.length === 0) return null;
+  return {
+    count: groups.length,
+    tooltip: groups.map(g => g.name).join(', '),
+  };
+}
+```
+
+Importar `CodeDefinitionRegistry` no topo:
+
+```ts
+import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+```
+
+- [ ] **Step 4: Rodar — 3 tests passam**
+
+Expected: 3 PASS.
+
+- [ ] **Step 5: Integrar chip na renderCodeRow**
+
+**Signature cascade:** `renderVisibleRows → renderRow → renderCodeRow`. Nesta task, `renderRow` e `renderCodeRow` ganham 1 parâmetro novo (`registry`). **API pública `renderCodebookTree(container, model, state, callbacks)` NÃO muda** — `model.registry` é extraído dentro do closure e passado adiante.
+
+Em `renderCodeRow` (~linha 237, após o `count badge` e antes do `Click listener`):
+
+```ts
+// Group chip contador (oculto quando code.groups vazio/undefined)
+const groupChip = computeGroupChipLabel(node.def.id, registry);
+if (groupChip) {
+  const chip = document.createElement('span');
+  chip.className = 'codebook-tree-group-chip';
+  chip.title = groupChip.tooltip;
+  setIcon(chip, 'tag');
+  const num = document.createElement('span');
+  num.className = 'codebook-tree-group-chip-count';
+  num.textContent = String(groupChip.count);
+  chip.appendChild(num);
+  row.appendChild(chip);
+}
+```
+
+Estender signature de `renderCodeRow`:
+
+```ts
+function renderCodeRow(
+  node: FlatCodeNode,
+  counts: CountIndex,
+  index: number,
+  callbacks: CodebookTreeCallbacks,
+  registry: CodeDefinitionRegistry,  // NEW — será estendido com +1 param (selectedGroupId) em Task 2.3
+): HTMLElement {
+```
+
+Estender `renderRow`:
+
+```ts
+function renderRow(
+  node: FlatTreeNode,
+  counts: CountIndex,
+  index: number,
+  callbacks: CodebookTreeCallbacks,
+  registry: CodeDefinitionRegistry,  // NEW
+): HTMLElement {
+  if (node.type === 'folder') return renderFolderRow(node, index, callbacks);
+  return renderCodeRow(node, counts, index, callbacks, registry);
+}
+```
+
+E no `renderVisibleRows` closure dentro de `renderCodebookTree`, ler `model.registry`:
+
+```ts
+const rowEl = renderRow(node, counts, i, callbacks, model.registry);
+```
+
+- [ ] **Step 6: Rodar test suite completa — deve continuar passando + 3 novos**
+
+```bash
+npm run test -- --run
+```
+
+Expected: tests de tree renderer existentes continuam passando (pattern é aditivo), 3 novos de chip counter passam.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/core/codebookTreeRenderer.ts tests/core/codeGroupsChipCounter.test.ts
+~/.claude/scripts/commit.sh "feat(core): chip contador de groups nas rows do codebook"
+```
+
+### Task 2.3: Filter state + destaque contextual na tree
+
+**Files:**
+- Modify: `src/core/codebookTreeRenderer.ts` (CodebookTreeState + renderCodeRow)
+- Modify: `src/core/hierarchyHelpers.ts` (opcional — se precisar passar groupFilter em buildFlatTree; provavelmente não)
+- Test: `tests/core/codeGroupsFilter.test.ts` (parte sidebar apenas; Analytics vem em Chunk 4)
+
+- [ ] **Step 1: Criar test**
+
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import { applyGroupFilterToRowClasses } from '../../src/core/codebookTreeRenderer';
+
+describe('codeGroupsFilter — sidebar destaque contextual', () => {
+  let registry: CodeDefinitionRegistry;
+
+  beforeEach(() => {
+    registry = new CodeDefinitionRegistry();
+  });
+
+  it('applyGroupFilterToRowClasses retorna "member" quando código é membro', () => {
+    const c = registry.create('c1');
+    const g = registry.createGroup('RQ1');
+    registry.addCodeToGroup(c.id, g.id);
+    expect(applyGroupFilterToRowClasses(c.id, g.id, registry)).toBe('member');
+  });
+
+  it('retorna "non-member" quando código NÃO é membro do group selecionado', () => {
+    const c = registry.create('c1');
+    const g = registry.createGroup('RQ1');
+    // código NÃO adicionado ao group
+    expect(applyGroupFilterToRowClasses(c.id, g.id, registry)).toBe('non-member');
+  });
+
+  it('retorna "none" quando selectedGroupId é null', () => {
+    const c = registry.create('c1');
+    expect(applyGroupFilterToRowClasses(c.id, null, registry)).toBe('none');
+  });
+});
+```
+
+- [ ] **Step 2: Rodar — falha (função não existe)**
+
+- [ ] **Step 3: Implementar helper + wire na renderCodeRow**
+
+Em `codebookTreeRenderer.ts`, exportar:
+
+```ts
+export function applyGroupFilterToRowClasses(
+  codeId: string,
+  selectedGroupId: string | null,
+  registry: CodeDefinitionRegistry,
+): 'member' | 'non-member' | 'none' {
+  if (!selectedGroupId) return 'none';
+  const code = registry.getById(codeId);
+  if (code?.groups?.includes(selectedGroupId)) return 'member';
+  return 'non-member';
+}
+```
+
+Estender `CodebookTreeState`:
+
+```ts
+export interface CodebookTreeState {
+  expanded: ExpandedState;
+  searchQuery: string;
+  dragMode: 'reorganize' | 'merge';
+  selectedGroupId: string | null;  // NEW
+}
+```
+
+**Signature cascade (continuação da Task 2.2):** `renderRow` e `renderCodeRow` já têm `registry` como 5º parâmetro. Agora ganham `selectedGroupId` como 6º:
+
+```ts
+// renderCodeRow
+function renderCodeRow(
+  node: FlatCodeNode,
+  counts: CountIndex,
+  index: number,
+  callbacks: CodebookTreeCallbacks,
+  registry: CodeDefinitionRegistry,
+  selectedGroupId: string | null,  // NEW
+): HTMLElement { ... }
+
+// renderRow
+function renderRow(
+  node: FlatTreeNode,
+  counts: CountIndex,
+  index: number,
+  callbacks: CodebookTreeCallbacks,
+  registry: CodeDefinitionRegistry,
+  selectedGroupId: string | null,  // NEW
+): HTMLElement { ... }
+
+// renderVisibleRows closure:
+const rowEl = renderRow(node, counts, i, callbacks, model.registry, state.selectedGroupId);
+```
+
+Em `renderCodeRow`, ao final antes do return, aplicar classes:
+
+```ts
+const membership = applyGroupFilterToRowClasses(node.def.id, selectedGroupId, registry);
+if (membership === 'member') row.addClass('is-group-member');
+else if (membership === 'non-member') row.addClass('is-group-non-member');
+```
+
+- [ ] **Step 4: Rodar — 3 novos passam**
+
+Expected: 3 PASS.
+
+- [ ] **Step 5: Adicionar CSS**
+
+Em `styles.css`, adicionar ao final (não modifica existente):
+
+```css
+/* ─── Code Groups — panel ─────────────────────────── */
+.codebook-groups-panel {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.codebook-groups-panel.is-empty .codebook-groups-chips { display: none; }
+.codebook-groups-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.codebook-groups-title {
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.codebook-groups-add-btn {
+  padding: 2px 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.codebook-groups-add-btn:hover { color: var(--text-normal); }
+.codebook-groups-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.codebook-group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  font-size: var(--font-smallest);
+  cursor: pointer;
+}
+.codebook-group-chip:hover {
+  background: var(--background-modifier-hover);
+}
+.codebook-group-chip.is-selected {
+  border-color: var(--interactive-accent);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.codebook-group-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.codebook-group-chip-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.codebook-group-chip.is-selected .codebook-group-chip-count {
+  color: var(--text-on-accent);
+}
+
+/* ─── Tree chip contador (🏷N) ─────────────────────── */
+.codebook-tree-group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
+}
+.codebook-tree-group-chip-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Filter contextual (selectedGroupId setado) ───── */
+/* Usa box-shadow inset em vez de border-left pra não deslocar o padding da row. */
+.codebook-tree-row.is-group-member {
+  box-shadow: inset 2px 0 0 var(--interactive-accent);
+}
+/* Usa filter em vez de opacity pra compor limpo com .qc-code-row-hidden (0.5 opacity) */
+.codebook-tree-row.is-group-non-member:not(.qc-code-row-hidden) {
+  opacity: 0.4;
+}
+/* Quando ambos aplicam: hidden wins (0.5 fixo), sem multiplicar */
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/core/codebookTreeRenderer.ts tests/core/codeGroupsFilter.test.ts styles.css
+~/.claude/scripts/commit.sh "feat(core): selectedGroupId + destaque contextual na tree + CSS de groups"
+```
+
+### Task 2.4a: Wire panel em detailListRenderer + state no baseCodeDetailView
+
+**Files:**
+- Modify: `src/core/detailListRenderer.ts` (renderListContent)
+- Modify: `src/core/baseCodeDetailView.ts` (selectedGroupId field + getTreeState + ListRendererCallbacks)
+
+- [ ] **Step 1: Adicionar campo `selectedGroupId` em `BaseCodeDetailView`**
+
+Em `src/core/baseCodeDetailView.ts`, próximo aos campos `expanded`, `searchQuery`, `treeDragMode`:
+
+```ts
+protected selectedGroupId: string | null = null;
+```
+
+- [ ] **Step 2: Estender `getTreeState()` pra incluir `selectedGroupId`**
+
+Em `baseCodeDetailView.ts:154`:
+
+```ts
+protected getTreeState(): CodebookTreeState {
+  return {
+    expanded: this.expanded,
+    searchQuery: this.searchQuery,
+    dragMode: this.treeDragMode,
+    selectedGroupId: this.selectedGroupId,  // NEW
+  };
+}
+```
+
+- [ ] **Step 3: Estender `ListRendererCallbacks` em `detailListRenderer.ts`**
+
+```ts
+export interface ListRendererCallbacks extends CodebookTreeCallbacks {
+  onDragModeChange(mode: 'reorganize' | 'merge'): void;
+  // NEW — Groups
+  onSelectGroup(groupId: string | null): void;
+  onCreateGroup(): void;
+  onGroupChipContextMenu(groupId: string, event: MouseEvent): void;
+}
+```
+
+- [ ] **Step 4: Wire o painel em `renderListContent`**
+
+Modificar `renderListContent` em `detailListRenderer.ts:68`:
+
+```ts
+import { renderCodeGroupsPanel } from './codeGroupsPanel';
+
+export function renderListContent(
+  contentZone: HTMLElement,
+  model: SidebarModelInterface,
+  treeState: CodebookTreeState,
+  callbacks: ListRendererCallbacks,
+): void {
+  contentZone.empty();
+
+  // Painel Groups acima da tree
+  renderCodeGroupsPanel(contentZone, model.registry, {
+    selectedGroupId: treeState.selectedGroupId,
+    onSelectGroup: callbacks.onSelectGroup,
+    onCreateGroup: callbacks.onCreateGroup,
+    onChipContextMenu: callbacks.onGroupChipContextMenu,
+  });
+
+  renderCodebookTree(contentZone, model, treeState, callbacks);
+}
+```
+
+- [ ] **Step 5: Implementar os 3 callbacks novos no `listCallbacks()` do `baseCodeDetailView`**
+
+Dentro do método `listCallbacks()` (que retorna o objeto `ListRendererCallbacks`), adicionar:
+
+```ts
+onSelectGroup: (groupId) => {
+  this.selectedGroupId = groupId;
+  this.refreshCurrentMode();  // pattern existente; re-renderiza a list content
+},
+
+onCreateGroup: () => {
+  new PromptModal({
+    app: this.app,
+    title: 'New group',
+    placeholder: 'Group name',
+    onSubmit: (name) => {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        new Notice('Group name cannot be empty.');
+        return;
+      }
+      this.model.registry.createGroup(trimmed);
+      this.refreshCurrentMode();
+    },
+  }).open();
+},
+
+onGroupChipContextMenu: (groupId, evt) => {
+  this.openGroupChipMenu(groupId, evt);  // método privado — ver Task 2.4b
+},
+```
+
+Notas:
+- `new PromptModal({ app, title, ... })` — **um único opts object** com `app` como property. NÃO use `new PromptModal(this.app, {...})`.
+- Usa `refreshCurrentMode()` existente em `baseCodeDetailView.ts:137`.
+
+- [ ] **Step 6: Verificar tsc compila**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: compile limpo. Falhas provavelmente são de `openGroupChipMenu` ainda não implementado (Task 2.4b); ignorar se for só isso.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/core/detailListRenderer.ts src/core/baseCodeDetailView.ts
+~/.claude/scripts/commit.sh "feat(core): wire painel Groups no codebook (state + callbacks create/select)"
+```
+
+### Task 2.4b: Right-click chip menu — Rename / Edit color / Edit description / Delete
+
+**Files:**
+- Modify: `src/core/baseCodeDetailView.ts` (adicionar private `openGroupChipMenu`)
+
+- [ ] **Step 1: Imports necessários**
+
+No topo de `baseCodeDetailView.ts`, garantir imports:
+
+```ts
+import { Menu, Notice } from 'obsidian';
+// PromptModal e ConfirmModal já importados de './dialogs'
+```
+
+- [ ] **Step 2: Implementar `openGroupChipMenu` como private method**
+
+```ts
+private openGroupChipMenu(groupId: string, evt: MouseEvent): void {
+  const g = this.model.registry.getGroup(groupId);
+  if (!g) return;
+
+  const menu = new Menu();
+
+  // Rename
+  menu.addItem((item) => item
+    .setTitle('Rename')
+    .setIcon('pencil')
+    .onClick(() => {
+      new PromptModal({
+        app: this.app,
+        title: 'Rename group',
+        initialValue: g.name,
+        onSubmit: (newName) => {
+          const trimmed = newName.trim();
+          if (!trimmed) {
+            new Notice('Group name cannot be empty.');
+            return;
+          }
+          this.model.registry.renameGroup(groupId, trimmed);
+          this.refreshCurrentMode();
+        },
+      }).open();
+    })
+  );
+
+  // Edit color — usa input[type=color] inline (sem modal custom)
+  menu.addItem((item) => item
+    .setTitle('Edit color')
+    .setIcon('palette')
+    .onClick(() => {
+      const input = document.createElement('input');
+      input.type = 'color';
+      input.value = g.color;
+      input.style.position = 'fixed';
+      input.style.left = '-9999px';  // hidden
+      document.body.appendChild(input);
+      input.addEventListener('change', () => {
+        this.model.registry.setGroupColor(groupId, input.value);
+        input.remove();
+        this.refreshCurrentMode();
+      }, { once: true });
+      input.addEventListener('blur', () => {
+        // fallback cleanup se user cancelar
+        setTimeout(() => input.remove(), 100);
+      }, { once: true });
+      input.click();
+    })
+  );
+
+  // Edit description — PromptModal single-line (multiline fica pra future)
+  menu.addItem((item) => item
+    .setTitle('Edit description')
+    .setIcon('file-text')
+    .onClick(() => {
+      new PromptModal({
+        app: this.app,
+        title: 'Edit description',
+        initialValue: g.description ?? '',
+        placeholder: 'Short description (optional)',
+        onSubmit: (desc) => {
+          const trimmed = desc.trim();
+          this.model.registry.setGroupDescription(groupId, trimmed || undefined);
+          this.refreshCurrentMode();
+        },
+      }).open();
+    })
+  );
+
+  menu.addSeparator();
+
+  // Delete
+  menu.addItem((item) => item
+    .setTitle('Delete')
+    .setIcon('trash')
+    .setWarning(true)
+    .onClick(() => {
+      const memberCount = this.model.registry.getGroupMemberCount(groupId);
+      new ConfirmModal({
+        app: this.app,
+        title: 'Delete group',
+        message: `Delete group "${g.name}"? ${memberCount} code(s) will lose this membership.`,
+        confirmLabel: 'Delete',
+        destructive: true,
+        onConfirm: () => {
+          this.model.registry.deleteGroup(groupId);
+          if (this.selectedGroupId === groupId) this.selectedGroupId = null;
+          this.refreshCurrentMode();
+        },
+      }).open();
+    })
+  );
+
+  menu.showAtMouseEvent(evt);
+}
+```
+
+Notas importantes sobre APIs:
+- `ConfirmModal` usa `confirmLabel` (não `confirmText`), `destructive` (não `warning`).
+- Ambos Modals recebem `app` como property do opts (não como 1º argumento separado).
+- `input[type=color]` inline evita criar um `ColorPickerModal` novo; funciona porque o browser nativo abre um color picker quando o input é `.click()`-ado.
+
+- [ ] **Step 3: Verificar tsc compila**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: compile limpo.
+
+- [ ] **Step 4: Rodar test suite completa pra garantir nada quebrou**
+
+```bash
+npm run test -- --run
+```
+
+Expected: todos os tests passam. Não há unit tests pro menu handler em si (Menu da Obsidian não tem mock — estratégia ✓).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/core/baseCodeDetailView.ts
+~/.claude/scripts/commit.sh "feat(core): context menu do chip de Group (Rename/Color/Desc/Delete)"
+```
+
+### Task 2.4c: Smoke test manual (integration validation)
+
+**Files:** nenhum (só manual testing no Obsidian real)
+
+Esta task valida o comportamento end-to-end no Obsidian real. É separada do ciclo TDD porque é integration, não unit.
+
+- [ ] **Step 1: Build**
+
+```bash
+npm run build
+```
+
+Expected: build sem erros; `main.js` regenerado.
+
+- [ ] **Step 2: Reload do plugin no vault `obsidian-plugins-workbench/`**
+
+Cmd+R (Obsidian) ou Settings → Community plugins → Qualia Coding → disable/enable.
+
+- [ ] **Step 3: Executar checklist de smoke:**
+
+1. Abrir codebook sidebar (Tag view) — painel Groups aparece vazio no topo (só header + `[+]`).
+2. Clicar `[+]` — PromptModal abre pedindo nome.
+3. Criar "RQ1" — chip aparece no painel com a cor `#AEC6FF`.
+4. Criar 2 códigos quaisquer.
+5. Manualmente adicionar `groups: ['g_XXX']` no data.json (workaround até Task 3.1) ou usar console do DevTools pra `plugin.codeRegistry.addCodeToGroup('c_X', 'g_X')`. Reload.
+6. Ver chip `🏷1` nas rows dos códigos membros; tooltip mostra "RQ1".
+7. Clicar chip "RQ1" no painel — tree mostra borda nos membros (accent color) e fade nos não-membros.
+8. Clicar novamente — filter limpa.
+9. Right-click no chip "RQ1" — menu aparece (Rename/Edit color/Edit description/Delete).
+10. Rename pra "Research Question 1" — chip atualiza.
+11. Edit color — picker abre, mudar cor — chip atualiza.
+12. Edit description — prompt abre, salvar — persiste no data.json (verificar `registry.groups.g_X.description`).
+13. Delete — ConfirmModal com count correto. Confirmar — chip some, membership do código limpa (code.groups fica `undefined`).
+
+- [ ] **Step 4: Se algo falha, criar fix commits adicionais antes de avançar pra Chunk 3**
+
+Cada regressão descoberta deve virar um commit próprio:
+
+```bash
+~/.claude/scripts/commit.sh "fix(core): <descrição curta do bug encontrado no smoke>"
+```
+
+- [ ] **Step 5: Registrar smoke checklist em `docs/smoke-tests/code-groups.md` (opcional, reproduzibilidade)**
+
+Se quiser formalizar o checklist acima como artefato do repo:
+
+```bash
+mkdir -p docs/smoke-tests
+```
+
+Criar `docs/smoke-tests/code-groups.md` copiando os 13 steps acima. Commit separado:
+
+```bash
+git add docs/smoke-tests/code-groups.md
+~/.claude/scripts/commit.sh "docs: smoke checklist de Code Groups"
+```
+
+---
+
+## Chunk 2 summary
+
+Ao final deste chunk:
+- Painel "Groups" funcional no codebook sidebar (render + click + create + right-click menu com Rename/Color/Desc/Delete)
+- Chip contador `🏷N` em cada code row (tooltip com nomes dos groups; oculto quando sem groups)
+- Destaque contextual na tree quando um group é selecionado (box-shadow inset nos membros, opacity fade nos não-membros — compõe limpo com `.qc-code-row-hidden` via `:not()` guard)
+- CSS completo pros 3 componentes (panel, chip contador, filter classes)
+- +14 testes (4 panel render + 4 panel interações + 3 chip counter + 3 filter = 14 total, zero overlap)
+- Baseline pós-Chunk 1: ~2128 → pós-Chunk 2: ~2142
+- Edit description usa PromptModal single-line (multiline fica pra tier 3 / future)
+- Edit color usa `input[type=color]` inline (sem ColorPickerModal custom)
+
+**Próximo chunk:** Code Detail section + right-click "Add to group" + merge herda groups.
+
+## Chunk 3: Add-to-group flow (right-click + Code Detail + Merge)
+
+TODO: will write after Chunk 2 approved.
+
+## Chunk 4: Analytics filter integration
+
+TODO.
+
+## Chunk 5: Export/Import (QDPX + Tabular CSV)
+
+TODO.
 
 ## Chunk 3: Add-to-group flow (right-click + Code Detail + Merge)
 
