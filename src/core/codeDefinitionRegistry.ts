@@ -5,6 +5,13 @@
  */
 
 import type { CodeDefinition, FolderDefinition } from './types';
+import { cleanOverridesAfterGlobalChange, shouldStoreOverride, isCodeVisibleInFile as isVisibleHelper } from './codeVisibility';
+import type { VisibilityOverrides } from './codeVisibility';
+
+export interface VisibilityChangedDetail {
+	codeIds: Set<string>;
+	fileIds?: Set<string>;  // presente quando change é per-doc; ausente = change global
+}
 
 // 12-color categorical palette — light/dark safe, high distinguishability
 export const DEFAULT_PALETTE: string[] = [
@@ -27,6 +34,11 @@ export class CodeDefinitionRegistry {
 	private nameIndex: Map<string, string> = new Map(); // name → id
 	private nextPaletteIndex: number = 0;
 	private onMutateListeners: Set<() => void> = new Set();
+	private visibilityListeners: Set<(detail: VisibilityChangedDetail) => void> = new Set();
+
+	/** Per-doc overrides: overrides[fileId][codeId] = visibility nesse doc. */
+	visibilityOverrides: VisibilityOverrides = {};
+
 	private folders: Map<string, FolderDefinition> = new Map();
 	/** Ordered list of root-level code IDs. Controls display order. */
 	rootOrder: string[] = [];
@@ -39,6 +51,78 @@ export class CodeDefinitionRegistry {
 	/** Unregister a previously registered mutation callback. */
 	removeOnMutate(fn: () => void): void {
 		this.onMutateListeners.delete(fn);
+	}
+
+	/** Register a callback invoked on visibility changes (global or per-doc). */
+	addVisibilityListener(fn: (detail: VisibilityChangedDetail) => void): void {
+		this.visibilityListeners.add(fn);
+	}
+
+	removeVisibilityListener(fn: (detail: VisibilityChangedDetail) => void): void {
+		this.visibilityListeners.delete(fn);
+	}
+
+	private emitVisibility(detail: VisibilityChangedDetail): void {
+		for (const fn of this.visibilityListeners) fn(detail);
+	}
+
+	// --- Visibility reads ---
+
+	getGlobalHidden(codeId: string): boolean {
+		return this.definitions.get(codeId)?.hidden === true;
+	}
+
+	getDocOverride(fileId: string, codeId: string): boolean | undefined {
+		return this.visibilityOverrides[fileId]?.[codeId];
+	}
+
+	isCodeVisibleInFile(codeId: string, fileId: string): boolean {
+		return isVisibleHelper(codeId, fileId, this.getGlobalHidden(codeId), this.visibilityOverrides);
+	}
+
+	hasAnyOverrideForFile(fileId: string): boolean {
+		const file = this.visibilityOverrides[fileId];
+		return !!file && Object.keys(file).length > 0;
+	}
+
+	// --- Visibility mutations ---
+
+	setGlobalHidden(codeId: string, hidden: boolean): void {
+		const def = this.definitions.get(codeId);
+		if (!def) return;
+		def.hidden = hidden || undefined;  // undefined = visible (mantém JSON enxuto)
+		def.updatedAt = Date.now();
+		this.visibilityOverrides = cleanOverridesAfterGlobalChange(this.visibilityOverrides, codeId, hidden);
+		this.emitVisibility({ codeIds: new Set([codeId]) });
+	}
+
+	setDocOverride(fileId: string, codeId: string, visible: boolean): void {
+		const globalHidden = this.getGlobalHidden(codeId);
+		const perFile = this.visibilityOverrides[fileId] ?? {};
+
+		if (shouldStoreOverride(visible, globalHidden)) {
+			this.visibilityOverrides[fileId] = { ...perFile, [codeId]: visible };
+		} else {
+			// Coincide com global — não grava; se havia override prévio, remove.
+			if (codeId in perFile) {
+				const { [codeId]: _, ...rest } = perFile;
+				if (Object.keys(rest).length > 0) {
+					this.visibilityOverrides[fileId] = rest;
+				} else {
+					delete this.visibilityOverrides[fileId];
+				}
+			}
+		}
+		this.emitVisibility({ codeIds: new Set([codeId]), fileIds: new Set([fileId]) });
+	}
+
+	clearDocOverrides(fileId: string): void {
+		const perFile = this.visibilityOverrides[fileId];
+		if (!perFile || Object.keys(perFile).length === 0) return;
+
+		const affectedCodeIds = new Set(Object.keys(perFile));
+		delete this.visibilityOverrides[fileId];
+		this.emitVisibility({ codeIds: affectedCodeIds, fileIds: new Set([fileId]) });
 	}
 
 	// --- CRUD ---
