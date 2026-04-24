@@ -55,6 +55,9 @@ src/
     viewToggleHelpers.ts     — lógica pura: resolveToggleTarget, isMediaViewType
     mediaToggleButton.ts     — injeção do botão `replace-all` no header + performToggleCommand (4 mídias)
     fileInterceptor.ts       — intercept unificado + pinnedFileByLeaf pra respeitar swap manual
+    codeVisibility.ts        — helpers puros: isCodeVisibleInFile, shouldStoreOverride, cleanOverridesAfterGlobalChange
+    codeVisibilityPopover.ts — popover compartilhado (body render + open floating) pros 6 engines
+    visibilityEventBus.ts    — rAF coalescing bus (singleton) pra notificar views em rajadas
     caseVariables/           — Case Variables: propriedades tipadas por arquivo (mixed-methods)
       caseVariablesTypes.ts      — PropertyType, VariableValue, CaseVariablesSection, OBSIDIAN_RESERVED
       obsidianInternalsApi.ts    — encapsula metadataTypeManager do Obsidian (API interna)
@@ -182,7 +185,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2060 testes em 108 suites (Vitest + jsdom)
+- `npm run test` — 2108 testes em 115 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)

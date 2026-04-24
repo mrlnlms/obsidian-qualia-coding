@@ -257,9 +257,17 @@ function buildDecorationsForFile(
 				continue;
 			}
 
-			// Resolve colors for each code on this marker
+			// Filter to only visible codes for this file
+			const visibleCodes = marker.codes.filter(app =>
+				model.registry.isCodeVisibleInFile(app.codeId, fileId)
+			);
+
+			// Marker is fully hidden — skip decoration
+			if (visibleCodes.length === 0) continue;
+
+			// Resolve colors for each visible code on this marker
 			const codeColors: string[] = [];
-			for (const codeApp of marker.codes) {
+			for (const codeApp of visibleCodes) {
 				const def = model.registry.getById(codeApp.codeId);
 				if (def) codeColors.push(def.color);
 			}

@@ -31,9 +31,10 @@ export function codingCellRenderer(params: any): HTMLElement {
 	tagsArea.className = 'csv-tag-area';
 
 	if (model) {
-		const codeIds = isFrow
+		const allCodeIds = isFrow
 			? model.getCodesForCell(file, row, sourceColumn, 'row')
 			: model.getCodesForCell(file, row, sourceColumn, 'segment');
+		const codeIds = allCodeIds.filter(id => model.registry.isCodeVisibleInFile(id, file));
 
 		for (const codeId of codeIds) {
 			const def = model.registry.getById(codeId);

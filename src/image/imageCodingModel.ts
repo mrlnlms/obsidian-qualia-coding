@@ -134,6 +134,14 @@ export class ImageCodingModel {
 		return true;
 	}
 
+	removeAllMarkersForFile(fileId: string): number {
+		const before = this.markers.length;
+		this.markers = this.markers.filter((m) => m.fileId !== fileId);
+		const removed = before - this.markers.length;
+		if (removed > 0) this.notify();
+		return removed;
+	}
+
 	// ─── Code assignment ───
 
 	addCodeToMarker(markerId: string, codeId: string): boolean {

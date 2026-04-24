@@ -16,6 +16,7 @@ import { renderMarginPanelForPage, clearMarginPanelForPage, applyHoverToMarginPa
 import { renderDrawLayerForPage, clearDrawLayerForPage, applyHoverToDrawLayer, type DrawLayerCallbacks } from './drawLayer';
 import { attachDragHandles } from './dragHandles';
 import { isMarkerPending, resolvePendingIndices } from './resolvePendingIndices';
+import { visibilityEventBus } from '../core/visibilityEventBus';
 
 export interface PageObserverCallbacks {
 	onMarkerClick: (markerId: string, codeName: string) => void;
@@ -37,6 +38,7 @@ export class PdfPageObserver {
 	private pageRenderedHandler: ((data: any) => void) | null = null;
 	private pageRenderTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
 	private started = false;
+	private unsubscribeVisibility: (() => void) | null = null;
 
 	// Overlay for margin panels (lives outside the scroll container so labels aren't clipped)
 	private labelOverlay: HTMLElement | null = null;
@@ -99,6 +101,9 @@ export class PdfPageObserver {
 		};
 		this.model.onHoverChange(this.hoverListener);
 
+		// Subscribe to visibility changes
+		this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
+
 		// Render highlights on already-loaded pages
 		this.refreshAll();
 	}
@@ -125,6 +130,11 @@ export class PdfPageObserver {
 		if (this.pageRenderedHandler) {
 			this.child.pdfViewer?.eventBus?.off('pagerendered', this.pageRenderedHandler);
 			this.pageRenderedHandler = null;
+		}
+
+		if (this.unsubscribeVisibility) {
+			this.unsubscribeVisibility();
+			this.unsubscribeVisibility = null;
 		}
 
 		// Cancel all pending page render timeouts
@@ -207,6 +217,7 @@ export class PdfPageObserver {
 			this.model.registry,
 			highlightCallbacks,
 			this.state,
+			filePath,
 		);
 
 		// Attach drag handles to each rendered marker
@@ -220,7 +231,7 @@ export class PdfPageObserver {
 					this.model.updateMarkerRangeSilent(markerId, changes);
 					const marker = this.model.findMarkerById(markerId);
 					if (marker) {
-						updateHighlightRectsForMarker(pageView, marker, this.model.registry);
+						updateHighlightRectsForMarker(pageView, marker, this.model.registry, filePath);
 					}
 				},
 				onHandleHover: (markerId) => {
@@ -438,6 +449,27 @@ export class PdfPageObserver {
 				showHandlesForMarker(pageView.div, markerId);
 			}
 		}
+	}
+
+	/** Re-render only the pages that contain markers for any of the affected codes. */
+	refreshVisibility(affectedCodeIds: Set<string>): void {
+		const filePath = this.child.file?.path;
+		if (!filePath) return;
+		const pages = this.findPagesWithCodes(filePath, affectedCodeIds);
+		for (const pageNumber of pages) {
+			this.renderPage(pageNumber);
+		}
+	}
+
+	private findPagesWithCodes(filePath: string, codeIds: Set<string>): Set<number> {
+		const pages = new Set<number>();
+		const markers = this.model.getMarkersForFile(filePath);
+		for (const m of markers) {
+			if (m.codes.some(app => codeIds.has(app.codeId))) {
+				pages.add(m.page);
+			}
+		}
+		return pages;
 	}
 
 	private getPageView(pageNumber: number): PDFPageView | null {

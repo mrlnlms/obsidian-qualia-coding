@@ -414,6 +414,16 @@ export class PdfCodingModel {
 		return removed;
 	}
 
+	removeAllMarkersForFile(fileId: string): number {
+		const beforeM = this.markers.length;
+		const beforeS = this.shapes.length;
+		this.markers = this.markers.filter(m => m.fileId !== fileId);
+		this.shapes = this.shapes.filter(s => s.fileId !== fileId);
+		const removed = (beforeM - this.markers.length) + (beforeS - this.shapes.length);
+		if (removed > 0) this.notify();
+		return removed;
+	}
+
 	// ── Private ──
 
 	private generateId(): string {

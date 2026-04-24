@@ -8,6 +8,8 @@ import { injectHeaderButtons } from './csvHeaderInjection';
 import { SegmentEditor } from './segmentEditor';
 import type QualiaCodingPlugin from '../main';
 import type { CsvCodingModel } from './csvCodingModel';
+import { visibilityEventBus } from '../core/visibilityEventBus';
+import type { IRowNode } from 'ag-grid-community';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -66,6 +68,7 @@ export class CsvCodingView extends FileView {
 	private segmentEditor: SegmentEditor;
 	private readyResolve: (() => void) | null = null;
 	private readyPromise: Promise<void> = new Promise(r => { this.readyResolve = r; });
+	private unsubscribeVisibility?: () => void;
 
 	get markdownModel() { return this.plugin.markdownModel!; }
 
@@ -160,6 +163,10 @@ export class CsvCodingView extends FileView {
 		// Signal readiness for callers awaiting waitUntilReady()
 		this.readyResolve?.();
 
+		// Subscribe to visibility changes
+		this.unsubscribeVisibility?.();
+		this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
+
 		// Inject custom header buttons via MutationObserver
 		const headerRoot = wrapper.querySelector('.ag-header');
 		if (headerRoot) {
@@ -205,9 +212,37 @@ export class CsvCodingView extends FileView {
 		this.segmentEditor.refresh();
 	}
 
+	// ─── Visibility ─────────────────────────────────────────
+
+	refreshVisibility(affectedCodeIds: Set<string>): void {
+		if (!this.gridApi) return;
+		const fileId = this.file?.path ?? '';
+		if (!fileId) return;
+		const affectedRows = this.findRowsWithCodes(affectedCodeIds, fileId);
+		if (affectedRows.length === 0) return;
+		this.gridApi.refreshCells({
+			rowNodes: affectedRows,
+			force: true,
+		});
+	}
+
+	private findRowsWithCodes(codeIds: Set<string>, fileId: string): IRowNode[] {
+		const rowNodes: IRowNode[] = [];
+		const relevant = this.csvModel.getMarkersForFile(fileId)
+			.filter(m => m.codes.some(app => codeIds.has(app.codeId)));
+		const rowIndices = new Set(relevant.map(m => m.row));
+		rowIndices.forEach(rowIdx => {
+			const node = this.gridApi!.getRowNode(`${rowIdx}`);
+			if (node) rowNodes.push(node);
+		});
+		return rowNodes;
+	}
+
 	async onUnloadFile(): Promise<void> {
 		// Reset readiness for next file load
 		this.readyPromise = new Promise(r => { this.readyResolve = r; });
+		this.unsubscribeVisibility?.();
+		this.unsubscribeVisibility = undefined;
 		this.closeSegmentEditor();
 		if (this.file) {
 			this.csvModel.rowDataCache.delete(this.file.path);
