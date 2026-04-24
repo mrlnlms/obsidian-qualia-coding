@@ -13,6 +13,7 @@ export interface CodeGroupsPanelCallbacks {
 	onSelectGroup(groupId: string | null): void;
 	onCreateGroup(): void;
 	onChipContextMenu(groupId: string, event: MouseEvent): void;
+	onEditDescription(groupId: string): void;
 }
 
 export function renderCodeGroupsPanel(
@@ -74,13 +75,21 @@ export function renderCodeGroupsPanel(
 		});
 	}
 
-	// Description do group selected, visível abaixo dos chips quando filter ativo
+	// Description do group selected, sempre visível quando há filter ativo.
+	// Click abre o editor inline (mesmo flow do "Edit description" do menu).
 	const selected = callbacks.selectedGroupId
 		? registry.getGroup(callbacks.selectedGroupId)
 		: null;
-	if (selected?.description) {
+	if (selected) {
 		const desc = panel.createDiv({ cls: 'codebook-groups-description' });
-		desc.createSpan({ text: selected.description });
+		desc.title = 'Click to edit';
+		if (selected.description) {
+			desc.createSpan({ text: selected.description });
+		} else {
+			desc.addClass('is-placeholder');
+			desc.createSpan({ text: 'Add description...' });
+		}
+		desc.addEventListener('click', () => callbacks.onEditDescription(selected.id));
 	}
 
 	return { cleanup: () => {} };

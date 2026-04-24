@@ -341,6 +341,9 @@ export abstract class BaseCodeDetailView extends ItemView {
 			onGroupChipContextMenu: (groupId: string, evt: MouseEvent) => {
 				this.openGroupChipMenu(groupId, evt);
 			},
+			onEditGroupDescription: (groupId: string) => {
+				this.editGroupDescription(groupId);
+			},
 		};
 	}
 
@@ -400,20 +403,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		menu.addItem((item) => item
 			.setTitle('Edit description')
 			.setIcon('file-text')
-			.onClick(() => {
-				new PromptModal({
-					app: this.app,
-					title: 'Edit description',
-					initialValue: g.description ?? '',
-					placeholder: 'Short description (optional)',
-					onSubmit: (desc) => {
-						const trimmed = desc.trim();
-						this.model.registry.setGroupDescription(groupId, trimmed || undefined);
-						this.model.saveMarkers();
-						this.refreshCurrentMode();
-					},
-				}).open();
-			}),
+			.onClick(() => this.editGroupDescription(groupId)),
 		);
 
 		menu.addSeparator();
@@ -441,6 +431,23 @@ export abstract class BaseCodeDetailView extends ItemView {
 		);
 
 		menu.showAtMouseEvent(evt);
+	}
+
+	private editGroupDescription(groupId: string): void {
+		const g = this.model.registry.getGroup(groupId);
+		if (!g) return;
+		new PromptModal({
+			app: this.app,
+			title: 'Edit description',
+			initialValue: g.description ?? '',
+			placeholder: 'Short description (optional)',
+			onSubmit: (desc) => {
+				const trimmed = desc.trim();
+				this.model.registry.setGroupDescription(groupId, trimmed || undefined);
+				this.model.saveMarkers();
+				this.refreshCurrentMode();
+			},
+		}).open();
 	}
 
 	private openAddToGroupPicker(codeId: string): void {

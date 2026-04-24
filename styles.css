@@ -5137,4 +5137,12 @@ body.codebook-dragging * {
 	background: var(--background-secondary);
 	border-radius: 4px;
 	border-left: 2px solid var(--interactive-accent);
+	cursor: pointer;
+}
+.codebook-groups-description:hover {
+	background: var(--background-modifier-hover);
+}
+.codebook-groups-description.is-placeholder {
+	font-style: italic;
+	opacity: 0.7;
 }

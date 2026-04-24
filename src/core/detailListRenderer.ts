@@ -16,6 +16,7 @@ export interface ListRendererCallbacks extends CodebookTreeCallbacks {
 	onSelectGroup(groupId: string | null): void;
 	onCreateGroup(): void;
 	onGroupChipContextMenu(groupId: string, event: MouseEvent): void;
+	onEditGroupDescription(groupId: string): void;
 }
 
 /**
@@ -87,6 +88,7 @@ export function renderListContent(
 		onSelectGroup: callbacks.onSelectGroup,
 		onCreateGroup: callbacks.onCreateGroup,
 		onChipContextMenu: callbacks.onGroupChipContextMenu,
+		onEditDescription: callbacks.onEditGroupDescription,
 	});
 
 	renderCodebookTree(treeDiv, model, treeState, callbacks);
