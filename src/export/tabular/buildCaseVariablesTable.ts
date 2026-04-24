@@ -14,6 +14,7 @@ export interface CaseVarsResult {
 export function buildCaseVariablesTable(dm: DataManager): CaseVarsResult {
 	const rows: CellValue[][] = [CASE_VARS_HEADER];
 	const warnings: string[] = [];
+	const unknownTypeVars = new Set<string>();
 	const section = dm.section('caseVariables');
 	const values = section.values;
 	const types = section.types;
@@ -25,11 +26,16 @@ export function buildCaseVariablesTable(dm: DataManager): CaseVarsResult {
 			if (declared && (VALID_TYPES as readonly string[]).includes(declared)) {
 				type = declared;
 			} else {
-				warnings.push(`Unknown type for variable "${varName}" — defaulting to "text"`);
+				unknownTypeVars.add(varName);
 				type = 'text';
 			}
 			rows.push([fileId, varName, serializeValue(rawValue, type), type]);
 		}
+	}
+
+	// Emit one warning per unknown variable name (not per application) to avoid noise
+	for (const varName of unknownTypeVars) {
+		warnings.push(`Unknown type for variable "${varName}" — defaulting to "text"`);
 	}
 
 	return { rows, warnings };
