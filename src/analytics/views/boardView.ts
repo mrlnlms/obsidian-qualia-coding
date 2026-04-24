@@ -12,6 +12,7 @@ import { isArrowLineNode, isArrowHeadNode, isBoardNode, type CodeCardNode } from
 import { showBoardContextMenu } from "./boardContextMenu";
 import { saveBoard, loadBoard } from "./boardPersistence";
 import { reconcileBoard, buildSummary, hasChanges } from "../board/boardReconciler";
+import { getBoardBoundingBox, buildExportFilename, exportBoardSvg, exportBoardPng, triggerDownload } from "../board/boardExport";
 
 export const BOARD_VIEW_TYPE = "codemarker-board";
 
@@ -201,6 +202,40 @@ export class BoardView extends ItemView {
     } else if (action === "save") {
       saveBoard(this.canvasState.canvas, this.app.vault.adapter);
       new Notice("Board saved");
+    } else if (action === "export-svg") {
+      this.exportBoard("svg");
+    } else if (action === "export-png") {
+      this.exportBoard("png");
+    }
+  }
+
+  private exportBoard(format: "svg" | "png"): void {
+    if (!this.canvasState) return;
+    const canvas = this.canvasState.canvas;
+
+    const bbox = getBoardBoundingBox(canvas);
+    if (!bbox) {
+      new Notice("Board is empty — nothing to export");
+      return;
+    }
+
+    const filename = buildExportFilename(format, new Date());
+
+    try {
+      if (format === "svg") {
+        const svg = exportBoardSvg(canvas, bbox);
+        const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        triggerDownload(filename, url);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } else {
+        const dataUrl = exportBoardPng(canvas, bbox);
+        triggerDownload(filename, dataUrl);
+      }
+      new Notice(`Exported as ${filename}`);
+    } catch (err) {
+      console.error("[qualia-coding] Board export failed:", err);
+      new Notice("Export failed — see console");
     }
   }
 
