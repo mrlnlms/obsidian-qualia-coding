@@ -1453,6 +1453,57 @@ Implementado 2026-04-23, branch `feat/pdf-text-anchoring`.
 
 ---
 
+## 22. CSV export gotchas
+
+### Problema
+
+Exportar dados para R/Python/BI requer correção de encoding (Excel não detecta UTF-8 sem BOM), RFC 4180 quoting (comma/quote/newline), e tratamento de edge cases (text resolution de markers que armazenam indices, não text).
+
+### Pattern
+
+Três camadas:
+
+**1. Primitivo CSV**:
+- UTF-8 BOM prepended (3 bytes: `\xEF\xBB\xBF`) — Excel antigo detecta encoding; tidyverse/pandas lidam. **Sem BOM**: Excel abre como codificação errada se tiver accents
+- RFC 4180: célula com comma, quote ou newline → wrap em `"..."`. Quote interno → double (`""`)
+- Sem escape excessivo: célula sem special chars → nenhum quoting
+
+**2. Integração com Obsidian**:
+- Markers CSV (segment, row) **não armazenam text** — exportador lê arquivo via `vault.getAbstractFileByPath` + `instanceof TFile` + `vault.read(file)`
+- Fallback: arquivo movido/deletado → warning acumulada + text='' (row sai completo com outros fields preenchidos)
+- Índices de marker → slice de arquivo → text preservado. Parse errors parciais ignorados (1 marker quebrado ≠ fail export)
+
+**3. Consumo em análise**:
+- **R (tidyverse)**: `readr::read_csv('file.csv')` — auto-detecta BOM/encoding, handles quoted multiline strings
+- **NÃO `read.csv`** base R — edge cases com multiline quoted text (vira vector com `\n`)
+- **Python**: `pd.read_csv('file.csv')` — handles both BOM e quoting, defaults UTF-8
+- **Joins**: CSV relacional (segments + code_applications + codes) — R `left_join(segments, code_applications, by='segment_id')`; Python `segments.merge(code_applications, on='segment_id')`
+
+### Gotchas
+
+- **UTF-8 BOM excessivo**: se você write BOM + preprender mais BOM = garbled. Verifique na geração (1× apenas)
+- **Excel antigo sem BOM**: abre como ANSI/CP1252 (acentos → "???")
+- **RFC 4180 quote nested**: `"This is ""quoted""` é correto; `"This is \"quoted\"` é inválido fora spec
+- **Realm safety fflate**: `zipSync` da `fflate` usa `instanceof Uint8Array` que falha em Electron cross-realm. Wrap cada buffer com `new Uint8Array(buf)` antes de passar. Same pattern como `qdpxExporter.ts`
+- **Text resolution falhas**: marker com indices `(0,0,0,0)` placeholder (nunca deve chegar ao export pós-open, mas fallback: skip marker, warning + continue). Orphan codeId → skip code_application row, warning + segment sai com codes restantes válidos
+- **Multitext em case_variables**: JSON array serializado (R `fromJSON()`, Python `ast.literal_eval()`; or use `tidyverse::jsonlite` pra parse direto)
+
+### Quando aplicar
+
+Qualquer export textual onde: (a) encoding detection importa, (b) quoting RFC 4180, (c) consumo downstream é R/Python/SQL.
+
+### Onde está implementado
+
+- `src/export/tabular/csvWriter.ts` — BOM + RFC 4180 quoting
+- `src/export/tabular/readmeBuilder.ts` — snippets R/Python
+- `src/export/tabular/buildSegmentsTable.ts` — text resolution via vault.read
+- `src/export/tabular/tabularExporter.ts` — orquestra + fflate realm safety wrap
+- `src/export/tabular/` — README.md embutido
+
+Implementado 2026-04-24, branch `feat/tabular-export`.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

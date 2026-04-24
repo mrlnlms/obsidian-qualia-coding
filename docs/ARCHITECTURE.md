@@ -421,6 +421,29 @@ Import pipeline (`extractAnchorFromPlainText` → placeholder + runtime resolve)
 
 **Why:** Caminho runtime (render/capture/drag) permanece index-based e intocado. Anchor em text só vive no lado export/import — permite round-trip robusto sem mudar o schema do marker. Ver `memory/feedback_dont_refactor_working_code.md`.
 
+### 5.10 Tabular export (CSV zip pra análise externa)
+
+Módulos em `src/export/tabular/` (8 arquivos) — complementa QDPX. Exporta dados relacionais flat (CSV + README.md) sem schema REFI-QDA, consumível direto em R/tidyverse ou Python/pandas.
+
+**Primitivos**:
+
+- **`csvWriter.ts`** — função pura `toCsv(rows: CellValue[][]): string`. RFC 4180 (escape comma/quote/newline via double-quotes), UTF-8 BOM prepended (Excel detecta encoding correto), sem dependência de DOM
+- **`readmeBuilder.ts`** — gera `README.md` embutido no zip com schema detalhado de cada CSV + snippets R/tidyverse (dplyr joins) e Python (pandas merge) + seção Warnings (condicional: "Orphan codeId" se aplicável)
+
+**Builders por tabela**:
+
+1. **`buildSegmentsTable.ts`** — mais complexo: consolida 6 `MarkerType`s persistidos em 8 `sourceType`s (markdown, pdf_text, pdf_shape, image, audio, video, csv_segment, csv_row). Coluna `engine` (coarse) + `sourceType` (fine). Shape coords em JSON quando toggle on. Media timestamps from/to em milissegundos (ISO 8601 string, zero offset `Z`). Fallback text pra deleted files (arquivo movido/deletado → warning + text='' mas segment sai com outros fields preenchidos)
+2. **`buildCodeApplicationsTable.ts`** — 1 linha per (segment, code) de todos engines. Orphan `codeId` → skip + warning (segment mantém outros codes válidos). Colunas: segment_id, code_id, magnitude (ou NULL), relations_json
+3. **`buildCodesTable.ts`** — codebook denormalizado 1 linha per code. Pastas (organização visual) não aparecem (sem significado analítico em CSV). Coluna `magnitude_config` serializada como JSON, relations como JSON array de `{label, target, directed}`
+4. **`buildCaseVariablesTable.ts`** — long format, 1 linha per (fileId, variable). Lê direto de `dm.section('caseVariables')` (evita dependência em `CaseVariablesRegistry`). Multitext → JSON array. NULL → empty cell (row mantido)
+5. **`buildRelationsTable.ts`** — unifica code-level + application-level via coluna `scope` (code|application). Colunas separadas `origin_code_id` / `origin_segment_id` (não composite key — facilita left-join no R). Target sempre `target_code_id` (relations sempre code-to-code)
+
+**Orchestrator**:
+
+- **`tabularExporter.ts`** — função `exportTabular(app, dm, registry, opts)`. Resolve textos de CSV da vault (markers CSV de PDF/markdown/image/etc armazenam indices, não text — exportador lê arquivo via `vault.getAbstractFileByPath` + `instanceof TFile` + `vault.read(file)`, tolerando parse errors parciais). Roda 5 builders em série, concatena warnings, gera README, zipa via `fflate.zipSync` com `toU8` wrapper realm-safety (mesmo pattern de `qdpxExporter.ts`)
+
+**Runtime flow**: `ExportModal.doExport` (com `format === 'tabular'`) → `exportTabular(app, dm, registry, opts)` com `opts: { includeRelations?: boolean, includeShapeCoords?: boolean }` → `vault.createBinary(fileName, zip)`. Modal UI: radio `tabular` no `formatSelect` + 2 toggles (default on)
+
 ---
 
 ## 6. Case Variables

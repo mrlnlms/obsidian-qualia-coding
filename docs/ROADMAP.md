@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-04-23.
+> Última atualização: 2026-04-24.
 
 ---
 
@@ -64,7 +64,7 @@ Sessão única pra matar dívidas de export e itens do ROADMAP no mesmo contexto
 
 | Origem | Item | Detalhe |
 |--------|------|---------|
-| **Novo** | **Tabular export pra análise externa (R/Python/BI)** | Zip com 4 CSVs (markers, code_applications, codes, case_variables) — schema relacional flat, consumo em 1 linha de `read_csv()`. Consumidor: pesquisador que não quer o Analytics do plugin e vai rodar stats no R/tidyverse. Substitui "JSON full export" que era cargo-cult de uma tabela UX de 2026-03-03, sem propósito definido |
+| ~~**Novo**~~ | ~~**Tabular export pra análise externa (R/Python/BI)**~~ | ✅ **FEITO 2026-04-24** — 8 módulos em `src/export/tabular/` (csvWriter, readmeBuilder, 5 builders + tabularExporter). Modal ExportModal ganhou 3ª opção "Tabular (CSV zip)" com toggles `Include relations` / `Include shape coords` (on by default). Command palette + botão na settings tab. Zip com 4-5 CSVs + README.md embutido (schema doc + R/Python snippets). Schema relacional flat (1 linha per `read_csv()` do tidyverse/pandas) |
 | ROADMAP #15 | PNG/PDF Dashboard composite | PENDENTE |
 | ~~BACKLOG §11 E1~~ | ~~QDPX offsets de texto PDF aproximados~~ | ✅ **FEITO 2026-04-23** — `resolveMarkerOffsets` usa plainText consolidado via pdfjs + indexOf (com fallback whitespace-normalize). Offsets absolutos em codepoints |
 | ~~BACKLOG §11 E2~~ | ~~Shape markers PDF ignorados no export~~ | ✅ **FEITO 2026-04-23** — `loadPdfExportData` extrai dims via pdfjs headless no momento do export |
@@ -412,6 +412,7 @@ Histórico de features entregues. Mantido como registro, não reabrir.
 - **#15 REFI-QDA Export + Import + CSV por modo Analytics** — 2026-03-22. `qdcExporter.ts`, `qdpxExporter.ts`, `qdpxImporter.ts`, modal pre-export/import, conversão de coordenadas por engine, CSV de frequencies/co-occurrence/Doc-Code Matrix
 - **#16 Per-Code Decorations** — 2026-03-02. Markdown (CM6) + PDF. N decorations sobrepostas com `opacity / N`, `mix-blend-mode: multiply`
 - **#18 Case Variables** — 2026-04-21. Registry central, storage 3-caminhos (frontmatter md + data.json binários), type inference, popover/painel lateral, Analytics filter, QDPX round-trip
+- **#19 Tabular export pra análise externa** — 2026-04-24. Branch `feat/tabular-export`. 8 módulos em `src/export/tabular/` (csvWriter, readmeBuilder, buildSegmentsTable, buildCodeApplicationsTable, buildCodesTable, buildCaseVariablesTable, buildRelationsTable, tabularExporter). ExportModal 3ª opção "Tabular (CSV zip)" com toggles `Include relations` / `Include shape coords`. Zip contém 4-5 CSVs (segments, code_applications, codes, case_variables, relations opcional) + README.md com schema e snippets R/tidyverse (dplyr joins) e Python (pandas merge). Consumidor: pesquisador que prefere stats em R/Python em vez de Analytics nativo. RFC 4180 CSV com UTF-8 BOM (Excel auto-detect)
 
 ### Bug fixes e dívidas resolvidas
 

@@ -102,7 +102,7 @@ src/
     canvas/                  — Fabric.js canvas, drawing, zoom/pan (4 arquivos)
   audio/                     — Audio engine — thin wrapper (~53 LOC) via MediaViewCore
   video/                     — Video engine — thin wrapper (~54 LOC) via MediaViewCore
-  export/                    — REFI-QDA export (QDC codebook + QDPX projeto completo)
+  export/                    — REFI-QDA export (QDC codebook + QDPX projeto completo) + CSV tabular
     qdcExporter.ts           — gera XML do codebook (hierarquia por nesting)
     qdpxExporter.ts          — orquestra export completo (codigos + sources + segments + memos + links)
     xmlBuilder.ts            — helpers XML (escapeXml, xmlAttr, xmlEl, xmlDeclaration)
@@ -110,6 +110,15 @@ src/
     exportModal.ts           — modal pre-export (formato, toggle sources, disclaimer CSV)
     exportCommands.ts        — commands na palette + botao no analytics
     caseVariablesXml.ts      — QDPX helpers (renderVariableXml, variableTypeToQdpx, renderVariablesForFile, renderCasesXml)
+    tabular/                 — CSV zip export pra R/Python/BI (relacional flat, sem REFI-QDA)
+      csvWriter.ts           — primitivo CSV (RFC 4180 + UTF-8 BOM)
+      readmeBuilder.ts       — gera README.md embutido no zip (schema + snippets R/Python)
+      buildSegmentsTable.ts  — consolida 8 sourceTypes (markdown, pdf_text, pdf_shape, image, audio, video, csv_segment, csv_row)
+      buildCodeApplicationsTable.ts — 1 linha per (segment, code) de todos engines
+      buildCodesTable.ts     — codebook denormalizado (pastas sao visual, nao saem)
+      buildCaseVariablesTable.ts — long format (fileId, variable)
+      buildRelationsTable.ts — unifica code-level + application-level
+      tabularExporter.ts     — orchestrator (CSV text resolve + fflate zip realm-safety)
   import/                    — REFI-QDA import (QDC + QDPX)
     qdcImporter.ts           — parse XML codebook, popular registry
     qdpxImporter.ts          — orquestra import completo (ZIP → vault)
@@ -172,7 +181,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 1990 testes em 99 suites (Vitest + jsdom)
+- `npm run test` — 2045 testes em 107 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
