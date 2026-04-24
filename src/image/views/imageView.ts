@@ -14,6 +14,7 @@ import { CodingMenu } from '../imageCodingMenu';
 import { RegionLabels } from '../regionLabels';
 import { type RegionHighlightState, setupRegionHighlight } from '../regionHighlight';
 import { IMAGE_CODING_VIEW_TYPE } from '../../core/mediaViewTypes';
+import { visibilityEventBus } from '../../core/visibilityEventBus';
 
 export { IMAGE_CODING_VIEW_TYPE };
 
@@ -31,6 +32,7 @@ export class ImageCodingView extends FileView {
 	private regionLabels: RegionLabels | null = null;
 	private regionHighlight: RegionHighlightState | null = null;
 	private clearAllHandler: (() => void) | null = null;
+	private unsubscribeVisibility?: () => void;
 	private readyResolve: (() => void) | null = null;
 	private readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
 	private loadGeneration = 0;
@@ -190,6 +192,9 @@ export class ImageCodingView extends FileView {
 			}
 			this.readyResolve?.();
 
+			// Subscribe to visibility changes
+			this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
+
 			// Listen for Clear All — wipe canvas regions so they don't persist visually
 			this.clearAllHandler = () => {
 				this.cleanup();
@@ -237,9 +242,34 @@ export class ImageCodingView extends FileView {
 		this.openMenuForMarker(markerId);
 	}
 
+	private refreshVisibility(affectedCodeIds: Set<string>): void {
+		if (!this.fabricState || !this.regionManager) return;
+		const fileId = this.file?.path ?? '';
+		if (!fileId) return;
+		const registry = this.model.registry;
+		const canvas = this.fabricState.canvas;
+
+		canvas.getObjects().forEach((obj: any) => {
+			const markerId = this.regionManager!.getMarkerIdForShape(obj);
+			if (!markerId) return;
+			const marker = this.model.findMarkerById(markerId);
+			if (!marker) return;
+			if (!marker.codes.some((app: any) => affectedCodeIds.has(app.codeId))) return;
+			const anyVisible = marker.codes.some((app: any) =>
+				registry.isCodeVisibleInFile(app.codeId, fileId)
+			);
+			obj.visible = anyVisible;
+			obj.dirty = true;
+			this.regionLabels?.setLabelVisible(markerId, anyVisible);
+		});
+		canvas.requestRenderAll();
+	}
+
 	private cleanup(): void {
 		// Invalidate any pending async onLoadFile
 		this.loadGeneration++;
+		this.unsubscribeVisibility?.();
+		this.unsubscribeVisibility = undefined;
 		if (this.clearAllHandler) {
 			document.removeEventListener('qualia:clear-all', this.clearAllHandler);
 			this.clearAllHandler = null;

@@ -126,6 +126,14 @@ export class RegionLabels {
     label.set({ left, top: top - 18 });
   }
 
+  /** Show or hide the label for a marker (used by visibility toggle). */
+  setLabelVisible(markerId: string, visible: boolean): void {
+    const label = this.labels.get(markerId);
+    if (label) {
+      label.set({ visible });
+    }
+  }
+
   destroy(): void {
     this.clearAll();
   }
