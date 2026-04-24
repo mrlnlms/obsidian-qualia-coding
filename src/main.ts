@@ -30,6 +30,7 @@ import { registerExportCommands } from './export/exportCommands';
 import { registerImportCommands } from './import/importCommands';
 import { setupFileInterceptor, registerFileRename } from './core/fileInterceptor';
 import { setupMediaToggleButton } from './core/mediaToggleButton';
+import { visibilityEventBus } from './core/visibilityEventBus';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -77,6 +78,10 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.sharedRegistry.addOnMutate(() => {
 			this.dataManager.setSection('registry', this.sharedRegistry.toJSON());
 			document.dispatchEvent(new Event('qualia:registry-changed'));
+		});
+
+		this.sharedRegistry.addVisibilityListener((detail) => {
+			visibilityEventBus.notify(detail.codeIds);
 		});
 
 		// Case Variables registry — per-file typed properties (like Obsidian Properties for binaries)
