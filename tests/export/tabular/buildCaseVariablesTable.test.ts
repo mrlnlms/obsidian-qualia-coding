@@ -53,10 +53,29 @@ describe('buildCaseVariablesTable', () => {
 		expect(rows[1]![2]).toBe('');
 	});
 
-	it('falls back to text with warning for unknown type', async () => {
+	it('falls back to text with warning for INVALID registered type', async () => {
 		const dm = await setupDm({ 'a.md': { weird: 'x' } }, { weird: 'unknown_type' });
 		const { rows, warnings } = buildCaseVariablesTable(dm);
 		expect(rows[1]![3]).toBe('text');
-		expect(warnings.some(w => /unknown.*type/i.test(w))).toBe(true);
+		expect(warnings.some(w => /invalid.*type/i.test(w))).toBe(true);
+	});
+
+	it('infers type silently for unregistered variable (no warning)', async () => {
+		const dm = await setupDm({ 'a.md': { age: 30, birth: '2000-01-01', active: true, name: 'Alice' } }, {});
+		const { rows, warnings } = buildCaseVariablesTable(dm);
+		expect(warnings).toEqual([]);
+		const byName = new Map(rows.slice(1).map(r => [r[1], r[3]]));
+		expect(byName.get('age')).toBe('number');
+		expect(byName.get('birth')).toBe('date');
+		expect(byName.get('active')).toBe('checkbox');
+		expect(byName.get('name')).toBe('text');
+	});
+
+	it('infers multitext for array values without registered type', async () => {
+		const dm = await setupDm({ 'a.md': { tags: ['x', 'y'] } }, {});
+		const { rows, warnings } = buildCaseVariablesTable(dm);
+		expect(warnings).toEqual([]);
+		expect(rows[1]![3]).toBe('multitext');
+		expect(JSON.parse(rows[1]![2] as string)).toEqual(['x', 'y']);
 	});
 });
