@@ -13,7 +13,8 @@ Ordem de execução — livrar a frente antes de abrir novas features:
 |-------|------|---------|--------------|
 | 1 | **[Toggle Visibility por Código](#1-toggle-visibility-por-código)** | 150-250 LOC | Média |
 | 2 | **[Import/Export — sessão agrupada](#2-importexport--sessão-agrupada)** | 1 dia dedicado | Média |
-| 3 | **[Parquet lazy loading](#3-parquet-lazy-loading)** | 2-3 sessões | Alta |
+
+> **Parquet lazy loading saiu da frente** (2026-04-24). Ver [análise arquivada](#parquet-lazy-loading-contingente) — contingente à decisão sobre LLM-assisted coding.
 
 ---
 
@@ -33,10 +34,12 @@ Ordem motivada pelo uso: organizar codebook → analisar → polir.
 
 Sem ordem de execução — precisam validar **se** e **como** existem antes de virar sessão.
 
+- **[LLM-assisted coding](#llm-assisted-coding)** — batch coding via LLM (local/API) sobre células tabulares. Destrava "parquet gigante" como caso de uso legítimo. **Amarra a decisão sobre Parquet lazy loading**
 - **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability)** — gap estratégico, complexidade alta pro contexto atual
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
 - **[Research Board Enhancements](#research-board-enhancements)** — escopo amplo, decidir subset
 - **[Analytical Memos](#analytical-memos)** — Obsidian já É o app de memos
+- **Tabular round-trip (import)** — reimportar o zip de CSVs exportado. Use cases possíveis: editar codes/case_variables em Excel em bulk, colaborar via CSV, merge de codings externos. Viabilidade incerta: text anchors de PDF/markdown podem não casar se arquivo fonte mudou; estratégia de conflito (novos vs editados vs deletados) precisa definição. Se virar concreto, brainstorming próprio
 
 ---
 
@@ -61,38 +64,84 @@ Sessão única pra matar dívidas de export e itens do ROADMAP no mesmo contexto
 
 | Origem | Item | Detalhe |
 |--------|------|---------|
-| ROADMAP #15 | JSON full export | PENDENTE |
+| **Novo** | **Tabular export pra análise externa (R/Python/BI)** | Zip com 4 CSVs (markers, code_applications, codes, case_variables) — schema relacional flat, consumo em 1 linha de `read_csv()`. Consumidor: pesquisador que não quer o Analytics do plugin e vai rodar stats no R/tidyverse. Substitui "JSON full export" que era cargo-cult de uma tabela UX de 2026-03-03, sem propósito definido |
 | ROADMAP #15 | PNG/PDF Dashboard composite | PENDENTE |
 | ~~BACKLOG §11 E1~~ | ~~QDPX offsets de texto PDF aproximados~~ | ✅ **FEITO 2026-04-23** — `resolveMarkerOffsets` usa plainText consolidado via pdfjs + indexOf (com fallback whitespace-normalize). Offsets absolutos em codepoints |
 | ~~BACKLOG §11 E2~~ | ~~Shape markers PDF ignorados no export~~ | ✅ **FEITO 2026-04-23** — `loadPdfExportData` extrai dims via pdfjs headless no momento do export |
 | ~~BACKLOG §11 I1~~ | ~~PDF shape selections no import usam 612x792 (US Letter)~~ | ✅ **FEITO 2026-04-23** — `createMarkersForSource` carrega `loadPdfExportData` 1x quando a source tem PDFSelection; `createPdfMarker` aplica `pdfDims[sel.page]` com fallback 612x792 + warning se load falha |
 | ~~BACKLOG §11 I2~~ | ~~PDF text selections (PlainTextSelection) ignoradas no import~~ | ✅ **FEITO 2026-04-23** — `extractAnchorFromPlainText` cria marker com `{text, page}` + indices placeholder. `resolvePendingIndices` popula indices via DOM text-search no primeiro render |
-| BACKLOG §17 | Multi-tab spreadsheet export (spin-off #8 Source Comparison) | Export Analytics com sheet por source type (markdown, pdf, csv, image, audio, video) + sheet summary. Usa `xlsx` ou múltiplos CSVs zipados. ~1-2h |
+| ~~BACKLOG §17~~ | ~~Multi-tab spreadsheet export~~ | **Movido pra Grupo 5 Analytics melhorias** — é export das análises do Analytics, não do projeto |
 
 **Dependência compartilhada**: ~~cache de dimensões de página PDF~~ resolvido — `loadPdfExportData` usa pdfjs headless direto do vault, sem cache persistido.
 
-### 3. Parquet lazy loading
+<a id="parquet-lazy-loading-contingente"></a>
+### Parquet lazy loading (contingente — fora da frente)
 
-**Status**: Suporte básico já implementado (`hyparquet` + `parseTabularFile()` + `registerExtensions(['csv', 'parquet'])`).
+**Status em 2026-04-24**: saiu da frente. Suporte básico já implementado (`hyparquet` + `parseTabularFile()` + `registerExtensions(['csv', 'parquet'])`). A extensão pra lazy loading completo depende da decisão sobre [LLM-assisted coding](#llm-assisted-coding) — sem ela, o caso "parquet 500MB com humano codificando sequencialmente" não existe no workflow QDA real.
+
+**Decisão preservada**: se LLM coding entrar no roadmap → Parquet lazy vira pré-requisito (revisar resultado de batch LLM num grid navegável). Se não → opção D (preview + aviso em arquivo grande, 1 sessão) resolve o caso de crash sem comprometer 5-7 sessões de trabalho.
 
 **Problema atual**: Lê arquivo inteiro pra memória. Datasets grandes (ex: export Qualtrics 2M rows) crasham o Obsidian (~500MB-2GB de memória, main thread bloqueada).
 
-**Arquitetura necessária (lazy loading)**:
+#### Constraint crítico: AG Grid Community
 
-1. **Metadata-only open**: hyparquet lê só metadata/schema (~1KB) ao abrir. Primeira visualização instantânea
-2. **AG Grid Server-Side Row Model**: virtualiza rows — só renderiza viewport. Datasource adapter mapeia "AG Grid page request" → "hyparquet row group range"
-3. **Row group mapping**: Row groups têm tamanho variável (ex: 20 groups de 100k). Adapter precisa calcular offset interno
-4. **Column projection**: `hyparquet({ columns: ['col1', 'col2'] })` decodifica só colunas visíveis. Integrar com column toggle existente
-5. **Web Worker**: Decodificação de row group (200-500ms pra 100k rows) deve sair da main thread
-6. **Cache**: LRU de 2-3 row groups em memória (~50MB total vs 500MB+)
+O projeto usa `ag-grid-community`. **Server-Side Row Model é Enterprise-only** (~$999/dev/ano). A alternativa viável é **Infinite Row Model** (Community), que oferece lazy por páginas mas com menos features (sem grouping/pivot lazy).
 
-**Limitações conhecidas**:
-- Sort/filter global requer ler todos os dados — com Server-Side Row Model, sort ficaria limitado aos dados carregados (hyparquet não tem query engine)
-- Coding markers referenciam `row: N` — rows não carregadas precisam de resolução lazy no sidebar
+#### Acoplamentos existentes que lazy loading precisa quebrar
 
-**Estimativa**: 2-3 sessões (POC → datasource adapter → polish + column projection + cache)
+1. **`rowDataCache: Map<string, Record[]>`** em `CsvCodingModel` assume cache completo. Consumidores:
+   - `CsvCodingView.navigateToRow` → AG Grid
+   - `CsvCodingModel.getMarkerText()` → sidebar code explorer, detail views
+   - `QdpxExporter` → export precisa texto de cada cell marker
+2. **Markers referenciam `row: N`** como índice posicional. Rows não carregadas → `getMarkerText()` retorna `null` → sidebar quebra.
+3. **Sort/filter hoje é client-side** (AG Grid client-side row model). Lazy loading inviabiliza sort/filter nativos sem query engine.
 
-**Evolução adicional**:
+Solução: camada de abstração `RowProvider { getRow(n): Promise<Record> }` com duas implementações (eager pra arquivos pequenos, lazy pra grandes). Todos os consumidores viram async.
+
+#### Arquitetura proposta
+
+1. **Metadata-only open**: hyparquet lê só schema (~1KB). Visualização instantânea.
+2. **Infinite Row Model** (AG Grid Community): datasource adapter mapeia "AG Grid page request" → "hyparquet row group range". Row groups têm tamanho variável — adapter calcula offset interno.
+3. **Column projection**: `hyparquet({ columns })` decodifica só colunas visíveis. Integrar com `columnToggleModal`.
+4. **Web Worker**: decodificação (200-500ms pra 100k rows) sai da main thread. Validar compatibilidade de `hyparquet-compressors` (Snappy/ZSTD via WASM) dentro de worker.
+5. **LRU cache**: 2-3 row groups em memória (~50MB vs 500MB+).
+6. **`RowProvider` abstraction**: substitui `rowDataCache` direto. Consumidores ficam async.
+7. **Threshold automático**: `navigator.deviceMemory` + `file.stat.size` decidem eager vs lazy. Setting override manual (ex: "forçar lazy acima de X MB" — default: file > 100MB OU deviceMemory < 4GB).
+
+#### Decisão de produto pendente — sort/filter em lazy mode
+
+Três opções:
+
+| Opção | Custo extra | Resultado |
+|-------|-------------|-----------|
+| Sort/filter só no buffer carregado | 0 | Funciona mas só enxerga subset |
+| Desabilitar sort/filter em lazy mode | 0 | UX honesta ("arquivo grande = só visualização") |
+| **DuckDB-Wasm** como query engine | +1 sessão, ~6MB bundle | Sort/filter real sobre parquet direto, viabiliza também aggregations pesadas |
+
+DuckDB-Wasm lê parquet direto do ArrayBuffer e executa SQL. Não é pré-requisito, é upgrade considerável.
+
+#### Estimativa
+
+| Fase | Esforço |
+|------|---------|
+| POC: metadata-only + Infinite Row Model + hyparquet page range | 1 sessão |
+| `RowProvider` abstraction + consumidores async | 1-2 sessões |
+| Web Worker | 1 sessão |
+| Column projection + LRU | 0.5-1 sessão |
+| Sidebar resolve async + UX loading | 1 sessão |
+| Threshold automático + settings | 0.3 sessão |
+| **Total (sem DuckDB-Wasm)** | **5-7 sessões** |
+| +DuckDB-Wasm se adotado | +1 sessão |
+
+#### Riscos
+
+- **Markers órfãos** em caso de re-sort externo do parquet. Risco já existe hoje (usar índice posicional); lazy loading não muda a natureza do risco. **Mitigação opcional futura** (não pré-requisito): ancorar markers a hash/primary-key de row em vez de índice.
+- **Sort/filter global** requer ou query engine (DuckDB-Wasm) ou aceitar limitação ao buffer.
+- **Export QDPX** em parquet grande: batch de rows com marker por row group é obrigatório (sem isso vira N requests I/O).
+- **Web Worker + hyparquet-compressors**: verificar WASM load em worker context.
+
+#### Evolução adicional
+
 - Export TO Parquet (via hyparquet-writer ou CSV conversion)
 
 ---
@@ -163,6 +212,39 @@ Dois sub-itens com dívida técnica compartilhada (`scrollDOM stacking context` 
 ---
 
 ## Detalhes — decisão de produto aberta
+
+### LLM-assisted coding
+
+Batch coding via LLM (local ou API) sobre células tabulares (ou markdown, PDF, etc.). Fluxo proposto:
+
+```
+1. Usuário configura prompt + colunas alvo
+2. Background job itera o source em chunks (100-1000 rows)
+3. Cada chunk → LLM → retorna codes por row
+4. Markers gravados em data.json incrementalmente
+5. Humano revisa via grid/sidebar, ajusta o que LLM errou
+```
+
+**Por que importa pro roadmap agora**: destrava "parquet gigante" como caso de uso legítimo. Sem LLM, codificar 500k rows sequencialmente é fora do escopo humano — com LLM, vira o caso central de mixed methods (Qualtrics + open-ended text).
+
+**Amarra a decisão sobre Parquet lazy loading**:
+- Se LLM coding entra → Parquet lazy completo vira pré-requisito pra revisão em grid navegável
+- Se não entra → opção D (preview + aviso) resolve o caso de crash sem compromisso grande
+
+**Concorrência**: ATLAS.ti tem AI Coding, NVivo tem summarize/AI, MAXQDA tem AI Assist, Dedoose tem AI features. Todos pagos. Oportunidade clara em open source.
+
+**Escopo mínimo (MVP)**:
+- Provider config (OpenAI/Anthropic API + local via Ollama)
+- Prompt builder com codebook existente injetado
+- Batch scheduler (rate-limit, retry)
+- Confidence score + revisão humana first-class
+- Funcionar pra markdown + CSV/parquet inicialmente
+
+**Escopo completo**: todos os engines (PDF, image, audio, video via transcription).
+
+**Estimativa (MVP)**: 10-15 sessões. Feature própria, não sub-item.
+
+**Decisão pendente**: priorizar isso acima de "Coding management" e "Analytics polish" no pós-frente-limpa?
 
 ### Intercoder Reliability
 
