@@ -2,9 +2,10 @@ import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/vie
 import { CodeMarkerModel } from "../models/codeMarkerModel";
 import { findFileIdForEditorView } from "./utils/viewLookupUtils";
 import { findSmallestMarkerAtPos, classifyMarkersAtPos } from "./utils/markerPositionUtils";
-import { setFileIdEffect, setHoverEffect } from "./markerStateField";
+import { setFileIdEffect, setHoverEffect, updateFileMarkersEffect } from "./markerStateField";
 import { HandleOverlayRenderer } from "./handleOverlayRenderer";
 import { DragManager } from "./dragManager";
+import { visibilityEventBus } from "../../core/visibilityEventBus";
 
 // Custom event dispatched when user makes a text selection (for menu trigger)
 export const SELECTION_EVENT = 'codemarker-selection-made';
@@ -28,6 +29,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 
 			drag: DragManager;
 			private cleanup: Array<() => void> = [];
+			private unsubscribeVisibility?: () => void;
 
 			// Local hover state
 			hoveredMarkerId: string | null = null;
@@ -45,6 +47,16 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 				this.identifyAndSendFileId(view);
 				this.renderer = new HandleOverlayRenderer(model, view.scrollDOM);
 				this.setupOverlayListeners(view);
+
+				// Subscribe to visibility changes — rebuild decorations when codes are toggled
+				this.unsubscribeVisibility = visibilityEventBus.subscribe(() => {
+					if (!this.fileId) return;
+					try {
+						view.dispatch({
+							effects: updateFileMarkersEffect.of({ fileId: this.fileId })
+						});
+					} catch { /* view may be destroyed */ }
+				});
 			}
 
 			private setupOverlayListeners(view: EditorView) {
@@ -191,6 +203,7 @@ export const createMarkerViewPlugin = (model: CodeMarkerModel) => {
 					clearTimeout(this._hoverClearTimeout);
 					this._hoverClearTimeout = null;
 				}
+				this.unsubscribeVisibility?.();
 				this.cleanup.forEach(cleanupFn => cleanupFn());
 				this.hoveredMarkerId = null;
 				this.hoveredMarkerIds = [];
