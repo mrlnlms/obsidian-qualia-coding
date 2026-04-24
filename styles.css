@@ -5128,3 +5128,13 @@ body.codebook-dragging * {
 	color: var(--text-normal);
 	font-weight: 500;
 }
+
+.codebook-groups-description {
+	margin-top: 6px;
+	padding: 6px 8px;
+	font-size: var(--font-smaller);
+	color: var(--text-muted);
+	background: var(--background-secondary);
+	border-radius: 4px;
+	border-left: 2px solid var(--interactive-accent);
+}

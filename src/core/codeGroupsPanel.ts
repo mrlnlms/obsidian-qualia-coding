@@ -74,5 +74,14 @@ export function renderCodeGroupsPanel(
 		});
 	}
 
+	// Description do group selected, visível abaixo dos chips quando filter ativo
+	const selected = callbacks.selectedGroupId
+		? registry.getGroup(callbacks.selectedGroupId)
+		: null;
+	if (selected?.description) {
+		const desc = panel.createDiv({ cls: 'codebook-groups-description' });
+		desc.createSpan({ text: selected.description });
+	}
+
 	return { cleanup: () => {} };
 }
