@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { buildExportFilename, getBoardBoundingBox, EXPORT_PADDING } from "../../src/analytics/board/boardExport";
+import { describe, it, expect, vi } from "vitest";
+import { buildExportFilename, getBoardBoundingBox, EXPORT_PADDING, exportBoardSvg, exportBoardPng, triggerDownload } from "../../src/analytics/board/boardExport";
 
 describe("buildExportFilename", () => {
   it("formata data como YYYY-MM-DD para SVG", () => {
@@ -61,5 +61,67 @@ describe("getBoardBoundingBox", () => {
     const bb = getBoardBoundingBox(canvas);
     expect(bb!.left).toBe(-50 - EXPORT_PADDING);
     expect(bb!.top).toBe(-30 - EXPORT_PADDING);
+  });
+});
+
+describe("exportBoardSvg", () => {
+  it("chama canvas.toSVG com viewBox do bbox", () => {
+    const toSVG = vi.fn().mockReturnValue("<svg>...</svg>");
+    const canvas = { toSVG } as unknown as import("fabric").Canvas;
+    const bbox = { left: 10, top: 20, width: 300, height: 200 };
+
+    const result = exportBoardSvg(canvas, bbox);
+
+    expect(toSVG).toHaveBeenCalledWith({
+      viewBox: { x: 10, y: 20, width: 300, height: 200 },
+      width: 300,
+      height: 200,
+    });
+    expect(result).toBe("<svg>...</svg>");
+  });
+});
+
+describe("exportBoardPng", () => {
+  it("chama canvas.toDataURL com bbox e multiplier default 2", () => {
+    const toDataURL = vi.fn().mockReturnValue("data:image/png;base64,AAA");
+    const canvas = { toDataURL } as unknown as import("fabric").Canvas;
+    const bbox = { left: 10, top: 20, width: 300, height: 200 };
+
+    const result = exportBoardPng(canvas, bbox);
+
+    expect(toDataURL).toHaveBeenCalledWith({
+      format: "png",
+      multiplier: 2,
+      left: 10,
+      top: 20,
+      width: 300,
+      height: 200,
+    });
+    expect(result).toBe("data:image/png;base64,AAA");
+  });
+
+  it("aceita multiplier custom", () => {
+    const toDataURL = vi.fn().mockReturnValue("data:...");
+    const canvas = { toDataURL } as unknown as import("fabric").Canvas;
+    const bbox = { left: 0, top: 0, width: 100, height: 100 };
+
+    exportBoardPng(canvas, bbox, 3);
+
+    expect(toDataURL).toHaveBeenCalledWith(expect.objectContaining({ multiplier: 3 }));
+  });
+});
+
+describe("triggerDownload", () => {
+  it("cria <a> com download e href e clica", () => {
+    const click = vi.fn();
+    const anchor = { download: "", href: "", click } as unknown as HTMLAnchorElement;
+    const spy = vi.spyOn(document, "createElement").mockReturnValue(anchor);
+
+    triggerDownload("foo.svg", "data:...");
+
+    expect(anchor.download).toBe("foo.svg");
+    expect(anchor.href).toBe("data:...");
+    expect(click).toHaveBeenCalledOnce();
+    spy.mockRestore();
   });
 });

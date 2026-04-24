@@ -36,3 +36,33 @@ export function buildExportFilename(format: "svg" | "png", now: Date): string {
   const dd = String(now.getUTCDate()).padStart(2, "0");
   return `qualia-board-${yyyy}-${mm}-${dd}.${format}`;
 }
+
+export function exportBoardSvg(canvas: Canvas, bbox: BBox): string {
+  return (canvas as unknown as {
+    toSVG(opts: { viewBox: { x: number; y: number; width: number; height: number }; width: number; height: number }): string;
+  }).toSVG({
+    viewBox: { x: bbox.left, y: bbox.top, width: bbox.width, height: bbox.height },
+    width: bbox.width,
+    height: bbox.height,
+  });
+}
+
+export function exportBoardPng(canvas: Canvas, bbox: BBox, multiplier = 2): string {
+  return (canvas as unknown as {
+    toDataURL(opts: { format: "png"; multiplier: number; left: number; top: number; width: number; height: number }): string;
+  }).toDataURL({
+    format: "png",
+    multiplier,
+    left: bbox.left,
+    top: bbox.top,
+    width: bbox.width,
+    height: bbox.height,
+  });
+}
+
+export function triggerDownload(filename: string, href: string): void {
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = href;
+  link.click();
+}
