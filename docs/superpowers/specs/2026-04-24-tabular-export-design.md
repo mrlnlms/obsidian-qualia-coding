@@ -252,7 +252,7 @@ Novo diretório `src/export/tabular/`:
 ```
 src/export/tabular/
   tabularExporter.ts            — orquestrador: data → CSVs → zip
-  buildSegmentsTable.ts         — gera segments.csv (consolida 7 tipos)
+  buildSegmentsTable.ts         — gera segments.csv (consolida 8 sourceTypes)
   buildCodeApplicationsTable.ts — gera code_applications.csv
   buildCodesTable.ts            — gera codes.csv
   buildCaseVariablesTable.ts    — gera case_variables.csv
@@ -327,7 +327,7 @@ Princípios: **fail-soft com warnings coletados**, igual ao QDPX exporter existe
 
 | Cenário | Handling |
 |---|---|
-| Segment com `codeId` órfão (código deletado mas application ficou) | Skip aplicação, warning |
+| Segment com `codeId` órfão (código deletado mas application ficou) | Skip aplicação, warning. Se TODAS as aplicações de um segment são órfãs, o segment ainda é emitido (memo/metadata podem ter valor analítico) |
 | Case variable com tipo inválido | Salva como `text`, warning |
 | Shape marker com coords malformado | Skip coords (segment ainda sai com `shape_type`/`shape_coords` vazios), warning |
 | Campo de tempo NaN em media marker | Emit segment com `time_from`/`time_to` vazios, warning — não skip (mantém code applications) |
@@ -353,7 +353,7 @@ Princípios: **fail-soft com warnings coletados**, igual ao QDPX exporter existe
 | Suite | Cobertura |
 |---|---|
 | `csvWriter.test.ts` | Escape de vírgula, aspas, newlines, UTF-8 BOM, empty string, null, unicode |
-| `buildSegmentsTable.test.ts` | 7 source types renderizados corretamente (1 fixture por tipo); toggle `includeShapeCoords` on/off |
+| `buildSegmentsTable.test.ts` | 8 sourceTypes renderizados corretamente (1 fixture por tipo); toggle `includeShapeCoords` on/off |
 | `buildCodeApplicationsTable.test.ts` | Multi-code por segment; magnitude presente/ausente; orphan code warning |
 | `buildCodesTable.test.ts` | Hierarchy (`parent_id`); colors; `magnitude_config` serializado como JSON válido |
 | `buildCaseVariablesTable.test.ts` | Long format; 5 tipos de valor (text/number/date/datetime/checkbox); tipo inválido → warning |
