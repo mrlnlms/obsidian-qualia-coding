@@ -2473,7 +2473,460 @@ Ao final:
 
 ## Chunk 4: Analytics filter integration
 
-TODO: will write after Chunk 3 approved.
+Esta chunk integra groups no filter de Analytics. Decisão arquitetural: **pre-computar `memberCodeIds` em `buildFilterConfig`** pra evitar passar `CodeDefinitionRegistry` em cada um dos 9 callers de `applyFilters`. O filter carrega `{ groupId, memberCodeIds }` e `applyFilters` constrói um Set pra lookup O(1).
+
+### Task 4.1: FilterConfig.groupFilter + applyFilters implementation
+
+**Files:**
+- Modify: `src/analytics/data/dataTypes.ts:57-64` (FilterConfig)
+- Modify: `src/analytics/data/statsHelpers.ts` (applyFilters)
+- Test: `tests/core/codeGroupsFilter.test.ts` (estender a parte Analytics)
+
+- [ ] **Step 1: Criar test da applyFilters com groupFilter**
+
+Em `tests/core/codeGroupsFilter.test.ts`, adicionar bloco `describe`:
+
+```ts
+import { applyFilters } from '../../src/analytics/data/statsHelpers';
+import type { ConsolidatedData, FilterConfig, UnifiedMarker } from '../../src/analytics/data/dataTypes';
+
+describe('applyFilters — groupFilter', () => {
+  function makeData(markers: UnifiedMarker[]): ConsolidatedData {
+    return {
+      markers,
+      codes: [],
+      sources: { markdown: true, csv: true, image: true, pdf: true, audio: true, video: true },
+      lastUpdated: 0,
+    };
+  }
+
+  function makeFilter(overrides: Partial<FilterConfig> = {}): FilterConfig {
+    return {
+      sources: ['markdown', 'csv-segment', 'csv-row', 'image', 'pdf', 'audio', 'video'],
+      codes: [],
+      excludeCodes: [],
+      minFrequency: 0,
+      ...overrides,
+    };
+  }
+
+  function marker(id: string, codes: string[]): UnifiedMarker {
+    return { id, source: 'markdown', fileId: 'f.md', codes };
+  }
+
+  it('quando groupFilter está ausente, não filtra markers', () => {
+    const data = makeData([marker('m1', ['c1']), marker('m2', ['c2'])]);
+    const result = applyFilters(data, makeFilter());
+    expect(result.length).toBe(2);
+  });
+
+  it('quando groupFilter está presente, só passam markers com pelo menos 1 código membro', () => {
+    const data = makeData([
+      marker('m1', ['c1', 'c2']),  // c1 é membro
+      marker('m2', ['c3']),          // não-membro
+      marker('m3', ['c2']),          // c2 não é membro (setup abaixo)
+    ]);
+    const filter = makeFilter({
+      groupFilter: { groupId: 'g1', memberCodeIds: ['c1'] },
+    });
+    const result = applyFilters(data, filter);
+    expect(result.map(m => m.id)).toEqual(['m1']);
+  });
+
+  it('múltiplos membros no group — marker passa se pelo menos 1 matchea', () => {
+    const data = makeData([marker('m1', ['c3']), marker('m2', ['c7'])]);
+    const filter = makeFilter({
+      groupFilter: { groupId: 'g1', memberCodeIds: ['c1', 'c3', 'c5'] },
+    });
+    const result = applyFilters(data, filter);
+    expect(result.map(m => m.id)).toEqual(['m1']);
+  });
+
+  it('groupFilter com memberCodeIds vazio exclui tudo (group sem membros)', () => {
+    const data = makeData([marker('m1', ['c1'])]);
+    const filter = makeFilter({
+      groupFilter: { groupId: 'g1', memberCodeIds: [] },
+    });
+    const result = applyFilters(data, filter);
+    expect(result.length).toBe(0);
+  });
+
+  it('combina com outros filters (caseVariableFilter + groupFilter)', () => {
+    // groupFilter restringe ao membro; outros filters continuam aplicando
+    const data = makeData([marker('m1', ['c1']), marker('m2', ['c1'])]);
+    const filter = makeFilter({
+      excludeCodes: ['c1'],  // excluir tudo
+      groupFilter: { groupId: 'g1', memberCodeIds: ['c1'] },
+    });
+    const result = applyFilters(data, filter);
+    expect(result.length).toBe(0);  // excludeCodes pega antes
+  });
+});
+```
+
+- [ ] **Step 2: Rodar — falhas esperadas (FilterConfig sem groupFilter)**
+
+- [ ] **Step 3: Estender `FilterConfig`**
+
+Em `src/analytics/data/dataTypes.ts:57`:
+
+```ts
+export interface FilterConfig {
+  sources: SourceType[];
+  codes: string[];
+  excludeCodes: string[];
+  minFrequency: number;
+  /** Filter markers to files whose case variable has this value. Requires registry passed to applyFilters. */
+  caseVariableFilter?: { name: string; value: string };
+  /** Filter markers to codes that are members of this group. memberCodeIds pre-computed in buildFilterConfig. */
+  groupFilter?: { groupId: string; memberCodeIds: string[] };  // NEW
+}
+```
+
+- [ ] **Step 4: Implementar groupFilter no `applyFilters`**
+
+Em `src/analytics/data/statsHelpers.ts`:
+
+```ts
+import type { ConsolidatedData, FilterConfig, UnifiedMarker } from "./dataTypes";
+import type { CaseVariablesRegistry } from "../../core/caseVariables/caseVariablesRegistry";
+
+export function applyFilters(
+  data: ConsolidatedData,
+  filters: FilterConfig,
+  registry?: CaseVariablesRegistry,
+): UnifiedMarker[] {
+  // Pre-compute Set pra lookup O(1) se groupFilter está ativo
+  const groupMemberSet = filters.groupFilter
+    ? new Set(filters.groupFilter.memberCodeIds)
+    : null;
+
+  return data.markers.filter((m) => {
+    if (!filters.sources.includes(m.source)) return false;
+    if (filters.codes.length > 0 && !m.codes.some((c) => filters.codes.includes(c))) return false;
+    if (filters.excludeCodes.length > 0 && m.codes.every((c) => filters.excludeCodes.includes(c))) return false;
+    if (filters.caseVariableFilter && registry) {
+      const { name, value } = filters.caseVariableFilter;
+      const vars = registry.getVariables(m.fileId);
+      if (vars[name] !== value) return false;
+    }
+    if (groupMemberSet && !m.codes.some((c) => groupMemberSet.has(c))) return false;
+    return true;
+  });
+}
+```
+
+- [ ] **Step 5: Rodar — 5 tests passam**
+
+Expected: PASS. **Observação importante:** os 9 callers de `applyFilters` em `frequency.ts`, `cooccurrence.ts`, `sequential.ts`, `evolution.ts`, `inferential.ts`, `textAnalysis.ts` **NÃO precisam de ajuste** — signature preservada (3 args), `groupFilter` é opcional no `FilterConfig`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/analytics/data/dataTypes.ts src/analytics/data/statsHelpers.ts tests/core/codeGroupsFilter.test.ts
+~/.claude/scripts/commit.sh "feat(analytics): FilterConfig.groupFilter + applyFilters com memberCodeIds pre-computed"
+```
+
+### Task 4.2: AnalyticsViewContext.groupFilter + buildFilterConfig
+
+**Files:**
+- Modify: `src/analytics/views/analyticsViewContext.ts` (interface)
+- Modify: `src/analytics/views/analyticsView.ts` (field + buildFilterConfig)
+
+- [ ] **Step 1: Estender `AnalyticsViewContext`**
+
+Em `analyticsViewContext.ts:88` (próximo ao `caseVariableFilter`):
+
+```ts
+// Case variable filter state
+caseVariableFilter: { name: string; value: string } | null;
+
+// Group filter state (tier 1.5 — single-select)
+groupFilter: string | null;  // NEW — groupId selecionado ou null
+```
+
+- [ ] **Step 2: Adicionar field + init em `AnalyticsView`**
+
+Em `src/analytics/views/analyticsView.ts`, próximo ao `caseVariableFilter: { name: string; value: string } | null = null;`:
+
+```ts
+groupFilter: string | null = null;
+```
+
+- [ ] **Step 3: Atualizar `buildFilterConfig` pra incluir groupFilter com memberCodeIds**
+
+Em `analyticsView.ts:313-` (buildFilterConfig):
+
+```ts
+buildFilterConfig(): FilterConfig {
+  const allCodeIds = this.data?.codes.map((c) => c.id) ?? [];
+  const excludeCodes = allCodeIds.filter((c) => !this.enabledCodes.has(c));
+
+  // Pre-compute member code ids se há group filter
+  const groupFilter = this.groupFilter
+    ? {
+        groupId: this.groupFilter,
+        memberCodeIds: this.plugin.registry.getCodesInGroup(this.groupFilter).map(c => c.id),
+      }
+    : undefined;
+
+  return {
+    sources: Array.from(this.enabledSources),
+    codes: [],
+    excludeCodes,
+    minFrequency: this.minFrequency,
+    caseVariableFilter: this.caseVariableFilter ?? undefined,
+    groupFilter,  // NEW
+  };
+}
+```
+
+**Nota:** `this.plugin.registry` é o `CodeDefinitionRegistry` exposto pelo `AnalyticsPluginAPI` (ver `src/analytics/index.ts:19-32` — prop se chama `registry`, NÃO `codeRegistry`).
+
+- [ ] **Step 4: Verificar tsc**
+
+```bash
+npx tsc --noEmit
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/analytics/views/analyticsViewContext.ts src/analytics/views/analyticsView.ts
+~/.claude/scripts/commit.sh "feat(analytics): AnalyticsViewContext.groupFilter + buildFilterConfig"
+```
+
+### Task 4.3: renderGroupsFilter em configSections + wire em renderConfigPanel
+
+**Nota de CSS:** classe do chip nesta task (`codemarker-analytics-group-chip`) é **intencionalmente separada** da do painel do codebook (`codebook-group-chip`) — containers têm contextos de padding/tamanho diferentes (sidebar densa vs config panel do analytics). Se houver regressão visual futuramente, consolidar numa classe base com modifier.
+
+**Files:**
+- Modify: `src/analytics/views/configSections.ts` (nova export `renderGroupsFilter`)
+- Modify: `src/analytics/views/analyticsView.ts` (chamar a função no renderConfigPanel)
+- Test: `tests/core/codeGroupsFilter.test.ts` (estender)
+
+- [ ] **Step 1: Adicionar test de render**
+
+Em `tests/core/codeGroupsFilter.test.ts`, novo `describe`:
+
+```ts
+import { renderGroupsFilter } from '../../src/analytics/views/configSections';
+import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+
+describe('renderGroupsFilter — UI', () => {
+  let container: HTMLElement;
+  let registry: CodeDefinitionRegistry;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    registry = new CodeDefinitionRegistry();
+  });
+
+  afterEach(() => { container.remove(); });
+
+  it('não renderiza nada quando não há groups', () => {
+    renderGroupsFilter(container, registry, { filter: null }, () => {});
+    expect(container.querySelector('.codemarker-config-section')).toBeFalsy();
+  });
+
+  it('renderiza chips quando ≤10 groups', () => {
+    for (let i = 0; i < 5; i++) registry.createGroup(`G${i}`);
+    renderGroupsFilter(container, registry, { filter: null }, () => {});
+    expect(container.querySelectorAll('.codemarker-analytics-group-chip').length).toBe(5);
+  });
+
+  it('renderiza dropdown quando >10 groups (fallback)', () => {
+    for (let i = 0; i < 15; i++) registry.createGroup(`G${i}`);
+    renderGroupsFilter(container, registry, { filter: null }, () => {});
+    expect(container.querySelectorAll('.codemarker-analytics-group-chip').length).toBe(0);
+    const select = container.querySelector('select');
+    expect(select).toBeTruthy();
+    expect(select!.options.length).toBe(16);  // "— none —" + 15 groups
+  });
+
+  it('click no chip emite onChange com groupId', () => {
+    const g = registry.createGroup('RQ1');
+    let received: string | null | undefined;
+    renderGroupsFilter(container, registry, { filter: null }, (f) => { received = f; });
+    (container.querySelector('.codemarker-analytics-group-chip') as HTMLElement).click();
+    expect(received).toBe(g.id);
+  });
+
+  it('click no chip já selecionado emite null (toggle off)', () => {
+    const g = registry.createGroup('RQ1');
+    let received: string | null | undefined = 'initial';
+    renderGroupsFilter(container, registry, { filter: g.id }, (f) => { received = f; });
+    (container.querySelector('.codemarker-analytics-group-chip.is-selected') as HTMLElement).click();
+    expect(received).toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: Rodar — falha (renderGroupsFilter não existe)**
+
+- [ ] **Step 3: Implementar `renderGroupsFilter` em `configSections.ts`**
+
+Append em `src/analytics/views/configSections.ts`:
+
+```ts
+import type { CodeDefinitionRegistry } from "../../core/codeDefinitionRegistry";
+
+const GROUPS_DROPDOWN_THRESHOLD = 10;
+
+export function renderGroupsFilter(
+  container: HTMLElement,
+  registry: CodeDefinitionRegistry,
+  state: { filter: string | null },
+  onChange: (groupId: string | null) => void,
+): void {
+  const groups = registry.getAllGroups();
+  if (groups.length === 0) return;
+
+  const section = container.createDiv({ cls: "codemarker-config-section" });
+  section.createDiv({ cls: "codemarker-config-section-title", text: "Filter by group" });
+
+  if (groups.length > GROUPS_DROPDOWN_THRESHOLD) {
+    // Fallback: dropdown
+    const select = section.createEl("select", { cls: "codemarker-config-select" });
+    select.appendChild(new Option("— none —", ""));
+    for (const g of groups) {
+      select.appendChild(new Option(g.name, g.id));
+    }
+    if (state.filter) select.value = state.filter;
+    select.addEventListener("change", () => {
+      onChange(select.value || null);
+    });
+  } else {
+    // Chips
+    const chipsWrap = section.createDiv({ cls: "codemarker-analytics-group-chips" });
+    for (const g of groups) {
+      const chip = chipsWrap.createEl("button", { cls: "codemarker-analytics-group-chip" });
+      const dot = chip.createSpan({ cls: "codemarker-analytics-group-chip-dot" });
+      dot.style.backgroundColor = g.color;
+      chip.createSpan({ text: g.name });
+      if (state.filter === g.id) chip.addClass("is-selected");
+      chip.addEventListener("click", () => {
+        onChange(state.filter === g.id ? null : g.id);
+      });
+    }
+  }
+}
+```
+
+- [ ] **Step 4: CSS**
+
+Append em `styles.css`:
+
+```css
+.codemarker-analytics-group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.codemarker-analytics-group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  font-size: var(--font-smallest);
+  cursor: pointer;
+}
+.codemarker-analytics-group-chip:hover {
+  background: var(--background-modifier-hover);
+}
+.codemarker-analytics-group-chip.is-selected {
+  border-color: var(--interactive-accent);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.codemarker-analytics-group-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+```
+
+- [ ] **Step 5: Wire no `renderConfigPanel` de `analyticsView.ts:303`**
+
+Antes ou depois de `renderCaseVariablesFilter`:
+
+```ts
+renderCaseVariablesFilter(
+  this.configPanelEl,
+  this.plugin.caseVariablesRegistry,
+  { filter: this.caseVariableFilter },
+  (f) => { this.caseVariableFilter = f; this.scheduleUpdate(); },
+);
+// NEW — Groups filter
+renderGroupsFilter(
+  this.configPanelEl,
+  this.plugin.registry,
+  { filter: this.groupFilter },
+  (f) => { this.groupFilter = f; this.scheduleUpdate(); },
+);
+```
+
+Atualizar import no topo:
+
+```ts
+import { renderSourcesSection, renderViewModeSection, renderCodesSection, renderMinFreqSection, renderCaseVariablesFilter, renderGroupsFilter } from "./configSections";
+```
+
+- [ ] **Step 6: Rodar tests — 5 novos passam**
+
+```bash
+npm run test -- tests/core/codeGroupsFilter.test.ts --run
+```
+
+Expected: todos passam (5 applyFilters + 5 renderGroupsFilter = 10 nesse file).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/analytics/views/configSections.ts src/analytics/views/analyticsView.ts styles.css tests/core/codeGroupsFilter.test.ts
+~/.claude/scripts/commit.sh "feat(analytics): renderGroupsFilter (chips + fallback dropdown >10) + wire no config panel"
+```
+
+### Task 4.4: Smoke test manual
+
+- [ ] **Step 1: Build + reload**
+
+```bash
+npm run build
+```
+
+- [ ] **Step 2: Checklist:**
+
+1. Abrir Analytics view; executar Frequency mode com dados existentes.
+2. No config panel, verificar seção "Filter by group" (abaixo de "Filter by case variable"). Se não tem groups, section fica ausente — OK.
+3. Criar 2 groups; adicionar alguns códigos.
+4. Fechar e reabrir a Analytics view (ou trigger explícito de re-render do config panel) — chips aparecem. (`renderConfigPanel` é chamado ao trocar de mode ou abrir view — ele não observa mutations do registry.)
+5. Clicar chip "RQ1" — gráfico recalcula com subset.
+6. Verificar visualmente que outros modes (cooccurrence, doc-matrix) também respondem ao filter.
+7. Criar 11+ groups — chips viram dropdown.
+8. Selecionar "— none —" no dropdown — filter limpa.
+
+---
+
+## Chunk 4 summary
+
+Ao final:
+- `FilterConfig.groupFilter` pre-computa `memberCodeIds` pra evitar passar registry em 9 callers
+- `renderGroupsFilter` com chips single-select + fallback dropdown em >10 groups
+- Integração com `applyFilters` sem breaking changes em callers existentes
+- +10 testes (5 applyFilters + 5 renderGroupsFilter)
+- Baseline pós-Chunk 3: ~2153 → pós-Chunk 4: ~2163
+
+**Próximo chunk:** Export/Import (QDPX Sets + Tabular CSV `groups`).
+
+## Chunk 5: Export/Import (QDPX + Tabular CSV)
+
+TODO: will write after Chunk 4 approved.
 
 ## Chunk 4: Analytics filter integration
 
