@@ -175,6 +175,11 @@ export default class QualiaCodingPlugin extends Plugin {
 				return;
 			}
 			this.caseVariablesRegistry.removeAllForFile(file.path);
+			this.sharedRegistry.clearFilePathForOverrides(file.path);
+		}));
+
+		this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
+			this.sharedRegistry.migrateFilePathForOverrides(oldPath, file.path);
 		}));
 
 		this.addSettingTab(new QualiaSettingTab(this.app, this));

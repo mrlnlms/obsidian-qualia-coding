@@ -125,6 +125,25 @@ export class CodeDefinitionRegistry {
 		this.emitVisibility({ codeIds: affectedCodeIds, fileIds: new Set([fileId]) });
 	}
 
+	migrateFilePathForOverrides(oldPath: string, newPath: string): void {
+		const entry = this.visibilityOverrides[oldPath];
+		if (!entry) return;
+		this.visibilityOverrides[newPath] = entry;
+		delete this.visibilityOverrides[oldPath];
+		this.emitVisibility({
+			codeIds: new Set(Object.keys(entry)),
+			fileIds: new Set([newPath]),
+		});
+	}
+
+	clearFilePathForOverrides(fileId: string): void {
+		const entry = this.visibilityOverrides[fileId];
+		if (!entry || Object.keys(entry).length === 0) return;
+		const codeIds = new Set(Object.keys(entry));
+		delete this.visibilityOverrides[fileId];
+		this.emitVisibility({ codeIds, fileIds: new Set([fileId]) });
+	}
+
 	// --- CRUD ---
 
 	getById(id: string): CodeDefinition | undefined {
