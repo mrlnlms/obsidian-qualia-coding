@@ -82,14 +82,31 @@ describe("exportBoardSvg", () => {
 });
 
 describe("exportBoardPng", () => {
+  function makePngCanvas(vt: [number, number, number, number, number, number]) {
+    const state = {
+      viewportTransform: vt,
+      vtAtCapture: null as typeof vt | null,
+      toDataURL: vi.fn(),
+      setViewportTransform: vi.fn(),
+      requestRenderAll: vi.fn(),
+    };
+    state.toDataURL.mockImplementation(() => {
+      state.vtAtCapture = [...state.viewportTransform] as typeof vt;
+      return "data:image/png;base64,AAA";
+    });
+    state.setViewportTransform.mockImplementation((newVt: typeof vt) => {
+      state.viewportTransform = newVt;
+    });
+    return state;
+  }
+
   it("chama canvas.toDataURL com bbox e multiplier default 2", () => {
-    const toDataURL = vi.fn().mockReturnValue("data:image/png;base64,AAA");
-    const canvas = { toDataURL } as unknown as import("fabric").Canvas;
+    const canvas = makePngCanvas([1, 0, 0, 1, 0, 0]);
     const bbox = { left: 10, top: 20, width: 300, height: 200 };
 
-    const result = exportBoardPng(canvas, bbox);
+    const result = exportBoardPng(canvas as unknown as import("fabric").Canvas, bbox);
 
-    expect(toDataURL).toHaveBeenCalledWith({
+    expect(canvas.toDataURL).toHaveBeenCalledWith({
       format: "png",
       multiplier: 2,
       left: 10,
@@ -101,13 +118,37 @@ describe("exportBoardPng", () => {
   });
 
   it("aceita multiplier custom", () => {
-    const toDataURL = vi.fn().mockReturnValue("data:...");
-    const canvas = { toDataURL } as unknown as import("fabric").Canvas;
+    const canvas = makePngCanvas([1, 0, 0, 1, 0, 0]);
     const bbox = { left: 0, top: 0, width: 100, height: 100 };
 
-    exportBoardPng(canvas, bbox, 3);
+    exportBoardPng(canvas as unknown as import("fabric").Canvas, bbox, 3);
 
-    expect(toDataURL).toHaveBeenCalledWith(expect.objectContaining({ multiplier: 3 }));
+    expect(canvas.toDataURL).toHaveBeenCalledWith(expect.objectContaining({ multiplier: 3 }));
+  });
+
+  it("reseta viewportTransform para identidade durante toDataURL e restaura depois", () => {
+    const originalVt: [number, number, number, number, number, number] = [2, 0, 0, 2, 100, 50];
+    const canvas = makePngCanvas(originalVt);
+    const bbox = { left: 0, top: 0, width: 100, height: 100 };
+
+    exportBoardPng(canvas as unknown as import("fabric").Canvas, bbox);
+
+    expect(canvas.vtAtCapture).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(canvas.viewportTransform).toEqual(originalVt);
+    expect(canvas.requestRenderAll).toHaveBeenCalledOnce();
+  });
+
+  it("restaura viewportTransform mesmo se toDataURL lançar", () => {
+    const originalVt: [number, number, number, number, number, number] = [1.5, 0, 0, 1.5, 0, 0];
+    const canvas = makePngCanvas(originalVt);
+    canvas.toDataURL.mockImplementation(() => {
+      throw new Error("render failed");
+    });
+
+    expect(() =>
+      exportBoardPng(canvas as unknown as import("fabric").Canvas, { left: 0, top: 0, width: 10, height: 10 }),
+    ).toThrow("render failed");
+    expect(canvas.viewportTransform).toEqual(originalVt);
   });
 });
 

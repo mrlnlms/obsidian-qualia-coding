@@ -48,16 +48,26 @@ export function exportBoardSvg(canvas: Canvas, bbox: BBox): string {
 }
 
 export function exportBoardPng(canvas: Canvas, bbox: BBox, multiplier = 2): string {
-  return (canvas as unknown as {
-    toDataURL(opts: { format: "png"; multiplier: number; left: number; top: number; width: number; height: number }): string;
-  }).toDataURL({
-    format: "png",
-    multiplier,
-    left: bbox.left,
-    top: bbox.top,
-    width: bbox.width,
-    height: bbox.height,
-  });
+  // toDataURL interpreta left/top em coords da viewport (afetada por zoom/pan),
+  // não em scene coords. Reset do viewportTransform garante que o bbox scene-coord
+  // seja aplicado corretamente; restaura depois pra não mexer no estado visível.
+  const prevVt = [...canvas.viewportTransform] as [number, number, number, number, number, number];
+  canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+  try {
+    return (canvas as unknown as {
+      toDataURL(opts: { format: "png"; multiplier: number; left: number; top: number; width: number; height: number }): string;
+    }).toDataURL({
+      format: "png",
+      multiplier,
+      left: bbox.left,
+      top: bbox.top,
+      width: bbox.width,
+      height: bbox.height,
+    });
+  } finally {
+    canvas.setViewportTransform(prevVt);
+    canvas.requestRenderAll();
+  }
 }
 
 export function triggerDownload(filename: string, href: string): void {
