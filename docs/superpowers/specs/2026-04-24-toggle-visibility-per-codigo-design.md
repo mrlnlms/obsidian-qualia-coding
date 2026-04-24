@@ -101,13 +101,15 @@ Override só existe enquanto diverge do global. Detalhes:
 ```ts
 registry.on('visibility-changed', (detail: {
   codeIds: Set<string>;
-  fileIds?: Set<string>;  // se change é per-doc
+  fileIds?: Set<string>;  // presente quando change é per-doc; ausente = global
 }) => void);
-
-registry.on('overrides-cleared', (fileId: string) => void);
 ```
 
+Um evento único cobre todos os casos (global toggle, override per-doc, reset de overrides via link "Resetar"). Reset emite com `codeIds = allCodesAffectedInFile` e `fileIds = {fileId}`.
+
 Todos os subscribers (6 engines, sidebar, popover) escutam `visibility-changed` e chamam `refreshVisibility(detail.codeIds)` apropriadamente.
+
+**Subscription scope:** cada **instância de view** se inscreve (não por arquivo). Se o mesmo doc tá aberto em 2 leaves, ambas recebem o evento e re-renderizam. Unsubscribe no `onunload` da view.
 
 ---
 
@@ -155,6 +157,7 @@ Padrão idêntico ao Case Variables — `view.addAction('eye', tooltip, handler)
 
 **Comportamento:**
 - Lista só códigos com ≥ 1 marker no doc atual
+  - Pra CSV: combina `SegmentMarker` + `RowMarker` (ambos contam como "presença no doc")
 - Cada linha: swatch + nome + eye-toggle
 - Estado exibido é o **efetivo** (resultado da composição global+override), não o estado bruto
 - Click no eye grava via `registry.setDocOverride(fileId, codeId, newValue)` (self-cleaning aplicado)
@@ -164,7 +167,9 @@ Padrão idêntico ao Case Variables — `view.addAction('eye', tooltip, handler)
 
 **Localização:**
 - `src/core/codeVisibilityPopover.ts` (novo) — componente compartilhado
-- Injection via `view.addAction` em cada engine (markdown via workspace event `file-open`; PDF idem; CSV/Image/Audio/Video via `onOpen` da custom view)
+- Injection via `view.addAction` em cada engine:
+  - **Markdown** (`MarkdownView`) e **PDF** (`PdfView` interno) — via `workspace.on('file-open')`, mas com **dedupe**: check se a action já existe no header da view antes de adicionar (evento pode disparar múltiplas vezes pra mesma view)
+  - **CSV/Image/Audio/Video** (custom `FileView`) — via `addAction` direto no `onOpen` da view
 
 ---
 
@@ -261,8 +266,8 @@ Plugin já escuta `vault.on('rename')`, `vault.on('delete')` pra orphan marker c
 
 **Load com `data.json` parcial/corrompido:**
 - `visibilityOverrides` ausente → inicia como `{}`
-- Entry referenciando `codeId` inexistente → remove no load (varredura de cleanup)
-- Entry referenciando `fileId` que não existe no vault → remove no load
+- Entry referenciando `codeId` inexistente → remove no load (registry carrega síncrono, safe)
+- Entry referenciando `fileId` que não existe no vault → **não** limpar no load. Obsidian pode não ter o vault totalmente enumerado em `onload` (attachment folders, etc.), e orphan overrides são inofensivos (1 boolean por arquivo morto). O evento `vault.on('delete')` já faz o cleanup correto no momento certo.
 
 **Save:**
 - Via DataManager (debounce 500ms já existente), sem cerimônia extra
