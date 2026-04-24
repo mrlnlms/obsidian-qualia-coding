@@ -4924,3 +4924,20 @@ body.codebook-dragging * {
 .qc-visibility-reset { display: block; margin-top: 10px; font-size: 0.85em; text-align: right; color: var(--text-muted); text-decoration: underline; }
 .qc-visibility-reset:hover { color: var(--text-normal); }
 .qc-visibility-empty { font-size: 0.9em; color: var(--text-muted); padding: 4px; }
+
+/* Toggle visibility — view action button + dot indicator */
+.qc-visibility-action { position: relative; }
+.qc-visibility-action.qc-has-overrides::after {
+	content: '';
+	position: absolute;
+	top: 4px; right: 4px;
+	width: 6px; height: 6px;
+	background: var(--interactive-accent);
+	border-radius: 50%;
+}
+.qc-visibility-popover {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}

@@ -73,3 +73,41 @@ function renderRow(
 		onToggle();
 	});
 }
+
+/**
+ * Opens a floating visibility popover anchored below the trigger button.
+ * Pattern idêntico ao propertiesPopover de Case Variables.
+ */
+export function openCodeVisibilityPopover(
+	triggerEl: HTMLElement,
+	config: CodeVisibilityPopoverConfig,
+): () => void {
+	const popover = document.body.appendChild(document.createElement('div'));
+	popover.className = 'qc-visibility-popover';
+
+	renderCodeVisibilityPopoverBody(popover, config);
+
+	const rect = triggerEl.getBoundingClientRect();
+	popover.style.position = 'fixed';
+	popover.style.top = `${rect.bottom + 4}px`;
+	popover.style.right = `${window.innerWidth - rect.right}px`;
+	popover.style.zIndex = '200';
+
+	let closed = false;
+	const close = () => {
+		if (closed) return;
+		closed = true;
+		popover.remove();
+		document.removeEventListener('click', onOutsideClick, true);
+		config.onClose?.();
+	};
+
+	const onOutsideClick = (e: MouseEvent) => {
+		if (!popover.contains(e.target as Node) && e.target !== triggerEl) close();
+	};
+
+	// Delay 1 tick pra evitar fechar imediatamente no click de abertura
+	setTimeout(() => document.addEventListener('click', onOutsideClick, true), 0);
+
+	return close;
+}

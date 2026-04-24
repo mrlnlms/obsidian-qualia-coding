@@ -6,7 +6,8 @@ import { CaseVariablesRegistry } from './core/caseVariables/caseVariablesRegistr
 import { CaseVariablesView } from './core/caseVariables/caseVariablesView';
 import { CASE_VARIABLES_VIEW_TYPE } from './core/caseVariables/caseVariablesViewTypes';
 import { openPropertiesPopover } from './core/caseVariables/propertiesPopover';
-import type { EngineCleanup } from './core/types';
+import { openCodeVisibilityPopover } from './core/codeVisibilityPopover';
+import type { EngineCleanup, CodeDefinition } from './core/types';
 import { BaseCodeDetailView } from './core/baseCodeDetailView';
 import { clearFileInterceptRules } from './core/fileInterceptor';
 import { teardownMediaToggleButtons } from './core/mediaToggleButton';
@@ -84,6 +85,26 @@ export default class QualiaCodingPlugin extends Plugin {
 			visibilityEventBus.notify(detail.codeIds);
 		});
 
+		// Hydrate visibility overrides from persisted data
+		const storedOverrides = this.dataManager.section('visibilityOverrides');
+		if (storedOverrides) {
+			this.sharedRegistry.visibilityOverrides = storedOverrides;
+		}
+
+		// Persist overrides + notify views on visibility changes
+		this.sharedRegistry.addVisibilityListener(() => {
+			// Persist current overrides state
+			this.dataManager.setSection('visibilityOverrides', this.sharedRegistry.visibilityOverrides);
+			// Persist registry (covers hidden flag changes on CodeDefinition)
+			this.dataManager.setSection('registry', this.sharedRegistry.toJSON());
+			// Update dot indicator across all open file views
+			this.app.workspace.iterateAllLeaves((leaf) => {
+				if (leaf.view instanceof FileView) {
+					this.updateVisibilityActionIndicator(leaf.view);
+				}
+			});
+		});
+
 		// Case Variables registry — per-file typed properties (like Obsidian Properties for binaries)
 		this.caseVariablesRegistry = new CaseVariablesRegistry(this.app, this.dataManager);
 		this.caseVariablesRegistry.initialize();
@@ -93,6 +114,7 @@ export default class QualiaCodingPlugin extends Plugin {
 			const view = leaf?.view;
 			if (view instanceof FileView) {
 				this.addCaseVariablesActionToView(view);
+				this.addVisibilityActionToView(view);
 			}
 		}));
 
@@ -101,6 +123,7 @@ export default class QualiaCodingPlugin extends Plugin {
 			this.app.workspace.iterateAllLeaves((leaf) => {
 				if (leaf.view instanceof FileView) {
 					this.addCaseVariablesActionToView(leaf.view);
+					this.addVisibilityActionToView(leaf.view);
 				}
 			});
 		};
@@ -415,6 +438,74 @@ export default class QualiaCodingPlugin extends Plugin {
 			this.caseVariablesRegistry.removeOnMutate(listener);
 			this.caseVariablesButtons.delete(view);
 		});
+	}
+
+	private addVisibilityActionToView(view: View): void {
+		if (!(view instanceof FileView)) return;
+		if (!view.file) return;
+		const existing = view.containerEl.querySelector('.qc-visibility-action');
+		if (existing) return;  // dedupe
+
+		let closeCurrent: (() => void) | null = null;
+		const button = view.addAction('eye', 'Toggle code visibility', () => {
+			if (closeCurrent) { closeCurrent(); return; }
+			if (!view.file) return;
+			const fileId = view.file.path;
+			const codesInFile = this.collectCodesInFile(fileId);
+			closeCurrent = openCodeVisibilityPopover(button, {
+				fileId,
+				codesInFile,
+				registry: this.sharedRegistry,
+				onClose: () => { closeCurrent = null; },
+			});
+		});
+		button.addClass('qc-visibility-action');
+		this.updateVisibilityActionIndicator(view);
+	}
+
+	private updateVisibilityActionIndicator(view: View): void {
+		if (!(view instanceof FileView) || !view.file) return;
+		const button = view.containerEl.querySelector('.qc-visibility-action') as HTMLElement | null;
+		if (!button) return;
+		if (this.sharedRegistry.hasAnyOverrideForFile(view.file.path)) {
+			button.classList.add('qc-has-overrides');
+		} else {
+			button.classList.remove('qc-has-overrides');
+		}
+	}
+
+	private collectCodesInFile(fileId: string): CodeDefinition[] {
+		const ids = new Set<string>();
+		const data = this.dataManager;
+
+		// Markdown: Record<fileId, Marker[]>
+		const mdMarkers = data.section('markdown').markers?.[fileId] ?? [];
+		for (const m of mdMarkers) for (const app of m.codes) ids.add(app.codeId);
+
+		// PDF: arrays com .fileId
+		const pdf = data.section('pdf');
+		for (const m of pdf.markers) if (m.fileId === fileId) for (const app of m.codes) ids.add(app.codeId);
+		for (const s of pdf.shapes) if (s.fileId === fileId) for (const app of s.codes) ids.add(app.codeId);
+
+		// CSV: segment + row (ambos contam)
+		const csv = data.section('csv');
+		for (const m of csv.segmentMarkers) if (m.fileId === fileId) for (const app of m.codes) ids.add(app.codeId);
+		for (const m of csv.rowMarkers) if (m.fileId === fileId) for (const app of m.codes) ids.add(app.codeId);
+
+		// Image
+		const image = data.section('image');
+		for (const m of image.markers) if (m.fileId === fileId) for (const app of m.codes) ids.add(app.codeId);
+
+		// Audio: files[].markers
+		const audio = data.section('audio');
+		for (const f of audio.files) if (f.path === fileId) for (const m of f.markers) for (const app of m.codes) ids.add(app.codeId);
+
+		// Video
+		const video = data.section('video');
+		for (const f of video.files) if (f.path === fileId) for (const m of f.markers) for (const app of m.codes) ids.add(app.codeId);
+
+		const registry = this.sharedRegistry;
+		return Array.from(ids).map(id => registry.getById(id)!).filter(Boolean);
 	}
 
 	async onunload() {
