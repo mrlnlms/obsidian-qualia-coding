@@ -4941,3 +4941,87 @@ body.codebook-dragging * {
 	border-radius: 6px;
 	box-shadow: 0 4px 16px rgba(0,0,0,0.2);
 }
+
+/* ─── Code Groups — panel ─────────────────────────── */
+.codebook-groups-panel {
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.codebook-groups-panel.is-empty .codebook-groups-chips { display: none; }
+.codebook-groups-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+.codebook-groups-title {
+	font-size: var(--font-smallest);
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+.codebook-groups-add-btn {
+	padding: 2px 6px;
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	color: var(--text-muted);
+}
+.codebook-groups-add-btn:hover { color: var(--text-normal); }
+.codebook-groups-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+.codebook-group-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	border-radius: 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	font-size: var(--font-smallest);
+	cursor: pointer;
+}
+.codebook-group-chip:hover {
+	background: var(--background-modifier-hover);
+}
+.codebook-group-chip.is-selected {
+	border-color: var(--interactive-accent);
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+.codebook-group-chip-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}
+.codebook-group-chip-count {
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+}
+.codebook-group-chip.is-selected .codebook-group-chip-count {
+	color: var(--text-on-accent);
+}
+
+/* ─── Tree chip contador (groups) ──────────────────── */
+.codebook-tree-group-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	padding: 0 4px;
+	color: var(--text-muted);
+	font-size: var(--font-smallest);
+}
+.codebook-tree-group-chip-count {
+	font-variant-numeric: tabular-nums;
+}
+
+/* ─── Filter contextual (selectedGroupId setado) ───── */
+.codebook-tree-row.is-group-member {
+	box-shadow: inset 2px 0 0 var(--interactive-accent);
+}
+.codebook-tree-row.is-group-non-member:not(.qc-code-row-hidden) {
+	opacity: 0.4;
+}

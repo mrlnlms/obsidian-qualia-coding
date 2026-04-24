@@ -32,6 +32,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	// Tree state for codebook panel
 	protected expanded: ExpandedState = createExpandedState();
 	protected treeDragMode: 'reorganize' | 'merge' = 'reorganize';
+	protected selectedGroupId: string | null = null;
 
 	private searchQuery = '';
 	private rafId: number | null = null;
@@ -156,6 +157,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			expanded: this.expanded,
 			searchQuery: this.searchQuery,
 			dragMode: this.treeDragMode,
+			selectedGroupId: this.selectedGroupId,
 		};
 	}
 
