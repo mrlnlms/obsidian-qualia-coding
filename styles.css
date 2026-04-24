@@ -5103,3 +5103,28 @@ body.codebook-dragging * {
 	height: 8px;
 	border-radius: 50%;
 }
+
+.codemarker-detail-group-descriptions {
+	margin-top: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+.codemarker-detail-group-description-row {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	font-size: var(--font-smaller);
+	color: var(--text-muted);
+	line-height: 1.4;
+}
+.codemarker-detail-group-description-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+.codemarker-detail-group-description-name {
+	color: var(--text-normal);
+	font-weight: 500;
+}

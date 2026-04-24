@@ -67,6 +67,19 @@ export function renderGroupsSection(
 		setIcon(remove, 'x');
 		remove.addEventListener('click', () => callbacks.onRemoveGroup(codeId, g.id));
 	}
+
+	// Descriptions dos groups (cada uma com bullet do nome)
+	const groupsWithDesc = groups.filter(g => g.description);
+	if (groupsWithDesc.length > 0) {
+		const descList = section.createDiv({ cls: 'codemarker-detail-group-descriptions' });
+		for (const g of groupsWithDesc) {
+			const row = descList.createDiv({ cls: 'codemarker-detail-group-description-row' });
+			const dot = row.createSpan({ cls: 'codemarker-detail-group-description-dot' });
+			dot.style.backgroundColor = g.color;
+			row.createSpan({ cls: 'codemarker-detail-group-description-name', text: g.name + ': ' });
+			row.createSpan({ cls: 'codemarker-detail-group-description-text', text: g.description! });
+		}
+	}
 }
 
 /**

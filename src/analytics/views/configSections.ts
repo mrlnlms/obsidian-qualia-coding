@@ -276,7 +276,16 @@ export function renderGroupsFilter(
       chip.createSpan({ text: g.name });
       if (state.filter === g.id) chip.addClass("is-selected");
       chip.addEventListener("click", () => {
-        onChange(state.filter === g.id ? null : g.id);
+        const wasSelected = state.filter === g.id;
+        const newFilter = wasSelected ? null : g.id;
+        // Atualiza DOM inline pra refletir toggle imediatamente — re-render
+        // do config panel destruiria os event handlers e o user perderia o state.
+        chipsWrap.querySelectorAll(".codemarker-analytics-group-chip").forEach(c =>
+          c.classList.remove("is-selected")
+        );
+        if (!wasSelected) chip.classList.add("is-selected");
+        state.filter = newFilter;
+        onChange(newFilter);
       });
     }
   }

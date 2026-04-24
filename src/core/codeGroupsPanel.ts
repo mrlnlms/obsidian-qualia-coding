@@ -53,6 +53,7 @@ export function renderCodeGroupsPanel(
 	for (const g of groups) {
 		const chip = chipsWrap.createEl('button', { cls: 'codebook-group-chip' });
 		if (callbacks.selectedGroupId === g.id) chip.addClass('is-selected');
+		if (g.description) chip.title = `${g.name}\n\n${g.description}`;
 
 		const dot = chip.createSpan({ cls: 'codebook-group-chip-dot' });
 		dot.style.backgroundColor = g.color;
