@@ -376,7 +376,7 @@ export class MediaViewCore {
     // regionRenderer.renderMarkerRegion already filters internally — double-filter is idempotent.
     this.regionRenderer.clear();
     for (const m of markers) {
-      const anyVisible = m.codes.some(app =>
+      const anyVisible = m.codes.some((app: { codeId: string }) =>
         this.model.registry.isCodeVisibleInFile(app.codeId, m.fileId)
       );
       if (!anyVisible) continue;
