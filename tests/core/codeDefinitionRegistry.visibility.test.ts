@@ -119,3 +119,33 @@ describe('hasAnyOverrideForFile', () => {
 		expect(registry.hasAnyOverrideForFile('b.md')).toBe(false);
 	});
 });
+
+describe('cleanup on code delete', () => {
+	it('removes all overrides referencing the deleted code', () => {
+		const c1 = registry.create('c1');
+		const c2 = registry.create('c2');
+		registry.visibilityOverrides = {
+			'a.md': { [c1.id]: false, [c2.id]: true },
+			'b.md': { [c1.id]: true },
+		};
+
+		registry.delete(c1.id);
+
+		expect(registry.visibilityOverrides['a.md']).toEqual({ [c2.id]: true });
+		expect(registry.visibilityOverrides['b.md']).toBeUndefined();  // sobrou vazio → key deletada
+	});
+
+	it('merge cleanup is transitive via delete (documented behavior)', () => {
+		// executeMerge() em mergeModal.ts chama registry.delete(sourceId),
+		// então o cleanup de delete já cobre merge. Esse teste documenta a premissa.
+		const source = registry.create('source');
+		const target = registry.create('target');
+		registry.visibilityOverrides = {
+			'a.md': { [source.id]: true, [target.id]: false },
+		};
+
+		registry.delete(source.id);  // simula o que executeMerge faz
+
+		expect(registry.visibilityOverrides['a.md']).toEqual({ [target.id]: false });
+	});
+});

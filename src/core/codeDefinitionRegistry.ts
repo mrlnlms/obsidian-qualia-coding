@@ -235,6 +235,20 @@ export class CodeDefinitionRegistry {
 
 		this.nameIndex.delete(def.name);
 		this.definitions.delete(id);
+
+		// Visibility cleanup: remover overrides do código deletado em todos os docs
+		for (const fileId of Object.keys(this.visibilityOverrides)) {
+			const perFile = this.visibilityOverrides[fileId]!;
+			if (id in perFile) {
+				const { [id]: _, ...rest } = perFile;
+				if (Object.keys(rest).length > 0) {
+					this.visibilityOverrides[fileId] = rest;
+				} else {
+					delete this.visibilityOverrides[fileId];
+				}
+			}
+		}
+
 		for (const fn of this.onMutateListeners) fn();
 		return true;
 	}
