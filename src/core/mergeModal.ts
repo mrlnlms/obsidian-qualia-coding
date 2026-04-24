@@ -57,12 +57,24 @@ export function executeMerge(params: MergeParams): MergeResult {
 		}
 	}
 
-	// 3. Record mergedFrom
+	// 3. Record mergedFrom + union dos groups (target + todos sources).
+	//    Roda ANTES do step 5 (delete sources) — snapshot pego enquanto srcDef ainda existe.
 	const destDef = registry.getById(destinationId);
 	if (destDef) {
 		if (!destDef.mergedFrom) destDef.mergedFrom = [];
 		destDef.mergedFrom.push(...sourceIds);
 		destDef.updatedAt = Date.now();
+
+		const unionGroups = new Set<string>(destDef.groups ?? []);
+		for (const srcId of sourceIds) {
+			const srcDef = registry.getById(srcId);
+			if (srcDef?.groups) {
+				for (const gid of srcDef.groups) unionGroups.add(gid);
+			}
+		}
+		if (unionGroups.size > 0) {
+			destDef.groups = Array.from(unionGroups);
+		}
 	}
 
 	// 4. Update destination name/parent if specified
