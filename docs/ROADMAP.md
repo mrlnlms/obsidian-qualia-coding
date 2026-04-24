@@ -124,12 +124,54 @@ DuckDB-Wasm lê parquet direto do ArrayBuffer e executa SQL. Não é pré-requis
 
 Usabilidade do codebook com corpus grande. Dois sub-itens:
 
-#### 2a. Code → Theme Hierarchy
+#### 2a. Code Groups (renomeado de "Theme Hierarchy")
 
-- `theme?: string` em `CodeDefinition` (shared registry)
-- Grouping by theme no Code Explorer (nível extra na tree)
-- Filter by theme nas colunas de CSV coding
-- **Distinto de `parentId` hierarchy** — é uma flat grouping tag
+**Nome antigo enganava.** Theme hierarchy o plugin JÁ TEM via `parentId` (NVivo-style: parent code sem aplicações diretas age como theme, aggregate counts incluem filhos, Braun & Clarke method map direto). O que falta é outra coisa: **Code Groups** (padrão Atlas.ti/MAXQDA), uma **camada flat N:N cross-cutting** pra agregar análise em dimensões que não são hierárquicas.
+
+**Motivação:** usuário quer tagear códigos com dimensões analíticas ortogonais à taxonomia (ex: "Afetivo/Cognitivo", "RQ1/RQ2", "Onda 1/Onda 2") e filtrar Analytics por essas dimensões, sem refatorar a hierarquia.
+
+**Padrão da indústria (pesquisado 2026-04-24):**
+- Atlas.ti: Code Groups flat + Smart Codes (query engine)
+- MAXQDA: Code Sets flat + hierarquia principal de até 10 níveis
+- NVivo: Parent/child + Sets flat
+- **Nenhuma plataforma consolidada nesteia a camada flat** — hierarquia fica no tree principal
+
+**Distinção com `folder` (feature existente):**
+
+| | Folder (hoje) | Group (novo) |
+|---|---|---|
+| 1 código em N? | 1 só | **N ao mesmo tempo** |
+| Afeta Analytics? | ❌ | ✅ |
+| Finalidade | Cosmética visual | **Dimensão analítica** |
+
+**Onde aparece na UI (não vira view nova — camada em cima do existente):**
+1. **Code Explorer** — painel "Groups" no topo da sidebar (estilo tags do Obsidian) + chips opcionais nas rows
+2. **Code Detail** — nova seção "Groups: 🏷️ X 🏷️ Y [+]" pra editar membership
+3. **Analytics config** — filtro + opção "Group by: code / parent / group"
+4. **Settings** — subsection de gestão (criar/renomear/deletar/bulk)
+5. **Export** — coluna `groups` nos CSVs tabulares + `<CodeSet>` no QDPX
+
+**Schema:**
+```ts
+// CodeDefinition ganha:
+groups?: string[];  // array de groupIds
+
+// QualiaData ganha:
+codeGroups: Record<string, { id, name, createdAt, parentId?, color?, description? }>;
+```
+
+**Tiered scope (decidir na hora de planejar):**
+
+| Tier | O que entra | Custo | Quando fazer |
+|---|---|---|---|
+| **1 MVP** | Flat groups + Settings-only management + Analytics filter single-select + export column | ~1-2 sessões | Primeira iteração |
+| **2 Normal** | + chips nas rows + right-click "Add to group" + `/` no nome vira nested visual (convenção Obsidian, zero schema) + multi-select filter | +1 sessão | Quando codebook crescer |
+| **3 Avançado** | + nested real com `parentId` em group + metadata rica (cor/desc/memo) + boolean filter (AND/OR/NOT) + exclusive groups + multi-select operations | +3-4 sessões | Quando corpus grande E dimensões realmente complexas |
+| **5 Query** | Smart Codes (query engine, composicional) | fora de escopo | Só se tier 3 não der conta (provavelmente nunca) |
+
+**Recomendação ao planejar:** tier 1 primeiro, medir uso real, subir tier quando dor aparecer. Não pular pra tier 3 de cara.
+
+**Detalhamento conceitual completo da discussão de design (nested via `/`, tradeoffs, exemplo com codebook de IA no trabalho, comparação com Atlas.ti/MAXQDA/NVivo/Dedoose, porque flat é consenso na indústria): este bloco é o resumo; a discussão viva acontece no plano quando for implementar.**
 
 #### 2b. Pastas nested (folder dentro de folder)
 
