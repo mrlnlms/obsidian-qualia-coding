@@ -53,6 +53,8 @@ export function createBoardToolbar(
     { action: "zoom-in", icon: "zoom-in", label: "Zoom In" },
     { action: "zoom-out", icon: "zoom-out", label: "Zoom Out" },
     { action: "fit", icon: "maximize-2", label: "Fit" },
+    { action: "export-svg", icon: "file-code", label: "Export SVG" },
+    { action: "export-png", icon: "image", label: "Export PNG" },
     { action: "save", icon: "save", label: "Save" },
   ];
 
