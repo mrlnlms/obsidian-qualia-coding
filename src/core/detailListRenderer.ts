@@ -78,15 +78,18 @@ export function renderListContent(
 ): void {
 	contentZone.empty();
 
-	// Groups panel acima da tree
-	renderCodeGroupsPanel(contentZone, model.registry, {
+	// Sub-divs separados — renderCodebookTree chama container.empty() e apagaria o painel.
+	const panelDiv = contentZone.createDiv();
+	const treeDiv = contentZone.createDiv();
+
+	renderCodeGroupsPanel(panelDiv, model.registry, {
 		selectedGroupId: treeState.selectedGroupId,
 		onSelectGroup: callbacks.onSelectGroup,
 		onCreateGroup: callbacks.onCreateGroup,
 		onChipContextMenu: callbacks.onGroupChipContextMenu,
 	});
 
-	renderCodebookTree(contentZone, model, treeState, callbacks);
+	renderCodebookTree(treeDiv, model, treeState, callbacks);
 }
 
 /** Count how many segments reference each code (by codeId). */
