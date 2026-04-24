@@ -5,6 +5,7 @@ import { MediaRegionRenderer } from './regionRenderer';
 import { formatTime } from './formatTime';
 import type { MediaCodingModel } from './mediaCodingModel';
 import type { MediaViewConfig } from './mediaViewConfig';
+import { visibilityEventBus } from '../core/visibilityEventBus';
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -41,6 +42,7 @@ export class MediaViewCore {
   private timeInterval: ReturnType<typeof setInterval> | null = null;
   private changeListener: (() => void) | null = null;
   private cssChangeRef: EventRef | null = null;
+  private unsubscribeVisibility: (() => void) | undefined = undefined;
 
   constructor(
     private app: App,
@@ -72,6 +74,8 @@ export class MediaViewCore {
       this.regionRenderer.clear();
       this.regionRenderer = null;
     }
+    this.unsubscribeVisibility?.();
+    this.unsubscribeVisibility = undefined;
     this.renderer.destroy();
 
     this.loadedFile = file;
@@ -189,6 +193,7 @@ export class MediaViewCore {
       }));
     });
     this.regionRenderer.subscribeToHover();
+    this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
 
     // When ready, restore regions, zoom, and update display
     this.renderer.on('ready', () => {
@@ -357,8 +362,26 @@ export class MediaViewCore {
       this.regionRenderer.clear();
       this.regionRenderer = null;
     }
+    this.unsubscribeVisibility?.();
+    this.unsubscribeVisibility = undefined;
     this.renderer.destroy();
     this.loadedFile = null;
+  }
+
+  refreshVisibility(_affectedCodeIds: Set<string>): void {
+    if (!this.regionRenderer || !this.loadedFile) return;
+    const filePath = this.loadedFile.path;
+    const markers = this.model.getMarkersForFile(filePath);
+    // Clear all regions then re-render only those with at least one visible code.
+    // regionRenderer.renderMarkerRegion already filters internally — double-filter is idempotent.
+    this.regionRenderer.clear();
+    for (const m of markers) {
+      const anyVisible = m.codes.some(app =>
+        this.model.registry.isCodeVisibleInFile(app.codeId, m.fileId)
+      );
+      if (!anyVisible) continue;
+      this.regionRenderer.renderMarkerRegion(m);
+    }
   }
 
   private updatePlayIcon(): void {

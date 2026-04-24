@@ -35,6 +35,12 @@ export class MediaRegionRenderer {
 	}
 
 	renderMarkerRegion(marker: MediaMarker): void {
+		// Filter: skip render if no code is visible in this file
+		const visibleCodes = marker.codes.filter(app =>
+			this.model.registry.isCodeVisibleInFile(app.codeId, marker.fileId)
+		);
+		if (visibleCodes.length === 0) return;
+
 		this.removeRegion(marker.id);
 
 		const baseColor = marker.colorOverride ?? this.model.registry.getColorForCodeIds(getCodeIds(marker.codes));
@@ -44,13 +50,13 @@ export class MediaRegionRenderer {
 		const color = baseColor ? baseColor + alpha : fallback;
 
 		let content: HTMLElement | undefined;
-		if (this.model.settings.showLabelsOnRegions && marker.codes.length > 0) {
+		if (this.model.settings.showLabelsOnRegions && visibleCodes.length > 0) {
 			content = document.createElement('div');
 			content.className = 'codemarker-media-region-label';
-			const codeNames = marker.codes.map(c => this.model.registry.getById(c.codeId)?.name ?? c.codeId);
+			const codeNames = visibleCodes.map(c => this.model.registry.getById(c.codeId)?.name ?? c.codeId);
 			content.title = codeNames.join(', ') + '\n' + formatTime(marker.from) + ' – ' + formatTime(marker.to);
 
-			for (const ca of marker.codes) {
+			for (const ca of visibleCodes) {
 				const codeName = this.model.registry.getById(ca.codeId)?.name ?? ca.codeId;
 				const chip = document.createElement('span');
 				chip.textContent = codeName;
