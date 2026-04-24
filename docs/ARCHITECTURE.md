@@ -358,6 +358,9 @@ src/
   core/
     baseSidebarAdapter.ts    — base class for all sidebar adapters (listener wrapping, hover state, deleteCode, updateMarkerFields)
     markerResolvers.ts       — shared marker lookup/resolution utilities across engines
+    codeVisibility.ts        — pure helpers: isCodeVisibleInFile, shouldStoreOverride, cleanOverridesAfterGlobalChange
+    codeVisibilityPopover.ts — shared popover body (renderCodeVisibilityPopoverBody) + floating wrapper (openCodeVisibilityPopover)
+    visibilityEventBus.ts    — rAF coalescing bus — coalesces visibility notifications in a single animation frame
   media/
     mediaCodingModel.ts      — shared CodingModel for audio/video engines
     mediaSidebarAdapter.ts   — shared sidebar adapter for audio/video engines
@@ -367,6 +370,21 @@ src/
     fabricExtensions.d.ts    — Fabric.js type extensions for custom node properties
   obsidian-internals.d.ts    — type declarations for undocumented Obsidian internals
 ```
+
+### 5.8b Code visibility (toggle)
+
+Feature em duas camadas (global + per-doc override) com event bus de notificação:
+
+- **Estado global**: `CodeDefinition.hidden?: boolean` — quando true, código fica oculto por padrão em todos os docs
+- **Override per-doc**: `QualiaData.visibilityOverrides[fileId][codeId] = boolean` — inverte a visibilidade para esse fileId específico
+- **Composição**: `isCodeVisibleInFile(codeId, fileId)` prioriza override sobre global. Override presente => usa override; ausente => `!globalHidden`
+- **Semântica B (self-cleaning)**: overrides só existem enquanto divergem do global. `shouldStoreOverride` (entry-side) + `cleanOverridesAfterGlobalChange` (global-change sweep) garantem JSON enxuto
+- **Mutations no registry**: `setGlobalHidden(codeId, hidden)`, `setDocOverride(fileId, codeId, visible)`, `clearDocOverrides(fileId)`. Todas emitem `visibility-changed` event (Set distinto do `onMutate`)
+- **Cleanup automático**: `registry.delete(id)` remove overrides órfãos — cobre merge transitivamente (`executeMerge` chama `registry.delete(sourceId)`)
+- **Vault sync**: `migrateFilePathForOverrides(oldPath, newPath)` no rename, `clearFilePathForOverrides(fileId)` no delete
+- **Event bus (`visibilityEventBus`)**: singleton que coalesce notifications via `requestAnimationFrame` (fallback `queueMicrotask` para jsdom). Cada engine subscreve por VIEW INSTANCE (não por fileId) — multi-pane tem múltiplos subscribers
+- **Render filter em 6 engines**: cada engine filtra `marker.codes.filter(app => registry.isCodeVisibleInFile(app.codeId, fileId))`. Se resulta vazio, marker é pulado. CM6 markdown rebuild atômico (decorations); PDF/CSV/Image/Audio/Video refresh pontual (DOM-based, o que é visível muda, o resto não re-renderiza)
+- **Escopo**: Analytics e export não afetados — filter só na layer de render. Intencional (design spec)
 
 ### 5.9 REFI-QDA Export/Import
 

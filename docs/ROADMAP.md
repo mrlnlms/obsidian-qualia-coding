@@ -7,10 +7,10 @@
 
 ## 📍 Próximos a atacar (frente)
 
-| Ordem | Item | Esforço | Complexidade |
-|-------|------|---------|--------------|
-| 1 | **[Toggle Visibility por Código](#1-toggle-visibility-por-código)** | 150-250 LOC | Média |
+_Frente limpa em 2026-04-24. Próxima sessão a definir — ver pós-frente-limpa abaixo._
 
+> **Toggle Visibility por Código** saiu da frente em 2026-04-24 (feature completa nos 6 engines). Ver registro abaixo.
+>
 > **Import/Export — sessão agrupada** saiu da frente em 2026-04-24 (tabular export + Board SVG/PNG + PDF anchors E1/E2/I1/I2 todos concluídos). Ver registro abaixo.
 >
 > **Parquet lazy loading** também fora da frente — contingente à decisão sobre LLM-assisted coding. Ver [análise arquivada](#parquet-lazy-loading-contingente).
@@ -44,16 +44,7 @@ Sem ordem de execução — precisam validar **se** e **como** existem antes de 
 
 ## Detalhes — frente
 
-### 1. Toggle Visibility por Código
-
-- No Code Explorer, toggle para mostrar/esconder highlights de um código específico no editor
-- Resolve o problema de "color soup" com 20+ códigos
-- Decisões em aberto (brainstorming antes de implementar):
-  - Persistente vs sessão?
-  - Global vs por arquivo?
-  - Filtra Analytics ou só render?
-  - Campo `hidden?: boolean` em `CodeDefinition` ou tracking separado?
-- Ajusta os 6 engines (filtrar markers hidden antes de renderizar)
+_Vazia — ver registro abaixo._
 
 <a id="parquet-lazy-loading-contingente"></a>
 ### Parquet lazy loading (contingente — fora da frente)
@@ -396,6 +387,7 @@ Histórico de features entregues. Mantido como registro, não reabrir.
 - **#18 Case Variables** — 2026-04-21. Registry central, storage 3-caminhos (frontmatter md + data.json binários), type inference, popover/painel lateral, Analytics filter, QDPX round-trip
 - **#19 Tabular export pra análise externa** — 2026-04-24. Branch `feat/tabular-export`. 8 módulos em `src/export/tabular/` (csvWriter, readmeBuilder, buildSegmentsTable, buildCodeApplicationsTable, buildCodesTable, buildCaseVariablesTable, buildRelationsTable, tabularExporter). ExportModal 3ª opção "Tabular (CSV zip)" com toggles `Include relations` / `Include shape coords`. Zip contém 4-5 CSVs (segments, code_applications, codes, case_variables, relations opcional) + README.md com schema e snippets R/tidyverse (dplyr joins) e Python (pandas merge). Consumidor: pesquisador que prefere stats em R/Python em vez de Analytics nativo. RFC 4180 CSV com UTF-8 BOM (Excel auto-detect)
 - **#20 Board Export SVG/PNG** — 2026-04-24. Branch `feat/board-export`. `src/analytics/board/boardExport.ts` com `canvas.toSVG({ viewBox })` nativo do Fabric (vetorial) + `canvas.toDataURL` com multiplier 2 (retina). Botões "Export SVG" / "Export PNG" no `boardToolbar`. Bbox scene-coord dos objetos (grid dots ficam de fora — não são Fabric objects). PDF dispensado (SVG cobre caso vetorial melhor sem dep). Chart snapshots saem raster embutidos no SVG (Chart.js não exporta nativo — fora do escopo). Fix pós-smoke test: reset de `viewportTransform` pra identidade dentro do PNG export pra respeitar zoom do viewport — documentado em TECHNICAL-PATTERNS §23
+- **#21 Toggle Visibility por Código** — 2026-04-24. Branch `feat/toggle-visibility`. Duas camadas: global (`CodeDefinition.hidden`, toggle pelo eye icon no Code Explorer) + per-doc override (`visibilityOverrides[fileId][codeId]` em `QualiaData`, toggle pelo popover `view.addAction('eye')` no header de cada engine). Semântica B (self-cleaning): overrides só existem enquanto divergem do global — `cleanOverridesAfterGlobalChange` + `shouldStoreOverride` garantem JSON enxuto. Helpers puros em `src/core/codeVisibility.ts` compõem `isCodeVisibleInFile(codeId, fileId)`. Event bus com rAF coalescing (`src/core/visibilityEventBus.ts`) notifica os 6 engines que refrescam pontual (DOM-based: CSV/PDF/Image/Audio/Video) ou rebuild filtrado (CM6 markdown — decorations atômicas). Popover compartilhado em `src/core/codeVisibilityPopover.ts` (blueprint Case Variables). Vault events: `migrateFilePathForOverrides` em rename, `clearFilePathForOverrides` em delete; cleanup de overrides em `registry.delete` cobre merge transitivamente. Analytics e export não são afetados por design (filter só no render layer). 21 novos testes unitários (+8 da baseline → 2108 total).
 
 ### Bug fixes e dívidas resolvidas
 

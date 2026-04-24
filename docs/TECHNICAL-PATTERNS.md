@@ -1565,6 +1565,51 @@ Descoberto 2026-04-24 durante smoke test do cenário 5 (zoom antes do Export PNG
 
 ---
 
+## 24. rAF coalescing pra eventos de UI em rajadas
+
+Quando um evento pode disparar múltiplas vezes em sucessão rápida (ex: user togglando visibility de vários códigos no popover em 200ms), coalescer notifications via `requestAnimationFrame` evita render thrashing. Cada rajada vira exatamente 1 refresh por frame por subscriber.
+
+**Pattern** (`src/core/visibilityEventBus.ts`):
+
+```ts
+export class VisibilityEventBus {
+    private subscribers: Set<(codeIds: Set<string>) => void> = new Set();
+    private pending: Set<string> = new Set();
+    private scheduled = false;
+
+    notify(codeIds: Set<string>): void {
+        codeIds.forEach(id => this.pending.add(id));
+        if (this.scheduled) return;  // próxima rajada no mesmo frame só acumula
+        this.scheduled = true;
+        const schedule = typeof requestAnimationFrame !== 'undefined'
+            ? requestAnimationFrame
+            : (cb: () => void) => queueMicrotask(() => cb());
+        schedule(() => this.flush());
+    }
+
+    flush(): void {
+        if (this.pending.size === 0) { this.scheduled = false; return; }
+        const batch = this.pending;
+        this.pending = new Set();
+        this.scheduled = false;
+        for (const fn of this.subscribers) fn(batch);
+    }
+}
+```
+
+**Regras operacionais:**
+
+1. **Subscription é por VIEW INSTANCE, não por fileId.** Multi-pane do mesmo doc tem 2 subscribers, cada um refrescando sua própria view. Não tente deduplicar por fileId — duas views precisam de 2 re-renders independentes.
+2. **Jsdom não tem `requestAnimationFrame`.** Fallback pra `queueMicrotask`. Tests chamam `bus.flush()` explicitamente pra bypassar scheduling.
+3. **Singleton compartilhado** entre todos subscribers. Mas cada subscriber decide como reagir ao batch — CM6 markdown faz rebuild atômico, PDF/CSV/Image fazem refresh pontual só das regiões afetadas.
+4. **`flush` é idempotente** com pending vazio — no-op seguro.
+
+**Quando usar:** mutations que podem cascatear (visibility toggle, bulk operations, tree re-ordering). **Quando NÃO usar:** events já debounced pelo Obsidian (file-open, workspace-layout) ou events one-shot.
+
+Descoberto 2026-04-24 durante Toggle Visibility por Código (ROADMAP #21) — 6 engines precisam refrescar coordenadamente sem cada um disparar seu próprio render.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
