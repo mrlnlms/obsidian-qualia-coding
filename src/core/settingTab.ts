@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import { ExportModal } from '../export/exportModal';
+import { openExportModal } from '../export/exportCommands';
 import { refreshMediaToggleButtons } from './mediaToggleButton';
 
 export class QualiaSettingTab extends PluginSettingTab {
@@ -192,5 +193,12 @@ export class QualiaSettingTab extends PluginSettingTab {
 				.onClick(() => {
 					new ExportModal(this.app, this.plugin.dataManager, this.plugin.sharedRegistry, 'qdc', this.plugin.manifest.version, this.plugin.caseVariablesRegistry).open();
 				}));
+
+		new Setting(containerEl)
+			.setName('Tabular export for external analysis')
+			.setDesc('Export codes, segments, and case variables as a zip of CSVs for use in R, Python, or BI tools.')
+			.addButton(btn => btn
+				.setButtonText('Open export dialog')
+				.onClick(() => openExportModal(this.plugin, 'tabular')));
 	}
 }
