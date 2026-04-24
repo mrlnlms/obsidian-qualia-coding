@@ -24,6 +24,49 @@ export interface CodeRendererCallbacks {
 	/** Temporarily suspend/resume model onChange listener during color editing. */
 	suspendRefresh(): void;
 	resumeRefresh(): void;
+	// Groups (Tier 1.5)
+	onAddToGroup(codeId: string): void;
+	onRemoveFromGroup(codeId: string, groupId: string): void;
+}
+
+export interface GroupsSectionCallbacks {
+	onAddGroup(codeId: string): void;
+	onRemoveGroup(codeId: string, groupId: string): void;
+}
+
+export function renderGroupsSection(
+	container: HTMLElement,
+	codeId: string,
+	registry: CodeDefinitionRegistry,
+	callbacks: GroupsSectionCallbacks,
+): void {
+	const section = container.createDiv({ cls: 'codemarker-detail-section codemarker-detail-groups' });
+
+	const header = section.createDiv({ cls: 'codemarker-detail-groups-header' });
+	header.createEl('h6', { text: 'Groups' });
+	const addBtn = header.createEl('button', {
+		cls: 'codemarker-detail-groups-add-btn',
+		attr: { 'aria-label': 'Add to group', title: 'Add to group' },
+	});
+	setIcon(addBtn, 'plus');
+	addBtn.addEventListener('click', () => callbacks.onAddGroup(codeId));
+
+	const groups = registry.getGroupsForCode(codeId);
+	if (groups.length === 0) return;
+
+	const chipsWrap = section.createDiv({ cls: 'codemarker-detail-groups-chips' });
+	for (const g of groups) {
+		const chip = chipsWrap.createDiv({ cls: 'codemarker-detail-group-chip' });
+		const dot = chip.createSpan({ cls: 'codemarker-detail-group-chip-dot' });
+		dot.style.backgroundColor = g.color;
+		chip.createSpan({ cls: 'codemarker-detail-group-chip-name', text: g.name });
+		const remove = chip.createEl('button', {
+			cls: 'codemarker-detail-group-chip-remove',
+			attr: { 'aria-label': `Remove from ${g.name}`, title: `Remove from ${g.name}` },
+		});
+		setIcon(remove, 'x');
+		remove.addEventListener('click', () => callbacks.onRemoveGroup(codeId, g.id));
+	}
 }
 
 /**
@@ -87,6 +130,14 @@ export function renderCodeDetail(
 
 	// Description — editable textarea
 	renderCodeDescription(container, def, model, callbacks);
+
+	// Groups (Tier 1.5) — entre Description e Hierarchy
+	if (def) {
+		renderGroupsSection(container, def.id, model.registry, {
+			onAddGroup: callbacks.onAddToGroup,
+			onRemoveGroup: callbacks.onRemoveFromGroup,
+		});
+	}
 
 	// Hierarchy section (parent + children)
 	if (def) renderHierarchySection(container, def, model.registry, callbacks);

@@ -5025,3 +5025,49 @@ body.codebook-dragging * {
 .codebook-tree-row.is-group-non-member:not(.qc-code-row-hidden) {
 	opacity: 0.4;
 }
+
+/* ─── Code Detail — Groups section ─────────────────── */
+.codemarker-detail-groups-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.codemarker-detail-groups-add-btn {
+	padding: 2px 6px;
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	color: var(--text-muted);
+}
+.codemarker-detail-groups-add-btn:hover { color: var(--text-normal); }
+.codemarker-detail-groups-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 4px;
+}
+.codemarker-detail-group-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 4px 2px 8px;
+	border-radius: 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	font-size: var(--font-smallest);
+}
+.codemarker-detail-group-chip-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}
+.codemarker-detail-group-chip-remove {
+	padding: 0 2px;
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	color: var(--text-muted);
+	display: inline-flex;
+	align-items: center;
+}
+.codemarker-detail-group-chip-remove:hover { color: var(--text-normal); }

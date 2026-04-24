@@ -12,8 +12,8 @@
  *   - renderCustomSection(container, marker) — optional extra section (e.g. memo)
  */
 
-import { ItemView, Menu, Notice, WorkspaceLeaf } from 'obsidian';
-import { BaseMarker, SidebarModelInterface } from './types';
+import { FuzzySuggestModal, ItemView, Menu, Notice, WorkspaceLeaf } from 'obsidian';
+import { BaseMarker, GroupDefinition, SidebarModelInterface } from './types';
 import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
@@ -23,6 +23,7 @@ import { showCodeContextMenu, showFolderContextMenu, type ContextMenuCallbacks }
 import { setupDragDrop } from './codebookDragDrop';
 import { MergeModal, executeMerge } from './mergeModal';
 import { PromptModal, ConfirmModal } from './dialogs';
+import { getAddToGroupCandidates } from './codeGroupsAddPicker';
 
 export abstract class BaseCodeDetailView extends ItemView {
 	protected model: SidebarModelInterface;
@@ -442,6 +443,50 @@ export abstract class BaseCodeDetailView extends ItemView {
 		menu.showAtMouseEvent(evt);
 	}
 
+	private openAddToGroupPicker(codeId: string): void {
+		const candidates = getAddToGroupCandidates(codeId, this.model.registry);
+		const view = this;
+
+		type Choice = GroupDefinition | { id: '__new__'; name: string; isNew: true };
+
+		class AddGroupModal extends FuzzySuggestModal<Choice> {
+			getItems(): Choice[] {
+				const items: Choice[] = [...candidates];
+				items.push({ id: '__new__', name: '+ New group...', isNew: true });
+				return items;
+			}
+			getItemText(item: Choice): string {
+				return item.name;
+			}
+			onChooseItem(item: Choice): void {
+				if ('isNew' in item) {
+					new PromptModal({
+						app: view.app,
+						title: 'New group',
+						placeholder: 'Group name',
+						onSubmit: (name) => {
+							const trimmed = name.trim();
+							if (!trimmed) {
+								new Notice('Group name cannot be empty.');
+								return;
+							}
+							const g = view.model.registry.createGroup(trimmed);
+							view.model.registry.addCodeToGroup(codeId, g.id);
+							view.model.saveMarkers();
+							view.refreshCurrentMode();
+						},
+					}).open();
+				} else {
+					view.model.registry.addCodeToGroup(codeId, item.id);
+					view.model.saveMarkers();
+					view.refreshCurrentMode();
+				}
+			}
+		}
+
+		new AddGroupModal(this.app).open();
+	}
+
 	// ─── Context Menu ──────────────────────────────────────
 
 	private contextMenuCallbacks(): ContextMenuCallbacks {
@@ -569,6 +614,12 @@ export abstract class BaseCodeDetailView extends ItemView {
 			setContext: (mid, c) => this.setContext(mid, c),
 			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
 			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
+			onAddToGroup: (codeId) => this.openAddToGroupPicker(codeId),
+			onRemoveFromGroup: (codeId, groupId) => {
+				this.model.registry.removeCodeFromGroup(codeId, groupId);
+				this.model.saveMarkers();
+				this.refreshCurrentMode();
+			},
 		}, this.app);
 	}
 
