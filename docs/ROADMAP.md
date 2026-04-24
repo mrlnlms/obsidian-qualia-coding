@@ -7,14 +7,13 @@
 
 ## 📍 Próximos a atacar (frente)
 
-Ordem de execução — livrar a frente antes de abrir novas features:
-
 | Ordem | Item | Esforço | Complexidade |
 |-------|------|---------|--------------|
 | 1 | **[Toggle Visibility por Código](#1-toggle-visibility-por-código)** | 150-250 LOC | Média |
-| 2 | **[Import/Export — sessão agrupada](#2-importexport--sessão-agrupada)** | 1 dia dedicado | Média |
 
-> **Parquet lazy loading saiu da frente** (2026-04-24). Ver [análise arquivada](#parquet-lazy-loading-contingente) — contingente à decisão sobre LLM-assisted coding.
+> **Import/Export — sessão agrupada** saiu da frente em 2026-04-24 (tabular export + Board SVG/PNG + PDF anchors E1/E2/I1/I2 todos concluídos). Ver registro abaixo.
+>
+> **Parquet lazy loading** também fora da frente — contingente à decisão sobre LLM-assisted coding. Ver [análise arquivada](#parquet-lazy-loading-contingente).
 
 ---
 
@@ -24,9 +23,9 @@ Ordem motivada pelo uso: organizar codebook → analisar → polir.
 
 | Ordem | Item | Motivação |
 |-------|------|-----------|
-| 4 | **[Coding management](#4-coding-management)** (Code→Theme + Pastas nested) | Usar decentemente com corpus grande |
-| 5 | **[Analytics — melhorias](#5-analytics--melhorias)** (Relations Network polish + Code×Metadata + Analytic Memo View) | Consequência natural de #4 |
-| 6 | **[Margin Panel — melhorias](#6-margin-panel--melhorias)** (Customization + Resize Handle) | Polish visual. **Dependência externa**: aguarda decisão em outro plugin não-mexido |
+| 2 | **[Coding management](#2-coding-management)** (Code→Theme + Pastas nested) | Usar decentemente com corpus grande |
+| 3 | **[Analytics — melhorias](#3-analytics--melhorias)** (Relations Network polish + Code×Metadata + Analytic Memo View + Multi-tab spreadsheet export) | Consequência natural de #2 |
+| 4 | **[Margin Panel — melhorias](#4-margin-panel--melhorias)** (Customization + Resize Handle) | Polish visual. **Dependência externa**: aguarda decisão em outro plugin não-mexido |
 
 ---
 
@@ -55,24 +54,6 @@ Sem ordem de execução — precisam validar **se** e **como** existem antes de 
   - Filtra Analytics ou só render?
   - Campo `hidden?: boolean` em `CodeDefinition` ou tracking separado?
 - Ajusta os 6 engines (filtrar markers hidden antes de renderizar)
-
-### 2. Import/Export — sessão agrupada
-
-Sessão única pra matar dívidas de export e itens do ROADMAP no mesmo contexto. Round-trip QDPX entre vaults Obsidian **já funciona** (commit `1422bb7` + resolução dos 4 bugs críticos em §11.1 do BACKLOG).
-
-**Itens agrupados:**
-
-| Origem | Item | Detalhe |
-|--------|------|---------|
-| ~~**Novo**~~ | ~~**Tabular export pra análise externa (R/Python/BI)**~~ | ✅ **FEITO 2026-04-24** — 8 módulos em `src/export/tabular/` (csvWriter, readmeBuilder, 5 builders + tabularExporter). Modal ExportModal ganhou 3ª opção "Tabular (CSV zip)" com toggles `Include relations` / `Include shape coords` (on by default). Command palette + botão na settings tab. Zip com 4-5 CSVs + README.md embutido (schema doc + R/Python snippets). Schema relacional flat (1 linha per `read_csv()` do tidyverse/pandas) |
-| ~~ROADMAP #15~~ | ~~Board Export SVG/PNG~~ | ✅ **FEITO 2026-04-24** — `boardExport.ts` com SVG vetorial (via `canvas.toSVG({ viewBox })` nativo do Fabric) + PNG 2x (retina). Botões no boardToolbar. PDF dispensado — SVG cobre caso vetorial melhor sem dep nova. Chart snapshots saem raster embutidos no SVG (Chart.js não exporta nativo — fora do escopo). Gotcha descoberto: `canvas.toDataURL({left, top, ...})` interpreta coords em viewport (afetado por zoom/pan), exige reset de `viewportTransform` pra identidade antes do export scene-coord (doc em TECHNICAL-PATTERNS §23) |
-| ~~BACKLOG §11 E1~~ | ~~QDPX offsets de texto PDF aproximados~~ | ✅ **FEITO 2026-04-23** — `resolveMarkerOffsets` usa plainText consolidado via pdfjs + indexOf (com fallback whitespace-normalize). Offsets absolutos em codepoints |
-| ~~BACKLOG §11 E2~~ | ~~Shape markers PDF ignorados no export~~ | ✅ **FEITO 2026-04-23** — `loadPdfExportData` extrai dims via pdfjs headless no momento do export |
-| ~~BACKLOG §11 I1~~ | ~~PDF shape selections no import usam 612x792 (US Letter)~~ | ✅ **FEITO 2026-04-23** — `createMarkersForSource` carrega `loadPdfExportData` 1x quando a source tem PDFSelection; `createPdfMarker` aplica `pdfDims[sel.page]` com fallback 612x792 + warning se load falha |
-| ~~BACKLOG §11 I2~~ | ~~PDF text selections (PlainTextSelection) ignoradas no import~~ | ✅ **FEITO 2026-04-23** — `extractAnchorFromPlainText` cria marker com `{text, page}` + indices placeholder. `resolvePendingIndices` popula indices via DOM text-search no primeiro render |
-| ~~BACKLOG §17~~ | ~~Multi-tab spreadsheet export~~ | **Movido pra Grupo 5 Analytics melhorias** — é export das análises do Analytics, não do projeto |
-
-**Dependência compartilhada**: ~~cache de dimensões de página PDF~~ resolvido — `loadPdfExportData` usa pdfjs headless direto do vault, sem cache persistido.
 
 <a id="parquet-lazy-loading-contingente"></a>
 ### Parquet lazy loading (contingente — fora da frente)
@@ -148,18 +129,18 @@ DuckDB-Wasm lê parquet direto do ArrayBuffer e executa SQL. Não é pré-requis
 
 ## Detalhes — pós-frente-limpa
 
-### 4. Coding management
+### 2. Coding management
 
 Usabilidade do codebook com corpus grande. Dois sub-itens:
 
-#### 4a. Code → Theme Hierarchy
+#### 2a. Code → Theme Hierarchy
 
 - `theme?: string` em `CodeDefinition` (shared registry)
 - Grouping by theme no Code Explorer (nível extra na tree)
 - Filter by theme nas colunas de CSV coding
 - **Distinto de `parentId` hierarchy** — é uma flat grouping tag
 
-#### 4b. Pastas nested (folder dentro de folder)
+#### 2b. Pastas nested (folder dentro de folder)
 
 Descoberto 2026-04-23 durante §12 K2 do BACKLOG.
 
@@ -172,7 +153,7 @@ Descoberto 2026-04-23 durante §12 K2 do BACKLOG.
 - Sem backward-compat (zero users)
 - Estimativa: 2-3h
 
-### 5. Analytics — melhorias
+### 3. Analytics — melhorias
 
 Itens menores que se somam a uma camada de polish analítico. Ordem sugerida do mais barato ao mais caro:
 
@@ -182,21 +163,22 @@ Itens menores que se somam a uma camada de polish analítico. Ordem sugerida do 
 | **Relations Network — filtro "N+ aplicações"** | ~30 min | Slider ou input no painel de config: só renderiza edges com `weight >= N`. Threshold no `extractRelationEdges` ou no loop de draw |
 | **Analytic Memo View** (ex-#3) | Médio | `memo?: string` já existe em todos os engines — só falta consumir no Analytics. Visualização dedicada agregando memos de markers por código/source |
 | **Code × Metadata** (ex-#9) | 2-3h | Tabelas de contingência código × variável demográfica. Depende de Case Variables (FEITO). Reusa `inferentialEngine` base |
+| **Multi-tab spreadsheet export** | Médio | Export das análises do Analytics como .xlsx com uma aba por modo (frequency, cooccurrence, doc-matrix). Herdado do ex-§17 do BACKLOG |
 | **Relations Network — edge bundling FDEB/HEB** | 3-4h MVP | Só atacar quando grafo realista tiver 50+ edges densos — curvas de Bézier atuais cobrem até isso. FDEB adiciona 150-300 LOC ou lib externa (`d3-force-bundling`). Não prioritário |
 
-### 6. Margin Panel — melhorias
+### 4. Margin Panel — melhorias
 
 **⚠️ Dependência externa**: aguarda decisão em outro plugin (não-mexido). Só atacar depois de definir tratamento lá.
 
 Dois sub-itens com dívida técnica compartilhada (`scrollDOM stacking context` — `handleOverlayRenderer.ts` já ocupa scrollDOM com z-index 10000+ pra drag handles de markers; os dois itens precisam coexistir no mesmo container):
 
-#### 6a. Margin Panel Customization (ex-#11)
+#### 4a. Margin Panel Customization (ex-#11)
 
 - Setting `margin.side: 'left' | 'right'` (posição hoje hardcoded à esquerda)
 - Visual: espessura da barra, estilo de ticks, opacidade — constantes hardcoded hoje em `marginPanelExtension.ts`
 - Estimativa: 1-2h
 
-#### 6b. Margin Panel Resize Handle (ex-#17)
+#### 4b. Margin Panel Resize Handle (ex-#17)
 
 **POC feita e stashed** (não integrada).
 
@@ -413,6 +395,7 @@ Histórico de features entregues. Mantido como registro, não reabrir.
 - **#16 Per-Code Decorations** — 2026-03-02. Markdown (CM6) + PDF. N decorations sobrepostas com `opacity / N`, `mix-blend-mode: multiply`
 - **#18 Case Variables** — 2026-04-21. Registry central, storage 3-caminhos (frontmatter md + data.json binários), type inference, popover/painel lateral, Analytics filter, QDPX round-trip
 - **#19 Tabular export pra análise externa** — 2026-04-24. Branch `feat/tabular-export`. 8 módulos em `src/export/tabular/` (csvWriter, readmeBuilder, buildSegmentsTable, buildCodeApplicationsTable, buildCodesTable, buildCaseVariablesTable, buildRelationsTable, tabularExporter). ExportModal 3ª opção "Tabular (CSV zip)" com toggles `Include relations` / `Include shape coords`. Zip contém 4-5 CSVs (segments, code_applications, codes, case_variables, relations opcional) + README.md com schema e snippets R/tidyverse (dplyr joins) e Python (pandas merge). Consumidor: pesquisador que prefere stats em R/Python em vez de Analytics nativo. RFC 4180 CSV com UTF-8 BOM (Excel auto-detect)
+- **#20 Board Export SVG/PNG** — 2026-04-24. Branch `feat/board-export`. `src/analytics/board/boardExport.ts` com `canvas.toSVG({ viewBox })` nativo do Fabric (vetorial) + `canvas.toDataURL` com multiplier 2 (retina). Botões "Export SVG" / "Export PNG" no `boardToolbar`. Bbox scene-coord dos objetos (grid dots ficam de fora — não são Fabric objects). PDF dispensado (SVG cobre caso vetorial melhor sem dep). Chart snapshots saem raster embutidos no SVG (Chart.js não exporta nativo — fora do escopo). Fix pós-smoke test: reset de `viewportTransform` pra identidade dentro do PNG export pra respeitar zoom do viewport — documentado em TECHNICAL-PATTERNS §23
 
 ### Bug fixes e dívidas resolvidas
 
