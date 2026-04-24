@@ -36,13 +36,13 @@ beforeEach(async () => {
 });
 
 describe('exportTabular', () => {
-	it('empty project yields zip with 4 CSVs + README (relations off)', async () => {
+	it('empty project yields zip with 5 CSVs + README (relations off)', async () => {
 		const result = await exportTabular(mockApp(), dm, reg, {
 			fileName: 'out.zip', includeRelations: false, includeShapeCoords: true, pluginVersion: '0.0.1',
 		});
 		const files = unzipSync(result.data);
 		expect(Object.keys(files).sort()).toEqual([
-			'README.md', 'case_variables.csv', 'code_applications.csv', 'codes.csv', 'segments.csv',
+			'README.md', 'case_variables.csv', 'code_applications.csv', 'codes.csv', 'groups.csv', 'segments.csv',
 		]);
 	});
 

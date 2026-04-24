@@ -11,6 +11,7 @@ export function buildReadme(opts: ReadmeOptions): string {
 	sections.push(schemaSegments(opts));
 	sections.push(schemaCodeApplications());
 	sections.push(schemaCodes());
+	sections.push(schemaGroups());
 	sections.push(schemaCaseVariables());
 	if (opts.includeRelations) sections.push(schemaRelations());
 	sections.push(exampleR());
@@ -88,6 +89,24 @@ function schemaCodes(): string {
 		'| `parent_id` | nullable, → `codes.id` |',
 		'| `description` | |',
 		'| `magnitude_config` | nullable, JSON of `{type, values}` |',
+		'| `groups` | `;`-separated group names. Empty when not a member. Join with `groups.csv` via name |',
+	].join('\n');
+}
+
+function schemaGroups(): string {
+	return [
+		'## `groups.csv`',
+		'',
+		'Code Groups (Tier 1.5 — flat N:N membership, orthogonal to hierarchy).',
+		'',
+		'| Column | Notes |',
+		'|---|---|',
+		'| `id` | |',
+		'| `name` | |',
+		'| `color` | hex (8 pastel colors from GROUP_PALETTE, or custom) |',
+		'| `description` | optional |',
+		'',
+		'Join with `codes.csv` via the `groups` column (semicolon-separated names). See R / Python snippets below.',
 	].join('\n');
 }
 
@@ -132,11 +151,18 @@ function exampleR(): string {
 		'segments <- read_csv("segments.csv")',
 		'apps <- read_csv("code_applications.csv")',
 		'codes <- read_csv("codes.csv")',
+		'groups <- read_csv("groups.csv")',
 		'',
 		'# Frequency per code (name resolved)',
 		'apps %>%',
 		'  inner_join(codes, by = c("code_id" = "id")) %>%',
 		'  count(name, sort = TRUE)',
+		'',
+		'# Expand groups (semicolon-separated) and join with groups.csv',
+		'codes_groups_long <- codes %>%',
+		'  separate_rows(groups, sep = ";") %>%',
+		'  rename(group_name = groups) %>%',
+		'  left_join(groups, by = c("group_name" = "name"))',
 		'```',
 	].join('\n');
 }
@@ -150,9 +176,14 @@ function examplePython(): string {
 		'segments = pd.read_csv("segments.csv")',
 		'apps = pd.read_csv("code_applications.csv")',
 		'codes = pd.read_csv("codes.csv")',
+		'groups = pd.read_csv("groups.csv")',
 		'',
 		'# Frequency per code',
 		'apps.merge(codes, left_on="code_id", right_on="id")["name"].value_counts()',
+		'',
+		'# Expand groups column (semicolon-separated) and join groups.csv',
+		'codes_exp = codes.assign(groups=codes["groups"].str.split(";")).explode("groups")',
+		'merged = codes_exp.merge(groups, left_on="groups", right_on="name", how="left")',
 		'```',
 	].join('\n');
 }
