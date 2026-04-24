@@ -130,12 +130,15 @@ function fillShape(row: CellValue[], shape: string, coords: any, header: string[
 		warnings.push(`Shape marker ${id} has malformed coords — omitted`);
 		return;
 	}
-	row[idx('shape_type')] = shape;
+	let serialized: string;
 	try {
-		row[idx('shape_coords')] = JSON.stringify(coords);
+		serialized = JSON.stringify(coords);
 	} catch {
 		warnings.push(`Shape marker ${id} coords not JSON-serializable — omitted`);
+		return;
 	}
+	row[idx('shape_type')] = shape;
+	row[idx('shape_coords')] = serialized;
 }
 
 function isoOrWarn(ms: number, id: string, warnings: string[]): string {

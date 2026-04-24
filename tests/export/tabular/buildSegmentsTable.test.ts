@@ -165,4 +165,28 @@ describe('buildSegmentsTable', () => {
 		expect(rows[1]![i('time_from')]).toBe(10000);
 		expect(rows[1]![i('time_to')]).toBe(15000);
 	});
+
+	it('shape marker with malformed coords: shape columns empty + warning, segment emitted', () => {
+		const pdf = dm.section('pdf');
+		pdf.shapes.push({ id: 'sh1', fileId: 'x.pdf', page: 1, shape: 'rect', coords: null as any, codes: [], createdAt: 0, updatedAt: 0 });
+		dm.setSection('pdf', pdf);
+
+		const { rows, warnings } = buildSegmentsTable(dm, new Map(), { includeShapeCoords: true });
+		expect(rows).toHaveLength(2); // segment still emitted
+		const i = (col: string) => rows[0]!.indexOf(col);
+		expect(rows[1]![i('shape_type')]).toBe('');
+		expect(rows[1]![i('shape_coords')]).toBe('');
+		expect(warnings.some(w => /malformed/i.test(w))).toBe(true);
+	});
+
+	it('pdf_shape marker: engine=pdf, sourceType=pdf_shape', () => {
+		const pdf = dm.section('pdf');
+		pdf.shapes.push({ id: 'sh1', fileId: 'x.pdf', page: 1, shape: 'rect', coords: { type: 'rect', x: 0, y: 0, w: 10, h: 10 }, codes: [], createdAt: 0, updatedAt: 0 });
+		dm.setSection('pdf', pdf);
+
+		const { rows } = buildSegmentsTable(dm, new Map(), { includeShapeCoords: true });
+		const i = (col: string) => rows[0]!.indexOf(col);
+		expect(rows[1]![i('engine')]).toBe('pdf');
+		expect(rows[1]![i('sourceType')]).toBe('pdf_shape');
+	});
 });
