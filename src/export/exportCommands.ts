@@ -31,10 +31,25 @@ export function registerExportCommands(plugin: QualiaCodingPlugin): void {
       ).open();
     },
   });
+
+  plugin.addCommand({
+    id: 'export-tabular',
+    name: 'Export codes as tabular data (for R/Python)',
+    callback: () => {
+      new ExportModal(
+        plugin.app,
+        plugin.dataManager,
+        plugin.sharedRegistry,
+        'tabular',
+        plugin.manifest.version,
+        plugin.caseVariablesRegistry,
+      ).open();
+    },
+  });
 }
 
 /** Factory for analytics toolbar — avoids importing ExportModal in analytics view. */
-export function openExportModal(plugin: QualiaCodingPlugin, defaultFormat: 'qdc' | 'qdpx' = 'qdpx'): void {
+export function openExportModal(plugin: QualiaCodingPlugin, defaultFormat: 'qdc' | 'qdpx' | 'tabular' = 'qdpx'): void {
   new ExportModal(
     plugin.app,
     plugin.dataManager,
