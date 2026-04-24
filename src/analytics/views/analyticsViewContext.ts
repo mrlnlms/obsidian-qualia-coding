@@ -87,6 +87,9 @@ export interface AnalyticsViewContext {
   // Case variable filter state
   caseVariableFilter: { name: string; value: string } | null;
 
+  // Group filter state (Tier 1.5 — single-select)
+  groupFilter: string | null;
+
   // Text Retrieval state
   trSearch: string;
   trGroupBy: "code" | "file";

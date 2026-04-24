@@ -3,6 +3,9 @@ import type { SourceType } from "../data/dataTypes";
 import type { AnalyticsViewContext, ViewMode } from "./analyticsViewContext";
 import { MODE_REGISTRY } from "./modes/modeRegistry";
 import type { CaseVariablesRegistry } from "../../core/caseVariables/caseVariablesRegistry";
+import type { CodeDefinitionRegistry } from "../../core/codeDefinitionRegistry";
+
+const GROUPS_DROPDOWN_THRESHOLD = 10;
 
 export function renderSourcesSection(ctx: AnalyticsViewContext): void {
   if (!ctx.configPanelEl || !ctx.data) return;
@@ -239,5 +242,42 @@ export function renderCaseVariablesFilter(
     nameSelect.value = state.filter.name;
     updateValueOptions(state.filter.name);
     valueSelect.value = state.filter.value;
+  }
+}
+
+export function renderGroupsFilter(
+  container: HTMLElement,
+  registry: CodeDefinitionRegistry,
+  state: { filter: string | null },
+  onChange: (groupId: string | null) => void,
+): void {
+  const groups = registry.getAllGroups();
+  if (groups.length === 0) return;
+
+  const section = container.createDiv({ cls: "codemarker-config-section" });
+  section.createDiv({ cls: "codemarker-config-section-title", text: "Filter by group" });
+
+  if (groups.length > GROUPS_DROPDOWN_THRESHOLD) {
+    const select = section.createEl("select", { cls: "codemarker-config-select" });
+    select.appendChild(new Option("— none —", ""));
+    for (const g of groups) {
+      select.appendChild(new Option(g.name, g.id));
+    }
+    if (state.filter) select.value = state.filter;
+    select.addEventListener("change", () => {
+      onChange(select.value || null);
+    });
+  } else {
+    const chipsWrap = section.createDiv({ cls: "codemarker-analytics-group-chips" });
+    for (const g of groups) {
+      const chip = chipsWrap.createEl("button", { cls: "codemarker-analytics-group-chip" });
+      const dot = chip.createSpan({ cls: "codemarker-analytics-group-chip-dot" });
+      dot.style.backgroundColor = g.color;
+      chip.createSpan({ text: g.name });
+      if (state.filter === g.id) chip.addClass("is-selected");
+      chip.addEventListener("click", () => {
+        onChange(state.filter === g.id ? null : g.id);
+      });
+    }
   }
 }

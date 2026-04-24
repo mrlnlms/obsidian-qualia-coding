@@ -5071,3 +5071,35 @@ body.codebook-dragging * {
 	align-items: center;
 }
 .codemarker-detail-group-chip-remove:hover { color: var(--text-normal); }
+
+/* ─── Analytics — group filter ─────────────────────── */
+.codemarker-analytics-group-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 4px;
+}
+.codemarker-analytics-group-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	border-radius: 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	font-size: var(--font-smallest);
+	cursor: pointer;
+}
+.codemarker-analytics-group-chip:hover {
+	background: var(--background-modifier-hover);
+}
+.codemarker-analytics-group-chip.is-selected {
+	border-color: var(--interactive-accent);
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+.codemarker-analytics-group-chip-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}

@@ -7,6 +7,11 @@ export function applyFilters(
   filters: FilterConfig,
   registry?: CaseVariablesRegistry,
 ): UnifiedMarker[] {
+  // Pre-compute Set pra lookup O(1) se groupFilter está ativo
+  const groupMemberSet = filters.groupFilter
+    ? new Set(filters.groupFilter.memberCodeIds)
+    : null;
+
   return data.markers.filter((m) => {
     if (!filters.sources.includes(m.source)) return false;
     if (filters.codes.length > 0 && !m.codes.some((c) => filters.codes.includes(c))) return false;
@@ -16,6 +21,7 @@ export function applyFilters(
       const vars = registry.getVariables(m.fileId);
       if (vars[name] !== value) return false;
     }
+    if (groupMemberSet && !m.codes.some((c) => groupMemberSet.has(c))) return false;
     return true;
   });
 }

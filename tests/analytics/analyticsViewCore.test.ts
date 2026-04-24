@@ -104,6 +104,7 @@ vi.mock('../../src/analytics/views/configSections', () => ({
 	renderCodesSection: vi.fn(),
 	renderMinFreqSection: vi.fn(),
 	renderCaseVariablesFilter: vi.fn(),
+	renderGroupsFilter: vi.fn(),
 }));
 
 // Mock statsEngine to avoid real calculations during export tests
