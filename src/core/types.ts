@@ -80,6 +80,9 @@ export interface CodeDefinition {
 	parentId?: string;
 	childrenOrder: string[];
 	mergedFrom?: string[];
+	// Visibility toggle (Phase F)
+	/** When true, this code is globally hidden from editor renders. Analytics/export não são afetados. */
+	hidden?: boolean;
 	// Virtual folders (Phase B)
 	folder?: string;        // folder id — undefined = no folder (root level)
 	// Magnitude (Phase D)
@@ -143,6 +146,9 @@ export interface QualiaData {
 		};
 	};
 	caseVariables: CaseVariablesSection;
+	/** Per-doc visibility overrides. overrides[fileId][codeId] = effective visibility in that doc.
+	 *  Self-cleaning: entries só existem quando divergem do global. */
+	visibilityOverrides: Record<string, Record<string, boolean>>;
 }
 
 export function createDefaultData(): QualiaData {
@@ -170,5 +176,6 @@ export function createDefaultData(): QualiaData {
 			settings: { autoOpen: false, showButton: true, defaultZoom: 50, regionOpacity: 0.4, showLabelsOnRegions: true, videoFit: 'contain', fileStates: {} },
 		},
 		caseVariables: { values: {}, types: {} },
+		visibilityOverrides: {},
 	};
 }
