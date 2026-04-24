@@ -2926,24 +2926,667 @@ Ao final:
 
 ## Chunk 5: Export/Import (QDPX + Tabular CSV)
 
-TODO: will write after Chunk 4 approved.
+Última chunk: persistência cross-tool. QDPX `<Sets>` seguindo REFI-QDA spec (com `qualia:color` custom namespace pra round-trip próprio), `codes.csv` ganha coluna `groups`, novo `groups.csv` standalone, README.md atualizado com snippets R/Python.
 
-## Chunk 4: Analytics filter integration
+### Task 5.1: QDPX export — emit `<Sets>` no `<CodeBook>`
 
-TODO.
+**Files:**
+- Modify: `src/export/qdcExporter.ts:18-29` (buildCodebookXml)
+- Modify: `src/export/xmlBuilder.ts` (opcional — se precisar helper pra namespace prefix)
+- Test: `tests/export/qdpxGroupsRoundtrip.test.ts` (parte export)
 
-## Chunk 5: Export/Import (QDPX + Tabular CSV)
+- [ ] **Step 1: Criar test file**
 
-TODO.
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import { buildCodebookXml } from '../../src/export/qdcExporter';
 
-## Chunk 3: Add-to-group flow (right-click + Code Detail + Merge)
+describe('QDPX export — Sets', () => {
+  let registry: CodeDefinitionRegistry;
 
-TODO.
+  beforeEach(() => {
+    registry = new CodeDefinitionRegistry();
+  });
 
-## Chunk 4: Analytics filter integration
+  it('emit <Sets> vazio quando não há groups (ou omite a tag)', () => {
+    registry.create('c1');
+    const xml = buildCodebookXml(registry);
+    // Aceita ambas formas: <Sets/> self-closed OU tag omitida
+    expect(xml).toMatch(/<(Sets\/|Codes)/);
+  });
 
-TODO.
+  it('emit <Set> com MemberCode pros códigos membros', () => {
+    const c = registry.create('code1');
+    const g = registry.createGroup('RQ1');
+    registry.addCodeToGroup(c.id, g.id);
 
-## Chunk 5: Export/Import (QDPX + Tabular CSV)
+    const xml = buildCodebookXml(registry, { ensureCodeGuid: (id) => `guid-${id}` });
+    expect(xml).toContain('<Sets>');
+    expect(xml).toContain('<Set ');
+    expect(xml).toContain('name="RQ1"');
+    expect(xml).toContain(`<MemberCode targetGUID="guid-${c.id}"`);
+  });
 
-TODO.
+  it('emit qualia:color custom attribute + <Description> quando preenchidos', () => {
+    const g = registry.createGroup('RQ1');
+    registry.setGroupDescription(g.id, 'Research Q1');
+
+    const xml = buildCodebookXml(registry);
+    expect(xml).toContain(`qualia:color="${g.color}"`);
+    expect(xml).toContain('<Description>Research Q1</Description>');
+  });
+
+  it('omite <Description> quando description é undefined', () => {
+    registry.createGroup('RQ1');
+    const xml = buildCodebookXml(registry);
+    expect(xml).not.toContain('<Description>');
+  });
+});
+```
+
+- [ ] **Step 2: Rodar — falha (Sets não emitido)**
+
+- [ ] **Step 3: Estender `buildCodebookXml`**
+
+Em `src/export/qdcExporter.ts`, após a construção do `codesXml`:
+
+```ts
+export function buildCodebookXml(
+  registry: CodeDefinitionRegistry,
+  options?: BuildCodebookOptions,
+): string {
+  const rootCodes = registry.getRootCodes();
+  const codesXml = rootCodes.length === 0
+    ? '<Codes/>'
+    : `<Codes>\n${rootCodes.map(c => buildCodeElement(c, registry, options?.ensureCodeGuid)).join('\n')}\n</Codes>`;
+
+  // NEW — Sets
+  const groups = registry.getAllGroups();
+  const setsXml = groups.length === 0
+    ? ''
+    : `\n<Sets>\n${groups.map(g => buildSetElement(g, registry, options?.ensureCodeGuid)).join('\n')}\n</Sets>`;
+
+  const nsAttr = options?.namespace ? ` ${xmlAttr('xmlns', options.namespace)}` : '';
+  // xmlns:qualia declarado quando há groups (custom namespace pra color)
+  const qualiaNs = groups.length > 0 ? ' xmlns:qualia="urn:qualia-coding:extensions:1.0"' : '';
+  return `<CodeBook${nsAttr}${qualiaNs}>\n${codesXml}${setsXml}\n</CodeBook>`;
+}
+
+function buildSetElement(
+  group: GroupDefinition,
+  registry: CodeDefinitionRegistry,
+  ensureCodeGuid?: (codeId: string) => string,
+): string {
+  // guid do group — reusa ensureCodeGuid se passado (pra manter consistente com CodeRef),
+  // senão usa o próprio id (pattern qdc standalone)
+  const guid = ensureCodeGuid ? ensureCodeGuid(group.id) : group.id;
+
+  const attrs = [
+    xmlAttr('guid', guid),
+    xmlAttr('name', group.name),
+    xmlAttr('qualia:color', group.color),  // custom namespace (xmlAttr aceita key com prefix)
+  ].join(' ');
+
+  const descEl = group.description
+    ? `\n<Description>${escapeXml(group.description)}</Description>`
+    : '';
+
+  const members = registry.getCodesInGroup(group.id);
+  const membersXml = members
+    .map(c => {
+      const memberGuid = ensureCodeGuid ? ensureCodeGuid(c.id) : c.id;
+      return `<MemberCode targetGUID="${memberGuid}"/>`;
+    })
+    .join('\n');
+
+  if (!descEl && members.length === 0) {
+    return `<Set ${attrs}/>`;
+  }
+
+  const inner = [descEl, membersXml].filter(Boolean).join('\n');
+  return `<Set ${attrs}>${inner}\n</Set>`;
+}
+```
+
+Importar `GroupDefinition`:
+
+```ts
+import type { CodeDefinition, GroupDefinition } from '../core/types';
+```
+
+- [ ] **Step 4: Rodar tests — 4 passam**
+
+Expected: PASS.
+
+- [ ] **Step 5: Atualizar `qdpxExporter.ts` — `ensureGuid` também trata groups**
+
+Em `src/export/qdpxExporter.ts:419-420` onde `buildCodebookXml` é chamado com `ensureCodeGuid`, **nenhum ajuste necessário** — a função `ensureGuid(id, guidMap)` existente já aceita qualquer id (de códigos ou groups), desde que a chamada se consistente no import. Verificar que `ensureGuid` só faz `guidMap.get(id) ?? generate()`.
+
+```bash
+grep -n "function ensureGuid" src/export/qdpxExporter.ts
+```
+
+Se a assinatura é `ensureGuid(id: string, guidMap: Map<string, string>): string` — ok, serve pra groups também. O guidMap vira shared por tipo (códigos + groups + selections), consistente com o pattern atual.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/export/qdcExporter.ts tests/export/qdpxGroupsRoundtrip.test.ts
+~/.claude/scripts/commit.sh "feat(export): QDPX <Sets> + qualia:color custom namespace"
+```
+
+### Task 5.2: QDPX import — parse `<Set>` + create groups + ignore MemberSource
+
+**Files:**
+- Modify: `src/import/qdpxImporter.ts`
+- Test: `tests/export/qdpxGroupsRoundtrip.test.ts` (estender com import + roundtrip)
+
+- [ ] **Step 1: Localizar codebook parser em qdpxImporter**
+
+```bash
+grep -n "parseCodebook\|<Code\|CodeBook\|<Codes\|ensureCode" src/import/qdpxImporter.ts | head -20
+```
+
+Identificar a função que parseia códigos. Sets vai ser parseado em paralelo (novo passo no mesmo place).
+
+- [ ] **Step 2: Adicionar tests de import**
+
+Append em `qdpxGroupsRoundtrip.test.ts`:
+
+```ts
+describe('QDPX import — Sets', () => {
+  it('parse <Set> cria GroupDefinition no registry com color/description', async () => {
+    // TODO: construir um QDPX minimal + chamar importQdpx
+    // Se o helper de import requer arquivo real, considerar extrair parseSetsXml
+    // como função pura exportável.
+    // Para manter TDD viável, exportar helper parseSetsElements(xml, codeGuidMap) → GroupDefinition[]
+  });
+
+  it('import de QDPX sem qualia:color usa GROUP_PALETTE auto-assign', async () => {
+    // TODO
+  });
+
+  it('ignora MemberSource com warning (não cria group quebrado)', async () => {
+    // TODO
+  });
+});
+```
+
+**Nota:** testar o import fullstack é complexo em jsdom (precisa QDPX binary + unzip). Extrair helper `parseSetsFromXml(codebookXmlString, codeGuidMap): { groups, warnings }` como função pura, testar isolada. Usar no `importQdpx` real.
+
+- [ ] **Step 3: Implementar `parseSetsFromXml` como função pura**
+
+Em `src/import/qdpxImporter.ts` (ou novo arquivo `src/import/parseSets.ts` se preferir isolar):
+
+```ts
+import type { GroupDefinition } from '../core/types';
+import { GROUP_PALETTE } from '../core/types';
+
+export interface ParsedGroup {
+  name: string;
+  color: string;
+  paletteIndex: number;
+  description?: string;
+  hadExplicitColor: boolean;  // true se qualia:color veio explícito no XML
+}
+
+export interface ParseSetsResult {
+  groups: ParsedGroup[];
+  memberships: Array<{ groupName: string; memberCodeGuids: string[] }>;
+  warnings: string[];
+}
+
+export function parseSetsFromXml(codebookXml: string): ParseSetsResult {
+  const groups: ParseSetsResult['groups'] = [];
+  const memberships: ParseSetsResult['memberships'] = [];
+  const warnings: string[] = [];
+
+  // Regex simples (codebook é pequeno; XML parser completo é overkill)
+  const setsRegex = /<Set\s+([^>]+?)(\/>|>([\s\S]*?)<\/Set>)/g;
+  let paletteIdxCounter = 0;
+
+  let match: RegExpExecArray | null;
+  while ((match = setsRegex.exec(codebookXml)) !== null) {
+    const attrs = match[1]!;
+    const inner = match[3] ?? '';
+
+    // Parse attributes
+    const nameMatch = attrs.match(/name="([^"]*)"/);
+    if (!nameMatch) {
+      warnings.push('Set without name attribute, skipping');
+      continue;
+    }
+    const name = nameMatch[1]!;
+    const colorMatch = attrs.match(/qualia:color="([^"]*)"/);
+
+    let color: string;
+    let paletteIndex: number;
+    let hadExplicitColor: boolean;
+    if (colorMatch) {
+      color = colorMatch[1]!;
+      const idx = GROUP_PALETTE.findIndex(c => c.toLowerCase() === color.toLowerCase());
+      paletteIndex = idx >= 0 ? idx : -1;
+      hadExplicitColor = true;
+    } else {
+      color = GROUP_PALETTE[paletteIdxCounter % GROUP_PALETTE.length]!;
+      paletteIndex = paletteIdxCounter % GROUP_PALETTE.length;
+      paletteIdxCounter++;
+      hadExplicitColor = false;
+    }
+
+    // Parse description
+    const descMatch = inner.match(/<Description>([\s\S]*?)<\/Description>/);
+    const description = descMatch ? decodeXmlEntities(descMatch[1]!) : undefined;
+
+    // Parse MemberCode(s) — ignore MemberSource
+    const memberCodeGuids: string[] = [];
+    const memberCodeRegex = /<MemberCode\s+targetGUID="([^"]*)"\s*\/>/g;
+    let mm: RegExpExecArray | null;
+    while ((mm = memberCodeRegex.exec(inner)) !== null) {
+      memberCodeGuids.push(mm[1]!);
+    }
+
+    const hasMemberSource = /<MemberSource\b/.test(inner);
+    if (hasMemberSource) {
+      warnings.push(`Set "${name}": contém <MemberSource> (source-level) — ignorado (fora de escopo de Code Groups)`);
+    }
+
+    groups.push({ name, color, description, paletteIndex, hadExplicitColor });
+    memberships.push({ groupName: name, memberCodeGuids });
+  }
+
+  return { groups, memberships, warnings };
+}
+
+// Helper — inverse of escapeXml
+function decodeXmlEntities(s: string): string {
+  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+}
+```
+
+- [ ] **Step 4: Wire no import flow existente**
+
+No `importQdpx` (ou função que orquestra o import), após parsear os codes e antes de retornar:
+
+```ts
+const setsResult = parseSetsFromXml(codebookXmlString);
+for (const groupData of setsResult.groups) {
+  const g = registry.createGroup(groupData.name);
+  // Só sobrescreve a cor auto-assignada pelo createGroup se o XML trouxe qualia:color explícito.
+  // Caso contrário, deixa como createGroup assignou (round-robin do GROUP_PALETTE).
+  if (groupData.hadExplicitColor) {
+    registry.setGroupColor(g.id, groupData.color);
+  }
+  if (groupData.description) registry.setGroupDescription(g.id, groupData.description);
+  // Liga membros
+  const membership = setsResult.memberships.find(m => m.groupName === groupData.name);
+  if (membership) {
+    for (const memberGuid of membership.memberCodeGuids) {
+      // Resolve GUID → codeId via guidMap do import
+      const codeId = codeGuidMap.get(memberGuid);
+      if (codeId) registry.addCodeToGroup(codeId, g.id);
+      else warnings.push(`Set "${groupData.name}": MemberCode guid ${memberGuid} não resolve a código conhecido`);
+    }
+  }
+}
+warnings.push(...setsResult.warnings);
+```
+
+**Nota:** `codeGuidMap` é a Map que o importer já mantém (GUID externo → codeId local). Verificar via grep.
+
+- [ ] **Step 5: Unit tests do parse**
+
+Atualizar o test file pra testar a função pura:
+
+```ts
+import { parseSetsFromXml } from '../../src/import/qdpxImporter';
+
+describe('parseSetsFromXml', () => {
+  it('parse <Set> com qualia:color + MemberCode', () => {
+    const xml = `
+      <CodeBook>
+        <Sets>
+          <Set guid="s1" name="RQ1" qualia:color="#AEC6FF">
+            <Description>Research Q1</Description>
+            <MemberCode targetGUID="c-guid-1"/>
+            <MemberCode targetGUID="c-guid-2"/>
+          </Set>
+        </Sets>
+      </CodeBook>
+    `;
+    const result = parseSetsFromXml(xml);
+    expect(result.groups.length).toBe(1);
+    expect(result.groups[0]!.name).toBe('RQ1');
+    expect(result.groups[0]!.color).toBe('#AEC6FF');
+    expect(result.groups[0]!.description).toBe('Research Q1');
+    expect(result.memberships[0]!.memberCodeGuids).toEqual(['c-guid-1', 'c-guid-2']);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('sem qualia:color → auto-atribui do palette', () => {
+    const xml = `<Sets><Set name="RQ1"/></Sets>`;
+    const result = parseSetsFromXml(xml);
+    expect(result.groups[0]!.paletteIndex).toBe(0);
+    expect(result.groups[0]!.color).toMatch(/^#[A-Fa-f0-9]{6}$/);
+  });
+
+  it('MemberSource gera warning e é ignorado', () => {
+    const xml = `
+      <Sets>
+        <Set name="MixedSet">
+          <MemberCode targetGUID="c1"/>
+          <MemberSource targetGUID="s1"/>
+        </Set>
+      </Sets>
+    `;
+    const result = parseSetsFromXml(xml);
+    expect(result.memberships[0]!.memberCodeGuids).toEqual(['c1']);
+    expect(result.warnings.some(w => w.includes('MemberSource'))).toBe(true);
+  });
+
+  it('descripção com entidades XML é decoded', () => {
+    const xml = `<Sets><Set name="X"><Description>A &amp; B &lt;x&gt;</Description></Set></Sets>`;
+    const result = parseSetsFromXml(xml);
+    expect(result.groups[0]!.description).toBe('A & B <x>');
+  });
+
+  it('hadExplicitColor=true quando qualia:color presente, false quando ausente', () => {
+    const xmlExplicit = `<Sets><Set name="A" qualia:color="#AEC6FF"/></Sets>`;
+    const xmlImplicit = `<Sets><Set name="A"/></Sets>`;
+    expect(parseSetsFromXml(xmlExplicit).groups[0]!.hadExplicitColor).toBe(true);
+    expect(parseSetsFromXml(xmlImplicit).groups[0]!.hadExplicitColor).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 6: Rodar — 4 tests passam**
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/import/qdpxImporter.ts tests/export/qdpxGroupsRoundtrip.test.ts
+~/.claude/scripts/commit.sh "feat(import): parseSetsFromXml + cria groups + ignora MemberSource com warning"
+```
+
+### Task 5.3: Tabular CSV — codes.csv coluna + groups.csv + README
+
+**Files:**
+- Modify: `src/export/tabular/buildCodesTable.ts`
+- Create: `src/export/tabular/buildGroupsTable.ts`
+- Modify: `src/export/tabular/tabularExporter.ts`
+- Modify: `src/export/tabular/readmeBuilder.ts`
+- Test: `tests/export/tabularGroupsExport.test.ts`
+
+- [ ] **Step 1: Criar test file**
+
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import { buildCodesTable, CODES_HEADER } from '../../src/export/tabular/buildCodesTable';
+import { buildGroupsTable, GROUPS_HEADER } from '../../src/export/tabular/buildGroupsTable';
+
+describe('Tabular export — Groups', () => {
+  let registry: CodeDefinitionRegistry;
+
+  beforeEach(() => {
+    registry = new CodeDefinitionRegistry();
+  });
+
+  describe('codes.csv — coluna groups', () => {
+    it('inclui coluna "groups" no header', () => {
+      expect(CODES_HEADER).toContain('groups');
+    });
+
+    it('valor da coluna groups é ";"-separated com nomes dos groups', () => {
+      const c = registry.create('c1');
+      const g1 = registry.createGroup('RQ1');
+      const g2 = registry.createGroup('Wave1');
+      registry.addCodeToGroup(c.id, g1.id);
+      registry.addCodeToGroup(c.id, g2.id);
+
+      const rows = buildCodesTable(registry);
+      const dataRow = rows[1]!;  // primeira linha de dado (após header)
+      const groupsColIdx = CODES_HEADER.indexOf('groups');
+      expect(dataRow[groupsColIdx]).toBe('RQ1;Wave1');
+    });
+
+    it('valor vazio quando código não tem groups', () => {
+      registry.create('c1');
+      const rows = buildCodesTable(registry);
+      const groupsColIdx = CODES_HEADER.indexOf('groups');
+      expect(rows[1]![groupsColIdx]).toBe('');
+    });
+  });
+
+  describe('groups.csv standalone', () => {
+    it('header correto', () => {
+      expect(GROUPS_HEADER).toEqual(['id', 'name', 'color', 'description']);
+    });
+
+    it('1 linha por group com metadata', () => {
+      const g = registry.createGroup('RQ1');
+      registry.setGroupDescription(g.id, 'Research Q1');
+      const rows = buildGroupsTable(registry);
+      expect(rows.length).toBe(2);  // header + 1 data row
+      expect(rows[1]).toEqual([g.id, 'RQ1', g.color, 'Research Q1']);
+    });
+
+    it('description vazio quando undefined', () => {
+      registry.createGroup('RQ1');
+      const rows = buildGroupsTable(registry);
+      expect(rows[1]![3]).toBe('');
+    });
+
+    it('header-only quando não há groups', () => {
+      const rows = buildGroupsTable(registry);
+      expect(rows.length).toBe(1);
+      expect(rows[0]).toEqual(GROUPS_HEADER);
+    });
+  });
+});
+```
+
+- [ ] **Step 2: Rodar — falha (GROUPS_HEADER/buildGroupsTable não existem)**
+
+- [ ] **Step 3: Estender `buildCodesTable.ts`**
+
+```ts
+import type { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
+import type { CellValue } from './csvWriter';
+
+export const CODES_HEADER: string[] = [
+  'id', 'name', 'color', 'parent_id', 'description', 'magnitude_config', 'groups',
+];
+
+export function buildCodesTable(registry: CodeDefinitionRegistry): CellValue[][] {
+  const rows: CellValue[][] = [CODES_HEADER];
+  for (const def of registry.getAll()) {
+    const groupNames = (def.groups ?? [])
+      .map(gid => registry.getGroup(gid)?.name)
+      .filter((n): n is string => !!n)
+      .join(';');
+    rows.push([
+      def.id,
+      def.name,
+      def.color,
+      def.parentId ?? '',
+      def.description ?? '',
+      def.magnitude ? JSON.stringify(def.magnitude) : '',
+      groupNames,
+    ]);
+  }
+  return rows;
+}
+```
+
+- [ ] **Step 4: Criar `buildGroupsTable.ts`**
+
+```ts
+import type { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
+import type { CellValue } from './csvWriter';
+
+export const GROUPS_HEADER: string[] = ['id', 'name', 'color', 'description'];
+
+export function buildGroupsTable(registry: CodeDefinitionRegistry): CellValue[][] {
+  const rows: CellValue[][] = [GROUPS_HEADER];
+  for (const g of registry.getAllGroups()) {
+    rows.push([g.id, g.name, g.color, g.description ?? '']);
+  }
+  return rows;
+}
+```
+
+- [ ] **Step 5: Incluir `groups.csv` no zip em `tabularExporter.ts`**
+
+Após `const codesRows = buildCodesTable(registry);` (~linha 48), adicionar:
+
+```ts
+const groupsRows = buildGroupsTable(registry);
+```
+
+Import no topo:
+
+```ts
+import { buildGroupsTable } from './buildGroupsTable';
+```
+
+No bloco `files`:
+
+```ts
+const files: Record<string, Uint8Array> = {
+  'segments.csv': toU8(strToU8(toCsv(segments.rows))),
+  'code_applications.csv': toU8(strToU8(toCsv(apps.rows))),
+  'codes.csv': toU8(strToU8(toCsv(codesRows))),
+  'groups.csv': toU8(strToU8(toCsv(groupsRows))),  // NEW
+  'case_variables.csv': toU8(strToU8(toCsv(caseVars.rows))),
+};
+```
+
+- [ ] **Step 6: Atualizar `readmeBuilder.ts`**
+
+Ler primeiro `src/export/tabular/readmeBuilder.ts` pra entender os anchors existentes. O README tem seções que seguem o ritmo: **schema description** → **R snippet** → **Python snippet** (verificar via `grep -n "^###\|^##" src/export/tabular/readmeBuilder.ts`).
+
+Edição concreta:
+
+1. Depois da seção `### codes.csv` existente, **adicionar** uma nova seção `### groups.csv` (mesmo ritmo).
+2. Na seção `### codes.csv`, **adicionar** `groups` à lista de colunas + descrição.
+3. No bloco R existente, **adicionar** um segundo snippet demonstrando join com `groups.csv`.
+4. No bloco Python, **adicionar** snippet análogo.
+
+Ordem de seções no README final (alinhar com ordem dos arquivos no zip da Task 5.3 Step 5):
+`segments → code_applications → codes → **groups** → case_variables → relations`.
+
+Conteúdo concreto:
+
+```md
+### codes.csv
+
+Columns: id, name, color, parent_id, description, magnitude_config, **groups**
+
+- `groups`: string `;`-separated de nomes de groups. Vazio se o código não é membro de nenhum.
+
+### groups.csv (NEW)
+
+Columns: id, name, color, description
+
+- 1 row por group definido no codebook.
+- `color`: hex (8 cores pastéis do GROUP_PALETTE, ou custom color).
+- Junte com `codes.csv` usando a string `groups` — ver snippets abaixo.
+
+### R (tidyverse)
+
+```r
+library(dplyr)
+library(tidyr)
+codes <- read_csv('codes.csv')
+groups <- read_csv('groups.csv')
+
+# Expand groups col (semicolon-separated) pra linhas
+codes_groups_long <- codes %>%
+  separate_rows(groups, sep = ';') %>%
+  rename(group_name = groups) %>%
+  left_join(groups, by = c('group_name' = 'name'))
+```
+
+### Python (pandas)
+
+```python
+import pandas as pd
+codes = pd.read_csv('codes.csv')
+groups = pd.read_csv('groups.csv')
+
+# Expand groups col
+codes_exp = codes.assign(groups=codes['groups'].str.split(';')).explode('groups')
+merged = codes_exp.merge(groups, left_on='groups', right_on='name', how='left')
+```
+```
+
+- [ ] **Step 7: Rodar — 7 tests passam**
+
+Expected: PASS (3 codes table + 4 groups table).
+
+- [ ] **Step 8: Rodar test suite completa**
+
+```bash
+npm run test -- --run
+```
+
+Expected: ~2170 tests passam (2108 + 20 chunk 1 + 14 chunk 2 + 11 chunk 3 + 10 chunk 4 + 7 chunk 5 ~ 2170).
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/export/tabular/buildCodesTable.ts src/export/tabular/buildGroupsTable.ts src/export/tabular/tabularExporter.ts src/export/tabular/readmeBuilder.ts tests/export/tabularGroupsExport.test.ts
+~/.claude/scripts/commit.sh "feat(export): tabular CSV coluna groups + groups.csv standalone + README snippets"
+```
+
+### Task 5.4: Smoke test manual + round-trip
+
+- [ ] **Step 1: Build**
+
+```bash
+npm run build
+```
+
+- [ ] **Step 2: Smoke fullstack**
+
+1. No vault, criar 3 groups, popular com códigos.
+2. Export QDPX — verificar no XML dentro do zip: `<Sets>` presente, `<Set>` com `qualia:color` e `<MemberCode>`.
+3. Criar segundo vault (ou limpar `data.json` via script), importar o QDPX.
+4. Verificar: groups aparecem no painel, membership preservada, cores idênticas.
+5. Export Tabular CSV — unzip, verificar:
+   - `codes.csv` tem coluna `groups`
+   - `groups.csv` existe com metadata correta
+   - `README.md` documenta ambos
+6. Testar snippet R no RStudio (opcional) ou Python no Jupyter.
+
+- [ ] **Step 3: Round-trip com QDPX de Atlas.ti / MAXQDA (opcional, se disponível)**
+
+Se você tiver acesso a um export QDPX externo com Sets, importar e verificar:
+- Groups criados
+- Sem `qualia:color` → cor auto-atribuída do GROUP_PALETTE
+- `MemberSource` (se presente no externo) ignorado com warning visível
+
+- [ ] **Step 4: Fix commits se necessário**
+
+---
+
+## Chunk 5 summary
+
+Ao final:
+- QDPX export: `<Sets>` + `qualia:color` custom namespace (via `xmlAttr`) + `<Description>` child
+- QDPX import: `parseSetsFromXml` (função pura testável) com flag `hadExplicitColor` + liga membership via guidMap + ignora MemberSource com warning + auto-assigna cor quando QDPX externo não tem `qualia:color`
+- Tabular CSV: `codes.csv` ganha coluna `groups`, novo `groups.csv` standalone com metadata, README atualizado com snippets R/Python (ordem canônica: segments → code_applications → codes → groups → case_variables → relations)
+- +16 testes (4 QDPX export + 5 QDPX import parse + 3 codes.csv + 4 groups.csv = 16; zero overlap — cada test file exercita concern distinto)
+- Integração `exportTabular` (presença de `groups.csv` no zip) coberta pelo smoke test da Task 5.4 Step 2
+- Baseline pós-Chunk 4: ~2163 → pós-Chunk 5: ~2179
+- Feature Code Groups Tier 1.5 estendido **completa** — pronto pra merge
+
+**Total após os 5 chunks:** 71 novos tests (20 + 14 + 11 + 10 + 16). Baseline 2108 → 2179.
+
+**Próximos passos pós-execução:**
+1. Merge pra main (PR ou rebase direto dependendo do workflow)
+2. Atualizar ROADMAP #2a (riscar items feitos, registrar data)
+3. Atualizar ARCHITECTURE §5.1 se houver novas decisões arquiteturais
+4. Arquivar este plan em `obsidian-qualia-coding/plugin-docs/archive/claude_sources/plans/` com nome `20260424-code-groups.md`
