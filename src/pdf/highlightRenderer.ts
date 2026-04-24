@@ -17,15 +17,16 @@ const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
 const HIGHLIGHT_CLASS = 'codemarker-pdf-highlight';
 const BASE_OPACITY = 0.35;
 
-/** Resolve per-code colors for a marker. Returns array of hex colors. */
-function resolveCodeColors(marker: PdfMarker, registry: CodeDefinitionRegistry): string[] {
+/** Resolve per-code colors for a marker, filtering hidden codes. Returns array of hex colors or empty if all hidden. */
+function resolveCodeColors(marker: PdfMarker, registry: CodeDefinitionRegistry, fileId: string): string[] {
 	if (marker.colorOverride) return [marker.colorOverride];
 	const colors: string[] = [];
 	for (const ca of marker.codes) {
+		if (!registry.isCodeVisibleInFile(ca.codeId, fileId)) continue;
 		const def = registry.getById(ca.codeId);
 		if (def) colors.push(def.color);
 	}
-	return colors.length > 0 ? colors : ['#FFEB3B'];
+	return colors.length > 0 ? colors : (marker.codes.length === 0 ? ['#FFEB3B'] : []);
 }
 
 // Hover popover timing (exported for shared use by drawLayer)
@@ -130,6 +131,7 @@ export function renderHighlightsForPage(
 	registry: CodeDefinitionRegistry,
 	callbacks: HighlightCallbacks,
 	state: PdfViewState,
+	fileId: string,
 ): MarkerRenderInfo[] {
 	const pageDiv = pageView.div;
 	clearHighlightsForPage(pageDiv);
@@ -146,7 +148,8 @@ export function renderHighlightsForPage(
 	for (const marker of markers) {
 		if (marker.codes.length === 0) continue;
 
-		const codeColors = resolveCodeColors(marker, registry);
+		const codeColors = resolveCodeColors(marker, registry, fileId);
+		if (codeColors.length === 0) continue;
 		const perCodeOpacity = codeColors.length > 1 ? BASE_OPACITY / codeColors.length : undefined;
 
 		let mergedRects: MergedRect[];
@@ -420,6 +423,7 @@ export function updateHighlightRectsForMarker(
 	pageView: PDFPageView,
 	marker: PdfMarker,
 	registry: CodeDefinitionRegistry,
+	fileId: string,
 ): void {
 	const pageDiv = pageView.div;
 	const layer = pageDiv.querySelector<HTMLElement>(`.${HIGHLIGHT_LAYER_CLASS}`);
@@ -432,7 +436,8 @@ export function updateHighlightRectsForMarker(
 	const textLayerInfo = getTextLayerInfo(pageView);
 	if (!textLayerInfo) return;
 
-	const codeColors = resolveCodeColors(marker, registry);
+	const codeColors = resolveCodeColors(marker, registry, fileId);
+	if (codeColors.length === 0) return;
 	const perCodeOpacity = codeColors.length > 1 ? BASE_OPACITY / codeColors.length : undefined;
 
 	let mergedRects: MergedRect[];
