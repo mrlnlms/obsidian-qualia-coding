@@ -563,6 +563,16 @@ deleteCode(codeId: string) {
 		this.markers.delete(fileId);
 	}
 
+	/** Persist-aware purge: remove all markers for a real fileId on vault delete. */
+	removeAllMarkersForFile(fileId: string): number {
+		const existing = this.markers.get(fileId);
+		if (!existing || existing.length === 0) return 0;
+		const count = existing.length;
+		this.markers.delete(fileId);
+		this.saveMarkers();
+		return count;
+	}
+
 	/** Register a standalone CM6 EditorView under a virtual fileId. */
 	registerStandaloneEditor(fileId: string, editorView: EditorView): void {
 		this.standaloneEditors.set(fileId, editorView);

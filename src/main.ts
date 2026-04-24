@@ -199,6 +199,14 @@ export default class QualiaCodingPlugin extends Plugin {
 			}
 			this.caseVariablesRegistry.removeAllForFile(file.path);
 			this.sharedRegistry.clearFilePathForOverrides(file.path);
+			// Purge markers from each engine model so sidebar counts + analytics stay consistent.
+			// Each model's notify() persists + fires onChange listeners.
+			this.markdownModel?.removeAllMarkersForFile(file.path);
+			this.pdfModel?.removeAllMarkersForFile(file.path);
+			this.csvModel?.removeAllMarkersForFile(file.path);
+			this.imageModel?.removeAllMarkersForFile(file.path);
+			this.audioModel?.removeAllMarkersForFile(file.path);
+			this.videoModel?.removeAllMarkersForFile(file.path);
 		}));
 
 		this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {

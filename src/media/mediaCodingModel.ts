@@ -216,6 +216,15 @@ export class MediaCodingModel<
 		return false;
 	}
 
+	removeAllMarkersForFile(filePath: string): number {
+		const idx = this.files.findIndex((f) => f.path === filePath);
+		if (idx < 0) return 0;
+		const removed = this.files[idx]!.markers.length;
+		this.files.splice(idx, 1);
+		if (removed > 0) this.notify();
+		return removed;
+	}
+
 	// ── Code assignment ──
 
 	addCodeToMarker(markerId: string, codeId: string): void {

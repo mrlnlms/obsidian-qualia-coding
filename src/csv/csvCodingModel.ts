@@ -267,6 +267,16 @@ export class CsvCodingModel {
 		return false;
 	}
 
+	removeAllMarkersForFile(fileId: string): number {
+		const beforeSeg = this.segmentMarkers.length;
+		const beforeRow = this.rowMarkers.length;
+		this.segmentMarkers = this.segmentMarkers.filter(m => m.fileId !== fileId);
+		this.rowMarkers = this.rowMarkers.filter(m => m.fileId !== fileId);
+		const removed = (beforeSeg - this.segmentMarkers.length) + (beforeRow - this.rowMarkers.length);
+		if (removed > 0) this.notify();
+		return removed;
+	}
+
 	private generateId(): string {
 		return Date.now().toString(36) + Math.random().toString(36).substring(2);
 	}
