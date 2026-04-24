@@ -663,7 +663,15 @@ export class CodeDefinitionRegistry {
 
 	// --- Serialization ---
 
-	toJSON(): { definitions: Record<string, CodeDefinition>; nextPaletteIndex: number; rootOrder: string[]; folders: Record<string, FolderDefinition> } {
+	toJSON(): {
+		definitions: Record<string, CodeDefinition>;
+		nextPaletteIndex: number;
+		rootOrder: string[];
+		folders: Record<string, FolderDefinition>;
+		groups: Record<string, GroupDefinition>;
+		groupOrder: string[];
+		nextGroupPaletteIndex: number;
+	} {
 		const definitions: Record<string, CodeDefinition> = {};
 		for (const [id, def] of this.definitions.entries()) {
 			definitions[id] = def;
@@ -672,7 +680,19 @@ export class CodeDefinitionRegistry {
 		for (const [id, f] of this.folders.entries()) {
 			folders[id] = f;
 		}
-		return { definitions, nextPaletteIndex: this.nextPaletteIndex, rootOrder: this.rootOrder, folders };
+		const groups: Record<string, GroupDefinition> = {};
+		for (const [id, g] of this.groups.entries()) {
+			groups[id] = g;
+		}
+		return {
+			definitions,
+			nextPaletteIndex: this.nextPaletteIndex,
+			rootOrder: this.rootOrder,
+			folders,
+			groups,
+			groupOrder: this.groupOrder,
+			nextGroupPaletteIndex: this.nextGroupPaletteIndex,
+		};
 	}
 
 	static fromJSON(data: any): CodeDefinitionRegistry {
@@ -710,6 +730,25 @@ export class CodeDefinitionRegistry {
 			if (!def.parentId && !registry.rootOrder.includes(id)) {
 				registry.rootOrder.push(id);
 			}
+		}
+
+		// Groups (Tier 1.5) — tolerante a data.json legado
+		if (data?.groups) {
+			for (const id in data.groups) {
+				const g = data.groups[id] as GroupDefinition;
+				g.id = id;  // consistency (igual ao pattern de codes/folders)
+				registry.groups.set(id, g);
+			}
+		}
+		if (Array.isArray(data?.groupOrder)) {
+			registry.groupOrder = data.groupOrder.filter((id: string) => registry.groups.has(id));
+		}
+		// Se groupOrder ausente mas tem groups carregados, popula na ordem de inserção
+		for (const id of registry.groups.keys()) {
+			if (!registry.groupOrder.includes(id)) registry.groupOrder.push(id);
+		}
+		if (typeof data?.nextGroupPaletteIndex === 'number') {
+			registry.nextGroupPaletteIndex = data.nextGroupPaletteIndex;
 		}
 
 		return registry;
