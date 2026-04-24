@@ -4910,3 +4910,17 @@ body.codebook-dragging * {
 .qc-code-row-hidden {
 	opacity: 0.5;
 }
+
+/* Visibility popover */
+.qc-visibility-popover-body { padding: 8px; min-width: 220px; }
+.qc-visibility-header { font-weight: 600; margin-bottom: 8px; }
+.qc-visibility-list { display: flex; flex-direction: column; gap: 4px; }
+.qc-visibility-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; }
+.qc-visibility-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.qc-visibility-name { flex: 1; font-size: 0.9em; }
+.qc-visibility-hidden { opacity: 0.5; }
+.qc-eye { cursor: pointer; color: var(--icon-color-hover); display: inline-flex; }
+.qc-eye:hover { color: var(--icon-color); }
+.qc-visibility-reset { display: block; margin-top: 10px; font-size: 0.85em; text-align: right; color: var(--text-muted); text-decoration: underline; }
+.qc-visibility-reset:hover { color: var(--text-normal); }
+.qc-visibility-empty { font-size: 0.9em; color: var(--text-muted); padding: 4px; }
