@@ -294,6 +294,27 @@ A hierarquia `parentId` NÃO é só organização estrutural — ela **É** o me
 - Pastas NAO afetam hierarquia, analytics, ou queries — sao puramente organizacionais
 - Serializacao: `folders: Record<string, FolderDefinition>` no JSON
 
+**Code Groups (Tier 1.5 — flat N:N, ortogonal a `parentId` e `folder`):**
+- `groups?: string[]` no CodeDefinition (array de groupIds — código pode ser membro de N groups)
+- `GroupDefinition { id, name, color, description?, paletteIndex, parentId? schema-ready, createdAt }` armazenado no registry
+- `GROUP_PALETTE` (8 cores pastéis) distinto do `DEFAULT_PALETTE` (12 cores) pra evitar confusão visual em chip counters
+- CRUD: `createGroup`, `renameGroup`, `deleteGroup` (ripple — remove groupId de todos `code.groups[]`), `setGroupColor`, `setGroupDescription`, `setGroupOrder`
+- Membership: `addCodeToGroup` / `removeCodeFromGroup` (idempotentes — fire único do `onMutate` listener)
+- Queries: `getCodesInGroup`, `getGroupsForCode`, `getGroupMemberCount`
+- Serialização: `groups`, `groupOrder`, `nextGroupPaletteIndex` em `data.registry`. Tolerante a data.json legado (ausência de campos = inicialização vazia)
+- **Distinção operacional:**
+
+  | | Folder | Group |
+  |---|---|---|
+  | 1 código em N? | 1 só | N ao mesmo tempo |
+  | Afeta Analytics? | ❌ | ✅ (filter) |
+  | Aparece em export? | ❌ | ✅ (QDPX `<Sets>`, CSV `groups` column + `groups.csv`) |
+  | Finalidade | Cosmética | Dimensão analítica |
+- UI: painel "Groups" no topo do codebook (chips + filter contextual), chip contador `🏷N` em rows, seção Groups no Code Detail, right-click "Add to group..."
+- Analytics: `FilterConfig.groupFilter` com `memberCodeIds` pre-computed em `buildFilterConfig` (evita passar registry em 9 callers de `applyFilters`); UI single-select com fallback dropdown >10 groups
+- Export: QDPX `<Set>` dentro de `<CodeBook>` com custom namespace `xmlns:qualia="urn:qualia-coding:extensions:1.0"` (`qualia:color` round-trip próprio); QDPX externo (Atlas.ti/MAXQDA) sem `qualia:color` recebe cor auto-atribuída do `GROUP_PALETTE` em round-robin; `<MemberSource>` ignorado com warning. Tabular CSV: coluna `groups` em `codes.csv` (`;`-separated names) + `groups.csv` standalone
+- Merge: target herda **union** dos groups (snapshot pego antes do delete dos sources — preserva audit trail analítico)
+
 **Codebook Panel (UI):**
 - `hierarchyHelpers.ts`: `buildFlatTree` (virtual scroll com FlatCodeNode | FlatFolderNode), `buildCountIndex` (contagem direta + agregada)
 - `codebookTreeRenderer.ts`: virtual scrolling, folder rows (icone) vs code rows (chevron + swatch)
