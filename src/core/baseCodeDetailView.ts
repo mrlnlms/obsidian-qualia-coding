@@ -406,6 +406,18 @@ export abstract class BaseCodeDetailView extends ItemView {
 			.onClick(() => this.editGroupDescription(groupId)),
 		);
 
+		if (g.description) {
+			menu.addItem((item) => item
+				.setTitle('Clear description')
+				.setIcon('x')
+				.onClick(() => {
+					this.model.registry.setGroupDescription(groupId, undefined);
+					this.model.saveMarkers();
+					this.refreshCurrentMode();
+				}),
+			);
+		}
+
 		menu.addSeparator();
 
 		menu.addItem((item) => item
