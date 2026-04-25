@@ -51,6 +51,8 @@ src/
     imageDimensions.ts       — getImageDimensions com fallback createImageBitmap → <img> (SVG via MIME map)
     magnitudeRange.ts        — generateContinuousRange puro (decimais inferidos do step, safety cap)
     drawToolbarFactory.ts    — factory compartilhada de toolbar drawing (PDF + Image)
+    codeGroupsPanel.ts       — painel "Groups" no topo do codebook (chips + filter contextual)
+    codeGroupsAddPicker.ts   — getAddToGroupCandidates puro (popula FuzzySuggestModal)
     mediaViewTypes.ts        — constantes isoladas de view type (sem imports Obsidian, testável em jsdom)
     viewToggleHelpers.ts     — lógica pura: resolveToggleTarget, isMediaViewType
     mediaToggleButton.ts     — injeção do botão `replace-all` no header + performToggleCommand (4 mídias)
@@ -121,6 +123,7 @@ src/
       buildCodesTable.ts     — codebook denormalizado (pastas sao visual, nao saem)
       buildCaseVariablesTable.ts — long format (fileId, variable)
       buildRelationsTable.ts — unifica code-level + application-level
+      buildGroupsTable.ts    — groups.csv standalone (id, name, color, description)
       tabularExporter.ts     — orchestrator (CSV text resolve + fflate zip realm-safety)
   import/                    — REFI-QDA import (QDC + QDPX)
     qdcImporter.ts           — parse XML codebook, popular registry
@@ -185,7 +188,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2108 testes em 115 suites (Vitest + jsdom)
+- `npm run test` — 2181 testes em 126 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
@@ -208,6 +211,14 @@ src/
 - `folder` — id da pasta virtual (nunca path). Pastas nao tem significado analitico
 - `FolderDefinition` — `{ id, name, createdAt }` no registry. Pastas nao afetam analytics
 - `createFolder` / `deleteFolder` / `renameFolder` / `setCodeFolder` — CRUD de pastas no registry
+- `groups` — array de groupIds em CodeDefinition (camada flat N:N ortogonal a parentId/folder). Afeta Analytics filter e export
+- `GroupDefinition` — `{ id (g_*), name, color, description?, paletteIndex, parentId? schema-ready, createdAt }` no registry
+- `GROUP_PALETTE` — 8 cores pastéis distintas do `DEFAULT_PALETTE`. Auto-assign round-robin com `nextGroupPaletteIndex` (nunca decrementa)
+- `createGroup` / `renameGroup` / `deleteGroup` (ripple) / `addCodeToGroup` / `removeCodeFromGroup` / `setGroupColor` / `setGroupDescription` / `setGroupOrder` — API do registry
+- `getCodesInGroup` / `getGroupsForCode` / `getGroupMemberCount` — queries
+- Merge preserva **union** dos groups (target + sources, snapshot pré-delete)
+- QDPX export: `<Sets>` em `<CodeBook>` com namespace `xmlns:qualia="urn:qualia-coding:extensions:1.0"` pra `qualia:color`
+- Tabular CSV: coluna `groups` (`;`-separated names) em `codes.csv` + `groups.csv` standalone
 - `FlatTreeNode = FlatCodeNode | FlatFolderNode` — union discriminada em hierarchyHelpers.ts
 - `rootOrder` — array ordenado de IDs root no registry. Controla ordem de exibicao
 - `magnitude` — config no CodeDefinition `{ type, values }`, valor no CodeApplication. Picker fechado
