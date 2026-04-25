@@ -29,6 +29,7 @@ export class AnalyticsView extends ItemView {
   minFrequency = 1;
   codeSearch = "";
   private clearAllHandler: (() => void) | null = null;
+  private registryChangedHandler: (() => void) | null = null;
   renderGeneration = 0;
   matrixSortMode: MatrixSortMode = "alpha";
   cooccSortMode: CooccSortMode = "alpha";
@@ -129,12 +130,25 @@ export class AnalyticsView extends ItemView {
       this.renderView();
     };
     document.addEventListener('qualia:clear-all', this.clearAllHandler);
+
+    // Sync on registry changes (e.g. QDPX import creating groups while view is open)
+    // Reload data + re-render config panel pra refletir groups novos no Filter by group section
+    this.registryChangedHandler = async () => {
+      this.data = await this.plugin.loadConsolidatedData();
+      this.renderConfigPanel();
+      this.scheduleUpdate();
+    };
+    document.addEventListener('qualia:registry-changed', this.registryChangedHandler);
   }
 
   async onClose(): Promise<void> {
     if (this.clearAllHandler) {
       document.removeEventListener('qualia:clear-all', this.clearAllHandler);
       this.clearAllHandler = null;
+    }
+    if (this.registryChangedHandler) {
+      document.removeEventListener('qualia:registry-changed', this.registryChangedHandler);
+      this.registryChangedHandler = null;
     }
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     if (this.activeChartInstance) {
