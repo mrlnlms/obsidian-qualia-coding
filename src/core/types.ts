@@ -10,6 +10,18 @@ import type { CaseVariablesSection } from './caseVariables/caseVariablesTypes';
 
 // ─── Base interfaces for sidebar views (all engines) ─────────────
 
+// 8-color pastel palette for Code Groups. Distinct from DEFAULT_PALETTE (codes) to avoid visual confusion in chip counters.
+export const GROUP_PALETTE: readonly string[] = [
+	'#AEC6FF',  // pastel blue
+	'#B7E4C7',  // pastel green
+	'#FFD6A5',  // pastel peach
+	'#FFADAD',  // pastel coral
+	'#CAFFBF',  // pastel mint
+	'#BDB2FF',  // pastel violet
+	'#FDFFB6',  // pastel yellow
+	'#FFC6FF',  // pastel pink
+];
+
 export type MarkerType = 'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video';
 
 export interface CodeRelation {
@@ -87,6 +99,8 @@ export interface CodeDefinition {
 	folder?: string;        // folder id — undefined = no folder (root level)
 	// Magnitude (Phase D)
 	magnitude?: { type: 'nominal' | 'ordinal' | 'continuous'; values: string[] };
+	// Groups (Tier 1.5 — flat N:N, orthogonal to parentId)
+	groups?: string[];  // array de groupIds. undefined/empty = sem groups.
 	// Relations code-level (Phase E)
 	relations?: CodeRelation[];
 }
@@ -94,6 +108,16 @@ export interface CodeDefinition {
 export interface FolderDefinition {
 	id: string;
 	name: string;
+	createdAt: number;
+}
+
+export interface GroupDefinition {
+	id: string;              // g_XX (estável)
+	name: string;            // livre, renameable
+	color: string;           // REQUIRED — auto-atribuído do GROUP_PALETTE
+	description?: string;    // opcional, multiline
+	paletteIndex: number;    // índice no GROUP_PALETTE; -1 se cor customizada
+	parentId?: string;       // SCHEMA-READY pra tier 3; UI 1.5 NUNCA escreve
 	createdAt: number;
 }
 
@@ -116,6 +140,10 @@ export interface QualiaData {
 		nextPaletteIndex: number;
 		folders: Record<string, FolderDefinition>;
 		rootOrder: string[];
+		// Groups (Tier 1.5)
+		groups: Record<string, GroupDefinition>;
+		groupOrder: string[];
+		nextGroupPaletteIndex: number;
 	};
 	general: GeneralSettings;
 	markdown: { markers: Record<string, Marker[]>; settings: CodeMarkerSettings };
@@ -153,7 +181,7 @@ export interface QualiaData {
 
 export function createDefaultData(): QualiaData {
 	return {
-		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, rootOrder: [] },
+		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0 },
 		general: { showMagnitudeInPopover: true, showRelationsInPopover: true, openToggleInNewTab: false },
 		markdown: { markers: {}, settings: {
 			defaultColor: '#6200EE',

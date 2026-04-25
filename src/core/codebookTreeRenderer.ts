@@ -7,6 +7,7 @@
 
 import { setIcon } from 'obsidian';
 import type { SidebarModelInterface } from './types';
+import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import { buildFlatTree, buildCountIndex, type FlatTreeNode, type FlatCodeNode, type FlatFolderNode, type CountIndex, type ExpandedState } from './hierarchyHelpers';
 
 // ─── Constants ───────────────────────────────────────────
@@ -30,6 +31,7 @@ export interface CodebookTreeState {
 	expanded: ExpandedState;
 	searchQuery: string;
 	dragMode: 'reorganize' | 'merge';
+	selectedGroupId: string | null;
 }
 
 // ─── Main render function ────────────────────────────────
@@ -84,7 +86,7 @@ export function renderCodebookTree(
 		for (let i = startIdx; i < endIdx; i++) {
 			if (rowPool.has(i)) continue;
 			const node = nodes[i]!;
-			const rowEl = renderRow(node, counts, i, callbacks);
+			const rowEl = renderRow(node, counts, i, callbacks, model.registry, state.selectedGroupId);
 			spacer.appendChild(rowEl);
 			rowPool.set(i, rowEl);
 		}
@@ -107,11 +109,13 @@ function renderRow(
 	counts: CountIndex,
 	index: number,
 	callbacks: CodebookTreeCallbacks,
+	registry: CodeDefinitionRegistry,
+	selectedGroupId: string | null,
 ): HTMLElement {
 	if (node.type === 'folder') {
 		return renderFolderRow(node, index, callbacks);
 	}
-	return renderCodeRow(node, counts, index, callbacks);
+	return renderCodeRow(node, counts, index, callbacks, registry, selectedGroupId);
 }
 
 function renderFolderRow(
@@ -178,6 +182,8 @@ function renderCodeRow(
 	counts: CountIndex,
 	index: number,
 	callbacks: CodebookTreeCallbacks,
+	registry: CodeDefinitionRegistry,
+	selectedGroupId: string | null,
 ): HTMLElement {
 	const row = document.createElement('div');
 	row.className = 'codebook-tree-row';
@@ -252,6 +258,25 @@ function renderCodeRow(
 		row.appendChild(badge);
 	}
 
+	// Group chip contador (oculto quando code.groups vazio/undefined)
+	const groupChip = computeGroupChipLabel(node.def.id, registry);
+	if (groupChip) {
+		const chip = document.createElement('span');
+		chip.className = 'codebook-tree-group-chip';
+		chip.title = groupChip.tooltip;
+		setIcon(chip, 'tag');
+		const num = document.createElement('span');
+		num.className = 'codebook-tree-group-chip-count';
+		num.textContent = String(groupChip.count);
+		chip.appendChild(num);
+		row.appendChild(chip);
+	}
+
+	// Group filter contextual (selectedGroupId setado)
+	const membership = applyGroupFilterToRowClasses(node.def.id, selectedGroupId, registry);
+	if (membership === 'member') row.classList.add('is-group-member');
+	else if (membership === 'non-member') row.classList.add('is-group-non-member');
+
 	// Click → navigate to code detail
 	row.addEventListener('click', () => {
 		callbacks.onCodeClick(node.def.id);
@@ -264,4 +289,35 @@ function renderCodeRow(
 	});
 
 	return row;
+}
+
+/**
+ * Decide se o chip contador de groups (`🏷N`) aparece na row de um código
+ * e retorna count + tooltip com nomes dos groups. null = sem chip.
+ */
+export function computeGroupChipLabel(
+	codeId: string,
+	registry: CodeDefinitionRegistry,
+): { count: number; tooltip: string } | null {
+	const groups = registry.getGroupsForCode(codeId);
+	if (groups.length === 0) return null;
+	return {
+		count: groups.length,
+		tooltip: groups.map(g => g.name).join(', '),
+	};
+}
+
+/**
+ * Decide a classe de filtro contextual de uma row baseada no selectedGroupId.
+ * Quando null = sem filtro ativo. Quando setado, retorna 'member' ou 'non-member'.
+ */
+export function applyGroupFilterToRowClasses(
+	codeId: string,
+	selectedGroupId: string | null,
+	registry: CodeDefinitionRegistry,
+): 'member' | 'non-member' | 'none' {
+	if (!selectedGroupId) return 'none';
+	const code = registry.getById(codeId);
+	if (code?.groups?.includes(selectedGroupId)) return 'member';
+	return 'non-member';
 }

@@ -8,7 +8,7 @@ import type { MDSMode } from "../data/mdsEngine";
 export type { ViewMode, SortMode, MatrixSortMode, GroupMode, DisplayMode, CooccSortMode } from "./analyticsViewContext";
 import type { ViewMode, SortMode, MatrixSortMode, GroupMode, DisplayMode, CooccSortMode } from "./analyticsViewContext";
 import { MODE_REGISTRY } from "./modes/modeRegistry";
-import { renderSourcesSection, renderViewModeSection, renderCodesSection, renderMinFreqSection, renderCaseVariablesFilter } from "./configSections";
+import { renderSourcesSection, renderViewModeSection, renderCodesSection, renderMinFreqSection, renderCaseVariablesFilter, renderGroupsFilter } from "./configSections";
 
 export const ANALYTICS_VIEW_TYPE = "codemarker-analytics";
 
@@ -78,6 +78,9 @@ export class AnalyticsView extends ItemView {
 
   // Case variable filter state
   caseVariableFilter: { name: string; value: string } | null = null;
+
+  // Group filter state (Tier 1.5)
+  groupFilter: string | null = null;
 
   // Text Retrieval state
   trSearch = "";
@@ -306,6 +309,12 @@ export class AnalyticsView extends ItemView {
       { filter: this.caseVariableFilter },
       (f) => { this.caseVariableFilter = f; this.scheduleUpdate(); },
     );
+    renderGroupsFilter(
+      this.configPanelEl,
+      this.plugin.registry,
+      { filter: this.groupFilter },
+      (f) => { this.groupFilter = f; this.scheduleUpdate(); },
+    );
   }
 
   // ─── Core logic ───
@@ -314,12 +323,20 @@ export class AnalyticsView extends ItemView {
     const allCodeIds = this.data?.codes.map((c) => c.id) ?? [];
     const excludeCodes = allCodeIds.filter((c) => !this.enabledCodes.has(c));
 
+    const groupFilter = this.groupFilter
+      ? {
+          groupId: this.groupFilter,
+          memberCodeIds: this.plugin.registry.getCodesInGroup(this.groupFilter).map(c => c.id),
+        }
+      : undefined;
+
     return {
       sources: Array.from(this.enabledSources),
       codes: [], // empty = all (filtering via excludeCodes instead)
       excludeCodes,
       minFrequency: this.minFrequency,
       caseVariableFilter: this.caseVariableFilter ?? undefined,
+      groupFilter,
     };
   }
 

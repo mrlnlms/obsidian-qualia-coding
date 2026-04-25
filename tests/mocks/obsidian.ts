@@ -139,6 +139,24 @@ export class Modal {
   onClose() {}
 }
 
+export class FuzzySuggestModal<T> extends Modal {
+  getItems(): T[] { return []; }
+  getItemText(_item: T): string { return ''; }
+  onChooseItem(_item: T, _evt?: MouseEvent | KeyboardEvent): void {}
+}
+
+export class AbstractInputSuggest<T> {
+  constructor(_app: App, _inputEl: HTMLInputElement) {}
+  getSuggestions(_query: string): T[] | Promise<T[]> { return []; }
+  renderSuggestion(_value: T, _el: HTMLElement): void {}
+  selectSuggestion(_value: T, _evt: MouseEvent | KeyboardEvent): void {}
+  setValue(_v: string): void {}
+}
+
+export function prepareFuzzySearch(_query: string): (text: string) => { score: number; matches: number[][] } | null {
+  return () => null;
+}
+
 export function setIcon(_el: HTMLElement, _iconId: string) {}
 export function setTooltip(_el: HTMLElement, _tooltip: string) {}
 export function normalizePath(path: string) { return path; }

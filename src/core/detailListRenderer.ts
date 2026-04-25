@@ -7,10 +7,16 @@
 import { SearchComponent, setIcon } from 'obsidian';
 import type { BaseMarker, SidebarModelInterface } from './types';
 import { renderCodebookTree, type CodebookTreeCallbacks, type CodebookTreeState } from './codebookTreeRenderer';
+import { renderCodeGroupsPanel } from './codeGroupsPanel';
 
 export interface ListRendererCallbacks extends CodebookTreeCallbacks {
 	onSearchChange(query: string): void;
 	onDragModeChange(mode: 'reorganize' | 'merge'): void;
+	// Groups
+	onSelectGroup(groupId: string | null): void;
+	onCreateGroup(): void;
+	onGroupChipContextMenu(groupId: string, event: MouseEvent): void;
+	onEditGroupDescription(groupId: string): void;
 }
 
 /**
@@ -72,7 +78,20 @@ export function renderListContent(
 	callbacks: ListRendererCallbacks,
 ): void {
 	contentZone.empty();
-	renderCodebookTree(contentZone, model, treeState, callbacks);
+
+	// Sub-divs separados — renderCodebookTree chama container.empty() e apagaria o painel.
+	const panelDiv = contentZone.createDiv();
+	const treeDiv = contentZone.createDiv();
+
+	renderCodeGroupsPanel(panelDiv, model.registry, {
+		selectedGroupId: treeState.selectedGroupId,
+		onSelectGroup: callbacks.onSelectGroup,
+		onCreateGroup: callbacks.onCreateGroup,
+		onChipContextMenu: callbacks.onGroupChipContextMenu,
+		onEditDescription: callbacks.onEditGroupDescription,
+	});
+
+	renderCodebookTree(treeDiv, model, treeState, callbacks);
 }
 
 /** Count how many segments reference each code (by codeId). */

@@ -12,8 +12,8 @@
  *   - renderCustomSection(container, marker) — optional extra section (e.g. memo)
  */
 
-import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
-import { BaseMarker, SidebarModelInterface } from './types';
+import { FuzzySuggestModal, ItemView, Menu, Notice, WorkspaceLeaf } from 'obsidian';
+import { BaseMarker, GroupDefinition, SidebarModelInterface } from './types';
 import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
@@ -23,6 +23,7 @@ import { showCodeContextMenu, showFolderContextMenu, type ContextMenuCallbacks }
 import { setupDragDrop } from './codebookDragDrop';
 import { MergeModal, executeMerge } from './mergeModal';
 import { PromptModal, ConfirmModal } from './dialogs';
+import { getAddToGroupCandidates } from './codeGroupsAddPicker';
 
 export abstract class BaseCodeDetailView extends ItemView {
 	protected model: SidebarModelInterface;
@@ -32,6 +33,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	// Tree state for codebook panel
 	protected expanded: ExpandedState = createExpandedState();
 	protected treeDragMode: 'reorganize' | 'merge' = 'reorganize';
+	protected selectedGroupId: string | null = null;
 
 	private searchQuery = '';
 	private rafId: number | null = null;
@@ -156,6 +158,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			expanded: this.expanded,
 			searchQuery: this.searchQuery,
 			dragMode: this.treeDragMode,
+			selectedGroupId: this.selectedGroupId,
 		};
 	}
 
@@ -314,7 +317,181 @@ export abstract class BaseCodeDetailView extends ItemView {
 					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
 				}
 			},
+			onSelectGroup: (groupId: string | null) => {
+				this.selectedGroupId = groupId;
+				this.refreshCurrentMode();
+			},
+			onCreateGroup: () => {
+				new PromptModal({
+					app: this.app,
+					title: 'New group',
+					placeholder: 'Group name',
+					onSubmit: (name) => {
+						const trimmed = name.trim();
+						if (!trimmed) {
+							new Notice('Group name cannot be empty.');
+							return;
+						}
+						this.model.registry.createGroup(trimmed);
+						this.model.saveMarkers();
+						this.refreshCurrentMode();
+					},
+				}).open();
+			},
+			onGroupChipContextMenu: (groupId: string, evt: MouseEvent) => {
+				this.openGroupChipMenu(groupId, evt);
+			},
+			onEditGroupDescription: (groupId: string) => {
+				this.editGroupDescription(groupId);
+			},
 		};
+	}
+
+	// ─── Group chip context menu ───────────────────────────
+
+	private openGroupChipMenu(groupId: string, evt: MouseEvent): void {
+		const g = this.model.registry.getGroup(groupId);
+		if (!g) return;
+
+		const menu = new Menu();
+
+		menu.addItem((item) => item
+			.setTitle('Rename')
+			.setIcon('pencil')
+			.onClick(() => {
+				new PromptModal({
+					app: this.app,
+					title: 'Rename group',
+					initialValue: g.name,
+					onSubmit: (newName) => {
+						const trimmed = newName.trim();
+						if (!trimmed) {
+							new Notice('Group name cannot be empty.');
+							return;
+						}
+						this.model.registry.renameGroup(groupId, trimmed);
+						this.model.saveMarkers();
+						this.refreshCurrentMode();
+					},
+				}).open();
+			}),
+		);
+
+		menu.addItem((item) => item
+			.setTitle('Edit color')
+			.setIcon('palette')
+			.onClick(() => {
+				const input = document.createElement('input');
+				input.type = 'color';
+				input.value = g.color;
+				input.style.position = 'fixed';
+				input.style.left = '-9999px';
+				document.body.appendChild(input);
+				input.addEventListener('change', () => {
+					this.model.registry.setGroupColor(groupId, input.value);
+					input.remove();
+					this.model.saveMarkers();
+					this.refreshCurrentMode();
+				}, { once: true });
+				input.addEventListener('blur', () => {
+					setTimeout(() => input.remove(), 100);
+				}, { once: true });
+				input.click();
+			}),
+		);
+
+		menu.addItem((item) => item
+			.setTitle('Edit description')
+			.setIcon('file-text')
+			.onClick(() => this.editGroupDescription(groupId)),
+		);
+
+		menu.addSeparator();
+
+		menu.addItem((item) => item
+			.setTitle('Delete')
+			.setIcon('trash')
+			.setWarning(true)
+			.onClick(() => {
+				const memberCount = this.model.registry.getGroupMemberCount(groupId);
+				new ConfirmModal({
+					app: this.app,
+					title: 'Delete group',
+					message: `Delete group "${g.name}"? ${memberCount} code(s) will lose this membership.`,
+					confirmLabel: 'Delete',
+					destructive: true,
+					onConfirm: () => {
+						this.model.registry.deleteGroup(groupId);
+						if (this.selectedGroupId === groupId) this.selectedGroupId = null;
+						this.model.saveMarkers();
+						this.refreshCurrentMode();
+					},
+				}).open();
+			}),
+		);
+
+		menu.showAtMouseEvent(evt);
+	}
+
+	private editGroupDescription(groupId: string): void {
+		const g = this.model.registry.getGroup(groupId);
+		if (!g) return;
+		new PromptModal({
+			app: this.app,
+			title: 'Edit description',
+			initialValue: g.description ?? '',
+			placeholder: 'Short description (optional)',
+			onSubmit: (desc) => {
+				const trimmed = desc.trim();
+				this.model.registry.setGroupDescription(groupId, trimmed || undefined);
+				this.model.saveMarkers();
+				this.refreshCurrentMode();
+			},
+		}).open();
+	}
+
+	private openAddToGroupPicker(codeId: string): void {
+		const candidates = getAddToGroupCandidates(codeId, this.model.registry);
+		const view = this;
+
+		type Choice = GroupDefinition | { id: '__new__'; name: string; isNew: true };
+
+		class AddGroupModal extends FuzzySuggestModal<Choice> {
+			getItems(): Choice[] {
+				const items: Choice[] = [...candidates];
+				items.push({ id: '__new__', name: '+ New group...', isNew: true });
+				return items;
+			}
+			getItemText(item: Choice): string {
+				return item.name;
+			}
+			onChooseItem(item: Choice): void {
+				if ('isNew' in item) {
+					new PromptModal({
+						app: view.app,
+						title: 'New group',
+						placeholder: 'Group name',
+						onSubmit: (name) => {
+							const trimmed = name.trim();
+							if (!trimmed) {
+								new Notice('Group name cannot be empty.');
+								return;
+							}
+							const g = view.model.registry.createGroup(trimmed);
+							view.model.registry.addCodeToGroup(codeId, g.id);
+							view.model.saveMarkers();
+							view.refreshCurrentMode();
+						},
+					}).open();
+				} else {
+					view.model.registry.addCodeToGroup(codeId, item.id);
+					view.model.saveMarkers();
+					view.refreshCurrentMode();
+				}
+			}
+		}
+
+		new AddGroupModal(this.app).open();
 	}
 
 	// ─── Context Menu ──────────────────────────────────────
@@ -420,6 +597,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 				this.model.registry.setParent(codeId, parentId);
 				this.model.saveMarkers();
 			},
+			promptAddToGroup: (codeId: string) => this.openAddToGroupPicker(codeId),
 		};
 	}
 
@@ -444,6 +622,12 @@ export abstract class BaseCodeDetailView extends ItemView {
 			setContext: (mid, c) => this.setContext(mid, c),
 			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
 			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
+			onAddToGroup: (codeId) => this.openAddToGroupPicker(codeId),
+			onRemoveFromGroup: (codeId, groupId) => {
+				this.model.registry.removeCodeFromGroup(codeId, groupId);
+				this.model.saveMarkers();
+				this.refreshCurrentMode();
+			},
 		}, this.app);
 	}
 

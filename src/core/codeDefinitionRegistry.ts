@@ -4,7 +4,8 @@
  * Canonical copy — all engines import from here.
  */
 
-import type { CodeDefinition, FolderDefinition } from './types';
+import type { CodeDefinition, FolderDefinition, GroupDefinition } from './types';
+import { GROUP_PALETTE } from './types';
 import { cleanOverridesAfterGlobalChange, shouldStoreOverride, isCodeVisibleInFile as isVisibleHelper } from './codeVisibility';
 import type { VisibilityOverrides } from './codeVisibility';
 
@@ -42,6 +43,13 @@ export class CodeDefinitionRegistry {
 	private folders: Map<string, FolderDefinition> = new Map();
 	/** Ordered list of root-level code IDs. Controls display order. */
 	rootOrder: string[] = [];
+
+	/** Groups (Tier 1.5 — flat N:N). Public pra permitir acesso do static fromJSON. */
+	groups: Map<string, GroupDefinition> = new Map();
+	/** Ordered list of group IDs. Controls display order in panel. */
+	groupOrder: string[] = [];
+	/** Monotonic index into GROUP_PALETTE. Nunca decrementa no deleteGroup (pattern do nextPaletteIndex). */
+	nextGroupPaletteIndex: number = 0;
 
 	/** Register a callback invoked on every mutation (create/update/delete). */
 	addOnMutate(fn: () => void): void {
@@ -279,7 +287,152 @@ export class CodeDefinitionRegistry {
 		this.folders.clear();
 		this.rootOrder = [];
 		this.nextPaletteIndex = 0;
+		this.groups.clear();
+		this.groupOrder = [];
+		this.nextGroupPaletteIndex = 0;
 		for (const fn of this.onMutateListeners) fn();
+	}
+
+	// --- Groups CRUD ---
+
+	createGroup(name: string): GroupDefinition {
+		const paletteIndex = this.nextGroupPaletteIndex % GROUP_PALETTE.length;
+		const color = GROUP_PALETTE[paletteIndex]!;
+		const group: GroupDefinition = {
+			id: this.generateGroupId(),
+			name,
+			color,
+			paletteIndex,
+			createdAt: Date.now(),
+		};
+		this.groups.set(group.id, group);
+		this.groupOrder.push(group.id);
+		this.nextGroupPaletteIndex++;
+		for (const fn of this.onMutateListeners) fn();
+		return group;
+	}
+
+	getGroup(id: string): GroupDefinition | null {
+		return this.groups.get(id) ?? null;
+	}
+
+	getAllGroups(): GroupDefinition[] {
+		return this.groupOrder
+			.map(id => this.groups.get(id))
+			.filter((g): g is GroupDefinition => g !== undefined);
+	}
+
+	getGroupOrder(): string[] {
+		return [...this.groupOrder];
+	}
+
+	renameGroup(id: string, newName: string): boolean {
+		const g = this.groups.get(id);
+		if (!g) return false;
+		g.name = newName;
+		for (const fn of this.onMutateListeners) fn();
+		return true;
+	}
+
+	deleteGroup(id: string): boolean {
+		const g = this.groups.get(id);
+		if (!g) return false;
+
+		// Ripple: remover groupId de code.groups[] em todos os códigos.
+		// Single listener fire at end (batch semantics) — NÃO mover emit pra dentro do loop.
+		for (const code of this.definitions.values()) {
+			if (code.groups && code.groups.includes(id)) {
+				code.groups = code.groups.filter(gid => gid !== id);
+				if (code.groups.length === 0) delete code.groups;
+			}
+		}
+
+		this.groups.delete(id);
+		this.groupOrder = this.groupOrder.filter(gid => gid !== id);
+		for (const fn of this.onMutateListeners) fn();
+		return true;
+	}
+
+	// --- Membership ---
+
+	addCodeToGroup(codeId: string, groupId: string): void {
+		const code = this.definitions.get(codeId);
+		const group = this.groups.get(groupId);
+		if (!code || !group) return;
+		if (!code.groups) code.groups = [];
+		if (!code.groups.includes(groupId)) {
+			code.groups.push(groupId);
+			for (const fn of this.onMutateListeners) fn();
+		}
+		// idempotent: no fire se já era membro
+	}
+
+	removeCodeFromGroup(codeId: string, groupId: string): void {
+		const code = this.definitions.get(codeId);
+		if (!code || !code.groups) return;
+		const changed = code.groups.includes(groupId);
+		if (!changed) return;  // no-op: código não é membro
+		code.groups = code.groups.filter(gid => gid !== groupId);
+		if (code.groups.length === 0) delete code.groups;
+		for (const fn of this.onMutateListeners) fn();
+	}
+
+	// --- Queries ---
+
+	getCodesInGroup(groupId: string): CodeDefinition[] {
+		const result: CodeDefinition[] = [];
+		for (const code of this.definitions.values()) {
+			if (code.groups?.includes(groupId)) result.push(code);
+		}
+		return result;
+	}
+
+	getGroupsForCode(codeId: string): GroupDefinition[] {
+		const code = this.definitions.get(codeId);
+		if (!code?.groups) return [];
+		return code.groups
+			.map(gid => this.groups.get(gid))
+			.filter((g): g is GroupDefinition => g !== undefined);
+	}
+
+	getGroupMemberCount(groupId: string): number {
+		let count = 0;
+		for (const code of this.definitions.values()) {
+			if (code.groups?.includes(groupId)) count++;
+		}
+		return count;
+	}
+
+	// --- Color / description / order mutations ---
+
+	setGroupColor(id: string, color: string): void {
+		const g = this.groups.get(id);
+		if (!g) return;
+		g.color = color;
+		// Case-insensitive match contra GROUP_PALETTE (user colors podem vir lowercase de picker)
+		const paletteIdx = GROUP_PALETTE.findIndex(c => c.toLowerCase() === color.toLowerCase());
+		g.paletteIndex = paletteIdx >= 0 ? paletteIdx : -1;
+		for (const fn of this.onMutateListeners) fn();
+	}
+
+	setGroupDescription(id: string, description: string | undefined): void {
+		const g = this.groups.get(id);
+		if (!g) return;
+		g.description = description && description.length > 0 ? description : undefined;
+		for (const fn of this.onMutateListeners) fn();
+	}
+
+	setGroupOrder(ids: string[]): void {
+		// Validate: only include existing groups, preserve missing in trailing position
+		const valid = ids.filter(id => this.groups.has(id));
+		const missing = Array.from(this.groups.keys()).filter(id => !valid.includes(id));
+		this.groupOrder = [...valid, ...missing];
+		for (const fn of this.onMutateListeners) fn();
+	}
+
+	private generateGroupId(): string {
+		// Reusa o pattern de generateId() dos códigos: Date+Math.random evita colisão após add-delete-add.
+		return 'g_' + Date.now().toString(36) + Math.random().toString(36).substring(2);
 	}
 
 	// --- Palette ---
@@ -510,7 +663,15 @@ export class CodeDefinitionRegistry {
 
 	// --- Serialization ---
 
-	toJSON(): { definitions: Record<string, CodeDefinition>; nextPaletteIndex: number; rootOrder: string[]; folders: Record<string, FolderDefinition> } {
+	toJSON(): {
+		definitions: Record<string, CodeDefinition>;
+		nextPaletteIndex: number;
+		rootOrder: string[];
+		folders: Record<string, FolderDefinition>;
+		groups: Record<string, GroupDefinition>;
+		groupOrder: string[];
+		nextGroupPaletteIndex: number;
+	} {
 		const definitions: Record<string, CodeDefinition> = {};
 		for (const [id, def] of this.definitions.entries()) {
 			definitions[id] = def;
@@ -519,7 +680,19 @@ export class CodeDefinitionRegistry {
 		for (const [id, f] of this.folders.entries()) {
 			folders[id] = f;
 		}
-		return { definitions, nextPaletteIndex: this.nextPaletteIndex, rootOrder: this.rootOrder, folders };
+		const groups: Record<string, GroupDefinition> = {};
+		for (const [id, g] of this.groups.entries()) {
+			groups[id] = g;
+		}
+		return {
+			definitions,
+			nextPaletteIndex: this.nextPaletteIndex,
+			rootOrder: this.rootOrder,
+			folders,
+			groups,
+			groupOrder: this.groupOrder,
+			nextGroupPaletteIndex: this.nextGroupPaletteIndex,
+		};
 	}
 
 	static fromJSON(data: any): CodeDefinitionRegistry {
@@ -557,6 +730,25 @@ export class CodeDefinitionRegistry {
 			if (!def.parentId && !registry.rootOrder.includes(id)) {
 				registry.rootOrder.push(id);
 			}
+		}
+
+		// Groups (Tier 1.5) — tolerante a data.json legado
+		if (data?.groups) {
+			for (const id in data.groups) {
+				const g = data.groups[id] as GroupDefinition;
+				g.id = id;  // consistency (igual ao pattern de codes/folders)
+				registry.groups.set(id, g);
+			}
+		}
+		if (Array.isArray(data?.groupOrder)) {
+			registry.groupOrder = data.groupOrder.filter((id: string) => registry.groups.has(id));
+		}
+		// Se groupOrder ausente mas tem groups carregados, popula na ordem de inserção
+		for (const id of registry.groups.keys()) {
+			if (!registry.groupOrder.includes(id)) registry.groupOrder.push(id);
+		}
+		if (typeof data?.nextGroupPaletteIndex === 'number') {
+			registry.nextGroupPaletteIndex = data.nextGroupPaletteIndex;
 		}
 
 		return registry;

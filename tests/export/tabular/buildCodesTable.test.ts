@@ -19,7 +19,7 @@ describe('buildCodesTable', () => {
 		const def = reg.create('C1', '#ff0000', 'first');
 		const rows = buildCodesTable(reg);
 		expect(rows).toHaveLength(2);
-		expect(rows[1]).toEqual([def.id, 'C1', '#ff0000', '', 'first', '']);
+		expect(rows[1]).toEqual([def.id, 'C1', '#ff0000', '', 'first', '', '']);
 	});
 
 	it('fills parent_id when code has a parent', () => {

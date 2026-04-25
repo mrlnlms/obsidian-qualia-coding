@@ -1,5 +1,5 @@
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
-import type { CodeDefinition } from '../core/types';
+import type { CodeDefinition, GroupDefinition } from '../core/types';
 import { escapeXml, xmlAttr, xmlDeclaration } from './xmlBuilder';
 
 const CODEBOOK_NS = 'urn:QDA-XML:codebook:1.0';
@@ -24,8 +24,48 @@ export function buildCodebookXml(
     ? '<Codes/>'
     : `<Codes>\n${rootCodes.map(c => buildCodeElement(c, registry, options?.ensureCodeGuid)).join('\n')}\n</Codes>`;
 
+  const groups = registry.getAllGroups();
+  const setsXml = groups.length === 0
+    ? ''
+    : `\n<Sets>\n${groups.map(g => buildSetElement(g, registry, options?.ensureCodeGuid)).join('\n')}\n</Sets>`;
+
   const nsAttr = options?.namespace ? ` ${xmlAttr('xmlns', options.namespace)}` : '';
-  return `<CodeBook${nsAttr}>\n${codesXml}\n</CodeBook>`;
+  // xmlns:qualia declarado quando há groups (custom namespace pra color)
+  const qualiaNs = groups.length > 0 ? ' xmlns:qualia="urn:qualia-coding:extensions:1.0"' : '';
+  return `<CodeBook${nsAttr}${qualiaNs}>\n${codesXml}${setsXml}\n</CodeBook>`;
+}
+
+function buildSetElement(
+  group: GroupDefinition,
+  registry: CodeDefinitionRegistry,
+  ensureCodeGuid?: (codeId: string) => string,
+): string {
+  const guid = ensureCodeGuid ? ensureCodeGuid(group.id) : group.id;
+
+  const attrs = [
+    xmlAttr('guid', guid),
+    xmlAttr('name', group.name),
+    xmlAttr('qualia:color', group.color),
+  ].join(' ');
+
+  const descEl = group.description
+    ? `\n<Description>${escapeXml(group.description)}</Description>`
+    : '';
+
+  const members = registry.getCodesInGroup(group.id);
+  const membersXml = members
+    .map(c => {
+      const memberGuid = ensureCodeGuid ? ensureCodeGuid(c.id) : c.id;
+      return `<MemberCode targetGUID="${memberGuid}"/>`;
+    })
+    .join('\n');
+
+  if (!descEl && members.length === 0) {
+    return `<Set ${attrs}/>`;
+  }
+
+  const inner = [descEl, membersXml].filter(Boolean).join('\n');
+  return `<Set ${attrs}>${inner}\n</Set>`;
 }
 
 /** Build a single <Code> element, recursively including children. */

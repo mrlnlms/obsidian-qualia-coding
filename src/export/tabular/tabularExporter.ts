@@ -8,6 +8,7 @@ import { toCsv } from './csvWriter';
 import { buildSegmentsTable } from './buildSegmentsTable';
 import { buildCodeApplicationsTable } from './buildCodeApplicationsTable';
 import { buildCodesTable } from './buildCodesTable';
+import { buildGroupsTable } from './buildGroupsTable';
 import { buildCaseVariablesTable } from './buildCaseVariablesTable';
 import { buildRelationsTable } from './buildRelationsTable';
 import { buildReadme } from './readmeBuilder';
@@ -46,6 +47,7 @@ export async function exportTabular(
 	warnings.push(...apps.warnings);
 
 	const codesRows = buildCodesTable(registry);
+	const groupsRows = buildGroupsTable(registry);
 
 	const caseVars = buildCaseVariablesTable(dm);
 	warnings.push(...caseVars.warnings);
@@ -54,6 +56,7 @@ export async function exportTabular(
 		'segments.csv': toU8(strToU8(toCsv(segments.rows))),
 		'code_applications.csv': toU8(strToU8(toCsv(apps.rows))),
 		'codes.csv': toU8(strToU8(toCsv(codesRows))),
+		'groups.csv': toU8(strToU8(toCsv(groupsRows))),
 		'case_variables.csv': toU8(strToU8(toCsv(caseVars.rows))),
 	};
 
