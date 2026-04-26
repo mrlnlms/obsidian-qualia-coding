@@ -41,6 +41,8 @@ export class CodeDefinitionRegistry {
 	visibilityOverrides: VisibilityOverrides = {};
 
 	private folders: Map<string, FolderDefinition> = new Map();
+	/** Ordered list of root-level folder IDs. Controls display order at root. */
+	folderOrder: string[] = [];
 	/** Ordered list of root-level code IDs. Controls display order. */
 	rootOrder: string[] = [];
 
@@ -668,6 +670,7 @@ export class CodeDefinitionRegistry {
 		nextPaletteIndex: number;
 		rootOrder: string[];
 		folders: Record<string, FolderDefinition>;
+		folderOrder: string[];
 		groups: Record<string, GroupDefinition>;
 		groupOrder: string[];
 		nextGroupPaletteIndex: number;
@@ -689,6 +692,7 @@ export class CodeDefinitionRegistry {
 			nextPaletteIndex: this.nextPaletteIndex,
 			rootOrder: this.rootOrder,
 			folders,
+			folderOrder: this.folderOrder,
 			groups,
 			groupOrder: this.groupOrder,
 			nextGroupPaletteIndex: this.nextGroupPaletteIndex,
@@ -717,6 +721,7 @@ export class CodeDefinitionRegistry {
 				registry.folders.set(id, f);
 			}
 		}
+		registry.folderOrder = Array.isArray(data?.folderOrder) ? data.folderOrder : [];
 		if (typeof data?.nextPaletteIndex === 'number') {
 			registry.nextPaletteIndex = data.nextPaletteIndex;
 		}

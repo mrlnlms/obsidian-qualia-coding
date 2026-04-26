@@ -108,6 +108,8 @@ export interface CodeDefinition {
 export interface FolderDefinition {
 	id: string;
 	name: string;
+	parentId?: string;
+	subfolderOrder?: string[];
 	createdAt: number;
 }
 
@@ -139,6 +141,7 @@ export interface QualiaData {
 		definitions: Record<string, CodeDefinition>;
 		nextPaletteIndex: number;
 		folders: Record<string, FolderDefinition>;
+		folderOrder: string[];
 		rootOrder: string[];
 		// Groups (Tier 1.5)
 		groups: Record<string, GroupDefinition>;
@@ -181,7 +184,7 @@ export interface QualiaData {
 
 export function createDefaultData(): QualiaData {
 	return {
-		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0 },
+		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0 },
 		general: { showMagnitudeInPopover: true, showRelationsInPopover: true, openToggleInNewTab: false },
 		markdown: { markers: {}, settings: {
 			defaultColor: '#6200EE',
