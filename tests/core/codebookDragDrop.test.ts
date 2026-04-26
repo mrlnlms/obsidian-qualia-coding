@@ -31,6 +31,16 @@ describe('Folder drag-drop semantics (logic-level)', () => {
 		expect((registry as any).folderOrder).toEqual([b.id, a.id]);
 	});
 
+	it('drop nested folder AFTER root sibling promotes to root (appended)', () => {
+		const a = registry.createFolder('a');
+		const b = registry.createFolder('b', a.id);
+		// Promote b to root by inserting after a (no insertBefore = append)
+		expect(registry.setFolderParent(b.id, undefined)).toBe(true);
+		expect((registry as any).folders.get(b.id).parentId).toBeUndefined();
+		// 'a' first, 'b' appended at the end
+		expect((registry as any).folderOrder).toEqual([a.id, b.id]);
+	});
+
 	it('drop folder onto self rejected', () => {
 		const a = registry.createFolder('a');
 		expect(registry.setFolderParent(a.id, a.id)).toBe(false);
