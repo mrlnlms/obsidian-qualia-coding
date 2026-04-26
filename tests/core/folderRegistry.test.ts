@@ -50,7 +50,7 @@ describe('folder CRUD', () => {
 		expect(ok).toBe(false);
 	});
 
-	it('deleteFolder removes folder and clears code.folder references', () => {
+	it('deleteFolder cascades: deletes folder and all codes within', () => {
 		const folder = registry.createFolder('ToDelete');
 		const code = registry.create('MyCode');
 		registry.setCodeFolder(code.id, folder.id);
@@ -58,7 +58,8 @@ describe('folder CRUD', () => {
 
 		registry.deleteFolder(folder.id);
 		expect(registry.getFolderById(folder.id)).toBeUndefined();
-		expect(code.folder).toBeUndefined();
+		// Cascade: code dentro do folder é deletado (markers viram orfãos)
+		expect(registry.getById(code.id)).toBeUndefined();
 	});
 
 	it('createFolder fires onMutate', () => {

@@ -483,17 +483,28 @@ export class CodeDefinitionRegistry {
 
 	// --- Folder CRUD ---
 
-	createFolder(name: string): FolderDefinition {
-		// Dedup by name
+	createFolder(name: string, parentId?: string): FolderDefinition {
+		// Dedup parent-scoped: mesmo nome em parents diferentes vira folders distintos
 		for (const f of this.folders.values()) {
-			if (f.name === name) return f;
+			if (f.name === name && f.parentId === parentId) return f;
 		}
 		const folder: FolderDefinition = {
 			id: this.generateId(),
 			name,
 			createdAt: Date.now(),
+			...(parentId ? { parentId } : {}),
 		};
 		this.folders.set(folder.id, folder);
+
+		if (parentId) {
+			const parent = this.folders.get(parentId);
+			if (parent) {
+				parent.subfolderOrder = [...(parent.subfolderOrder ?? []), folder.id];
+			}
+		} else {
+			this.folderOrder.push(folder.id);
+		}
+
 		for (const fn of this.onMutateListeners) fn();
 		return folder;
 	}
@@ -574,6 +585,55 @@ export class CodeDefinitionRegistry {
 		return result;
 	}
 
+	/**
+	 * Set or remove the parent of a folder, optionally at a specific position.
+	 * Returns false on invalid input (self-parent, cycle, nonexistent parent).
+	 * Idempotent: if folder.parentId === parentId && insertBefore === undefined, no-op success.
+	 * @param insertBefore — insert before this sibling ID. If omitted, appends at end.
+	 */
+	setFolderParent(folderId: string, parentId: string | undefined, insertBefore?: string): boolean {
+		const folder = this.folders.get(folderId);
+		if (!folder) return false;
+
+		if (parentId !== undefined) {
+			if (parentId === folderId) return false;
+			if (!this.folders.has(parentId)) return false;
+			// Cycle detection: walk up from parentId
+			let cursor: string | undefined = parentId;
+			while (cursor) {
+				if (cursor === folderId) return false;
+				cursor = this.folders.get(cursor)?.parentId;
+			}
+		}
+
+		// Idempotente: se já está no parent target sem insertBefore, no-op
+		if (folder.parentId === parentId && insertBefore === undefined) return true;
+
+		// Remove de location atual
+		if (folder.parentId) {
+			const oldParent = this.folders.get(folder.parentId);
+			if (oldParent?.subfolderOrder) {
+				oldParent.subfolderOrder = oldParent.subfolderOrder.filter(id => id !== folderId);
+			}
+		} else {
+			this.folderOrder = this.folderOrder.filter(id => id !== folderId);
+		}
+
+		// Adiciona em location nova (reusa _insertInList helper existente)
+		if (parentId) {
+			folder.parentId = parentId;
+			const newParent = this.folders.get(parentId)!;
+			if (!newParent.subfolderOrder) newParent.subfolderOrder = [];
+			this._insertInList(newParent.subfolderOrder, folderId, insertBefore);
+		} else {
+			delete folder.parentId;
+			this._insertInList(this.folderOrder, folderId, insertBefore);
+		}
+
+		for (const fn of this.onMutateListeners) fn();
+		return true;
+	}
+
 	renameFolder(id: string, name: string): boolean {
 		const folder = this.folders.get(id);
 		if (!folder) return false;
@@ -588,14 +648,36 @@ export class CodeDefinitionRegistry {
 	}
 
 	deleteFolder(id: string): boolean {
-		if (!this.folders.has(id)) return false;
-		// Clear folder reference from all codes
-		for (const def of this.definitions.values()) {
-			if (def.folder === id) {
-				def.folder = undefined;
+		const folder = this.folders.get(id);
+		if (!folder) return false;
+
+		// 1. Coletar todos os folders afetados (self + descendants)
+		const allAffected = [folder, ...this.getFolderDescendants(id)];
+
+		// 2. Deletar todos os códigos dentro desses folders
+		for (const f of allAffected) {
+			const codesInFolder = this.getCodesInFolder(f.id);
+			for (const code of codesInFolder) {
+				this.delete(code.id);  // cuida de markers/relations via mecanismo existente
 			}
 		}
+
+		// 3. Deletar todos os sub-folders (descendants)
+		for (const f of allAffected) {
+			if (f.id !== id) this.folders.delete(f.id);
+		}
+
+		// 4. Deletar self e remover de folderOrder/subfolderOrder do parent
 		this.folders.delete(id);
+		if (folder.parentId) {
+			const parent = this.folders.get(folder.parentId);
+			if (parent?.subfolderOrder) {
+				parent.subfolderOrder = parent.subfolderOrder.filter(x => x !== id);
+			}
+		} else {
+			this.folderOrder = this.folderOrder.filter(x => x !== id);
+		}
+
 		for (const fn of this.onMutateListeners) fn();
 		return true;
 	}
