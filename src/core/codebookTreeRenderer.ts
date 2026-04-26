@@ -130,6 +130,7 @@ function renderFolderRow(
 	row.style.height = `${ROW_HEIGHT}px`;
 	row.style.width = '100%';
 	row.style.paddingLeft = `${node.depth * INDENT_PX}px`;
+	row.draggable = true;
 	row.dataset.folderId = node.folderId;
 
 	// Chevron
