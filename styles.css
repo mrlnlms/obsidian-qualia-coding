@@ -2679,6 +2679,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	margin: 8px 0 4px;
 	color: var(--text-muted);
 	line-height: 1.5;
+	white-space: pre-line;
 }
 
 /* ========================================
