@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
-import { buildFlatTree, buildCountIndex, createExpandedState } from '../../src/core/hierarchyHelpers';
+import { buildFlatTree, buildCountIndex, collectAllCodesUnderFolder, createExpandedState } from '../../src/core/hierarchyHelpers';
 import type { FlatFolderNode } from '../../src/core/hierarchyHelpers';
 import type { BaseMarker } from '../../src/core/types';
 
@@ -220,5 +220,23 @@ describe('nested folders', () => {
 		expect(ids).toContain(a.id);
 		expect(ids).toContain(b.id);
 		expect(ids).toContain(code.id);
+	});
+});
+
+describe('collectAllCodesUnderFolder', () => {
+	it('returns codes from folder + all descendants', () => {
+		const a = registry.createFolder('a');
+		const b = registry.createFolder('b', a.id);
+		const c = registry.createFolder('c', b.id);
+
+		const codeA = registry.create('codeA', '#000'); registry.setCodeFolder(codeA.id, a.id);
+		const codeB = registry.create('codeB', '#000'); registry.setCodeFolder(codeB.id, b.id);
+		const codeC = registry.create('codeC', '#000'); registry.setCodeFolder(codeC.id, c.id);
+		const codeOutside = registry.create('codeOutside', '#000');
+
+		const result = collectAllCodesUnderFolder(registry, a.id);
+		const ids = result.map(c => c.id).sort();
+		expect(ids).toEqual([codeA.id, codeB.id, codeC.id].sort());
+		expect(ids).not.toContain(codeOutside.id);
 	});
 });

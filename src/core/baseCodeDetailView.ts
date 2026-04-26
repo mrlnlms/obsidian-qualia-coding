@@ -18,7 +18,7 @@ import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
 import type { CodebookTreeState } from './codebookTreeRenderer';
-import { createExpandedState, type ExpandedState } from './hierarchyHelpers';
+import { createExpandedState, collectAllCodesUnderFolder, type ExpandedState } from './hierarchyHelpers';
 import { showCodeContextMenu, showFolderContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
 import { setupDragDrop } from './codebookDragDrop';
 import { MergeModal, executeMerge } from './mergeModal';
@@ -269,6 +269,20 @@ export abstract class BaseCodeDetailView extends ItemView {
 			},
 			onFolderRightClick: (folderId: string, event: MouseEvent) => {
 				showFolderContextMenu(event, folderId, this.model.registry, {
+					promptCreateSubfolder: (parentFolderId) => {
+						new PromptModal({
+							app: this.app,
+							title: 'New subfolder',
+							initialValue: '',
+							confirmLabel: 'Create',
+							onSubmit: (name) => {
+								const trimmed = name.trim();
+								if (!trimmed) return;
+								this.model.registry.createFolder(trimmed, parentFolderId);
+								this.model.saveMarkers();
+							},
+						}).open();
+					},
 					promptRenameFolder: (id) => {
 						const folder = this.model.registry.getFolderById(id);
 						if (!folder) return;
@@ -291,10 +305,25 @@ export abstract class BaseCodeDetailView extends ItemView {
 					promptDeleteFolder: (id) => {
 						const folder = this.model.registry.getFolderById(id);
 						if (!folder) return;
+						const subfolders = this.model.registry.getFolderDescendants(id);
+						const codes = collectAllCodesUnderFolder(this.model.registry, id);
+
+						let message = `Delete folder "${folder.name}"?`;
+						if (subfolders.length > 0 || codes.length > 0) {
+							message += `\n\nThis will permanently delete:`;
+							if (subfolders.length > 0) {
+								message += `\n  • ${subfolders.length} subfolder${subfolders.length === 1 ? '' : 's'}`;
+							}
+							if (codes.length > 0) {
+								message += `\n  • ${codes.length} code${codes.length === 1 ? '' : 's'}`;
+							}
+							message += `\n\nMarkers using these codes will become orphans.`;
+						}
+
 						new ConfirmModal({
 							app: this.app,
 							title: 'Delete folder',
-							message: `Delete folder "${folder.name}"? Codes will be moved to root.`,
+							message,
 							confirmLabel: 'Delete',
 							destructive: true,
 							onConfirm: () => {

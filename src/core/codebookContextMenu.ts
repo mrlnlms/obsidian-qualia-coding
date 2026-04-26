@@ -125,6 +125,7 @@ export function showCodeContextMenu(
 }
 
 export interface FolderContextMenuCallbacks {
+	promptCreateSubfolder(parentFolderId: string): void;
 	promptRenameFolder(folderId: string): void;
 	promptDeleteFolder(folderId: string): void;
 }
@@ -140,6 +141,9 @@ export function showFolderContextMenu(
 
 	const menu = new Menu();
 
+	menu.addItem(item =>
+		item.setTitle('New subfolder').setIcon('folder-plus').onClick(() => callbacks.promptCreateSubfolder(folder.id)),
+	);
 	menu.addItem(item =>
 		item.setTitle('Rename').setIcon('pencil').onClick(() => callbacks.promptRenameFolder(folderId)),
 	);

@@ -263,3 +263,21 @@ export function buildCountIndex(
 
 	return index;
 }
+
+// ─── collectAllCodesUnderFolder ──────────────────────────────────
+
+/**
+ * Coleta todos os códigos contidos em um folder e em qualquer sub-folder (recursivo).
+ * Usado pra preview do delete cascade.
+ */
+export function collectAllCodesUnderFolder(
+	registry: CodeDefinitionRegistry,
+	folderId: string,
+): CodeDefinition[] {
+	const folders = [folderId, ...registry.getFolderDescendants(folderId).map(f => f.id)];
+	const result: CodeDefinition[] = [];
+	for (const fid of folders) {
+		result.push(...registry.getCodesInFolder(fid));
+	}
+	return result;
+}
