@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import { buildFlatTree, buildCountIndex, createExpandedState } from '../../src/core/hierarchyHelpers';
+import type { FlatFolderNode } from '../../src/core/hierarchyHelpers';
 import type { BaseMarker } from '../../src/core/types';
 
 let registry: CodeDefinitionRegistry;
@@ -144,5 +145,80 @@ describe('folder edge cases in tree', () => {
 		registry.create('Alpha');
 		const nodes = buildFlatTree(registry, createExpandedState(), 'zzzzz');
 		expect(nodes.length).toBe(0);
+	});
+});
+
+describe('nested folders', () => {
+	it('renders nested folder at depth 1', () => {
+		const root = registry.createFolder('root');
+		const sub = registry.createFolder('sub', root.id);
+
+		const expanded = createExpandedState();
+		expanded.folders.add(root.id);
+		const tree = buildFlatTree(registry, expanded);
+
+		expect(tree.length).toBe(2);
+		expect(tree[0]).toMatchObject({ type: 'folder', folderId: root.id, depth: 0 });
+		expect(tree[1]).toMatchObject({ type: 'folder', folderId: sub.id, depth: 1 });
+	});
+
+	it('renders deep nesting (depth 3)', () => {
+		const a = registry.createFolder('a');
+		const b = registry.createFolder('b', a.id);
+		const c = registry.createFolder('c', b.id);
+		const d = registry.createFolder('d', c.id);
+
+		const expanded = createExpandedState();
+		expanded.folders.add(a.id);
+		expanded.folders.add(b.id);
+		expanded.folders.add(c.id);
+		const tree = buildFlatTree(registry, expanded);
+
+		const depths = tree.filter(n => n.type === 'folder').map(n => (n as any).depth);
+		expect(depths).toEqual([0, 1, 2, 3]);
+		expect((tree.find(n => n.type === 'folder' && n.folderId === d.id) as any)).toBeDefined();
+	});
+
+	it('subfolder collapsed hides nested folders and codes', () => {
+		const root = registry.createFolder('root');
+		const sub = registry.createFolder('sub', root.id);
+		const code = registry.create('code', '#000');
+		registry.setCodeFolder(code.id, sub.id);
+
+		const expanded = createExpandedState();
+		expanded.folders.add(root.id); // root expanded, sub collapsed
+
+		const tree = buildFlatTree(registry, expanded);
+		const ids = tree.map(n => n.type === 'folder' ? n.folderId : n.def.id);
+		expect(ids).toEqual([root.id, sub.id]);
+	});
+
+	it('hasChildren true if folder has subfolders OR codes', () => {
+		const root1 = registry.createFolder('root1');
+		registry.createFolder('sub', root1.id);
+		const root2 = registry.createFolder('root2');
+		const code = registry.create('code', '#000');
+		registry.setCodeFolder(code.id, root2.id);
+
+		const expanded = createExpandedState();
+		const tree = buildFlatTree(registry, expanded);
+
+		const folder1 = tree.find(n => n.type === 'folder' && n.folderId === root1.id) as FlatFolderNode;
+		const folder2 = tree.find(n => n.type === 'folder' && n.folderId === root2.id) as FlatFolderNode;
+		expect(folder1.hasChildren).toBe(true);
+		expect(folder2.hasChildren).toBe(true);
+	});
+
+	it('search auto-expands folder ancestors when matching code is in deep folder', () => {
+		const a = registry.createFolder('a');
+		const b = registry.createFolder('b', a.id);
+		const code = registry.create('special', '#000');
+		registry.setCodeFolder(code.id, b.id);
+
+		const tree = buildFlatTree(registry, createExpandedState(), 'special');
+		const ids = tree.map(n => n.type === 'folder' ? n.folderId : n.def.id);
+		expect(ids).toContain(a.id);
+		expect(ids).toContain(b.id);
+		expect(ids).toContain(code.id);
 	});
 });
