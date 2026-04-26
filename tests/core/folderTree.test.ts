@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
-import { buildFlatTree, buildCountIndex, collectAllCodesUnderFolder, createExpandedState } from '../../src/core/hierarchyHelpers';
+import { buildFlatTree, buildCountIndex, collectAllCodesUnderFolder, createExpandedState, buildFolderBreadcrumbList } from '../../src/core/hierarchyHelpers';
 import type { FlatFolderNode } from '../../src/core/hierarchyHelpers';
 import type { BaseMarker } from '../../src/core/types';
 
@@ -220,6 +220,27 @@ describe('nested folders', () => {
 		expect(ids).toContain(a.id);
 		expect(ids).toContain(b.id);
 		expect(ids).toContain(code.id);
+	});
+});
+
+describe('buildFolderBreadcrumbList', () => {
+	it('returns flat list with breadcrumb labels for nested folders', () => {
+		const themes = registry.createFolder('Themes');
+		const phase1 = registry.createFolder('Phase1', themes.id);
+		const phase2 = registry.createFolder('Phase2', themes.id);
+		const week1 = registry.createFolder('Week1', phase1.id);
+		const standalone = registry.createFolder('Standalone');
+
+		const list = buildFolderBreadcrumbList(registry);
+		const labels = list.map(f => f.label);
+
+		expect(labels).toEqual([
+			'Themes',
+			'Themes / Phase1',
+			'Themes / Phase1 / Week1',
+			'Themes / Phase2',
+			'Standalone',
+		]);
 	});
 });
 

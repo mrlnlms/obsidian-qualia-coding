@@ -281,3 +281,25 @@ export function collectAllCodesUnderFolder(
 	}
 	return result;
 }
+
+// ─── buildFolderBreadcrumbList ───────────────────────────────────
+
+/**
+ * Returns ALL folders flattened with breadcrumb-style labels reflecting nesting.
+ * Order: depth-first preorder (parent before children), respecting folderOrder/subfolderOrder.
+ * Used by UI surfaces that need a flat list with hierarchical context (e.g., "Move to folder" menu).
+ */
+export function buildFolderBreadcrumbList(
+	registry: CodeDefinitionRegistry,
+): { id: string; label: string }[] {
+	const result: { id: string; label: string }[] = [];
+	const visit = (folders: FolderDefinition[], parentLabel: string): void => {
+		for (const f of folders) {
+			const label = parentLabel ? `${parentLabel} / ${f.name}` : f.name;
+			result.push({ id: f.id, label });
+			visit(registry.getChildFolders(f.id), label);
+		}
+	};
+	visit(registry.getRootFolders(), '');
+	return result;
+}

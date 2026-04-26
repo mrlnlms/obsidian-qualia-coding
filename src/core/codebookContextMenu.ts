@@ -7,6 +7,7 @@
 
 import { Menu } from 'obsidian';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+import { buildFolderBreadcrumbList } from './hierarchyHelpers';
 
 export interface ContextMenuCallbacks {
 	showCodeDetail(codeId: string): void;
@@ -41,8 +42,7 @@ export function showCodeContextMenu(
 
 	menu.addSeparator();
 
-	// TODO(nested folders): listar nested folders com path; getRootFolders só mostra raiz.
-	const folders = registry.getRootFolders();
+	const folders = buildFolderBreadcrumbList(registry);
 	const SUBMENU_THRESHOLD = 5;
 	if (folders.length === 0) {
 		menu.addItem(item =>
@@ -56,7 +56,7 @@ export function showCodeContextMenu(
 			const submenu = item.setSubmenu();
 			for (const folder of folders) {
 				submenu.addItem(sub =>
-					sub.setTitle(folder.name)
+					sub.setTitle(folder.label)
 						.setIcon('folder')
 						.setChecked(def.folder === folder.id)
 						.onClick(() => callbacks.promptMoveTo(codeId, folder.id)),
@@ -74,7 +74,7 @@ export function showCodeContextMenu(
 	} else {
 		for (const folder of folders) {
 			menu.addItem(item =>
-				item.setTitle(`Move to ${folder.name}`)
+				item.setTitle(`Move to ${folder.label}`)
 					.setIcon('folder')
 					.setChecked(def.folder === folder.id)
 					.onClick(() => callbacks.promptMoveTo(codeId, folder.id)),

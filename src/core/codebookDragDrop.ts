@@ -179,13 +179,22 @@ export function setupDragDrop(
 			resetHoverMemo();
 
 			const folderRow = findFolderRow(e.target);
-			if (!folderRow || folderRow.dataset.folderId === draggedFolderId) return;
+			if (!folderRow || folderRow.dataset.folderId === draggedFolderId) {
+				cancelFolderHoverTimer();
+				return;
+			}
 			const targetFolderId = folderRow.dataset.folderId;
-			if (!targetFolderId) return;
+			if (!targetFolderId) {
+				cancelFolderHoverTimer();
+				return;
+			}
 
 			// Cycle detection: target cannot be a descendant of the dragged folder
 			const descendants = registry.getFolderDescendants(draggedFolderId);
-			if (descendants.some(d => d.id === targetFolderId)) return;
+			if (descendants.some(d => d.id === targetFolderId)) {
+				cancelFolderHoverTimer();
+				return;
+			}
 
 			const zone = getDropZone(folderRow, e.clientY);
 			lastHoverZone = zone;
@@ -193,7 +202,9 @@ export function setupDragDrop(
 
 			if (zone === 'inside') {
 				folderRow.classList.add('is-folder-drop-target');
+				scheduleFolderHoverExpand(targetFolderId);
 			} else {
+				cancelFolderHoverTimer();
 				showIndicatorAt(folderRow, zone === 'before' ? 'top' : 'bottom');
 			}
 			return;
