@@ -91,5 +91,18 @@ describe('CodeDefinitionRegistry — folder hierarchy', () => {
 			const a = registry.createFolder('a');
 			expect(registry.getFolderDescendants(a.id)).toEqual([]);
 		});
+
+		it('getFolderDescendants does not infinite-loop on cycle (defensive)', () => {
+			const a = registry.createFolder('a');
+			const b = registry.createFolder('b');
+			// Force a cycle via direct mutation
+			(registry as any).folders.get(a.id).parentId = b.id;
+			(registry as any).folders.get(b.id).parentId = a.id;
+
+			// Should terminate (no infinite loop)
+			const desc = registry.getFolderDescendants(a.id);
+			// Acceptable behavior: returns descendants seen until cycle detected
+			expect(desc.length).toBeLessThan(10); // sanity bound
+		});
 	});
 });

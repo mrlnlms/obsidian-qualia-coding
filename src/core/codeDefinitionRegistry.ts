@@ -509,8 +509,9 @@ export class CodeDefinitionRegistry {
 			if (f && !f.parentId) result.push(f);
 		}
 		// Também inclui folders root sem entrada em folderOrder (defensivo)
+		const ordered = new Set(this.folderOrder);
 		for (const f of this.folders.values()) {
-			if (!f.parentId && !this.folderOrder.includes(f.id)) {
+			if (!f.parentId && !ordered.has(f.id)) {
 				result.push(f);
 			}
 		}
@@ -528,9 +529,10 @@ export class CodeDefinitionRegistry {
 				if (f && f.parentId === parentId) result.push(f);
 			}
 			// Children fora do order vão no fim, alfabéticos
+			const orderedSet = new Set(order);
 			const fallbacks: FolderDefinition[] = [];
 			for (const f of this.folders.values()) {
-				if (f.parentId === parentId && !order.includes(f.id)) {
+				if (f.parentId === parentId && !orderedSet.has(f.id)) {
 					fallbacks.push(f);
 				}
 			}
@@ -557,11 +559,13 @@ export class CodeDefinitionRegistry {
 
 	getFolderDescendants(folderId: string): FolderDefinition[] {
 		const result: FolderDefinition[] = [];
+		const visited = new Set<string>([folderId]);
 		const stack: string[] = [folderId];
 		while (stack.length > 0) {
 			const current = stack.pop()!;
 			for (const f of this.folders.values()) {
-				if (f.parentId === current) {
+				if (f.parentId === current && !visited.has(f.id)) {
+					visited.add(f.id);
 					result.push(f);
 					stack.push(f.id);
 				}

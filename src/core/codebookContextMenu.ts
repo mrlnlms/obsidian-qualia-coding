@@ -41,6 +41,7 @@ export function showCodeContextMenu(
 
 	menu.addSeparator();
 
+	// TODO(nested folders): listar nested folders com path; getRootFolders só mostra raiz.
 	const folders = registry.getRootFolders();
 	const SUBMENU_THRESHOLD = 5;
 	if (folders.length === 0) {
