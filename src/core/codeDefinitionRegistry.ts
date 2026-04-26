@@ -502,9 +502,72 @@ export class CodeDefinitionRegistry {
 		return this.folders.get(id);
 	}
 
-	getAllFolders(): FolderDefinition[] {
-		return Array.from(this.folders.values())
-			.sort((a, b) => a.name.localeCompare(b.name));
+	getRootFolders(): FolderDefinition[] {
+		const result: FolderDefinition[] = [];
+		for (const id of this.folderOrder) {
+			const f = this.folders.get(id);
+			if (f && !f.parentId) result.push(f);
+		}
+		// Também inclui folders root sem entrada em folderOrder (defensivo)
+		for (const f of this.folders.values()) {
+			if (!f.parentId && !this.folderOrder.includes(f.id)) {
+				result.push(f);
+			}
+		}
+		return result;
+	}
+
+	getChildFolders(parentId: string): FolderDefinition[] {
+		const parent = this.folders.get(parentId);
+		if (!parent) return [];
+		const order = parent.subfolderOrder;
+		if (order && order.length > 0) {
+			const result: FolderDefinition[] = [];
+			for (const id of order) {
+				const f = this.folders.get(id);
+				if (f && f.parentId === parentId) result.push(f);
+			}
+			// Children fora do order vão no fim, alfabéticos
+			const fallbacks: FolderDefinition[] = [];
+			for (const f of this.folders.values()) {
+				if (f.parentId === parentId && !order.includes(f.id)) {
+					fallbacks.push(f);
+				}
+			}
+			fallbacks.sort((a, b) => a.name.localeCompare(b.name));
+			return [...result, ...fallbacks];
+		}
+		// Fallback alfabético
+		const all = Array.from(this.folders.values()).filter(f => f.parentId === parentId);
+		all.sort((a, b) => a.name.localeCompare(b.name));
+		return all;
+	}
+
+	getFolderAncestors(folderId: string): FolderDefinition[] {
+		const result: FolderDefinition[] = [];
+		let cursor = this.folders.get(folderId)?.parentId;
+		while (cursor) {
+			const f = this.folders.get(cursor);
+			if (!f) break;
+			result.push(f);
+			cursor = f.parentId;
+		}
+		return result;
+	}
+
+	getFolderDescendants(folderId: string): FolderDefinition[] {
+		const result: FolderDefinition[] = [];
+		const stack: string[] = [folderId];
+		while (stack.length > 0) {
+			const current = stack.pop()!;
+			for (const f of this.folders.values()) {
+				if (f.parentId === current) {
+					result.push(f);
+					stack.push(f.id);
+				}
+			}
+		}
+		return result;
 	}
 
 	renameFolder(id: string, name: string): boolean {

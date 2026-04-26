@@ -63,7 +63,7 @@ export function buildFlatTree(
 	expanded: ExpandedState,
 	searchQuery?: string,
 ): FlatTreeNode[] {
-	const folders = registry.getAllFolders();
+	const folders = registry.getRootFolders();
 
 	// If searching, compute which codes/folders to show and which to force-expand
 	let visibleCodeIds: Set<string> | null = null;

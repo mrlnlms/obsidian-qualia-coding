@@ -41,7 +41,7 @@ export function showCodeContextMenu(
 
 	menu.addSeparator();
 
-	const folders = registry.getAllFolders();
+	const folders = registry.getRootFolders();
 	const SUBMENU_THRESHOLD = 5;
 	if (folders.length === 0) {
 		menu.addItem(item =>
