@@ -128,6 +128,12 @@ describe('CodeDefinitionRegistry — folder hierarchy', () => {
 			const child = registry.createFolder('child', parent.id);
 			expect((registry as any).folderOrder).toEqual([parent.id]);
 		});
+
+		it('createFolder with invalid parentId falls back to root', () => {
+			const f = registry.createFolder('orphan', 'nonexistent-id');
+			expect(f.parentId).toBeUndefined();
+			expect((registry as any).folderOrder).toContain(f.id);
+		});
 	});
 
 	describe('setFolderParent', () => {
@@ -221,6 +227,31 @@ describe('CodeDefinitionRegistry — folder hierarchy', () => {
 
 		it('returns false for non-existent folder', () => {
 			expect(registry.deleteFolder('nonexistent')).toBe(false);
+		});
+
+		it('deleteFolder cascade fires onMutate once (not N+1)', () => {
+			const f = registry.createFolder('f');
+			const c1 = registry.create('c1', '#000'); registry.setCodeFolder(c1.id, f.id);
+			const c2 = registry.create('c2', '#000'); registry.setCodeFolder(c2.id, f.id);
+			const c3 = registry.create('c3', '#000'); registry.setCodeFolder(c3.id, f.id);
+
+			let fireCount = 0;
+			const listener = () => { fireCount++; };
+			registry.addOnMutate(listener);
+			registry.deleteFolder(f.id);
+			registry.removeOnMutate(listener);
+
+			expect(fireCount).toBe(1);
+		});
+	});
+
+	describe('clear()', () => {
+		it('resets folderOrder', () => {
+			registry.createFolder('a');
+			registry.createFolder('b');
+			expect((registry as any).folderOrder.length).toBe(2);
+			registry.clear();
+			expect((registry as any).folderOrder).toEqual([]);
 		});
 	});
 

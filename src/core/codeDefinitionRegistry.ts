@@ -239,6 +239,16 @@ export class CodeDefinitionRegistry {
 	}
 
 	delete(id: string): boolean {
+		const result = this._deleteCodeNoEmit(id);
+		if (result) for (const fn of this.onMutateListeners) fn();
+		return result;
+	}
+
+	/**
+	 * Internal: same logic as delete(id) but does NOT fire onMutateListeners.
+	 * Used by batch operations (deleteFolder cascade) that emit once at the end.
+	 */
+	private _deleteCodeNoEmit(id: string): boolean {
 		const def = this.definitions.get(id);
 		if (!def) return false;
 
@@ -278,7 +288,6 @@ export class CodeDefinitionRegistry {
 			}
 		}
 
-		for (const fn of this.onMutateListeners) fn();
 		return true;
 	}
 
@@ -288,6 +297,7 @@ export class CodeDefinitionRegistry {
 		this.nameIndex.clear();
 		this.folders.clear();
 		this.rootOrder = [];
+		this.folderOrder = [];
 		this.nextPaletteIndex = 0;
 		this.groups.clear();
 		this.groupOrder = [];
@@ -484,23 +494,26 @@ export class CodeDefinitionRegistry {
 	// --- Folder CRUD ---
 
 	createFolder(name: string, parentId?: string): FolderDefinition {
+		// Resolve invalid parentId to root (mirrors create() for codes)
+		const validParentId = parentId !== undefined && this.folders.has(parentId)
+			? parentId
+			: undefined;
+
 		// Dedup parent-scoped: mesmo nome em parents diferentes vira folders distintos
 		for (const f of this.folders.values()) {
-			if (f.name === name && f.parentId === parentId) return f;
+			if (f.name === name && f.parentId === validParentId) return f;
 		}
 		const folder: FolderDefinition = {
 			id: this.generateId(),
 			name,
 			createdAt: Date.now(),
-			...(parentId ? { parentId } : {}),
+			...(validParentId ? { parentId: validParentId } : {}),
 		};
 		this.folders.set(folder.id, folder);
 
-		if (parentId) {
-			const parent = this.folders.get(parentId);
-			if (parent) {
-				parent.subfolderOrder = [...(parent.subfolderOrder ?? []), folder.id];
-			}
+		if (validParentId) {
+			const parent = this.folders.get(validParentId)!;
+			parent.subfolderOrder = [...(parent.subfolderOrder ?? []), folder.id];
 		} else {
 			this.folderOrder.push(folder.id);
 		}
@@ -655,10 +668,11 @@ export class CodeDefinitionRegistry {
 		const allAffected = [folder, ...this.getFolderDescendants(id)];
 
 		// 2. Deletar todos os códigos dentro desses folders
+		// Usa _deleteCodeNoEmit pra batch — emit único no fim de deleteFolder
 		for (const f of allAffected) {
 			const codesInFolder = this.getCodesInFolder(f.id);
 			for (const code of codesInFolder) {
-				this.delete(code.id);  // cuida de markers/relations via mecanismo existente
+				this._deleteCodeNoEmit(code.id);  // cuida de markers/relations via mecanismo existente
 			}
 		}
 
