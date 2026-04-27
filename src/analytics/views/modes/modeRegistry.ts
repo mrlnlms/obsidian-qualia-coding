@@ -23,6 +23,7 @@ import { renderDecisionTreeView, renderDecisionTreeOptionsSection, exportDecisio
 import { renderSourceComparison, renderSourceComparisonOptionsSection, exportSourceComparisonCSV } from "./sourceComparisonMode";
 import { renderOverlapMatrix, exportOverlapCSV } from "./overlapMode";
 import { renderRelationsNetwork, renderRelationsNetworkOptions, exportRelationsNetworkCSV } from "./relationsNetworkMode";
+import { renderCodeMetadataView, renderCodeMetadataOptionsSection, exportCodeMetadataCSV } from "./codeMetadataMode";
 
 export type ModeEntry = {
   label: string;
@@ -148,5 +149,11 @@ export const MODE_REGISTRY: Record<ViewMode, ModeEntry> = {
     render: renderRelationsNetwork,
     renderOptions: renderRelationsNetworkOptions,
     exportCSV: exportRelationsNetworkCSV,
+  },
+  "code-metadata": {
+    label: "Code × Metadata",
+    render: renderCodeMetadataView,
+    renderOptions: renderCodeMetadataOptionsSection,
+    exportCSV: exportCodeMetadataCSV,
   },
 };
