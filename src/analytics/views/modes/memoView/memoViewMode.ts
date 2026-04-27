@@ -41,6 +41,7 @@ export function renderMemoView(ctx: AnalyticsViewContext, filters: FilterConfig)
   for (const sec of result.byCode) {
     renderCodeSection(wrapper, sec, {
       app: ctx.plugin.app,
+      ctx,
       markerLimit: ctx.mvMarkerLimit,
       expanded: ctx.mvExpanded,
       onToggleExpand: (codeId) => {

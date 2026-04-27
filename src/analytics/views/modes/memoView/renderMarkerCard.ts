@@ -1,8 +1,12 @@
 import type { App } from "obsidian";
 import type { MemoEntry } from "../../../data/dataTypes";
+import type { AnalyticsViewContext } from "../../analyticsViewContext";
+import { renderMemoEditor } from "./renderMemoEditor";
+import { onSaveMarkerMemo } from "./onSaveHandlers";
 
 export interface MarkerCardOptions {
 	app: App;
+	ctx: AnalyticsViewContext;
 	onSourceClick?: (markerId: string, fileId: string) => void;
 }
 
@@ -28,5 +32,5 @@ export function renderMarkerCard(parent: HTMLElement, entry: MemoEntry, opts: Ma
 	}
 
 	const memoEl = card.createDiv({ cls: "memo-view-marker-memo" });
-	memoEl.createEl("p", { text: entry.memo });
+	renderMemoEditor(memoEl, entry.memo, (v) => onSaveMarkerMemo(opts.ctx, entry.sourceType, entry.markerId, v), opts.ctx);
 }

@@ -1,9 +1,18 @@
 import type { App } from "obsidian";
 import type { CodeMemoSection } from "../../../data/dataTypes";
+import type { AnalyticsViewContext } from "../../analyticsViewContext";
 import { renderMarkerCard } from "./renderMarkerCard";
+import { renderMemoEditor } from "./renderMemoEditor";
+import {
+	onSaveCodeMemo,
+	onSaveGroupMemo,
+	onSaveCodeRelationMemo,
+	onSaveAppRelationMemo,
+} from "./onSaveHandlers";
 
 export interface CodeSectionOptions {
 	app: App;
+	ctx: AnalyticsViewContext;
 	markerLimit: 5 | 10 | 25 | "all";
 	expanded: Set<string>;
 	onToggleExpand: (codeId: string) => void;
@@ -46,7 +55,7 @@ export function renderCodeSection(
 	if (section.codeMemo) {
 		const block = sec.createDiv({ cls: "memo-view-code-memo" });
 		block.createEl("strong", { text: "Code memo:" });
-		block.createEl("p", { text: section.codeMemo });
+		renderMemoEditor(block, section.codeMemo, (v) => onSaveCodeMemo(opts.ctx, section.codeId, v), opts.ctx);
 	}
 
 	// Group memos
@@ -56,8 +65,8 @@ export function renderCodeSection(
 		for (const gm of section.groupMemos) {
 			if (gm.kind !== "group") continue;
 			const row = block.createDiv({ cls: "memo-view-group-memo-row" });
-			row.createSpan({ cls: "memo-view-group-memo-name", text: `${gm.groupName}: ` });
-			row.createSpan({ text: gm.memo });
+			row.createSpan({ cls: "memo-view-group-memo-name", text: `${gm.groupName}` });
+			renderMemoEditor(row, gm.memo, (v) => onSaveGroupMemo(opts.ctx, gm.groupId, v), opts.ctx);
 		}
 	}
 
@@ -70,7 +79,11 @@ export function renderCodeSection(
 			const arrow = rm.directed ? "→" : "↔";
 			const levelTag = rm.level === "code" ? "(code-level)" : `(app-level, ${rm.markerId})`;
 			const row = block.createDiv({ cls: "memo-view-relation-row" });
-			row.setText(`${arrow} ${rm.label} "${rm.targetName}" ${levelTag}: ${rm.memo}`);
+			row.createSpan({ cls: "memo-view-relation-label", text: `${arrow} ${rm.label} "${rm.targetName}" ${levelTag}` });
+			const onSave = rm.level === "code"
+				? (v: string) => onSaveCodeRelationMemo(opts.ctx, rm.codeId, rm.label, rm.targetId, v)
+				: (v: string) => onSaveAppRelationMemo(opts.ctx, rm.engineType!, rm.markerId!, rm.codeId, rm.label, rm.targetId, v);
+			renderMemoEditor(row, rm.memo, onSave, opts.ctx);
 		}
 	}
 
@@ -88,7 +101,7 @@ export function renderCodeSection(
 
 		block.createEl("strong", { text: `Marker memos (${section.markerMemos.length}):` });
 		for (const mm of visible) {
-			renderMarkerCard(block, mm, { app: opts.app });
+			renderMarkerCard(block, mm, { app: opts.app, ctx: opts.ctx });
 		}
 		if (remaining > 0) {
 			const btn = block.createEl("button", { text: `Show ${remaining} more`, cls: "memo-view-show-more" });

@@ -5358,3 +5358,26 @@ body.codebook-dragging * {
 .memo-view-hollow .memo-view-code-name {
 	font-weight: 500;
 }
+.memo-view-editor {
+	width: 100%;
+	min-height: 32px;
+	padding: 4px 6px;
+	margin: 4px 0;
+	font-family: var(--font-text);
+	font-size: 13px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 3px;
+	resize: vertical;
+	box-sizing: border-box;
+}
+.memo-view-editor:focus {
+	border-color: var(--interactive-accent);
+	outline: none;
+}
+.memo-view-relation-label {
+	display: block;
+	font-size: 12px;
+	color: var(--text-muted);
+	margin-bottom: 2px;
+}
