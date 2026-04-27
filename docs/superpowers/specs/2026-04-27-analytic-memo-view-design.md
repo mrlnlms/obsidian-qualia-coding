@@ -99,9 +99,9 @@ Persiste em settings (`Plugin.saveData`) igual outros campos do view context (`c
 
 ### 3.3 Dependências
 
-- `ctx.data: AllEngineData` — populado por `readAllData(dataManager)` (markers raw de todos engines). Já existente.
-- `ctx.plugin.codeRegistry` — code/group/relation memos.
-- `ctx.plugin.caseVariablesRegistry` — usado só pra filtro case variable (não pra render direto).
+- **Raw markers:** chamar `readAllData(plugin.dataManager)` direto no render (não usa `ctx.data`). `ctx.data` é `ConsolidatedData | null` — agregação consolidada do pipeline normal. Memo View precisa de `AllEngineData` raw (markers individuais com memo), igual `relationsEngine.ts` faz. Re-leitura por render é ok (volume baixo).
+- `ctx.plugin.registry: CodeDefinitionRegistry` — code/group/relation memos. **Nome correto é `registry`** (verificado em `src/analytics/index.ts:21`), não `codeRegistry`.
+- `ctx.plugin.caseVariablesRegistry: CaseVariablesRegistry` — usado só pra filtro case variable (não pra render direto).
 - Filtros do Analytics existentes (`source filter`, `code filter`, `code group filter`, `case variable filter`) — reusados via `buildFilterConfig`.
 
 ### 3.4 Sem cache
@@ -231,37 +231,43 @@ export function aggregateMemos(
 
 ### 5.3 Algoritmo
 
-1. **Aplicar filtros não-`showTypes`** em markers via `applyFilters(allData, filters)` — helper compartilhado de `statsHelpers.ts`. Resultado: `filteredMarkers`.
-2. **Calcular `coverage`** — totais antes do filtro de `showTypes`:
+1. **Carregar raw data:** `allData = readAllData(plugin.dataManager)` no início do render. Não usa `ctx.data` (consolidado).
+2. **Aplicar filtros não-`showTypes`** em markers via `applyFilters(allData, filters)` — helper compartilhado de `statsHelpers.ts`. Resultado: `filteredMarkers`. (Implementação: gera lista flat de todos os markers de todos engines, anotando `engineType` por marker; `applyFilters` aplica source/code/group/case-variable filter.)
+3. **Calcular `coverage`** — totais antes do filtro de `showTypes`:
    - `codesTotal` = `registry.getAllCodes().length`
-   - `codesWithMemo` = código com `memo?.trim()` não vazio
-   - similar pra groups, relations (code-level + application-level), markers
+   - `codesWithMemo` = códigos com `memo?.trim()` não vazio
+   - `groupsTotal` = `registry.getAllGroups().length`
+   - `groupsWithMemo` = groups com `memo?.trim()` não vazio
+   - `relationsTotal` = soma de `code.relations.length` em todos códigos + soma de `marker.codes[i].relations.length` em todos `filteredMarkers` (code-level + app-level)
+   - `relationsWithMemo` = subset com `memo?.trim()` não vazio
    - `markersTotal` = `filteredMarkers.length`
    - `markersWithMemo` = subset de `filteredMarkers` com `memo?.trim()` não vazio
-3. **Se `groupBy === "code"`:**
-   1. `flatTree = buildFlatTree(registry)` — ordem hierárquica.
-   2. Pra cada `node` (code apenas, ignora folders):
-      - `codeMemo` = `node.memo` se não vazio, senão `null`.
-      - `groupMemos` = mapeia `registry.getGroupsForCode(node.id)` → `GroupDefinition` que têm memo.
+4. **Se `groupBy === "code"`:**
+   1. `flatTree = buildFlatTree(registry, expandedState)` — onde `expandedState` é `{ codes: new Set(allCodeIds), folders: new Set(allFolderIds) }` (todos expandidos, pra Memo View não respeitar collapse do codebook). Ordem hierárquica.
+   2. Pra cada `node` em `flatTree` com `node.type === 'code'`:
+      - Acessos corretos: `node.def.id`, `node.def.name`, `node.def.color`, `node.def.memo`, `node.def.relations`, `node.depth`. (NB: `FlatCodeNode` expõe `def: CodeDefinition`, não fields flat — verificado em `src/core/hierarchyHelpers.ts:11`.)
+      - `codeMemo` = `node.def.memo?.trim()` se não vazio, senão `null`.
+      - `groupMemos` = mapeia `registry.getGroupsForCode(node.def.id)` → cada `GroupDefinition` que tem `memo?.trim()` não vazio.
       - `relationMemos` =
-        - code-level: `node.relations.filter(r => r.memo)` → `MemoEntry` com `level="code"`.
-        - application-level: itera `filteredMarkers` desse código, pra cada `CodeApplication.relations[]` com `memo` → `MemoEntry` com `level="application", markerId`.
-      - `markerMemos` = `filteredMarkers` desse código com `memo` não vazio.
-   3. Computar `hasAnyMemoInSubtree` via DFS bottom-up.
-   4. Aplicar `showTypes`: pra cada section, zera arrays correspondentes (e `codeMemo`) se `showTypes[kind] === false`.
-   5. **Filtrar sections vazias**: só inclui `CodeMemoSection` se tem ≥1 memo ativo OU `hasAnyMemoInSubtree`.
-4. **Se `groupBy === "file"`:**
+        - code-level: `node.def.relations.filter(r => r.memo?.trim())` → `MemoEntry` com `level="code"`.
+        - application-level: itera `filteredMarkers` que aplicam `node.def.id` (ver decisão (iv) abaixo), pra cada `marker.codes[i]` com `codeId === node.def.id` e `relations[j].memo?.trim()` → `MemoEntry` com `level="application"`, `markerId`.
+      - `markerMemos` = `filteredMarkers` que aplicam `node.def.id` (decisão (iv)) e têm `memo?.trim()` não vazio.
+      - `childIds` = ids dos códigos filhos imediatos (do flat tree, próximos nodes com `depth = node.depth + 1` e parent matching).
+   3. Computar `hasAnyMemoInSubtree` via DFS bottom-up: true se o node tem qualquer memo OU algum descendente tem.
+   4. Aplicar `showTypes`: pra cada section, zera arrays correspondentes (e `codeMemo = null`) se `showTypes[kind] === false`.
+   5. **Filtrar sections vazias**: inclui `CodeMemoSection` se tem ≥1 memo ativo (após showTypes) OU `hasAnyMemoInSubtree === true` (pra preservar contexto de hierarquia, decisão (ii)).
+5. **Se `groupBy === "file"`:**
    1. Agrupa `filteredMarkers` por `fileId`.
    2. Pra cada arquivo: `markerMemos` = markers com memo (após `showTypes.marker`).
-   3. `codeIdsUsed` = códigos únicos aplicados nesses markers, com memo (filtrado por `showTypes.code`/`marker`).
+   3. `codeIdsUsed` = `marker.codes[i].codeId` únicos dos markers do arquivo (sem dedup por memo — esse é só pros chips).
    4. **Filtrar sections vazias**: só inclui se `markerMemos.length > 0`.
 
 **Notas:**
 
-1. **Decisão (i):** relations application-level **incluídas** mesmo sem UI gravando hoje. Schema-ready desde #25 (`CodeApplication.relations.memo`). Memo View vira a primeira surface app-level — o ✎ inline cobre o gap UI.
-2. **Decisão (ii):** code com `hasAnyMemoInSubtree=true` mas `codeMemo=null` + sem outros memos próprios: renderiza header colapsado (só nome + groups + indentação) pra preservar contexto da hierarquia.
-3. **Decisão (iii):** `markersTotal` = filtrado, coerente com o que tá na tela.
-4. **Marker em múltiplos códigos:** marker é "filho" do **primeiro** código em `marker.codes[0]`. Aparece uma vez no aggregate. Trade-off: simples, no-duplicatas. Render em `byFile` mostra todos os códigos via `codeIdsUsed`.
+1. **Decisão (i) — relations application-level incluídas:** schema-ready desde #25 (`CodeApplication.relations.memo`). Memo View vira a primeira surface app-level via ✎ inline.
+2. **Decisão (ii) — pai sem memo + filho com memo:** renderiza header colapsado (nome + groups + indentação) pra preservar contexto de hierarquia.
+3. **Decisão (iii) — `markersTotal` filtrado:** coerente com o que aparece na tela.
+4. **Decisão (iv) — marker em múltiplos códigos:** se `marker.codes` tem N entries e ≥1 sobrevive ao `code filter`, marker aparece UMA vez sob a **primeira entry de `marker.codes[]` que sobreviver** (`marker.codes.find(c => filterAccepts(c.codeId))?.codeId`). Sem duplicação. Em `groupBy="file"`, `codeIdsUsed` reúne todos os surviving (não só o primeiro) — pra dar visão completa do arquivo. Trade-off: simples e determinístico; perde-se a informação de que marker está em múltiplos códigos no view by-code, mas marker memo não é por-código (é por-marker).
 
 ---
 
@@ -371,29 +377,89 @@ export function renderMemoEditor(
 }
 ```
 
-**Pré-requisito:** `ctx.suspendRefresh`/`ctx.resumeRefresh` no `AnalyticsViewContext`. Se não existirem, adicionar (pattern análogo ao usado em outros views durante typing). Verificar em `analyticsView.ts` — provável que não exista; criar com balanceamento contagem (`refreshSuspendedCount > 0` bloqueia `scheduleUpdate`).
+**Pré-requisito (verificado em `analyticsViewContext.ts:115-120`):** `ctx.suspendRefresh`/`ctx.resumeRefresh` **não existem hoje**. Adicionar como parte do checkpoint 5a (não 5b). Implementação:
+
+- Novo campo private em `AnalyticsView`: `refreshSuspendedCount: number = 0`.
+- Novos métodos em `AnalyticsViewContext`: `suspendRefresh(): void` (incrementa) e `resumeRefresh(): void` (decrementa, com clamp a 0).
+- `scheduleUpdate()` checa `if (this.refreshSuspendedCount > 0) return;` antes de agendar.
+- Listener `onMutate` do registry e do dataManager continuam disparando `scheduleUpdate` — só fica no-op enquanto suspended. Próximo edit/blur completa save → `resumeRefresh()` → próximo `scheduleUpdate` roda.
+
+Risco: outro mode chamando `scheduleUpdate` durante typing em Memo View seria silenciado. Aceitável (enquanto edita memo, view não re-renderiza — é o comportamento desejado). Test: durante typing em Memo View, mutação simulada não dispara render; ao blur, render dispara uma vez.
 
 ### 6.4 onSave por kind
 
+**Decisão (travada na spec, não punted):** estende `DataManager` com lookup genérico de marker + helpers em `codeApplicationHelpers.ts`. Mutação acontece in-place no objeto retornado; `dataManager.markDirty()` agenda o flush. Este é o pattern já usado em CSS de menus que escrevem `marker.memo = value` direto (ex: `pdfCodingMenu.ts:98`, `imageCodingMenu.ts:65`) — formaliza o pattern numa API central.
+
+**Novas APIs em `DataManager`:**
+
 ```typescript
-function onSaveCodeMemo(codeId: string, value: string) {
-  ctx.plugin.codeRegistry.update(codeId, { memo: value });
+// src/core/dataManager.ts (additions)
+findMarker(engineType: EngineType, markerId: string): BaseMarker | null;
+// ↑ percorre data[engineType].markers (e segmentMarkers/rowMarkers no caso CSV) e retorna referência;
+//   null se não encontrar. Mutação acontece no caller.
+```
+
+CSV tem `segmentMarkers` + `rowMarkers` — `findMarker('csv', id)` busca em ambos arrays. Tipos retornam `BaseMarker` discriminado (caller pode narrowing depois se precisar mais).
+
+**Novo helper em `codeApplicationHelpers.ts`:**
+
+```typescript
+// src/core/codeApplicationHelpers.ts (addition)
+export function setApplicationRelationMemo(
+  codes: CodeApplication[],
+  codeId: string,
+  label: string,
+  target: string,
+  memo: string,
+): boolean;
+// ↑ encontra primeira tupla matching (codeId, label, target) em codes[i].relations e atualiza memo.
+//   Retorna true se achou, false se não — limite mesmo do setRelationMemo code-level (tupla duplicada
+//   atualiza só primeira; documentado em #25 spec).
+```
+
+**onSave handlers:**
+
+```typescript
+function onSaveCodeMemo(ctx: AnalyticsViewContext, codeId: string, value: string) {
+  ctx.plugin.registry.update(codeId, { memo: value });
 }
-function onSaveGroupMemo(groupId: string, value: string) {
-  ctx.plugin.codeRegistry.setGroupMemo(groupId, value);
+function onSaveGroupMemo(ctx: AnalyticsViewContext, groupId: string, value: string) {
+  ctx.plugin.registry.setGroupMemo(groupId, value);
 }
-function onSaveRelationMemo(codeId: string, label: string, target: string, value: string) {
-  ctx.plugin.codeRegistry.setRelationMemo(codeId, label, target, value);
+function onSaveCodeRelationMemo(
+  ctx: AnalyticsViewContext, codeId: string, label: string, target: string, value: string,
+) {
+  ctx.plugin.registry.setRelationMemo(codeId, label, target, value);
 }
-function onSaveMarkerMemo(markerId: string, fileId: string, sourceType: EngineType, value: string) {
-  const model = ctx.plugin.dataManager.getModelForEngine(sourceType);
-  model.updateMarker(markerId, { memo: value });
+function onSaveMarkerMemo(
+  ctx: AnalyticsViewContext, engineType: EngineType, markerId: string, value: string,
+) {
+  const marker = ctx.plugin.dataManager.findMarker(engineType, markerId);
+  if (!marker) return;
+  marker.memo = value;
+  ctx.plugin.dataManager.markDirty();
+}
+function onSaveAppRelationMemo(
+  ctx: AnalyticsViewContext, engineType: EngineType, markerId: string,
+  codeId: string, label: string, target: string, value: string,
+) {
+  const marker = ctx.plugin.dataManager.findMarker(engineType, markerId);
+  if (!marker) return;
+  setApplicationRelationMemo(marker.codes, codeId, label, target, value);
+  ctx.plugin.dataManager.markDirty();
 }
 ```
 
-**Roteamento marker:** assume que cada engine model expõe `updateMarker(markerId, partial)`. Verificar API exata no plan; pode precisar de adapter helper se assinaturas divergirem entre engines.
+**Por que essa abordagem, não outras consideradas:**
 
-**Application-level relation memo:** `setRelationMemo` atual é code-level (tupla). Pra app-level, escreve direto no marker: `model.updateMarker(markerId, m => updateRelationMemoIn(m.codes, codeId, label, target, value))`. Define helper `setApplicationRelationMemo` no `codeApplicationHelpers.ts` (pequena adição).
+| Opção | Rejeitada porque |
+|---|---|
+| Adicionar `updateMarker(id, partial)` a cada engine model | 5 engines, assinaturas divergentes (CodeMarkerModel já tem `updateMarkerFields`, mas PDF/Image/Media/CSV não); duplicação |
+| Reusar `BaseSidebarAdapter.updateMarkerFields` | Adapters são per-leaf (vinculados a view aberta); não acessíveis centralmente. Memo View precisa funcionar mesmo sem leaf do engine aberta |
+| Expor `<engine>Model` em `AnalyticsPluginAPI` + chamar diretamente | Acopla Memo View a 5 modelos com APIs diferentes; cada um faria sua própria persistência |
+| `dataManager.findMarker(...)` + mutação in-place + `markDirty` | **Escolhido.** Ponto único de acesso, baixa superfície API, mutação direta segue pattern já existente em menus, persistência centralizada via `markDirty` (debounced 500ms já existente) |
+
+**Side-effect aceito:** mutação in-place do `BaseMarker` retornado por `findMarker` é uma operação direta na fonte de verdade do `data.json`. Adapters/views que tiverem listener do `dataManager` (ou re-render por `onMutate` do registry pra code-level) verão a mudança ao próximo refresh. Marker UI surfaces (sidebar, popover) não escutam mutação direta de `marker.memo` hoje — Memo View também não escuta volta. Aceitável: edição flui Memo View → data.json → próximas leituras pegam. Se virar dor (ex: edita em Memo View enquanto sidebar tá aberta com excerpt antigo), follow-up.
 
 ### 6.5 Config panel (`renderMemoViewOptions`)
 
@@ -604,7 +670,8 @@ Pra escrever o plan: chunks naturais (cada um termina em commit + smoke):
 2. **MODE_REGISTRY hookup + render mínimo** — registra mode + renderMemoView render básico (só code memos, sem edição, sem hierarquia). Smoke: aparece no dropdown, abre vazio com coverage banner.
 3. **Coverage banner + by-code render full** — code memos + group memos + relation memos + marker memos read-only. Sem edição. Smoke: abre vault com memos, vê tudo.
 4. **Hierarquia indentada + collapse "Show N more"** — buildFlatTree integration + markerLimit + indentação. Smoke: hierarquia espelha codebook.
-5. **Edição inline (renderMemoEditor + onSave por kind)** — `suspendRefresh`/`resumeRefresh` no context se faltar; debounced save; pattern shared. Smoke: edita cada um dos 4 tipos, persiste, re-abre.
+5a. **Infra de edição: suspendRefresh + DataManager.findMarker + setApplicationRelationMemo helper** — adiciona `suspendRefresh`/`resumeRefresh` em `AnalyticsViewContext` (com counter `refreshSuspendedCount`; `scheduleUpdate` no-op enquanto > 0); adiciona `findMarker(engineType, markerId)` em `DataManager`; adiciona `setApplicationRelationMemo(codes, codeId, label, target, memo)` em `codeApplicationHelpers.ts`. Testes unitários pra cada. Sem UI ainda. Risco isolado: outros modes do Analytics não devem quebrar — verificar `scheduleUpdate` continua funcionando quando counter = 0.
+5b. **Edição inline UI (renderMemoEditor + onSave por kind)** — usa infra de 5a. `renderMemoEditor` debounced 500ms + suspend/resume. `onSave` handlers por kind (code/group/relation code-level/relation app-level/marker). Smoke: edita cada um dos 5 tipos (4 + app-level relation), persiste, re-abre, valida.
 6. **Toggle by-file** — `groupBy="file"` + render alternativo. Smoke: troca pivô.
 7. **Filtros (config panel completo)** — showTypes checkboxes + reuso source/group/code/case variable filters. Smoke: cada filtro cobre cenário.
 8. **Export CSV** — `exportMemoCSV` registrado em ModeEntry. Smoke: CSV abre em Excel.
