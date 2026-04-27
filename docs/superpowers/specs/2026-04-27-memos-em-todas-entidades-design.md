@@ -31,14 +31,14 @@ Atlas.ti, MAXQDA e NVivo separam os dois. Padrão da indústria. O spec original
 | 4 | Identidade de relation pra editar memo | Por **tupla `(label, target)` snapshot** — mesmo pattern já usado pro delete em `baseCodingMenu.ts:585`. Setter recebe `(codeId, label, target, memo)`, filtra primeiro match, atualiza. Limite conhecido (relations duplicadas — `(label, target)` repetido — só o primeiro é atualizado) é o **mesmo limite do delete existente**, documentado mas aceito. **Não** adicionar `id` ao `CodeRelation` |
 | 5 | UI Code memo | Seção dedicada no Code Detail (`detailCodeRenderer.ts`) abaixo de description, **plain textarea** (3 rows), idêntica ao marker memo em `detailMarkerRenderer.ts:91-113`. **Sem chevron expandível** (chevron é pattern de outros componentes, não do marker memo) |
 | 6 | UI Group memo | Campo inline abaixo de description no `codeGroupsPanel.ts` (mesmo pattern do description editável) |
-| 7 | UI Relation memo | Botão `✎` ao lado de cada relation row **somente em `relationUI.ts:renderAddRelationRow`** (Code Detail / popover de gestão do código), **NÃO** em `baseCodingMenu.ts:renderRelationsSection` (popover de coding aplicado a um marker — application-level). Click → popover com textarea → save |
-| 8 | UI Code popover (coding aplicação) | Memo de code **não** editável dentro do popover de coding. Edição só no Code Detail. Popover continua focado em aplicar código + memo do **marker**. **Relations no popover de coding seguem sem ✎** (consistente com decisão #14 — application-level fica fora do UI) |
+| 7 | UI Relation memo | Botão `✎` ao lado de cada relation row existente **somente em `detailCodeRenderer.ts:670-733`** (a função `renderRelationsSection` local, que itera as existing rows pra um Code — code-level). Click → popover com textarea → save. **NÃO modificar:** (a) `baseCodingMenu.ts:498+` (popover de coding aplicado, application-level); (b) `detailMarkerRenderer.ts:180-215` (Marker Detail, application-level); (c) `relationUI.ts:renderAddRelationRow` (esse é o **add row** com inputs label/target, não tem relation existente pra editar memo) |
+| 8 | UI Code popover (coding aplicação) | Memo de code **não** editável dentro do popover de coding. Edição só no Code Detail. Popover continua focado em aplicar código + memo do **marker** |
 | 9 | Export QDPX | `<Description>` continua emit; **adicionar** `<MemoText>` em `<Code>`, `<Set>` e `<Link>` quando memo presente |
 | 10 | Export CSV tabular | Adicionar coluna `memo` em `codes.csv`, `groups.csv` e `relations.csv` |
 | 11 | Import QDPX | Parse `<MemoText>` → preencher `memo` na entidade |
 | 12 | Persistência / migration | Schema aditivo (campos opcionais). Zero usuários — sem migration code |
 | 13 | Registry helpers | **Code memo:** estende `update(id, changes)` existente (já aceita description/name/color/magnitude/relations) com `'memo'` no `Pick`. Mantém um único caminho de mutação pro Code. **Group memo:** `setGroupMemo(id, memo)` dedicado (consistente com `setGroupDescription`/`setGroupColor` existentes). **Relation memo:** `setRelationMemo(codeId, label, target, memo)` — identifica por tupla, atualiza primeiro match |
-| 14 | Application-level relations (em `CodeApplication.relations`) | Mesmo schema (`memo?` no `CodeRelation` é compartilhado entre code-level e application-level — ver `types.ts:27-37`); UI de edição **fora** desta feature (popover de coding já é denso). Schema-ready: round-trip QDPX/CSV preserva memo de application-level mesmo sem UI |
+| 14 | Application-level relations (em `CodeApplication.relations`) | Mesmo schema (`memo?` no `CodeRelation` é compartilhado entre code-level e application-level — ver `types.ts:27-37`); UI de edição **fora** desta feature em **3 surfaces**: (a) `baseCodingMenu.ts:498+` popover de coding, (b) `detailMarkerRenderer.ts:180-215` Marker Detail, (c) Relations no popover de coding seguem sem ✎. Schema-ready: round-trip QDPX/CSV preserva memo de application-level mesmo sem UI |
 
 ---
 
@@ -80,6 +80,18 @@ update(id: string, changes: Partial<Pick<CodeDefinition, 'name' | 'color' | 'des
 // Depois (adiciona 'memo'):
 update(id: string, changes: Partial<Pick<CodeDefinition, 'name' | 'color' | 'description' | 'memo' | 'magnitude' | 'relations'>>)
 ```
+
+Body interno do `update()` segue **exatamente** o pattern do `description` existente (~linhas 227-229 hoje):
+
+```ts
+// Pattern existente:
+if ('description' in changes) def.description = changes.description || undefined;
+
+// Adicionar análogo:
+if ('memo' in changes) def.memo = changes.memo || undefined;
+```
+
+`|| undefined` faz coerção de `""` (e `null`/whitespace) → `undefined`, que mantém JSON enxuto após save.
 
 **Group memo** — método dedicado (consistente com `setGroupDescription`/`setGroupColor` existentes):
 
@@ -128,9 +140,14 @@ Memo: [textarea inline]              <- NEW
 
 Mesmo pattern de "click pra editar inline + save no blur" do description existente.
 
-**`relationUI.ts:renderAddRelationRow` apenas** (não tocar em `baseCodingMenu.ts:renderRelationsSection` — esse é o popover de coding aplicação, application-level, fora do escopo conforme decisão #14).
+**Tocar APENAS em `detailCodeRenderer.ts:670-733`** — o loop `renderRelationsSection` local que itera `code.relations` e renderiza cada existing row. Adicionar `✎` ao lado do `×` na ~linha 715 (hoje só tem o remove button).
 
-Cada relation row no Code Detail hoje é:
+**NÃO tocar em:**
+- `baseCodingMenu.ts:498+` (`renderRelationsSection` no popover de coding — application-level, fora #14)
+- `detailMarkerRenderer.ts:180-215` (Marker Detail relation rows — também application-level, fora #14)
+- `relationUI.ts:renderAddRelationRow` (esse é a **add row** com inputs label+target+Add — não há relation existente ali pra editar memo)
+
+Cada existing relation row em Code Detail hoje é:
 
 ```
 [label] [target] [directional? toggle] [×]
@@ -144,7 +161,7 @@ Adicionar:
                                         NEW: clica → abre popover com textarea pra memo
 ```
 
-Popover de edit usa pattern de popovers existentes do plugin (ex: `PromptModal` multiline em `dialogs.ts`). Salva via `registry.setRelationMemo(codeId, label, target, memo)` — o componente já conhece label e target da row sendo editada (snapshot no momento do click).
+Popover de edit usa pattern de popovers existentes do plugin (ex: `PromptModal` multiline em `dialogs.ts`). Salva via `registry.setRelationMemo(codeId, label, target, memo)` — o componente já conhece label e target da row sendo editada (snapshot no momento do click; immune a deletes subsequentes).
 
 ### Export
 
@@ -188,7 +205,8 @@ Memo vazio = string `""` na cell.
 
 - Parse `<MemoText>` em `<Code>`, `<Set>`, `<Link>` — popular `memo` correspondente na entidade criada
 - Quando QDPX externo (Atlas.ti/MAXQDA) tem `<MemoText>` mas não `<Description>`, usa o que tiver
-- Conflito com import — se tipo entidade já existe no vault e arquivo importado tem memo, **merge**: anexa novo memo como `\n\n--- Imported memo ---\n<conteúdo>` (reusa a função `mergeDescriptions(xmlDesc, noteDesc)` em `qdcImporter.ts:128-133` — hoje usada pra mesclar `<Description>` XML com `<Note>` freeform de Code; criar `mergeMemos` análoga ou parametrizar `mergeDescriptions` pra aceitar nome do separador)
+- Conflito com import — se tipo entidade já existe no vault e arquivo importado tem memo, **merge**: anexa novo memo como `\n\n--- Imported memo ---\n<conteúdo>`. **Decisão de implementação: criar `mergeMemos` como função separada análoga a `mergeDescriptions`** (5 linhas; mesmo separador `\n\n--- Imported memo ---\n`). Não parametrizar — pattern é tão simples que cópia é mais clara que abstração genérica
+- **Adição não-substitutiva ao parser:** o pipeline atual de marker-memo via `<Note>` + `<NoteRef>` (em `qdpxImporter.ts:184+`) **continua intocado**. `<MemoText>` é uma **nova branch** de parser que extrai memo direto do filho de `<Code>`/`<Set>`/`<Link>` durante leitura do codebook XML — não passa pelo `<Notes>` collection. Os dois paths coexistem: marker memo via Notes (existente), code/group/relation memo via MemoText (novo)
 
 ---
 
@@ -217,7 +235,7 @@ Memo vazio = string `""` na cell.
 | `tests/import/qdcImporter.test.ts` (existente, ampliar) | `<MemoText>` parsed em Code, Set, Link; conflito merge usa pattern `\n\n--- Imported memo ---\n` |
 | `tests/export/tabular/buildCodesTable.test.ts` (existente, ampliar) | coluna `memo` populada |
 | `tests/export/tabular/buildGroupsTable.test.ts` (existente) | idem |
-| `tests/export/tabular/buildRelationsTable.test.ts` (existente) | idem (coluna `memo` no fim, mistura code-level e application-level memos — intencional, application-level vazio até UI landed) |
+| `tests/export/tabular/buildRelationsTable.test.ts` (existente) | idem (coluna `memo` no fim, mistura code-level e application-level memos — intencional. **Cells de application-level rows ficam vazias até UI landed** — esperado e testável: fixture com CodeApplication.relations sem memo gera coluna vazia, fixture com memo (via setRelationMemo schema-ready ou seed direto no data.json) preenche) |
 | `tests/import/qdpxImporter.test.ts` (novo bloco) | **Round-trip schema-ready de `CodeApplication.relations` memo** — fixture com marker contendo CodeApplication com relation que tem memo; export QDPX → re-import → memo preservado, mesmo sem UI escrevendo |
 
 ### Smoke manual obrigatório (memory `feedback_validate_dom_contract`)
