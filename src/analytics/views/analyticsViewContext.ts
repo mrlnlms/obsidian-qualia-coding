@@ -7,12 +7,14 @@ import type { MDSMode } from "../data/mdsEngine";
 
 // ─── Type aliases (moved from analyticsView.ts) ───
 
-export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap" | "relations-network";
+export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap" | "relations-network" | "code-metadata";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
 export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
 export type DisplayMode = "absolute" | "percentage" | "jaccard" | "dice" | "presence";
 export type CooccSortMode = "alpha" | "frequency" | "cluster";
+export type CodeMetadataDisplay = "count" | "pct-row" | "pct-col";
+export type CodeMetadataSortCol = "total" | "name" | "chi2" | "p";
 
 // ─── Context interface ───
 // Mode modules receive this instead of `this` — keeps them decoupled from the class.
@@ -84,6 +86,12 @@ export interface AnalyticsViewContext {
   srcCompSubView: "chart" | "table";
   srcCompDisplayMode: "count" | "percent-code" | "percent-source";
   srcCompSort: { col: string; asc: boolean };
+
+  // Code × Metadata state
+  cmVariable: string | null;
+  cmDisplay: CodeMetadataDisplay;
+  cmHideMissing: boolean;
+  cmSort: { col: CodeMetadataSortCol; asc: boolean };
 
   // Case variable filter state
   caseVariableFilter: { name: string; value: string } | null;
