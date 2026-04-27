@@ -28,6 +28,7 @@ export interface CodeRelation {
 	label: string;
 	target: string;
 	directed: boolean;
+	memo?: string;
 }
 
 export interface CodeApplication {
@@ -85,6 +86,7 @@ export interface CodeDefinition {
 	name: string;
 	color: string;
 	description?: string;
+	memo?: string;
 	paletteIndex: number;
 	createdAt: number;
 	updatedAt: number;
@@ -118,6 +120,7 @@ export interface GroupDefinition {
 	name: string;            // livre, renameable
 	color: string;           // REQUIRED — auto-atribuído do GROUP_PALETTE
 	description?: string;    // opcional, multiline
+	memo?: string;           // opcional, reflexão analítica processual
 	paletteIndex: number;    // índice no GROUP_PALETTE; -1 se cor customizada
 	parentId?: string;       // SCHEMA-READY pra tier 3; UI 1.5 NUNCA escreve
 	createdAt: number;
