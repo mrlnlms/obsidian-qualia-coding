@@ -26,6 +26,7 @@ import { renderRelationsNetwork, renderRelationsNetworkOptions, exportRelationsN
 import { renderCodeMetadataView, renderCodeMetadataOptionsSection, exportCodeMetadataCSV } from "./codeMetadataMode";
 import { renderMemoView } from "./memoView/memoViewMode";
 import { renderMemoViewOptions } from "./memoView/memoViewOptions";
+import { exportMemoCSV } from "./memoView/exportMemoCSV";
 
 export type ModeEntry = {
   label: string;
@@ -162,6 +163,6 @@ export const MODE_REGISTRY: Record<ViewMode, ModeEntry> = {
     label: "Memo View",
     render: renderMemoView,
     renderOptions: renderMemoViewOptions,
-    canExport: false, // exports vêm em chunks 8 e 9
+    exportCSV: exportMemoCSV,
   },
 };
