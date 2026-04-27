@@ -56,7 +56,7 @@ Comandos comuns que você vai usar:
 | `src/analytics/data/dataTypes.ts` | Adiciona `interface CodeMetadataResult` |
 | `src/analytics/views/analyticsViewContext.ts` | (a) `'code-metadata'` no union `ViewMode`; (b) campos `cmVariable`, `cmDisplay`, `cmHideMissing`, `cmSort` |
 | `src/analytics/views/modes/modeRegistry.ts` | Import + entry `'code-metadata'` |
-| `src/analytics/views/analyticsView.ts` | Persistência dos 4 novos campos no `data.json` (mesmo pattern dos campos existentes) |
+| `src/analytics/views/analyticsView.ts` | Inicializa 4 plain instance fields com defaults hardcoded (`cmVariable=null`, `cmDisplay='count'`, `cmHideMissing=false`, `cmSort={col:'total',asc:false}`). **Sem persistência** — mesmo pattern dos campos `chiGroupBy`, `chiSort`, `srcCompSort` etc. |
 | `tests/analytics/inferential.test.ts` | Acrescenta regression tests bit-idênticos + testes do helper genérico isoladamente |
 
 **Estrutura `src/analytics/data/` é flat — sem subpasta `stats/`. Todos os módulos estatísticos vivem ao lado de `frequency.ts`, `inferential.ts` etc.**
