@@ -7,15 +7,17 @@
 
 ## 📍 Próximos a atacar (frente)
 
-_Frente limpa em 2026-04-24. Próxima sessão a definir — ver pós-frente-limpa abaixo._
+**Próxima sessão (decidida 2026-04-27):** Coding Management onda 2 — **Bulk rename via regex/find-replace** + **Code stability tracking (audit log)** juntos. Ver §2c abaixo pra detalhes de escopo travado no brainstorm informal.
 
-> **Toggle Visibility por Código** saiu da frente em 2026-04-24 (feature completa nos 6 engines). Ver registro abaixo.
+> Em 2026-04-27 4 features grandes mergeadas no dia: Code × Metadata (#24), Memos em todas entidades (#25), Analytic Memo View, Click-to-edit refactor (mata virtual scroll do BACKLOG §17). Plugin em 2367 tests passing.
 >
-> **Import/Export — sessão agrupada** saiu da frente em 2026-04-24 (tabular export + Board SVG/PNG + PDF anchors E1/E2/I1/I2 todos concluídos). Ver registro abaixo.
+> **Code Groups (#2a)** concluído 2026-04-24 — Tier 1.5 estendido.
 >
-> **Code Groups (#2a)** concluído em 2026-04-24 — Tier 1.5 estendido. Ver registro abaixo.
+> **Toggle Visibility por Código** saiu da frente 2026-04-24 (feature completa nos 6 engines).
 >
-> **Parquet lazy loading** também fora da frente — contingente à decisão sobre LLM-assisted coding. Ver [análise arquivada](#parquet-lazy-loading-contingente).
+> **Import/Export — sessão agrupada** saiu 2026-04-24 (tabular export + Board SVG/PNG + PDF anchors).
+>
+> **Parquet lazy loading** fora da frente — contingente à decisão sobre LLM-assisted coding.
 
 ---
 
@@ -25,8 +27,8 @@ Ordem motivada pelo uso: organizar codebook → analisar → polir.
 
 | Ordem | Item | Motivação |
 |-------|------|-----------|
-| 2 | **[Coding management](#2-coding-management)** (Code→Theme + Pastas nested) | Usar decentemente com corpus grande |
-| 3 | **[Analytics — melhorias](#3-analytics--melhorias)** (Relations Network polish + Code×Metadata + Analytic Memo View + Multi-tab spreadsheet export) | Consequência natural de #2 |
+| 2 | **[Coding management](#2-coding-management)** (Tier 2: Bulk rename + Audit log próxima sessão; Tier 1: Multi-select + Bulk ops + Drag-drop inter-groups; Tier 3: Smart Codes bloqueado por LLM) | Continua sendo foco grande do projeto |
+| 3 | **[Analytics — melhorias](#3-analytics--melhorias)** (Multi-tab spreadsheet export — Relations Network polish + Code×Metadata + Analytic Memo View já concluídos 2026-04-27) | Consequência natural de #2 |
 | 4 | **[Margin Panel — melhorias](#4-margin-panel--melhorias)** (Customization + Resize Handle) | Polish visual. **Dependência externa**: aguarda decisão em outro plugin não-mexido |
 
 ---
@@ -193,6 +195,41 @@ Descoberto 2026-04-23 durante §12 K2 do BACKLOG.
   - Validação de ciclo (mesma lógica do `setParent` pra códigos)
 - Sem backward-compat (zero users)
 - Estimativa: 2-3h
+
+#### 2c. Coding Management — próxima onda (2026-04-27 →)
+
+**Contexto:** após 4 ondas entregues (Code Groups, Code × Metadata, Memos em todas entidades, Analytic Memo View), Marlon sinalizou que gestão de códigos continua sendo foco grande do projeto. Esta seção mapeia as features candidatas pra próximas sessões — algumas vieram de menção genérica do Marlon em 24/04 ("bulk operations, multi-select, drag-drop inter-groups, smart codes"), outras foram expandidas em 2026-04-27 baseadas em padrões Atlas.ti/MAXQDA/NVivo + research practices (merging avançado, bulk rename, audit log).
+
+**Tier 1 — UX moderna pra escalar codebook:**
+
+| Feature | O que faz | Pré-req |
+|---|---|---|
+| **Multi-select no codebook** | Cmd/Shift+click pra selecionar múltiplos | — |
+| **Bulk operations** | Aplicar ação em N códigos selecionados (move folder, add group, recolor, delete) | Multi-select |
+| **Drag-drop inter-groups** | Arrastar código de um group pra outro (ou pra "no group") direto no painel Groups | — |
+
+**Tier 2 — polish do codebook como artefato vivo:**
+
+| Feature | O que faz | Notas |
+|---|---|---|
+| **Bulk rename via regex/find-replace** | Modal "Find & Replace" com filtros (folder, prefixo) + preview de matches + apply em lote | Inclinação: começar com versão simples (find/replace + checkbox regex), expandir conforme dor real |
+| **Code stability tracking** (audit log) | Log de operações por código (created, renamed_from→to, merged_with, deleted_at) com timeline visual + export markdown pra paper | Inclinação: foco em "defender escolhas analíticas" (ler depois pra justificar codebook), não em undo. Persistência: estende `CodeDefinition` com `history: AuditEntry[]` |
+| **Code merging avançado** | Merge interativo: preview de impacto (markers/groups afetados), escolher nome/cor mantido, manter ou descartar memos dos sources | Hoje merge é simples — em codebook grande precisa preview consciente |
+
+**Tier 3 — bloqueado por LLM:**
+
+| Feature | O que faz | Por que bloqueado |
+|---|---|---|
+| **Smart Codes (saved queries)** | Código "virtual" definido por query (ex: `frustacao` E `senioridade=junior` E magnitude≥3). Re-avaliado a cada chamada. Padrão Atlas.ti. | Diferencial competitivo grande, mas escopo de projeto à parte. Faz mais sentido depois de LLM-assisted coding entrar (ver §LLM-assisted coding nas decisões abertas) — DSL de query + sugestão LLM combinam bem |
+
+**Próxima sessão (decidida 2026-04-27):** Tier 2 — **Bulk rename via regex** + **Code stability tracking (audit log)** juntos, pq sinergia (bulk rename gera N rename events, audit captura).
+
+**Inclinações de escopo travadas no brainstorm informal:**
+- **Bulk rename:** versão simples primeiro (find+replace+regex toggle, lista preview, apply). Sem split-merge avançado.
+- **Audit log:** foco em "defender escolhas" (timeline + export markdown), não em undo histórico. Schema: `CodeDefinition.history: AuditEntry[]`.
+- **Atacar juntos** numa sessão (não separadas).
+
+Quando começar a sessão: brainstorm formal pra travar UX (modal de bulk rename, onde aparece a timeline do audit), schema, edge cases (rename quebra audit?).
 
 ### 3. Analytics — melhorias
 
