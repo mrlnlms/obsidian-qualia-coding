@@ -555,7 +555,7 @@ Aberto via `app.workspace.getLeaf(true).openFile(file)` (nova tab, não substitu
 | Filtros eliminam tudo (mas existem memos) | Empty state: "No memos match current filters." |
 | Marker excerpt muito longo (>5000 chars) | Trunca pra 500 chars + " …" no DOM. Memo full sempre. (Markdown export: usa excerpt full, sem truncar.) |
 | Edit + filter changed mid-edit | `suspendRefresh` segura. Salvar no blur antes de re-render. Estado de scroll perde — aceitável. |
-| Marker memo edit em arquivo não-aberto | `dataManager.getModelForEngine(engineType).updateMarker(...)` carrega lazy. Persiste em `data.json` direto. |
+| Marker memo edit em arquivo não-aberto | `dataManager.findMarker(engineType, markerId)` lê direto do `data.json` (não depende de leaf aberta). Mutação in-place + `markDirty()`. |
 | Code deletado durante edição | Listener `onMutate` trigger refresh; se memo do code deletado tava aberto, perdeu — aceitável (não-frequente). |
 | Excerpt vazio (selection zero-width — bug histórico de markdown) | Renderiza `(empty excerpt)` em itálico fade. Memo continua editável. |
 | Hierarquia profunda (depth > 5) | Limita indentação visual em `depth >= 5` via `padding-left: min(depth * 16px, 80px)`. |
@@ -606,7 +606,7 @@ src/analytics/views/modes/memoView/__tests__/memoViewEdit.test.ts  (~12 tests)
   - onSave para group: chama registry.setGroupMemo
   - onSave para relation code-level: chama registry.setRelationMemo (tupla)
   - onSave para relation app-level: atualiza CodeApplication.relations[i].memo via helper novo
-  - onSave para marker: chama dataManager.getModelForEngine().updateMarker
+  - onSave para marker: chama dataManager.findMarker, muta marker.memo in-place, chama markDirty
   - relation tupla duplicada: edita só primeira (smoke do side-effect documentado)
 
 src/analytics/views/modes/memoView/__tests__/exportMemoCSV.test.ts  (~6 tests)
