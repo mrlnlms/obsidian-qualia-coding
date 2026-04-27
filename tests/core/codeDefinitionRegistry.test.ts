@@ -430,3 +430,136 @@ describe('update — magnitude', () => {
 	});
 });
 
+describe('Code memo via update()', () => {
+	it('sets memo via update()', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('frustacao', '#FF0000');
+		reg.update(def.id, { memo: 'reflexão sobre código' });
+		expect(reg.getById(def.id)!.memo).toBe('reflexão sobre código');
+	});
+
+	it('clears memo when given empty string', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('frustacao', '#FF0000');
+		reg.update(def.id, { memo: 'algo' });
+		reg.update(def.id, { memo: '' });
+		expect(reg.getById(def.id)!.memo).toBeUndefined();
+	});
+
+	it('preserves memo when update has no memo key', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('frustacao', '#FF0000');
+		reg.update(def.id, { memo: 'algo' });
+		reg.update(def.id, { color: '#00FF00' });
+		expect(reg.getById(def.id)!.memo).toBe('algo');
+	});
+
+	it('emits onMutate when memo updated', () => {
+		const reg = new CodeDefinitionRegistry();
+		const def = reg.create('frustacao', '#FF0000');
+		const onMutate = vi.fn();
+		reg.addOnMutate(onMutate);
+		reg.update(def.id, { memo: 'new memo' });
+		expect(onMutate).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('Group memo via setGroupMemo', () => {
+	it('sets memo on existing group', () => {
+		const reg = new CodeDefinitionRegistry();
+		const g = reg.createGroup('Theme');
+		reg.setGroupMemo(g.id, 'reflexão analítica do grupo');
+		expect(reg.getGroup(g.id)!.memo).toBe('reflexão analítica do grupo');
+	});
+
+	it('clears memo when given empty string', () => {
+		const reg = new CodeDefinitionRegistry();
+		const g = reg.createGroup('Theme');
+		reg.setGroupMemo(g.id, 'algo');
+		reg.setGroupMemo(g.id, '');
+		expect(reg.getGroup(g.id)!.memo).toBeUndefined();
+	});
+
+	it('clears memo when given undefined', () => {
+		const reg = new CodeDefinitionRegistry();
+		const g = reg.createGroup('Theme');
+		reg.setGroupMemo(g.id, 'algo');
+		reg.setGroupMemo(g.id, undefined);
+		expect(reg.getGroup(g.id)!.memo).toBeUndefined();
+	});
+
+	it('no-op for non-existent group', () => {
+		const reg = new CodeDefinitionRegistry();
+		expect(() => reg.setGroupMemo('inexistent', 'x')).not.toThrow();
+	});
+
+	it('emits onMutate', () => {
+		const reg = new CodeDefinitionRegistry();
+		const g = reg.createGroup('Theme');
+		const onMutate = vi.fn();
+		reg.addOnMutate(onMutate);
+		reg.setGroupMemo(g.id, 'new');
+		expect(onMutate).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('Relation memo via setRelationMemo', () => {
+	it('sets memo on existing relation by tuple', () => {
+		const reg = new CodeDefinitionRegistry();
+		const a = reg.create('a', '#FF0000');
+		const b = reg.create('b', '#00FF00');
+		reg.update(a.id, { relations: [{ label: 'causa', target: b.id, directed: true }] });
+
+		const ok = reg.setRelationMemo(a.id, 'causa', b.id, 'A causa B porque...');
+		expect(ok).toBe(true);
+		expect(reg.getById(a.id)!.relations![0].memo).toBe('A causa B porque...');
+	});
+
+	it('returns false when codeId does not exist', () => {
+		const reg = new CodeDefinitionRegistry();
+		expect(reg.setRelationMemo('missing', 'l', 't', 'x')).toBe(false);
+	});
+
+	it('returns false when (label, target) does not match', () => {
+		const reg = new CodeDefinitionRegistry();
+		const a = reg.create('a', '#FF0000');
+		const b = reg.create('b', '#00FF00');
+		reg.update(a.id, { relations: [{ label: 'causa', target: b.id, directed: true }] });
+		expect(reg.setRelationMemo(a.id, 'efeito', b.id, 'x')).toBe(false);
+	});
+
+	it('clears memo when given empty string', () => {
+		const reg = new CodeDefinitionRegistry();
+		const a = reg.create('a', '#FF0000');
+		const b = reg.create('b', '#00FF00');
+		reg.update(a.id, { relations: [{ label: 'causa', target: b.id, directed: true, memo: 'old' }] });
+		reg.setRelationMemo(a.id, 'causa', b.id, '');
+		expect(reg.getById(a.id)!.relations![0].memo).toBeUndefined();
+	});
+
+	it('updates only first match when duplicates exist', () => {
+		const reg = new CodeDefinitionRegistry();
+		const a = reg.create('a', '#FF0000');
+		const b = reg.create('b', '#00FF00');
+		reg.update(a.id, { relations: [
+			{ label: 'causa', target: b.id, directed: true },
+			{ label: 'causa', target: b.id, directed: false },
+		] });
+		reg.setRelationMemo(a.id, 'causa', b.id, 'first match');
+		const rels = reg.getById(a.id)!.relations!;
+		expect(rels[0].memo).toBe('first match');
+		expect(rels[1].memo).toBeUndefined();
+	});
+
+	it('emits onMutate on success', () => {
+		const reg = new CodeDefinitionRegistry();
+		const a = reg.create('a', '#FF0000');
+		const b = reg.create('b', '#00FF00');
+		reg.update(a.id, { relations: [{ label: 'causa', target: b.id, directed: true }] });
+		const onMutate = vi.fn();
+		reg.addOnMutate(onMutate);
+		reg.setRelationMemo(a.id, 'causa', b.id, 'x');
+		expect(onMutate).toHaveBeenCalledTimes(1);
+	});
+});
+

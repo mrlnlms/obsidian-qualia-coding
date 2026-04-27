@@ -208,7 +208,7 @@ export class CodeDefinitionRegistry {
 		return def;
 	}
 
-	update(id: string, changes: Partial<Pick<CodeDefinition, 'name' | 'color' | 'description' | 'magnitude' | 'relations'>>): boolean {
+	update(id: string, changes: Partial<Pick<CodeDefinition, 'name' | 'color' | 'description' | 'memo' | 'magnitude' | 'relations'>>): boolean {
 		const def = this.definitions.get(id);
 		if (!def) return false;
 
@@ -226,6 +226,9 @@ export class CodeDefinitionRegistry {
 		}
 		if (changes.description !== undefined) {
 			def.description = changes.description || undefined;
+		}
+		if (changes.memo !== undefined) {
+			def.memo = changes.memo || undefined;
 		}
 		if ('magnitude' in changes) {
 			def.magnitude = changes.magnitude;
@@ -432,6 +435,31 @@ export class CodeDefinitionRegistry {
 		if (!g) return;
 		g.description = description && description.length > 0 ? description : undefined;
 		for (const fn of this.onMutateListeners) fn();
+	}
+
+	setGroupMemo(id: string, memo: string | undefined): void {
+		const g = this.groups.get(id);
+		if (!g) return;
+		g.memo = memo && memo.length > 0 ? memo : undefined;
+		for (const fn of this.onMutateListeners) fn();
+	}
+
+	/**
+	 * Atualiza memo de uma relation code-level identificada por (label, target).
+	 * Mesmo pattern do delete em baseCodingMenu.ts:585.
+	 *
+	 * Limite: se houver relations duplicadas com mesmo (label, target), atualiza
+	 * só a primeira. Mesmo limite do delete existente.
+	 */
+	setRelationMemo(codeId: string, label: string, target: string, memo: string | undefined): boolean {
+		const def = this.definitions.get(codeId);
+		if (!def?.relations) return false;
+		const rel = def.relations.find(r => r.label === label && r.target === target);
+		if (!rel) return false;
+		rel.memo = memo && memo.length > 0 ? memo : undefined;
+		def.updatedAt = Date.now();
+		for (const fn of this.onMutateListeners) fn();
+		return true;
 	}
 
 	setGroupOrder(ids: string[]): void {
