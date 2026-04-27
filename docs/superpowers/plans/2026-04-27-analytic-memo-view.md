@@ -82,6 +82,49 @@ Expected: branch limpa, todos tests passando (2307 conforme CLAUDE.md).
 
 **Goal:** tipos novos em `dataTypes.ts` + módulo `data/memoView.ts` com função pura testada. Sem UI ainda.
 
+### Task 1.0: Foundation fixes (registry + EngineType)
+
+**Files:**
+- Modify: `src/core/codeDefinitionRegistry.ts`
+- Modify: `src/analytics/data/dataTypes.ts`
+
+- [ ] **Step 1.0.1: Adicionar `getAllFolders()` ao registry**
+
+`buildFlatTree` precisa de `ExpandedState.folders: Set<string>` com TODOS os folder ids pra "expandir tudo" no Memo View. Hoje o registry tem `getRootFolders()`/`getChildFolders(id)` mas não `getAllFolders()`. Adicionar método trivial em `codeDefinitionRegistry.ts` (perto de `getRootFolders` ~line 557):
+
+```typescript
+  getAllFolders(): FolderDefinition[] {
+    return Array.from(this.folders.values());
+  }
+```
+
+- [ ] **Step 1.0.2: Re-exportar `EngineType` como alias de `MarkerType`**
+
+`MarkerType` em `src/core/types.ts:25` já tem o mesmo shape (`'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video'`). Em `src/analytics/data/dataTypes.ts`, substituir a definição local de `EngineType` por re-export do core:
+
+```typescript
+// src/analytics/data/dataTypes.ts (line ~5, replace)
+import type { MarkerType } from "../../core/types";
+export type EngineType = MarkerType;
+```
+
+Isso permite `dataManager.findMarker` usar `MarkerType` (sem layer inversion analytics→core), enquanto analytics continua com `EngineType` familiar.
+
+- [ ] **Step 1.0.3: Verificar tsc**
+
+```bash
+npx tsc --noEmit 2>&1 | head -10
+```
+
+Expected: zero erros.
+
+- [ ] **Step 1.0.4: Commit**
+
+```bash
+git add src/core/codeDefinitionRegistry.ts src/analytics/data/dataTypes.ts
+~/.claude/scripts/commit.sh "chore(core): getAllFolders + EngineType alias pra MarkerType (preparação memo view)"
+```
+
 ### Task 1.1: Adicionar tipos em `dataTypes.ts`
 
 **Files:**
@@ -134,7 +177,8 @@ export type MemoEntry =
       directed: boolean;
       memo: string;
       level: "code" | "application";
-      markerId?: string;
+      markerId?: string; // só quando level === "application"
+      engineType?: EngineType; // só quando level === "application" — necessário pra onSaveAppRelationMemo encontrar marker
     }
   | {
       kind: "marker";
@@ -199,30 +243,56 @@ import type { AllEngineData, MemoViewFilters } from "../dataTypes";
 import { CodeDefinitionRegistry } from "../../../core/codeDefinitionRegistry";
 import type { CodeApplication } from "../../../core/codeApplicationHelpers";
 
+// Helpers — APIs verificadas em `src/core/codeDefinitionRegistry.ts`:
+//   create(name, color?, description?, parentId?) — POSICIONAL
+//   getAll() — não getAllCodes
+//   getById(id), update(id, partial), setParent(id, parentId)
+//   createGroup(name) → GroupDefinition (capture id from return)
+//   getGroup(id) — não getGroupById/getGroupByName
+//   addCodeToGroup(codeId, groupId), setGroupMemo(id, memo), setRelationMemo(codeId, label, target, memo)
+//   Code-level relations: registry.update(id, { relations: [{ label, target, directed }, ...] })
+//     (não há addRelation no registry — relations vão direto via update)
+
 function makeRegistry(opts?: {
-  codes?: Array<{ id: string; name: string; memo?: string; parentId?: string; relations?: Array<{ label: string; target: string; directed?: boolean; memo?: string }> }>;
-  groups?: Array<{ id: string; name: string; memo?: string; codeIds?: string[] }>;
+  codes?: Array<{ name: string; memo?: string; parentName?: string; relations?: Array<{ label: string; target: string; directed?: boolean; memo?: string }> }>;
+  groups?: Array<{ name: string; memo?: string; codeNames?: string[] }>;
 }): CodeDefinitionRegistry {
   const reg = new CodeDefinitionRegistry();
+  const ids = new Map<string, string>(); // name → id
+  // Pass 1: cria todos códigos
   for (const c of opts?.codes ?? []) {
-    reg.create(c.name, { color: "#abc", description: "" });
-    const def = reg.getByName(c.name)!;
-    if (c.memo) reg.update(def.id, { memo: c.memo });
-    if (c.parentId) reg.setParent(def.id, c.parentId);
-    if (c.relations) {
-      for (const r of c.relations) {
-        reg.addRelation(def.id, r.label, r.target, r.directed ?? true);
-        if (r.memo) reg.setRelationMemo(def.id, r.label, r.target, r.memo);
-      }
+    const def = reg.create(c.name, "#abc", "");
+    ids.set(c.name, def.id);
+  }
+  // Pass 2: parent + memo + relations (precisam dos ids prontos)
+  for (const c of opts?.codes ?? []) {
+    const id = ids.get(c.name)!;
+    if (c.memo) reg.update(id, { memo: c.memo });
+    if (c.parentName) reg.setParent(id, ids.get(c.parentName));
+    if (c.relations && c.relations.length) {
+      const rels = c.relations.map((r) => ({
+        label: r.label,
+        target: ids.get(r.target) ?? r.target,
+        directed: r.directed ?? true,
+        memo: r.memo,
+      }));
+      reg.update(id, { relations: rels });
     }
   }
+  // Groups
   for (const g of opts?.groups ?? []) {
-    reg.createGroup(g.name);
-    const grp = reg.getGroupByName(g.name)!;
+    const grp = reg.createGroup(g.name);
     if (g.memo) reg.setGroupMemo(grp.id, g.memo);
-    for (const codeId of g.codeIds ?? []) reg.addCodeToGroup(codeId, grp.id);
+    for (const codeName of g.codeNames ?? []) {
+      const codeId = ids.get(codeName);
+      if (codeId) reg.addCodeToGroup(codeId, grp.id);
+    }
   }
   return reg;
+}
+
+function getId(reg: CodeDefinitionRegistry, name: string): string {
+  return reg.getAll().find((c) => c.name === name)!.id;
 }
 
 function makeAllData(opts?: { markdownMarkers?: any[]; pdfMarkers?: any[]; csvSegmentMarkers?: any[] }): AllEngineData {
@@ -296,7 +366,7 @@ describe("aggregateMemos — coverage", () => {
       { name: "B" },
     ]});
     const allData = makeAllData({
-      markdownMarkers: [{ id: "m1", fileId: "P01.md", codes: [{ codeId: reg.getByName("A")!.id, relations: [{ label: "x", target: "B", directed: true, memo: "app rel memo" }] }] } as any],
+      markdownMarkers: [{ id: "m1", fileId: "P01.md", codes: [{ codeId: getId(reg, "A"), relations: [{ label: "x", target: "B", directed: true, memo: "app rel memo" }] }] } as any],
     });
     const r = aggregateMemos(allData, reg, baseFilters);
     expect(r.coverage.relationsTotal).toBe(3);
@@ -305,7 +375,7 @@ describe("aggregateMemos — coverage", () => {
 
   it("markersTotal respects non-showTypes filters", () => {
     const reg = makeRegistry({ codes: [{ name: "A" }] });
-    const aId = reg.getByName("A")!.id;
+    const aId = getId(reg, "A");
     const allData = makeAllData({
       markdownMarkers: [{ id: "m1", fileId: "P01.md", codes: [{ codeId: aId }], memo: "x" } as any],
       pdfMarkers: [{ id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: "y" } as any],
@@ -338,6 +408,7 @@ import type { CodeDefinitionRegistry } from "../../core/codeDefinitionRegistry";
 import type { BaseMarker } from "../../core/types";
 import type { CodeApplication } from "../../core/codeApplicationHelpers";
 import type { AllEngineData } from "./dataReader";
+import { buildFlatTree, type ExpandedState } from "../../core/hierarchyHelpers";
 import type {
   CodeMemoSection,
   CoverageStats,
@@ -401,7 +472,7 @@ function computeCoverage(
   registry: CodeDefinitionRegistry,
   filteredFlat: FlatMarker[],
 ): CoverageStats {
-  const allCodes = registry.getAllCodes();
+  const allCodes = registry.getAll();
   const allGroups = registry.getAllGroups();
 
   let relationsTotal = 0;
@@ -492,9 +563,8 @@ describe("aggregateMemos — by code", () => {
   it("includes group memos for code's groups", () => {
     const reg = makeRegistry({
       codes: [{ name: "A", memo: "x" }],
-      groups: [{ id: "g1", name: "G1", memo: "g memo", codeIds: [] }],
+      groups: [{ name: "G1", memo: "g memo", codeNames: ["A"] }],
     });
-    reg.addCodeToGroup(reg.getByName("A")!.id, reg.getGroupByName("G1")!.id);
     const r = aggregateMemos(makeAllData(), reg, baseFilters);
     expect(r.byCode![0]!.groupMemos.length).toBe(1);
     const gm = r.byCode![0]!.groupMemos[0]!;
@@ -518,11 +588,12 @@ describe("aggregateMemos — by code", () => {
 
   it("includes app-level relation memos via marker", () => {
     const reg = makeRegistry({ codes: [{ name: "A", memo: "x" }, { name: "B" }] });
-    const aId = reg.getByName("A")!.id;
+    const aId = getId(reg, "A");
+    const bId = getId(reg, "B");
     const allData = makeAllData({
       markdownMarkers: [{
         id: "m1", fileId: "P01.md",
-        codes: [{ codeId: aId, relations: [{ label: "x", target: "B", directed: true, memo: "app memo" }] }],
+        codes: [{ codeId: aId, relations: [{ label: "x", target: bId, directed: true, memo: "app memo" }] }],
       } as any],
     });
     const r = aggregateMemos(allData, reg, baseFilters);
@@ -531,12 +602,13 @@ describe("aggregateMemos — by code", () => {
     if (rels[0]!.kind === "relation") {
       expect(rels[0]!.level).toBe("application");
       expect(rels[0]!.markerId).toBe("m1");
+      expect(rels[0]!.engineType).toBe("markdown");
     }
   });
 
   it("includes marker memos for code", () => {
     const reg = makeRegistry({ codes: [{ name: "A" }] });
-    const aId = reg.getByName("A")!.id;
+    const aId = getId(reg, "A");
     const allData = makeAllData({
       markdownMarkers: [
         { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }], memo: "marker 1" } as any,
@@ -575,14 +647,14 @@ function buildByCode(
 ): CodeMemoSection[] {
   const sections: CodeMemoSection[] = [];
   // Ordem flat via buildFlatTree (todos expandidos pra Memo View)
-  const allCodes = registry.getAllCodes();
+  const allCodes = registry.getAll();
   const allFolders = registry.getAllFolders ? registry.getAllFolders() : [];
   const expanded = {
     codes: new Set(allCodes.map((c) => c.id)),
     folders: new Set(allFolders.map((f) => f.id)),
   };
   // Import lazy pra não criar circular dep
-  const { buildFlatTree } = require("../../core/hierarchyHelpers");
+  // Import normal — sem circular dep (hierarchyHelpers não importa de analytics):
   const flatNodes = buildFlatTree(registry, expanded);
 
   for (const node of flatNodes) {
@@ -638,6 +710,7 @@ function buildByCode(
               memo: r.memo!.trim(),
               level: "application",
               markerId: fm.marker.id,
+              engineType: fm.engineType,
             });
           }
         }
@@ -734,10 +807,10 @@ describe("aggregateMemos — hierarquia", () => {
   it("parent without memo + child with memo: parent appears as context", () => {
     const reg = makeRegistry({ codes: [
       { name: "P" },
-      { name: "C", parentId: "P", memo: "child memo" },
+      { name: "C", parentName: "P", memo: "child memo" },
     ]});
     // setParent precisa do id real, ajustar:
-    reg.setParent(reg.getByName("C")!.id, reg.getByName("P")!.id);
+    reg.setParent(getId(reg, "C"), getId(reg, "P"));
     const r = aggregateMemos(makeAllData(), reg, baseFilters);
     const names = r.byCode!.map((s) => s.codeName);
     expect(names).toContain("P"); // pai aparece
@@ -749,7 +822,7 @@ describe("aggregateMemos — hierarquia", () => {
 
   it("parent without memo + child without memo: neither appears", () => {
     const reg = makeRegistry({ codes: [{ name: "P" }, { name: "C" }] });
-    reg.setParent(reg.getByName("C")!.id, reg.getByName("P")!.id);
+    reg.setParent(getId(reg, "C"), getId(reg, "P"));
     const r = aggregateMemos(makeAllData(), reg, baseFilters);
     expect(r.byCode!.length).toBe(0);
   });
@@ -760,11 +833,11 @@ describe("aggregateMemos — hierarquia", () => {
       { name: "C1", memo: "c1" },
       { name: "C2", memo: "c2" },
     ]});
-    reg.setParent(reg.getByName("C1")!.id, reg.getByName("P")!.id);
-    reg.setParent(reg.getByName("C2")!.id, reg.getByName("P")!.id);
+    reg.setParent(getId(reg, "C1"), getId(reg, "P"));
+    reg.setParent(getId(reg, "C2"), getId(reg, "P"));
     const r = aggregateMemos(makeAllData(), reg, baseFilters);
     const pSection = r.byCode!.find((s) => s.codeName === "P")!;
-    expect(pSection.childIds).toEqual([reg.getByName("C1")!.id, reg.getByName("C2")!.id]);
+    expect(pSection.childIds).toEqual([getId(reg, "C1"), getId(reg, "C2")]);
   });
 });
 ```
@@ -875,7 +948,7 @@ git add src/analytics/data/memoView.ts src/analytics/data/__tests__/memoView.tes
 describe("aggregateMemos — by file", () => {
   it("groups markers by fileId", () => {
     const reg = makeRegistry({ codes: [{ name: "A" }] });
-    const aId = reg.getByName("A")!.id;
+    const aId = getId(reg, "A");
     const allData = makeAllData({
       markdownMarkers: [
         { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }], memo: "x" } as any,
@@ -893,8 +966,8 @@ describe("aggregateMemos — by file", () => {
 
   it("codeIdsUsed reúne todos os surviving codes", () => {
     const reg = makeRegistry({ codes: [{ name: "A" }, { name: "B" }] });
-    const aId = reg.getByName("A")!.id;
-    const bId = reg.getByName("B")!.id;
+    const aId = getId(reg, "A");
+    const bId = getId(reg, "B");
     const allData = makeAllData({
       markdownMarkers: [
         { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }, { codeId: bId }], memo: "x" } as any,
@@ -906,7 +979,7 @@ describe("aggregateMemos — by file", () => {
 
   it("filters out files without marker memos", () => {
     const reg = makeRegistry({ codes: [{ name: "A" }] });
-    const aId = reg.getByName("A")!.id;
+    const aId = getId(reg, "A");
     const allData = makeAllData({
       markdownMarkers: [
         { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }] /* no memo */ } as any,
@@ -1000,8 +1073,8 @@ git add src/analytics/data/memoView.ts src/analytics/data/__tests__/memoView.tes
 describe("aggregateMemos — decisão iv (marker em múltiplos códigos)", () => {
   it("marker appears once under first surviving code in array order", () => {
     const reg = makeRegistry({ codes: [{ name: "A" }, { name: "B" }] });
-    const aId = reg.getByName("A")!.id;
-    const bId = reg.getByName("B")!.id;
+    const aId = getId(reg, "A");
+    const bId = getId(reg, "B");
     const allData = makeAllData({
       markdownMarkers: [
         { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }, { codeId: bId }], memo: "x" } as any,
@@ -1017,8 +1090,8 @@ describe("aggregateMemos — decisão iv (marker em múltiplos códigos)", () =>
 
   it("with code filter excluding A, marker goes to B", () => {
     const reg = makeRegistry({ codes: [{ name: "A" }, { name: "B" }] });
-    const aId = reg.getByName("A")!.id;
-    const bId = reg.getByName("B")!.id;
+    const aId = getId(reg, "A");
+    const bId = getId(reg, "B");
     const allData = makeAllData({
       markdownMarkers: [
         { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }, { codeId: bId }], memo: "x" } as any,
@@ -1477,7 +1550,7 @@ chips.createSpan({ cls: "memo-view-group-chip", text: opts.resolveGroupName(gid)
 
 E em `memoViewMode.ts`:
 ```typescript
-resolveGroupName: (gid) => ctx.plugin.registry.getGroupById(gid)?.name ?? gid,
+resolveGroupName: (gid) => ctx.plugin.registry.getGroup(gid)?.name ?? gid,
 ```
 
 - [ ] **Step 3.4.2: CSS scaffold em `styles.css`**
@@ -1540,58 +1613,11 @@ Vault `obsidian-plugins-workbench/`: criar 1 code com memo, 1 group com memo + a
 
 **Goal:** códigos filhos indentam, parent sem memo aparece como contexto, "Show N more" funciona.
 
-### Task 4.1: Tests UI de hierarquia + collapse
+### Task 4.1: Smoke manual da hierarquia + collapse
 
-**Files:**
-- Create: `src/analytics/views/modes/memoView/__tests__/memoViewMode.test.ts`
+**Decisão:** UI tests dessa chunk ficam pra chunk 10 (final smoke + tests UI consolidados). Aqui o foco é validação manual via build + abrir vault. Função pura `aggregateMemos` já tem cobertura de hierarquia em chunk 1.6, então a confiança no shape dos dados existe — o que falta validar é DOM, e DOM unit test cresce mais barato como suite consolidada no fim.
 
-- [ ] **Step 4.1.1: Setup mínimo de DOM test**
-
-```typescript
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderMemoView } from "../memoViewMode";
-import type { AnalyticsViewContext } from "../../../analyticsViewContext";
-
-function makeCtx(overrides?: Partial<AnalyticsViewContext>): AnalyticsViewContext {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const ctx = {
-    plugin: {
-      app: {} as any,
-      registry: { /* ...resolver getGroupById */ } as any,
-      caseVariablesRegistry: {} as any,
-      dataManager: { getAll: () => ({}), section: () => ({}) } as any,
-    } as any,
-    chartContainer: container,
-    configPanelEl: null,
-    footerEl: null,
-    mvGroupBy: "code",
-    mvShowTypes: { code: true, group: true, relation: true, marker: true },
-    mvMarkerLimit: 10 as const,
-    mvExpanded: new Set<string>(),
-    suspendRefresh: vi.fn(),
-    resumeRefresh: vi.fn(),
-    scheduleUpdate: vi.fn(),
-    buildFilterConfig: () => ({ sources: ["markdown","csv-segment","csv-row","image","pdf","audio","video"], codes: [], excludeCodes: [], minFrequency: 0 }),
-    isRenderCurrent: () => true,
-    renderConfigPanel: vi.fn(),
-    ...overrides,
-  } as any;
-  return ctx;
-}
-
-describe("renderMemoView — UI", () => {
-  beforeEach(() => { document.body.innerHTML = ""; });
-
-  it("renders empty state when no memos", () => {
-    const ctx = makeCtx();
-    // mock readAllData / aggregateMemos to return zeros
-    // ... (implementação completa: spyOn(...).mockReturnValue(...))
-  });
-});
-```
-
-NOTA: pra essa chunk, foco maior em smoke manual. Tests UI vão crescendo conforme features. Manter o arquivo mínimo agora.
+(Sem arquivo de test criado nesta chunk.)
 
 ### Task 4.2: Implementar hierarquia visual
 
@@ -1773,17 +1799,18 @@ describe("DataManager.findMarker", () => {
 
 - [ ] **Step 5a.1.2: Implementar `findMarker`**
 
+**Layer-inversion fix:** `EngineType` em `analytics/data/dataTypes.ts` tem o mesmo shape que `MarkerType` já em `src/core/types.ts:25` (`'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video'`). Pra evitar core depender de analytics, usar `MarkerType` em `dataManager.findMarker`. Em `dataTypes.ts` (analytics), trocar a definição de `EngineType` pra um re-export: `export type { MarkerType as EngineType } from "../../core/types";` — preserva compat com analytics, sem layer inversion.
+
 Em `src/core/dataManager.ts`, adicionar import dos tipos no topo:
 
 ```typescript
-import type { EngineType } from "../analytics/data/dataTypes";
-import type { BaseMarker } from "./types";
+import type { MarkerType, BaseMarker } from "./types";
 ```
 
 E método na classe (após `clearAllSections`):
 
 ```typescript
-  findMarker(engineType: EngineType, markerId: string): BaseMarker | null {
+  findMarker(engineType: MarkerType, markerId: string): BaseMarker | null {
     const d = this.data as any;
     if (engineType === "markdown") {
       for (const fileId of Object.keys(d.markdown.markers)) {
@@ -2067,7 +2094,7 @@ Relation memos: cada row vira editor.
 - Code-level: `onSaveCodeRelationMemo(opts.ctx, rm.codeId, rm.label, rm.targetId, v)`
 - App-level: `onSaveAppRelationMemo(opts.ctx, /* engineType from marker lookup */, rm.markerId!, rm.codeId, rm.label, rm.targetId, v)`. Pra obter engineType: passar via `MemoEntry` quando relation app-level (já tem `markerId` mas não tem `engineType` nem `sourceType`). Ajustar tipo `MemoEntry` ou enriquecer aggregator pra incluir `engineType` em relation app-level.
 
-→ **Sub-task ajustar tipo:** adicionar `engineType?: EngineType` no kind="relation" quando `level="application"`. Atualizar aggregator pra preencher.
+**Nota:** `engineType?` em `MemoEntry` kind="relation" já foi declarado no tipo em chunk 1. Aqui só consumir: `onSaveAppRelationMemo(opts.ctx, rm.engineType!, rm.markerId!, ...)`. Se aggregator (chunk 1.5) não preencher engineType ainda, voltar e completar — adicionar `engineType: fm.engineType` na construção do `MemoEntry` app-level.
 
 - [ ] **Step 5b.3.3: Marker memo via editor**
 
@@ -2364,9 +2391,20 @@ export function renderMemoViewOptions(ctx: AnalyticsViewContext): void {
 
 Em `memoViewMode.ts` — substituir `renderMemoViewOptions` import. Se já está no MODE_REGISTRY apontando pra função do `memoViewMode.ts`, ajustar pra apontar pra `memoViewOptions.ts`.
 
-- [ ] **Step 7.1.3: Reusar filtros**
+- [ ] **Step 7.1.3: Confirmar reuso de filtros existentes**
 
-Procurar como Code×Metadata expõe filtros adicionais. Em `analyticsView.ts`, geralmente os filtros (sources, code group, code, case variable) são renderizados sempre — independente do mode. Confirmar via leitura do método que constrói o config panel. Se já são sempre renderizados: nada a fazer aqui. Se mode-specific: copiar pattern do `codeMetadataMode`.
+Antes de implementar, verificar como o config panel é construído pra outros modes:
+
+```bash
+grep -n "renderSourcesSection\|renderGroupFilter\|renderCaseVariable\|renderCodeFilter\|renderConfigPanel" src/analytics/views/analyticsView.ts src/analytics/views/configSections.ts 2>&1 | head -20
+```
+
+Os filtros padrão (sources, code, code group, case variable) são renderizados pelo `analyticsView.ts:renderConfigPanel` ANTES de chamar `mode.renderOptions(ctx)`, ou DEPOIS? Conforme o resultado:
+
+- Se ANTES e sempre: nada a fazer aqui — `renderMemoViewOptions` só adiciona os 3 controles novos no fim.
+- Se DEPOIS ou condicional: copiar exatamente o pattern de `codeMetadataMode.renderCodeMetadataOptionsSection` que (ver `src/analytics/views/modes/codeMetadataMode.ts:340-406`) só adiciona controles próprios — confirma que filtros padrão vêm de fora.
+
+Action: ler `analyticsView.ts:renderConfigPanel` (procurar `renderConfigPanel`/`renderOptions` callsite). Não precisa mudar nada se confirmado que filtros padrão sempre rodam.
 
 - [ ] **Step 7.1.4: Smoke + commit**
 
@@ -2457,23 +2495,101 @@ export function exportMemoCSV(ctx: AnalyticsViewContext, date: string): void {
 **Files:**
 - Create: `src/analytics/views/modes/memoView/__tests__/exportMemoCSV.test.ts`
 
-- [ ] **Step 8.2.1: Tests core**
+- [ ] **Step 8.2.1: Tests core (6 tests concretos)**
+
+Setup compartilhado: stubar `URL.createObjectURL` e capturar Blob via mock de `<a>.click`. Pra simplificar, refactor `exportMemoCSV` pra que a geração de string seja **função pura `buildMemoCSV(result)`**, e o download seja wrapper. Testar a função pura.
 
 ```typescript
-import { describe, it, expect, vi } from "vitest";
-// Tests focam em geração de rows. Mockar URL.createObjectURL etc.
+// exportMemoCSV.test.ts
+import { describe, it, expect } from "vitest";
+import { buildMemoCSV } from "../exportMemoCSV";
+import type { MemoViewResult } from "../../../../data/dataTypes";
 
-describe("exportMemoCSV", () => {
-  it("gera header + 1 row por memo", () => {
-    // Use makeAllData + makeRegistry helpers (dup minimal)
-    // Stub createObjectURL e link.click; capturar Blob.text()
-    // ... (ver memoView.test.ts pra setup)
+function emptyCoverage() {
+  return { codesTotal: 0, codesWithMemo: 0, groupsTotal: 0, groupsWithMemo: 0, relationsTotal: 0, relationsWithMemo: 0, markersTotal: 0, markersWithMemo: 0 };
+}
+
+describe("buildMemoCSV", () => {
+  it("includes header + 1 row per memo", () => {
+    const result: MemoViewResult = {
+      groupBy: "code",
+      coverage: emptyCoverage(),
+      byCode: [{
+        codeId: "c1", codeName: "A", color: "#abc", depth: 0, groupIds: [],
+        codeMemo: "memo c1", groupMemos: [], relationMemos: [], markerMemos: [],
+        childIds: [], hasAnyMemoInSubtree: true,
+      }],
+    };
+    const csv = buildMemoCSV(result);
+    const lines = csv.trim().split("\n");
+    expect(lines[0]).toBe("entity_type,entity_id,code_id,code_name,file_id,source_type,level,memo");
+    expect(lines.length).toBe(2);
+    expect(lines[1]).toContain("code");
+    expect(lines[1]).toContain("memo c1");
   });
-  // ... 5 outros testes (escape, newlines, empty result, filtros, encoding)
+
+  it("escapes double quotes in memo", () => {
+    const result: MemoViewResult = {
+      groupBy: "code", coverage: emptyCoverage(),
+      byCode: [{ codeId: "c1", codeName: "A", color: "#abc", depth: 0, groupIds: [], codeMemo: 'has "quotes"', groupMemos: [], relationMemos: [], markerMemos: [], childIds: [], hasAnyMemoInSubtree: true }],
+    };
+    const csv = buildMemoCSV(result);
+    expect(csv).toContain('"has ""quotes"""');
+  });
+
+  it("preserves newlines inside memo cell (quoted)", () => {
+    const result: MemoViewResult = {
+      groupBy: "code", coverage: emptyCoverage(),
+      byCode: [{ codeId: "c1", codeName: "A", color: "#abc", depth: 0, groupIds: [], codeMemo: "line1\nline2", groupMemos: [], relationMemos: [], markerMemos: [], childIds: [], hasAnyMemoInSubtree: true }],
+    };
+    const csv = buildMemoCSV(result);
+    expect(csv).toContain('"line1\nline2"');
+  });
+
+  it("emits empty file_id/source_type for code/group/relation rows", () => {
+    const result: MemoViewResult = {
+      groupBy: "code", coverage: emptyCoverage(),
+      byCode: [{
+        codeId: "c1", codeName: "A", color: "#abc", depth: 0, groupIds: [], codeMemo: "x",
+        groupMemos: [{ kind: "group", groupId: "g1", groupName: "G", color: "#abc", memo: "g" }],
+        relationMemos: [{ kind: "relation", codeId: "c1", label: "L", targetId: "c2", targetName: "B", directed: true, memo: "r", level: "code" }],
+        markerMemos: [], childIds: [], hasAnyMemoInSubtree: true,
+      }],
+    };
+    const csv = buildMemoCSV(result);
+    const rows = csv.trim().split("\n").slice(1);
+    expect(rows[0]!.split(",").slice(4, 6).join(",")).toBe(","); // code row: file_id,source_type vazios
+    expect(rows[1]!.split(",").slice(4, 6).join(",")).toBe(","); // group row
+  });
+
+  it("emits 'application' level on app-level relation rows", () => {
+    const result: MemoViewResult = {
+      groupBy: "code", coverage: emptyCoverage(),
+      byCode: [{ codeId: "c1", codeName: "A", color: "#abc", depth: 0, groupIds: [], codeMemo: null, groupMemos: [],
+        relationMemos: [{ kind: "relation", codeId: "c1", label: "L", targetId: "c2", targetName: "B", directed: true, memo: "r", level: "application", markerId: "m1", engineType: "markdown" }],
+        markerMemos: [], childIds: [], hasAnyMemoInSubtree: true,
+      }],
+    };
+    const csv = buildMemoCSV(result);
+    expect(csv).toContain("application");
+  });
+
+  it("returns header-only CSV when no memos", () => {
+    const result: MemoViewResult = { groupBy: "code", coverage: emptyCoverage(), byCode: [] };
+    const csv = buildMemoCSV(result);
+    expect(csv.trim().split("\n").length).toBe(1);
+  });
 });
 ```
 
-NOTA: setup de DOM blob+URL stub é trivial; reusar pattern de outros export tests no projeto se houver.
+E em `exportMemoCSV.ts` separar:
+```typescript
+export function buildMemoCSV(result: MemoViewResult): string {
+  // ... lógica de rows movida da exportMemoCSV original
+  return buildCsv(rows);
+}
+export function exportMemoCSV(ctx, date) { /* read+aggregate+buildMemoCSV+download */ }
+```
 
 ### Task 8.3: Registrar em `MODE_REGISTRY`
 
@@ -2559,7 +2675,7 @@ export async function exportMemoMarkdown(ctx: AnalyticsViewContext, date: string
       const heading = "#".repeat(Math.min(sec.depth + 2, 6));
       lines.push(`${heading} ${sec.codeName}`);
       if (sec.groupIds.length > 0) {
-        const names = sec.groupIds.map((id) => ctx.plugin.registry.getGroupById(id)?.name ?? id).join(", ");
+        const names = sec.groupIds.map((id) => ctx.plugin.registry.getGroup(id)?.name ?? id).join(", ");
         lines.push(`**Groups:** ${names}`);
       }
       lines.push("");
@@ -2646,9 +2762,82 @@ if (entry.exportMarkdown) {
 **Files:**
 - Create: `src/analytics/views/modes/memoView/__tests__/exportMemoMarkdown.test.ts`
 
-- [ ] **Step 9.4.1: 6 tests**
+- [ ] **Step 9.4.1: 6 tests concretos**
 
-(Mockar vault, capturar `vault.create` argumento, validar string output.)
+Refator igual chunk 8: separar `buildMemoMarkdown(result, opts)` (função pura, retorna string) de `exportMemoMarkdown(ctx, date)` (wrapper que cria arquivo). Testar a pura.
+
+```typescript
+import { describe, it, expect } from "vitest";
+import { buildMemoMarkdown } from "../exportMemoMarkdown";
+import type { MemoViewResult } from "../../../../data/dataTypes";
+
+function emptyCoverage() { /* ... mesmo helper de exportMemoCSV.test.ts ... */ }
+
+describe("buildMemoMarkdown", () => {
+  it("uses H1 for title and H2 for root code, H3 for child", () => {
+    const result: MemoViewResult = {
+      groupBy: "code", coverage: emptyCoverage(),
+      byCode: [
+        { codeId: "p", codeName: "Parent", color: "#abc", depth: 0, groupIds: [], codeMemo: "p memo", groupMemos: [], relationMemos: [], markerMemos: [], childIds: ["c"], hasAnyMemoInSubtree: true },
+        { codeId: "c", codeName: "Child", color: "#abc", depth: 1, groupIds: [], codeMemo: "c memo", groupMemos: [], relationMemos: [], markerMemos: [], childIds: [], hasAnyMemoInSubtree: true },
+      ],
+    };
+    const md = buildMemoMarkdown(result, { date: "2026-04-27", resolveGroupName: () => "" });
+    expect(md).toMatch(/^# Analytic Memos · 2026-04-27/);
+    expect(md).toContain("\n## Parent\n");
+    expect(md).toContain("\n### Child\n");
+  });
+
+  it("emits blockquote for excerpts", () => {
+    const result: MemoViewResult = {
+      groupBy: "code", coverage: emptyCoverage(),
+      byCode: [{ codeId: "c1", codeName: "A", color: "#abc", depth: 0, groupIds: [], codeMemo: null, groupMemos: [], relationMemos: [],
+        markerMemos: [{ kind: "marker", markerId: "m1", codeId: "c1", fileId: "P01.md", sourceType: "markdown", excerpt: "trecho", memo: "marker memo" }],
+        childIds: [], hasAnyMemoInSubtree: true }],
+    };
+    const md = buildMemoMarkdown(result, { date: "2026-04-27", resolveGroupName: () => "" });
+    expect(md).toContain("  > trecho");
+  });
+
+  it("emits group chips when groupIds present", () => {
+    const result: MemoViewResult = {
+      groupBy: "code", coverage: emptyCoverage(),
+      byCode: [{ codeId: "c1", codeName: "A", color: "#abc", depth: 0, groupIds: ["g1", "g2"], codeMemo: "x", groupMemos: [], relationMemos: [], markerMemos: [], childIds: [], hasAnyMemoInSubtree: true }],
+    };
+    const md = buildMemoMarkdown(result, { date: "2026-04-27", resolveGroupName: (id) => id === "g1" ? "G1" : "G2" });
+    expect(md).toContain("**Groups:** G1, G2");
+  });
+
+  it("emits wikilink for marker file", () => {
+    const result: MemoViewResult = {
+      groupBy: "code", coverage: emptyCoverage(),
+      byCode: [{ codeId: "c1", codeName: "A", color: "#abc", depth: 0, groupIds: [], codeMemo: null, groupMemos: [], relationMemos: [],
+        markerMemos: [{ kind: "marker", markerId: "m1", codeId: "c1", fileId: "P01.md", sourceType: "markdown", excerpt: "x", memo: "y" }],
+        childIds: [], hasAnyMemoInSubtree: true }],
+    };
+    const md = buildMemoMarkdown(result, { date: "2026-04-27", resolveGroupName: () => "" });
+    expect(md).toContain("[[P01.md]]");
+  });
+
+  it("emits coverage block at top", () => {
+    const cov = { ...emptyCoverage(), codesTotal: 5, codesWithMemo: 2 };
+    const result: MemoViewResult = { groupBy: "code", coverage: cov, byCode: [] };
+    const md = buildMemoMarkdown(result, { date: "2026-04-27", resolveGroupName: () => "" });
+    expect(md).toContain("**Coverage:** 2/5 codes");
+  });
+
+  it("emits headings up to depth 4 then caps at H6", () => {
+    const result: MemoViewResult = {
+      groupBy: "code", coverage: emptyCoverage(),
+      byCode: [
+        { codeId: "x", codeName: "Deep", color: "#abc", depth: 5, groupIds: [], codeMemo: "x", groupMemos: [], relationMemos: [], markerMemos: [], childIds: [], hasAnyMemoInSubtree: true },
+      ],
+    };
+    const md = buildMemoMarkdown(result, { date: "2026-04-27", resolveGroupName: () => "" });
+    expect(md).toContain("\n###### Deep\n"); // depth 5 → ## + 5-1 = ###### (cap em H6)
+  });
+});
+```
 
 ### Task 9.5: Smoke + commit
 
@@ -2745,13 +2934,14 @@ git add docs/ CLAUDE.md
 ~/.claude/scripts/commit.sh "docs: registra analytic memo view em ARCHITECTURE/TECHNICAL-PATTERNS/ROADMAP/BACKLOG/CLAUDE"
 ```
 
-- [ ] **Step 10.3.4: Merge pra main**
+- [ ] **Step 10.3.4: Merge pra main (sem push automático)**
 
 ```bash
 git checkout main
 git merge --no-ff feat/analytic-memo-view -m "feat: analytic memo view (consumer #25)"
-git push
 ```
+
+NÃO rodar `git push` automaticamente. User decide quando push (CLAUDE.md regra: ações de blast radius ampla pedem confirmação explícita). Anunciar pro user que merge tá local e perguntar se quer push.
 
 - [ ] **Step 10.3.5: Arquivar plan e spec**
 
