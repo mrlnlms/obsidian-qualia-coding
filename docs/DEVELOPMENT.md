@@ -644,7 +644,8 @@ Convenções de naming aplicadas em todos os engines e interfaces:
 | Campo | Correto | Incorreto (legado) |
 |-------|---------|---------------------|
 | Identificador de arquivo | `fileId` | `file` |
-| Nota/anotação do marker | `memo` | `note` |
+| Reflexão analítica processual | `memo` (em `BaseMarker`, `CodeDefinition`, `GroupDefinition`, `CodeRelation`) | `note` |
+| Definição operacional | `description` (em `CodeDefinition`, `GroupDefinition`) | — (distinta de `memo`) |
 | Método de remoção de marker | `removeMarker()` | `deleteMarker()` |
 | Cor custom do marker | `colorOverride` | — (presente em todos os tipos de marker) |
 | Magnitude config | `magnitude` (on CodeDefinition) | — |

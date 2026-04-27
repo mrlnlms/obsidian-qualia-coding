@@ -866,9 +866,27 @@ Relations exist at two levels:
 - **Code-level** (`CodeDefinition.relations`): theoretical declarations
 - **Segment-level** (`CodeApplication.relations`): data-anchored interpretations
 
-Both use `{ label: string; target: string; directed: boolean }`. `target` is a codeId. Label is free text with autocomplete from all labels used project-wide (`collectAllLabels()` in `relationHelpers.ts`).
+Both use `{ label: string; target: string; directed: boolean; memo? }` — **mesma interface compartilhada** (`CodeRelation` em `types.ts:27`). `target` is a codeId. Label is free text with autocomplete from all labels used project-wide (`collectAllLabels()` in `relationHelpers.ts`).
 
 `renderAddRelationRow()` in `relationUI.ts` is shared across popover, code detail, and marker detail to avoid duplication.
+
+### 10.4 Memo separado de description (#25, 2026-04-27)
+
+Schema aditivo `memo?: string` em `CodeDefinition`, `GroupDefinition`, `CodeRelation` (paralelo a `description?`). **Semântica distinta** — não unificar nem trocar:
+
+| | description | memo |
+|---|---|---|
+| Quando usar | Definição operacional (consensual, sai no codebook export) | Reflexão analítica processual (histórico de pensamento, evolui durante análise) |
+| Padrão de indústria | NVivo "Description", Atlas.ti "Comment" | Atlas.ti/MAXQDA/NVivo separam (campo dedicado "Memo") |
+| Limite | Plain text curto | Plain text longo, evolui no tempo |
+
+**Identidade de relation pra editar memo**: por **tupla `(label, target)` snapshot**, mesmo pattern do delete em `baseCodingMenu.ts:585`. Não adicionar `id` ao `CodeRelation` — relations são append-only no array, mutação por busca lookup. Limite conhecido (duplicates → primeira match) é o mesmo limite do delete já aceito.
+
+**UI scope assimétrico**: code-level edita via Code Detail (✎ button em existing rows); application-level é **schema-ready** — round-trip QDPX/CSV preserva `memo` mesmo sem UI escrever. Quando criar UI app-level no futuro, NÃO mudar shape — só adicionar surface (popover de coding em `baseCodingMenu.ts:498+`, Marker Detail em `detailMarkerRenderer.ts:180-215`).
+
+**Element-form switch em REFI-QDA emission**: quando memo presente, elementos antes self-closing (`<Code .../>`, `<Set .../>`, `<Link .../>`) viram open/close (`<Code ...><MemoText>...</MemoText></Code>`). Pattern recorrente — branch `if (!descEl && !memoEl && children.length === 0)` em `qdcExporter.ts`; emission de `<Link>` re-arquitetada como conditional inner block em `qdpxExporter.ts:buildLinksXml`.
+
+**Não confundir com marker memo**: marker memo (`BaseMarker.memo`) sai como `<Note>` + `<NoteRef>` na collection `<Notes>` do QDPX (pipeline existente desde 2026-03-23, intocado). Code/Group/Relation memo sai como `<MemoText>` direto, child do elemento — **não** passa pela Notes collection. Dois caminhos paralelos no exporter, dois branches paralelos no parser (`qdcImporter` parseia `<MemoText>` como branch nova, `<NoteRef>→description` segue intocado).
 - **Discriminated union para board nodes**: `boardTypes.ts` define cada tipo de node (Sticky, Snapshot, Excerpt, CodeCard, KpiCard, ClusterFrame, Arrow) como interface com `boardType` discriminant. Type guards (`isStickyNode()`, `isExcerptNode()`, etc.) para narrowing seguro.
 - **CodeDefinitionRegistry auto-persistence**: `onMutate` callback no registry — qualquer mutação (add, remove, update de code definition) dispara save automaticamente via DataManager, sem chamada manual.
 - **Shared type guards**: `markerResolvers.ts` exporta type guards (`isPdfMarker()`, `isImageMarker()`, `isCsvMarker()`, `isAudioMarker()`, `isVideoMarker()`) usando discriminante `markerType` em `BaseMarker`. Narrowing seguro sem duck typing.

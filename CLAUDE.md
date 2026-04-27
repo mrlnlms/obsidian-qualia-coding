@@ -203,7 +203,7 @@ src/
 ### Nomes padronizados (todos os engines)
 
 - `fileId` — identificador do arquivo no marker (nunca `file`)
-- `memo` — campo de anotacao no marker (nunca `note`)
+- `memo` — campo de reflexão analítica processual (nunca `note`). Presente em `BaseMarker`, `CodeDefinition`, `GroupDefinition`, `CodeRelation` (#25). Distinto de `description?` (definição operacional, sai no codebook export)
 - `removeMarker()` — metodo de remocao no model (nunca `deleteMarker`)
 - `colorOverride` — cor custom por marker (presente em todos os tipos)
 - `codeId` — referencia estavel ao CodeDefinition.id nos markers (nunca nome direto)
@@ -217,9 +217,9 @@ src/
 - `FolderDefinition` — `{ id, name, createdAt }` no registry. Pastas nao afetam analytics
 - `createFolder` / `deleteFolder` / `renameFolder` / `setCodeFolder` — CRUD de pastas no registry
 - `groups` — array de groupIds em CodeDefinition (camada flat N:N ortogonal a parentId/folder). Afeta Analytics filter e export
-- `GroupDefinition` — `{ id (g_*), name, color, description?, paletteIndex, parentId? schema-ready, createdAt }` no registry
+- `GroupDefinition` — `{ id (g_*), name, color, description?, memo?, paletteIndex, parentId? schema-ready, createdAt }` no registry
 - `GROUP_PALETTE` — 8 cores pastéis distintas do `DEFAULT_PALETTE`. Auto-assign round-robin com `nextGroupPaletteIndex` (nunca decrementa)
-- `createGroup` / `renameGroup` / `deleteGroup` (ripple) / `addCodeToGroup` / `removeCodeFromGroup` / `setGroupColor` / `setGroupDescription` / `setGroupOrder` — API do registry
+- `createGroup` / `renameGroup` / `deleteGroup` (ripple) / `addCodeToGroup` / `removeCodeFromGroup` / `setGroupColor` / `setGroupDescription` / `setGroupMemo` / `setGroupOrder` — API do registry
 - `getCodesInGroup` / `getGroupsForCode` / `getGroupMemberCount` — queries
 - Merge preserva **union** dos groups (target + sources, snapshot pré-delete)
 - QDPX export: `<Sets>` em `<CodeBook>` com namespace `xmlns:qualia="urn:qualia-coding:extensions:1.0"` pra `qualia:color`
@@ -227,7 +227,8 @@ src/
 - `FlatTreeNode = FlatCodeNode | FlatFolderNode` — union discriminada em hierarchyHelpers.ts
 - `rootOrder` — array ordenado de IDs root no registry. Controla ordem de exibicao
 - `magnitude` — config no CodeDefinition `{ type, values }`, valor no CodeApplication. Picker fechado
-- `relations` — array de `{ label, target, directed }` em CodeDefinition (codigo-level) e CodeApplication (segmento-level). Label livre com autocomplete
+- `relations` — array de `{ label, target, directed, memo? }` em CodeDefinition (codigo-level) e CodeApplication (segmento-level). Label livre com autocomplete. `memo` editável só no code-level (UI 1.0); app-level é schema-ready (round-trip QDPX/CSV preserva)
+- `setRelationMemo(codeId, label, target, memo)` — atualiza memo de relation code-level por tupla (label, target). Se houver duplicatas com mesma tupla, atualiza só primeira (mesmo limite do delete em `baseCodingMenu.ts:585`)
 - `setParent(id, parentId)` — metodo de reparentar com deteccao de ciclo
 - `executeMerge()` — funcao de merge em `mergeModal.ts` (reassigna markers, reparenta filhos, deleta sources)
 - Hierarchy helpers puros em `hierarchyHelpers.ts`: `buildFlatTree`, `buildCountIndex`, `getDirectCount`, `getAggregateCount`

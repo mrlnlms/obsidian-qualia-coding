@@ -297,9 +297,9 @@ A hierarquia `parentId` NÃO é só organização estrutural — ela **É** o me
 
 **Code Groups (Tier 1.5 — flat N:N, ortogonal a `parentId` e `folder`):**
 - `groups?: string[]` no CodeDefinition (array de groupIds — código pode ser membro de N groups)
-- `GroupDefinition { id, name, color, description?, paletteIndex, parentId? schema-ready, createdAt }` armazenado no registry
+- `GroupDefinition { id, name, color, description?, memo?, paletteIndex, parentId? schema-ready, createdAt }` armazenado no registry
 - `GROUP_PALETTE` (8 cores pastéis) distinto do `DEFAULT_PALETTE` (12 cores) pra evitar confusão visual em chip counters
-- CRUD: `createGroup`, `renameGroup`, `deleteGroup` (ripple — remove groupId de todos `code.groups[]`), `setGroupColor`, `setGroupDescription`, `setGroupOrder`
+- CRUD: `createGroup`, `renameGroup`, `deleteGroup` (ripple — remove groupId de todos `code.groups[]`), `setGroupColor`, `setGroupDescription`, `setGroupMemo`, `setGroupOrder`
 - Membership: `addCodeToGroup` / `removeCodeFromGroup` (idempotentes — fire único do `onMutate` listener)
 - Queries: `getCodesInGroup`, `getGroupsForCode`, `getGroupMemberCount`
 - Serialização: `groups`, `groupOrder`, `nextGroupPaletteIndex` em `data.registry`. Tolerante a data.json legado (ausência de campos = inicialização vazia)
@@ -459,16 +459,17 @@ Módulo `src/export/` implementa export nos formatos QDC (codebook) e QDPX (proj
 
 **Padrões chave**:
 - **GUID correlation**: Cada source builder armazena `guidMap.set('source:' + filePath, srcGuid)`. O helper `addSourceFile()` lê esse GUID para garantir que o path `internal://` no XML e o entry no ZIP coincidam
-- **Memos como Notes**: Marker com `memo` gera `<Note>` + `<NoteRef>` no `<Selection>`. GUID do note: `note_{selectionGuid}`
-- **Relations como Links**: `buildLinksXml()` converte `CodeDefinition.relations` e `CodeApplication.relations` em `<Link>` com `direction` (Associative/OneWay)
+- **Marker memos como Notes**: Marker com `memo` gera `<Note>` + `<NoteRef>` no `<Selection>`. GUID do note: `note_{selectionGuid}`. Caminho exclusivo de marker memo
+- **Code/Group/Relation memos como `<MemoText>` direto** (#25, 2026-04-27): `CodeDefinition.memo`, `GroupDefinition.memo`, `CodeRelation.memo` saem como `<MemoText>` child de `<Code>`/`<Set>`/`<Link>` — não passam pela Notes collection. Quando memo presente, elementos antes self-closing viram open/close (element-form switch em `buildCodeElement`/`buildSetElement` + emission de `<Link>` no `qdpxExporter.ts`)
+- **Relations como Links**: `buildLinksXml()` converte `CodeDefinition.relations` e `CodeApplication.relations` em `<Link>` com `direction` (Associative/OneWay). `<MemoText>` opcional como child quando relation tem memo
 - **Warnings**: `ExportResult.warnings[]` acumula problemas (source missing, PDF offsets approximate, image dimensions unreadable). Modal exibe via Notice
 
 **Import** (`src/import/`) — Arquitetura em camadas:
 
 - **xmlParser.ts**: Helpers DOMParser — `parseXml`, `getChildElements`, `getAttr`, `getNumAttr`, `getTextContent`, `getAllElements`
 - **coordConverters.ts**: Conversão inversa — `offsetToLineCh` (codepoint→CM6 line:ch com surrogate pairs), `pdfRectToNormalized` (PDF points bottom-left→0-1), `pixelsToNormalized`, `msToSeconds`
-- **qdcImporter.ts**: `parseCodebook` (recursivo com hierarquia + NoteRef→description), `applyCodebook` (merge/separate + guidMap QDPX→Qualia)
-- **qdpxImporter.ts**: `parseSources` (5 tipos), `parseNotes` (com detecção `[Magnitude: X]`), `parseLinks`, `previewQdpx`, `importQdpx` (ZIP→vault: extrai sources, cria markers por engine, batch de text markers com offset→lineCh, memos standalone como .md, `applyLinks` code-level + marker-level)
+- **qdcImporter.ts**: `parseCodebook` (recursivo com hierarquia + NoteRef→description + `<MemoText>` em `<Code>`), `applyCodebook` (merge/separate + guidMap QDPX→Qualia + `mergeMemos` análoga a `mergeDescriptions` quando entidade pré-existe com memo)
+- **qdpxImporter.ts**: `parseSources` (5 tipos), `parseNotes` (com detecção `[Magnitude: X]`), `parseLinks` (com `<MemoText>` opcional), `parseSetsFromXml` (regex-based, parsea `<MemoText>` em `<Set>`), `previewQdpx`, `importQdpx` (ZIP→vault: extrai sources, cria markers por engine, batch de text markers com offset→lineCh, memos standalone como .md, `applyLinks` code-level + marker-level preservando `relation.memo`)
 - **importModal.ts**: File picker, preview com contagem, dropdown conflitos, toggle sources, flows QDC e QDPX separados
 - **importCommands.ts**: `import-qdpx`, `import-qdc` na palette + botão analytics
 - **Magnitude round-trip**: Export codifica `CodeApplication.magnitude` como Note `[Magnitude: X]` via `buildCodingXml(codes, guidMap, createdAt, notes)`. Import detecta prefixo e reconstrói magnitude no `CodeApplication`
@@ -506,9 +507,10 @@ Módulos em `src/export/tabular/` (8 arquivos) — complementa QDPX. Exporta dad
 
 1. **`buildSegmentsTable.ts`** — mais complexo: consolida 6 `MarkerType`s persistidos em 8 `sourceType`s (markdown, pdf_text, pdf_shape, image, audio, video, csv_segment, csv_row). Coluna `engine` (coarse) + `sourceType` (fine). Shape coords em JSON quando toggle on. Media timestamps from/to em milissegundos (ISO 8601 string, zero offset `Z`). Fallback text pra deleted files (arquivo movido/deletado → warning + text='' mas segment sai com outros fields preenchidos)
 2. **`buildCodeApplicationsTable.ts`** — 1 linha per (segment, code) de todos engines. Orphan `codeId` → skip + warning (segment mantém outros codes válidos). Colunas: segment_id, code_id, magnitude (ou NULL), relations_json
-3. **`buildCodesTable.ts`** — codebook denormalizado 1 linha per code. Pastas (organização visual) não aparecem (sem significado analítico em CSV). Coluna `magnitude_config` serializada como JSON, relations como JSON array de `{label, target, directed}`
-4. **`buildCaseVariablesTable.ts`** — long format, 1 linha per (fileId, variable). Lê direto de `dm.section('caseVariables')` (evita dependência em `CaseVariablesRegistry`). Multitext → JSON array. NULL → empty cell (row mantido)
-5. **`buildRelationsTable.ts`** — unifica code-level + application-level via coluna `scope` (code|application). Colunas separadas `origin_code_id` / `origin_segment_id` (não composite key — facilita left-join no R). Target sempre `target_code_id` (relations sempre code-to-code)
+3. **`buildCodesTable.ts`** — codebook denormalizado 1 linha per code. Pastas (organização visual) não aparecem (sem significado analítico em CSV). Colunas: `id, name, color, parent_id, description, memo, magnitude_config, groups`. `magnitude_config` serializada como JSON, `groups` como `;`-separated names
+4. **`buildGroupsTable.ts`** — codebook de groups standalone. Colunas: `id, name, color, description, memo`
+5. **`buildCaseVariablesTable.ts`** — long format, 1 linha per (fileId, variable). Lê direto de `dm.section('caseVariables')` (evita dependência em `CaseVariablesRegistry`). Multitext → JSON array. NULL → empty cell (row mantido)
+6. **`buildRelationsTable.ts`** — unifica code-level + application-level via coluna `scope` (code|application). Colunas separadas `origin_code_id` / `origin_segment_id` (não composite key — facilita left-join no R). Target sempre `target_code_id` (relations sempre code-to-code). Coluna `memo` no fim — code-level populada quando há memo, application-level vazia até UI lander (schema-ready)
 
 **Orchestrator**:
 
@@ -1078,20 +1080,46 @@ Picker fechado — valores declarados são os únicos permitidos. Toggle nas set
 ### 14.4 Relações (Phase E)
 
 Dois níveis:
-- **Código-level**: `CodeDefinition.relations: RelationDefinition[]` — declaração teórica
+- **Código-level**: `CodeDefinition.relations: CodeRelation[]` — declaração teórica
 - **Segmento-level**: `CodeApplication.relations: CodeRelation[]` — interpretação ancorada no dado
 
-Shape: `{ label: string; target: string; directed: boolean }`. Label livre com autocomplete via `<datalist>`.
+Shape: `{ label: string; target: string; directed: boolean; memo? }` (mesma interface compartilhada — ver §14.5). Label livre com autocomplete via `<datalist>`.
 
 Funções puras: `relationHelpers.ts` (`collectAllLabels`, `buildRelationEdges`).
 Analytics: `relationsEngine.ts` → `relationsNetworkMode.ts` (Network View com nós = códigos, arestas = relações).
 
-### 14.5 REFI-QDA Export/Import
+### 14.5 Memos por entidade (#25, 2026-04-27)
+
+Schema aditivo `memo?: string` em três entidades, com semântica distinta de `description?`:
+
+| Entidade | description | memo |
+|---|---|---|
+| `CodeDefinition` | Definição operacional (consensual, sai no codebook) | Reflexão analítica processual (histórico de pensamento) |
+| `GroupDefinition` | idem | idem |
+| `CodeRelation` | — (não tem) | Reflexão sobre essa relação específica |
+| `BaseMarker` | — | Já existia antes — anotação sobre o segmento |
+
+**Identidade de relation pra editar memo**: por **tupla `(label, target)` snapshot**, mesmo pattern do delete em `baseCodingMenu.ts:585`. Setter `setRelationMemo(codeId, label, target, memo)` atualiza primeira match. Limite conhecido (relations duplicadas com mesma tupla → só primeira é atualizada) é o mesmo do delete existente.
+
+**Mutação no registry:**
+- Code: estende `update(id, changes)` com `'memo'` no Pick — caminho único de mutação preservado
+- Group: `setGroupMemo(id, memo)` dedicado, paralelo a `setGroupDescription`/`setGroupColor`
+- Relation: `setRelationMemo(codeId, label, target, memo)` por tupla
+
+`CodeRelation.memo` é compartilhado entre code-level e application-level (mesma interface em `types.ts:27`). UI 1.0 só edita o code-level (✎ button em existing rows do Code Detail); application-level é schema-ready — round-trip QDPX/CSV preserva memo mesmo sem UI escrever.
+
+### 14.6 REFI-QDA Export/Import
 
 **Export**: `qdcExporter.ts` (codebook XML) + `qdpxExporter.ts` (projeto completo: codes + sources + segments + memos + links + magnitude como Notes).
-**Import**: `qdcImporter.ts` (codebook com hierarquia + NoteRef→description) + `qdpxImporter.ts` (5 source types, segments, memos standalone, magnitude, relations via Links).
+**Import**: `qdcImporter.ts` (codebook com hierarquia + NoteRef→description + parser `<MemoText>` em Code) + `qdpxImporter.ts` (5 source types, segments, memos standalone, magnitude, relations via Links com `<MemoText>` opcional, Sets via `parseSetsFromXml` regex-based).
 **Helpers**: `xmlBuilder.ts` (XML generation), `coordConverters.ts` export (lineChToOffset, pdfShapeToRect, imageToPixels, mediaToMs), `xmlParser.ts` + `coordConverters.ts` import (offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds).
 **UI**: `exportModal.ts` (pre-export config), `importModal.ts` (conflict resolution).
+
+**Dois caminhos paralelos pra memo no QDPX (não confundir):**
+- **Marker memo** (existente, preservado intocado): `BaseMarker.memo` → `<Note>` na collection `<Notes>` + `<NoteRef>` no `<Selection>`. GUID `note_{selectionGuid}`. Pipeline `<NoteRef>` em `qdpxImporter.ts:184+` segue intocado
+- **Code/Group/Relation memo** (#25): `<MemoText>` direto como child de `<Code>`/`<Set>`/`<Link>` no codebook XML — não passa pela Notes collection. Element-form switch: quando memo presente, elementos antes self-closing viram open/close (`buildCodeElement`/`buildSetElement` em `qdcExporter.ts`, emission de `<Link>` em `qdpxExporter.ts`)
+
+Conflito de import (entidade já existe + memo importado): `mergeMemos` análoga a `mergeDescriptions` (`existing\n\n--- Imported memo ---\nimported`).
 
 ---
 
