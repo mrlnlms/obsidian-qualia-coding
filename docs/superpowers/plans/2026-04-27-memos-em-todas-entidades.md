@@ -604,7 +604,7 @@ private editGroupMemo(groupId: string): void {
 
 E expor pro callback (procurar onde `onEditGroupDescription` é wired no `getCallbacks()` ou similar e adicionar `onEditGroupMemo: (id) => this.editGroupMemo(id)`).
 
-- [ ] **Step 3.1.5: (Opcional) Adicionar item de menu context "Edit memo" / "Clear memo"**
+- [ ] **Step 3.1.5: Adicionar item de menu context "Edit memo" / "Clear memo"** (smoke #4 depende)
 
 Em `baseCodeDetailView.ts:432-447` (group context menu) adicionar logo após Edit/Clear description:
 
@@ -877,7 +877,7 @@ describe('MemoText emit', () => {
 });
 ```
 
-> Verificar nome real da função `buildCodebookXml` — pode ser outro nome em `qdcExporter.ts`. Olhar export do arquivo.
+> Função real é `buildCodebookXml` em `qdcExporter.ts` (linha ~18). Confirmado.
 
 - [ ] **Step 5.2.4: Run testes**
 
@@ -1050,6 +1050,8 @@ describe('Round-trip CodeApplication.relations memo (schema-ready)', () => {
 ```
 
 > Esse teste valida promessa "schema-ready" da decisão #14 — round-trip preserva memo de application-level mesmo sem UI escrever. **Pode falhar inicialmente** se o exporter de marker-level relations não emitir memo. Se falhar, o exporter precisa ser estendido pra emitir memo nas application-level relations também.
+>
+> **Hint pra fixture:** olhar `tests/import/qdpxImporter.test.ts` existente pra encontrar o pattern de seed do DataManager + chamadas reais de `buildQdpxBlob`/`importQdpxBlob` (nomes de funções podem ser outros). Copiar fixture shape de algum teste de round-trip já existente como base e ajustar adicionando memo.
 
 - [ ] **Step 5.5.2: Run**
 
