@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateChiSquare } from '../../src/analytics/data/inferential';
+import { calculateChiSquare, chiSquareFromContingency } from '../../src/analytics/data/inferential';
 import type { ConsolidatedData, FilterConfig, UnifiedMarker, UnifiedCode, SourceType } from '../../src/analytics/data/dataTypes';
 
 function filters(overrides: Partial<FilterConfig> = {}): FilterConfig {
@@ -277,5 +277,81 @@ describe('calculateChiSquare regression locks', () => {
 		// Single code present in all markers → chiSq should be 0 (perfect fit)
 		expect(e.chiSquare).toBe(0);
 		expect(e.cramersV).toBe(0);
+	});
+});
+
+describe('chiSquareFromContingency', () => {
+	it('computes for 2x2 contingency table', () => {
+		const observed = [[2, 0], [1, 2]];
+		const result = chiSquareFromContingency(observed);
+		expect(result.df).toBe(1);
+		expect(result.expected).toEqual([[1.2, 0.8], [1.8, 1.2]]);
+		expect(result.chiSquare).toBeGreaterThan(0);
+		expect(result.pValue).toBeGreaterThan(0);
+		expect(result.pValue).toBeLessThanOrEqual(1);
+		expect(result.cramersV).toBeGreaterThan(0);
+		expect(typeof result.significant).toBe('boolean');
+	});
+
+	it('df = (R-1)(C-1) for generic R×C', () => {
+		// 3×4 contingency
+		const observed = [[10, 5, 2, 1], [3, 8, 4, 2], [1, 2, 6, 5]];
+		const result = chiSquareFromContingency(observed);
+		expect(result.df).toBe((3 - 1) * (4 - 1)); // 6
+	});
+
+	it('returns df=0 for single row', () => {
+		const observed = [[5, 10, 3]];
+		const result = chiSquareFromContingency(observed);
+		expect(result.df).toBe(0);
+		expect(result.chiSquare).toBe(0);
+		expect(result.pValue).toBe(1);
+		expect(result.cramersV).toBe(0);
+		expect(result.significant).toBe(false);
+	});
+
+	it('returns df=0 for single column', () => {
+		const observed = [[5], [10], [3]];
+		const result = chiSquareFromContingency(observed);
+		expect(result.df).toBe(0);
+		expect(result.chiSquare).toBe(0);
+		expect(result.pValue).toBe(1);
+	});
+
+	it('returns df=0 for empty matrix', () => {
+		const observed: number[][] = [];
+		const result = chiSquareFromContingency(observed);
+		expect(result.df).toBe(0);
+		expect(result.chiSquare).toBe(0);
+		expect(result.expected).toEqual([]);
+	});
+
+	it('Cramér V uses min(R-1, C-1) for non-2-col tables', () => {
+		// 3×3 with strong association
+		const observed = [[10, 0, 0], [0, 10, 0], [0, 0, 10]];
+		const result = chiSquareFromContingency(observed);
+		// Perfect association → Cramér's V = 1.0 (rounded to 3 decimals)
+		expect(result.cramersV).toBe(1);
+	});
+
+	it('rounding matches snapshot', () => {
+		// Same shape as 2-source 2-code regression fixture (a row from calculateChiSquare)
+		const observed = [[2, 0], [1, 2]];
+		const result = chiSquareFromContingency(observed);
+		// Expected matches calculateChiSquare round(* 100)/100
+		expect(result.expected).toEqual([[1.2, 0.8], [1.8, 1.2]]);
+		// chiSquare round(* 1000)/1000 — 3 decimals
+		expect(result.chiSquare).toBe(Math.round(result.chiSquare * 1000) / 1000);
+		// pValue round(* 10000)/10000 — 4 decimals
+		expect(result.pValue).toBe(Math.round(result.pValue * 10000) / 10000);
+		// cramersV round(* 1000)/1000 — 3 decimals
+		expect(result.cramersV).toBe(Math.round(result.cramersV * 1000) / 1000);
+	});
+
+	it('significant flag is true iff pValue < 0.05', () => {
+		const strong = chiSquareFromContingency([[10, 0, 0], [0, 10, 0], [0, 0, 10]]);
+		expect(strong.significant).toBe(strong.pValue < 0.05);
+		const weak = chiSquareFromContingency([[3, 3], [3, 3]]);
+		expect(weak.significant).toBe(weak.pValue < 0.05);
 	});
 });

@@ -29,6 +29,94 @@ function chiSquareSurvival(x: number, df: number): number {
   return 1 - normalCDF(z);
 }
 
+/**
+ * Pure chi-square calculation from a contingency table.
+ *
+ * Generic over R×C (rows × cols). Used by both `calculateChiSquare` (2×K) and
+ * `calculateCodeMetadata` (R×M).
+ *
+ * Rounding matches legacy `calculateChiSquare`:
+ * - expected: 2 decimals (round * 100 / 100)
+ * - chiSquare: 3 decimals (round * 1000 / 1000)
+ * - pValue: 4 decimals (round * 10000 / 10000)
+ * - cramersV: 3 decimals (round * 1000 / 1000)
+ */
+export function chiSquareFromContingency(observed: number[][]): {
+  chiSquare: number;
+  df: number;
+  pValue: number;
+  cramersV: number;
+  significant: boolean;
+  expected: number[][];
+} {
+  const R = observed.length;
+  const C = R > 0 ? observed[0]!.length : 0;
+
+  if (R < 2 || C < 2) {
+    return {
+      chiSquare: 0,
+      df: 0,
+      pValue: 1,
+      cramersV: 0,
+      significant: false,
+      expected: observed.map((row) => row.map(() => 0)),
+    };
+  }
+
+  const rowTotals = observed.map((row) => row.reduce((a, b) => a + b, 0));
+  const colTotals = new Array(C).fill(0);
+  for (let r = 0; r < R; r++) {
+    for (let c = 0; c < C; c++) {
+      colTotals[c] += observed[r]![c]!;
+    }
+  }
+  const N = rowTotals.reduce((a, b) => a + b, 0);
+
+  if (N === 0) {
+    return {
+      chiSquare: 0,
+      df: (R - 1) * (C - 1),
+      pValue: 1,
+      cramersV: 0,
+      significant: false,
+      expected: observed.map((row) => row.map(() => 0)),
+    };
+  }
+
+  const expected: number[][] = [];
+  let chiSq = 0;
+
+  for (let r = 0; r < R; r++) {
+    const expRow: number[] = [];
+    for (let c = 0; c < C; c++) {
+      const e = (rowTotals[r]! * colTotals[c]!) / N;
+      expRow.push(Math.round(e * 100) / 100);
+      if (e > 0) {
+        chiSq += ((observed[r]![c]! - e) ** 2) / e;
+      }
+    }
+    expected.push(expRow);
+  }
+
+  chiSq = Math.round(chiSq * 1000) / 1000;
+  const df = (R - 1) * (C - 1);
+  const pValue = Math.round(chiSquareSurvival(chiSq, df) * 10000) / 10000;
+  const minDim = Math.min(R - 1, C - 1);
+  const cramersV =
+    N > 0 && minDim > 0
+      ? Math.round(Math.sqrt(chiSq / (N * minDim)) * 1000) / 1000
+      : 0;
+
+  return {
+    chiSquare: chiSq,
+    df,
+    pValue,
+    cramersV,
+    significant: pValue < 0.05,
+    expected,
+  };
+}
+
 export function calculateChiSquare(
   data: ConsolidatedData,
   filters: FilterConfig,
