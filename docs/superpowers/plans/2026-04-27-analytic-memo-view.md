@@ -846,9 +846,7 @@ describe("aggregateMemos — hierarquia", () => {
 
 Expected: 3 fails — atual impl não popula `childIds` nem inclui parents sem memo.
 
-- [ ] **Step 1.6.3: Implementar hierarquia**
-
-Modifica `buildByCode`:
+- [ ] **Step 1.6.3: Reescrever `buildByCode` completo (substitui a versão da 1.5.3)**
 
 ```typescript
 function buildByCode(
@@ -856,11 +854,20 @@ function buildByCode(
   filtered: FlatMarker[],
   filters: MemoViewFilters,
 ): CodeMemoSection[] {
-  // ... (mesmo setup de antes até chegar no loop)
+  const allCodes = registry.getAll();
+  const allFolderIds = new Set(registry.getAllFolders().map((f) => f.id));
+  const expanded: ExpandedState = {
+    codes: new Set(allCodes.map((c) => c.id)),
+    folders: allFolderIds,
+  };
+  const flatNodes = buildFlatTree(registry, expanded);
 
-  // Primeira passada: monta sections "candidatas" (sem filtrar empty), e mapa de childIds direto da hierarquia
+  const acceptCode = (id: string) =>
+    filters.codes.length === 0 || filters.codes.includes(id);
+
+  // Primeira passada: monta sections candidatas + mapa childIds da hierarquia.
   const candidates = new Map<string, CodeMemoSection>();
-  const childMap = new Map<string, string[]>(); // parentId → childIds
+  const childMap = new Map<string, string[]>();
 
   for (const node of flatNodes) {
     if (node.type !== "code") continue;
@@ -870,7 +877,83 @@ function buildByCode(
       arr.push(def.id);
       childMap.set(def.parentId, arr);
     }
-    // ... (build groupIds, codeMemo, groupMemos, relationMemos, markerMemos, hasOwnMemo iguais)
+
+    const groupsForCode = registry.getGroupsForCode(def.id);
+    const groupIds = groupsForCode.map((g) => g.id);
+    const codeMemo = nonEmpty(def.memo) ? def.memo!.trim() : null;
+
+    const groupMemos: MemoEntry[] = groupsForCode
+      .filter((g) => nonEmpty(g.memo))
+      .map((g) => ({ kind: "group" as const, groupId: g.id, groupName: g.name, color: g.color, memo: g.memo!.trim() }));
+
+    const relationMemos: MemoEntry[] = [];
+    for (const r of def.relations ?? []) {
+      if (nonEmpty(r.memo)) {
+        const target = registry.getById(r.target);
+        relationMemos.push({
+          kind: "relation",
+          codeId: def.id,
+          label: r.label,
+          targetId: r.target,
+          targetName: target?.name ?? r.target,
+          directed: r.directed ?? true,
+          memo: r.memo!.trim(),
+          level: "code",
+        });
+      }
+    }
+
+    const markersForThisCode = filtered.filter(({ marker }) => {
+      const surviving = marker.codes.find((c: CodeApplication) => acceptCode(c.codeId));
+      return surviving?.codeId === def.id;
+    });
+
+    for (const fm of markersForThisCode) {
+      for (const ca of fm.marker.codes) {
+        if (ca.codeId !== def.id) continue;
+        for (const r of ca.relations ?? []) {
+          if (nonEmpty(r.memo)) {
+            const target = registry.getById(r.target);
+            relationMemos.push({
+              kind: "relation",
+              codeId: def.id,
+              label: r.label,
+              targetId: r.target,
+              targetName: target?.name ?? r.target,
+              directed: r.directed ?? true,
+              memo: r.memo!.trim(),
+              level: "application",
+              markerId: fm.marker.id,
+              engineType: fm.engineType,
+            });
+          }
+        }
+      }
+    }
+
+    const markerMemos: MemoEntry[] = markersForThisCode
+      .filter(({ marker }) => nonEmpty(marker.memo))
+      .map(({ marker, source, fileId }) => {
+        const ca = marker.codes.find((c: CodeApplication) => c.codeId === def.id)!;
+        return {
+          kind: "marker" as const,
+          markerId: marker.id,
+          codeId: def.id,
+          fileId,
+          sourceType: (source.startsWith("csv") ? "csv" : source) as EngineType,
+          excerpt: extractExcerpt(marker, source),
+          memo: marker.memo!.trim(),
+          magnitude: ca.magnitude,
+        };
+      });
+
+    const cm = filters.showTypes.code ? codeMemo : null;
+    const gms = filters.showTypes.group ? groupMemos : [];
+    const rms = filters.showTypes.relation ? relationMemos : [];
+    const mms = filters.showTypes.marker ? markerMemos : [];
+
+    const hasOwnMemo = !!cm || gms.length > 0 || rms.length > 0 || mms.length > 0;
+
     candidates.set(def.id, {
       codeId: def.id,
       codeName: def.name,
@@ -886,16 +969,17 @@ function buildByCode(
     });
   }
 
-  // Popular childIds e calcular hasAnyMemoInSubtree (DFS bottom-up)
+  // Popular childIds
   for (const [parentId, kids] of childMap) {
     if (candidates.has(parentId)) {
       candidates.get(parentId)!.childIds = kids;
     }
   }
 
-  // DFS bottom-up via ordem flatNodes reverse
-  const reverseOrder = flatNodes.filter((n: any) => n.type === "code").reverse();
-  for (const node of reverseOrder) {
+  // DFS bottom-up: hasAnyMemoInSubtree propaga via filhos
+  const reverseCodeNodes = flatNodes.filter((n) => n.type === "code").reverse();
+  for (const node of reverseCodeNodes) {
+    if (node.type !== "code") continue;
     const sec = candidates.get(node.def.id)!;
     for (const childId of sec.childIds) {
       const childSec = candidates.get(childId);
@@ -2094,7 +2178,7 @@ Relation memos: cada row vira editor.
 - Code-level: `onSaveCodeRelationMemo(opts.ctx, rm.codeId, rm.label, rm.targetId, v)`
 - App-level: `onSaveAppRelationMemo(opts.ctx, /* engineType from marker lookup */, rm.markerId!, rm.codeId, rm.label, rm.targetId, v)`. Pra obter engineType: passar via `MemoEntry` quando relation app-level (já tem `markerId` mas não tem `engineType` nem `sourceType`). Ajustar tipo `MemoEntry` ou enriquecer aggregator pra incluir `engineType` em relation app-level.
 
-**Nota:** `engineType?` em `MemoEntry` kind="relation" já foi declarado no tipo em chunk 1. Aqui só consumir: `onSaveAppRelationMemo(opts.ctx, rm.engineType!, rm.markerId!, ...)`. Se aggregator (chunk 1.5) não preencher engineType ainda, voltar e completar — adicionar `engineType: fm.engineType` na construção do `MemoEntry` app-level.
+**Nota:** `engineType?` em `MemoEntry` kind="relation" já foi declarado em chunk 1.1, e aggregator em chunk 1.5.3 já preenche (`engineType: fm.engineType`). Aqui só consumir: `onSaveAppRelationMemo(opts.ctx, rm.engineType!, rm.markerId!, rm.codeId, rm.label, rm.targetId, v)`.
 
 - [ ] **Step 5b.3.3: Marker memo via editor**
 
@@ -2276,7 +2360,7 @@ export function renderFileSection(parent: HTMLElement, section: FileMemoSection,
   }
 
   for (const mm of section.markerMemos) {
-    renderMarkerCard(sec, mm, { app: opts.app, ctx: opts.ctx } as any);
+    renderMarkerCard(sec, mm, { app: opts.app, ctx: opts.ctx });
   }
 }
 ```
@@ -2387,9 +2471,9 @@ export function renderMemoViewOptions(ctx: AnalyticsViewContext): void {
 }
 ```
 
-- [ ] **Step 7.1.2: Conectar ao registry**
+- [ ] **Step 7.1.2: Apontar `MODE_REGISTRY.memo-view.renderOptions` pra função nova**
 
-Em `memoViewMode.ts` — substituir `renderMemoViewOptions` import. Se já está no MODE_REGISTRY apontando pra função do `memoViewMode.ts`, ajustar pra apontar pra `memoViewOptions.ts`.
+Em `src/analytics/views/modes/modeRegistry.ts`: trocar import de `renderMemoViewOptions` (que vinha do `memoViewMode.ts` stub do chunk 2) pra vir de `./memoView/memoViewOptions`. O import antigo em `memoViewMode.ts` pode ser removido se não for mais usado lá.
 
 - [ ] **Step 7.1.3: Confirmar reuso de filtros existentes**
 
