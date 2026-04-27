@@ -98,8 +98,16 @@ function drawHeatmap(
 
   const isDark = document.body.classList.contains("theme-dark");
 
-  const displayValues = computeDisplayMatrix(result, ctx.cmDisplay);
+  // ─── Aplicar sort: cria índices ordenados ───
+  const sortedIdx = sortIndices(result, ctx.cmSort);
+  const codes = sortedIdx.map((i) => result.codes[i]!);
+  const stats = sortedIdx.map((i) => result.stats[i]);
+  const matrix = sortedIdx.map((i) => result.matrix[i]!);
+  const rowTotals = sortedIdx.map((i) => result.rowTotals[i]!);
+
+  const displayValues = computeDisplayMatrix(matrix, rowTotals, result.colTotals, ctx.cmDisplay);
   const maxValue = Math.max(...displayValues.flat(), 0);
+  const statsX = labelColWidth + C * cellSize + padding;
 
   // ─── Header (column labels — rotacionados) ───
   cctx.fillStyle = "var(--text-normal)";
@@ -114,10 +122,27 @@ function drawHeatmap(
     cctx.restore();
   }
 
+  // ─── Header coluna Code (clicável) ───
+  const codesHeaderArrow =
+    ctx.cmSort.col === "name" || ctx.cmSort.col === "total" ? (ctx.cmSort.asc ? " ▲" : " ▼") : "";
+  const codesHeaderLabel =
+    ctx.cmSort.col === "name" ? "Code" : ctx.cmSort.col === "total" ? "Total" : "Code";
+  cctx.fillStyle = "var(--text-muted)";
+  cctx.textAlign = "left";
+  cctx.fillText(`${codesHeaderLabel}${codesHeaderArrow}`, padding, headerHeight - 6 + padding);
+
+  // ─── Header coluna Stats (clicável) ───
+  const statsHeaderArrow =
+    ctx.cmSort.col === "chi2" || ctx.cmSort.col === "p" ? (ctx.cmSort.asc ? " ▲" : " ▼") : "";
+  const statsHeaderLabel =
+    ctx.cmSort.col === "chi2" ? "χ² · p (by χ²)" : ctx.cmSort.col === "p" ? "χ² · p (by p)" : "χ² · p";
+  cctx.fillStyle = "var(--text-muted)";
+  cctx.fillText(`${statsHeaderLabel}${statsHeaderArrow}`, statsX, headerHeight - 6 + padding);
+
   // ─── Code labels (left column) ───
   cctx.textAlign = "left";
   for (let r = 0; r < R; r++) {
-    const code = result.codes[r]!;
+    const code = codes[r]!;
     const y = headerHeight + r * cellSize + cellSize / 2 + padding;
     cctx.fillStyle = code.color;
     cctx.fillRect(padding, y - 6, 12, 12);
@@ -143,13 +168,9 @@ function drawHeatmap(
   }
 
   // ─── Stats column ───
-  const statsX = labelColWidth + C * cellSize + padding;
   cctx.textAlign = "left";
-  cctx.fillStyle = "var(--text-muted)";
-  cctx.fillText("χ² · p", statsX, headerHeight - 6 + padding);
-
   for (let r = 0; r < R; r++) {
-    const stat = result.stats[r];
+    const stat = stats[r];
     const y = headerHeight + r * cellSize + cellSize / 2 + padding;
     if (stat == null) {
       cctx.fillStyle = "var(--text-muted)";
@@ -162,25 +183,143 @@ function drawHeatmap(
       cctx.fillText(`χ²=${chiText} · p=${pText}${sigMark}`, statsX, y);
     }
   }
+
+  // ─── Click handlers (sort) ───
+  canvas.addEventListener("click", (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    const y = ev.clientY - rect.top;
+    if (y > headerHeight) {
+      // Click em célula — reservado pra drill-down futuro
+      return;
+    }
+    if (x >= statsX && x < canvasWidth - padding) {
+      ctx.cmSort = nextStatsSort(ctx.cmSort);
+      ctx.scheduleUpdate();
+      return;
+    }
+    if (x >= padding && x < labelColWidth) {
+      ctx.cmSort = nextCodeSort(ctx.cmSort);
+      ctx.scheduleUpdate();
+    }
+  });
+
+  // ─── Tooltip de hover ───
+  const tooltip = wrapper.createDiv({ cls: "codemarker-cm-tooltip" });
+  tooltip.style.position = "absolute";
+  tooltip.style.pointerEvents = "none";
+  tooltip.style.display = "none";
+
+  canvas.addEventListener("mousemove", (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    const y = ev.clientY - rect.top;
+    if (y < headerHeight || x < labelColWidth || x >= labelColWidth + C * cellSize) {
+      tooltip.style.display = "none";
+      return;
+    }
+    const c = Math.floor((x - labelColWidth - padding) / cellSize);
+    const r = Math.floor((y - headerHeight - padding) / cellSize);
+    if (r < 0 || r >= R || c < 0 || c >= C) {
+      tooltip.style.display = "none";
+      return;
+    }
+    const code = codes[r]!;
+    const value = result.values[c]!;
+    const count = matrix[r]![c]!;
+    const rowTot = rowTotals[r]!;
+    const colTot = result.colTotals[c]!;
+    const pctRow = rowTot > 0 ? ((count / rowTot) * 100).toFixed(1) : "—";
+    const pctCol = colTot > 0 ? ((count / colTot) * 100).toFixed(1) : "—";
+
+    tooltip.innerHTML =
+      `<strong>${escapeHtml(code.name)}</strong> × <em>${escapeHtml(value)}</em><br>` +
+      `Count: ${count}<br>% row: ${pctRow}%<br>% col: ${pctCol}%`;
+    tooltip.style.left = `${ev.offsetX + 10}px`;
+    tooltip.style.top = `${ev.offsetY + 10}px`;
+    tooltip.style.display = "block";
+  });
+  canvas.addEventListener("mouseleave", () => {
+    tooltip.style.display = "none";
+  });
+}
+
+function sortIndices(
+  result: CodeMetadataResult,
+  sort: AnalyticsViewContext["cmSort"],
+): number[] {
+  const idx = result.codes.map((_, i) => i);
+  const dir = sort.asc ? 1 : -1;
+  idx.sort((a, b) => {
+    let va: number | string;
+    let vb: number | string;
+    if (sort.col === "total") {
+      va = result.rowTotals[a]!;
+      vb = result.rowTotals[b]!;
+    } else if (sort.col === "name") {
+      va = result.codes[a]!.name.toLowerCase();
+      vb = result.codes[b]!.name.toLowerCase();
+    } else if (sort.col === "chi2") {
+      va = result.stats[a]?.chiSquare ?? -Infinity;
+      vb = result.stats[b]?.chiSquare ?? -Infinity;
+    } else {
+      // p
+      va = result.stats[a]?.pValue ?? Infinity;
+      vb = result.stats[b]?.pValue ?? Infinity;
+    }
+    if (typeof va === "string" && typeof vb === "string") {
+      return va.localeCompare(vb) * dir;
+    }
+    return ((va as number) - (vb as number)) * dir;
+  });
+  return idx;
+}
+
+function nextStatsSort(cur: AnalyticsViewContext["cmSort"]): AnalyticsViewContext["cmSort"] {
+  const order: Array<AnalyticsViewContext["cmSort"]> = [
+    { col: "chi2", asc: false },
+    { col: "chi2", asc: true },
+    { col: "p", asc: true },
+    { col: "p", asc: false },
+  ];
+  const idx = order.findIndex((s) => s.col === cur.col && s.asc === cur.asc);
+  return idx === -1 ? order[0]! : order[(idx + 1) % order.length]!;
+}
+
+function nextCodeSort(cur: AnalyticsViewContext["cmSort"]): AnalyticsViewContext["cmSort"] {
+  const order: Array<AnalyticsViewContext["cmSort"]> = [
+    { col: "total", asc: false },
+    { col: "total", asc: true },
+    { col: "name", asc: true },
+    { col: "name", asc: false },
+  ];
+  const idx = order.findIndex((s) => s.col === cur.col && s.asc === cur.asc);
+  return idx === -1 ? order[0]! : order[(idx + 1) % order.length]!;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function computeDisplayMatrix(
-  result: CodeMetadataResult,
+  matrix: number[][],
+  rowTotals: number[],
+  colTotals: number[],
   display: AnalyticsViewContext["cmDisplay"],
 ): number[][] {
-  const R = result.codes.length;
-  const C = result.values.length;
+  const R = matrix.length;
+  const C = R > 0 ? matrix[0]!.length : 0;
   const out: number[][] = Array.from({ length: R }, () => new Array(C).fill(0));
   for (let r = 0; r < R; r++) {
     for (let c = 0; c < C; c++) {
-      const raw = result.matrix[r]![c]!;
+      const raw = matrix[r]![c]!;
       if (display === "count") {
         out[r]![c] = raw;
       } else if (display === "pct-row") {
-        const tot = result.rowTotals[r]!;
+        const tot = rowTotals[r]!;
         out[r]![c] = tot > 0 ? raw / tot : 0;
       } else if (display === "pct-col") {
-        const tot = result.colTotals[c]!;
+        const tot = colTotals[c]!;
         out[r]![c] = tot > 0 ? raw / tot : 0;
       }
     }
