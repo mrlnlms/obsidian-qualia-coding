@@ -108,6 +108,7 @@ export class AnalyticsView extends ItemView {
   chartContainer: HTMLElement | null = null;
   configPanelEl: HTMLElement | null = null;
   footerEl: HTMLElement | null = null;
+  private exportMarkdownBtn: HTMLElement | null = null;
   activeChartInstance: import("chart.js").Chart | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -291,6 +292,13 @@ export class AnalyticsView extends ItemView {
     csvBtn.setAttribute("aria-label", "Export data as CSV");
     csvBtn.addEventListener("click", () => this.exportCSV());
 
+    const mdBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn codemarker-analytics-toolbar-btn-conditional" });
+    setIcon(mdBtn, "file-text");
+    mdBtn.createSpan({ text: "Export Markdown" });
+    mdBtn.setAttribute("aria-label", "Export memos as formatted Markdown note");
+    mdBtn.addEventListener("click", () => this.exportMarkdown());
+    this.exportMarkdownBtn = mdBtn;
+
     const refiBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
     setIcon(refiBtn, "file-output");
     refiBtn.createSpan({ text: "Export REFI-QDA" });
@@ -316,6 +324,7 @@ export class AnalyticsView extends ItemView {
   // ─── Config Panel ───
 
   renderConfigPanel(): void {
+    this.updateExportMarkdownBtn();
     if (!this.configPanelEl || !this.data) return;
     this.configPanelEl.empty();
 
@@ -469,6 +478,24 @@ export class AnalyticsView extends ItemView {
       return;
     }
     entry.exportCSV(this, new Date().toISOString().slice(0, 10));
+  }
+
+  // ─── Export Markdown (mode-specific) ───
+
+  private async exportMarkdown(): Promise<void> {
+    const entry = MODE_REGISTRY[this.viewMode];
+    if (!entry.exportMarkdown) {
+      new Notice("Export Markdown is not available for this view.");
+      return;
+    }
+    await entry.exportMarkdown(this, new Date().toISOString().slice(0, 10));
+  }
+
+  /** Show/hide Export Markdown button based on current mode. */
+  private updateExportMarkdownBtn(): void {
+    if (!this.exportMarkdownBtn) return;
+    const entry = MODE_REGISTRY[this.viewMode];
+    this.exportMarkdownBtn.style.display = entry.exportMarkdown ? "" : "none";
   }
 
   // ─── Add to Board ───
