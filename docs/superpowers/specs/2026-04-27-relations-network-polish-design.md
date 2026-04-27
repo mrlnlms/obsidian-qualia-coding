@@ -98,6 +98,9 @@ const maxObservedWeight = Math.max(1, ...edges.map(e => e.weight));
 **No `mouseleave`:**
 - Adicionar reset: `if (hoveredNodeIdx !== null) { hoveredNodeIdx = null; redraw(); }`
 
+**No `mousedown` (início de drag — linhas 398–416):**
+- Adicionar reset: `if (hoveredNodeIdx !== null) { hoveredNodeIdx = null; }` antes do `redraw()` implícito no drag. Razão: arrastar um nó com hover-focus ainda ativo deixaria edges não-conectadas ao nó arrastado dimmed durante o drag — comportamento confuso. Ao começar drag, reseta o foco.
+
 ### Mudanças em `renderRelationsNetworkOptions`
 
 Adicionar 3º controle no painel (depois do "Show edge labels"):
@@ -114,7 +117,7 @@ slider.style.marginLeft = "auto";
 const labelEl = sliderRow.createSpan({ cls: "codemarker-config-slider-label" });
 labelEl.textContent = `${ctx.relationsMinEdgeWeight ?? 1} — showing ${visibleCount}/${totalEdges}`;
 
-slider.addEventListener("input", () => {
+slider.addEventListener("change", () => {
   ctx.relationsMinEdgeWeight = parseInt(slider.value, 10);
   ctx.scheduleUpdate();
 });
@@ -122,13 +125,25 @@ slider.addEventListener("input", () => {
 
 `maxObservedWeight` e `visibleCount`/`totalEdges` precisam ser computados na options-render. Razão: `renderRelationsNetworkOptions` e `renderRelationsNetwork` são chamados separadamente pelo `modeRegistry`. Solução: replicar as 2 chamadas (`extractRelationEdges` + count) na options-render — custo é uma reconsulta dos dados (sem efeito colateral, é leitura). Alternativa de cachear no ctx fica fora desse escopo (não justifica a complexidade pra 2 controles).
 
+**Event type**: `"change"` (dispara no release), não `"input"` (dispara por pixel arrastado). Razão: cada disparo re-roda `scheduleUpdate()` → `renderRelationsNetwork` completa, com 200 iterações × N² da simulação force-directed. Em `"input"` o user perceberia lag durante o drag do slider; em `"change"` paga só uma vez no release.
+
+**Clamp defensivo**: ao iniciar a render, se `ctx.relationsMinEdgeWeight > maxObservedWeight` (cenário: user mudou filtro de códigos e o threshold ficou acima do novo max), clamp pra `maxObservedWeight`. Sem isso, slider mostra valor visualmente clampado mas `ctx.relationsMinEdgeWeight` carrega valor inválido até próxima interação.
+
 ### Adicionar em `analyticsViewContext.ts`
 
 ```ts
 relationsMinEdgeWeight: number;  // default 1, volátil por sessão
 ```
 
-Inicialização default na criação do context (`AnalyticsView.onOpen` ou equivalente). Não persiste em `data.json`.
+**Nota sobre o `minEdgeWeight` existente** (`analyticsViewContext.ts:35`): já existe um campo `minEdgeWeight` consumido pelo modo Network Graph (coocorrência). NÃO reusar — são threshold de coisas diferentes (Network Graph usa coocorrência de codes, Relations Network usa weight de relações). Reusar carregaria estado entre modos de forma surpreendente. Mode-prefixed `relationsMinEdgeWeight` segue o padrão de `relationsLevel` (linha 68 do mesmo arquivo).
+
+**Inicialização**: campo de classe em `AnalyticsView`, mesmo padrão de `minEdgeWeight = 1` (`analyticsView.ts:25`) e `relationsLevel = 'both'` (`analyticsView.ts:78`):
+
+```ts
+relationsMinEdgeWeight = 1;
+```
+
+Não persiste em `data.json`.
 
 ---
 
@@ -221,6 +236,8 @@ Vault `/Users/mosx/Desktop/obsidian-plugins-workbench/`:
 4. Voltar slider pra 1 → tudo de volta
 5. Mexer slider e depois hover em nó → ambos funcionam juntos
 6. Trocar Level (Code-level ↔ Code+Segments) → slider reseta pra 1 (nova render)
+7. Iniciar drag de um nó enquanto outro está em hover-focus → focus deve resetar imediatamente (sem dimming residual durante drag)
+8. Mexer slider rapidamente — confirmar que re-render só dispara no release (event `"change"`, não `"input"`); UI fluida durante drag do slider
 
 Contagem total esperada: 2220 + 8 = 2228 testes.
 
