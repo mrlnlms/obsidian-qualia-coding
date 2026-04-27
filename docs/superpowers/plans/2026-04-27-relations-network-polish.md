@@ -52,15 +52,15 @@ import { describe, it, expect } from 'vitest';
 import { isEdgeAboveThreshold } from '../../src/analytics/views/modes/relationsNetworkHelpers';
 
 describe('isEdgeAboveThreshold', () => {
-  it('returns true when weight > minWeight', () => {
+  it('returns true when weight is strictly above minWeight', () => {
     expect(isEdgeAboveThreshold(5, 3)).toBe(true);
   });
 
-  it('returns false when weight < minWeight', () => {
+  it('returns false when weight is below minWeight', () => {
     expect(isEdgeAboveThreshold(2, 3)).toBe(false);
   });
 
-  it('returns true at boundary (weight === minWeight)', () => {
+  it('returns true at boundary (weight === minWeight, inclusivo)', () => {
     expect(isEdgeAboveThreshold(3, 3)).toBe(true);
   });
 });
@@ -191,7 +191,7 @@ git add src/analytics/views/modes/relationsNetworkHelpers.ts tests/analytics/rel
 ### Task 4: Adicionar campo `relationsMinEdgeWeight` no contexto
 
 **Files:**
-- Modify: `src/analytics/views/analyticsViewContext.ts:35` (ou linha próxima do `minEdgeWeight` existente; adicionar APÓS o existente pra não confundir)
+- Modify: `src/analytics/views/analyticsViewContext.ts:68` (após `relationsLevel` — NÃO perto do `minEdgeWeight` da linha 35, que pertence ao Network Graph mode e é threshold de coisa diferente)
 - Modify: `src/analytics/views/analyticsView.ts:78` (depois de `relationsLevel`)
 
 - [ ] **Step 1: Adicionar campo na interface do contexto**
@@ -226,7 +226,7 @@ Expected: zero errors.
 npm run test
 ```
 
-Expected: todos os 2228 testes passando (2220 anteriores + 8 novos do helper).
+Expected: todos os testes passando (~2228 = baseline 2220 + 8 novos do helper). Se baseline atual difere de 2220 (ex: alguém adicionou testes em main), ajuste a expectativa pra `baseline + 8`. Rode `npm run test` no início da Task 1 pra confirmar baseline.
 
 - [ ] **Step 5: Commit**
 
@@ -338,16 +338,33 @@ git add src/analytics/views/modes/relationsNetworkMode.ts
 
 Localizar bloco `canvas.addEventListener("mousedown", (e) => { ... })` em `relationsNetworkMode.ts:398-416`.
 
-Dentro do `if (dx * dx + dy * dy <= node.radius * node.radius)` (após `tooltip.style.display = "none";` em linha ~411 e antes do `e.preventDefault()`), adicionar:
-
+**Antes** (linhas 406-414):
 ```ts
-canvas.style.cursor = "grabbing";
-tooltip.style.display = "none";
-if (hoveredNodeIdx !== null) {
-  hoveredNodeIdx = null;
+if (dx * dx + dy * dy <= node.radius * node.radius) {
+  draggedIndex = i;
+  dragOffsetX = dx;
+  dragOffsetY = dy;
+  canvas.style.cursor = "grabbing";
+  tooltip.style.display = "none";
+  e.preventDefault();
+  return;
 }
-e.preventDefault();
-return;
+```
+
+**Depois** (adicionar reset de `hoveredNodeIdx` antes do `e.preventDefault()`):
+```ts
+if (dx * dx + dy * dy <= node.radius * node.radius) {
+  draggedIndex = i;
+  dragOffsetX = dx;
+  dragOffsetY = dy;
+  canvas.style.cursor = "grabbing";
+  tooltip.style.display = "none";
+  if (hoveredNodeIdx !== null) {
+    hoveredNodeIdx = null;
+  }
+  e.preventDefault();
+  return;
+}
 ```
 
 Justificativa: ao iniciar drag de nó, qualquer foco prévio é limpo. O `redraw()` que vem do `mousemove` durante o drag já vai usar `hoveredNodeIdx = null`. Não precisa chamar `redraw()` aqui — o próximo movimento do drag dispara redraw com estado correto.
@@ -612,7 +629,7 @@ git add docs/ROADMAP.md
 git log --oneline main..HEAD
 ```
 
-Expected: 7 commits novos (Tasks 2, 3, 4, 5, 6, 7, 8, 9 — 8 commits no total).
+Expected: 8 commits novos (um por Task 2..9; Tasks 1 e 10 não geram commit — branch setup e summary).
 
 - [ ] **Step 2: Rodar suite completa de testes uma última vez**
 
