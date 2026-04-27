@@ -554,6 +554,10 @@ export class CodeDefinitionRegistry {
 		return this.folders.get(id);
 	}
 
+	getAllFolders(): FolderDefinition[] {
+		return Array.from(this.folders.values());
+	}
+
 	getRootFolders(): FolderDefinition[] {
 		const result: FolderDefinition[] = [];
 		for (const id of this.folderOrder) {

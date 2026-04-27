@@ -1,8 +1,9 @@
 
 export type SourceType = "markdown" | "csv-segment" | "csv-row" | "image" | "pdf" | "audio" | "video";
 
+import type { MarkerType } from "../../core/types";
 /** The 6 consolidator inputs. Distinct from SourceType (7 members: csv splits into csv-segment + csv-row). */
-export type EngineType = "markdown" | "csv" | "image" | "pdf" | "audio" | "video";
+export type EngineType = MarkerType;
 
 export interface UnifiedMarker {
   id: string;
