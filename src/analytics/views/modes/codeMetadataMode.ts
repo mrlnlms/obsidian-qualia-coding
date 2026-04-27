@@ -1,7 +1,8 @@
+import { Notice } from "obsidian";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { FilterConfig, CodeMetadataResult } from "../../data/dataTypes";
 import { calculateCodeMetadata } from "../../data/statsEngine";
-import { heatmapColor, isLightColor } from "../shared/chartHelpers";
+import { heatmapColor, isLightColor, buildCsv } from "../shared/chartHelpers";
 
 export function renderCodeMetadataView(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   const container = ctx.chartContainer;
@@ -404,6 +405,43 @@ export function renderCodeMetadataOptionsSection(ctx: AnalyticsViewContext): voi
   });
 }
 
-export function exportCodeMetadataCSV(_ctx: AnalyticsViewContext, _date: string): void {
-  // WIP — implementado no Chunk 4
+export function exportCodeMetadataCSV(ctx: AnalyticsViewContext, date: string): void {
+  if (!ctx.data || !ctx.cmVariable) {
+    new Notice("Nothing to export — select a variable first");
+    return;
+  }
+  const filters = ctx.buildFilterConfig();
+  const registry = ctx.plugin.caseVariablesRegistry;
+  const result = calculateCodeMetadata(ctx.data, filters, ctx.cmVariable, registry, {
+    includeMissing: !ctx.cmHideMissing,
+  });
+
+  if (result.codes.length === 0) {
+    new Notice("Nothing to export — no codes after filters");
+    return;
+  }
+
+  const header = ["code", "total", ...result.values, "chi2", "df", "p", "cramers_v"];
+  const rows: string[][] = [header];
+  for (let r = 0; r < result.codes.length; r++) {
+    const stat = result.stats[r];
+    const row = [
+      result.codes[r]!.name,
+      String(result.rowTotals[r]),
+      ...result.matrix[r]!.map(String),
+      stat ? String(stat.chiSquare) : "",
+      stat ? String(stat.df) : "",
+      stat ? String(stat.pValue) : "",
+      stat ? String(stat.cramersV) : "",
+    ];
+    rows.push(row);
+  }
+
+  const csvContent = buildCsv(rows);
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.download = `codemarker-code-metadata-${ctx.cmVariable}-${date}.csv`;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
