@@ -14,6 +14,7 @@ export interface CodeGroupsPanelCallbacks {
 	onCreateGroup(): void;
 	onChipContextMenu(groupId: string, event: MouseEvent): void;
 	onEditDescription(groupId: string): void;
+	onEditMemo(groupId: string): void;
 }
 
 export function renderCodeGroupsPanel(
@@ -90,6 +91,16 @@ export function renderCodeGroupsPanel(
 			desc.createSpan({ text: 'Add description...' });
 		}
 		desc.addEventListener('click', () => callbacks.onEditDescription(selected.id));
+
+		const memo = panel.createDiv({ cls: 'codebook-groups-memo' });
+		memo.title = 'Click to edit memo';
+		if (selected.memo) {
+			memo.createSpan({ text: selected.memo });
+		} else {
+			memo.addClass('is-placeholder');
+			memo.createSpan({ text: 'Add memo...' });
+		}
+		memo.addEventListener('click', () => callbacks.onEditMemo(selected.id));
 	}
 
 	return { cleanup: () => {} };

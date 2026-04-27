@@ -373,6 +373,9 @@ export abstract class BaseCodeDetailView extends ItemView {
 			onEditGroupDescription: (groupId: string) => {
 				this.editGroupDescription(groupId);
 			},
+			onEditGroupMemo: (groupId: string) => {
+				this.editGroupMemo(groupId);
+			},
 		};
 	}
 
@@ -447,6 +450,24 @@ export abstract class BaseCodeDetailView extends ItemView {
 			);
 		}
 
+		menu.addItem((item) => item
+			.setTitle('Edit memo')
+			.setIcon('book-open')
+			.onClick(() => this.editGroupMemo(groupId)),
+		);
+
+		if (g.memo) {
+			menu.addItem((item) => item
+				.setTitle('Clear memo')
+				.setIcon('x')
+				.onClick(() => {
+					this.model.registry.setGroupMemo(groupId, undefined);
+					this.model.saveMarkers();
+					this.refreshCurrentMode();
+				}),
+			);
+		}
+
 		menu.addSeparator();
 
 		menu.addItem((item) => item
@@ -485,6 +506,23 @@ export abstract class BaseCodeDetailView extends ItemView {
 			onSubmit: (desc) => {
 				const trimmed = desc.trim();
 				this.model.registry.setGroupDescription(groupId, trimmed || undefined);
+				this.model.saveMarkers();
+				this.refreshCurrentMode();
+			},
+		}).open();
+	}
+
+	private editGroupMemo(groupId: string): void {
+		const g = this.model.registry.getGroup(groupId);
+		if (!g) return;
+		new PromptModal({
+			app: this.app,
+			title: 'Edit memo',
+			initialValue: g.memo ?? '',
+			placeholder: 'Reflexão analítica (opcional)',
+			onSubmit: (memo) => {
+				const trimmed = memo.trim();
+				this.model.registry.setGroupMemo(groupId, trimmed || undefined);
 				this.model.saveMarkers();
 				this.refreshCurrentMode();
 			},

@@ -5170,7 +5170,8 @@ body.codebook-dragging * {
 	font-weight: 500;
 }
 
-.codebook-groups-description {
+.codebook-groups-description,
+.codebook-groups-memo {
 	margin-top: 6px;
 	padding: 6px 8px;
 	font-size: var(--font-smaller);
@@ -5180,10 +5181,15 @@ body.codebook-dragging * {
 	border-left: 2px solid var(--interactive-accent);
 	cursor: pointer;
 }
-.codebook-groups-description:hover {
+.codebook-groups-memo {
+	border-left-color: var(--text-accent);
+}
+.codebook-groups-description:hover,
+.codebook-groups-memo:hover {
 	background: var(--background-modifier-hover);
 }
-.codebook-groups-description.is-placeholder {
+.codebook-groups-description.is-placeholder,
+.codebook-groups-memo.is-placeholder {
 	font-style: italic;
 	opacity: 0.7;
 }
