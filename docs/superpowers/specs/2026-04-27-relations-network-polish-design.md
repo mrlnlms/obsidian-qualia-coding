@@ -127,7 +127,7 @@ slider.addEventListener("change", () => {
 
 **Event type**: `"change"` (dispara no release), não `"input"` (dispara por pixel arrastado). Razão: cada disparo re-roda `scheduleUpdate()` → `renderRelationsNetwork` completa, com 200 iterações × N² da simulação force-directed. Em `"input"` o user perceberia lag durante o drag do slider; em `"change"` paga só uma vez no release.
 
-**Clamp defensivo**: ao iniciar a render, se `ctx.relationsMinEdgeWeight > maxObservedWeight` (cenário: user mudou filtro de códigos e o threshold ficou acima do novo max), clamp pra `maxObservedWeight`. Sem isso, slider mostra valor visualmente clampado mas `ctx.relationsMinEdgeWeight` carrega valor inválido até próxima interação.
+**Clamp defensivo**: no início de **ambos** `renderRelationsNetwork` e `renderRelationsNetworkOptions`, antes de usar `ctx.relationsMinEdgeWeight`, fazer `ctx.relationsMinEdgeWeight = Math.min(ctx.relationsMinEdgeWeight, maxObservedWeight)`. Cenário: user mudou filtro de códigos e o threshold ficou acima do novo max. Sem o clamp em ambos paths, um deles usaria valor inválido até próxima interação.
 
 ### Adicionar em `analyticsViewContext.ts`
 
@@ -150,9 +150,9 @@ Não persiste em `data.json`.
 ## Data flow
 
 ```
-USER ARRASTA SLIDER
+USER ARRASTA E SOLTA SLIDER
   ↓
-input event → ctx.relationsMinEdgeWeight = N → ctx.scheduleUpdate()
+change event (dispara no release) → ctx.relationsMinEdgeWeight = N → ctx.scheduleUpdate()
   ↓
 renderRelationsNetwork() roda do zero
   ↓
@@ -236,8 +236,8 @@ Vault `/Users/mosx/Desktop/obsidian-plugins-workbench/`:
 4. Voltar slider pra 1 → tudo de volta
 5. Mexer slider e depois hover em nó → ambos funcionam juntos
 6. Trocar Level (Code-level ↔ Code+Segments) → slider reseta pra 1 (nova render)
-7. Iniciar drag de um nó enquanto outro está em hover-focus → focus deve resetar imediatamente (sem dimming residual durante drag)
-8. Mexer slider rapidamente — confirmar que re-render só dispara no release (event `"change"`, não `"input"`); UI fluida durante drag do slider
+7. Iniciar drag de um nó enquanto outro está em hover-focus → focus deve resetar imediatamente, antes do `redraw()` do drag (sem dimming residual durante drag)
+8. Mexer slider rapidamente — UI deve ficar fluida durante o drag do slider; re-render só dispara no release. Critério: nenhuma re-simulação visível enquanto arrasta o slider
 
 Contagem total esperada: 2220 + 8 = 2228 testes.
 
