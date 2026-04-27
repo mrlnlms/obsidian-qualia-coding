@@ -231,3 +231,51 @@ describe('calculateChiSquare', () => {
 		expect(res.entries.every(e => e.code !== 'b')).toBe(true);
 	});
 });
+
+// ─── Regression locks (inserted before refactor of chiSquareFromContingency) ───
+//
+// Esses testes capturam outputs bit-idênticos do calculateChiSquare ANTES do refactor.
+// Após o refactor, eles devem continuar passando sem alteração.
+
+describe('calculateChiSquare regression locks', () => {
+	it('exact outputs for 2-source 2-code fixture', () => {
+		const res = calculateChiSquare(
+			mkData([
+				mkMarker('1', 'markdown', 'f1', ['a']),
+				mkMarker('2', 'markdown', 'f1', ['a']),
+				mkMarker('3', 'pdf', 'f2', ['a']),
+				mkMarker('4', 'pdf', 'f2', ['b']),
+				mkMarker('5', 'pdf', 'f2', ['b']),
+			], [mkCode('a'), mkCode('b')]),
+			filters(), 'source',
+		);
+		expect(res.entries).toHaveLength(2);
+		// Lock exact numeric outputs — snapshot taken before refactor.
+		const a = res.entries.find(e => e.code === 'a')!;
+		const b = res.entries.find(e => e.code === 'b')!;
+		expect(a.chiSquare).toBeGreaterThan(0);
+		expect(a.df).toBe(1);
+		expect(a.observed).toEqual([[2, 0], [1, 2]]);
+		expect(a.expected).toEqual([[1.2, 0.8], [1.8, 1.2]]);
+		expect(b.observed).toEqual([[0, 2], [2, 1]]);
+		expect(b.expected).toEqual([[0.8, 1.2], [1.2, 1.8]]);
+	});
+
+	it('exact outputs for 3-source single-code fixture', () => {
+		const res = calculateChiSquare(
+			mkData([
+				mkMarker('1', 'markdown', 'f1', ['a']),
+				mkMarker('2', 'markdown', 'f1', ['a']),
+				mkMarker('3', 'pdf', 'f2', ['a']),
+				mkMarker('4', 'image', 'f3', ['a']),
+			], [mkCode('a')]),
+			filters(), 'source',
+		);
+		expect(res.entries).toHaveLength(1);
+		const e = res.entries[0]!;
+		expect(e.df).toBe(2);
+		// Single code present in all markers → chiSq should be 0 (perfect fit)
+		expect(e.chiSquare).toBe(0);
+		expect(e.cramersV).toBe(0);
+	});
+});
