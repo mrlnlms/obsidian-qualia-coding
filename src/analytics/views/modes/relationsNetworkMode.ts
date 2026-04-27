@@ -4,6 +4,7 @@ import type { AnalyticsViewContext } from "../analyticsViewContext";
 import { isLightColor, buildCsv } from "../shared/chartHelpers";
 import { readAllData } from "../../data/dataReader";
 import { extractRelationEdges, extractRelationNodes } from "../../data/relationsEngine";
+import { isEdgeAboveThreshold, computeEdgeOpacity } from "./relationsNetworkHelpers";
 import type { RelationEdge } from "../../../core/relationHelpers";
 import type { CodeDefinition, BaseMarker } from "../../../core/types";
 
@@ -156,6 +157,16 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 	const nodes = extractRelationNodes(filteredDefs, edges, freqMap);
 	const n = nodes.length;
 
+	// Peso máximo observado pra normalizar opacity e capar slider
+	const maxObservedWeight = Math.max(1, ...edges.map(e => e.weight));
+
+	// Clamp defensivo: se threshold ficou maior que o novo max (ex: filtros mudaram), reduz
+	ctx.relationsMinEdgeWeight = Math.min(ctx.relationsMinEdgeWeight, maxObservedWeight);
+	const minEdgeWeight = ctx.relationsMinEdgeWeight;
+
+	// Hover-focus state — mutado pelos handlers em mousemove/mouseleave/mousedown
+	let hoveredNodeIdx: number | null = null;
+
 	// Canvas setup
 	const wrapper = ctx.chartContainer.createDiv();
 	wrapper.style.position = "relative";
@@ -277,11 +288,17 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 	// means bidirectional pairs (A→B and B→A) naturally split apart instead
 	// of overlapping.
 	for (const se of simEdges) {
+		if (!isEdgeAboveThreshold(se.edge.weight, minEdgeWeight)) continue;
 		const ni = simNodes[se.si]!;
 		const nj = simNodes[se.ti]!;
 		const edge = se.edge;
 		const thickness = Math.min(1 + edge.weight, 8);
-		const opacity = 0.25 + 0.6 * (edge.weight / maxWeight);
+		const opacity = computeEdgeOpacity(
+			edge.weight,
+			maxWeight,
+			{ sourceIdx: se.si, targetIdx: se.ti },
+			hoveredNodeIdx,
+		);
 		const color = edgeBaseColor.replace("{a}", String(opacity));
 
 		const dx = nj.x - ni.x;
