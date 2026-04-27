@@ -37,6 +37,17 @@ export function renderRelationsNetworkOptions(ctx: AnalyticsViewContext): void {
 	const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
 	section.createDiv({ cls: "codemarker-config-section-title", text: "Relations Network options" });
 
+	// Recomputa edges pra: (a) calcular maxObservedWeight pro slider.max, (b) mostrar count "showing X / Y"
+	const allDefs = collectAllDefinitions(ctx);
+	const allMarkers = collectAllMarkers(ctx);
+	const allEdges = extractRelationEdges(allDefs, allMarkers, ctx.relationsLevel);
+	const maxObservedWeight = Math.max(1, ...allEdges.map(e => e.weight));
+
+	// Clamp defensivo (mesmo critério do render principal)
+	ctx.relationsMinEdgeWeight = Math.min(ctx.relationsMinEdgeWeight, maxObservedWeight);
+	const visibleCount = allEdges.filter(e => e.weight >= ctx.relationsMinEdgeWeight).length;
+	const totalEdges = allEdges.length;
+
 	// Level dropdown
 	const levelRow = section.createDiv({ cls: "codemarker-config-row" });
 	levelRow.createSpan({ text: "Level" });
@@ -61,6 +72,26 @@ export function renderRelationsNetworkOptions(ctx: AnalyticsViewContext): void {
 	});
 	labelRow.addEventListener("click", (e) => {
 		if (e.target !== labelCb) { labelCb.checked = !labelCb.checked; labelCb.dispatchEvent(new Event("change")); }
+	});
+
+	// Min weight slider
+	const sliderRow = section.createDiv({ cls: "codemarker-config-row" });
+	sliderRow.createSpan({ text: "Min weight" });
+	const slider = sliderRow.createEl("input", { type: "range" });
+	slider.min = "1";
+	slider.max = String(maxObservedWeight);
+	slider.value = String(ctx.relationsMinEdgeWeight);
+	slider.style.marginLeft = "auto";
+	slider.style.width = "120px";
+	const sliderLabel = sliderRow.createSpan({ cls: "codemarker-config-slider-label" });
+	sliderLabel.textContent = `${ctx.relationsMinEdgeWeight} — showing ${visibleCount}/${totalEdges}`;
+	sliderLabel.style.marginLeft = "8px";
+	sliderLabel.style.fontSize = "0.85em";
+	sliderLabel.style.color = "var(--text-muted)";
+
+	slider.addEventListener("change", () => {
+		ctx.relationsMinEdgeWeight = parseInt(slider.value, 10);
+		ctx.scheduleUpdate();
 	});
 
 	// suppress unused variable warnings
