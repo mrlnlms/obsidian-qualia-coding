@@ -1438,66 +1438,41 @@ git add src/analytics/views/analyticsViewContext.ts
 
 ---
 
-### Task 3.2: Inicializar e persistir estado em `analyticsView.ts`
+### Task 3.2: Inicializar estado em `analyticsView.ts`
 
 **Files:**
 - Modify: `src/analytics/views/analyticsView.ts`
 
-> **Pattern:** ver como `chiGroupBy`, `chiSort`, etc. são tratados em `analyticsView.ts`. Replicar exatamente.
+> **IMPORTANTE — sem persistência.** Nenhum modo de Analytics persiste UI state em `data.json`. Os campos `chiGroupBy`, `chiSort`, `srcCompSort` etc. são plain instance fields com defaults hardcoded que resetam quando a view é reaberta. Code × Metadata segue o mesmo pattern: 4 campos novos, sem `loadState`/`saveState`.
 
-- [ ] **Step 3.2.1: Localizar `loadState` (ou similar) e adicionar leitura dos 4 campos**
+- [ ] **Step 3.2.1: Adicionar 4 plain instance fields**
 
-Procurar função/método que lê `data.json` (geralmente há um `loadAnalyticsState()` ou inicialização no construtor). Adicionar leitura dos 4 campos novos com defaults:
-
-```typescript
-this.cmVariable = state?.cmVariable ?? null;
-this.cmDisplay = state?.cmDisplay ?? "count";
-this.cmHideMissing = state?.cmHideMissing ?? false;
-this.cmSort = state?.cmSort ?? { col: "total", asc: false };
-```
-
-> **Localizar exatamente:** abrir o arquivo, buscar `chiGroupBy` ou `srcCompSort` — perto desses inits estão os outros campos pra inicializar.
-
-- [ ] **Step 3.2.2: Adicionar campos correspondentes na save (persistência)**
-
-Buscar onde `chiGroupBy` é salvo no state (provavelmente em `saveAnalyticsState()` ou `data.json` write). Adicionar os 4 campos novos:
+Abrir `src/analytics/views/analyticsView.ts`. Buscar a declaração de `chiGroupBy` (perto da linha 65–80, na seção de instance fields da classe `AnalyticsView`). Adicionar logo abaixo, agrupados:
 
 ```typescript
-{
-  // ...existing fields,
-  cmVariable: this.cmVariable,
-  cmDisplay: this.cmDisplay,
-  cmHideMissing: this.cmHideMissing,
-  cmSort: this.cmSort,
-}
+  // Code × Metadata state
+  cmVariable: string | null = null;
+  cmDisplay: "count" | "pct-row" | "pct-col" = "count";
+  cmHideMissing = false;
+  cmSort: { col: "total" | "name" | "chi2" | "p"; asc: boolean } = { col: "total", asc: false };
 ```
 
-- [ ] **Step 3.2.3: Adicionar campos no `AnalyticsViewContext` exposto aos modes**
+> Confirme antes: abrir o arquivo e procurar como `chiGroupBy: "source" | "file" = "source";` foi declarado. Replicar EXATAMENTE esse pattern (declaração + tipo inline + default).
 
-Buscar onde o `ctx` é montado (geralmente um getter/objeto literal). Adicionar:
-
-```typescript
-get cmVariable() { return this.cmVariable; },
-set cmVariable(v) { this.cmVariable = v; },
-// ...idem pros 4 campos
-```
-
-> **Importante:** seguir EXATAMENTE o pattern dos campos existentes (ex: `chiGroupBy`). Se eles usam delegação direta `ctx.chiGroupBy = this.chiGroupBy`, fazer igual.
-
-- [ ] **Step 3.2.4: Type check**
+- [ ] **Step 3.2.2: Type check**
 
 Run:
 ```bash
 npx tsc --noEmit
 ```
 
-Expected: sem erros.
+Expected: sem erros. Se houver erro de "field not found in AnalyticsViewContext", confirme que a Task 3.1 foi commitada e os 4 campos foram adicionados ao interface.
 
-- [ ] **Step 3.2.5: Commit**
+- [ ] **Step 3.2.3: Commit**
 
 ```bash
 git add src/analytics/views/analyticsView.ts
-~/.claude/scripts/commit.sh "feat(analytics): persiste estado de Code x Metadata no data.json"
+~/.claude/scripts/commit.sh "feat(analytics): instance fields para Code x Metadata (sem persistencia)"
 ```
 
 ---
@@ -1624,9 +1599,17 @@ export function renderCodeMetadataOptionsSection(ctx: AnalyticsViewContext): voi
     radio.value = val;
     radio.checked = ctx.cmDisplay === val;
     row.createSpan({ text: label });
-    radio.addEventListener("change", () => {
+    const setDisplay = () => {
       ctx.cmDisplay = val;
       ctx.scheduleUpdate();
+    };
+    radio.addEventListener("change", setDisplay);
+    // Pattern docMatrixMode: row inteira clicável (não só o círculo do radio)
+    row.addEventListener("click", (ev) => {
+      if (ev.target !== radio) {
+        radio.checked = true;
+        setDisplay();
+      }
     });
   }
 
@@ -1635,9 +1618,16 @@ export function renderCodeMetadataOptionsSection(ctx: AnalyticsViewContext): voi
   const missingCheck = missingRow.createEl("input", { type: "checkbox" });
   missingCheck.checked = ctx.cmHideMissing;
   missingRow.createSpan({ text: "Hide (missing) column" });
-  missingCheck.addEventListener("change", () => {
+  const setMissing = () => {
     ctx.cmHideMissing = missingCheck.checked;
     ctx.scheduleUpdate();
+  };
+  missingCheck.addEventListener("change", setMissing);
+  missingRow.addEventListener("click", (ev) => {
+    if (ev.target !== missingCheck) {
+      missingCheck.checked = !missingCheck.checked;
+      setMissing();
+    }
   });
 }
 ```
@@ -1678,7 +1668,7 @@ Substituir o stub por:
 
 ```typescript
 import { calculateCodeMetadata } from "../../data/statsEngine";
-import { heatmapColor } from "../shared/chartHelpers";
+import { heatmapColor, isLightColor } from "../shared/chartHelpers";
 
 export function renderCodeMetadataView(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   const container = ctx.chartContainer;
@@ -1720,7 +1710,7 @@ function drawHeatmap(
 
   const cellSize = 36;
   const labelColWidth = 200;
-  const statsColWidth = 110;
+  const statsColWidth = 140;
   const headerHeight = 80;
   const padding = 8;
 
@@ -1729,46 +1719,45 @@ function drawHeatmap(
   const canvasWidth = labelColWidth + C * cellSize + statsColWidth + padding * 2;
   const canvasHeight = headerHeight + R * cellSize + padding * 2;
 
+  // Pattern docMatrixMode: sem DPR scaling; canvas size raw, sem .scale()
   const canvas = wrapper.createEl("canvas");
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
-  const dpr = window.devicePixelRatio || 1;
   canvas.style.width = `${canvasWidth}px`;
   canvas.style.height = `${canvasHeight}px`;
-  canvas.width = canvasWidth * dpr;
-  canvas.height = canvasHeight * dpr;
   const cctx = canvas.getContext("2d")!;
-  cctx.scale(dpr, dpr);
   cctx.font = "12px sans-serif";
   cctx.textBaseline = "middle";
+
+  const isDark = document.body.classList.contains("theme-dark");
 
   // ─── Compute display values per cell ───
   const displayValues = computeDisplayMatrix(result, ctx.cmDisplay);
   const maxValue = Math.max(...displayValues.flat(), 0);
 
-  // ─── Header (column labels) ───
+  // ─── Header (column labels — rotacionados) ───
   cctx.save();
-  cctx.fillStyle = "var(--text-normal, #333)";
-  cctx.textAlign = "center";
+  cctx.fillStyle = "var(--text-normal)";
+  cctx.textAlign = "left";
   for (let c = 0; c < C; c++) {
     const x = labelColWidth + c * cellSize + cellSize / 2 + padding;
-    const y = headerHeight - 8 + padding;
+    const y = headerHeight - 6 + padding;
+    cctx.save();
     cctx.translate(x, y);
     cctx.rotate(-Math.PI / 4);
     cctx.fillText(truncateLabel(result.values[c]!, 14), 0, 0);
-    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cctx.restore();
   }
   cctx.restore();
 
   // ─── Code labels (left column) ───
-  cctx.fillStyle = "var(--text-normal, #333)";
   cctx.textAlign = "left";
   for (let r = 0; r < R; r++) {
     const code = result.codes[r]!;
     const y = headerHeight + r * cellSize + cellSize / 2 + padding;
     cctx.fillStyle = code.color;
     cctx.fillRect(padding, y - 6, 12, 12);
-    cctx.fillStyle = "var(--text-normal, #333)";
+    cctx.fillStyle = "var(--text-normal)";
     cctx.fillText(truncateLabel(code.name, 22), padding + 18, y);
   }
 
@@ -1776,14 +1765,14 @@ function drawHeatmap(
   for (let r = 0; r < R; r++) {
     for (let c = 0; c < C; c++) {
       const value = displayValues[r]![c]!;
-      const norm = maxValue > 0 ? value / maxValue : 0;
       const x = labelColWidth + c * cellSize + padding;
       const y = headerHeight + r * cellSize + padding;
-      cctx.fillStyle = heatmapColor(norm);
+      const cellColor = heatmapColor(value, maxValue, isDark);
+      cctx.fillStyle = cellColor;
       cctx.fillRect(x, y, cellSize - 1, cellSize - 1);
       // text
       if (value > 0) {
-        cctx.fillStyle = norm > 0.5 ? "#fff" : "#222";
+        cctx.fillStyle = isLightColor(cellColor) ? "#222" : "#fff";
         cctx.textAlign = "center";
         cctx.fillText(formatCellValue(value, ctx.cmDisplay), x + cellSize / 2, y + cellSize / 2);
       }
@@ -1793,20 +1782,20 @@ function drawHeatmap(
   // ─── Stats column ───
   const statsX = labelColWidth + C * cellSize + padding;
   cctx.textAlign = "left";
-  cctx.fillStyle = "var(--text-muted, #666)";
-  cctx.fillText("χ² · p", statsX, headerHeight - 8 + padding);
+  cctx.fillStyle = "var(--text-muted)";
+  cctx.fillText("χ² · p", statsX, headerHeight - 6 + padding);
 
   for (let r = 0; r < R; r++) {
     const stat = result.stats[r];
     const y = headerHeight + r * cellSize + cellSize / 2 + padding;
     if (stat == null) {
-      cctx.fillStyle = "var(--text-muted, #999)";
+      cctx.fillStyle = "var(--text-muted)";
       cctx.fillText("—", statsX, y);
     } else {
       const chiText = stat.chiSquare.toFixed(2);
       const pText = stat.pValue.toFixed(4);
       const sigMark = stat.significant ? "*" : "";
-      cctx.fillStyle = "var(--text-normal, #333)";
+      cctx.fillStyle = "var(--text-normal)";
       cctx.fillText(`χ²=${chiText} · p=${pText}${sigMark}`, statsX, y);
     }
   }
@@ -2023,14 +2012,16 @@ git add src/analytics/views/modes/codeMetadataMode.ts styles.css
 
 ---
 
-### Task 4.3: Sort interaction (click no header da coluna stats)
+### Task 4.3: Sort interaction (click nos headers)
 
 **Files:**
 - Modify: `src/analytics/views/modes/codeMetadataMode.ts`
 
-> Spec: clicar no header cicla `total desc → total asc → name asc → name desc → χ² desc → χ² asc → p asc → p desc → total desc`.
+> **Implementação:** sort dividido em 2 headers (mais intuitivo que 1 ciclo de 8 estados):
+> - Click no header da coluna **Code** (esquerda): cicla `total desc → total asc → name asc → name desc → total desc`
+> - Click no header da coluna **stats** (direita): cicla `chi² desc → chi² asc → p asc → p desc → chi² desc`
 >
-> Implementação simples: detectar click no header da coluna stats via `canvas.addEventListener('click', ...)` com hit-test pelas coordenadas do header.
+> Hit-test via `canvas.addEventListener('click', ...)` pelas coordenadas dos headers.
 
 - [ ] **Step 4.3.1: Antes de iterar `result.codes` no draw, ordenar baseado em `ctx.cmSort`**
 
@@ -2081,7 +2072,7 @@ function sortIndices(
 }
 ```
 
-- [ ] **Step 4.3.2: Adicionar listener de click no canvas pro header**
+- [ ] **Step 4.3.2: Adicionar listener de click no canvas pros 2 headers**
 
 Logo após `canvas` ser criado:
 
@@ -2090,22 +2081,18 @@ canvas.addEventListener("click", (ev) => {
   const rect = canvas.getBoundingClientRect();
   const x = ev.clientX - rect.left;
   const y = ev.clientY - rect.top;
-  // Only header (y < headerHeight)
+  // Only header area (y < headerHeight)
   if (y > headerHeight) return;
 
-  // Hit-test: stats column header
+  // Hit-test: stats column header (right)
   if (x >= statsX && x < canvasWidth - padding) {
-    cycleSort(ctx);
+    ctx.cmSort = nextStatsSort(ctx.cmSort);
     ctx.scheduleUpdate();
     return;
   }
-  // Hit-test: codes column header (left)
+  // Hit-test: code column header (left)
   if (x >= padding && x < labelColWidth) {
-    if (ctx.cmSort.col === "name") {
-      ctx.cmSort = { col: "name", asc: !ctx.cmSort.asc };
-    } else {
-      ctx.cmSort = { col: "name", asc: true };
-    }
+    ctx.cmSort = nextCodeSort(ctx.cmSort);
     ctx.scheduleUpdate();
   }
 });
@@ -2114,19 +2101,29 @@ canvas.addEventListener("click", (ev) => {
 E adicionar:
 
 ```typescript
-function cycleSort(ctx: AnalyticsViewContext): void {
-  // Cicla pelo header da coluna stats: total desc → total asc → chi2 desc → chi2 asc → p asc → p desc → total desc
+function nextStatsSort(cur: AnalyticsViewContext["cmSort"]): AnalyticsViewContext["cmSort"] {
+  // Ciclo: chi² desc → chi² asc → p asc → p desc → chi² desc
   const order: Array<AnalyticsViewContext["cmSort"]> = [
-    { col: "total", asc: false },
-    { col: "total", asc: true },
     { col: "chi2", asc: false },
     { col: "chi2", asc: true },
     { col: "p", asc: true },
     { col: "p", asc: false },
   ];
-  const cur = ctx.cmSort;
   const idx = order.findIndex((s) => s.col === cur.col && s.asc === cur.asc);
-  ctx.cmSort = order[(idx + 1) % order.length]!;
+  // Se sort atual é total/name, entrar no ciclo pelo primeiro estado
+  return idx === -1 ? order[0]! : order[(idx + 1) % order.length]!;
+}
+
+function nextCodeSort(cur: AnalyticsViewContext["cmSort"]): AnalyticsViewContext["cmSort"] {
+  // Ciclo: total desc → total asc → name asc → name desc → total desc
+  const order: Array<AnalyticsViewContext["cmSort"]> = [
+    { col: "total", asc: false },
+    { col: "total", asc: true },
+    { col: "name", asc: true },
+    { col: "name", asc: false },
+  ];
+  const idx = order.findIndex((s) => s.col === cur.col && s.asc === cur.asc);
+  return idx === -1 ? order[0]! : order[(idx + 1) % order.length]!;
 }
 ```
 
@@ -2296,11 +2293,9 @@ export function exportCodeMetadataCSV(ctx: AnalyticsViewContext, date: string): 
 
   const csv = buildCsv([header, ...rows]);
   const filename = `code-metadata-${ctx.cmVariable}-${date}.csv`;
-  triggerDownload(csv, filename);
-}
 
-function triggerDownload(content: string, filename: string): void {
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  // Inline pattern (mesmo do chiSquareMode.exportChiSquareCSV)
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -2310,7 +2305,7 @@ function triggerDownload(content: string, filename: string): void {
 }
 ```
 
-> **Verifique:** se `triggerDownload` ou similar já existir em chartHelpers, importar de lá. Se não, manter inline. Procurar por `URL.createObjectURL` no chiSquareMode pra confirmar pattern.
+> **Imports adicionais necessários:** `import { Notice } from "obsidian";` no topo do arquivo.
 
 - [ ] **Step 4.5.2: Build + smoke**
 

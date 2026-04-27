@@ -114,7 +114,7 @@ Pipeline:
 |---------|---------|
 | `src/analytics/views/modes/modeRegistry.ts` | Registra `'code-metadata'` apontando pro novo `ModeEntry` |
 | `src/analytics/views/analyticsViewContext.ts` | (a) Adiciona `'code-metadata'` no union `ViewMode`; (b) adiciona `codeMetadataVariable: string \| null`, `codeMetadataDisplay: 'count' \| 'pct-row' \| 'pct-col'`, `codeMetadataHideMissing: boolean`, `cmSort: { col: 'total' \| 'name' \| 'chi2' \| 'p'; asc: boolean }` |
-| `src/analytics/views/analyticsView.ts` | Persistência dos novos estados no `data.json` (mesmo pattern de `sortMode`, `groupBy` etc.) |
+| `src/analytics/views/analyticsView.ts` | Inicializa os 4 novos campos como plain instance fields com defaults — sem persistência. Nenhum modo de Analytics persiste UI state em `data.json` hoje (todos resetam quando a view é reaberta), e Code × Metadata segue esse pattern |
 | `src/analytics/data/inferential.ts` | Extrai helper genérico (ver § "Chi² puro reutilizável" abaixo). Refactor preserva comportamento de `calculateChiSquare` byte-identical |
 | `src/analytics/data/statsEngine.ts` | Re-export de `calculateCodeMetadata` |
 
@@ -149,7 +149,10 @@ export function chiSquareFromContingency(
 
 Canvas 2D puro (mesmo pattern do `docMatrixMode`):
 
-- **Linhas** = códigos. Ordenação **default**: `total desc`. Sortable via click no header de linhas: cicla `total desc → total asc → name asc → name desc → χ² desc → χ² asc → p asc → p desc → total desc`. Estado de sort persistido em `ctx.cmSort: { col: 'total' | 'name' | 'chi2' | 'p'; asc: boolean }`
+- **Linhas** = códigos. Ordenação **default**: `total desc`. Sortable via click em 2 headers separados:
+  - Header coluna **Code** (esquerda): cicla `total desc → total asc → name asc → name desc → total desc`
+  - Header coluna **stats** (direita, `χ² · p`): cicla `χ² desc → χ² asc → p asc → p desc → χ² desc`
+  - Estado em `ctx.cmSort: { col: 'total' | 'name' | 'chi2' | 'p'; asc: boolean }` (volátil, sem persistência)
 - **Colunas** = valores da variável + opcional `(missing)` no fim
 - **Célula**: cor via `heatmapColor(normalized)`; texto = valor formatado conforme `displayMode`
 - **Coluna lateral** (à direita): `χ² · p` em duas linhas compactas; asterisco se `significant`; `—` se `isMultitext`
@@ -268,5 +271,5 @@ Testes verdes ≠ feature funcionando (lição cara): mocks vitest+jsdom validam
 
 - Analytics existentes (frequency, cooccurrence, evolution, etc.) — sem mudanças
 - Export QDPX/CSV global — sem mudanças
-- Storage (`data.json`) — apenas 3 campos novos no estado da `AnalyticsView` (mesmo nível dos toggles existentes)
+- Storage (`data.json`) — não há mudança. UI state do modo é volátil (reset ao reabrir view), igual a todos os outros modes
 - Performance — mesmo pattern de cache do `docMatrixMode`; sem novos hot paths
