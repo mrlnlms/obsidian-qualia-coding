@@ -7,6 +7,7 @@ export interface ParsedCode {
   name: string;
   color?: string;
   description?: string;
+  memo?: string;
   parentGuid?: string;
   childrenGuids: string[];
   noteGuids: string[];
@@ -63,6 +64,7 @@ function parseCodeElement(el: Element, parentGuid: string | undefined, out: Pars
     name: getAttr(el, 'name') ?? 'Unnamed',
     color: getAttr(el, 'color'),
     description: getTextContent(el, 'Description'),
+    memo: getTextContent(el, 'MemoText'),
     parentGuid,
     childrenGuids,
     noteGuids,
@@ -90,12 +92,19 @@ export function applyCodebook(
     if (existing) {
       if (strategy === 'merge') {
         codeGuidMap.set(pc.guid, existing.id);
+        if (pc.memo) {
+          const mergedMemo = mergeMemos(existing.memo, pc.memo);
+          if (mergedMemo !== existing.memo) {
+            registry.update(existing.id, { memo: mergedMemo });
+          }
+        }
         merged++;
         continue;
       }
       const newName = `${pc.name} (imported)`;
       const parentId = pc.parentGuid ? codeGuidMap.get(pc.parentGuid) : undefined;
       const def = registry.create(newName, pc.color, pc.description, parentId);
+      if (pc.memo) registry.update(def.id, { memo: pc.memo });
       codeGuidMap.set(pc.guid, def.id);
       created++;
       continue;
@@ -105,6 +114,7 @@ export function applyCodebook(
     const noteDesc = resolveCodeNotes(pc.noteGuids, notes);
     const description = mergeDescriptions(pc.description, noteDesc);
     const def = registry.create(pc.name, pc.color, description, parentId);
+    if (pc.memo) registry.update(def.id, { memo: pc.memo });
     codeGuidMap.set(pc.guid, def.id);
     created++;
   }
@@ -130,4 +140,11 @@ function mergeDescriptions(xmlDesc?: string, noteDesc?: string): string | undefi
   if (!xmlDesc) return noteDesc;
   if (!noteDesc) return xmlDesc;
   return `${xmlDesc}\n\n--- Imported memo ---\n${noteDesc}`;
+}
+
+export function mergeMemos(existing: string | undefined, imported: string | undefined): string | undefined {
+  if (!existing && !imported) return undefined;
+  if (!existing) return imported;
+  if (!imported) return existing;
+  return `${existing}\n\n--- Imported memo ---\n${imported}`;
 }

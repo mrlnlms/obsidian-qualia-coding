@@ -78,6 +78,7 @@ export interface ParsedLink {
   directed: boolean;
   originGuid: string;
   targetGuid: string;
+  memo?: string;
 }
 
 export interface ImportResult {
@@ -241,12 +242,14 @@ export function parseLinks(doc: Document): ParsedLink[] {
     const targetGuid = getAttr(el, 'targetGUID');
     if (!guid || !label || !originGuid || !targetGuid) continue;
 
+    const memo = getTextContent(el, 'MemoText');
     links.push({
       guid,
       label,
       directed: direction === 'OneWay',
       originGuid,
       targetGuid,
+      memo,
     });
   }
   return links;
@@ -398,6 +401,9 @@ export async function importQdpx(
     }
     if (groupData.description) {
       registry.setGroupDescription(g.id, groupData.description);
+    }
+    if (groupData.memo) {
+      registry.setGroupMemo(g.id, groupData.memo);
     }
     const membership = setsResult.memberships.find(m => m.groupName === groupData.name);
     if (membership) {
@@ -900,6 +906,7 @@ export function applyLinks(
       label: link.label,
       target: targetId,
       directed: link.directed,
+      ...(link.memo ? { memo: link.memo } : {}),
     };
 
     // Try code-level origin first
@@ -1073,6 +1080,7 @@ export interface ParsedGroup {
   color: string;
   paletteIndex: number;
   description?: string;
+  memo?: string;
   hadExplicitColor: boolean;
 }
 
@@ -1129,6 +1137,9 @@ export function parseSetsFromXml(codebookXml: string): ParseSetsResult {
     const descMatch = inner.match(/<Description>([\s\S]*?)<\/Description>/);
     const description = descMatch ? decodeXmlEntities(descMatch[1]!) : undefined;
 
+    const memoMatch = inner.match(/<MemoText>([\s\S]*?)<\/MemoText>/);
+    const memo = memoMatch ? decodeXmlEntities(memoMatch[1]!) : undefined;
+
     const memberCodeGuids: string[] = [];
     const memberCodeRegex = /<MemberCode\s+targetGUID="([^"]*)"\s*\/>/g;
     let mm: RegExpExecArray | null;
@@ -1140,7 +1151,7 @@ export function parseSetsFromXml(codebookXml: string): ParseSetsResult {
       warnings.push(`Set "${name}": contém <MemberSource> (source-level) — ignorado (fora de escopo de Code Groups)`);
     }
 
-    groups.push({ name, color, description, paletteIndex, hadExplicitColor });
+    groups.push({ name, color, description, memo, paletteIndex, hadExplicitColor });
     memberships.push({ groupName: name, memberCodeGuids });
   }
 

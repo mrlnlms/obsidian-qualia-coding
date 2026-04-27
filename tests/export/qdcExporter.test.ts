@@ -89,3 +89,58 @@ describe('buildCodebookXml — hierarchy', () => {
     expect(leafIdx).toBeGreaterThan(rootIdx);
   });
 });
+
+describe('MemoText emit', () => {
+  it('emits MemoText in Code when memo present', () => {
+    const reg = new CodeDefinitionRegistry();
+    const def = reg.create('frustacao', '#FF0000');
+    reg.update(def.id, { memo: 'reflexão' });
+    const xml = buildCodebookXml(reg);
+    expect(xml).toContain('<MemoText>reflexão</MemoText>');
+  });
+
+  it('omits MemoText in Code when memo empty', () => {
+    const reg = new CodeDefinitionRegistry();
+    reg.create('frustacao', '#FF0000');
+    const xml = buildCodebookXml(reg);
+    expect(xml).not.toContain('<MemoText>');
+  });
+
+  it('emits MemoText in Set when memo present', () => {
+    const reg = new CodeDefinitionRegistry();
+    const g = reg.createGroup('Theme');
+    reg.setGroupMemo(g.id, 'group memo');
+    const xml = buildCodebookXml(reg);
+    expect(xml).toContain('<MemoText>group memo</MemoText>');
+  });
+
+  it('Code self-closing branch turns to open/close when memo added', () => {
+    const reg = new CodeDefinitionRegistry();
+    const def = reg.create('no-memo', '#FF0000');
+    expect(buildCodebookXml(reg)).toMatch(/<Code [^>]*\/>/);
+
+    reg.update(def.id, { memo: 'has memo now' });
+    const xml = buildCodebookXml(reg);
+    expect(xml).toMatch(/<Code [^>]*>[\s\S]*<\/Code>/);
+    expect(xml).toContain('<MemoText>has memo now</MemoText>');
+  });
+
+  it('Set self-closing branch turns to open/close when memo added', () => {
+    const reg = new CodeDefinitionRegistry();
+    const g = reg.createGroup('Theme');
+    expect(buildCodebookXml(reg)).toMatch(/<Set [^>]*\/>/);
+
+    reg.setGroupMemo(g.id, 'set memo');
+    const xml = buildCodebookXml(reg);
+    expect(xml).toMatch(/<Set [^>]*>[\s\S]*<\/Set>/);
+    expect(xml).toContain('<MemoText>set memo</MemoText>');
+  });
+
+  it('escapes XML special chars in memo', () => {
+    const reg = new CodeDefinitionRegistry();
+    const def = reg.create('x', '#000000');
+    reg.update(def.id, { memo: '<bad> & "stuff"' });
+    const xml = buildCodebookXml(reg);
+    expect(xml).toContain('<MemoText>&lt;bad&gt; &amp; &quot;stuff&quot;</MemoText>');
+  });
+});

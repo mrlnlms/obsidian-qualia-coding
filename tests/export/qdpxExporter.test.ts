@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ensureGuid, isValidUuid, buildCodingXml, buildNoteXml, buildNoteRefXml, buildTextSourceXml, buildAudioSourceXml, buildVideoSourceXml, buildImageSourceXml, buildPdfSourceXml, buildProjectXml, createQdpxZip } from '../../src/export/qdpxExporter';
+import { ensureGuid, isValidUuid, buildCodingXml, buildNoteXml, buildNoteRefXml, buildTextSourceXml, buildAudioSourceXml, buildVideoSourceXml, buildImageSourceXml, buildPdfSourceXml, buildLinksXml, buildProjectXml, createQdpxZip } from '../../src/export/qdpxExporter';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import { unzipSync, strFromU8 } from 'fflate';
 import type { CodeApplication } from '../../src/core/types';
@@ -231,6 +231,51 @@ describe('buildPdfSourceXml', () => {
     const notes: string[] = [];
     const xml = buildPdfSourceXml('docs/paper.pdf', [], shapes, null, new Map(), guidMap, notes);
     expect(xml).toBe('');
+  });
+});
+
+describe('buildLinksXml — memo emission', () => {
+  it('emits self-closing Link when no memo (code-level)', () => {
+    const reg = new CodeDefinitionRegistry();
+    const a = reg.create('a', '#FF0000');
+    const b = reg.create('b', '#00FF00');
+    reg.update(a.id, { relations: [{ label: 'causa', target: b.id, directed: true }] });
+    const xml = buildLinksXml(reg.getAll(), [], new Map());
+    expect(xml).toMatch(/<Link [^>]*\/>/);
+    expect(xml).not.toContain('<MemoText>');
+  });
+
+  it('emits open/close Link with MemoText when memo present (code-level)', () => {
+    const reg = new CodeDefinitionRegistry();
+    const a = reg.create('a', '#FF0000');
+    const b = reg.create('b', '#00FF00');
+    reg.update(a.id, { relations: [{ label: 'causa', target: b.id, directed: true, memo: 'relation memo' }] });
+    const xml = buildLinksXml(reg.getAll(), [], new Map());
+    expect(xml).toMatch(/<Link [^>]*>[\s\S]*<\/Link>/);
+    expect(xml).toContain('<MemoText>relation memo</MemoText>');
+  });
+
+  it('emits MemoText for application-level relation when memo present', () => {
+    const reg = new CodeDefinitionRegistry();
+    const a = reg.create('a', '#FF0000');
+    const b = reg.create('b', '#00FF00');
+    const markers = [{
+      id: '550e8400-e29b-41d4-a716-446655440aaa',
+      codes: [
+        { codeId: a.id, relations: [{ label: 'reforça', target: b.id, directed: false, memo: 'app-level memo' }] },
+      ] as CodeApplication[],
+    }];
+    const xml = buildLinksXml(reg.getAll(), markers, new Map());
+    expect(xml).toContain('<MemoText>app-level memo</MemoText>');
+  });
+
+  it('escapes XML chars in memo', () => {
+    const reg = new CodeDefinitionRegistry();
+    const a = reg.create('a', '#FF0000');
+    const b = reg.create('b', '#00FF00');
+    reg.update(a.id, { relations: [{ label: 'l', target: b.id, directed: false, memo: '<x> & "y"' }] });
+    const xml = buildLinksXml(reg.getAll(), [], new Map());
+    expect(xml).toContain('<MemoText>&lt;x&gt; &amp; &quot;y&quot;</MemoText>');
   });
 });
 

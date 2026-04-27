@@ -379,8 +379,11 @@ export function buildLinksXml(
       const originGuid = ensureGuid(def.id, guidMap);
       const targetGuid = ensureGuid(rel.target, guidMap);
       const direction = rel.directed ? 'OneWay' : 'Associative';
-      links.push(
-        `<Link ${xmlAttr('guid', linkGuid)} ${xmlAttr('name', rel.label)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}/>`,
+      const linkAttrs = `${xmlAttr('guid', linkGuid)} ${xmlAttr('name', rel.label)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}`;
+      const memoEl = rel.memo ? `<MemoText>${escapeXml(rel.memo)}</MemoText>` : '';
+      links.push(memoEl
+        ? `<Link ${linkAttrs}>${memoEl}</Link>`
+        : `<Link ${linkAttrs}/>`,
       );
     }
   }
@@ -394,8 +397,11 @@ export function buildLinksXml(
         const originGuid = ensureGuid(marker.id, guidMap);
         const targetGuid = ensureGuid(rel.target, guidMap);
         const direction = rel.directed ? 'OneWay' : 'Associative';
-        links.push(
-          `<Link ${xmlAttr('guid', linkGuid)} ${xmlAttr('name', rel.label)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}/>`,
+        const linkAttrs = `${xmlAttr('guid', linkGuid)} ${xmlAttr('name', rel.label)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}`;
+        const memoEl = rel.memo ? `<MemoText>${escapeXml(rel.memo)}</MemoText>` : '';
+        links.push(memoEl
+          ? `<Link ${linkAttrs}>${memoEl}</Link>`
+          : `<Link ${linkAttrs}/>`,
         );
       }
     }

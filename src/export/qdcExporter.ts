@@ -52,6 +52,10 @@ function buildSetElement(
     ? `\n<Description>${escapeXml(group.description)}</Description>`
     : '';
 
+  const memoEl = group.memo
+    ? `\n<MemoText>${escapeXml(group.memo)}</MemoText>`
+    : '';
+
   const members = registry.getCodesInGroup(group.id);
   const membersXml = members
     .map(c => {
@@ -60,11 +64,11 @@ function buildSetElement(
     })
     .join('\n');
 
-  if (!descEl && members.length === 0) {
+  if (!descEl && !memoEl && members.length === 0) {
     return `<Set ${attrs}/>`;
   }
 
-  const inner = [descEl, membersXml].filter(Boolean).join('\n');
+  const inner = [descEl, memoEl, membersXml].filter(Boolean).join('\n');
   return `<Set ${attrs}>${inner}\n</Set>`;
 }
 
@@ -86,14 +90,18 @@ function buildCodeElement(
     ? `\n<Description>${escapeXml(code.description)}</Description>`
     : '';
 
+  const memoEl = code.memo
+    ? `\n<MemoText>${escapeXml(code.memo)}</MemoText>`
+    : '';
+
   const children = registry.getChildren(code.id);
   const childrenXml = children.map(c => buildCodeElement(c, registry, ensureCodeGuid)).join('\n');
 
-  if (!descEl && children.length === 0) {
+  if (!descEl && !memoEl && children.length === 0) {
     return `<Code ${attrs}/>`;
   }
 
-  const inner = [descEl, childrenXml].filter(Boolean).join('\n');
+  const inner = [descEl, memoEl, childrenXml].filter(Boolean).join('\n');
   return `<Code ${attrs}>${inner}\n</Code>`;
 }
 

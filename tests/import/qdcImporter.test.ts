@@ -152,3 +152,76 @@ describe('applyCodebook', () => {
     expect(registry.getById(qualiaId!)).toBeDefined();
   });
 });
+
+describe('parseCodebook — MemoText', () => {
+  it('parses MemoText in Code', () => {
+    const xml = `<?xml version="1.0"?>
+<Project>
+  <CodeBook>
+    <Codes>
+      <Code guid="g1" name="frustration" color="#FF0000" isCodable="true">
+        <MemoText>reflexão analítica</MemoText>
+      </Code>
+    </Codes>
+  </CodeBook>
+</Project>`;
+    const doc = parseXml(xml);
+    const cb = parseCodebook(doc);
+    expect(cb.codes[0]!.memo).toBe('reflexão analítica');
+  });
+
+  it('returns undefined memo when MemoText absent', () => {
+    const xml = `<?xml version="1.0"?>
+<Project><CodeBook><Codes>
+  <Code guid="g1" name="x" isCodable="true"/>
+</Codes></CodeBook></Project>`;
+    const doc = parseXml(xml);
+    const cb = parseCodebook(doc);
+    expect(cb.codes[0]!.memo).toBeUndefined();
+  });
+});
+
+describe('applyCodebook — memo', () => {
+  it('applies memo when creating new code', () => {
+    const registry = new CodeDefinitionRegistry();
+    const codebook = {
+      codes: [{ guid: 'g1', name: 'New', color: '#ff0000', memo: 'imported memo', childrenGuids: [], noteGuids: [] }],
+    };
+    applyCodebook(codebook, registry, 'merge');
+    expect(registry.getByName('New')!.memo).toBe('imported memo');
+  });
+
+  it('mergeMemos when importing into existing code with memo', () => {
+    const registry = new CodeDefinitionRegistry();
+    const def = registry.create('Existing', '#ff0000');
+    registry.update(def.id, { memo: 'existing' });
+    const codebook = {
+      codes: [{ guid: 'g1', name: 'Existing', color: '#00ff00', memo: 'imported', childrenGuids: [], noteGuids: [] }],
+    };
+    applyCodebook(codebook, registry, 'merge');
+    const updated = registry.getByName('Existing')!;
+    expect(updated.memo).toContain('existing');
+    expect(updated.memo).toContain('--- Imported memo ---');
+    expect(updated.memo).toContain('imported');
+  });
+
+  it('uses imported memo when existing code has no memo', () => {
+    const registry = new CodeDefinitionRegistry();
+    registry.create('Existing', '#ff0000');
+    const codebook = {
+      codes: [{ guid: 'g1', name: 'Existing', color: '#00ff00', memo: 'imported', childrenGuids: [], noteGuids: [] }],
+    };
+    applyCodebook(codebook, registry, 'merge');
+    expect(registry.getByName('Existing')!.memo).toBe('imported');
+  });
+
+  it('separate strategy: applies memo on (imported) duplicate', () => {
+    const registry = new CodeDefinitionRegistry();
+    registry.create('Existing', '#ff0000');
+    const codebook = {
+      codes: [{ guid: 'g1', name: 'Existing', color: '#00ff00', memo: 'mine', childrenGuids: [], noteGuids: [] }],
+    };
+    applyCodebook(codebook, registry, 'separate');
+    expect(registry.getByName('Existing (imported)')!.memo).toBe('mine');
+  });
+});
