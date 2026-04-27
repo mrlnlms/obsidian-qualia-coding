@@ -137,8 +137,11 @@ src/
       dataConsolidator.ts    — 6 funcoes puras por engine + consolidateCodes + consolidate() como composicao
       dataReader.ts          — readAllData(DataManager) → AllEngineData
       relationsEngine.ts     — extractRelationEdges, extractRelationNodes (Network View)
-      statsEngine.ts         — barrel re-export (6 modulos: frequency, cooccurrence, evolution, sequential, inferential, textAnalysis)
+      statsEngine.ts         — barrel re-export (frequency, cooccurrence, evolution, sequential, inferential, textAnalysis, codeMetadata)
       statsHelpers.ts        — applyFilters compartilhado
+      inferential.ts         — calculateChiSquare + chiSquareFromContingency (helper puro generico R×C reutilizavel)
+      binning.ts             — helpers puros: binNumeric (quartis ≥5 uniq, categorico ≤4), binDate (auto ano/mes/dia, UTC), explodeMultitext
+      codeMetadata.ts        — calculateCodeMetadata pura: matriz [code × value] cruzando codigos com Case Variables + chi² por codigo
     board/
       boardTypes.ts          — discriminated union: StickyNode, SnapshotNode, ExcerptNode, etc.
       boardNodeHelpers.ts    — factories compartilhadas (cardBg, textbox, badges, theme, assignNodeProps)
@@ -153,8 +156,9 @@ src/
       shared/chartHelpers.ts — heatmapColor, computeDisplayMatrix, divergentColor, SOURCE_COLORS
       modes/
         modeRegistry.ts      — Record<ViewMode, ModeEntry> declarativo (render, options, exportCSV, label)
-        *Mode.ts             — 20 mode modules incl. relationsNetworkMode (1 por visualizacao, ~150-400 LOC cada)
+        *Mode.ts             — 21 mode modules incl. relationsNetworkMode + codeMetadataMode (1 por visualizacao, ~150-400 LOC cada)
         relationsNetworkHelpers.ts — helpers puros do Relations Network: isEdgeAboveThreshold, computeEdgeOpacity (hover-focus + filtro N+)
+        codeMetadataMode.ts  — heatmap canvas 2D codigo × valor de Case Variable + coluna χ²/p + sort interativo + tooltip + CSV export
   media/
     mediaViewCore.ts         — logica compartilhada audio/video via composicao (transport, zoom, regions)
     mediaViewConfig.ts       — interface de configuracao (video element, CSS prefix, popover)
@@ -189,7 +193,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2229 testes em 129 suites (Vitest + jsdom)
+- `npm run test` — 2264 testes em 131 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)

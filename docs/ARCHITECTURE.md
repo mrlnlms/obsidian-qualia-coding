@@ -378,7 +378,34 @@ Não deve implementar lógica de engine — apenas coordenar. O acoplamento é i
 - **Dados**: lê markers raw via `readAllData(ctx.plugin.dataManager)` — não usa consolidated data (relações vivem em `CodeApplication`, não em `ConsolidatedData`)
 - **CSV export**: source, target, label, directed, level, weight
 
-### 5.8 Shared Files
+### 5.8 Code × Metadata (mixed-methods)
+
+`codeMetadataMode.ts` — heatmap canvas 2D cruzando códigos qualitativos com Case Variables. Responde "como este código se distribui pelos perfis dos casos?" — pergunta complementar ao `chiSquareMode` (que responde "este código é específico de um tipo de fonte?").
+
+Pipeline de cálculo é uma função pura em `analytics/data/codeMetadata.ts`:
+
+1. `applyFilters(data, filters, registry)` — markers filtrados (incl. caseVariableFilter atual)
+2. Discovery dos labels de coluna baseado em `registry.getType(variableName)`:
+   - **text/checkbox**: valor literal vira coluna
+   - **number**: `binNumeric()` — ≤4 valores únicos → categórico literal; ≥5 → quartis `[min–Q1] (Q1–Q2] (Q2–Q3] (Q3–max]`
+   - **date/datetime**: `binDate()` — granularidade auto baseada no range (UTC; >2y → ano, 1mo–2y → mês, <1mo → dia)
+   - **multitext**: `explodeMultitext()` flatten arrays — 1 arquivo conta em N colunas, chi² inválido (`stats[i] = null`)
+3. Coluna `(missing)` opcional no fim quando há markers em arquivos sem valor preenchido (toggle "Hide missing")
+4. Build matrix `[code × value]`; chi² 2×C por código via helper genérico `chiSquareFromContingency` extraído de `inferential.ts`
+
+Helpers puros isolados em `analytics/data/binning.ts` (testáveis sem registry).
+
+**Render** (`codeMetadataMode.ts`): canvas 2D no pattern de `docMatrixMode` (sem DPR scaling). Linhas = códigos, colunas = valores binados, célula colorida via `heatmapColor(value, maxValue, isDark)`. Display tem 3 modos via radio: **Count** (default) / **% by row (code)** / **% by column (value)** — útil pra "como o código X se distribui" vs "do que o perfil Y fala". Coluna lateral fixa exibe `χ²=N · p=N` por código, com asterisco quando `p<0.05` e `—` para multitext.
+
+**Sort interativo** dividido em 2 headers (sem persistência, volátil por sessão):
+- Header **Code** (esquerda): cicla `total desc → total asc → name asc → name desc`
+- Header **χ² · p** (direita): cicla `χ² desc → χ² asc → p asc → p desc`
+
+**Tooltip** de hover mostra `(código × valor, count, % row, % col)`. **Banner** condicional quando `caseVariableFilter.name === cmVariable` ("Filtering by X while using as dimension"). **CSV export** com colunas `code, total, <values…>, (missing)?, chi2, df, p, cramers_v` — campos chi² vazios para linhas multitext (parse-friendly em R/Python).
+
+State volátil em `AnalyticsView`: `cmVariable`, `cmDisplay`, `cmHideMissing`, `cmSort`. Reset ao reabrir view, mesmo pattern de `chiGroupBy`/`chiSort`.
+
+### 5.9 Shared Files
 
 ```
 src/

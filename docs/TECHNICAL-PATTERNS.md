@@ -1623,6 +1623,84 @@ Descoberto 2026-04-24 durante Toggle Visibility por Código (ROADMAP #21) — 6 
 
 ---
 
+## 25. Regression locks bit-idênticos antes de refactor de função numérica
+
+### Problema
+
+Quando uma função numérica (`calculateChiSquare`, qualquer cálculo estatístico com arredondamentos) precisa ser refatorada — por exemplo, extrair um helper genérico reutilizável — o risco é alterar imperceptivelmente o output. Testes de propriedade (`pValue ≥ 0`, `chiSquare ≥ 0`) passam mesmo se um decimal mudar; testes pré-existentes podem cobrir só estrutura (existência de campos), não valores exatos.
+
+Refactors numéricos quebram silenciosamente. O smoke visual também não pega — o usuário olha e diz "parece igual" sem comparar 4 decimais.
+
+### Pattern
+
+Antes do refactor, **adicionar testes que congelam outputs numéricos exatos** com fixtures conhecidos:
+
+```typescript
+describe('calculateChiSquare regression locks', () => {
+  it('exact outputs for 2-source 2-code fixture', () => {
+    const res = calculateChiSquare(/* fixture */);
+    expect(res.entries[0]!.observed).toEqual([[2, 0], [1, 2]]);
+    expect(res.entries[0]!.expected).toEqual([[1.2, 0.8], [1.8, 1.2]]);
+  });
+});
+```
+
+Rodar **antes** do refactor pra confirmar que o snapshot bate com o estado atual. Commit isolado: `test(X): regression locks pre-extraction`.
+
+Depois do refactor, esses mesmos testes precisam continuar passando. Se quebrar, há drift — voltar.
+
+### Cuidados
+
+- **Capturar arredondamentos exatos do código original.** Se a função faz `Math.round(e * 100) / 100`, os locks devem ter `1.2` (não `1.20` ou `1.2000`).
+- **Cobrir os casos limite** (df=0, N=0, distribuição uniforme com chi²=0, distribuição enviesada com chi² alto). Cada um exercita uma branch diferente.
+- **Manter os locks após o refactor** — viram regression net pra qualquer mudança futura.
+
+### Quando aplicar
+
+Refactor de função compartilhada por múltiplos consumers (`calculateChiSquare` é usada por `chiSquareMode` e agora também por `codeMetadata`). Refactors de algoritmo numérico com arredondamentos. Antes de "extract helper" / "split into pure function".
+
+### Onde está implementado
+
+`tests/analytics/inferential.test.ts` — bloco "calculateChiSquare regression locks" (2 testes com fixtures fixos: 2-source 2-code e 3-source single-code). Adicionados em `c1339b3` antes do refactor `6039ac2` que extraiu `chiSquareFromContingency`.
+
+Descoberto 2026-04-27 durante Code × Metadata (ROADMAP #24).
+
+---
+
+## 26. UTC em date binning pra evitar drift de timezone
+
+### Problema
+
+`new Date('2020-01-01').getFullYear()` retorna **2019** em timezones a oeste de UTC (Americas) — porque `new Date('2020-01-01')` é interpretado como UTC midnight, e local time fica no dia anterior. Idem `getMonth()` e `getDate()`.
+
+Em testes de binning de datas, fixtures escritas em ISO (`'2020-01-01'`) batem se o binning usar UTC, mas falham em local time. E pior: um vault rodando no Brasil produziria bins diferentes do mesmo vault em Londres pra os mesmos valores.
+
+### Pattern
+
+Datas em `binDate()` (e qualquer formatação de date como label categórico) **sempre via `getUTCFullYear/getUTCMonth/getUTCDate`** — nunca local time:
+
+```typescript
+const formatDate = (d: Date): string => {
+  // UTC pra evitar drift de timezone com datas ISO (`new Date('2020-01-01')` é UTC-midnight)
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  // ...
+};
+```
+
+### Quando aplicar
+
+Sempre que datas viram **labels categóricos persistidos** (CSV, bins, agrupamentos). Local time só faz sentido em UI display (formatador localizado pra usuário ler).
+
+### Onde está implementado
+
+`src/analytics/data/binning.ts:84-92` — `binDate()` formata via `getUTC*`.
+
+Descoberto 2026-04-27 durante Code × Metadata (ROADMAP #24) quando 2 testes de `binning.test.ts` falharam num CI/local em America/Sao_Paulo: `new Date('2020-01-01')` virava `2019` em local time.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
