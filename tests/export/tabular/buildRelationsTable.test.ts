@@ -32,7 +32,7 @@ describe('buildRelationsTable', () => {
 
 		const { rows } = buildRelationsTable(dm, reg);
 		expect(rows).toHaveLength(2);
-		expect(rows[1]).toEqual(['code', c1.id, '', c2.id, 'parent-of', 'true']);
+		expect(rows[1]).toEqual(['code', c1.id, '', c2.id, 'parent-of', 'true', '']);
 	});
 
 	it('emits application-level relations with scope=application', () => {
@@ -50,7 +50,7 @@ describe('buildRelationsTable', () => {
 
 		const { rows } = buildRelationsTable(dm, reg);
 		expect(rows).toHaveLength(2);
-		expect(rows[1]).toEqual(['application', c1.id, 's1', c2.id, 'contradicts', 'false']);
+		expect(rows[1]).toEqual(['application', c1.id, 's1', c2.id, 'contradicts', 'false', '']);
 	});
 
 	it('returns no warnings (pure projection)', () => {
@@ -59,5 +59,33 @@ describe('buildRelationsTable', () => {
 		reg.update(c1.id, { relations: [{ label: 'x', target: c2.id, directed: true }] });
 		const { warnings } = buildRelationsTable(dm, reg);
 		expect(warnings).toEqual([]);
+	});
+
+	it('memo column populated for code-level relation with memo', () => {
+		const c1 = reg.create('C1', '#000');
+		const c2 = reg.create('C2', '#000');
+		reg.update(c1.id, { relations: [{ label: 'causa', target: c2.id, directed: true, memo: 'reflexão' }] });
+
+		const { rows } = buildRelationsTable(dm, reg);
+		const memoIdx = RELATIONS_HEADER.indexOf('memo');
+		expect(rows[1]![memoIdx]).toBe('reflexão');
+	});
+
+	it('memo column empty for application-level relation without memo (schema-ready)', () => {
+		const c1 = reg.create('C1', '#000');
+		const c2 = reg.create('C2', '#000');
+		const section = dm.section('markdown');
+		section.markers['x.md'] = [{
+			markerType: 'markdown', id: 's1', fileId: 'x.md',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 1 } },
+			color: '#000',
+			codes: [{ codeId: c1.id, relations: [{ label: 'reforça', target: c2.id, directed: false }] }],
+			createdAt: 0, updatedAt: 0,
+		}];
+		dm.setSection('markdown', section);
+
+		const { rows } = buildRelationsTable(dm, reg);
+		const memoIdx = RELATIONS_HEADER.indexOf('memo');
+		expect(rows[1]![memoIdx]).toBe('');
 	});
 });

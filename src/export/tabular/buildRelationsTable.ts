@@ -4,7 +4,7 @@ import type { CodeApplication } from '../../core/types';
 import type { CellValue } from './csvWriter';
 
 export const RELATIONS_HEADER: string[] = [
-	'scope', 'origin_code_id', 'origin_segment_id', 'target_code_id', 'label', 'directed',
+	'scope', 'origin_code_id', 'origin_segment_id', 'target_code_id', 'label', 'directed', 'memo',
 ];
 
 export interface RelationsResult {
@@ -19,7 +19,7 @@ export function buildRelationsTable(dm: DataManager, registry: CodeDefinitionReg
 	// Code-level
 	for (const def of registry.getAll()) {
 		for (const rel of def.relations ?? []) {
-			rows.push(['code', def.id, '', rel.target, rel.label, String(rel.directed)]);
+			rows.push(['code', def.id, '', rel.target, rel.label, String(rel.directed), rel.memo ?? '']);
 		}
 	}
 
@@ -27,7 +27,7 @@ export function buildRelationsTable(dm: DataManager, registry: CodeDefinitionReg
 	const visit = (segmentId: string, codes: CodeApplication[]) => {
 		for (const app of codes) {
 			for (const rel of app.relations ?? []) {
-				rows.push(['application', app.codeId, segmentId, rel.target, rel.label, String(rel.directed)]);
+				rows.push(['application', app.codeId, segmentId, rel.target, rel.label, String(rel.directed), rel.memo ?? '']);
 			}
 		}
 	};

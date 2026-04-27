@@ -2,7 +2,7 @@ import type { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
 import type { CellValue } from './csvWriter';
 
 export const CODES_HEADER: string[] = [
-	'id', 'name', 'color', 'parent_id', 'description', 'magnitude_config', 'groups',
+	'id', 'name', 'color', 'parent_id', 'description', 'memo', 'magnitude_config', 'groups',
 ];
 
 export function buildCodesTable(registry: CodeDefinitionRegistry): CellValue[][] {
@@ -18,6 +18,7 @@ export function buildCodesTable(registry: CodeDefinitionRegistry): CellValue[][]
 			def.color,
 			def.parentId ?? '',
 			def.description ?? '',
+			def.memo ?? '',
 			def.magnitude ? JSON.stringify(def.magnitude) : '',
 			groupNames,
 		]);

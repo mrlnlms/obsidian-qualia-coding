@@ -38,7 +38,7 @@ describe('Tabular export — Groups', () => {
 
 	describe('groups.csv standalone', () => {
 		it('header correto', () => {
-			expect(GROUPS_HEADER).toEqual(['id', 'name', 'color', 'description']);
+			expect(GROUPS_HEADER).toEqual(['id', 'name', 'color', 'description', 'memo']);
 		});
 
 		it('1 linha por group com metadata', () => {
@@ -46,7 +46,7 @@ describe('Tabular export — Groups', () => {
 			registry.setGroupDescription(g.id, 'Research Q1');
 			const rows = buildGroupsTable(registry);
 			expect(rows.length).toBe(2);
-			expect(rows[1]).toEqual([g.id, 'RQ1', g.color, 'Research Q1']);
+			expect(rows[1]).toEqual([g.id, 'RQ1', g.color, 'Research Q1', '']);
 		});
 
 		it('description vazio quando undefined', () => {

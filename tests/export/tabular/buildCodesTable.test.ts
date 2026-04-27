@@ -15,11 +15,11 @@ describe('buildCodesTable', () => {
 		expect(rows).toHaveLength(1);
 	});
 
-	it('emits one row per code with id, name, color, description', () => {
+	it('emits one row per code with id, name, color, description, memo', () => {
 		const def = reg.create('C1', '#ff0000', 'first');
 		const rows = buildCodesTable(reg);
 		expect(rows).toHaveLength(2);
-		expect(rows[1]).toEqual([def.id, 'C1', '#ff0000', '', 'first', '', '']);
+		expect(rows[1]).toEqual([def.id, 'C1', '#ff0000', '', 'first', '', '', '']);
 	});
 
 	it('fills parent_id when code has a parent', () => {
@@ -35,12 +35,29 @@ describe('buildCodesTable', () => {
 		reg.update(def.id, { magnitude: { type: 'continuous', values: ['1', '2', '3'] } });
 		const rows = buildCodesTable(reg);
 		const r = rows.find(row => row[0] === def.id)!;
-		expect(JSON.parse(r[5] as string)).toEqual({ type: 'continuous', values: ['1', '2', '3'] });
+		expect(JSON.parse(r[6] as string)).toEqual({ type: 'continuous', values: ['1', '2', '3'] });
 	});
 
 	it('leaves magnitude_config empty when code has no magnitude', () => {
 		reg.create('Plain', '#000');
 		const rows = buildCodesTable(reg);
-		expect(rows[1]![5]).toBe('');
+		expect(rows[1]![6]).toBe('');
+	});
+
+	it('memo column populated when code has memo', () => {
+		const def = reg.create('M', '#000');
+		reg.update(def.id, { memo: 'reflexão' });
+		const rows = buildCodesTable(reg);
+		const memoIdx = CODES_HEADER.indexOf('memo');
+		const r = rows.find(row => row[0] === def.id)!;
+		expect(r[memoIdx]).toBe('reflexão');
+	});
+
+	it('memo column empty when no memo', () => {
+		const def = reg.create('Plain', '#000');
+		const rows = buildCodesTable(reg);
+		const memoIdx = CODES_HEADER.indexOf('memo');
+		const r = rows.find(row => row[0] === def.id)!;
+		expect(r[memoIdx]).toBe('');
 	});
 });

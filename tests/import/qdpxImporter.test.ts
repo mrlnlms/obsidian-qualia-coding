@@ -173,6 +173,25 @@ describe('parseLinks', () => {
     const doc = parseXml('<Project></Project>');
     expect(parseLinks(doc)).toEqual([]);
   });
+
+  it('parses MemoText child as memo on Link', () => {
+    const xml = `<Project><Links>
+      <Link guid="l1" name="causes" direction="OneWay" originGUID="c1" targetGUID="c2"><MemoText>relation memo</MemoText></Link>
+    </Links></Project>`;
+    const doc = parseXml(xml);
+    const links = parseLinks(doc);
+    expect(links).toHaveLength(1);
+    expect(links[0]!.memo).toBe('relation memo');
+  });
+
+  it('memo undefined when Link self-closing', () => {
+    const xml = `<Project><Links>
+      <Link guid="l1" name="x" direction="OneWay" originGUID="c1" targetGUID="c2"/>
+    </Links></Project>`;
+    const doc = parseXml(xml);
+    const links = parseLinks(doc);
+    expect(links[0]!.memo).toBeUndefined();
+  });
 });
 
 describe('applyLinks', () => {
@@ -209,6 +228,53 @@ describe('applyLinks', () => {
     const mockDm = { section: () => ({ markers: {}, shapes: [], files: [] }), setSection: () => {} } as any;
     const count = applyLinks(links, resolver, registry, mockDm);
     expect(count).toBe(0);
+  });
+
+  it('preserves memo when applying code-level relation', () => {
+    const registry = new CodeDefinitionRegistry();
+    const c1 = registry.create('A', '#f00');
+    const c2 = registry.create('B', '#0f0');
+    const resolver = {
+      codes: new Map<string, string>([['g1', c1.id], ['g2', c2.id]]),
+      sources: new Map<string, string>(),
+      selections: new Map<string, string>(),
+    };
+    const links: ParsedLink[] = [
+      { guid: 'l1', label: 'causes', directed: true, originGuid: 'g1', targetGuid: 'g2', memo: 'reflexão code-level' },
+    ];
+    const mockDm = { section: () => ({ markers: {}, shapes: [], files: [] }), setSection: () => {} } as any;
+    applyLinks(links, resolver, registry, mockDm);
+    expect(registry.getById(c1.id)!.relations![0]!.memo).toBe('reflexão code-level');
+  });
+
+  it('preserves memo on application-level relation (markdown marker)', () => {
+    const registry = new CodeDefinitionRegistry();
+    const c2 = registry.create('B', '#0f0');
+    const markerId = 'marker-1';
+    const resolver = {
+      codes: new Map<string, string>([['g2', c2.id]]),
+      sources: new Map<string, string>(),
+      selections: new Map<string, string>([['origGuid', markerId]]),
+    };
+
+    const mdData = {
+      markers: { 'file1.md': [{ id: markerId, codes: [{ codeId: c2.id }] }] },
+      settings: {},
+    };
+    const sections: Record<string, unknown> = { markdown: mdData };
+    const mockDm = {
+      section: (k: string) => sections[k] ?? { markers: {}, shapes: [], files: [] },
+      setSection: (k: string, v: unknown) => { sections[k] = v; },
+    } as any;
+
+    const links: ParsedLink[] = [
+      { guid: 'l1', label: 'reforça', directed: false, originGuid: 'origGuid', targetGuid: 'g2', memo: 'app-level memo' },
+    ];
+    applyLinks(links, resolver, registry, mockDm);
+
+    const relations = (mockDm.section('markdown') as any).markers['file1.md'][0].codes[0].relations;
+    expect(relations).toHaveLength(1);
+    expect(relations[0].memo).toBe('app-level memo');
   });
 });
 
