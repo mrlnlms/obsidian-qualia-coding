@@ -5345,3 +5345,16 @@ body.codebook-dragging * {
 .memo-view-show-more:hover {
 	background: var(--interactive-hover);
 }
+.memo-view-hollow {
+	opacity: 0.6;
+	padding: 4px 0;
+	padding-left: var(--memo-view-depth-indent, 0);
+	border-bottom: none;
+}
+.memo-view-hollow .memo-view-code-header {
+	font-size: 12px;
+	margin-bottom: 0;
+}
+.memo-view-hollow .memo-view-code-name {
+	font-weight: 500;
+}

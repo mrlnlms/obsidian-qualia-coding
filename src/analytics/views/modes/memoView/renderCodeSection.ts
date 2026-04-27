@@ -15,7 +15,15 @@ export function renderCodeSection(
 	section: CodeMemoSection,
 	opts: CodeSectionOptions,
 ): void {
-	const sec = parent.createDiv({ cls: "memo-view-code-section" });
+	const isHollow = !section.codeMemo
+		&& section.groupMemos.length === 0
+		&& section.relationMemos.length === 0
+		&& section.markerMemos.length === 0
+		&& section.hasAnyMemoInSubtree;
+
+	const sec = parent.createDiv({
+		cls: isHollow ? "memo-view-code-section memo-view-hollow" : "memo-view-code-section",
+	});
 	const indent = Math.min(section.depth * 16, 80);
 	sec.style.setProperty("--memo-view-depth-indent", `${indent}px`);
 
@@ -31,6 +39,8 @@ export function renderCodeSection(
 			chips.createSpan({ cls: "memo-view-group-chip", text: opts.resolveGroupName(gid) });
 		}
 	}
+
+	if (isHollow) return; // só header pra contexto da hierarquia
 
 	// Code memo
 	if (section.codeMemo) {
