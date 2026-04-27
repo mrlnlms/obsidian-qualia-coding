@@ -24,12 +24,17 @@ import { renderSourceComparison, renderSourceComparisonOptionsSection, exportSou
 import { renderOverlapMatrix, exportOverlapCSV } from "./overlapMode";
 import { renderRelationsNetwork, renderRelationsNetworkOptions, exportRelationsNetworkCSV } from "./relationsNetworkMode";
 import { renderCodeMetadataView, renderCodeMetadataOptionsSection, exportCodeMetadataCSV } from "./codeMetadataMode";
+import { renderMemoView } from "./memoView/memoViewMode";
+import { renderMemoViewOptions } from "./memoView/memoViewOptions";
+import { exportMemoCSV } from "./memoView/exportMemoCSV";
+import { exportMemoMarkdown } from "./memoView/exportMemoMarkdown";
 
 export type ModeEntry = {
   label: string;
   render: (ctx: AnalyticsViewContext, filters: FilterConfig) => void;
   renderOptions?: (ctx: AnalyticsViewContext) => void;
   exportCSV?: (ctx: AnalyticsViewContext, date: string) => void;
+  exportMarkdown?: (ctx: AnalyticsViewContext, date: string) => Promise<void> | void;
   canExport?: boolean; // false = no PNG/Board export; default true
 };
 
@@ -155,5 +160,12 @@ export const MODE_REGISTRY: Record<ViewMode, ModeEntry> = {
     render: renderCodeMetadataView,
     renderOptions: renderCodeMetadataOptionsSection,
     exportCSV: exportCodeMetadataCSV,
+  },
+  "memo-view": {
+    label: "Memo View",
+    render: renderMemoView,
+    renderOptions: renderMemoViewOptions,
+    exportCSV: exportMemoCSV,
+    exportMarkdown: exportMemoMarkdown,
   },
 };

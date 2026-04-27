@@ -554,6 +554,11 @@ export class CodeDefinitionRegistry {
 		return this.folders.get(id);
 	}
 
+	/** Returns all folders in insertion order — unordered. For ordered display use getRootFolders/getChildFolders. */
+	getAllFolders(): FolderDefinition[] {
+		return Array.from(this.folders.values());
+	}
+
 	getRootFolders(): FolderDefinition[] {
 		const result: FolderDefinition[] = [];
 		for (const id of this.folderOrder) {

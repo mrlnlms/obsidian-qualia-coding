@@ -7,7 +7,7 @@ import type { MDSMode } from "../data/mdsEngine";
 
 // ─── Type aliases (moved from analyticsView.ts) ───
 
-export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap" | "relations-network" | "code-metadata";
+export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap" | "relations-network" | "code-metadata" | "memo-view";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
 export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
@@ -92,6 +92,16 @@ export interface AnalyticsViewContext {
   cmDisplay: CodeMetadataDisplay;
   cmHideMissing: boolean;
   cmSort: { col: CodeMetadataSortCol; asc: boolean };
+
+  // Memo View state
+  mvGroupBy: "code" | "file";
+  mvShowTypes: { code: boolean; group: boolean; relation: boolean; marker: boolean };
+  mvMarkerLimit: 5 | 10 | 25 | "all";
+  mvExpanded: Set<string>; // codeIds com markers expandidos além do limit (volátil, por sessão)
+
+  // Refresh suspend (5a)
+  suspendRefresh(): void;
+  resumeRefresh(): void;
 
   // Case variable filter state
   caseVariableFilter: { name: string; value: string } | null;

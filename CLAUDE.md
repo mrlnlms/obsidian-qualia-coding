@@ -142,6 +142,7 @@ src/
       inferential.ts         — calculateChiSquare + chiSquareFromContingency (helper puro generico R×C reutilizavel)
       binning.ts             — helpers puros: binNumeric (quartis ≥5 uniq, categorico ≤4), binDate (auto ano/mes/dia, UTC), explodeMultitext
       codeMetadata.ts        — calculateCodeMetadata pura: matriz [code × value] cruzando codigos com Case Variables + chi² por codigo
+      memoView.ts            — aggregateMemos pura: agrega memos de codes/groups/relations/markers em CodeMemoSection[] ou FileMemoSection[]
     board/
       boardTypes.ts          — discriminated union: StickyNode, SnapshotNode, ExcerptNode, etc.
       boardNodeHelpers.ts    — factories compartilhadas (cardBg, textbox, badges, theme, assignNodeProps)
@@ -155,10 +156,21 @@ src/
       configSections.ts      — config panel sections compartilhadas (sources, viewMode, codes, minFreq)
       shared/chartHelpers.ts — heatmapColor, computeDisplayMatrix, divergentColor, SOURCE_COLORS
       modes/
-        modeRegistry.ts      — Record<ViewMode, ModeEntry> declarativo (render, options, exportCSV, label)
-        *Mode.ts             — 21 mode modules incl. relationsNetworkMode + codeMetadataMode (1 por visualizacao, ~150-400 LOC cada)
+        modeRegistry.ts      — Record<ViewMode, ModeEntry> declarativo (render, options, exportCSV, exportMarkdown, label)
+        *Mode.ts             — 22 mode modules incl. relationsNetworkMode + codeMetadataMode + memoView (1 por visualizacao, ~150-400 LOC cada)
         relationsNetworkHelpers.ts — helpers puros do Relations Network: isEdgeAboveThreshold, computeEdgeOpacity (hover-focus + filtro N+)
         codeMetadataMode.ts  — heatmap canvas 2D codigo × valor de Case Variable + coluna χ²/p + sort interativo + tooltip + CSV export
+        memoView/            — Analytic Memo View: hub editorial unificado de memos
+          memoViewMode.ts    — orchestrator (render + branching by/code by/file)
+          memoViewOptions.ts — config panel (groupBy radio + showTypes checkboxes + markerLimit dropdown)
+          renderCoverageBanner.ts — banner topo (4 stats)
+          renderCodeSection.ts    — render CodeMemoSection (header + memos + markers + hollow context pra parents)
+          renderFileSection.ts    — render FileMemoSection (toggle by-file)
+          renderMarkerCard.ts     — card individual (excerpt + memo editor + source chip)
+          renderMemoEditor.ts     — textarea inline com debounced 500ms + suspendRefresh/resumeRefresh
+          onSaveHandlers.ts       — onSave por kind (5 kinds: code/group/relation code-level/relation app-level/marker)
+          exportMemoCSV.ts        — buildMemoCSV pura + exportMemoCSV (download)
+          exportMemoMarkdown.ts   — buildMemoMarkdown pura + exportMemoMarkdown (cria nota em Analytic Memos/)
   media/
     mediaViewCore.ts         — logica compartilhada audio/video via composicao (transport, zoom, regions)
     mediaViewConfig.ts       — interface de configuracao (video element, CSS prefix, popover)
@@ -193,7 +205,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2307 testes em 132 suites (Vitest + jsdom)
+- `npm run test` — 2363 testes em 137 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)

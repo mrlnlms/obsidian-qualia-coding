@@ -1,5 +1,5 @@
 import type { Plugin } from 'obsidian';
-import type { QualiaData } from './types';
+import type { QualiaData, BaseMarker, MarkerType } from './types';
 import { createDefaultData } from './types';
 
 export class DataManager {
@@ -90,6 +90,49 @@ export class DataManager {
 	}
 
 	getAll(): Readonly<QualiaData> { return this.data; }
+
+	/**
+	 * Locate a marker by id across the engine's data shape. Returns a live reference;
+	 * mutate in place and call `markDirty()` to persist. Used by Memo View and other
+	 * surfaces that need centralized marker access without a leaf open.
+	 */
+	findMarker(engineType: MarkerType, markerId: string): BaseMarker | null {
+		// NOTA: engine-specific markers (SegmentMarker, PdfMarker, ImageMarker, AudioMarker, etc.)
+		// têm o shape estrutural de BaseMarker mas não declaram explicitamente `markerType`.
+		// Cast via `unknown` necessário pra retornar referência viva pra mutação in-place.
+		const d = this.data;
+		const cast = (m: unknown): BaseMarker => m as BaseMarker;
+		if (engineType === 'markdown') {
+			for (const fileId of Object.keys(d.markdown.markers)) {
+				const found = d.markdown.markers[fileId]!.find((m) => m.id === markerId);
+				if (found) return cast(found);
+			}
+			return null;
+		}
+		if (engineType === 'csv') {
+			const s = d.csv.segmentMarkers.find((m) => m.id === markerId);
+			if (s) return cast(s);
+			const r = d.csv.rowMarkers.find((m) => m.id === markerId);
+			return r ? cast(r) : null;
+		}
+		if (engineType === 'image') {
+			const m = d.image.markers.find((m) => m.id === markerId);
+			return m ? cast(m) : null;
+		}
+		if (engineType === 'pdf') {
+			const m = d.pdf.markers.find((m) => m.id === markerId);
+			return m ? cast(m) : null;
+		}
+		if (engineType === 'audio' || engineType === 'video') {
+			const collection = engineType === 'audio' ? d.audio.files : d.video.files;
+			for (const f of collection) {
+				const m = (f.markers as Array<{ id: string }>).find((mk) => mk.id === markerId);
+				if (m) return cast(m);
+			}
+			return null;
+		}
+		return null;
+	}
 
 	/** Clear all markers and code definitions from all engines. Preserves per-engine settings. */
 	async clearAllSections(): Promise<void> {

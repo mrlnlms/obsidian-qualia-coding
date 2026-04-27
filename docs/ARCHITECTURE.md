@@ -1121,6 +1121,36 @@ Schema aditivo `memo?: string` em três entidades, com semântica distinta de `d
 
 Conflito de import (entidade já existe + memo importado): `mergeMemos` análoga a `mergeDescriptions` (`existing\n\n--- Imported memo ---\nimported`).
 
+### 14.7 Analytic Memo View (consumer #25, 2026-04-27)
+
+Mode `memo-view` no Analytics que agrega memos das 4 entidades em uma view de leitura analítica unificada com edição inline. Consumer direto da feature #25. Blueprint: `codeMetadataMode` — pattern declarativo de mode + função pura de agregação + módulos render separados.
+
+**Módulos:**
+- `analytics/data/memoView.ts` — `aggregateMemos(allData, registry, filters, caseVariablesRegistry?)` pura. Lê `AllEngineData` raw (não consolidado, pra preservar `BaseMarker.memo`). Retorna `MemoViewResult` com `byCode: CodeMemoSection[]` ou `byFile: FileMemoSection[]` + `coverage: CoverageStats`.
+- `analytics/views/modes/memoView/` — orchestrator + 8 sub-arquivos (`renderCoverageBanner`, `renderCodeSection`, `renderFileSection`, `renderMarkerCard`, `renderMemoEditor`, `memoViewOptions`, `onSaveHandlers`, `exportMemoCSV`, `exportMemoMarkdown`). Subpasta dedicada porque modes complexos beneficiam de split (vs `dashboardMode.ts` em arquivo único quando small).
+
+**Decisões de design:**
+- **Pivô = código (com hierarquia indentada) + toggle by-file** — espelha codebook como narrativa (default). By-file reagrupa por arquivo pra escrever análise por documento.
+- **Hollow context** — pais sem memo mas com filhos com memo aparecem como header fade (preserva contexto de hierarquia).
+- **Coverage banner** — `X/Y codes · X/Y groups · X/Y relations · X/Y markers` (totais absolutos pré-`showTypes`, markersTotal post outros filtros).
+- **Marker em múltiplos códigos** (decisão iv) — aparece UMA vez sob primeira `marker.codes[]` que sobrevive ao `code filter`. Em `byFile`, `codeIdsUsed` reúne TODOS surviving (pra dar visão completa do arquivo).
+- **markerLimit** (5/10/25/all) — collapse por código com "Show N more". Threshold decisão pragmática; virtual scroll fica como follow-up (BACKLOG §17) se >500 marker memos virar dor.
+
+**Edição inline (hub editorial):**
+- `renderMemoEditor` — textarea inline com debounced save 500ms + `suspendRefresh`/`resumeRefresh` (counter em `AnalyticsView`, `scheduleUpdate` no-op enquanto > 0). Pattern reusable pra qualquer view futura que precise textarea editável dentro do Analytics.
+- `onSaveHandlers` — 5 kinds (code, group, relation code-level, relation app-level, marker). Cada um chama API certa do registry/dataManager.
+- **Marker persistence: `dataManager.findMarker(engineType, markerId)` → mutação in-place + `markDirty()`**. Adicionado em `core/dataManager.ts`. Formaliza pattern já usado em menus (PDF/image escrevem `marker.memo = value` direto). Ponto único de acesso, agnóstico a leaf aberta.
+- **App-level relation memo: `setApplicationRelationMemo(codes, codeId, label, target, memo)` em `codeApplicationHelpers.ts`** — primeira UI a escrever em `CodeApplication.relations[i].memo` (schema-ready desde #25). Mutação in-place + `markDirty`. Memo View vira a primeira surface app-level via ✎ inline.
+
+**Filtros:**
+- Reusa todos os filtros padrão do Analytics (sources, codes, code groups, case variables) via `buildFilterConfig`.
+- Adiciona 3 controles próprios em `memoViewOptions`: Group by radio, Show types (4 checkboxes), Marker limit dropdown.
+
+**Export:**
+- CSV: `buildMemoCSV(result)` puro + wrapper download. Colunas: `entity_type, entity_id, code_id, code_name, file_id, source_type, level, memo`. Group memos dedup quando aparecem em múltiplos códigos.
+- Markdown: `buildMemoMarkdown(result, opts)` puro + wrapper que cria nota em `Analytic Memos/YYYY-MM-DD.md` e abre em nova leaf. Hierarquia indentada via H2→H6 (cap em H6 pra depth ≥ 5). Wikilinks pra files. Excerpt em blockquote.
+- `ModeEntry.exportMarkdown?` opcional adicionado ao registry — botão "Export Markdown" no toolbar do Analytics aparece SÓ quando mode tem `exportMarkdown` definido (declarativo, sem switch hardcoded).
+
 ---
 
 ## Fontes
