@@ -3,6 +3,7 @@ import type { FilterConfig, MemoViewFilters } from "../../../data/dataTypes";
 import { aggregateMemos } from "../../../data/memoView";
 import { readAllData } from "../../../data/dataReader";
 import { renderCoverageBanner } from "./renderCoverageBanner";
+import { renderCodeSection } from "./renderCodeSection";
 
 export function renderMemoView(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   const container = ctx.chartContainer;
@@ -21,7 +22,6 @@ export function renderMemoView(ctx: AnalyticsViewContext, filters: FilterConfig)
   const wrapper = container.createDiv({ cls: "memo-view-wrapper" });
   renderCoverageBanner(wrapper, result.coverage);
 
-  // Empty state mínimo
   const total = result.coverage.codesWithMemo + result.coverage.groupsWithMemo +
                 result.coverage.relationsWithMemo + result.coverage.markersWithMemo;
   if (total === 0) {
@@ -31,12 +31,25 @@ export function renderMemoView(ctx: AnalyticsViewContext, filters: FilterConfig)
     return;
   }
 
-  // Sections render — placeholder. Próxima chunk popula.
-  if (result.byCode) {
-    for (const sec of result.byCode) {
-      const sectionEl = wrapper.createDiv({ cls: "memo-view-code-section" });
-      sectionEl.createEl("h3", { text: sec.codeName });
-    }
+  if (!result.byCode || result.byCode.length === 0) {
+    wrapper.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
+      text: "No memos match current filters.",
+    });
+    return;
+  }
+
+  for (const sec of result.byCode) {
+    renderCodeSection(wrapper, sec, {
+      app: ctx.plugin.app,
+      markerLimit: ctx.mvMarkerLimit,
+      expanded: ctx.mvExpanded,
+      onToggleExpand: (codeId) => {
+        if (ctx.mvExpanded.has(codeId)) ctx.mvExpanded.delete(codeId);
+        else ctx.mvExpanded.add(codeId);
+        ctx.scheduleUpdate();
+      },
+      resolveGroupName: (gid) => ctx.plugin.registry.getGroup(gid)?.name ?? gid,
+    });
   }
 }
 
