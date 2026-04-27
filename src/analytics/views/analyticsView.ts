@@ -74,6 +74,12 @@ export class AnalyticsView extends ItemView {
   srcCompDisplayMode: "count" | "percent-code" | "percent-source" = "count";
   srcCompSort: { col: string; asc: boolean } = { col: "total", asc: false };
 
+  // Code × Metadata state
+  cmVariable: string | null = null;
+  cmDisplay: "count" | "pct-row" | "pct-col" = "count";
+  cmHideMissing = false;
+  cmSort: { col: "total" | "name" | "chi2" | "p"; asc: boolean } = { col: "total", asc: false };
+
   // Relations Network state
   relationsLevel: 'code' | 'both' = 'both';
   relationsMinEdgeWeight = 1;
