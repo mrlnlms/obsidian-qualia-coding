@@ -47,6 +47,34 @@ export function addRelation(codes: CodeApplication[], codeId: string, relation: 
 	return codes.map((c, i) => i === idx ? { ...c, relations: [...existing, relation] } : c);
 }
 
+/**
+ * Update the memo of an application-level relation in-place by tuple match (codeId, label, target).
+ * Returns true if a matching relation was found, false otherwise. If duplicate tuples exist, only
+ * the first is updated (same limit as the code-level setRelationMemo).
+ *
+ * NOTE: this helper mutates `codes[i].relations[j].memo` in place — diverges from the immutable
+ * pattern of `addRelation`/`removeRelation` because callers already hold the marker reference and
+ * persist via `dataManager.markDirty()`. Callers in Memo View use this through `onSaveAppRelationMemo`.
+ */
+export function setApplicationRelationMemo(
+	codes: CodeApplication[],
+	codeId: string,
+	label: string,
+	target: string,
+	memo: string,
+): boolean {
+	for (const ca of codes) {
+		if (ca.codeId !== codeId) continue;
+		for (const r of ca.relations ?? []) {
+			if (r.label === label && r.target === target) {
+				r.memo = memo;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 export function removeRelation(codes: CodeApplication[], codeId: string, label: string, target: string): CodeApplication[] {
 	const idx = codes.findIndex(c => c.codeId === codeId);
 	if (idx < 0) return codes;
