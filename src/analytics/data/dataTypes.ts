@@ -206,3 +206,35 @@ export interface TemporalResult {
   }>;
   dateRange: [number, number];
 }
+
+/**
+ * Per-code chi² stats. `null` quando inválido (variável multitext, ou df=0 por
+ * cardinalidade da variável < 2).
+ */
+export interface CodeMetadataStat {
+  chiSquare: number;
+  df: number;
+  pValue: number;
+  cramersV: number;
+  significant: boolean;
+}
+
+export interface CodeMetadataResult {
+  codes: Array<{ id: string; name: string; color: string }>;
+  /** Categorias finais (binadas se number/date; "(missing)" no fim opcional). */
+  values: string[];
+  /** Matrix [code × value] = contagem. */
+  matrix: number[][];
+  /** Por código. */
+  rowTotals: number[];
+  /** Por valor. */
+  colTotals: number[];
+  grandTotal: number;
+  hasMissingColumn: boolean;
+  /** Tipo da variável usado pra decidir binning/explosão. */
+  variableType: "text" | "multitext" | "number" | "checkbox" | "date" | "datetime";
+  /** True quando `variableType === 'multitext'` — chi² inválido por sobreposição de categorias. */
+  isMultitext: boolean;
+  /** Por código. null se isMultitext, ou df=0. */
+  stats: Array<CodeMetadataStat | null>;
+}
