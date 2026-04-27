@@ -1719,6 +1719,56 @@ Descoberto 2026-04-27 durante Code × Metadata (ROADMAP #24) quando 2 testes de 
 
 ---
 
+## 26b. Click-to-edit pra reduzir DOM weight em listas grandes
+
+Quando uma view renderiza N entradas com campo editável, um `<textarea>` aberto sempre por entrada vira o gargalo de DOM em N grande. Solução: render `<p>` simples (texto display) por default, promove pra `<textarea>` só on-click.
+
+**Aplicado em Memo View (2026-04-27):**
+
+`renderMemoEditor` foi refatorado de "textarea aberto sempre" pra ciclo `<p>` ↔ `<textarea>`:
+
+```typescript
+// renderMemoEditor.ts (essência)
+const renderDisplay = () => {
+  wrap.empty();
+  const p = wrap.createEl("p", { cls: "memo-view-editor-display", text: currentValue });
+  p.setAttribute("role", "textbox");
+  p.setAttribute("tabindex", "0");
+  p.addEventListener("click", () => promoteToEditor());
+  p.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); promoteToEditor(); }
+  });
+};
+
+const promoteToEditor = () => {
+  wrap.empty();
+  const textarea = wrap.createEl("textarea", ...);
+  textarea.value = currentValue;
+  // input/blur listeners com debounced save + suspendRefresh
+  // blur: salva + atualiza currentValue + renderDisplay() (volta pra <p>)
+  textarea.focus();
+};
+```
+
+**Por que funciona:**
+- `<textarea>` é elemento pesado: state interno, layout, scrollbar potencial, focus listeners. 500 deles no DOM trava scroll.
+- `<p>` é elemento leve. 500 deles é trivial.
+- Como só 1 (ou poucos) textarea existe de cada vez, **state preservation vira não-problema** — diferente de virtual scroll com textareas, onde manter state durante scroll é território de bugs subtle.
+
+**Validação empírica:** corpus sintético com 50 codes + 527 markers + ~500 memos rodou fluido em Memo View com `markerLimit="all"` e em by-file (todos os 500 visíveis simultâneos). Virtual scroll que estava no BACKLOG morreu — click-to-edit resolveu sozinho.
+
+**Acessibilidade:**
+- `tabindex="0"` permite Tab navegar entre memos.
+- `Enter`/`Space` promove (mesma UX de botão).
+- `role="textbox"` informa screen readers que é editável.
+- Hover state visual (border + bg) indica clicability.
+
+**Reusable pra qualquer feature futura com listas grandes de campos editáveis** (ex: bulk edit em Code Detail, properties editor inline em Network View).
+
+**Anti-pattern:** começar com textarea aberto + tentar resolver perf depois com virtual scroll. Inverte: lazy-render do editor primeiro, virtual scroll só se ainda doer.
+
+---
+
 ## 27. suspendRefresh / resumeRefresh — proteger typing inline contra re-render
 
 Quando uma view do Analytics tem textarea editável inline (Memo View), mutação no registry/dataManager (qualquer outro listener disparando) re-renderiza a view e **destrói o focus do textarea + estado de scroll**. Pattern pra resolver: counter de suspend.

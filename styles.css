@@ -5418,3 +5418,27 @@ body.codebook-dragging * {
 	border-radius: 50%;
 	margin-right: 0;
 }
+.memo-view-editor-wrap {
+	margin: 4px 0;
+}
+.memo-view-editor-display {
+	margin: 0;
+	padding: 4px 6px;
+	font-size: 13px;
+	color: var(--text-normal);
+	cursor: text;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	white-space: pre-wrap;
+	min-height: 1.5em;
+	line-height: 1.5;
+}
+.memo-view-editor-display:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--background-modifier-border);
+}
+.memo-view-editor-display:focus {
+	background: var(--background-primary);
+	border-color: var(--interactive-accent);
+	outline: none;
+}

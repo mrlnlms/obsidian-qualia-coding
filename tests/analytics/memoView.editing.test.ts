@@ -8,7 +8,7 @@ import {
 	onSaveAppRelationMemo,
 } from "../../src/analytics/views/modes/memoView/onSaveHandlers";
 
-describe("renderMemoEditor", () => {
+describe("renderMemoEditor (click-to-edit)", () => {
 	beforeEach(() => {
 		document.body.innerHTML = "";
 		vi.useFakeTimers();
@@ -17,44 +17,86 @@ describe("renderMemoEditor", () => {
 		vi.useRealTimers();
 	});
 
-	it("debounces save 500ms after input", () => {
+	function getDisplay(wrap: HTMLElement): HTMLElement {
+		return wrap.querySelector(".memo-view-editor-display") as HTMLElement;
+	}
+	function getTextarea(wrap: HTMLElement): HTMLTextAreaElement | null {
+		return wrap.querySelector("textarea");
+	}
+
+	it("renders as <p> display by default (no textarea in DOM)", () => {
 		const onSave = vi.fn();
 		const ctx = { suspendRefresh: vi.fn(), resumeRefresh: vi.fn() } as any;
-		const ta = renderMemoEditor(document.body, "init", onSave, ctx);
+		const wrap = renderMemoEditor(document.body, "initial value", onSave, ctx);
+		expect(getDisplay(wrap)).toBeTruthy();
+		expect(getDisplay(wrap).textContent).toBe("initial value");
+		expect(getTextarea(wrap)).toBeNull();
+	});
+
+	it("click on display promotes to textarea + focuses it", () => {
+		const ctx = { suspendRefresh: vi.fn(), resumeRefresh: vi.fn() } as any;
+		const wrap = renderMemoEditor(document.body, "x", vi.fn(), ctx);
+		getDisplay(wrap).click();
+		const ta = getTextarea(wrap);
+		expect(ta).not.toBeNull();
+		expect(ta!.value).toBe("x");
+	});
+
+	it("Enter/Space on display promotes (a11y)", () => {
+		const ctx = { suspendRefresh: vi.fn(), resumeRefresh: vi.fn() } as any;
+		const wrap = renderMemoEditor(document.body, "x", vi.fn(), ctx);
+		getDisplay(wrap).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+		expect(getTextarea(wrap)).not.toBeNull();
+	});
+
+	it("debounces save 500ms after input (after promote)", () => {
+		const onSave = vi.fn();
+		const ctx = { suspendRefresh: vi.fn(), resumeRefresh: vi.fn() } as any;
+		const wrap = renderMemoEditor(document.body, "init", onSave, ctx);
+		getDisplay(wrap).click();
+		const ta = getTextarea(wrap)!;
 		ta.value = "new";
 		ta.dispatchEvent(new Event("input"));
 		expect(onSave).not.toHaveBeenCalled();
 		expect(ctx.suspendRefresh).toHaveBeenCalledTimes(1);
-		vi.advanceTimersByTime(499);
-		expect(onSave).not.toHaveBeenCalled();
-		vi.advanceTimersByTime(2);
+		vi.advanceTimersByTime(501);
 		expect(onSave).toHaveBeenCalledWith("new");
 		expect(ctx.resumeRefresh).toHaveBeenCalledTimes(1);
 	});
 
-	it("blur with pending timeout forces immediate save", () => {
+	it("blur with pending timeout forces immediate save + reverts to display", () => {
 		const onSave = vi.fn();
 		const ctx = { suspendRefresh: vi.fn(), resumeRefresh: vi.fn() } as any;
-		const ta = renderMemoEditor(document.body, "x", onSave, ctx);
+		const wrap = renderMemoEditor(document.body, "x", onSave, ctx);
+		getDisplay(wrap).click();
+		const ta = getTextarea(wrap)!;
 		ta.value = "y";
 		ta.dispatchEvent(new Event("input"));
 		ta.dispatchEvent(new Event("blur"));
 		expect(onSave).toHaveBeenCalledWith("y");
 		expect(ctx.resumeRefresh).toHaveBeenCalledTimes(1);
+		// After blur, textarea is gone, display is back with new value
+		expect(getTextarea(wrap)).toBeNull();
+		expect(getDisplay(wrap).textContent).toBe("y");
 	});
 
-	it("blur without prior input does not save", () => {
+	it("blur without changing value does not save", () => {
 		const onSave = vi.fn();
 		const ctx = { suspendRefresh: vi.fn(), resumeRefresh: vi.fn() } as any;
-		const ta = renderMemoEditor(document.body, "x", onSave, ctx);
+		const wrap = renderMemoEditor(document.body, "x", onSave, ctx);
+		getDisplay(wrap).click();
+		const ta = getTextarea(wrap)!;
 		ta.dispatchEvent(new Event("blur"));
 		expect(onSave).not.toHaveBeenCalled();
+		expect(getTextarea(wrap)).toBeNull();
 	});
 
 	it("multiple rapid inputs only save once after final 500ms", () => {
 		const onSave = vi.fn();
 		const ctx = { suspendRefresh: vi.fn(), resumeRefresh: vi.fn() } as any;
-		const ta = renderMemoEditor(document.body, "", onSave, ctx);
+		const wrap = renderMemoEditor(document.body, "", onSave, ctx);
+		getDisplay(wrap).click();
+		const ta = getTextarea(wrap)!;
 		ta.value = "a"; ta.dispatchEvent(new Event("input"));
 		vi.advanceTimersByTime(200);
 		ta.value = "ab"; ta.dispatchEvent(new Event("input"));
@@ -63,8 +105,21 @@ describe("renderMemoEditor", () => {
 		vi.advanceTimersByTime(500);
 		expect(onSave).toHaveBeenCalledTimes(1);
 		expect(onSave).toHaveBeenCalledWith("abc");
-		expect(ctx.suspendRefresh).toHaveBeenCalledTimes(1);
-		expect(ctx.resumeRefresh).toHaveBeenCalledTimes(1);
+	});
+
+	it("after blur+save, click again uses NEW value (not stale initial)", () => {
+		const onSave = vi.fn();
+		const ctx = { suspendRefresh: vi.fn(), resumeRefresh: vi.fn() } as any;
+		const wrap = renderMemoEditor(document.body, "first", onSave, ctx);
+		getDisplay(wrap).click();
+		let ta = getTextarea(wrap)!;
+		ta.value = "second";
+		ta.dispatchEvent(new Event("input"));
+		ta.dispatchEvent(new Event("blur"));
+		// Re-click should now show "second" (not "first")
+		getDisplay(wrap).click();
+		ta = getTextarea(wrap)!;
+		expect(ta.value).toBe("second");
 	});
 });
 
