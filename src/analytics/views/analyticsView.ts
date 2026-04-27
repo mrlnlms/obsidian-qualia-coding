@@ -80,6 +80,13 @@ export class AnalyticsView extends ItemView {
   cmHideMissing = false;
   cmSort: { col: "total" | "name" | "chi2" | "p"; asc: boolean } = { col: "total", asc: false };
 
+  // Memo View state
+  mvGroupBy: "code" | "file" = "code";
+  mvShowTypes = { code: true, group: true, relation: true, marker: true };
+  mvMarkerLimit: 5 | 10 | 25 | "all" = 10;
+  mvExpanded: Set<string> = new Set();
+  private refreshSuspendedCount = 0;
+
   // Relations Network state
   relationsLevel: 'code' | 'both' = 'both';
   relationsMinEdgeWeight = 1;
@@ -366,8 +373,17 @@ export class AnalyticsView extends ItemView {
   }
 
   scheduleUpdate(): void {
+    if (this.refreshSuspendedCount > 0) return;
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => this.updateChart(), 200);
+  }
+
+  suspendRefresh(): void {
+    this.refreshSuspendedCount++;
+  }
+
+  resumeRefresh(): void {
+    this.refreshSuspendedCount = Math.max(0, this.refreshSuspendedCount - 1);
   }
 
   // ─── Chart rendering ───

@@ -24,6 +24,7 @@ import { renderSourceComparison, renderSourceComparisonOptionsSection, exportSou
 import { renderOverlapMatrix, exportOverlapCSV } from "./overlapMode";
 import { renderRelationsNetwork, renderRelationsNetworkOptions, exportRelationsNetworkCSV } from "./relationsNetworkMode";
 import { renderCodeMetadataView, renderCodeMetadataOptionsSection, exportCodeMetadataCSV } from "./codeMetadataMode";
+import { renderMemoView, renderMemoViewOptions } from "./memoView/memoViewMode";
 
 export type ModeEntry = {
   label: string;
@@ -155,5 +156,11 @@ export const MODE_REGISTRY: Record<ViewMode, ModeEntry> = {
     render: renderCodeMetadataView,
     renderOptions: renderCodeMetadataOptionsSection,
     exportCSV: exportCodeMetadataCSV,
+  },
+  "memo-view": {
+    label: "Memo View",
+    render: renderMemoView,
+    renderOptions: renderMemoViewOptions,
+    canExport: false, // exports vêm em chunks 8 e 9
   },
 };
