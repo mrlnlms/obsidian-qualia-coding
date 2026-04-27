@@ -373,6 +373,8 @@ Não deve implementar lógica de engine — apenas coordenar. O acoplamento é i
 - **Espessura**: `Math.min(1 + weight, 8)` — weight = contagem de markers distintos
 - **Direção**: arrowheads para relações direcionais
 - **Hover tooltip**: hit-testing point-to-segment no canvas (threshold 6px)
+- **Hover-focus** (2026-04-27): ao passar cursor em nó, edges não-conectadas escurecem (opacity ÷3) — destaque visual sem reflow. State local `hoveredNodeIdx` na closure de `renderRelationsNetwork`; reset em mousemove sem hit, mouseleave e mousedown (drag start). Cálculo da opacity em `relationsNetworkHelpers.computeEdgeOpacity()` (puro, testável)
+- **Filtro "Min weight"** (2026-04-27): slider no painel de config com label dinâmico "N — showing X/Y edges". Volátil por sessão (`ctx.relationsMinEdgeWeight`, default 1). Filtra apenas no `redraw()` — simulação roda com grafo completo (preserva drag-positions). Event `"change"` (release), não `"input"` — evita re-roda da força-direção por pixel arrastado. Clamp defensivo em ambos render paths quando `maxObservedWeight` muda
 - **Dados**: lê markers raw via `readAllData(ctx.plugin.dataManager)` — não usa consolidated data (relações vivem em `CodeApplication`, não em `ConsolidatedData`)
 - **CSV export**: source, target, label, directed, level, weight
 

@@ -154,6 +154,7 @@ src/
       modes/
         modeRegistry.ts      — Record<ViewMode, ModeEntry> declarativo (render, options, exportCSV, label)
         *Mode.ts             — 20 mode modules incl. relationsNetworkMode (1 por visualizacao, ~150-400 LOC cada)
+        relationsNetworkHelpers.ts — helpers puros do Relations Network: isEdgeAboveThreshold, computeEdgeOpacity (hover-focus + filtro N+)
   media/
     mediaViewCore.ts         — logica compartilhada audio/video via composicao (transport, zoom, regions)
     mediaViewConfig.ts       — interface de configuracao (video element, CSS prefix, popover)
@@ -188,7 +189,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2220 testes em 128 suites (Vitest + jsdom)
+- `npm run test` — 2229 testes em 129 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)

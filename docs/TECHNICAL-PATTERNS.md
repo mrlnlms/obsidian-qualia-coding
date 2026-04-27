@@ -822,6 +822,19 @@ Padrões estabelecidos durante o refactor de unificação:
 - **MediaCodingModel**: Base genérica (`mediaCodingModel.ts`) compartilhada entre Audio e Video. Gerencia markers, save debounce (500ms via `scheduleSave()`), e change listeners. `AudioCodingModel` e `VideoCodingModel` estendem.
 - **Module augmentation**: Typings adicionais via declaration files — `obsidian-internals.d.ts` (workspace events, internal APIs) e `fabricExtensions.d.ts` (propriedades custom em FabricObject para board nodes).
 
+### 9.15 Slider que dispara recompute pesado: `"change"`, não `"input"`
+
+`<input type="range">` emite dois events:
+
+- `"input"` — dispara a cada pixel arrastado pelo usuário
+- `"change"` — dispara apenas no release (mouse up)
+
+Quando o callback do slider faz recompute caro (re-roda força-direção, re-fetch dados, re-renderiza canvas), `"input"` causa lag perceptível durante o drag — cada pixel da trajetória dispara a operação. Usar `"change"` paga o custo apenas uma vez no release.
+
+Exemplo: Relations Network "Min weight" slider em `relationsNetworkMode.ts` — `scheduleUpdate()` re-roda 200 iter × N² da força-direção. `"input"` travaria a UI no drag; `"change"` é fluido.
+
+**Quando preferir `"input"`**: quando o callback é trivialmente barato (só atualiza um label DOM, ou redraw de canvas O(n) sem simulação). Aí o feedback contínuo durante o drag vale o custo.
+
 ---
 
 ## 10. Codebook Evolution Patterns
