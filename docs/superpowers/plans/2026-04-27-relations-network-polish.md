@@ -268,7 +268,7 @@ const minEdgeWeight = ctx.relationsMinEdgeWeight;
 let hoveredNodeIdx: number | null = null;
 ```
 
-Nota: `hoveredNodeIdx` declarado aqui já mas não setado por handlers nesta task. Usado pelo `redraw()` neste step.
+Nota: `hoveredNodeIdx` declarado aqui já mas não setado por handlers nesta task. Usado pelo `redraw()` neste step. **Importante**: essa closure variable é mutada pelos handlers em Task 6 — as duas tasks compartilham a mesma referência via closure de `renderRelationsNetwork`.
 
 - [ ] **Step 3: Substituir cálculo inline de opacity + adicionar filtro no `redraw()`**
 
@@ -318,7 +318,7 @@ Expected: build OK, sem erros TS.
 npm run test
 ```
 
-Expected: 2228 tests passing.
+Expected: baseline + 8 tests passing (cf. Task 4 Step 4 — confirmar baseline no início).
 
 - [ ] **Step 6: Commit**
 
@@ -371,10 +371,20 @@ Justificativa: ao iniciar drag de nó, qualquer foco prévio é limpo. O `redraw
 
 - [ ] **Step 2: mousemove — setar/limpar hoveredNodeIdx + redraw em hit/miss em nó**
 
-Localizar bloco `canvas.addEventListener("mousemove", (e) => { ... })` em `relationsNetworkMode.ts:420-482`.
+Localizar bloco `canvas.addEventListener("mousemove", (e) => { ... })` em `relationsNetworkMode.ts:420-482`. Dois sub-edits.
 
-Dentro do loop `for (let i = 0; i < n; i++)` que detecta hit em nó (linhas 435-458), antes do `tooltip.textContent = text;`, adicionar:
+**Sub-edit A — dentro do loop de hit em nó (linhas 435-458):**
 
+**Antes** (trecho do início do bloco hit-em-nó, linha 439):
+```ts
+if (dx * dx + dy * dy <= node.radius * node.radius) {
+  const nd = nodes[i]!;
+  const connections = simEdges
+    .filter(se => se.si === i || se.ti === i)
+    // ...
+```
+
+**Depois** (adicionar set + redraw condicional antes de `const nd`):
 ```ts
 if (dx * dx + dy * dy <= node.radius * node.radius) {
   if (hoveredNodeIdx !== i) {
@@ -382,23 +392,37 @@ if (dx * dx + dy * dy <= node.radius * node.radius) {
     redraw();
   }
   const nd = nodes[i]!;
-  // ... resto do código existente que monta connections, text, mostra tooltip ...
+  const connections = simEdges
+    .filter(se => se.si === i || se.ti === i)
+    // ...
 ```
 
 Lógica: só redraw se o nó hovered mudou (evita redraws spam dentro do mesmo nó).
 
-Após o loop de detecção de nó, ANTES do loop de detecção de edge (linha ~461), adicionar bloco que reseta `hoveredNodeIdx` quando o cursor saiu de qualquer nó:
+**Sub-edit B — após o loop de hit em nó, antes do loop de edges (linha ~461):**
 
+**Antes** (transição do loop de nós pro loop de edges):
 ```ts
-// Saiu de qualquer nó — limpa hover-focus se estiver setado
-if (hoveredNodeIdx !== null) {
-  hoveredNodeIdx = null;
-  redraw();
-}
+		}
 
-// Check edges
-for (const se of simEdges) {
-  // ... código existente ...
+		// Check edges
+		for (const se of simEdges) {
+			// ... existente ...
+```
+
+**Depois** (inserir reset de `hoveredNodeIdx` entre os dois loops):
+```ts
+		}
+
+		// Saiu de qualquer nó — limpa hover-focus se estiver setado
+		if (hoveredNodeIdx !== null) {
+			hoveredNodeIdx = null;
+			redraw();
+		}
+
+		// Check edges
+		for (const se of simEdges) {
+			// ... existente ...
 ```
 
 - [ ] **Step 3: mouseleave — resetar hoveredNodeIdx**
@@ -441,7 +465,7 @@ Expected: build OK.
 npm run test
 ```
 
-Expected: 2228 tests passing.
+Expected: baseline + 8 tests passing (cf. Task 4 Step 4 — confirmar baseline no início).
 
 - [ ] **Step 6: Commit**
 
@@ -524,7 +548,7 @@ Expected: build OK.
 npm run test
 ```
 
-Expected: 2228 tests passing.
+Expected: baseline + 8 tests passing (cf. Task 4 Step 4 — confirmar baseline no início).
 
 - [ ] **Step 5: Commit**
 
@@ -637,7 +661,7 @@ Expected: 8 commits novos (um por Task 2..9; Tasks 1 e 10 não geram commit — 
 npm run test
 ```
 
-Expected: 2228 tests passing.
+Expected: baseline + 8 tests passing (cf. Task 4 Step 4 — confirmar baseline no início).
 
 - [ ] **Step 3: Reportar pro user**
 
