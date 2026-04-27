@@ -1719,6 +1719,73 @@ Descoberto 2026-04-27 durante Code × Metadata (ROADMAP #24) quando 2 testes de 
 
 ---
 
+## 27. suspendRefresh / resumeRefresh — proteger typing inline contra re-render
+
+Quando uma view do Analytics tem textarea editável inline (Memo View), mutação no registry/dataManager (qualquer outro listener disparando) re-renderiza a view e **destrói o focus do textarea + estado de scroll**. Pattern pra resolver: counter de suspend.
+
+**Implementação** (`analyticsView.ts`):
+```typescript
+private refreshSuspendedCount = 0;
+suspendRefresh(): void { this.refreshSuspendedCount++; }
+resumeRefresh(): void { this.refreshSuspendedCount = Math.max(0, this.refreshSuspendedCount - 1); }
+scheduleUpdate(): void {
+  if (this.refreshSuspendedCount > 0) return;
+  // ...debounce normal
+}
+```
+
+**Uso** (`renderMemoEditor.ts`):
+- `input` event: incrementa via `suspendRefresh()` se ainda não suspended; agenda timeout 500ms.
+- Timeout: chama `onSave(value)` → registry/dataManager dispara mutação → `scheduleUpdate` é no-op (counter > 0) → `resumeRefresh()` decrementa → próximo `scheduleUpdate` (ex: filter change pelo user) volta a funcionar.
+- `blur`: força save imediato + decrement.
+
+**Benefício:** typing flui sem flicker; outras views/sidebars que escutam mesma mutation continuam reagindo (counter é local à view).
+
+**Risco aceito:** outro mode chamando `scheduleUpdate` durante typing seria silenciado. Aceitável — enquanto edita, não re-renderizar é o comportamento desejado.
+
+Reusable pra qualquer view futura com edição inline (Text Retrieval com edit, Properties editor inline em Network, etc).
+
+---
+
+## 28. ModeEntry.exportMarkdown — botão de toolbar declarativo, sem switch hardcoded
+
+Pattern pra adicionar botões de toolbar mode-specific no Analytics sem ter que escrever `if (mode === "X") show button` hardcoded.
+
+**Anti-pattern:**
+```typescript
+// analyticsView.ts toolbar
+if (this.viewMode === "memo-view") {
+  toolbar.createDiv({ text: "Export Markdown" });
+}
+```
+
+**Pattern (declarativo):**
+```typescript
+// modeRegistry.ts
+export type ModeEntry = {
+  // ... existing
+  exportMarkdown?: (ctx, date) => Promise<void> | void;
+};
+
+// analyticsView.ts toolbar
+const mdBtn = toolbar.createDiv(...);
+this.exportMarkdownBtn = mdBtn;
+
+private updateExportMarkdownBtn(): void {
+  if (!this.exportMarkdownBtn) return;
+  const entry = MODE_REGISTRY[this.viewMode];
+  this.exportMarkdownBtn.style.display = entry.exportMarkdown ? "" : "none";
+}
+```
+
+Chamar `updateExportMarkdownBtn()` em `renderConfigPanel()` (que já roda quando mode muda).
+
+**Generalização:** mesmo pattern serve pra qualquer botão mode-specific (extra exports, edit modes, etc). Cada mode declara o que oferece via flag opcional no `ModeEntry`; toolbar mostra/esconde declarativamente.
+
+Aplicado em Memo View (chunk 9, 2026-04-27): só essa view gera nota markdown formatada. Outros 21 modes não têm `exportMarkdown` → botão fica `display: none`.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
