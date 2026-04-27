@@ -113,7 +113,7 @@ Pipeline:
 | Arquivo | Mudança |
 |---------|---------|
 | `src/analytics/views/modes/modeRegistry.ts` | Registra `'code-metadata'` apontando pro novo `ModeEntry` |
-| `src/analytics/views/analyticsViewContext.ts` | Adiciona `codeMetadataVariable: string \| null` e `codeMetadataDisplay: 'count' \| 'pct-row' \| 'pct-col'` e `codeMetadataHideMissing: boolean` |
+| `src/analytics/views/analyticsViewContext.ts` | (a) Adiciona `'code-metadata'` no union `ViewMode`; (b) adiciona `codeMetadataVariable: string \| null`, `codeMetadataDisplay: 'count' \| 'pct-row' \| 'pct-col'`, `codeMetadataHideMissing: boolean`, `cmSort: { col: 'total' \| 'name' \| 'chi2' \| 'p'; asc: boolean }` |
 | `src/analytics/views/analyticsView.ts` | Persistência dos novos estados no `data.json` (mesmo pattern de `sortMode`, `groupBy` etc.) |
 | `src/analytics/data/inferential.ts` | Extrai helper genérico (ver § "Chi² puro reutilizável" abaixo). Refactor preserva comportamento de `calculateChiSquare` byte-identical |
 | `src/analytics/data/statsEngine.ts` | Re-export de `calculateCodeMetadata` |
@@ -142,6 +142,8 @@ export function chiSquareFromContingency(
 3. **Implementar primeiro** (chunk 1 da execução), antes de qualquer outro código novo. Smoke test imediato no vault confirma que o painel chi-square existente continua funcionando idêntico
 
 `calculateChiSquare` interno passa a delegar a contagem da tabela 2×K + chamada do helper; `codeMetadata` delega a montagem da tabela K×M + chamada do mesmo helper.
+
+`expected: number[][]` continua sendo retornado pelo helper porque o `chiSquareMode` (existente) consome essa matriz pra renderizar a tabela observed/expected. `codeMetadata` simplesmente descarta esse campo — heatmap não usa expected.
 
 ### Render do heatmap
 
@@ -230,6 +232,7 @@ Vault `obsidian-plugins-workbench` — após cada chunk de implementação, não
 
 - Abrir Analytics → escolher mode "Code × Metadata"
 - Selecionar variável de cada tipo (text, number, multitext, date) em sucessão; conferir heatmap renderiza, chi² populado/desabilitado conforme tipo, empty states apropriados
+- Caso de 1 categoria após binning (variável text com 1 valor único, ou number com todos arquivos no mesmo valor): conferir aviso "Only one value — no contingency" e chi² mostrando `—`
 - Alternar Count → % row → % col; conferir células atualizam
 - Toggle "Hide missing" com e sem arquivos faltantes
 - Conferir banner quando variável escolhida == variável filtrada
