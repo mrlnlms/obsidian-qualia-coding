@@ -84,14 +84,14 @@ update(id: string, changes: Partial<Pick<CodeDefinition, 'name' | 'color' | 'des
 Body interno do `update()` segue **exatamente** o pattern do `description` existente (~linhas 227-229 hoje):
 
 ```ts
-// Pattern existente:
-if ('description' in changes) def.description = changes.description || undefined;
+// Pattern existente (linha 227):
+if (changes.description !== undefined) def.description = changes.description || undefined;
 
 // Adicionar análogo:
-if ('memo' in changes) def.memo = changes.memo || undefined;
+if (changes.memo !== undefined) def.memo = changes.memo || undefined;
 ```
 
-`|| undefined` faz coerção de `""` (e `null`/whitespace) → `undefined`, que mantém JSON enxuto após save.
+Predicate `changes.memo !== undefined` permite passar `""` pra explicitamente apagar o memo (vai virar `undefined` via `|| undefined`). `|| undefined` faz coerção de `""`/`null`/whitespace → `undefined`, que mantém JSON enxuto após save.
 
 **Group memo** — método dedicado (consistente com `setGroupDescription`/`setGroupColor` existentes):
 
@@ -187,7 +187,7 @@ REFI-QDA 1.5 spec aceita `<MemoText>` como child de `<Code>`, `<Set>`, `<Link>` 
 **Atenção a forma do elemento:**
 
 - `<Code>` e `<Set>` hoje saem self-closing (`<Code .../>`) quando não têm filhos (ver `qdcExporter.ts:63-68, 92-97`). Quando memo presente, viram open/close. **Branch existente** `if (!descEl && children.length === 0)` em `buildCodeElement`/`buildSetElement` precisa adicionar memo na decisão (`if (!descEl && !memoEl && children.length === 0)`)
-- `<Link>` em `qdpxExporter.ts:383, 398` hoje sai como linha única sem filhos. Quando memo presente, vira open/close. Re-arquitetar a emission line: single template literal → conditional inner block
+- `<Link>` em `qdpxExporter.ts:383, 398` hoje sai como linha única sem filhos. Quando memo presente, vira open/close. Re-arquitetar a emission line: single template literal → conditional inner block. **Tratar como sub-task separada do plan** — é a única mudança estrutural de emission (as outras são aditivas), fácil subestimar esforço
 
 **CSV tabular**:
 
