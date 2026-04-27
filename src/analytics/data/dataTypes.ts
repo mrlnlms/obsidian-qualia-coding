@@ -228,6 +228,8 @@ export interface CoverageStats {
 }
 
 export type MemoEntry =
+  // kind="code" is schema-reserved — current aggregator stores code memos directly on CodeMemoSection.codeMemo,
+  // but exporters (CSV/Markdown chunks) may construct kind="code" entries when normalizing all memos to a flat list.
   | {
       kind: "code";
       codeId: string;

@@ -2,6 +2,7 @@ import type { CodeDefinitionRegistry } from "../../core/codeDefinitionRegistry";
 import type { BaseMarker } from "../../core/types";
 import type { CodeApplication } from "../../core/types";
 import type { AllEngineData } from "./dataReader";
+import type { CaseVariablesRegistry } from "../../core/caseVariables/caseVariablesRegistry";
 import { buildFlatTree, type ExpandedState } from "../../core/hierarchyHelpers";
 import type {
   CodeMemoSection,
@@ -27,6 +28,9 @@ function flattenMarkers(allData: AllEngineData): FlatMarker[] {
   for (const [fileId, markers] of Object.entries(allData.markdown.markers)) {
     for (const m of markers) out.push({ marker: m as unknown as BaseMarker, engineType: "markdown", source: "markdown", fileId });
   }
+  // Engine-specific markers (pdf, image, csv) all declare fileId: string but do not extend BaseMarker
+  // (they lack markerType), so `as BaseMarker` is rejected by tsc. Using `as any` to access the
+  // structurally-present fileId field is intentional — these types are structurally compatible at runtime.
   for (const m of allData.pdf.markers) out.push({ marker: m as unknown as BaseMarker, engineType: "pdf", source: "pdf", fileId: (m as any).fileId });
   for (const m of allData.image.markers) out.push({ marker: m as unknown as BaseMarker, engineType: "image", source: "image", fileId: (m as any).fileId });
   for (const m of allData.csv.segmentMarkers) out.push({ marker: m as unknown as BaseMarker, engineType: "csv", source: "csv-segment", fileId: (m as any).fileId });
@@ -44,15 +48,20 @@ function flattenMarkers(allData: AllEngineData): FlatMarker[] {
 function applyMemoFilters(
   flat: FlatMarker[],
   filters: MemoViewFilters,
+  caseVariablesRegistry?: CaseVariablesRegistry,
 ): FlatMarker[] {
   const groupMemberSet = filters.groupFilter ? new Set(filters.groupFilter.memberCodeIds) : null;
-  return flat.filter(({ marker, source }) => {
+  return flat.filter(({ marker, source, fileId }) => {
     if (!filters.sources.includes(source)) return false;
     const codeIds = marker.codes.map((c: CodeApplication) => c.codeId);
     if (filters.codes.length > 0 && !codeIds.some((id) => filters.codes.includes(id))) return false;
     if (filters.excludeCodes.length > 0 && codeIds.every((id) => filters.excludeCodes.includes(id))) return false;
     if (groupMemberSet && !codeIds.some((id) => groupMemberSet.has(id))) return false;
-    // caseVariableFilter: sem registry aqui, só validar shape (sem registry = sem variable check)
+    if (filters.caseVariableFilter && caseVariablesRegistry) {
+      const { name, value } = filters.caseVariableFilter;
+      const vars = caseVariablesRegistry.getVariables(fileId);
+      if (vars[name] !== value) return false;
+    }
     return true;
   });
 }
@@ -62,7 +71,6 @@ function nonEmpty(s: string | undefined | null): boolean {
 }
 
 function computeCoverage(
-  allData: AllEngineData,
   registry: CodeDefinitionRegistry,
   filteredFlat: FlatMarker[],
 ): CoverageStats {
@@ -302,10 +310,11 @@ export function aggregateMemos(
   allData: AllEngineData,
   registry: CodeDefinitionRegistry,
   filters: MemoViewFilters,
+  caseVariablesRegistry?: CaseVariablesRegistry,
 ): MemoViewResult {
   const flat = flattenMarkers(allData);
-  const filtered = applyMemoFilters(flat, filters);
-  const coverage = computeCoverage(allData, registry, filtered);
+  const filtered = applyMemoFilters(flat, filters, caseVariablesRegistry);
+  const coverage = computeCoverage(registry, filtered);
 
   return {
     groupBy: filters.groupBy,

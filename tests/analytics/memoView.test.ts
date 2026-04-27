@@ -3,6 +3,13 @@ import { aggregateMemos } from "../../src/analytics/data/memoView";
 import type { AllEngineData, MemoViewFilters } from "../../src/analytics/data/dataTypes";
 import { CodeDefinitionRegistry } from "../../src/core/codeDefinitionRegistry";
 import type { CodeApplication } from "../../src/core/types";
+import type { CaseVariablesRegistry } from "../../src/core/caseVariables/caseVariablesRegistry";
+import type { VariableValue } from "../../src/core/caseVariables/caseVariablesTypes";
+
+/** Minimal stub satisfying the getVariables shape used by applyMemoFilters. */
+function makeCVRegistry(store: Record<string, Record<string, VariableValue>>): Pick<CaseVariablesRegistry, "getVariables"> {
+  return { getVariables: (fileId: string) => store[fileId] ?? {} };
+}
 
 // Helpers — APIs verificadas em `src/core/codeDefinitionRegistry.ts`:
 //   create(name, color?, description?, parentId?) — POSICIONAL
@@ -219,8 +226,6 @@ describe("aggregateMemos — hierarquia", () => {
       { name: "P" },
       { name: "C", parentName: "P", memo: "child memo" },
     ]});
-    // setParent precisa do id real, ajustar:
-    reg.setParent(getId(reg, "C"), getId(reg, "P"));
     const r = aggregateMemos(makeAllData(), reg, baseFilters);
     const names = r.byCode!.map((s) => s.codeName);
     expect(names).toContain("P"); // pai aparece
@@ -231,8 +236,7 @@ describe("aggregateMemos — hierarquia", () => {
   });
 
   it("parent without memo + child without memo: neither appears", () => {
-    const reg = makeRegistry({ codes: [{ name: "P" }, { name: "C" }] });
-    reg.setParent(getId(reg, "C"), getId(reg, "P"));
+    const reg = makeRegistry({ codes: [{ name: "P" }, { name: "C", parentName: "P" }] });
     const r = aggregateMemos(makeAllData(), reg, baseFilters);
     expect(r.byCode!.length).toBe(0);
   });
@@ -240,11 +244,9 @@ describe("aggregateMemos — hierarquia", () => {
   it("childIds populated correctly", () => {
     const reg = makeRegistry({ codes: [
       { name: "P", memo: "p" },
-      { name: "C1", memo: "c1" },
-      { name: "C2", memo: "c2" },
+      { name: "C1", parentName: "P", memo: "c1" },
+      { name: "C2", parentName: "P", memo: "c2" },
     ]});
-    reg.setParent(getId(reg, "C1"), getId(reg, "P"));
-    reg.setParent(getId(reg, "C2"), getId(reg, "P"));
     const r = aggregateMemos(makeAllData(), reg, baseFilters);
     const pSection = r.byCode!.find((s) => s.codeName === "P")!;
     expect(pSection.childIds).toEqual([getId(reg, "C1"), getId(reg, "C2")]);
@@ -302,7 +304,7 @@ describe("aggregateMemos — by file", () => {
 
 describe("aggregateMemos — decisão iv (marker em múltiplos códigos)", () => {
   it("marker appears once under first surviving code in array order", () => {
-    const reg = makeRegistry({ codes: [{ name: "A" }, { name: "B" }] });
+    const reg = makeRegistry({ codes: [{ name: "A" }, { name: "B", memo: "b memo" }] });
     const aId = getId(reg, "A");
     const bId = getId(reg, "B");
     const allData = makeAllData({
@@ -310,12 +312,14 @@ describe("aggregateMemos — decisão iv (marker em múltiplos códigos)", () =>
         { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }, { codeId: bId }], memo: "x" } as any,
       ],
     });
-    // No code filter: aId is first surviving
+    // No code filter: aId is first surviving — marker goes to A, not B
     const r1 = aggregateMemos(allData, reg, baseFilters);
     const aSec = r1.byCode!.find((s) => s.codeId === aId);
     const bSec = r1.byCode!.find((s) => s.codeId === bId);
     expect(aSec?.markerMemos.length).toBe(1);
-    expect(bSec).toBeUndefined(); // B não aparece pq m1 vai pra A
+    // B has its own code memo so it appears — but marker went to A, not B
+    expect(bSec).toBeDefined();
+    expect(bSec!.markerMemos.length).toBe(0);
   });
 
   it("with code filter excluding A, marker goes to B", () => {
@@ -346,5 +350,49 @@ describe("aggregateMemos — showTypes filter", () => {
     const r = aggregateMemos(makeAllData(), reg, { ...baseFilters, showTypes: { code: false, group: false, relation: false, marker: false } });
     expect(r.coverage.codesTotal).toBe(1);
     expect(r.coverage.codesWithMemo).toBe(1);
+  });
+});
+
+// ─── Important #2: caseVariableFilter ────────────────────────────
+
+describe("aggregateMemos — caseVariableFilter", () => {
+  it("filters markers to only files matching the case variable value when registry provided", () => {
+    const reg = makeRegistry({ codes: [{ name: "A" }] });
+    const aId = getId(reg, "A");
+    // Use PDF markers — they carry their own fileId field (not grouped under map key like markdown)
+    const allData = makeAllData({
+      pdfMarkers: [
+        { id: "m1", fileId: "P01.pdf", codes: [{ codeId: aId }], memo: "included" } as any,
+        { id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: "excluded" } as any,
+      ],
+    });
+    const cvReg = makeCVRegistry({
+      "P01.pdf": { group: "A" },
+      "P02.pdf": { group: "B" },
+    });
+    const filters: MemoViewFilters = { ...baseFilters, caseVariableFilter: { name: "group", value: "A" } };
+    const r = aggregateMemos(allData, reg, filters, cvReg as CaseVariablesRegistry);
+    expect(r.coverage.markersTotal).toBe(1);
+    expect(r.coverage.markersWithMemo).toBe(1);
+    const sec = r.byCode!.find((s) => s.codeId === aId);
+    expect(sec?.markerMemos.length).toBe(1);
+    if (sec?.markerMemos[0]?.kind === "marker") {
+      expect(sec.markerMemos[0].fileId).toBe("P01.pdf");
+    }
+  });
+
+  it("caseVariableFilter is no-op when registry is omitted", () => {
+    const reg = makeRegistry({ codes: [{ name: "A" }] });
+    const aId = getId(reg, "A");
+    const allData = makeAllData({
+      pdfMarkers: [
+        { id: "m1", fileId: "P01.pdf", codes: [{ codeId: aId }], memo: "x" } as any,
+        { id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: "y" } as any,
+      ],
+    });
+    const filters: MemoViewFilters = { ...baseFilters, caseVariableFilter: { name: "group", value: "A" } };
+    // No caseVariablesRegistry passed — filter must be silently skipped
+    const r = aggregateMemos(allData, reg, filters);
+    expect(r.coverage.markersTotal).toBe(2);
   });
 });
