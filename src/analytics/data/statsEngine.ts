@@ -7,5 +7,6 @@ export { calculateFrequency, calculateDocumentCodeMatrix, calculateSourceCompari
 export { calculateCooccurrence, calculateOverlap } from "./cooccurrence";
 export { calculateEvolution, calculateTemporal } from "./evolution";
 export { calculateLagSequential, calculatePolarCoordinates } from "./sequential";
-export { calculateChiSquare } from "./inferential";
+export { calculateChiSquare, chiSquareFromContingency } from "./inferential";
 export { calculateTextStats } from "./textAnalysis";
+export { calculateCodeMetadata } from "./codeMetadata";
