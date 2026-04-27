@@ -426,6 +426,9 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 				dragOffsetY = dy;
 				canvas.style.cursor = "grabbing";
 				tooltip.style.display = "none";
+				if (hoveredNodeIdx !== null) {
+					hoveredNodeIdx = null;
+				}
 				e.preventDefault();
 				return;
 			}
@@ -454,6 +457,10 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 			const dx = mx - node.x;
 			const dy = my - node.y;
 			if (dx * dx + dy * dy <= node.radius * node.radius) {
+				if (hoveredNodeIdx !== i) {
+					hoveredNodeIdx = i;
+					redraw();
+				}
 				const nd = nodes[i]!;
 				const connections = simEdges
 					.filter(se => se.si === i || se.ti === i)
@@ -472,6 +479,12 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 				canvas.style.cursor = "grab";
 				return;
 			}
+		}
+
+		// Saiu de qualquer nó — limpa hover-focus se estiver setado
+		if (hoveredNodeIdx !== null) {
+			hoveredNodeIdx = null;
+			redraw();
 		}
 
 		// Check edges
@@ -502,6 +515,10 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 		endDrag();
 		tooltip.style.display = "none";
 		canvas.style.cursor = "default";
+		if (hoveredNodeIdx !== null) {
+			hoveredNodeIdx = null;
+			redraw();
+		}
 	});
 }
 
