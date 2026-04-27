@@ -13,6 +13,7 @@ import { getCountBreakdown } from './hierarchyHelpers';
 import { collectAllLabels } from './relationHelpers';
 import { renderAddRelationRow } from './relationUI';
 import { generateContinuousRange } from './magnitudeRange';
+import { PromptModal } from './dialogs';
 
 export interface CodeRendererCallbacks {
 	getMarkerLabel(marker: BaseMarker): string;
@@ -746,6 +747,28 @@ function renderRelationsSection(
 			} else {
 				row.createSpan({ cls: 'codemarker-detail-relation-target-missing', text: '(deleted)' });
 			}
+
+			const editMemoBtn = row.createSpan({ cls: 'codemarker-detail-relation-edit-memo' });
+			setIcon(editMemoBtn, 'pencil');
+			editMemoBtn.title = rel.memo ? 'Edit memo' : 'Add memo';
+			if (rel.memo) editMemoBtn.addClass('has-memo');
+			editMemoBtn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				const label = rel.label;
+				const target = rel.target;
+				new PromptModal({
+					app,
+					title: 'Edit relation memo',
+					initialValue: rel.memo ?? '',
+					placeholder: 'Reflexão sobre essa relação',
+					onSubmit: (newMemo) => {
+						const trimmed = newMemo.trim();
+						model.registry.setRelationMemo(def.id, label, target, trimmed || undefined);
+						model.saveMarkers();
+						renderRows();
+					},
+				}).open();
+			});
 
 			const removeBtn = row.createSpan({ cls: 'codemarker-detail-magnitude-remove' });
 			setIcon(removeBtn, 'x');

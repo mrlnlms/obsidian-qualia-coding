@@ -4508,6 +4508,27 @@ body.codebook-dragging * {
 	color: var(--text-faint);
 }
 
+.codemarker-detail-relation-edit-memo {
+	display: inline-flex;
+	align-items: center;
+	cursor: pointer;
+	opacity: 0.6;
+	margin-left: 4px;
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+.codemarker-detail-relation-edit-memo svg {
+	width: 14px;
+	height: 14px;
+}
+.codemarker-detail-relation-edit-memo:hover {
+	opacity: 1;
+}
+.codemarker-detail-relation-edit-memo.has-memo {
+	opacity: 1;
+	color: var(--text-accent);
+}
+
 .codemarker-detail-relation-add {
 	display: flex;
 	align-items: center;
