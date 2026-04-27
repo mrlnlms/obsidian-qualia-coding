@@ -208,6 +208,93 @@ export interface TemporalResult {
   dateRange: [number, number];
 }
 
+// ─── Memo View ──────────────────────────────────────────────────
+
+export interface MemoViewFilters extends FilterConfig {
+  showTypes: { code: boolean; group: boolean; relation: boolean; marker: boolean };
+  groupBy: "code" | "file";
+  markerLimit: 5 | 10 | 25 | "all"; // aggregate ignora; render usa
+}
+
+export interface CoverageStats {
+  codesWithMemo: number;
+  codesTotal: number;
+  groupsWithMemo: number;
+  groupsTotal: number;
+  relationsWithMemo: number;
+  relationsTotal: number;
+  markersWithMemo: number;
+  markersTotal: number;
+}
+
+export type MemoEntry =
+  | {
+      kind: "code";
+      codeId: string;
+      codeName: string;
+      color: string;
+      memo: string;
+      depth: number;
+    }
+  | {
+      kind: "group";
+      groupId: string;
+      groupName: string;
+      color: string;
+      memo: string;
+    }
+  | {
+      kind: "relation";
+      codeId: string;
+      label: string;
+      targetId: string;
+      targetName: string;
+      directed: boolean;
+      memo: string;
+      level: "code" | "application";
+      markerId?: string; // só quando level === "application"
+      engineType?: EngineType; // só quando level === "application" — necessário pra onSaveAppRelationMemo encontrar marker
+    }
+  | {
+      kind: "marker";
+      markerId: string;
+      codeId: string;
+      fileId: string;
+      sourceType: EngineType;
+      excerpt: string;
+      memo: string;
+      magnitude?: string | number;
+    };
+
+export interface CodeMemoSection {
+  codeId: string;
+  codeName: string;
+  color: string;
+  depth: number;
+  groupIds: string[];
+  codeMemo: string | null;
+  groupMemos: MemoEntry[]; // kind="group"
+  relationMemos: MemoEntry[]; // kind="relation"
+  markerMemos: MemoEntry[]; // kind="marker"
+  childIds: string[];
+  hasAnyMemoInSubtree: boolean;
+}
+
+export interface FileMemoSection {
+  fileId: string;
+  sourceType: EngineType;
+  fileName: string;
+  markerMemos: MemoEntry[];
+  codeIdsUsed: string[];
+}
+
+export interface MemoViewResult {
+  groupBy: "code" | "file";
+  byCode?: CodeMemoSection[];
+  byFile?: FileMemoSection[];
+  coverage: CoverageStats;
+}
+
 /**
  * Per-code chi² stats. `null` quando inválido (variável multitext, ou df=0 por
  * cardinalidade da variável < 2).
