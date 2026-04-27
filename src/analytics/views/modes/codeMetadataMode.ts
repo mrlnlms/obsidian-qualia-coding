@@ -9,11 +9,27 @@ export function renderCodeMetadataView(ctx: AnalyticsViewContext, filters: Filte
   container.empty();
 
   const registry = ctx.plugin.caseVariablesRegistry;
-  const variableName = ctx.cmVariable;
+  const allVarNames = registry.getAllVariableNames();
+  const validNames = allVarNames.filter((n) => registry.getValuesForVariable(n).length > 0);
 
+  if (allVarNames.length === 0) {
+    container.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
+      text: "No Case Variables defined. Add them in the side panel to use this view.",
+    });
+    return;
+  }
+
+  const variableName = ctx.cmVariable;
   if (!variableName) {
     container.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
       text: "Select a Case Variable in the options panel to see the heatmap.",
+    });
+    return;
+  }
+
+  if (!validNames.includes(variableName)) {
+    container.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
+      text: `No files have a value for "${variableName}".`,
     });
     return;
   }
@@ -23,11 +39,31 @@ export function renderCodeMetadataView(ctx: AnalyticsViewContext, filters: Filte
     includeMissing: !ctx.cmHideMissing,
   });
 
+  if (result.grandTotal === 0) {
+    container.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
+      text: "No data after filters.",
+    });
+    return;
+  }
+
   if (result.codes.length === 0 || result.values.length === 0) {
     container.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
       text: "No data for this variable after filters.",
     });
     return;
+  }
+
+  if (result.values.length === 1) {
+    const warn = container.createDiv({ cls: "codemarker-analytics-warning" });
+    warn.createEl("p", { text: "Only one value — no contingency. χ² disabled." });
+  }
+
+  // Banner condicional: dimensão = variável filtrada
+  if (filters.caseVariableFilter && filters.caseVariableFilter.name === variableName) {
+    const banner = container.createDiv({ cls: "codemarker-cm-banner" });
+    banner.createEl("p", {
+      text: `Filtering by "${variableName}" while using as dimension — only "${filters.caseVariableFilter.value}" will appear.`,
+    });
   }
 
   drawHeatmap(container, ctx, result);
