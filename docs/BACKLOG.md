@@ -333,11 +333,15 @@ Image/Audio/Video agora estendem `FileView` (commits `0a46869`/`f87285d`/`4898f6
 - Pastas nested → **Coding management**
 - Margin Panel Customization → **Margin Panel — melhorias**
 
-**Memo View — render strategy follow-up (2026-04-27)**
+**~~Memo View — render strategy follow-up~~ MORTO 2026-04-27 — click-to-edit resolveu**
 
-Atual implementação em `src/analytics/views/modes/memoView/renderCodeSection.ts` faz collapse por código com `markerLimit` (default 10, dropdown 5/10/25/all). Funciona pra corpus realista (≤500 marker memos visíveis simultâneos no DOM).
+Suspeita era que com >500 marker memos visíveis simultâneos o scroll fosse travar (textareas pesados no DOM). Implementação inicial usou `<textarea>` aberto sempre — possível bottleneck.
 
-Trigger pra migrar pra virtual scroll (espelhando `codebookTreeRenderer`): scroll travado com `markerLimit="all"` em vault com >500 marker memos. Plan original tem nota sobre estratégia C; aggregate function fica intocada, só substitui `renderCodeSection` por implementação virtual. Estimativa: 3-4h quando dor surgir.
+**Solução aplicada (commit `18676b4`):** refatorei `renderMemoEditor` pra **click-to-edit** — cada memo agora aparece como `<p>` simples (com hover + atalho Enter/Space), só vira `<textarea>` quando clicado, blur volta pra `<p>`. Reduz drasticamente DOM weight (500 `<p>` >>> 500 `<textarea>`).
+
+**Validação empírica (2026-04-27):** com corpus sintético de 50 codes + 527 markers + ~500 memos, testado em by-file (todos visíveis) e by-code com `markerLimit="all"` — fluido em ambos. Virtual scroll não é necessário.
+
+Corpus de teste preservado em `data.json` local (gitignored) + script `scripts/seed-memo-corpus.mjs` no repo pra re-popular se precisar re-medir no futuro.
 
 Sem items remanescentes nesta seção no momento. Repovoar quando surgir polish curto que não cabe em nenhum guarda-chuva.
 
