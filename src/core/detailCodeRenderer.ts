@@ -144,6 +144,9 @@ export function renderCodeDetail(
 	// Description — editable textarea
 	renderCodeDescription(container, def, model, callbacks);
 
+	// Memo — reflexão analítica processual (separado de description)
+	renderCodeMemo(container, def, model, callbacks);
+
 	// Groups (Tier 1.5) — entre Description e Hierarchy
 	if (def) {
 		renderGroupsSection(container, def.id, model.registry, {
@@ -319,6 +322,38 @@ function renderCodeDescription(
 			descSaveTimer = null;
 			const val = textarea.value.trim() || undefined;
 			model.registry.update(def.id, { description: val });
+			model.saveMarkers();
+		}, 500);
+	});
+	textarea.addEventListener('focus', () => {
+		callbacks.suspendRefresh();
+	});
+	textarea.addEventListener('blur', () => {
+		callbacks.resumeRefresh();
+	});
+}
+
+function renderCodeMemo(
+	container: HTMLElement,
+	def: CodeDefinition | undefined,
+	model: SidebarModelInterface,
+	callbacks: CodeRendererCallbacks,
+) {
+	const memoSection = container.createDiv({ cls: 'codemarker-detail-section' });
+	memoSection.createEl('h6', { text: 'Memo' });
+	const textarea = memoSection.createEl('textarea', {
+		cls: 'codemarker-detail-memo',
+		attr: { placeholder: 'Reflexão analítica…', rows: '3' },
+	});
+	textarea.value = def?.memo ?? '';
+	let memoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+	textarea.addEventListener('input', () => {
+		if (!def) return;
+		if (memoSaveTimer) clearTimeout(memoSaveTimer);
+		memoSaveTimer = setTimeout(() => {
+			memoSaveTimer = null;
+			const val = textarea.value.trim() || undefined;
+			model.registry.update(def.id, { memo: val });
 			model.saveMarkers();
 		}, 500);
 	});
