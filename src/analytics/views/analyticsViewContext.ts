@@ -66,6 +66,7 @@ export interface AnalyticsViewContext {
 
   // Relations Network state
   relationsLevel: 'code' | 'both';
+  relationsMinEdgeWeight: number;  // volátil, default 1
 
   // Polar Coordinates state
   polarFocalCode: string;

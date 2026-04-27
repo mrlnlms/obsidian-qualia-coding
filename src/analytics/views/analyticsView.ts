@@ -76,6 +76,7 @@ export class AnalyticsView extends ItemView {
 
   // Relations Network state
   relationsLevel: 'code' | 'both' = 'both';
+  relationsMinEdgeWeight = 1;
 
   // Case variable filter state
   caseVariableFilter: { name: string; value: string } | null = null;
