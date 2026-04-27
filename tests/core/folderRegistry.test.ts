@@ -21,11 +21,13 @@ describe('folder CRUD', () => {
 		expect(f1.id).toBe(f2.id);
 	});
 
-	it('getAllFolders returns all folders sorted by name', () => {
-		registry.createFolder('Zebra');
-		registry.createFolder('Alpha');
-		const all = registry.getAllFolders();
-		expect(all.map(f => f.name)).toEqual(['Alpha', 'Zebra']);
+	it('getRootFolders returns root folders in folderOrder (creation order)', () => {
+		const f1 = registry.createFolder('zebra');
+		const f2 = registry.createFolder('apple');
+		const f3 = registry.createFolder('mango');
+
+		// Ordem é a de criação (folderOrder), não alfabética
+		expect(registry.getRootFolders().map(f => f.name)).toEqual(['zebra', 'apple', 'mango']);
 	});
 
 	it('getFolderById returns folder or undefined', () => {
@@ -48,7 +50,7 @@ describe('folder CRUD', () => {
 		expect(ok).toBe(false);
 	});
 
-	it('deleteFolder removes folder and clears code.folder references', () => {
+	it('deleteFolder cascades: deletes folder and all codes within', () => {
 		const folder = registry.createFolder('ToDelete');
 		const code = registry.create('MyCode');
 		registry.setCodeFolder(code.id, folder.id);
@@ -56,7 +58,8 @@ describe('folder CRUD', () => {
 
 		registry.deleteFolder(folder.id);
 		expect(registry.getFolderById(folder.id)).toBeUndefined();
-		expect(code.folder).toBeUndefined();
+		// Cascade: code dentro do folder é deletado (markers viram orfãos)
+		expect(registry.getById(code.id)).toBeUndefined();
 	});
 
 	it('createFolder fires onMutate', () => {
@@ -139,20 +142,20 @@ describe('folder serialization', () => {
 	it('fromJSON restores folders', () => {
 		registry.createFolder('F1');
 		const code = registry.create('Code1');
-		registry.setCodeFolder(code.id, registry.getAllFolders()[0]!.id);
+		registry.setCodeFolder(code.id, registry.getRootFolders()[0]!.id);
 
 		const json = registry.toJSON();
 		const restored = CodeDefinitionRegistry.fromJSON(json);
 
-		expect(restored.getAllFolders().length).toBe(1);
-		expect(restored.getAllFolders()[0]!.name).toBe('F1');
+		expect(restored.getRootFolders().length).toBe(1);
+		expect(restored.getRootFolders()[0]!.name).toBe('F1');
 		const restoredCode = restored.getByName('Code1');
-		expect(restoredCode?.folder).toBe(restored.getAllFolders()[0]!.id);
+		expect(restoredCode?.folder).toBe(restored.getRootFolders()[0]!.id);
 	});
 
 	it('fromJSON handles missing folders gracefully', () => {
 		const restored = CodeDefinitionRegistry.fromJSON({ definitions: {}, nextPaletteIndex: 0 });
-		expect(restored.getAllFolders()).toEqual([]);
+		expect(restored.getRootFolders()).toEqual([]);
 	});
 });
 
@@ -177,7 +180,7 @@ describe('folder + hierarchy interaction', () => {
 	it('clear() removes folders too', () => {
 		registry.createFolder('F1');
 		registry.clear();
-		expect(registry.getAllFolders()).toEqual([]);
+		expect(registry.getRootFolders()).toEqual([]);
 	});
 
 	it('renameFolder with same name is a no-op success', () => {

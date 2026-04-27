@@ -41,6 +41,8 @@ export class CodeDefinitionRegistry {
 	visibilityOverrides: VisibilityOverrides = {};
 
 	private folders: Map<string, FolderDefinition> = new Map();
+	/** Ordered list of root-level folder IDs. Controls display order at root. */
+	folderOrder: string[] = [];
 	/** Ordered list of root-level code IDs. Controls display order. */
 	rootOrder: string[] = [];
 
@@ -237,6 +239,16 @@ export class CodeDefinitionRegistry {
 	}
 
 	delete(id: string): boolean {
+		const result = this._deleteCodeNoEmit(id);
+		if (result) for (const fn of this.onMutateListeners) fn();
+		return result;
+	}
+
+	/**
+	 * Internal: same logic as delete(id) but does NOT fire onMutateListeners.
+	 * Used by batch operations (deleteFolder cascade) that emit once at the end.
+	 */
+	private _deleteCodeNoEmit(id: string): boolean {
 		const def = this.definitions.get(id);
 		if (!def) return false;
 
@@ -276,7 +288,6 @@ export class CodeDefinitionRegistry {
 			}
 		}
 
-		for (const fn of this.onMutateListeners) fn();
 		return true;
 	}
 
@@ -286,6 +297,7 @@ export class CodeDefinitionRegistry {
 		this.nameIndex.clear();
 		this.folders.clear();
 		this.rootOrder = [];
+		this.folderOrder = [];
 		this.nextPaletteIndex = 0;
 		this.groups.clear();
 		this.groupOrder = [];
@@ -481,17 +493,31 @@ export class CodeDefinitionRegistry {
 
 	// --- Folder CRUD ---
 
-	createFolder(name: string): FolderDefinition {
-		// Dedup by name
+	createFolder(name: string, parentId?: string): FolderDefinition {
+		// Resolve invalid parentId to root (mirrors create() for codes)
+		const validParentId = parentId !== undefined && this.folders.has(parentId)
+			? parentId
+			: undefined;
+
+		// Dedup parent-scoped: mesmo nome em parents diferentes vira folders distintos
 		for (const f of this.folders.values()) {
-			if (f.name === name) return f;
+			if (f.name === name && f.parentId === validParentId) return f;
 		}
 		const folder: FolderDefinition = {
 			id: this.generateId(),
 			name,
 			createdAt: Date.now(),
+			...(validParentId ? { parentId: validParentId } : {}),
 		};
 		this.folders.set(folder.id, folder);
+
+		if (validParentId) {
+			const parent = this.folders.get(validParentId)!;
+			parent.subfolderOrder = [...(parent.subfolderOrder ?? []), folder.id];
+		} else {
+			this.folderOrder.push(folder.id);
+		}
+
 		for (const fn of this.onMutateListeners) fn();
 		return folder;
 	}
@@ -500,9 +526,125 @@ export class CodeDefinitionRegistry {
 		return this.folders.get(id);
 	}
 
-	getAllFolders(): FolderDefinition[] {
-		return Array.from(this.folders.values())
-			.sort((a, b) => a.name.localeCompare(b.name));
+	getRootFolders(): FolderDefinition[] {
+		const result: FolderDefinition[] = [];
+		for (const id of this.folderOrder) {
+			const f = this.folders.get(id);
+			if (f && !f.parentId) result.push(f);
+		}
+		// Também inclui folders root sem entrada em folderOrder (defensivo)
+		const ordered = new Set(this.folderOrder);
+		for (const f of this.folders.values()) {
+			if (!f.parentId && !ordered.has(f.id)) {
+				result.push(f);
+			}
+		}
+		return result;
+	}
+
+	getChildFolders(parentId: string): FolderDefinition[] {
+		const parent = this.folders.get(parentId);
+		if (!parent) return [];
+		const order = parent.subfolderOrder;
+		if (order && order.length > 0) {
+			const result: FolderDefinition[] = [];
+			for (const id of order) {
+				const f = this.folders.get(id);
+				if (f && f.parentId === parentId) result.push(f);
+			}
+			// Children fora do order vão no fim, alfabéticos
+			const orderedSet = new Set(order);
+			const fallbacks: FolderDefinition[] = [];
+			for (const f of this.folders.values()) {
+				if (f.parentId === parentId && !orderedSet.has(f.id)) {
+					fallbacks.push(f);
+				}
+			}
+			fallbacks.sort((a, b) => a.name.localeCompare(b.name));
+			return [...result, ...fallbacks];
+		}
+		// Fallback alfabético
+		const all = Array.from(this.folders.values()).filter(f => f.parentId === parentId);
+		all.sort((a, b) => a.name.localeCompare(b.name));
+		return all;
+	}
+
+	getFolderAncestors(folderId: string): FolderDefinition[] {
+		const result: FolderDefinition[] = [];
+		let cursor = this.folders.get(folderId)?.parentId;
+		while (cursor) {
+			const f = this.folders.get(cursor);
+			if (!f) break;
+			result.push(f);
+			cursor = f.parentId;
+		}
+		return result;
+	}
+
+	getFolderDescendants(folderId: string): FolderDefinition[] {
+		const result: FolderDefinition[] = [];
+		const visited = new Set<string>([folderId]);
+		const stack: string[] = [folderId];
+		while (stack.length > 0) {
+			const current = stack.pop()!;
+			for (const f of this.folders.values()) {
+				if (f.parentId === current && !visited.has(f.id)) {
+					visited.add(f.id);
+					result.push(f);
+					stack.push(f.id);
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Set or remove the parent of a folder, optionally at a specific position.
+	 * Returns false on invalid input (self-parent, cycle, nonexistent parent).
+	 * Idempotent: if folder.parentId === parentId && insertBefore === undefined, no-op success.
+	 * @param insertBefore — insert before this sibling ID. If omitted, appends at end.
+	 */
+	setFolderParent(folderId: string, parentId: string | undefined, insertBefore?: string): boolean {
+		const folder = this.folders.get(folderId);
+		if (!folder) return false;
+
+		if (parentId !== undefined) {
+			if (parentId === folderId) return false;
+			if (!this.folders.has(parentId)) return false;
+			// Cycle detection: walk up from parentId
+			let cursor: string | undefined = parentId;
+			while (cursor) {
+				if (cursor === folderId) return false;
+				cursor = this.folders.get(cursor)?.parentId;
+			}
+		}
+
+		// Idempotente: se já está no parent target sem insertBefore, no-op
+		if (folder.parentId === parentId && insertBefore === undefined) return true;
+
+		// Remove de location atual
+		if (folder.parentId) {
+			const oldParent = this.folders.get(folder.parentId);
+			if (oldParent?.subfolderOrder) {
+				oldParent.subfolderOrder = oldParent.subfolderOrder.filter(id => id !== folderId);
+			}
+		} else {
+			this.folderOrder = this.folderOrder.filter(id => id !== folderId);
+		}
+
+		// Adiciona em location nova (reusa _insertInList helper existente)
+		if (parentId) {
+			folder.parentId = parentId;
+			const newParent = this.folders.get(parentId)!;
+			if (!newParent.subfolderOrder) newParent.subfolderOrder = [];
+			this._insertInList(newParent.subfolderOrder, folderId, insertBefore);
+		} else {
+			delete folder.parentId;
+			this._insertInList(this.folderOrder, folderId, insertBefore);
+		}
+
+		for (const fn of this.onMutateListeners) fn();
+		return true;
 	}
 
 	renameFolder(id: string, name: string): boolean {
@@ -519,14 +661,37 @@ export class CodeDefinitionRegistry {
 	}
 
 	deleteFolder(id: string): boolean {
-		if (!this.folders.has(id)) return false;
-		// Clear folder reference from all codes
-		for (const def of this.definitions.values()) {
-			if (def.folder === id) {
-				def.folder = undefined;
+		const folder = this.folders.get(id);
+		if (!folder) return false;
+
+		// 1. Coletar todos os folders afetados (self + descendants)
+		const allAffected = [folder, ...this.getFolderDescendants(id)];
+
+		// 2. Deletar todos os códigos dentro desses folders
+		// Usa _deleteCodeNoEmit pra batch — emit único no fim de deleteFolder
+		for (const f of allAffected) {
+			const codesInFolder = this.getCodesInFolder(f.id);
+			for (const code of codesInFolder) {
+				this._deleteCodeNoEmit(code.id);  // cuida de markers/relations via mecanismo existente
 			}
 		}
+
+		// 3. Deletar todos os sub-folders (descendants)
+		for (const f of allAffected) {
+			if (f.id !== id) this.folders.delete(f.id);
+		}
+
+		// 4. Deletar self e remover de folderOrder/subfolderOrder do parent
 		this.folders.delete(id);
+		if (folder.parentId) {
+			const parent = this.folders.get(folder.parentId);
+			if (parent?.subfolderOrder) {
+				parent.subfolderOrder = parent.subfolderOrder.filter(x => x !== id);
+			}
+		} else {
+			this.folderOrder = this.folderOrder.filter(x => x !== id);
+		}
+
 		for (const fn of this.onMutateListeners) fn();
 		return true;
 	}
@@ -668,6 +833,7 @@ export class CodeDefinitionRegistry {
 		nextPaletteIndex: number;
 		rootOrder: string[];
 		folders: Record<string, FolderDefinition>;
+		folderOrder: string[];
 		groups: Record<string, GroupDefinition>;
 		groupOrder: string[];
 		nextGroupPaletteIndex: number;
@@ -689,6 +855,7 @@ export class CodeDefinitionRegistry {
 			nextPaletteIndex: this.nextPaletteIndex,
 			rootOrder: this.rootOrder,
 			folders,
+			folderOrder: this.folderOrder,
 			groups,
 			groupOrder: this.groupOrder,
 			nextGroupPaletteIndex: this.nextGroupPaletteIndex,
@@ -717,6 +884,7 @@ export class CodeDefinitionRegistry {
 				registry.folders.set(id, f);
 			}
 		}
+		registry.folderOrder = Array.isArray(data?.folderOrder) ? data.folderOrder : [];
 		if (typeof data?.nextPaletteIndex === 'number') {
 			registry.nextPaletteIndex = data.nextPaletteIndex;
 		}

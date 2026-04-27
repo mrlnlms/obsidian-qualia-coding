@@ -4,7 +4,7 @@
  */
 
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
-import type { CodeDefinition, BaseMarker } from './types';
+import type { CodeDefinition, BaseMarker, FolderDefinition } from './types';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ export interface FlatFolderNode {
 	type: 'folder';
 	folderId: string;
 	name: string;
-	depth: 0;
+	depth: number;
 	hasChildren: boolean;
 	isExpanded: boolean;
 	codeCount: number;
@@ -63,9 +63,6 @@ export function buildFlatTree(
 	expanded: ExpandedState,
 	searchQuery?: string,
 ): FlatTreeNode[] {
-	const folders = registry.getAllFolders();
-
-	// If searching, compute which codes/folders to show and which to force-expand
 	let visibleCodeIds: Set<string> | null = null;
 	let visibleFolderIds: Set<string> | null = null;
 	let forceExpanded: ExpandedState | null = null;
@@ -79,15 +76,18 @@ export function buildFlatTree(
 		for (const def of registry.getAll()) {
 			if (def.name.toLowerCase().includes(query)) {
 				visibleCodeIds.add(def.id);
-				// Add all ancestors
 				for (const ancestor of registry.getAncestors(def.id)) {
 					visibleCodeIds.add(ancestor.id);
 					forceExpanded.codes.add(ancestor.id);
 				}
-				// Auto-expand containing folder
 				if (def.folder) {
 					visibleFolderIds.add(def.folder);
 					forceExpanded.folders.add(def.folder);
+					// Reveal folder ancestors too (nested folders)
+					for (const folderAnc of registry.getFolderAncestors(def.folder)) {
+						visibleFolderIds.add(folderAnc.id);
+						forceExpanded.folders.add(folderAnc.id);
+					}
 				}
 			}
 		}
@@ -111,31 +111,42 @@ export function buildFlatTree(
 		}
 	};
 
-	// 1. Render folders (sorted by name)
-	for (const folder of folders) {
-		if (visibleFolderIds && !visibleFolderIds.has(folder.id)) continue;
+	const visitFolders = (folders: FolderDefinition[], depth: number): void => {
+		for (const folder of folders) {
+			if (visibleFolderIds && !visibleFolderIds.has(folder.id)) continue;
 
-		const codesInFolder = registry.getCodesInFolder(folder.id);
-		const folderCodeIds = new Set(codesInFolder.map(c => c.id));
-		const rootCodesInFolder = codesInFolder.filter(c => !c.parentId || !folderCodeIds.has(c.parentId));
-		const isExpanded = forceExpanded?.folders.has(folder.id) || expanded.folders.has(folder.id);
+			const childFolders = registry.getChildFolders(folder.id);
+			const codesInFolder = registry.getCodesInFolder(folder.id);
+			const folderCodeIds = new Set(codesInFolder.map(c => c.id));
+			const rootCodesInFolder = codesInFolder.filter(
+				c => !c.parentId || !folderCodeIds.has(c.parentId),
+			);
 
-		result.push({
-			type: 'folder',
-			folderId: folder.id,
-			name: folder.name,
-			depth: 0,
-			hasChildren: codesInFolder.length > 0,
-			isExpanded: (codesInFolder.length > 0) && isExpanded,
-			codeCount: codesInFolder.length,
-		});
+			const hasChildren = childFolders.length > 0 || codesInFolder.length > 0;
+			const isExpanded = forceExpanded?.folders.has(folder.id) || expanded.folders.has(folder.id);
 
-		if (isExpanded) {
-			visitCodes(rootCodesInFolder, 1);
+			result.push({
+				type: 'folder',
+				folderId: folder.id,
+				name: folder.name,
+				depth,
+				hasChildren,
+				isExpanded: hasChildren && isExpanded,
+				codeCount: codesInFolder.length,
+			});
+
+			if (hasChildren && isExpanded) {
+				// Folder-then-codes order at each level
+				visitFolders(childFolders, depth + 1);
+				visitCodes(rootCodesInFolder, depth + 1);
+			}
 		}
-	}
+	};
 
-	// 2. Unfiled root codes (no folder, no parentId)
+	// 1. Render root folders (recursively descends)
+	visitFolders(registry.getRootFolders(), 0);
+
+	// 2. Unfiled root codes (no folder, no parentId) — depth 0
 	const unfiledRoots = registry.getRootCodes().filter(d => !d.folder);
 	if (visibleCodeIds) {
 		visitCodes(unfiledRoots.filter(d => visibleCodeIds!.has(d.id)), 0);
@@ -251,4 +262,44 @@ export function buildCountIndex(
 	}
 
 	return index;
+}
+
+// ─── collectAllCodesUnderFolder ──────────────────────────────────
+
+/**
+ * Coleta todos os códigos contidos em um folder e em qualquer sub-folder (recursivo).
+ * Usado pra preview do delete cascade.
+ */
+export function collectAllCodesUnderFolder(
+	registry: CodeDefinitionRegistry,
+	folderId: string,
+): CodeDefinition[] {
+	const folders = [folderId, ...registry.getFolderDescendants(folderId).map(f => f.id)];
+	const result: CodeDefinition[] = [];
+	for (const fid of folders) {
+		result.push(...registry.getCodesInFolder(fid));
+	}
+	return result;
+}
+
+// ─── buildFolderBreadcrumbList ───────────────────────────────────
+
+/**
+ * Returns ALL folders flattened with breadcrumb-style labels reflecting nesting.
+ * Order: depth-first preorder (parent before children), respecting folderOrder/subfolderOrder.
+ * Used by UI surfaces that need a flat list with hierarchical context (e.g., "Move to folder" menu).
+ */
+export function buildFolderBreadcrumbList(
+	registry: CodeDefinitionRegistry,
+): { id: string; label: string }[] {
+	const result: { id: string; label: string }[] = [];
+	const visit = (folders: FolderDefinition[], parentLabel: string): void => {
+		for (const f of folders) {
+			const label = parentLabel ? `${parentLabel} / ${f.name}` : f.name;
+			result.push({ id: f.id, label });
+			visit(registry.getChildFolders(f.id), label);
+		}
+	};
+	visit(registry.getRootFolders(), '');
+	return result;
 }

@@ -41,6 +41,7 @@ export function setupDragDrop(
 	callbacks: DragDropCallbacks,
 ): () => void {
 	let draggedCodeId: string | null = null;
+	let draggedFolderId: string | null = null;
 	let folderHoverTimer: number | null = null;
 	let folderHoverId: string | null = null;
 	// Last valid hover state, captured during onDragOver. Used by onDrop because
@@ -143,13 +144,25 @@ export function setupDragDrop(
 
 	const onDragStart = (e: DragEvent) => {
 		const row = findRow(e.target);
-		if (!row) return;
-		draggedCodeId = row.dataset.codeId ?? null;
-		if (!draggedCodeId) return;
-		row.classList.add('is-dragging');
-		document.body.classList.add(BODY_DRAGGING_CLASS);
-		e.dataTransfer?.setData('text/plain', draggedCodeId);
-		if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+		if (row) {
+			draggedCodeId = row.dataset.codeId ?? null;
+			if (!draggedCodeId) return;
+			row.classList.add('is-dragging');
+			document.body.classList.add(BODY_DRAGGING_CLASS);
+			e.dataTransfer?.setData('text/plain', draggedCodeId);
+			if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+			return;
+		}
+		// Folder drag (only in reorganize mode — merge mode is for code-on-code merge)
+		const folderRow = findFolderRow(e.target);
+		if (folderRow && getMode() === 'reorganize') {
+			draggedFolderId = folderRow.dataset.folderId ?? null;
+			if (!draggedFolderId) return;
+			folderRow.classList.add('is-dragging');
+			document.body.classList.add(BODY_DRAGGING_CLASS);
+			e.dataTransfer?.setData('text/plain', draggedFolderId);
+			if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+		}
 	};
 
 	const resetHoverMemo = () => {
@@ -159,6 +172,44 @@ export function setupDragDrop(
 	};
 
 	const onDragOver = (e: DragEvent) => {
+		// Folder being dragged — own branch (nest/reorder/promote)
+		if (draggedFolderId) {
+			e.preventDefault();
+			clearIndicators();
+			resetHoverMemo();
+
+			const folderRow = findFolderRow(e.target);
+			if (!folderRow || folderRow.dataset.folderId === draggedFolderId) {
+				cancelFolderHoverTimer();
+				return;
+			}
+			const targetFolderId = folderRow.dataset.folderId;
+			if (!targetFolderId) {
+				cancelFolderHoverTimer();
+				return;
+			}
+
+			// Cycle detection: target cannot be a descendant of the dragged folder
+			const descendants = registry.getFolderDescendants(draggedFolderId);
+			if (descendants.some(d => d.id === targetFolderId)) {
+				cancelFolderHoverTimer();
+				return;
+			}
+
+			const zone = getDropZone(folderRow, e.clientY);
+			lastHoverZone = zone;
+			lastHoverFolderRow = folderRow;
+
+			if (zone === 'inside') {
+				folderRow.classList.add('is-folder-drop-target');
+				scheduleFolderHoverExpand(targetFolderId);
+			} else {
+				cancelFolderHoverTimer();
+				showIndicatorAt(folderRow, zone === 'before' ? 'top' : 'bottom');
+			}
+			return;
+		}
+
 		if (!draggedCodeId) return;
 		e.preventDefault();
 		clearIndicators();
@@ -197,6 +248,66 @@ export function setupDragDrop(
 	};
 
 	const onDrop = (e: DragEvent) => {
+		// Folder drop branch
+		if (draggedFolderId) {
+			e.preventDefault();
+			const folderRow = lastHoverFolderRow ?? findFolderRow(e.target);
+			if (!folderRow || folderRow.dataset.folderId === draggedFolderId) {
+				cleanupFolderDrag();
+				return;
+			}
+			const targetFolderId = folderRow.dataset.folderId;
+			if (!targetFolderId) {
+				cleanupFolderDrag();
+				return;
+			}
+
+			const zone = lastHoverZone ?? getDropZone(folderRow, e.clientY);
+			const movedFolderId = draggedFolderId;
+			let success = false;
+
+			if (zone === 'inside') {
+				success = registry.setFolderParent(movedFolderId, targetFolderId);
+			} else {
+				const targetParent = registry.getFolderById(targetFolderId)?.parentId;
+				let insertBeforeFinal: string | undefined;
+				if (zone === 'before') {
+					insertBeforeFinal = targetFolderId;
+				} else {
+					const siblings = targetParent
+						? registry.getChildFolders(targetParent)
+						: registry.getRootFolders();
+					const idx = siblings.findIndex(f => f.id === targetFolderId);
+					// Skip the dragged folder itself when scanning for the next sibling
+					let next: string | undefined;
+					for (let i = idx + 1; i < siblings.length; i++) {
+						const sibling = siblings[i];
+						if (sibling && sibling.id !== movedFolderId) {
+							next = sibling.id;
+							break;
+						}
+					}
+					insertBeforeFinal = next;
+				}
+				success = registry.setFolderParent(movedFolderId, targetParent, insertBeforeFinal);
+			}
+
+			if (!success) {
+				rejectDrop(folderRow, 'Cannot move folder there.');
+			} else {
+				preserveScroll(() => callbacks.refresh());
+				requestAnimationFrame(() => requestAnimationFrame(() => {
+					const row = container.querySelector<HTMLElement>(`[data-folder-id="${CSS.escape(movedFolderId)}"]`);
+					if (!row) return;
+					row.classList.add('is-just-dropped');
+					setTimeout(() => row.classList.remove('is-just-dropped'), 650);
+				}));
+			}
+
+			cleanupFolderDrag();
+			return;
+		}
+
 		if (!draggedCodeId) return;
 		e.preventDefault();
 
@@ -281,7 +392,10 @@ export function setupDragDrop(
 		cleanupDrag();
 	};
 
-	const onDragEnd = () => cleanupDrag();
+	const onDragEnd = () => {
+		if (draggedFolderId) cleanupFolderDrag();
+		cleanupDrag();
+	};
 
 	const cleanupDrag = () => {
 		clearIndicators();
@@ -292,6 +406,18 @@ export function setupDragDrop(
 		}
 		document.body.classList.remove(BODY_DRAGGING_CLASS);
 		draggedCodeId = null;
+	};
+
+	const cleanupFolderDrag = () => {
+		if (draggedFolderId) {
+			const row = container.querySelector<HTMLElement>(`[data-folder-id="${CSS.escape(draggedFolderId)}"]`);
+			row?.classList.remove('is-dragging');
+		}
+		draggedFolderId = null;
+		document.body.classList.remove(BODY_DRAGGING_CLASS);
+		clearIndicators();
+		resetHoverMemo();
+		cancelFolderHoverTimer();
 	};
 
 	container.addEventListener('dragstart', onDragStart);

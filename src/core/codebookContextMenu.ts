@@ -7,6 +7,7 @@
 
 import { Menu } from 'obsidian';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+import { buildFolderBreadcrumbList } from './hierarchyHelpers';
 
 export interface ContextMenuCallbacks {
 	showCodeDetail(codeId: string): void;
@@ -41,7 +42,7 @@ export function showCodeContextMenu(
 
 	menu.addSeparator();
 
-	const folders = registry.getAllFolders();
+	const folders = buildFolderBreadcrumbList(registry);
 	const SUBMENU_THRESHOLD = 5;
 	if (folders.length === 0) {
 		menu.addItem(item =>
@@ -55,7 +56,7 @@ export function showCodeContextMenu(
 			const submenu = item.setSubmenu();
 			for (const folder of folders) {
 				submenu.addItem(sub =>
-					sub.setTitle(folder.name)
+					sub.setTitle(folder.label)
 						.setIcon('folder')
 						.setChecked(def.folder === folder.id)
 						.onClick(() => callbacks.promptMoveTo(codeId, folder.id)),
@@ -73,7 +74,7 @@ export function showCodeContextMenu(
 	} else {
 		for (const folder of folders) {
 			menu.addItem(item =>
-				item.setTitle(`Move to ${folder.name}`)
+				item.setTitle(`Move to ${folder.label}`)
 					.setIcon('folder')
 					.setChecked(def.folder === folder.id)
 					.onClick(() => callbacks.promptMoveTo(codeId, folder.id)),
@@ -124,6 +125,7 @@ export function showCodeContextMenu(
 }
 
 export interface FolderContextMenuCallbacks {
+	promptCreateSubfolder(parentFolderId: string): void;
 	promptRenameFolder(folderId: string): void;
 	promptDeleteFolder(folderId: string): void;
 }
@@ -139,6 +141,9 @@ export function showFolderContextMenu(
 
 	const menu = new Menu();
 
+	menu.addItem(item =>
+		item.setTitle('New subfolder').setIcon('folder-plus').onClick(() => callbacks.promptCreateSubfolder(folder.id)),
+	);
 	menu.addItem(item =>
 		item.setTitle('Rename').setIcon('pencil').onClick(() => callbacks.promptRenameFolder(folderId)),
 	);

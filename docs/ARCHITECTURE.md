@@ -287,12 +287,13 @@ Instância única compartilhada entre todos os 7 engines:
 **`parentId` como theme hierarchy (NVivo / Braun & Clarke):**
 A hierarquia `parentId` NÃO é só organização estrutural — ela **É** o mecanismo de theme hierarchy do plugin. Um código pai com zero aplicações diretas (ex: `Experiencias` sem segments, só com filhos `resistencia`/`adocao`/`frustacao`) age como theme; o count agregado inclui aplicações dos filhos via `buildCountIndex`. Isso é o padrão exato do NVivo (parent/child com opção "Aggregate") e casa com a metodologia Braun & Clarke (códigos → subtemas → temas → temas abrangentes = hierarquia aninhada). Se surgir demanda por "theme hierarchy", o reflexo correto é **primeiro perguntar por que `parentId` não resolve** antes de propor nova camada. O item ROADMAP #2a ("Code Groups") é coisa DIFERENTE — grouping flat N:N cross-cutting estilo Atlas.ti, ortogonal à hierarquia.
 
-**Pastas virtuais (Phase B):**
-- `folder?: string` no CodeDefinition (ID da pasta)
-- `FolderDefinition { id, name, createdAt }` armazenado no registry
-- CRUD: `createFolder`, `renameFolder`, `deleteFolder`, `setCodeFolder`, `getCodesInFolder`, `getAllFolders`
-- Pastas NAO afetam hierarquia, analytics, ou queries — sao puramente organizacionais
-- Serializacao: `folders: Record<string, FolderDefinition>` no JSON
+**Pastas virtuais (Phase B + nested):**
+- `folder?: string` no CodeDefinition (ID da pasta — folder folha onde o código vive)
+- `FolderDefinition { id, name, parentId?, subfolderOrder?, createdAt }` armazenado no registry. `parentId` aponta pra outra folder (ou root se ausente); `subfolderOrder` é a ordem de filhos folder dentro do pai
+- Registry mantém `folderOrder` (root) + `subfolderOrder` (per-parent). CRUD: `createFolder(name, parentId?)`, `renameFolder`, `deleteFolder` (cascade — apaga descendants e códigos via `_deleteCodeNoEmit`), `setCodeFolder`, `setFolderParent` (cycle detection walk-up + reuso de `_insertInList`), `getRootFolders`, `getChildFolders`, `getFolderAncestors`, `getFolderDescendants` (cycle protection via Set), `getCodesInFolder`
+- Pastas NAO afetam hierarquia, analytics, ou queries — sao puramente organizacionais (mesmo aninhadas)
+- `buildFlatTree` recursivo via `visitFolders` (simétrico a `visitCodes`); `FlatFolderNode.depth` dinâmico controla `padding-left` no row. Search auto-expande folder ancestors
+- Serializacao: `folders: Record<string, FolderDefinition>` + `folderOrder: string[]` no JSON
 
 **Code Groups (Tier 1.5 — flat N:N, ortogonal a `parentId` e `folder`):**
 - `groups?: string[]` no CodeDefinition (array de groupIds — código pode ser membro de N groups)
@@ -1034,10 +1035,10 @@ Delete de pai: filhos promovidos a root.
 
 **Contagem**: colapsado = agregado, expandido = direto. `buildCountIndex()` pré-computa via post-order DFS.
 
-### 14.2 Pastas Virtuais (Phase B)
+### 14.2 Pastas Virtuais (Phase B + nested)
 
-**Campo**: `folder?: string` no CodeDefinition. `folders: Record<string, FolderDefinition>` no registry.
-Containers organizacionais sem significado analítico. Ícone de pasta vs chevron de hierarquia.
+**Campo**: `folder?: string` no CodeDefinition (folha). `folders: Record<string, FolderDefinition>` no registry, com `parentId?` + `subfolderOrder?` em cada folder pra suportar aninhamento N-níveis (#23, 2026-04-26). `folderOrder: string[]` mantém ordem das roots.
+Containers organizacionais sem significado analítico — mesmo aninhadas. Ícone de pasta vs chevron de hierarquia. `buildFlatTree` recursivo via `visitFolders` produz `FlatFolderNode.depth` dinâmico; drag-drop full (nest/reorder/promote, cycle silent return); delete cascade com ConfirmModal preview (count subfolders + códigos + warning markers órfãos).
 
 ### 14.3 Magnitude (Phase D)
 
