@@ -23,7 +23,7 @@ A view é **descritiva primeiro, estatística como anotação**: pesquisador qua
 | 1 | Forma | Modo novo dedicado, não extensão do `chiSquareMode` |
 | 2 | Visualização principal | Heatmap (canvas 2D) — linhas = códigos, colunas = valores da variável |
 | 3 | Leituras alternativas | Toggle 3 estados: **Contagem** (default) → **% por linha** → **% por coluna**. Z-score e stacked 100% fora |
-| 4 | Estatística | Coluna lateral fixa: `χ² · p` ao lado do nome do código. Asterisco quando `p < 0.05`. Sortable. Sem toggle |
+| 4 | Estatística | Coluna lateral fixa: `χ² · p` ao lado do nome do código. Asterisco quando `p < 0.05`. Sortable (click no header cicla por col + direção). Sem toggle on/off |
 | 5 | Variáveis suportadas | Todas (text, multitext, number, checkbox, date, datetime) |
 | 6 | Binning de `number` | Quartis automáticos. Sem config UI no v1 |
 | 7 | Granularidade de `date`/`datetime` | Auto: range > 2 anos → ano; entre 1 mês e 2 anos → mês; menor → dia |
@@ -40,7 +40,9 @@ A view é **descritiva primeiro, estatística como anotação**: pesquisador qua
 
 ### Arquivos novos
 
-**`src/analytics/data/stats/binning.ts`** — helpers puros:
+> Estrutura `src/analytics/data/` é flat (sem subpasta `stats/`). Todos os módulos estatísticos vivem ao lado de `frequency.ts`, `inferential.ts` etc.
+
+**`src/analytics/data/binning.ts`** — helpers puros:
 
 ```ts
 export function binNumeric(values: number[]): { bins: string[]; assign: (v: number) => string }
@@ -52,7 +54,7 @@ export function explodeMultitext(value: VariableValue): string[]
 - `binDate`: detecta range → granularidade → string canônica (`2024`, `2024-03`, `2024-03-15`)
 - `explodeMultitext`: array → strings; string → 1 elemento; vazio → `[]`
 
-**`src/analytics/data/stats/codeMetadata.ts`** — função pura:
+**`src/analytics/data/codeMetadata.ts`** — função pura:
 
 ```ts
 export interface CodeMetadataResult {
@@ -85,21 +87,26 @@ export function calculateCodeMetadata(
 
 Pipeline:
 1. `applyFilters(data, filters, registry)` — markers filtrados
-2. Discovery dos valores via `registry.getValuesForVariable(variableName)`
-3. Binning conforme tipo (`registry.getVariableType(name)` → bin function)
-4. Para cada marker: lookup `registry.getVariables(fileId)[variableName]` → bin → coluna alvo. Multitext explode em N colunas; missing → coluna `"(missing)"` se `includeMissing`
-5. Build matrix; chi² por código via helper extraído de `inferential.ts`
+2. Tipo da variável via `registry.getType(variableName)` (a API correta — não há `getVariableType`)
+3. Discovery dos rótulos de coluna:
+   - `registry.getValuesForVariable(variableName)` retorna `VariableValue[]`. Quando o tipo é `multitext`, cada entrada pode ser `string[]` — **flatten obrigatório** para um `Set<string>` antes de gerar colunas
+   - Para `number`/`date`/`datetime`, aplicar binning sobre o conjunto numérico/temporal e usar os rótulos de bin como colunas
+   - Para `text`/`checkbox`, valor literal vira coluna
+   - Coluna especial `"(missing)"` é adicionada no fim se `includeMissing` e existir ao menos 1 marker em arquivo sem valor preenchido
+4. Para cada marker: lookup `registry.getVariables(fileId)[variableName]`. Aplica `bin`/`explodeMultitext` → 1 ou mais colunas alvo (multitext incrementa N células)
+5. Build matrix `[code × value]`; chi² por código via helper genérico extraído de `inferential.ts` (ver § "Chi² puro reutilizável" abaixo)
 
 **`src/analytics/views/modes/codeMetadataMode.ts`** — `ModeEntry`:
 
 - `label`: "Code × Metadata"
+- Acesso à registry: `ctx.plugin.caseVariablesRegistry` (campo já existente no `AnalyticsPluginAPI`, mesmo pattern usado por `analyticsView.ts:323`)
 - `render`: empty states → `calculateCodeMetadata` → `renderHeatmap(container, result, displayMode)`
 - `renderOptions`:
   - Dropdown **Variable** (nomes via `registry.getAllVariableNames()`, filtrado a variáveis com ≥1 valor preenchido)
   - Toggle 3 estados **Display** (Count / % row / % col)
   - Checkbox **Hide missing**
   - Banner condicional "Filtering by `<x>` while using as dimension"
-- `exportCSV`: linhas = códigos, colunas = `code, total, <value_1>, …, <value_n>, (missing)?, chi2, df, p, cramers_v`
+- `exportCSV`: linhas = códigos, colunas = `code, total, <value_1>, …, <value_n>, (missing)?, chi2, df, p, cramers_v`. Para linhas multitext (chi² desabilitado), as 4 colunas estatísticas saem como string vazia `""` (não `NA`, não `—`) — facilita parse em R/Python sem custom NA handling
 
 ### Arquivos editados
 
@@ -108,19 +115,44 @@ Pipeline:
 | `src/analytics/views/modes/modeRegistry.ts` | Registra `'code-metadata'` apontando pro novo `ModeEntry` |
 | `src/analytics/views/analyticsViewContext.ts` | Adiciona `codeMetadataVariable: string \| null` e `codeMetadataDisplay: 'count' \| 'pct-row' \| 'pct-col'` e `codeMetadataHideMissing: boolean` |
 | `src/analytics/views/analyticsView.ts` | Persistência dos novos estados no `data.json` (mesmo pattern de `sortMode`, `groupBy` etc.) |
-| `src/analytics/data/stats/inferential.ts` | Extrai `computeChiSquareForCategories(observed: number[][]): { chi², df, p, cramersV, significant }` puro reutilizável. Mantém comportamento de `calculateChiSquare` idêntico |
+| `src/analytics/data/inferential.ts` | Extrai helper genérico (ver § "Chi² puro reutilizável" abaixo). Refactor preserva comportamento de `calculateChiSquare` byte-identical |
 | `src/analytics/data/statsEngine.ts` | Re-export de `calculateCodeMetadata` |
+
+### Chi² puro reutilizável
+
+`calculateChiSquare` atual (`inferential.ts:32`) constrói a tabela 2×K (presente/ausente × categoria) intercalado com a iteração de markers, e usa `N` (total de markers) como denominador. Pra reusar no `codeMetadata` (matriz K×M, sem dicotomia presente/ausente), o cálculo numérico precisa ser extraído em um helper puro genérico:
+
+```ts
+export function chiSquareFromContingency(
+  observed: number[][]   // R rows × C cols, valores ≥ 0
+): {
+  chiSquare: number;
+  df: number;
+  pValue: number;
+  cramersV: number;
+  significant: boolean;
+  expected: number[][];
+}
+```
+
+**Requisitos do refactor:**
+
+1. **Manter arredondamentos exatos** do `calculateChiSquare` original (`Math.round(e * 100)/100` nos expecteds, `Math.round(chiSq * 1000)/1000` no chi², etc.). Qualquer drift quebra a `inferential.test.ts` existente
+2. **Regression test** em `inferential.test.ts`: rodar `calculateChiSquare` com fixtures pré-existentes antes/depois; outputs devem ser bit-idênticos
+3. **Implementar primeiro** (chunk 1 da execução), antes de qualquer outro código novo. Smoke test imediato no vault confirma que o painel chi-square existente continua funcionando idêntico
+
+`calculateChiSquare` interno passa a delegar a contagem da tabela 2×K + chamada do helper; `codeMetadata` delega a montagem da tabela K×M + chamada do mesmo helper.
 
 ### Render do heatmap
 
 Canvas 2D puro (mesmo pattern do `docMatrixMode`):
 
-- **Linhas** = códigos, ordenadas por `total desc` (default), com toggles futuros pra alfa/chi²
+- **Linhas** = códigos. Ordenação **default**: `total desc`. Sortable via click no header de linhas: cicla `total desc → total asc → name asc → name desc → χ² desc → χ² asc → p asc → p desc → total desc`. Estado de sort persistido em `ctx.cmSort: { col: 'total' | 'name' | 'chi2' | 'p'; asc: boolean }`
 - **Colunas** = valores da variável + opcional `(missing)` no fim
 - **Célula**: cor via `heatmapColor(normalized)`; texto = valor formatado conforme `displayMode`
 - **Coluna lateral** (à direita): `χ² · p` em duas linhas compactas; asterisco se `significant`; `—` se `isMultitext`
 - **Hover**: tooltip com (código, valor, contagem, % linha, % col)
-- **Click numa célula**: opcional — drill-down como TODO post-v1; v1 não implementa
+- **Click numa célula**: drill-down (mostrar markers daquela combinação) — fora do escopo v1
 
 ### Empty states
 
@@ -129,7 +161,7 @@ Canvas 2D puro (mesmo pattern do `docMatrixMode`):
 | `registry.getAllVariableNames()` vazio | "No Case Variables defined. Add them in the side panel." |
 | Variável selecionada sem valores em nenhum arquivo | "No files have a value for `<name>`" |
 | Filtros eliminam todos markers | "No data after filters" (idem outros modos) |
-| Variável com 1 valor único | Renderiza 1 coluna; coluna estatística mostra `—` com aviso "Only one value — no contingency" |
+| Variável com apenas 1 categoria após binning (1 valor único, ou number sem variação, ou date com 1 ponto no tempo) | Renderiza 1 coluna; coluna estatística mostra `—` com aviso "Only one value — no contingency". Tratamento unificado: o que importa é nº de bins, não tipo da variável |
 
 ---
 
@@ -166,9 +198,8 @@ Export CSV: matriz crua + colunas estatísticas
 | Sem Case Variables | Empty state com link pro side panel |
 | Variável sem valores preenchidos | Empty state |
 | 0 markers após filtros | "No data after filters" |
-| Variável com 1 valor único | 1 coluna; chi² desabilitado (df=0); aviso compacto |
+| Variável com apenas 1 categoria após binning (1 valor único, number sem variação, date com 1 ponto) | 1 coluna; chi² desabilitado (df=0); aviso compacto. Tratamento unificado |
 | Multitext | Explode; coluna chi² mostra `—` com tooltip |
-| Number sem variação | 1 bin; mesmo tratamento de "1 valor único" |
 | Date com range curto | Granularidade dia; sem tratamento especial |
 | Variável escolhida == variável filtrada | Banner: "Filtering by `<x>` while using as dimension — only filtered value will appear" |
 | Cardinalidade alta (>30) | Renderiza tudo; sem truncar |
@@ -183,8 +214,8 @@ Export CSV: matriz crua + colunas estatísticas
 | Arquivo | Cobertura |
 |---------|-----------|
 | `binning.test.ts` | `binNumeric`: quartis em distribuição uniforme; edge case 1 valor; todos iguais; ≤4 valores únicos → categórico; NaN/null skip. `binDate`: range >2 anos → ano; 1 mês–2 anos → mês; <1 mês → dia. `explodeMultitext`: array, string única, vazio, null |
-| `codeMetadata.test.ts` | `calculateCodeMetadata` puro: matriz correta de contagem com fixture conhecido; chi² bate com cross-check externo (R/scipy) num caso 2×3; multitext → `stats[i] = null` e `isMultitext = true`; coluna `(missing)` populada quando arquivo sem valor; `includeMissing: false` exclui coluna; filtros aplicados antes do cálculo |
-| `inferential.test.ts` (existente) | Garantir que extração de `computeChiSquareForCategories` mantém output idêntico ao `calculateChiSquare` original (regression) |
+| `codeMetadata.test.ts` | `calculateCodeMetadata` puro: matriz correta de contagem com fixture conhecido; chi² bate com cross-check externo (R/scipy) num caso 2×3; multitext → `stats[i] = null` e `isMultitext = true`; coluna `(missing)` populada quando arquivo sem valor; `includeMissing: false` exclui coluna; filtros aplicados antes do cálculo; flatten de multitext em discovery (input com `string[]` não vira coluna `["a","b"]`, vira colunas `a` e `b`) |
+| `inferential.test.ts` (existente) | **Regression bit-idêntica**: `calculateChiSquare` rodado com fixtures pré-existentes antes/depois do refactor produz outputs idênticos ao último decimal armazenado. Incluir teste novo de `chiSquareFromContingency` em isolamento (3×3, 2×4, 1×K com df=0, fixture cross-checked com R/scipy) |
 
 ### Integration (jsdom DOM)
 
@@ -221,11 +252,12 @@ Testes verdes ≠ feature funcionando (lição cara): mocks vitest+jsdom validam
 
 ## Estimativa
 
-~3-4h. Distribuída como:
-- Helpers de binning + extração do chi² puro (~1h)
-- `calculateCodeMetadata` + testes (~1h)
-- Mode + render heatmap + render options (~1-1.5h)
-- Smoke manual + ajustes finais (~0.5h)
+~3-4h. Distribuída em chunks com smoke checkpoint **a cada um**:
+
+1. **Chi² extraction (chunk de risco)** — extrai `chiSquareFromContingency`, refaz `calculateChiSquare` delegando, regression test bit-idêntico, smoke do chi-square mode no vault. Se aqui passar, o resto é ferramentaria. (~1h)
+2. **Binning + `calculateCodeMetadata`** — helpers puros + função consolidada + unit tests com fixture cross-checked. (~1h)
+3. **Mode + heatmap + render options** — `codeMetadataMode.ts`, render canvas, dropdown/toggles, persistência, smoke completo no vault com cada tipo de variável. (~1-1.5h)
+4. **Polish + ajustes pós-smoke** — empty states, tooltip, banner, CSV export. (~0.5h)
 
 ---
 
