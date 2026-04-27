@@ -200,8 +200,8 @@ Itens menores que se somam a uma camada de polish analítico. Ordem sugerida do 
 
 | Item | Esforço | Detalhe |
 |------|---------|---------|
-| **Relations Network — hover-focus** | ~45 min | Ao passar cursor sobre um nó, destacar edges que entram/saem dele e escurecer o resto. No loop de draw do `relationsNetworkMode.ts`: dividir opacity por 3 pras edges que não tocam `hoveredNodeIdx` |
-| **Relations Network — filtro "N+ aplicações"** | ~30 min | Slider ou input no painel de config: só renderiza edges com `weight >= N`. Threshold no `extractRelationEdges` ou no loop de draw |
+| ~~**Relations Network — hover-focus**~~ ✅ 2026-04-27 | ~45 min | Ao passar cursor sobre um nó, destacar edges que entram/saem dele e escurecer o resto. No loop de draw do `relationsNetworkMode.ts`: dividir opacity por 3 pras edges que não tocam `hoveredNodeIdx` |
+| ~~**Relations Network — filtro "N+ aplicações"**~~ ✅ 2026-04-27 | ~30 min | Slider ou input no painel de config: só renderiza edges com `weight >= N`. Threshold no `extractRelationEdges` ou no loop de draw |
 | **Analytic Memo View** (ex-#3) | Médio | `memo?: string` já existe em todos os engines — só falta consumir no Analytics. Visualização dedicada agregando memos de markers por código/source |
 | **Code × Metadata** (ex-#9) | 2-3h | Tabelas de contingência código × variável demográfica. Depende de Case Variables (FEITO). Reusa `inferentialEngine` base |
 | **Multi-tab spreadsheet export** | Médio | Export das análises do Analytics como .xlsx com uma aba por modo (frequency, cooccurrence, doc-matrix). Herdado do ex-§17 do BACKLOG |
