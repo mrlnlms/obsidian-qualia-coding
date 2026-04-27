@@ -166,39 +166,23 @@ export function calculateChiSquare(
     }
 
     const observed: number[][] = [];
-    const expected: number[][] = [];
     for (let k = 0; k < K; k++) {
       observed.push([present[k], markersPerCat[k] - present[k]]);
     }
 
-    const colSum0 = present.reduce((a: number, b: number) => a + b, 0);
-    const colSum1 = N - colSum0;
-
-    let chiSq = 0;
-    for (let k = 0; k < K; k++) {
-      const e0 = (markersPerCat[k] * colSum0) / N;
-      const e1 = (markersPerCat[k] * colSum1) / N;
-      expected.push([Math.round(e0 * 100) / 100, Math.round(e1 * 100) / 100]);
-      if (e0 > 0) chiSq += ((observed[k]![0]! - e0) ** 2) / e0;
-      if (e1 > 0) chiSq += ((observed[k]![1]! - e1) ** 2) / e1;
-    }
-
-    chiSq = Math.round(chiSq * 1000) / 1000;
-    const df = K - 1;
-    const pValue = Math.round(chiSquareSurvival(chiSq, df) * 10000) / 10000;
-    const cramersV = N > 0 ? Math.round(Math.sqrt(chiSq / N) * 1000) / 1000 : 0;
+    const stats = chiSquareFromContingency(observed);
 
     const def = codeById.get(codeId);
     entries.push({
       code: def?.name ?? codeId,
       color: def?.color ?? "#6200EE",
-      chiSquare: chiSq,
-      df,
-      pValue,
-      cramersV,
-      significant: pValue < 0.05,
+      chiSquare: stats.chiSquare,
+      df: stats.df,
+      pValue: stats.pValue,
+      cramersV: stats.cramersV,
+      significant: stats.significant,
       observed,
-      expected,
+      expected: stats.expected,
     });
   }
 
