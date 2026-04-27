@@ -333,6 +333,12 @@ Image/Audio/Video agora estendem `FileView` (commits `0a46869`/`f87285d`/`4898f6
 - Pastas nested → **Coding management**
 - Margin Panel Customization → **Margin Panel — melhorias**
 
+**Memo View — render strategy follow-up (2026-04-27)**
+
+Atual implementação em `src/analytics/views/modes/memoView/renderCodeSection.ts` faz collapse por código com `markerLimit` (default 10, dropdown 5/10/25/all). Funciona pra corpus realista (≤500 marker memos visíveis simultâneos no DOM).
+
+Trigger pra migrar pra virtual scroll (espelhando `codebookTreeRenderer`): scroll travado com `markerLimit="all"` em vault com >500 marker memos. Plan original tem nota sobre estratégia C; aggregate function fica intocada, só substitui `renderCodeSection` por implementação virtual. Estimativa: 3-4h quando dor surgir.
+
 Sem items remanescentes nesta seção no momento. Repovoar quando surgir polish curto que não cabe em nenhum guarda-chuva.
 
 ### Como usar esta seção
