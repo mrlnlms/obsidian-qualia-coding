@@ -4,6 +4,7 @@ import { aggregateMemos } from "../../../data/memoView";
 import { readAllData } from "../../../data/dataReader";
 import { renderCoverageBanner } from "./renderCoverageBanner";
 import { renderCodeSection } from "./renderCodeSection";
+import { renderFileSection } from "./renderFileSection";
 
 export function renderMemoView(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   const container = ctx.chartContainer;
@@ -31,29 +32,41 @@ export function renderMemoView(ctx: AnalyticsViewContext, filters: FilterConfig)
     return;
   }
 
-  if (!result.byCode || result.byCode.length === 0) {
+  const sections = ctx.mvGroupBy === "file" ? result.byFile : result.byCode;
+  if (!sections || sections.length === 0) {
     wrapper.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
       text: "No memos match current filters.",
     });
     return;
   }
 
-  for (const sec of result.byCode) {
-    renderCodeSection(wrapper, sec, {
-      app: ctx.plugin.app,
-      ctx,
-      markerLimit: ctx.mvMarkerLimit,
-      expanded: ctx.mvExpanded,
-      onToggleExpand: (codeId) => {
-        if (ctx.mvExpanded.has(codeId)) ctx.mvExpanded.delete(codeId);
-        else ctx.mvExpanded.add(codeId);
-        ctx.scheduleUpdate();
-      },
-      resolveGroupName: (gid) => ctx.plugin.registry.getGroup(gid)?.name ?? gid,
-    });
+  if (ctx.mvGroupBy === "file" && result.byFile) {
+    for (const sec of result.byFile) {
+      renderFileSection(wrapper, sec, {
+        app: ctx.plugin.app,
+        ctx,
+        resolveCodeName: (id) => ctx.plugin.registry.getById(id)?.name ?? id,
+        resolveCodeColor: (id) => ctx.plugin.registry.getById(id)?.color ?? "var(--text-muted)",
+      });
+    }
+    return;
+  }
+
+  if (result.byCode) {
+    for (const sec of result.byCode) {
+      renderCodeSection(wrapper, sec, {
+        app: ctx.plugin.app,
+        ctx,
+        markerLimit: ctx.mvMarkerLimit,
+        expanded: ctx.mvExpanded,
+        onToggleExpand: (codeId) => {
+          if (ctx.mvExpanded.has(codeId)) ctx.mvExpanded.delete(codeId);
+          else ctx.mvExpanded.add(codeId);
+          ctx.scheduleUpdate();
+        },
+        resolveGroupName: (gid) => ctx.plugin.registry.getGroup(gid)?.name ?? gid,
+      });
+    }
   }
 }
 
-export function renderMemoViewOptions(_ctx: AnalyticsViewContext): void {
-  // Próxima chunk
-}

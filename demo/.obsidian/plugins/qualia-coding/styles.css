@@ -5381,3 +5381,40 @@ body.codebook-dragging * {
 	color: var(--text-muted);
 	margin-bottom: 2px;
 }
+.memo-view-file-section {
+	padding: 12px 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.memo-view-file-header {
+	margin-bottom: 8px;
+}
+.memo-view-file-name {
+	font-weight: 600;
+	font-size: 14px;
+}
+.memo-view-code-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	align-items: center;
+	margin-bottom: 8px;
+	font-size: 12px;
+}
+.memo-view-code-chips-label {
+	color: var(--text-muted);
+}
+.memo-view-code-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 6px;
+	background: var(--background-modifier-hover);
+	border-radius: 3px;
+	font-size: 11px;
+}
+.memo-view-color-dot-inline {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	margin-right: 0;
+}
