@@ -35,13 +35,13 @@ Audit log #29 já captura `merged_into`/`absorbed`. Quando description/memo do t
 | 3 | Nome "custom" no modal | **Sim** — input free-text como 4ª opção do radio (mantém o behavior atual). |
 | 4 | Default de description | **keep target.** Description é definição operacional; sources raramente complementam. |
 | 5 | Default de memo | **concatenate.** Memos são reflexão acumulada; perder por silêncio é o bug. |
-| 6 | Pattern de concatenate | `existing\n\n--- From {sourceName} ---\n{text}` — espelha `mergeMemos`/`mergeDescriptions` do QDPX importer (`src/import/qdpxImporter.ts`). Ordem: target primeiro, sources na ordem de adição. |
+| 6 | Pattern de concatenate | `existing\n\n--- From {sourceName} ---\n{text}` — inspirado nos helpers `mergeMemos`/`mergeDescriptions` do importer (`src/import/qdcImporter.ts:138-150`), que usam `--- Imported memo ---`. Aqui o cabeçalho diferente é intencional: contexto de merge interno expõe o nome da source, não a origem genérica "imported". Ordem: target primeiro, sources na ordem de adição. |
 | 7 | "Keep only X" | Dropdown nativo `<select>` listando só participantes com conteúdo não-vazio. Se ≤1 participante tem conteúdo, esconde a opção. |
 | 8 | Seções inteiras escondidas | Se nenhum participante tem description, esconde toda a section "Description". Idem memo. Não há nada a decidir. |
-| 9 | Audit log | Sem código novo. `registry.update` automaticamente emite `description_edited`/`memo_edited` quando o target muda. `merged_into`/`absorbed` continuam como hoje. |
+| 9 | Audit log | Sem código novo. `registry.update` (`src/core/codeDefinitionRegistry.ts:267,276,283`) emite `renamed`/`description_edited`/`memo_edited` automaticamente quando os respectivos campos mudam. **Cor não é auditada** (`update()` linha 269-271 não emite — decisão #29: cosmético). `merged_into`/`absorbed` continuam emitidos manualmente em `executeMerge` como hoje. |
 | 10 | Lifecycle de pre-add | `addSource(codeId)` continua existindo (drag-drop pré-popula). |
 | 11 | Preview rico | 4 linhas: markers reassigned, children reparented + nomes, groups unioned (só se houver mudança), sources deletados. |
-| 12 | Validação | Botão `Merge` desabilitado se: 0 sources, ou nome custom escolhido mas vazio. |
+| 12 | Validação | Botão `Merge` desabilitado se: (a) 0 sources, (b) nome custom escolhido mas vazio, ou (c) **final name colide** com código fora do escopo do merge (não-target, não-source) — inline error visível. Ver §"Name collision" abaixo. |
 | 13 | Modal width | Modal fica mais alto, mas não mais largo — colunas de input não fazem sentido pra textos longos de memo/description preview. Não precisa de classe nova de width. |
 | 14 | Testing | `mergeModal.test.ts` ganha cobertura das policies + cor + nome custom (jsdom). UI do modal — smoke test em vault real, não jsdom (consistente com #27/#28). |
 
@@ -53,7 +53,7 @@ Audit log #29 já captura `merged_into`/`absorbed`. Quando description/memo do t
 
 **Sem mudança de `data.json`.** Todos os inputs novos são parâmetros do merge — não persistem em estrutura nova. O resultado já cai nos campos existentes (`name`, `color`, `description`, `memo`, `groups`).
 
-### `MergeParams` estendido
+### `MergeParams` reescrito (sem shim legado)
 
 ```ts
 export type NameChoice =
@@ -77,19 +77,24 @@ export interface MergeParams {
   registry: CodeDefinitionRegistry;
   markers: BaseMarker[];
 
-  // novos
-  nameChoice?: NameChoice;          // default: { kind: 'target' }
-  colorChoice?: ColorChoice;        // default: { kind: 'target' }
-  descriptionPolicy?: TextPolicy;   // default: { kind: 'keep-target' }
-  memoPolicy?: TextPolicy;          // default: { kind: 'concatenate' }
+  nameChoice: NameChoice;
+  colorChoice: ColorChoice;
+  descriptionPolicy: TextPolicy;
+  memoPolicy: TextPolicy;
 
-  // legados — mantidos por compat com chamadas atuais (drag-drop simples)
-  destinationName?: string;
-  destinationParentId?: string;
+  /** Move target sob outro parent. Independente das outras choices. `null` move pra root. */
+  destinationParentId?: string | null;
+}
+
+export interface MergeResult {
+  updatedMarkers: BaseMarker[];
+  affectedCount: number;
+  ok: boolean;                       // false se rename falhou por collision
+  reason?: 'name-collision';
 }
 ```
 
-> **Por que defaults?** Permite que `executeMerge` continue sendo chamado por quem ainda não passa os novos params (testes legados, eventual chamada externa) — comportamento herdado é "keep target" + concatenate de memo (que é o comportamento desejado novo, não o atual). Os callers reais (modal) sempre passam tudo explícito.
+> **Sem defaults, sem shim legado.** Per CLAUDE.md (zero usuários, sem backwards-compat code), os 4 fields novos são obrigatórios; os 2 callers do modal e os 2 testes que ainda usam `destinationName`/`destinationParentId` (`tests/core/mergeModal.test.ts:72-85`) migram pra schema novo no mesmo plan. `destinationName` e `destinationParentId` velhos somem da assinatura.
 
 ### Helpers puros novos
 
@@ -141,22 +146,22 @@ function concatenate(
 
 > **Edge case:** se target tem texto vazio e só 1 source tem conteúdo, `concatenate` produz `--- From X ---\nY`. Faz sentido — o usuário pediu concatenação. Se quiser sem o cabeçalho, escolhe `keep-only [source X]`.
 
-### `executeMerge` refactor (mudanças localizadas)
+### `executeMerge` refactor (ordem reescrita)
 
-Sequência continua a mesma — só ganha 3 passos novos antes do delete dos sources:
+A ordem importa por causa de **name collision**: se a escolha for "keep source name" e o nome do source ainda estiver em `nameIndex`, o `update({ name })` é rejeitado silenciosamente (`registry.ts:259-262`). Solução: rename **depois** do `delete(sourceIds)` — `_deleteCodeNoEmit` limpa `nameIndex.delete(def.name)` (linha 339), liberando o nome.
 
-1. ~~Reassign markers~~ — sem mudança
-2. ~~Reparent children~~ — sem mudança
-3. **Resolver nome final** via `resolveName(nameChoice, target, sources)`. Se difere do atual, `registry.update(id, { name })`.
-4. **Resolver cor final** via `resolveColor(colorChoice, target, sources)`. Se difere, `registry.update(id, { color })`.
-5. **Aplicar policy de description** via `applyTextPolicy(descriptionPolicy, target, sources, 'description')`. Se difere do atual, `registry.update(id, { description })` (audit log dispara `description_edited`).
-6. **Aplicar policy de memo** análogo (audit log dispara `memo_edited`).
-7. ~~Record `mergedFrom` + union de groups~~ — sem mudança
-8. ~~Update destinationParentId (legado)~~ — sem mudança, mas só roda se `nameChoice`/`colorChoice` não foram passados (compat shim, ver §"Backwards-compat das chamadas")
-9. ~~Audit `merged_into` + `absorbed` + `suppressNextDelete`~~ — sem mudança
-10. ~~Delete sources~~ — sem mudança
+Ordem nova (10 passos):
 
-> **Cuidado:** `destinationName` legado está coberto por `nameChoice = { kind: 'custom', value: ... }`. Os 2 callers reais migram pra `nameChoice`. `destinationName` continua aceito mas vira deprecated path: se passado e `nameChoice` ausente, é interpretado como `{ kind: 'custom', value: destinationName }`.
+1. **Reassign markers** — sem mudança
+2. **Reparent children** — sem mudança
+3. **Apply COLOR** — `update(id, { color })` se mudou (não auditado por design)
+4. **Apply DESCRIPTION** — `update(id, { description })` (audit `description_edited` se mudou)
+5. **Apply MEMO** — `update(id, { memo })` (audit `memo_edited` se mudou)
+6. **Record `mergedFrom` + union de groups** — sem mudança
+7. **Audit `merged_into` + `absorbed` + `suppressNextDelete`** — sem mudança
+8. **Delete sources** — libera `nameIndex` dos sources
+9. **Apply NAME** — `update(id, { name })` se difere do atual (audit `renamed` se mudou). Pra `nameChoice = source` ou `target`, garantidamente não colide. Pra `custom`, é o caller que pré-validou (modal). Se ainda assim colidir (race extrema), retorna `{ ok: false, reason: 'name-collision' }`.
+10. **Apply destinationParentId** (se passado, independente — `null` move pra root via `setParent(id, undefined)`)
 
 ### `MergeModal` UI
 
@@ -214,9 +219,13 @@ private customName = '';
 - Idem memo.
 - Em "Keep only", o `<select>` lista só os participantes com conteúdo não-vazio. Se ≤1 tem, a opção `keep only` some do radio.
 
-**Validação:**
-- Botão `Merge` desabilita quando: `sourceIds.size === 0` OU (`nameChoice.kind === 'custom' && customName.trim() === ''`).
-- Sem nome duplicado check no modal (mesma lógica permissiva do registry).
+**Validação (pre-flight collision check):**
+- Computa `finalName` pelo `resolveName(nameChoice, target, sources)`.
+- Considera "código não-target, não-source" como `registry.getAll().filter(c => c.id !== target.id && !sourceIds.has(c.id))`.
+- Se algum desses tem `name === finalName` (case-sensitive, mesmo critério do `nameIndex`), bloqueia merge.
+- Botão `Merge` desabilita quando: (a) `sourceIds.size === 0`, (b) `nameChoice.kind === 'custom' && customName.trim() === ''`, OU (c) collision detectada.
+- Inline error abaixo da seção Name: `Name "X" is already used by another code.`
+- Nota: nomes que colidem com sources ou com o target em si são OK — o source vai sumir antes do rename, e renomear pra si mesmo é no-op.
 
 ### Drag-drop entry point
 
@@ -235,8 +244,9 @@ private customName = '';
 | `src/core/mergePolicies.ts` | **Novo.** Helpers puros: `resolveName`, `resolveColor`, `applyTextPolicy`, types `NameChoice`/`ColorChoice`/`TextPolicy`. |
 | `src/core/mergeModal.ts` | `MergeParams` ganha 4 campos opcionais. `executeMerge` aplica policies (3 chamadas a `registry.update`). `MergeModal.onOpen` reescreve UI com 4 seções novas + preview rico + render reativo. `onConfirm` callback ganha objeto único em vez de 4 args. |
 | `src/core/baseCodeDetailView.ts` | Os 2 callers do modal (`onMergeDrop` linha 516, `openMergeModal` linha 951) passam `decision` único pro `onConfirm` e propagam pra `executeMerge`. |
-| `tests/core/mergeModal.test.ts` | Novos tests: cor escolhida do source, nome do source, nome custom, concatenate description, concatenate memo, keep-only memo, discard memo, todos os participantes vazios = noop. |
+| `tests/core/mergeModal.test.ts` | Reescrito: 2 testes legados (linhas 72-85) migram pra `nameChoice = { kind: 'custom', value }` e `destinationParentId` direto. Adiciona testes: cor escolhida do source, nome do source, nome custom, concatenate description, concatenate memo, keep-only memo, discard memo, todos os participantes vazios = noop, **rename pós-delete não colide com source**, **rename custom em collision retorna `ok:false`**. |
 | `tests/core/mergePolicies.test.ts` | **Novo.** Cobre os 3 helpers puros isoladamente (decisão de escopo: testar lógica fora do modal). |
+| `tests/core/mergeGroupsUnion.test.ts` | **Sem mudança.** Lógica de union dos groups está intacta (passo 6, sem refactor). |
 | `styles.css` | Pequenos ajustes pra novas classes `.codebook-merge-section`, `.codebook-merge-radio-row`, `.codebook-merge-preview-list`, swatches inline. |
 
 ---
@@ -249,12 +259,18 @@ private customName = '';
 - description: keep-target
 - memo: concatenate
 
-**executeMerge produz no destination:**
-- `name = 'frustração'` — sem registry.update (igual)
-- `color = '<cor de irritação>'` — `registry.update(id, { color })` → audit `created`/`renamed`/etc não dispara (cor não está na lista — ver `auditLog.ts`); cor change não auditada (decisão #29: cosmético).
-- `description` — sem mudança
-- `memo = "tensão emocional aguda\n\n--- From irritação ---\nraiva curta sem alvo claro"` — `registry.update(id, { memo })` → audit dispara `memo_edited` automaticamente.
-- markers reassignados, source deletada, audit `merged_into`/`absorbed` emitidos.
+**executeMerge produz no destination (na ordem dos 10 passos):**
+- (1-2) markers reassignados, filhos reparenteados — sem efeito visível aqui.
+- (3) `color = '<cor de irritação>'` — `registry.update(id, { color })`. Audit **não** dispara (`registry.ts:269-271` só seta o campo, não emite).
+- (4) `description` igual — sem update.
+- (5) `memo = "tensão emocional aguda\n\n--- From irritação ---\nraiva curta sem alvo claro"` — `registry.update(id, { memo })` → audit `memo_edited` emitido.
+- (6) `mergedFrom` ganha `irritação.id`; groups: union.
+- (7) audit `merged_into` (em irritação) + `absorbed` (em frustração) emitidos.
+- (8) `irritação` deletada (audit `deleted` suprimido por passo 7).
+- (9) name = 'frustração' (sem mudança) — sem update.
+- (10) destinationParentId não passado — sem update.
+
+> **Coalescing audit log:** `description_edited` + `memo_edited` no mesmo merge são events distintos (campos diferentes), então cada um vira sua própria entry. Mas se o user re-merge no target em <60s, as entries do mesmo tipo coalesceriam (per `auditLog.ts` `COALESCE_WINDOW_MS`). Aceitável.
 
 ---
 
@@ -263,7 +279,9 @@ private customName = '';
 - **Source deletado durante o modal aberto** (race com outro fluxo): chip do source pode apontar pra `registry.getById(srcId) === undefined`. `executeMerge` já é tolerante (loop com `getById` checa null). UI: skip silencioso na hora de renderizar chip.
 - **Target deletado durante o modal aberto**: `onOpen` checa `getById(destinationId)` e fecha se null (já existe — linha 146). Sem mudança.
 - **Nome custom vazio**: `Merge` desabilitado.
-- **Concatenate com todos vazios**: helper retorna `''` (string vazia). Se `target.memo` era undefined, `registry.update(id, { memo: '' })` seta vazio. Aceitável — semanticamente equivalente.
+- **Name collision detectado pre-flight**: `Merge` desabilitado, inline error abaixo da seção Name. Resolução: usuário muda `nameChoice`.
+- **Name collision em runtime** (race entre pre-flight check e execução): `executeMerge` retorna `{ ok: false, reason: 'name-collision' }`. Caller (modal) mostra `Notice('Merge failed: name collision detected. Try again.')` e mantém modal aberto pra retry. Markers já foram reassignados nesse ponto — Notice deixa claro que o resto do merge correu, só o rename não. (Edge case extremo na prática single-user.)
+- **Concatenate com todos vazios**: helper retorna `undefined` (não `''`) — sinaliza "não atualize o campo". Se nem o target tinha conteúdo, `update` não roda, audit fica em silêncio. Limpo.
 
 ---
 
@@ -276,24 +294,24 @@ private customName = '';
 | `MergeModal` UI | Smoke test em vault real (consistente com #27/#28). Roteiro de teste no `MANUAL-TESTS.md`. |
 | Round-trip | Não aplicável — schema não muda, QDPX export já cobre `<MemoText>`/`<Description>`. |
 
-**Total estimado:** +20 a +25 testes (de 2389 → ~2410).
+**Total estimado:** +20 a +25 testes (baseline atual ~2363 → ~2385). Os 2 testes legados em `mergeModal.test.ts:72-85` são reescritos, não somados.
 
 ---
 
-## Backwards-compat das chamadas
+## Migração das chamadas (sem shim)
 
-`destinationName` e `destinationParentId` continuam suportados em `MergeParams` mas viram caminhos legados. Lógica:
+Per CLAUDE.md (zero usuários, sem backwards-compat code), `destinationName` é deletado da assinatura. `destinationParentId` muda de `string | undefined` (com `''` significando root) pra `string | null | undefined` (`null` = root explícito, `undefined` = não muda — semântica mais limpa).
 
-```ts
-if (params.nameChoice === undefined && params.destinationName !== undefined) {
-  // legado: trata como custom name
-  params.nameChoice = { kind: 'custom', value: params.destinationName };
-}
-```
+**Callers (4 sites):**
 
-Os 2 callers em `baseCodeDetailView.ts` migram pra `nameChoice` direto (sem fallback). Outros callers — não há, já busquei.
+| Site | Mudança |
+|------|---------|
+| `src/core/baseCodeDetailView.ts:516-537` (onMergeDrop drag) | `onConfirm` passa decisão completa (objeto) — modal já carrega state. |
+| `src/core/baseCodeDetailView.ts:951-970` (context menu) | Idem. |
+| `tests/core/mergeModal.test.ts:72-77` ("updates destination name") | `destinationName: 'NewName'` → `nameChoice: { kind: 'custom', value: 'NewName' }`. |
+| `tests/core/mergeModal.test.ts:79-85` ("moves destination to new parent") | `destinationParentId: parent.id` → mesmo (semântica preservada). |
 
-> Nota: como o projeto está em dev (zero usuários), o backwards-compat aqui é só pra não quebrar testes existentes em `mergeModal.test.ts` que ainda usam `destinationName`. Quando os tests forem reescritos pra `nameChoice`, removo o shim.
+Sem outros callers — `grep "executeMerge\|MergeModal" src/ tests/` confirma.
 
 ---
 
