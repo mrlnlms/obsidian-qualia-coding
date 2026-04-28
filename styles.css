@@ -5597,3 +5597,53 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	border-color: var(--interactive-accent);
 	outline: none;
 }
+
+/* ─── Merge Modal — Tier 2 expanded ─── */
+
+.codebook-merge-modal .codebook-merge-section {
+	margin: var(--size-4-3) 0;
+}
+
+.codebook-merge-modal .codebook-merge-radio-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1) 0;
+	cursor: pointer;
+}
+
+.codebook-merge-modal .codebook-merge-radio-row input[type="radio"] {
+	margin: 0;
+}
+
+.codebook-merge-modal .codebook-merge-radio-row-swatch {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	display: inline-block;
+}
+
+.codebook-merge-modal .codebook-merge-radio-row .codebook-merge-name-input {
+	flex: 1;
+	margin-left: var(--size-2-2);
+}
+
+.codebook-merge-modal .codebook-merge-radio-row select {
+	margin-left: var(--size-2-2);
+}
+
+.codebook-merge-modal .codebook-merge-name-error {
+	color: var(--text-error);
+	font-size: var(--font-ui-small);
+	padding: var(--size-2-1) 0;
+}
+
+.codebook-merge-modal .codebook-merge-preview-list ul {
+	margin: var(--size-2-2) 0;
+	padding-left: var(--size-4-4);
+}
+
+.codebook-merge-modal .codebook-merge-preview-list li {
+	padding: var(--size-2-1) 0;
+}

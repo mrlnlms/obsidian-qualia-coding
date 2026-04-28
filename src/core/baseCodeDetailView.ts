@@ -519,15 +519,21 @@ export abstract class BaseCodeDetailView extends ItemView {
 							registry: this.model.registry,
 							initialDestinationId: targetId,
 							allMarkers: this.model.getAllMarkers(),
-							onConfirm: (destId, srcIds, name, parentId) => {
-								executeMerge({
-									destinationId: destId,
-									sourceIds: srcIds,
+							onConfirm: (decision) => {
+								const result = executeMerge({
+									destinationId: decision.destinationId,
+									sourceIds: decision.sourceIds,
 									registry: this.model.registry,
 									markers: this.model.getAllMarkers(),
-									destinationName: name,
-									destinationParentId: parentId,
+									nameChoice: decision.nameChoice,
+									colorChoice: decision.colorChoice,
+									descriptionPolicy: decision.descriptionPolicy,
+									memoPolicy: decision.memoPolicy,
+									destinationParentId: decision.destinationParentId,
 								});
+								if (!result.ok && result.reason === 'name-collision') {
+									new Notice('Merge: name collision detected. Markers were reassigned but rename was skipped.');
+								}
 								this.model.saveMarkers();
 								this.showList();
 							},
@@ -954,15 +960,21 @@ export abstract class BaseCodeDetailView extends ItemView {
 					registry: this.model.registry,
 					initialDestinationId: codeId,
 					allMarkers: this.model.getAllMarkers(),
-					onConfirm: (destId, srcIds, name, parentId) => {
-						executeMerge({
-							destinationId: destId,
-							sourceIds: srcIds,
+					onConfirm: (decision) => {
+						const result = executeMerge({
+							destinationId: decision.destinationId,
+							sourceIds: decision.sourceIds,
 							registry: this.model.registry,
 							markers: this.model.getAllMarkers(),
-							destinationName: name,
-							destinationParentId: parentId,
+							nameChoice: decision.nameChoice,
+							colorChoice: decision.colorChoice,
+							descriptionPolicy: decision.descriptionPolicy,
+							memoPolicy: decision.memoPolicy,
+							destinationParentId: decision.destinationParentId,
 						});
+						if (!result.ok && result.reason === 'name-collision') {
+							new Notice('Merge: name collision detected. Markers were reassigned but rename was skipped.');
+						}
 						this.model.saveMarkers();
 						this.showList();
 					},
