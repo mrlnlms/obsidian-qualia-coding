@@ -18,7 +18,7 @@ import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
 import type { CodebookTreeState } from './codebookTreeRenderer';
-import { createExpandedState, collectAllCodesUnderFolder, type ExpandedState } from './hierarchyHelpers';
+import { createExpandedState, collectAllCodesUnderFolder, buildFlatTree, type ExpandedState } from './hierarchyHelpers';
 import { showCodeContextMenu, showFolderContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
 import { setupDragDrop } from './codebookDragDrop';
 import { MergeModal, executeMerge } from './mergeModal';
@@ -34,6 +34,9 @@ export abstract class BaseCodeDetailView extends ItemView {
 	protected expanded: ExpandedState = createExpandedState();
 	protected treeDragMode: 'reorganize' | 'merge' = 'reorganize';
 	protected selectedGroupId: string | null = null;
+	// Multi-select state — Cmd/Ctrl toggle, Shift range from anchor.
+	protected selectedCodeIds: Set<string> = new Set();
+	protected selectionAnchor: string | null = null;
 
 	private searchQuery = '';
 	private rafId: number | null = null;
@@ -76,6 +79,8 @@ export abstract class BaseCodeDetailView extends ItemView {
 
 	async onOpen() {
 		this.contentEl.addClass('codemarker-detail-panel');
+		// tabindex=-1 permite que contentEl receba keyboard events sem aparecer no tab order
+		if (!this.contentEl.hasAttribute('tabindex')) this.contentEl.setAttribute('tabindex', '-1');
 		this.model.onChange(this.scheduleRefresh);
 		this.model.onHoverChange(this.boundApplyHover);
 		document.addEventListener('qualia:registry-changed', this.scheduleRefresh);
@@ -87,6 +92,35 @@ export abstract class BaseCodeDetailView extends ItemView {
 		};
 		this.model.registry.addVisibilityListener(onVisibilityChange);
 		this.register(() => this.model.registry.removeVisibilityListener(onVisibilityChange));
+
+		// Keyboard: Esc limpa seleção, Delete/Backspace dispara bulk delete (se há seleção).
+		// Skip quando foco em input/textarea pra não consumir typing no search ou em edits inline.
+		const onKeyDown = (e: KeyboardEvent) => {
+			const active = document.activeElement;
+			if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+			if (e.key === 'Escape' && this.selectedCodeIds.size > 0) {
+				e.preventDefault();
+				this.clearCodeSelection();
+				return;
+			}
+			if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedCodeIds.size > 0) {
+				e.preventDefault();
+				this.bulkDeleteSelected();
+			}
+		};
+		this.contentEl.addEventListener('keydown', onKeyDown);
+		this.register(() => this.contentEl.removeEventListener('keydown', onKeyDown));
+
+		// Click em zona vazia (fora de row de código, folder, ou painel Groups) limpa seleção.
+		const onContentClick = (e: MouseEvent) => {
+			if (!(e.target instanceof HTMLElement)) return;
+			if (e.target.closest('[data-code-id]')) return;
+			if (e.target.closest('[data-folder-id]')) return;
+			if (e.target.closest('.codebook-groups-panel')) return;
+			if (this.selectedCodeIds.size > 0) this.clearCodeSelection();
+		};
+		this.contentEl.addEventListener('click', onContentClick);
+		this.register(() => this.contentEl.removeEventListener('click', onContentClick));
 
 		this.refreshCurrentMode();
 	}
@@ -159,7 +193,111 @@ export abstract class BaseCodeDetailView extends ItemView {
 			searchQuery: this.searchQuery,
 			dragMode: this.treeDragMode,
 			selectedGroupId: this.selectedGroupId,
+			selectedCodeIds: this.selectedCodeIds,
 		};
+	}
+
+	// ─── Multi-select helpers ───────────────────────────────
+
+	private toggleCodeSelection(codeId: string): void {
+		if (this.selectedCodeIds.has(codeId)) {
+			this.selectedCodeIds.delete(codeId);
+		} else {
+			this.selectedCodeIds.add(codeId);
+		}
+		this.selectionAnchor = codeId;
+	}
+
+	/**
+	 * Shift+click: range entre o anchor (última row clicada com bare/Cmd) e o target,
+	 * inclusive. Range respeita a árvore VISÍVEL (mesma flat tree do renderer, com
+	 * mesmas regras de search e expanded). Folders no range são ignorados — só códigos
+	 * entram na seleção. Sem anchor, comporta como toggle (seta anchor + adiciona).
+	 */
+	private selectCodeRange(targetId: string): void {
+		if (!this.selectionAnchor) {
+			this.selectedCodeIds.add(targetId);
+			this.selectionAnchor = targetId;
+			return;
+		}
+		const flat = buildFlatTree(this.model.registry, this.expanded, this.searchQuery);
+		const anchorIdx = flat.findIndex(n => n.type === 'code' && n.def.id === this.selectionAnchor);
+		const targetIdx = flat.findIndex(n => n.type === 'code' && n.def.id === targetId);
+		if (anchorIdx === -1 || targetIdx === -1) {
+			this.selectedCodeIds.add(targetId);
+			return;
+		}
+		const [from, to] = anchorIdx <= targetIdx ? [anchorIdx, targetIdx] : [targetIdx, anchorIdx];
+		// Range REPLACE: descarta seleção anterior, vai do anchor ao target inclusive
+		this.selectedCodeIds.clear();
+		for (let i = from; i <= to; i++) {
+			const node = flat[i];
+			if (node?.type === 'code') this.selectedCodeIds.add(node.def.id);
+		}
+		// Anchor preserved pra permitir extensão sequencial de range
+	}
+
+	private clearCodeSelection(): void {
+		if (this.selectedCodeIds.size === 0 && this.selectionAnchor === null) return;
+		this.selectedCodeIds.clear();
+		this.selectionAnchor = null;
+		this.refreshListContent();
+	}
+
+	/**
+	 * Bulk delete dos códigos atualmente selecionados. Mostra ConfirmModal com count
+	 * e preview dos primeiros nomes; após confirmação, chama registry.delete() em loop.
+	 * Markers que referenciam esses códigos perdem a referência (registry.delete já cuida).
+	 */
+	private showBulkContextMenu(event: MouseEvent): void {
+		const count = this.selectedCodeIds.size;
+		const menu = new Menu();
+		menu.addItem(item => item
+			.setTitle(`Delete ${count} codes`)
+			.setIcon('trash')
+			.setWarning(true)
+			.onClick(() => this.bulkDeleteSelected()));
+		menu.addSeparator();
+		menu.addItem(item => item
+			.setTitle('Clear selection')
+			.setIcon('x')
+			.onClick(() => this.clearCodeSelection()));
+		menu.showAtMouseEvent(event);
+	}
+
+	private bulkDeleteSelected(): void {
+		const ids = Array.from(this.selectedCodeIds);
+		if (ids.length === 0) return;
+		const names = ids
+			.map(id => this.model.registry.getById(id)?.name)
+			.filter((n): n is string => Boolean(n));
+		const preview = names.slice(0, 5).join(', ');
+		const more = names.length > 5 ? ` and ${names.length - 5} more` : '';
+		const message =
+			`Delete ${ids.length} code${ids.length === 1 ? '' : 's'}?\n\n` +
+			`${preview}${more}\n\n` +
+			`Markers referencing these codes will lose the reference.`;
+		new ConfirmModal({
+			app: this.app,
+			title: `Delete ${ids.length} code${ids.length === 1 ? '' : 's'}`,
+			message,
+			confirmLabel: 'Delete',
+			destructive: true,
+			onConfirm: () => {
+				for (const id of ids) this.model.registry.delete(id);
+				this.model.saveMarkers();
+				this.selectedCodeIds.clear();
+				this.selectionAnchor = null;
+				this.refreshCurrentMode();
+				new Notice(`Deleted ${ids.length} code${ids.length === 1 ? '' : 's'}.`);
+			},
+		}).open();
+	}
+
+	private refreshListContent(): void {
+		if (this.listContentZone) {
+			renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+		}
 	}
 
 	private renderList() {
@@ -241,7 +379,32 @@ export abstract class BaseCodeDetailView extends ItemView {
 
 	private listCallbacks() {
 		return {
-			onCodeClick: (codeId: string) => {
+			onCodeClick: (codeId: string, event: MouseEvent) => {
+				const isToggle = event.metaKey || event.ctrlKey;
+				const isRange = event.shiftKey && !isToggle;
+				if (isToggle) {
+					this.toggleCodeSelection(codeId);
+					this.refreshListContent();
+					return;
+				}
+				if (isRange) {
+					this.selectCodeRange(codeId);
+					this.refreshListContent();
+					return;
+				}
+				// Click puro com seleção ativa = modo seleção, não navega:
+				// - clicou na selected → tira da seleção
+				// - clicou numa NÃO selected → limpa tudo (sem selecionar a nova, sem navegar)
+				if (this.selectedCodeIds.size > 0) {
+					if (this.selectedCodeIds.has(codeId)) {
+						this.toggleCodeSelection(codeId);
+						this.refreshListContent();
+					} else {
+						this.clearCodeSelection();
+					}
+					return;
+				}
+				// Sem seleção ativa: comportamento original (navegar pro detail)
 				this.searchQuery = '';
 				this.showCodeDetail(codeId);
 			},
@@ -262,6 +425,11 @@ export abstract class BaseCodeDetailView extends ItemView {
 				}
 			},
 			onCodeRightClick: (codeId: string, event: MouseEvent) => {
+				// Se há seleção e o código clicado faz parte dela, mostra menu bulk com Delete N
+				if (this.selectedCodeIds.size > 1 && this.selectedCodeIds.has(codeId)) {
+					this.showBulkContextMenu(event);
+					return;
+				}
 				showCodeContextMenu(event, codeId, this.model.registry, this.contextMenuCallbacks());
 			},
 			onFolderToggleExpand: (folderId: string) => {

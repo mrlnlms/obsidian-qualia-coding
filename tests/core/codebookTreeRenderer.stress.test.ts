@@ -70,7 +70,7 @@ describe('codebookTreeRenderer stress + recycling', () => {
 	it('renders only visible rows with 5000 codes (not 5000 DOM nodes)', () => {
 		const model = makeStubModel(5000);
 		const container = makeHost(500);
-		const state = { expanded: createExpandedState(), searchQuery: '', dragMode: 'reorganize' as const };
+		const state = { expanded: createExpandedState(), searchQuery: '', dragMode: 'reorganize' as const, selectedGroupId: null, selectedCodeIds: new Set<string>() };
 
 		renderCodebookTree(container, model, state, makeCallbacks());
 
@@ -89,7 +89,7 @@ describe('codebookTreeRenderer stress + recycling', () => {
 	it('initial render of 5000 codes runs under 300ms', () => {
 		const model = makeStubModel(5000);
 		const container = makeHost(500);
-		const state = { expanded: createExpandedState(), searchQuery: '', dragMode: 'reorganize' as const };
+		const state = { expanded: createExpandedState(), searchQuery: '', dragMode: 'reorganize' as const, selectedGroupId: null, selectedCodeIds: new Set<string>() };
 
 		const start = performance.now();
 		renderCodebookTree(container, model, state, makeCallbacks());
@@ -101,7 +101,7 @@ describe('codebookTreeRenderer stress + recycling', () => {
 	it('recycles rows on small scrolls: overlapping rows keep the same DOM node', () => {
 		const model = makeStubModel(5000);
 		const container = makeHost(500);
-		const state = { expanded: createExpandedState(), searchQuery: '', dragMode: 'reorganize' as const };
+		const state = { expanded: createExpandedState(), searchQuery: '', dragMode: 'reorganize' as const, selectedGroupId: null, selectedCodeIds: new Set<string>() };
 
 		renderCodebookTree(container, model, state, makeCallbacks());
 		const scrollEl = container.querySelector('.codebook-tree-scroll') as HTMLElement;
@@ -140,7 +140,7 @@ describe('codebookTreeRenderer stress + recycling', () => {
 	it('cleans up DOM nodes after a long-distance scroll (no leak)', () => {
 		const model = makeStubModel(5000);
 		const container = makeHost(500);
-		const state = { expanded: createExpandedState(), searchQuery: '', dragMode: 'reorganize' as const };
+		const state = { expanded: createExpandedState(), searchQuery: '', dragMode: 'reorganize' as const, selectedGroupId: null, selectedCodeIds: new Set<string>() };
 
 		renderCodebookTree(container, model, state, makeCallbacks());
 		const scrollEl = container.querySelector('.codebook-tree-scroll') as HTMLElement;
@@ -157,7 +157,7 @@ describe('codebookTreeRenderer stress + recycling', () => {
 	it('handles rapid sequential scrolls without accumulating rows', () => {
 		const model = makeStubModel(5000);
 		const container = makeHost(500);
-		const state = { expanded: createExpandedState(), searchQuery: '', dragMode: 'reorganize' as const };
+		const state = { expanded: createExpandedState(), searchQuery: '', dragMode: 'reorganize' as const, selectedGroupId: null, selectedCodeIds: new Set<string>() };
 
 		renderCodebookTree(container, model, state, makeCallbacks());
 		const scrollEl = container.querySelector('.codebook-tree-scroll') as HTMLElement;

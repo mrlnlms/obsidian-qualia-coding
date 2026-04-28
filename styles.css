@@ -5094,6 +5094,15 @@ body.codebook-dragging * {
 .codebook-tree-row.is-group-non-member:not(.qc-code-row-hidden) {
 	opacity: 0.4;
 }
+/* Multi-select: tint accent + borda esquerda. Convive com is-group-member (que já tem
+   inset shadow accent) e com hover. Distinção sutil pra não competir com chips/swatch. */
+.codebook-tree-row.is-selected {
+	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	box-shadow: inset 3px 0 0 var(--interactive-accent);
+}
+.codebook-tree-row.is-selected:hover {
+	background: color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+}
 /* Durante drag, rows desbotadas (não-membros do group ativo, ou ocultas via toggle)
    ficam não-interativas pra cursor. Sem isso, o "drop em zona vazia" nunca dispara —
    o cursor passa por cima de uma row escondida e o handler trata como reparent. */
