@@ -28,9 +28,9 @@
 | 3 | Stacking color por type | 6 cores fixas (palette neutra do plugin); not-per-code. `description_edited` e `memo_edited` agrupam em "Edited" |
 | 4 | Lista order | Descending (mais recente em cima) — pattern do GitHub activity |
 | 5 | Click numa linha | Navega pro Code Detail via `revealCodeDetailForCode(codeId)`. Códigos deletados: row em cinza, `cursor: not-allowed`, click no-op |
-| 6 | Resolve nome de code deletado | Engine constrói `Map<codeId, lastKnownName>` a partir do próprio log (`renamed.to`, `absorbed.absorbedNames`, fallback `codeId`) |
+| 6 | Resolve nome de code deletado | Engine constrói `Map<codeId, lastKnownName>` a partir do próprio log: (a) registry pra códigos vivos, (b) `renamed.to` pra deletados que tiveram rename, (c) `absorbed.absorbedNames[i]` pareado com `absorbedIds[i]` pra códigos consumidos em merges, (d) fallback `codeId` |
 | 7 | Hidden entries | Excluídas por default. Toggle "Show hidden (N)" no config — UI dim italic quando exibe |
-| 8 | Filter event types | 6 checkboxes (visualmente: 1 chip por type, click toggles). All-on por default. `description_edited`+`memo_edited` ficam num chip único "Edited" |
+| 8 | Filter event types + chart stacking | **6 buckets visuais** (`created`/`renamed`/`edited`/`absorbed`/`merged_into`/`deleted`) — `description_edited`+`memo_edited` agregam em "edited" só no **chart** e nos **filter chips**. Lista cronológica e markdown export **mantêm labels específicos** ("description edited" vs "memo edited") porque a distinção é informação barata e útil |
 | 9 | Filter by code name | Input free-text, fuzzy match em `lastKnownName` (incluindo deletados) |
 | 10 | Date range filter | Não. YAGNI — granularity + scroll resolvem |
 | 11 | Export markdown | Reusa `renderEntryMarkdown` + agrupamento por dia. Cria nota `Codebook timeline — YYYY-MM-DD.md` na raiz do vault e abre |
@@ -89,23 +89,35 @@ export interface TimelineEvent {
 
 /**
  * Resolve nomes de códigos deletados varrendo o log:
- * - `renamed.to` é o nome final na época do rename
- * - `absorbed.absorbedNames` lista os nomes consumidos
- * - Pra `created`/`deleted` simples sem outras pistas → fallback ao codeId.
+ * - registry: nomes vivos (verdade absoluta pra códigos não deletados)
+ * - `renamed.to`: último nome conhecido pra deletados que tiveram rename
+ * - `absorbed.absorbedNames[i]` pareado com `absorbedIds[i]`: pra códigos consumidos em merges (deletados como source)
+ * - Fallback final: codeId.
+ *
+ * Ordem importa: pra um deletado que tinha rename E foi absorbed, prevalece a entry mais recente.
  */
 export function buildCodeNameLookup(
   log: AuditEntry[],
   registry: Map<string, CodeDefinition>,
 ): Map<string, string> {
   const lookup = new Map<string, string>();
-  // 1. Primeiro: nomes vivos do registry (verdade absoluta pra códigos não deletados)
+  // 1. Nomes vivos do registry
   for (const [id, def] of registry) lookup.set(id, def.name);
-  // 2. Depois: pra deletados, varre log
+  // 2. Varre log em ordem cronológica (assume log já ordenado por at) pra deletados.
+  //    Last-write-wins quando há múltiplas pistas.
   for (const entry of log) {
-    if (lookup.has(entry.codeId)) continue;  // já resolvido pelo registry
-    if (entry.type === 'renamed') lookup.set(entry.codeId, entry.to);
+    if (lookup.has(entry.codeId) && registry.has(entry.codeId)) continue; // não sobrescreve nome vivo
+    if (entry.type === 'renamed') {
+      if (!registry.has(entry.codeId)) lookup.set(entry.codeId, entry.to);
+    }
+    if (entry.type === 'absorbed') {
+      // Códigos absorbed são deletados como source — pega nome de absorbedNames[i] via absorbedIds[i]
+      for (let i = 0; i < entry.absorbedIds.length; i++) {
+        const srcId = entry.absorbedIds[i]!;
+        if (!registry.has(srcId)) lookup.set(srcId, entry.absorbedNames[i]!);
+      }
+    }
   }
-  // 3. Fallback final: codeId
   return lookup;
 }
 
@@ -189,27 +201,35 @@ function getBucketKey(date: Date, gran: Granularity): { key: string; anchorDate:
     const anchor = new Date(y, m, 1);
     return { key: `${y}-${String(m + 1).padStart(2, '0')}`, anchorDate: anchor };
   }
-  // week: ISO week (segunda como início)
+  // week: ISO week — usa ISO YEAR (do Thursday da semana), não calendar year do anchor.
+  // Ex: 2025-12-29 (Mon) → key="2026-W01" porque a quinta dessa semana cai em 2026.
   const anchor = isoWeekStart(date);
-  const isoY = anchor.getFullYear();
-  const isoW = isoWeekNumber(anchor);
-  return { key: `${isoY}-W${String(isoW).padStart(2, '0')}`, anchorDate: anchor };
+  const { isoYear, isoWeek } = isoWeekYearAndNumber(anchor);
+  return { key: `${isoYear}-W${String(isoWeek).padStart(2, '0')}`, anchorDate: anchor };
 }
 
-// Helpers ISO-week — devolvem segunda 00:00 da semana e número ISO 1-53
+// Helpers ISO-week — devolvem segunda 00:00 da semana
 function isoWeekStart(date: Date): Date {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const day = (d.getDay() + 6) % 7;  // 0=segunda
   d.setDate(d.getDate() - day);
   return d;
 }
-function isoWeekNumber(date: Date): number {
+
+/**
+ * Computa ISO year + ISO week (1-53). ISO year é definido pela quinta-feira da
+ * mesma semana — semanas que cruzam ano são atribuídas ao ano onde fica a quinta.
+ */
+function isoWeekYearAndNumber(date: Date): { isoYear: number; isoWeek: number } {
   const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = (target.getUTCDay() + 6) % 7;
-  target.setUTCDate(target.getUTCDate() - dayNum + 3);
-  const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
+  target.setUTCDate(target.getUTCDate() - dayNum + 3); // shift pra Thursday da semana
+  const isoYear = target.getUTCFullYear();
+  const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
+  const firstThursdayDayNum = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstThursdayDayNum + 3);
   const diff = (target.getTime() - firstThursday.getTime()) / 86400000;
-  return 1 + Math.round((diff - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+  return { isoYear, isoWeek: 1 + Math.round(diff / 7) };
 }
 ```
 
@@ -265,7 +285,7 @@ ctShowHidden: boolean;                                    // default false
   render: renderCodebookTimeline,
   renderOptions: renderCodebookTimelineOptions,
   exportMarkdown: exportCodebookTimelineMarkdown,
-  canExport: true,  // permite snapshot pro Board
+  // canExport default = true (modeRegistry.ts:38) — não precisa setar
 },
 ```
 
@@ -307,7 +327,27 @@ _Exportado em 2026-04-28._
 - ...
 ```
 
-Helper `renderTimelineEntryMarkdown(event: TimelineEvent)` no engine — diferente do `renderEntryMarkdown` existente porque inclui o nome do code (cross-código).
+Helper `renderTimelineEntryMarkdown(event: TimelineEvent)` no engine — diferente do `renderEntryMarkdown` existente porque inclui o nome do code (cross-código) e mantém labels específicos (`description edited` vs `memo edited`):
+
+```ts
+export function renderTimelineEntryMarkdown(event: TimelineEvent): string {
+  const date = new Date(event.entry.at);
+  const time = date.toISOString().slice(11, 16);  // HH:MM
+  const name = event.codeName;
+  const e = event.entry;
+  switch (e.type) {
+    case 'created':            return `- ${time} — **${name}** created`;
+    case 'renamed':            return `- ${time} — **${name}** renamed: "${e.from}" → "${e.to}"`;
+    case 'description_edited': return `- ${time} — **${name}** description edited`;
+    case 'memo_edited':        return `- ${time} — **${name}** memo edited`;
+    case 'absorbed':           return `- ${time} — **${name}** absorbed: ${e.absorbedNames.map(n => `"${n}"`).join(', ')}`;
+    case 'merged_into':        return `- ${time} — **${name}** merged into "${e.intoName}"`;
+    case 'deleted':            return `- ${time} — **${name}** deleted`;
+  }
+}
+```
+
+> **Nota:** pattern de criação da nota espelha `exportCodeHistory` em `src/main.ts:311-324` (criar/atualizar `Codebook timeline — YYYY-MM-DD.md` na **raiz do vault**, abrir em new leaf). Não confundir com `exportMemoMarkdown` que escreve em subpasta `Analytic Memos/`.
 
 ### Smoke test seed
 
@@ -334,10 +374,10 @@ Helper `renderTimelineEntryMarkdown(event: TimelineEvent)` no engine — diferen
 
 | Camada | Como |
 |--------|------|
-| Engine puro | Unit tests (jsdom) — name lookup com deletados, bucket por dia/week/month, filter por type+query, hidden include/exclude, empty log → empty events. ~12 tests. |
+| Engine puro | Unit tests (jsdom) — name lookup com deletados (rename + absorbed), bucket por dia/week/month, filter por type+query, hidden include/exclude, empty log → empty events. ISO-week edge cases obrigatórios: 2025-12-29 (Mon, week 1 of 2026), 2024-12-30 (Mon, week 1 of 2025), 2026-12-28 (Mon, week 53 of 2026), 2027-01-03 (Sun, last day of week 53/2026). ~12 tests. |
 | Mode render | Smoke test em vault real (Chart.js + DOM heavy — jsdom não cobre Chart.js confiável). |
 
-**Baseline atual:** 2412 tests. Target pós-feature: ~2424.
+**Baseline atual:** 2412 tests (verificada via `npm run test` em 2026-04-28). Target pós-feature: ~2424.
 
 ---
 
@@ -380,7 +420,6 @@ Helper `renderTimelineEntryMarkdown(event: TimelineEvent)` no engine — diferen
 - Drill-down: click numa coluna do chart filtra a lista — possível future, fora do MVP-full
 - Restore hidden via timeline (já tem na History view per-code)
 - Live update via event listener (re-render manual via `scheduleUpdate()` cobre)
-- Group `description_edited` e `memo_edited` em "Edited" no chart, mas separar na lista — uniformizar como "Edited" em ambos é mais simples
 - Export CSV — markdown é o formato natural pra timeline narrativa
 
 ---
