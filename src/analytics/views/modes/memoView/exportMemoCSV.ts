@@ -5,8 +5,8 @@ import { aggregateMemos } from "../../../data/memoView";
 import { readAllData } from "../../../data/dataReader";
 import { buildCsv } from "../../shared/chartHelpers";
 
-/** Pure function: builds CSV string from a MemoViewResult. Testable without DOM. */
-export function buildMemoCSV(result: MemoViewResult): string {
+/** Pure function: builds rows from a MemoViewResult. Testable without DOM. */
+export function buildMemoRows(result: MemoViewResult): string[][] {
 	const header = ["entity_type", "entity_id", "code_id", "code_name", "file_id", "source_type", "level", "memo"];
 	const rows: string[][] = [header];
 
@@ -52,10 +52,15 @@ export function buildMemoCSV(result: MemoViewResult): string {
 		}
 	}
 
-	return buildCsv(rows);
+	return rows;
 }
 
-export function exportMemoCSV(ctx: AnalyticsViewContext, date: string): void {
+/** Compat shim — algumas chamadas usavam buildMemoCSV diretamente. */
+export function buildMemoCSV(result: MemoViewResult): string {
+	return buildCsv(buildMemoRows(result));
+}
+
+export function buildMemoExportRows(ctx: AnalyticsViewContext): string[][] | null {
 	const allData = readAllData(ctx.plugin.dataManager);
 	const filters: MemoViewFilters = {
 		...ctx.buildFilterConfig(),
@@ -64,19 +69,23 @@ export function exportMemoCSV(ctx: AnalyticsViewContext, date: string): void {
 		markerLimit: "all",
 	};
 	const result = aggregateMemos(allData, ctx.plugin.registry, filters, ctx.plugin.caseVariablesRegistry);
+	const rows = buildMemoRows(result);
+	if (rows.length <= 1) return null; // só header
+	return rows;
+}
 
-	const csv = buildMemoCSV(result);
-	const rows = csv.trim().split("\n").length - 1; // excluding header
-	if (rows === 0) {
+export function exportMemoCSV(ctx: AnalyticsViewContext, date: string): void {
+	const rows = buildMemoExportRows(ctx);
+	if (!rows) {
 		new Notice("No memos to export");
 		return;
 	}
-
+	const csv = buildCsv(rows);
 	const blob = new Blob([csv], { type: "text/csv" });
 	const link = document.createElement("a");
 	link.download = `memo-view-${date}.csv`;
 	link.href = URL.createObjectURL(blob);
 	link.click();
 	URL.revokeObjectURL(link.href);
-	new Notice(`Exported ${rows} memos`);
+	new Notice(`Exported ${rows.length - 1} memos`);
 }

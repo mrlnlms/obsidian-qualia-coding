@@ -6,7 +6,7 @@ import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { TooltipItem } from "chart.js";
 // Force chartjs-chart-wordcloud module augmentation (registers 'wordCloud' in ChartTypeRegistry)
 import type {} from "chartjs-chart-wordcloud";
-import { buildCsv } from "../shared/chartHelpers";
+import { downloadCsv } from "../shared/chartHelpers";
 
 export function renderWordCloudOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -203,35 +203,33 @@ export function renderMiniWordCloud(canvas: HTMLCanvasElement, freq: FrequencyRe
   }
 }
 
-export function exportWordCloudCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export async function buildWordCloudRows(ctx: AnalyticsViewContext): Promise<string[][] | null> {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const filtered = ctx.data.markers.filter((m) =>
     filters.sources.includes(m.source) &&
     m.codes.some((c) => !filters.excludeCodes.includes(c))
   );
 
-  // We need to extract text synchronously — if segments aren't cached, just export what we can
-  // Use a simpler approach: export from last rendered data
-  new Notice("Extracting text for export...");
   const extractor = new TextExtractor(ctx.plugin.app.vault);
-  extractor.extractBatch(filtered).then((segments) => {
-    const results = calculateWordFrequencies(segments, {
-      stopWordsLang: ctx.wcStopWordsLang,
-      minWordLength: ctx.wcMinWordLength,
-      maxWords: ctx.wcMaxWords,
-    });
+  const segments = await extractor.extractBatch(filtered);
+  const results = calculateWordFrequencies(segments, {
+    stopWordsLang: ctx.wcStopWordsLang,
+    minWordLength: ctx.wcMinWordLength,
+    maxWords: ctx.wcMaxWords,
+  });
 
-    const rows: string[][] = [["word", "count", "codes"]];
-    for (const r of results) {
-      rows.push([r.word, String(r.count), r.codes.join("; ")]);
-    }
-    const csvContent = buildCsv(rows);
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const link = document.createElement("a");
-    link.download = `codemarker-wordcloud-${date}.csv`;
-    link.href = URL.createObjectURL(blob);
-    link.click();
-    URL.revokeObjectURL(link.href);
+  const rows: string[][] = [["word", "count", "codes"]];
+  for (const r of results) {
+    rows.push([r.word, String(r.count), r.codes.join("; ")]);
+  }
+  return rows;
+}
+
+export function exportWordCloudCSV(ctx: AnalyticsViewContext, date: string): void {
+  new Notice("Extracting text for export...");
+  buildWordCloudRows(ctx).then((rows) => {
+    if (!rows) return;
+    downloadCsv(rows, `codemarker-wordcloud-${date}.csv`);
   });
 }

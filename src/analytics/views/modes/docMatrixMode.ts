@@ -2,7 +2,7 @@
 import type { FilterConfig } from "../../data/dataTypes";
 import { calculateDocumentCodeMatrix } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { heatmapColor, isLightColor , buildCsv } from "../shared/chartHelpers";
+import { heatmapColor, isLightColor , downloadCsv } from "../shared/chartHelpers";
 
 export function renderMatrixSortSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -32,8 +32,8 @@ export function renderMatrixSortSection(ctx: AnalyticsViewContext): void {
   }
 }
 
-export function exportDocMatrixCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildDocMatrixRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const result = calculateDocumentCodeMatrix(ctx.data, filters);
 
@@ -41,13 +41,13 @@ export function exportDocMatrixCSV(ctx: AnalyticsViewContext, date: string): voi
   for (let fi = 0; fi < result.files.length; fi++) {
     rows.push([result.files[fi]!, ...result.matrix[fi]!.map(String)]);
   }
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-doc-matrix-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportDocMatrixCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildDocMatrixRows(ctx);
+  if (!rows) return;
+  downloadCsv(rows, `codemarker-doc-matrix-${date}.csv`);
 }
 
 export function renderDocCodeMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {

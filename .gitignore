@@ -2,6 +2,7 @@ main.js
 node_modules/
 data.json
 data.json.backup-*
+data.json.bak
 .DS_Store
 .obsidian-cache/
 CLAUDE.md
@@ -9,3 +10,5 @@ coverage/
 .claude/
 tests/screenshots/actual/
 tests/screenshots/diff/
+README.v2.md
+scripts/safe-mode-baseline/

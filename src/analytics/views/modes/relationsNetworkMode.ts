@@ -1,7 +1,7 @@
 
 import type { FilterConfig } from "../../data/dataTypes";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { isLightColor, buildCsv } from "../shared/chartHelpers";
+import { isLightColor, downloadCsv } from "../shared/chartHelpers";
 import { readAllData } from "../../data/dataReader";
 import { extractRelationEdges, extractRelationNodes } from "../../data/relationsEngine";
 import { isEdgeAboveThreshold, computeEdgeOpacity } from "./relationsNetworkHelpers";
@@ -555,7 +555,7 @@ export function renderRelationsNetwork(ctx: AnalyticsViewContext, filters: Filte
 
 // ─── CSV export ───
 
-export function exportRelationsNetworkCSV(ctx: AnalyticsViewContext, date: string): void {
+export function buildRelationsNetworkRows(ctx: AnalyticsViewContext): string[][] | null {
 	const allDefs = collectAllDefinitions(ctx);
 	const allMarkers = collectAllMarkers(ctx);
 	const edges = extractRelationEdges(allDefs, allMarkers, ctx.relationsLevel);
@@ -574,11 +574,11 @@ export function exportRelationsNetworkCSV(ctx: AnalyticsViewContext, date: strin
 		]);
 	}
 
-	const csvContent = buildCsv(rows);
-	const blob = new Blob([csvContent], { type: "text/csv" });
-	const link = document.createElement("a");
-	link.download = `qualia-relations-network-${date}.csv`;
-	link.href = URL.createObjectURL(blob);
-	link.click();
-	URL.revokeObjectURL(link.href);
+	return rows;
+}
+
+export function exportRelationsNetworkCSV(ctx: AnalyticsViewContext, date: string): void {
+	const rows = buildRelationsNetworkRows(ctx);
+	if (!rows) return;
+	downloadCsv(rows, `qualia-relations-network-${date}.csv`);
 }

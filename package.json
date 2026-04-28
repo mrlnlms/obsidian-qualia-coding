@@ -26,7 +26,8 @@
     "hyparquet-compressors": "^1.1.1",
     "papaparse": "^5.4.1",
     "svd-js": "^1.1.1",
-    "wavesurfer.js": "^7.0.0"
+    "wavesurfer.js": "^7.0.0",
+    "write-excel-file": "^4.0.4"
   },
   "devDependencies": {
     "@codemirror/language": "^6.12.2",

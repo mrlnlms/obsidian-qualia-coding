@@ -3,7 +3,7 @@ import { Notice } from "obsidian";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { FilterConfig } from "../../data/dataTypes";
 import { buildDecisionTree, type DecisionTreeNode, type DecisionTreeResult } from "../../data/decisionTreeEngine";
-import { buildCsv } from "../shared/chartHelpers";
+import { downloadCsv } from "../shared/chartHelpers";
 
 export function renderDecisionTreeOptionsSection(ctx: AnalyticsViewContext): void {
   if (!ctx.data) return;
@@ -250,8 +250,8 @@ export function renderMiniDecisionTree(ctx: AnalyticsViewContext, canvas: HTMLCa
   canvasCtx.fillText(`Acc: ${(result.accuracy * 100).toFixed(0)}%, τ=${result.tau.toFixed(2)}`, W / 2, H - 10);
 }
 
-export function exportDecisionTreeCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildDecisionTreeRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const codes = ctx.data.codes.map((c) => c.name).filter(c => ctx.enabledCodes.has(c)).sort();
   if (!ctx.dtOutcomeCode || !ctx.enabledCodes.has(ctx.dtOutcomeCode)) ctx.dtOutcomeCode = codes[0] ?? "";
@@ -279,11 +279,11 @@ export function exportDecisionTreeCSV(ctx: AnalyticsViewContext, date: string): 
   }
   collectNodes(result.root);
 
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-decision-tree-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportDecisionTreeCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildDecisionTreeRows(ctx);
+  if (!rows) return;
+  downloadCsv(rows, `codemarker-decision-tree-${date}.csv`);
 }

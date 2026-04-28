@@ -3,7 +3,7 @@ import { setIcon, Notice } from "obsidian";
 import type { FilterConfig, FrequencyResult } from "../../data/dataTypes";
 import { calculateFrequency } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { generateFileColors , buildCsv } from "../shared/chartHelpers";
+import { generateFileColors , downloadCsv } from "../shared/chartHelpers";
 
 export function renderSortSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -230,8 +230,8 @@ async function renderBarChart(ctx: AnalyticsViewContext, results: FrequencyResul
   renderFrequencyCodeList(ctx, results);
 }
 
-export function exportFrequencyCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildFrequencyRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const results = calculateFrequency(ctx.data, filters);
 
@@ -249,13 +249,13 @@ export function exportFrequencyCSV(ctx: AnalyticsViewContext, date: string): voi
       String(r.bySource.video),
     ]);
   }
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-frequency-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportFrequencyCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildFrequencyRows(ctx);
+  if (!rows) return;
+  downloadCsv(rows, `codemarker-frequency-${date}.csv`);
 }
 
 function renderFrequencyCodeList(ctx: AnalyticsViewContext, results: FrequencyResult[]): void {

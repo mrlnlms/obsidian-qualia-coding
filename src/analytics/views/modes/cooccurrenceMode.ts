@@ -3,7 +3,7 @@ import type { FilterConfig, CooccurrenceResult } from "../../data/dataTypes";
 import { calculateCooccurrence } from "../../data/statsEngine";
 import { hierarchicalCluster } from "../../data/clusterEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { heatmapColor, isLightColor, computeDisplayMatrix , buildCsv } from "../shared/chartHelpers";
+import { heatmapColor, isLightColor, computeDisplayMatrix , downloadCsv } from "../shared/chartHelpers";
 
 export function renderDisplaySection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -126,8 +126,8 @@ export function reorderCooccurrence(ctx: AnalyticsViewContext, result: Cooccurre
   result.maxValue = maxValue;
 }
 
-export function exportCooccurrenceCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildCooccurrenceRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const result = calculateCooccurrence(ctx.data, filters);
 
@@ -135,13 +135,13 @@ export function exportCooccurrenceCSV(ctx: AnalyticsViewContext, date: string): 
   for (let i = 0; i < result.codes.length; i++) {
     rows.push([result.codes[i]!, ...result.matrix[i]!.map(String)]);
   }
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-cooccurrence-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportCooccurrenceCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildCooccurrenceRows(ctx);
+  if (!rows) return;
+  downloadCsv(rows, `codemarker-cooccurrence-${date}.csv`);
 }
 
 export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {

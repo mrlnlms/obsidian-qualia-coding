@@ -4,7 +4,7 @@ import { calculateCooccurrence } from "../../data/statsEngine";
 import { buildDendrogram, cutDendrogram, calculateSilhouette, type DendrogramNode } from "../../data/clusterEngine";
 import type { SilhouetteResult } from "../../data/clusterEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { buildCsv } from "../shared/chartHelpers";
+import { downloadCsv } from "../shared/chartHelpers";
 
 export function renderDendrogramOptionsSection(ctx: AnalyticsViewContext): void {
   // Cut distance slider
@@ -364,11 +364,11 @@ export function renderMiniDendrogram(ctx: AnalyticsViewContext, canvas: HTMLCanv
   drawNode(root);
 }
 
-export function exportDendrogramCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildDendrogramRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const result = calculateCooccurrence(ctx.data, filters);
-  if (result.codes.length < 3) { new Notice("Insufficient data."); return; }
+  if (result.codes.length < 3) return null;
 
   const n = result.codes.length;
   const distMatrix: number[][] = [];
@@ -384,7 +384,7 @@ export function exportDendrogramCSV(ctx: AnalyticsViewContext, date: string): vo
   }
 
   const root = buildDendrogram(distMatrix, result.codes, result.colors);
-  if (!root) return;
+  if (!root) return null;
   const assignments = cutDendrogram(root, ctx.dendrogramCutDistance);
   const sil = calculateSilhouette(distMatrix, assignments, result.codes, result.colors);
 
@@ -392,11 +392,11 @@ export function exportDendrogramCSV(ctx: AnalyticsViewContext, date: string): vo
   for (const s of sil.scores) {
     rows.push([s.name, String(s.cluster), String(s.score)]);
   }
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-dendrogram-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportDendrogramCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildDendrogramRows(ctx);
+  if (!rows) { new Notice("Insufficient data."); return; }
+  downloadCsv(rows, `codemarker-dendrogram-${date}.csv`);
 }

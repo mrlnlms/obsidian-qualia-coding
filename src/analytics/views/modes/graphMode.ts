@@ -2,7 +2,7 @@
 import type { FilterConfig } from "../../data/dataTypes";
 import { calculateCooccurrence, calculateFrequency } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { isLightColor , buildCsv } from "../shared/chartHelpers";
+import { isLightColor , downloadCsv } from "../shared/chartHelpers";
 
 export function renderGraphOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -38,8 +38,8 @@ export function renderGraphOptionsSection(ctx: AnalyticsViewContext): void {
   });
 }
 
-export function exportGraphCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildGraphRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const result = calculateCooccurrence(ctx.data, filters);
 
@@ -51,13 +51,13 @@ export function exportGraphCSV(ctx: AnalyticsViewContext, date: string): void {
       }
     }
   }
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-graph-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportGraphCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildGraphRows(ctx);
+  if (!rows) return;
+  downloadCsv(rows, `codemarker-graph-${date}.csv`);
 }
 
 export function renderNetworkGraph(ctx: AnalyticsViewContext, filters: FilterConfig): void {

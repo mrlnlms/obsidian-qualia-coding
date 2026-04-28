@@ -124,6 +124,17 @@ export function buildCsv(rows: string[][]): string {
   return rows.map(r => r.map(escapeCsvField).join(',')).join('\n');
 }
 
+/** Build CSV from rows + trigger browser download. Helper pra eliminar boilerplate em exportXxxCSV. */
+export function downloadCsv(rows: string[][], filename: string): void {
+  const csvContent = buildCsv(rows);
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 export const SOURCE_COLORS: Record<string, string> = {
   markdown: "#42A5F5",
   "csv-segment": "#66BB6A",

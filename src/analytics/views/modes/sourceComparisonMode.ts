@@ -3,7 +3,7 @@ import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { FilterConfig, SourceComparisonResult, SourceType } from "../../data/dataTypes";
 import type { FrequencyResult } from "../../data/dataTypes";
 import { calculateSourceComparison } from "../../data/statsEngine";
-import { SOURCE_COLORS , buildCsv } from "../shared/chartHelpers";
+import { SOURCE_COLORS , downloadCsv } from "../shared/chartHelpers";
 
 export function renderSourceComparisonOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -287,8 +287,8 @@ export function renderMiniSourceComparison(ctx: AnalyticsViewContext, canvas: HT
   }
 }
 
-export function exportSourceComparisonCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildSourceComparisonRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const result = calculateSourceComparison(ctx.data, filters);
   const allSources: SourceType[] = ["markdown", "csv-segment", "csv-row", "image", "pdf", "audio", "video"];
@@ -303,11 +303,11 @@ export function exportSourceComparisonCSV(ctx: AnalyticsViewContext, date: strin
       ...allSources.map((s) => String(e.bySourcePctOfSrc[s])),
     ]);
   }
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-source-comparison-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportSourceComparisonCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildSourceComparisonRows(ctx);
+  if (!rows) return;
+  downloadCsv(rows, `codemarker-source-comparison-${date}.csv`);
 }

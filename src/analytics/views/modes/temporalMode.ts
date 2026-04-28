@@ -2,7 +2,7 @@ import { Notice } from "obsidian";
 import type { FilterConfig, TemporalResult } from "../../data/dataTypes";
 import { calculateTemporal } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { buildCsv } from "../shared/chartHelpers";
+import { downloadCsv } from "../shared/chartHelpers";
 
 export async function renderTemporalChart(ctx: AnalyticsViewContext, filters: FilterConfig): Promise<void> {
   if (!ctx.chartContainer || !ctx.data) return;
@@ -140,14 +140,11 @@ export function renderMiniTemporal(canvas: HTMLCanvasElement, temporal: Temporal
   }
 }
 
-export function exportTemporalCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildTemporalRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const result = calculateTemporal(ctx.data, filters);
-  if (result.series.length === 0) {
-    new Notice("No temporal data to export.");
-    return;
-  }
+  if (result.series.length === 0) return null;
 
   const rows: string[][] = [["code", "date", "cumulative_count"]];
   for (const s of result.series) {
@@ -155,11 +152,14 @@ export function exportTemporalCSV(ctx: AnalyticsViewContext, date: string): void
       rows.push([s.code, new Date(p.date).toISOString(), String(p.count)]);
     }
   }
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-temporal-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportTemporalCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildTemporalRows(ctx);
+  if (!rows) {
+    new Notice("No temporal data to export.");
+    return;
+  }
+  downloadCsv(rows, `codemarker-temporal-${date}.csv`);
 }

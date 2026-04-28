@@ -1,6 +1,6 @@
 import type { FilterConfig, LagResult } from "../../data/dataTypes";
 import { calculateLagSequential } from "../../data/statsEngine";
-import { divergentColor, isDivergentLight , buildCsv } from "../shared/chartHelpers";
+import { divergentColor, isDivergentLight , downloadCsv } from "../shared/chartHelpers";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 
 export function renderLagOptionsSection(ctx: AnalyticsViewContext): void {
@@ -201,8 +201,8 @@ export function renderMiniLag(canvas: HTMLCanvasElement, lag: LagResult): void {
   }
 }
 
-export function exportLagCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildLagRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const result = calculateLagSequential(ctx.data, filters, ctx.lagValue);
 
@@ -219,11 +219,11 @@ export function exportLagCSV(ctx: AnalyticsViewContext, date: string): void {
       ]);
     }
   }
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-lag-sequential-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportLagCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildLagRows(ctx);
+  if (!rows) return;
+  downloadCsv(rows, `codemarker-lag-sequential-${date}.csv`);
 }
