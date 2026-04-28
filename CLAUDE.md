@@ -46,7 +46,8 @@ src/
     detailMarkerRenderer.ts  — marker-focused detail (excerpt, codes, memo, color override)
     baseCodeDetailView.ts    — abstract base: 3-level stack navigation (list → code → marker)
     baseCodeExplorerView.ts  — abstract base: Code Explorer tree (Code → File → Segment)
-    mergeModal.ts            — MergeModal com busca fuzzy, preview de impacto, executeMerge
+    mergeModal.ts            — MergeModal expandido (4 seções reativas: Name/Color/Description/Memo + preview rico + pre-flight collision check) + executeMerge reordenado (rename pós-delete pra liberar nameIndex)
+    mergePolicies.ts         — helpers puros pro merge: resolveName, resolveColor, applyTextPolicy + types NameChoice/ColorChoice/TextPolicy
     dialogs.ts               — PromptModal / ConfirmModal genéricos (substituem prompt/confirm nativos)
     imageDimensions.ts       — getImageDimensions com fallback createImageBitmap → <img> (SVG via MIME map)
     magnitudeRange.ts        — generateContinuousRange puro (decimais inferidos do step, safety cap)
@@ -143,6 +144,7 @@ src/
       binning.ts             — helpers puros: binNumeric (quartis ≥5 uniq, categorico ≤4), binDate (auto ano/mes/dia, UTC), explodeMultitext
       codeMetadata.ts        — calculateCodeMetadata pura: matriz [code × value] cruzando codigos com Case Variables + chi² por codigo
       memoView.ts            — aggregateMemos pura: agrega memos de codes/groups/relations/markers em CodeMemoSection[] ou FileMemoSection[]
+      codebookTimelineEngine.ts — Codebook Timeline: helpers puros buildCodeNameLookup (resolve nomes de deletados via renamed.to + absorbed.absorbedNames), buildTimelineEvents, filterEvents, bucketByGranularity (day/week/month, ISO-week year correto), renderTimelineEntryMarkdown
     board/
       boardTypes.ts          — discriminated union: StickyNode, SnapshotNode, ExcerptNode, etc.
       boardNodeHelpers.ts    — factories compartilhadas (cardBg, textbox, badges, theme, assignNodeProps)
@@ -157,9 +159,10 @@ src/
       shared/chartHelpers.ts — heatmapColor, computeDisplayMatrix, divergentColor, SOURCE_COLORS
       modes/
         modeRegistry.ts      — Record<ViewMode, ModeEntry> declarativo (render, options, exportCSV, exportMarkdown, label)
-        *Mode.ts             — 22 mode modules incl. relationsNetworkMode + codeMetadataMode + memoView (1 por visualizacao, ~150-400 LOC cada)
+        *Mode.ts             — 23 mode modules incl. relationsNetworkMode + codeMetadataMode + memoView + codebookTimelineMode (1 por visualizacao, ~150-400 LOC cada)
         relationsNetworkHelpers.ts — helpers puros do Relations Network: isEdgeAboveThreshold, computeEdgeOpacity (hover-focus + filtro N+)
         codeMetadataMode.ts  — heatmap canvas 2D codigo × valor de Case Variable + coluna χ²/p + sort interativo + tooltip + CSV export
+        codebookTimelineMode.ts — Codebook Timeline: stacked bar chart (day/week/month) + lista descending agrupada por dia + filters (granularity, event types, code search, show hidden) + click navega via revealCodeDetailForCode + export markdown na raiz do vault
         memoView/            — Analytic Memo View: hub editorial unificado de memos
           memoViewMode.ts    — orchestrator (render + branching by/code by/file)
           memoViewOptions.ts — config panel (groupBy radio + showTypes checkboxes + markerLimit dropdown)
@@ -205,7 +208,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2363 testes em 137 suites (Vitest + jsdom)
+- `npm run test` — 2438 testes em 140 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
