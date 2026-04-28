@@ -84,9 +84,52 @@ export class CsvCodingView extends FileView {
 	getIcon(): string { return 'table'; }
 	canAcceptExtension(extension: string): boolean { return extension === 'csv' || extension === 'parquet'; }
 
+	/**
+	 * Banner inline pedindo confirmação antes de carregar arquivo grande.
+	 * Resolve `true` se user clicou "Load anyway", `false` se cancelou ou navegou.
+	 * Sem lazy loading ainda, decode na main thread pode travar Obsidian.
+	 */
+	private async confirmLoadLargeFile(file: TFile, sizeBytes: number, thresholdBytes: number): Promise<boolean> {
+		const { contentEl } = this;
+		contentEl.empty();
+
+		const banner = contentEl.createDiv({ cls: 'qualia-tabular-size-warning' });
+		banner.createEl('h3', { text: '⚠️ Large file' });
+		const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
+		const limitMb = (thresholdBytes / (1024 * 1024)).toFixed(0);
+		banner.createEl('p', {
+			text: `${file.name} is ${sizeMb} MB (limit: ${limitMb} MB for ${file.extension}).`,
+		});
+		banner.createEl('p', {
+			text: 'Loading large tabular files into memory may freeze Obsidian. Lazy loading is not yet supported.',
+			cls: 'qualia-tabular-size-warning-hint',
+		});
+
+		return new Promise<boolean>((resolve) => {
+			const actions = banner.createDiv({ cls: 'qualia-tabular-size-warning-actions' });
+			const cancelBtn = actions.createEl('button', { text: 'Cancel' });
+			const proceedBtn = actions.createEl('button', { text: 'Load anyway', cls: 'mod-warning' });
+			cancelBtn.addEventListener('click', () => resolve(false));
+			proceedBtn.addEventListener('click', () => resolve(true));
+		});
+	}
+
 	async onLoadFile(file: TFile): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
+
+		// Size guard: arquivo grande pode travar Obsidian (sem lazy loading ainda).
+		// Limites pragmáticos baseados em decode cost: parquet 50MB / csv 100MB.
+		const sizeBytes = file.stat.size;
+		const thresholdBytes = file.extension === 'parquet' ? 50 * 1024 * 1024 : 100 * 1024 * 1024;
+		if (sizeBytes > thresholdBytes) {
+			const proceed = await this.confirmLoadLargeFile(file, sizeBytes, thresholdBytes);
+			if (!proceed) {
+				this.readyResolve?.();
+				return;
+			}
+			contentEl.empty();
+		}
 
 		const loading = contentEl.createEl('p');
 		loading.textContent = file.extension === 'parquet' ? 'Loading Parquet...' : 'Loading CSV...';

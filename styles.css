@@ -5729,3 +5729,35 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	opacity: 1;
 	background: var(--background-modifier-hover);
 }
+
+/* ─── Tabular size warning banner ─── */
+
+.qualia-tabular-size-warning {
+	max-width: 520px;
+	margin: var(--size-4-6) auto;
+	padding: var(--size-4-4);
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.qualia-tabular-size-warning h3 {
+	margin: 0 0 var(--size-4-2) 0;
+	color: var(--text-warning);
+}
+
+.qualia-tabular-size-warning p {
+	margin: var(--size-2-2) 0;
+}
+
+.qualia-tabular-size-warning-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.qualia-tabular-size-warning-actions {
+	display: flex;
+	gap: var(--size-2-3);
+	margin-top: var(--size-4-3);
+	justify-content: flex-end;
+}
