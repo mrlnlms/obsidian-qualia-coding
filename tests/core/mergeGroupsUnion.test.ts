@@ -5,6 +5,13 @@ import { executeMerge } from '../../src/core/mergeModal';
 describe('executeMerge — Groups union', () => {
 	let registry: CodeDefinitionRegistry;
 
+	const defaultDecision = {
+		nameChoice: { kind: 'target' as const },
+		colorChoice: { kind: 'target' as const },
+		descriptionPolicy: { kind: 'keep-target' as const },
+		memoPolicy: { kind: 'keep-target' as const },
+	};
+
 	beforeEach(() => {
 		registry = new CodeDefinitionRegistry();
 	});
@@ -20,6 +27,7 @@ describe('executeMerge — Groups union', () => {
 			sourceIds: [source.id],
 			registry,
 			markers: [],
+			...defaultDecision,
 		});
 
 		expect(registry.getById(target.id)?.groups).toEqual([g1.id]);
@@ -42,6 +50,7 @@ describe('executeMerge — Groups union', () => {
 			sourceIds: [source.id],
 			registry,
 			markers: [],
+			...defaultDecision,
 		});
 
 		const finalGroups = registry.getById(target.id)?.groups ?? [];
@@ -62,6 +71,7 @@ describe('executeMerge — Groups union', () => {
 			sourceIds: [s1.id, s2.id],
 			registry,
 			markers: [],
+			...defaultDecision,
 		});
 
 		expect(registry.getById(target.id)?.groups?.sort()).toEqual([g1.id, g2.id].sort());

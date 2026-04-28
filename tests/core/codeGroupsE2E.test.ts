@@ -42,6 +42,10 @@ describe('Code Groups — end-to-end fluxo programático', () => {
 			sourceIds: [source.id],
 			registry,
 			markers: [],
+			nameChoice: { kind: 'target' },
+			colorChoice: { kind: 'target' },
+			descriptionPolicy: { kind: 'keep-target' },
+			memoPolicy: { kind: 'keep-target' },
 		});
 		const finalTarget = registry.getById(target.id)!;
 		expect(finalTarget.groups?.sort()).toEqual([groups[0]!.id, groups[1]!.id, groups[2]!.id].sort());
