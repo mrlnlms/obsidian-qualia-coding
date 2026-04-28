@@ -126,6 +126,7 @@ export class CsvCodingView extends FileView {
 			const proceed = await this.confirmLoadLargeFile(file, sizeBytes, thresholdBytes);
 			if (!proceed) {
 				this.readyResolve?.();
+				this.leaf.detach();
 				return;
 			}
 			contentEl.empty();
