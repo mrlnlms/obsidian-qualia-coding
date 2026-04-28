@@ -2,12 +2,13 @@ import { Plugin, FileView, TFile, type View } from 'obsidian';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
+import { appendEntry, renderCodeHistoryMarkdown } from './core/auditLog';
 import { CaseVariablesRegistry } from './core/caseVariables/caseVariablesRegistry';
 import { CaseVariablesView } from './core/caseVariables/caseVariablesView';
 import { CASE_VARIABLES_VIEW_TYPE } from './core/caseVariables/caseVariablesViewTypes';
 import { openPropertiesPopover } from './core/caseVariables/propertiesPopover';
 import { openCodeVisibilityPopover } from './core/codeVisibilityPopover';
-import type { EngineCleanup, CodeDefinition } from './core/types';
+import type { EngineCleanup, CodeDefinition, AuditEntry } from './core/types';
 import { BaseCodeDetailView } from './core/baseCodeDetailView';
 import { clearFileInterceptRules } from './core/fileInterceptor';
 import { teardownMediaToggleButtons } from './core/mediaToggleButton';
@@ -79,6 +80,13 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.sharedRegistry.addOnMutate(() => {
 			this.dataManager.setSection('registry', this.sharedRegistry.toJSON());
 			document.dispatchEvent(new Event('qualia:registry-changed'));
+		});
+
+		// Audit log: registry events viram entries em data.auditLog (com coalescing pra description/memo).
+		this.sharedRegistry.setAuditListener((event) => {
+			const log = (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+			appendEntry(log, { ...event, at: Date.now() });
+			this.dataManager.setSection('auditLog', log);
 		});
 
 		this.sharedRegistry.addVisibilityListener((detail) => {
@@ -287,11 +295,40 @@ export default class QualiaCodingPlugin extends Plugin {
 			[mdModel, pdfAdapter, imageAdapter, csvAdapter, audioAdapter, videoAdapter],
 		);
 
+		// Audit log accessor injetado nas views — encapsula leitura/escrita do log central + export.
+		const auditAccess = {
+			getLog: (): AuditEntry[] => (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [],
+			hideEntry: (id: string) => {
+				const log = (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+				const e = log.find(x => x.id === id);
+				if (e) { e.hidden = true; this.dataManager.setSection('auditLog', log); document.dispatchEvent(new Event('qualia:registry-changed')); }
+			},
+			unhideEntry: (id: string) => {
+				const log = (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+				const e = log.find(x => x.id === id);
+				if (e) { delete e.hidden; this.dataManager.setSection('auditLog', log); document.dispatchEvent(new Event('qualia:registry-changed')); }
+			},
+			exportCodeHistory: async (codeId: string, codeName: string) => {
+				const log = (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+				const md = renderCodeHistoryMarkdown(log, codeId, codeName);
+				const safe = codeName.replace(/[\\/:*?"<>|]/g, '_');
+				const path = `Codebook history — ${safe}.md`;
+				const existing = this.app.vault.getAbstractFileByPath(path);
+				if (existing instanceof TFile) {
+					await this.app.vault.modify(existing, md);
+				} else {
+					await this.app.vault.create(path, md);
+				}
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (file instanceof TFile) await this.app.workspace.getLeaf(true).openFile(file);
+			},
+		};
+
 		// Register unified sidebar views (single set for ALL engines)
 		this.registerView(CODE_EXPLORER_VIEW_TYPE, (leaf) =>
 			new UnifiedCodeExplorerView(leaf, unifiedModel, mdModel));
 		this.registerView(CODE_DETAIL_VIEW_TYPE, (leaf) =>
-			new UnifiedCodeDetailView(leaf, unifiedModel, mdModel));
+			new UnifiedCodeDetailView(leaf, unifiedModel, mdModel, auditAccess));
 		this.registerView(CASE_VARIABLES_VIEW_TYPE, (leaf) =>
 			new CaseVariablesView(leaf, this));
 

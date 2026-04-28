@@ -6,7 +6,8 @@
  */
 
 import { App, setIcon, ToggleComponent } from 'obsidian';
-import type { BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
+import type { AuditEntry, BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
+import { getEntriesForCode, renderEntryMarkdown } from './auditLog';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import { hasCode } from './codeApplicationHelpers';
 import { getCountBreakdown } from './hierarchyHelpers';
@@ -28,6 +29,11 @@ export interface CodeRendererCallbacks {
 	// Groups (Tier 1.5)
 	onAddToGroup(codeId: string): void;
 	onRemoveFromGroup(codeId: string, groupId: string): void;
+	// Audit log (Tier 2)
+	getAuditLog(): AuditEntry[];
+	onHideAuditEntry(entryId: string): void;
+	onUnhideAuditEntry(entryId: string): void;
+	onExportCodeHistory(codeId: string): void;
 }
 
 export interface GroupsSectionCallbacks {
@@ -174,6 +180,7 @@ export function renderCodeDetail(
 		container.createEl('p', { text: 'No segments yet.', cls: 'codemarker-detail-empty' });
 		if (def) {
 			renderAuditSection(container, def);
+			renderHistorySection(container, def, callbacks);
 			renderDeleteCodeButton(container, codeId, codeName, model, callbacks);
 		}
 		return;
@@ -229,8 +236,11 @@ export function renderCodeDetail(
 	// Segments by file (tree grouped by file)
 	renderSegmentsByFile(container, allMarkers, codeId, codeName, model, callbacks);
 
-	// Audit trail (mergedFrom)
+	// Audit trail (mergedFrom — info estática legacy)
 	if (def) renderAuditSection(container, def);
+
+	// History — timeline interativa do audit log central (Tier 2)
+	if (def) renderHistorySection(container, def, callbacks);
 
 	// Delete code — at the bottom, after all content
 	if (def) {
@@ -807,5 +817,122 @@ function renderAuditSection(container: HTMLElement, def: CodeDefinition): void {
 			text: `Created: ${new Date(def.createdAt).toLocaleDateString()}`,
 			cls: 'codemarker-detail-audit-text',
 		});
+	}
+}
+
+// ─── History section (audit log timeline) ───────────────
+
+let historyShowHidden = false;  // toggle local pra "Show hidden" (não persistido — sessão)
+
+/**
+ * Rebuild da history section preservando POSIÇÃO no parent. Usado nos toggles internos
+ * (hide/restore/show-hidden). Sem isso, `section.remove() + renderHistorySection(container, ...)`
+ * appendava no final do container — saindo de baixo do Delete button que vinha depois.
+ */
+function rebuildHistorySection(
+	section: HTMLElement,
+	def: CodeDefinition,
+	callbacks: CodeRendererCallbacks,
+): void {
+	const placeholder = document.createElement('div');
+	section.replaceWith(placeholder);
+	const parent = placeholder.parentElement;
+	if (!parent) return;
+	// Renderiza nova section direto após o placeholder, depois remove o placeholder.
+	renderHistorySectionInto(placeholder, def, callbacks);
+}
+
+/** Variante que insere a section no LUGAR do placeholder (in-place rebuild). */
+function renderHistorySectionInto(
+	placeholder: HTMLElement,
+	def: CodeDefinition,
+	callbacks: CodeRendererCallbacks,
+): void {
+	const tempContainer = document.createElement('div');
+	renderHistorySection(tempContainer, def, callbacks);
+	const newSection = tempContainer.firstElementChild;
+	if (newSection) placeholder.replaceWith(newSection);
+	else placeholder.remove();
+}
+
+function renderHistorySection(
+	container: HTMLElement,
+	def: CodeDefinition,
+	callbacks: CodeRendererCallbacks,
+): void {
+	const log = callbacks.getAuditLog();
+	const entries = getEntriesForCode(log, def.id, historyShowHidden);
+	const totalIncludingHidden = getEntriesForCode(log, def.id, true).length;
+	const hiddenCount = totalIncludingHidden - getEntriesForCode(log, def.id, false).length;
+
+	const section = container.createDiv({ cls: 'codemarker-detail-section codemarker-history-section' });
+	const header = section.createDiv({ cls: 'codemarker-history-header' });
+	const title = header.createEl('h6', { text: 'History' });
+	title.style.flex = '1';
+
+	if (entries.length === 0 && totalIncludingHidden === 0) {
+		section.createEl('p', { text: 'No events recorded yet.', cls: 'codemarker-detail-empty' });
+		return;
+	}
+
+	// Toggle "Show hidden" — só aparece se há hidden entries
+	if (hiddenCount > 0) {
+		const toggle = header.createEl('button', {
+			cls: 'codemarker-history-toggle-hidden',
+			text: historyShowHidden ? `Hide hidden (${hiddenCount})` : `Show hidden (${hiddenCount})`,
+		});
+		toggle.addEventListener('click', () => {
+			historyShowHidden = !historyShowHidden;
+			rebuildHistorySection(section, def, callbacks);
+		});
+	}
+
+	const exportBtn = header.createEl('button', {
+		cls: 'codemarker-history-export',
+		attr: { 'aria-label': 'Export history as markdown', title: 'Export history as markdown' },
+	});
+	setIcon(exportBtn, 'download');
+	exportBtn.addEventListener('click', () => callbacks.onExportCodeHistory(def.id));
+
+	const list = section.createEl('ul', { cls: 'codemarker-history-list' });
+	for (const entry of entries) {
+		const li = list.createEl('li', { cls: 'codemarker-history-item' });
+		if (entry.hidden) li.addClass('is-hidden-entry');
+
+		const stamp = new Date(entry.at).toISOString().slice(0, 16).replace('T', ' ');
+		li.createSpan({ cls: 'codemarker-history-stamp', text: stamp });
+		li.createSpan({ cls: 'codemarker-history-text', text: formatEntryDescription(entry) });
+
+		// Hide / Unhide button (visível só on hover via CSS)
+		const action = li.createEl('button', { cls: 'codemarker-history-hide-btn' });
+		if (entry.hidden) {
+			action.setAttribute('aria-label', 'Restore entry');
+			action.title = 'Restore entry';
+			setIcon(action, 'rotate-ccw');
+			action.addEventListener('click', () => {
+				callbacks.onUnhideAuditEntry(entry.id);
+				rebuildHistorySection(section, def, callbacks);
+			});
+		} else {
+			action.setAttribute('aria-label', 'Hide entry');
+			action.title = 'Hide entry (soft delete — preserva no JSON)';
+			setIcon(action, 'eye-off');
+			action.addEventListener('click', () => {
+				callbacks.onHideAuditEntry(entry.id);
+				rebuildHistorySection(section, def, callbacks);
+			});
+		}
+	}
+}
+
+function formatEntryDescription(entry: AuditEntry): string {
+	switch (entry.type) {
+		case 'created': return 'Created';
+		case 'renamed': return `Renamed: "${entry.from}" → "${entry.to}"`;
+		case 'description_edited': return 'Description edited';
+		case 'memo_edited': return 'Memo edited';
+		case 'absorbed': return `Absorbed: ${entry.absorbedNames.map(n => `"${n}"`).join(', ')}`;
+		case 'merged_into': return `Merged into "${entry.intoName}"`;
+		case 'deleted': return 'Deleted';
 	}
 }

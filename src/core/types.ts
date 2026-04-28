@@ -183,7 +183,35 @@ export interface QualiaData {
 	/** Per-doc visibility overrides. overrides[fileId][codeId] = effective visibility in that doc.
 	 *  Self-cleaning: entries só existem quando divergem do global. */
 	visibilityOverrides: Record<string, Record<string, boolean>>;
+	/**
+	 * Audit log central — registra eventos analíticos por código (created, renamed, merged, etc.)
+	 * pra defender escolhas analíticas em paper. Soft delete via `hidden: true`.
+	 * Ver `src/core/auditLog.ts` pra helpers e `docs/ROADMAP.md #29` pro contexto.
+	 */
+	auditLog: AuditEntry[];
 }
+
+// ─── Audit log ────────────────────────────────────────────
+
+interface BaseAuditEntry {
+	/** ID único pra hide/unhide reversível. */
+	id: string;
+	/** ID do código a que esse event se refere. Pra códigos deletados, ainda preserva o id. */
+	codeId: string;
+	/** Timestamp ms. */
+	at: number;
+	/** Soft delete: true esconde da timeline e do export, mas mantém no JSON pra auditoria/restore. */
+	hidden?: true;
+}
+
+export type AuditEntry =
+	| (BaseAuditEntry & { type: 'created' })
+	| (BaseAuditEntry & { type: 'renamed'; from: string; to: string })
+	| (BaseAuditEntry & { type: 'description_edited'; from: string; to: string })
+	| (BaseAuditEntry & { type: 'memo_edited'; from: string; to: string })
+	| (BaseAuditEntry & { type: 'absorbed'; absorbedNames: string[]; absorbedIds: string[] })
+	| (BaseAuditEntry & { type: 'merged_into'; intoId: string; intoName: string })
+	| (BaseAuditEntry & { type: 'deleted' });
 
 export function createDefaultData(): QualiaData {
 	return {
@@ -211,5 +239,6 @@ export function createDefaultData(): QualiaData {
 		},
 		caseVariables: { values: {}, types: {} },
 		visibilityOverrides: {},
+		auditLog: [],
 	};
 }
