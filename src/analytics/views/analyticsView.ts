@@ -342,23 +342,28 @@ export class AnalyticsView extends ItemView {
     }
     this.configPanelEl.style.display = "";
 
-    renderSourcesSection(this);
+    // Modes que consomem auditLog (não markers) não precisam dos shared filters
+    const auditOnlyMode = this.viewMode === 'codebook-timeline';
+
+    if (!auditOnlyMode) renderSourcesSection(this);
     renderViewModeSection(this);
     if (entry.renderOptions) entry.renderOptions(this);
-    renderCodesSection(this);
-    renderMinFreqSection(this);
-    renderCaseVariablesFilter(
-      this.configPanelEl,
-      this.plugin.caseVariablesRegistry,
-      { filter: this.caseVariableFilter },
-      (f) => { this.caseVariableFilter = f; this.scheduleUpdate(); },
-    );
-    renderGroupsFilter(
-      this.configPanelEl,
-      this.plugin.registry,
-      { filter: this.groupFilter },
-      (f) => { this.groupFilter = f; this.scheduleUpdate(); },
-    );
+    if (!auditOnlyMode) {
+      renderCodesSection(this);
+      renderMinFreqSection(this);
+      renderCaseVariablesFilter(
+        this.configPanelEl,
+        this.plugin.caseVariablesRegistry,
+        { filter: this.caseVariableFilter },
+        (f) => { this.caseVariableFilter = f; this.scheduleUpdate(); },
+      );
+      renderGroupsFilter(
+        this.configPanelEl,
+        this.plugin.registry,
+        { filter: this.groupFilter },
+        (f) => { this.groupFilter = f; this.scheduleUpdate(); },
+      );
+    }
   }
 
   // ─── Core logic ───
