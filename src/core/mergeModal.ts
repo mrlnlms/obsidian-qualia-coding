@@ -362,16 +362,21 @@ export class MergeModal extends Modal {
 				input.placeholder = 'New name…';
 				input.addEventListener('input', () => {
 					this.customName = input.value;
-					if (this.nameChoice.kind === 'custom') {
-						this.nameChoice = { kind: 'custom', value: this.customName };
-						this.updateMergeButton();
-					}
+					this.nameChoice = { kind: 'custom', value: this.customName };
+					this.updateMergeButton();
+					this.renderPreview();
 				});
 				input.addEventListener('focus', () => {
-					this.nameChoice = { kind: 'custom', value: this.customName };
-					this.renderNameSection();
-					this.renderPreview();
-					this.updateMergeButton();
+					if (this.nameChoice.kind !== 'custom') {
+						this.nameChoice = { kind: 'custom', value: this.customName };
+						// Marca o radio Custom + desmarca os outros sem re-render (preserva foco)
+						this.nameSection.querySelectorAll('input[type="radio"][name="name-choice"]').forEach(r => {
+							(r as HTMLInputElement).checked = false;
+						});
+						radio.checked = true;
+						this.renderPreview();
+						this.updateMergeButton();
+					}
 				});
 			}
 		}
