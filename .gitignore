@@ -11,4 +11,3 @@ coverage/
 tests/screenshots/actual/
 tests/screenshots/diff/
 README.v2.md
-scripts/safe-mode-baseline/
