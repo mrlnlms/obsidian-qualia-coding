@@ -136,6 +136,27 @@ Batch coding via LLM (local ou API) sobre células tabulares (ou markdown, PDF, 
 
 **Status**: contingente ao LLM coding. Suporte básico já implementado (`hyparquet` + `parseTabularFile()` + `registerExtensions(['csv', 'parquet'])`). Size guard ✅ FEITO 2026-04-28 (banner inline com "Load anyway" pra parquet >50MB / csv >100MB — mata "abri sem querer e travei Obsidian"). Lazy loading completo continua contingente ao LLM coding.
 
+**Calibração empírica do threshold (bench 2026-04-24, 11 arquivos reais, salvo em `safe-mode-baseline/results.jsonl` antes de remover):**
+
+| Type | Size (MB) | Peak RSS | Peak Heap | Multiplier RSS | Status |
+|------|-----------|----------|-----------|----------------|--------|
+| csv | 56.9 | 389 MB | 319 MB | 6.8x | ✅ |
+| csv | 75.8 | 560 MB | 485 MB | 7.4x | ✅ |
+| parquet | 76.9 | 755 MB | 381 MB | **9.8x** | ✅ |
+| parquet | 78.1 | 1405 MB | 1026 MB | **18.0x** | ✅ |
+| csv | 148.4 | 1060 MB | 977 MB | 7.1x | ✅ |
+| parquet | 172.5 | 1390 MB | 3470 MB | 8.1x | ✅ |
+| csv | 230.1 | 1600 MB | 1514 MB | 7.0x | ✅ |
+| parquet | 296.6 | 1464 MB | 3556 MB | 4.9x | ✅ |
+| csv | 388.5 | 2658 MB | 2534 MB | 6.8x | ✅ |
+| 2 parquets | — | — | — | — | ❌ OOM (`node_exit_134`) |
+
+**Conclusões:**
+- Parquet decode tem multiplier RSS ~5-18x — muito maior que CSV (~7x).
+- Em 50 MB parquet, esperado ~250-900 MB RSS — ainda dentro do que Obsidian aguenta sem travar visivelmente (margem segura).
+- Em 100 MB CSV, esperado ~700 MB RSS — dentro de aceitável.
+- Acima desses limites, banner inline obriga confirmação consciente.
+
 **Problema**: lê arquivo inteiro pra memória. Datasets grandes (ex: export Qualtrics 2M rows) crasham o Obsidian (~500MB-2GB de memória, main thread bloqueada).
 
 **Constraint**: AG Grid Community não tem Server-Side Row Model (Enterprise-only, ~$999/dev/ano). Alternativa viável é Infinite Row Model (Community).

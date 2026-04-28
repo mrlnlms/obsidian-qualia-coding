@@ -119,7 +119,11 @@ export class CsvCodingView extends FileView {
 		contentEl.empty();
 
 		// Size guard: arquivo grande pode travar Obsidian (sem lazy loading ainda).
-		// Limites pragmáticos baseados em decode cost: parquet 50MB / csv 100MB.
+		// Limites calibrados em bench empírico (2026-04-24, 11 arquivos reais):
+		//   - Parquet 76.9 MB → 755 MB RSS / 78.1 MB → 1.4 GB RSS (multiplier ~10x)
+		//   - CSV 148 MB → 1 GB RSS (multiplier ~7x)
+		//   - 2 parquets travaram com OOM (node_exit_134)
+		// Conclusão: parquet 50 MB / csv 100 MB são limites com margem segura.
 		const sizeBytes = file.stat.size;
 		const thresholdBytes = file.extension === 'parquet' ? 50 * 1024 * 1024 : 100 * 1024 * 1024;
 		if (sizeBytes > thresholdBytes) {
