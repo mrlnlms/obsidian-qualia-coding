@@ -81,7 +81,7 @@ describe('section', () => {
 	it('returns the correct section by typed key', async () => {
 		await dm.load();
 		const csv = dm.section('csv');
-		expect(csv).toEqual({ segmentMarkers: [], rowMarkers: [] });
+		expect(csv).toEqual({ segmentMarkers: [], rowMarkers: [], settings: { parquetSizeWarningMB: 50, csvSizeWarningMB: 100 } });
 	});
 
 	it('returns the correct section for registry', async () => {

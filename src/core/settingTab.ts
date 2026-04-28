@@ -173,6 +173,43 @@ export class QualiaSettingTab extends PluginSettingTab {
 					save();
 				}));
 
+		// ── Tabular files (CSV / Parquet) ───────────────────────
+		containerEl.createEl('h2', { text: 'Tabular files (CSV / Parquet)' });
+
+		const csvSection = (this.plugin.dataManager.section('csv') as { settings: { parquetSizeWarningMB: number; csvSizeWarningMB: number } });
+		// Defensive: vault legado pode não ter settings
+		if (!csvSection.settings) {
+			csvSection.settings = { parquetSizeWarningMB: 50, csvSizeWarningMB: 100 };
+		}
+
+		new Setting(containerEl)
+			.setName('Parquet size warning (MB)')
+			.setDesc('Show "Large file" banner before opening parquet larger than this. Decode is heavy (~5-18× heap multiplier). Default 50 MB. Bench data: 78 MB → 1.4 GB RSS.')
+			.addText(text => text
+				.setPlaceholder('50')
+				.setValue(String(csvSection.settings.parquetSizeWarningMB))
+				.onChange((value) => {
+					const n = parseInt(value, 10);
+					if (Number.isFinite(n) && n > 0) {
+						csvSection.settings.parquetSizeWarningMB = n;
+						save();
+					}
+				}));
+
+		new Setting(containerEl)
+			.setName('CSV size warning (MB)')
+			.setDesc('Show "Large file" banner before opening CSV larger than this. Default 100 MB. Bench data: 148 MB CSV → 1 GB RSS (~7× multiplier).')
+			.addText(text => text
+				.setPlaceholder('100')
+				.setValue(String(csvSection.settings.csvSizeWarningMB))
+				.onChange((value) => {
+					const n = parseInt(value, 10);
+					if (Number.isFinite(n) && n > 0) {
+						csvSection.settings.csvSizeWarningMB = n;
+						save();
+					}
+				}));
+
 		// ── Export ──────────────────────────────────────────────
 		containerEl.createEl('h2', { text: 'Export' });
 
