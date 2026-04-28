@@ -28,6 +28,7 @@ import { renderMemoView } from "./memoView/memoViewMode";
 import { renderMemoViewOptions } from "./memoView/memoViewOptions";
 import { exportMemoCSV } from "./memoView/exportMemoCSV";
 import { exportMemoMarkdown } from "./memoView/exportMemoMarkdown";
+import { renderCodebookTimeline, renderCodebookTimelineOptions, exportCodebookTimelineMarkdown } from "./codebookTimelineMode";
 
 export type ModeEntry = {
   label: string;
@@ -167,5 +168,11 @@ export const MODE_REGISTRY: Record<ViewMode, ModeEntry> = {
     renderOptions: renderMemoViewOptions,
     exportCSV: exportMemoCSV,
     exportMarkdown: exportMemoMarkdown,
+  },
+  "codebook-timeline": {
+    label: "Codebook Timeline",
+    render: renderCodebookTimeline,
+    renderOptions: renderCodebookTimelineOptions,
+    exportMarkdown: exportCodebookTimelineMarkdown,
   },
 };

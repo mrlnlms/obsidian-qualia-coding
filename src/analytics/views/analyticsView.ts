@@ -85,6 +85,13 @@ export class AnalyticsView extends ItemView {
   mvShowTypes = { code: true, group: true, relation: true, marker: true };
   mvMarkerLimit: 5 | 10 | 25 | "all" = 10;
   mvExpanded: Set<string> = new Set();
+
+  // Codebook Timeline state
+  ctGranularity: import("../data/codebookTimelineEngine").Granularity = 'day';
+  ctEventBuckets: Set<import("../data/codebookTimelineEngine").EventTypeFilter> = new Set(['created', 'renamed', 'edited', 'absorbed', 'merged_into', 'deleted']);
+  ctCodeSearch = '';
+  ctShowHidden = false;
+
   private refreshSuspendedCount = 0;
 
   // Relations Network state
