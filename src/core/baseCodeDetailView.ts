@@ -24,6 +24,7 @@ import { setupDragDrop } from './codebookDragDrop';
 import { MergeModal, executeMerge } from './mergeModal';
 import { PromptModal, ConfirmModal } from './dialogs';
 import { getAddToGroupCandidates } from './codeGroupsAddPicker';
+import { BulkRenameModal } from './bulkRenameModal';
 
 export abstract class BaseCodeDetailView extends ItemView {
 	protected model: SidebarModelInterface;
@@ -253,6 +254,23 @@ export abstract class BaseCodeDetailView extends ItemView {
 		const count = this.selectedCodeIds.size;
 		const menu = new Menu();
 		menu.addItem(item => item
+			.setTitle(`Rename ${count} codes...`)
+			.setIcon('pencil')
+			.onClick(() => this.bulkRenameSelected()));
+		menu.addItem(item => item
+			.setTitle(`Change color of ${count} codes`)
+			.setIcon('palette')
+			.onClick(() => this.bulkRecolorSelected()));
+		menu.addItem(item => item
+			.setTitle(`Move ${count} codes to folder...`)
+			.setIcon('folder')
+			.onClick(() => this.bulkMoveSelectedToFolder()));
+		menu.addItem(item => item
+			.setTitle(`Add ${count} codes to group...`)
+			.setIcon('tag')
+			.onClick(() => this.bulkAddSelectedToGroup()));
+		menu.addSeparator();
+		menu.addItem(item => item
 			.setTitle(`Delete ${count} codes`)
 			.setIcon('trash')
 			.setWarning(true)
@@ -263,6 +281,164 @@ export abstract class BaseCodeDetailView extends ItemView {
 			.setIcon('x')
 			.onClick(() => this.clearCodeSelection()));
 		menu.showAtMouseEvent(event);
+	}
+
+	private bulkRenameSelected(): void {
+		const ids = Array.from(this.selectedCodeIds);
+		if (ids.length === 0) return;
+		const names = ids.map(id => this.model.registry.getById(id)?.name).filter((n): n is string => Boolean(n));
+		new BulkRenameModal({
+			app: this.app,
+			currentNames: names,
+			onSubmit: (prefix, suffix) => {
+				let renamed = 0;
+				let skipped = 0;
+				for (const id of ids) {
+					const def = this.model.registry.getById(id);
+					if (!def) { skipped++; continue; }
+					const newName = `${prefix}${def.name}${suffix}`;
+					if (newName === def.name) { skipped++; continue; }
+					const ok = this.model.registry.update(id, { name: newName });
+					if (ok) renamed++;
+					else skipped++;
+				}
+				this.model.saveMarkers();
+				this.refreshCurrentMode();
+				const msg = skipped > 0
+					? `Renamed ${renamed} code${renamed === 1 ? '' : 's'} (${skipped} skipped — name conflicts).`
+					: `Renamed ${renamed} code${renamed === 1 ? '' : 's'}.`;
+				new Notice(msg);
+			},
+		}).open();
+	}
+
+	private bulkRecolorSelected(): void {
+		const ids = Array.from(this.selectedCodeIds);
+		if (ids.length === 0) return;
+		// Input HTML5 type=color invisível clicado programaticamente. 'change' (não 'input')
+		// pra aplicar UMA vez quando user fecha o picker — evita N updates por tick durante drag.
+		const input = document.createElement('input');
+		input.type = 'color';
+		// Default: cor do primeiro selecionado (heurística — user vê a cor "atual" como ponto de partida)
+		const firstColor = this.model.registry.getById(ids[0]!)?.color ?? '#888888';
+		input.value = firstColor;
+		input.style.position = 'absolute';
+		input.style.opacity = '0';
+		input.style.pointerEvents = 'none';
+		document.body.appendChild(input);
+		input.addEventListener('change', () => {
+			for (const id of ids) {
+				this.model.registry.update(id, { color: input.value });
+			}
+			this.model.saveMarkers();
+			this.refreshCurrentMode();
+			input.remove();
+			new Notice(`Recolored ${ids.length} code${ids.length === 1 ? '' : 's'}.`);
+		});
+		// Se user fecha sem mudar, change não dispara — cleanup via blur fallback
+		input.addEventListener('blur', () => setTimeout(() => { if (input.isConnected) input.remove(); }, 200));
+		input.click();
+	}
+
+	private bulkMoveSelectedToFolder(): void {
+		const ids = Array.from(this.selectedCodeIds);
+		if (ids.length === 0) return;
+		const folders = this.model.registry.getAllFolders();
+		const view = this;
+
+		type Choice =
+			| { kind: 'folder'; id: string; name: string }
+			| { kind: 'root' }
+			| { kind: 'new' };
+
+		class FolderPicker extends FuzzySuggestModal<Choice> {
+			getItems(): Choice[] {
+				const items: Choice[] = [{ kind: 'root' }];
+				for (const f of folders) items.push({ kind: 'folder', id: f.id, name: f.name });
+				items.push({ kind: 'new' });
+				return items;
+			}
+			getItemText(item: Choice): string {
+				if (item.kind === 'root') return '— Move out of folder —';
+				if (item.kind === 'new') return '+ New folder...';
+				return item.name;
+			}
+			onChooseItem(item: Choice): void {
+				if (item.kind === 'new') {
+					new PromptModal({
+						app: view.app,
+						title: 'New folder',
+						placeholder: 'Folder name',
+						onSubmit: (name) => {
+							const trimmed = name.trim();
+							if (!trimmed) return;
+							const folder = view.model.registry.createFolder(trimmed);
+							for (const id of ids) view.model.registry.setCodeFolder(id, folder.id);
+							view.model.saveMarkers();
+							view.expanded.folders.add(folder.id);
+							view.refreshCurrentMode();
+							new Notice(`Moved ${ids.length} code${ids.length === 1 ? '' : 's'} to "${trimmed}".`);
+						},
+					}).open();
+					return;
+				}
+				const folderId = item.kind === 'root' ? undefined : item.id;
+				for (const id of ids) view.model.registry.setCodeFolder(id, folderId);
+				view.model.saveMarkers();
+				if (folderId) view.expanded.folders.add(folderId);
+				view.refreshCurrentMode();
+				const target = item.kind === 'root' ? 'root' : `"${item.name}"`;
+				new Notice(`Moved ${ids.length} code${ids.length === 1 ? '' : 's'} to ${target}.`);
+			}
+		}
+		new FolderPicker(this.app).open();
+	}
+
+	private bulkAddSelectedToGroup(): void {
+		const ids = Array.from(this.selectedCodeIds);
+		if (ids.length === 0) return;
+		const allGroups = this.model.registry.getAllGroups();
+		const view = this;
+
+		type Choice = { kind: 'group'; id: string; name: string } | { kind: 'new' };
+
+		class GroupPicker extends FuzzySuggestModal<Choice> {
+			getItems(): Choice[] {
+				const items: Choice[] = allGroups.map(g => ({ kind: 'group' as const, id: g.id, name: g.name }));
+				items.push({ kind: 'new' });
+				return items;
+			}
+			getItemText(item: Choice): string {
+				return item.kind === 'new' ? '+ New group...' : item.name;
+			}
+			onChooseItem(item: Choice): void {
+				if (item.kind === 'new') {
+					new PromptModal({
+						app: view.app,
+						title: 'New group',
+						placeholder: 'Group name',
+						onSubmit: (name) => {
+							const trimmed = name.trim();
+							if (!trimmed) {
+								new Notice('Group name cannot be empty.');
+								return;
+							}
+							const g = view.model.registry.createGroup(trimmed);
+							for (const id of ids) view.model.registry.addCodeToGroup(id, g.id);
+							view.model.saveMarkers();
+							view.refreshCurrentMode();
+							new Notice(`Added ${ids.length} code${ids.length === 1 ? '' : 's'} to "${trimmed}".`);
+						},
+					}).open();
+					return;
+				}
+				for (const id of ids) view.model.registry.addCodeToGroup(id, item.id);
+				view.model.saveMarkers();
+				view.refreshCurrentMode();
+				new Notice(`Added ${ids.length} code${ids.length === 1 ? '' : 's'} to "${item.name}".`);
+			}
+		}
+		new GroupPicker(this.app).open();
 	}
 
 	private bulkDeleteSelected(): void {
