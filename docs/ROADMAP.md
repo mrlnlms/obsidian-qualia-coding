@@ -134,7 +134,7 @@ Batch coding via LLM (local ou API) sobre células tabulares (ou markdown, PDF, 
 
 ### Parquet lazy loading
 
-**Status**: contingente ao LLM coding. Suporte básico já implementado (`hyparquet` + `parseTabularFile()` + `registerExtensions(['csv', 'parquet'])`). Lazy loading completo só faz sentido se LLM coding entrar — sem ele, "parquet 500MB com humano codificando sequencialmente" não existe no workflow QDA real.
+**Status**: contingente ao LLM coding. Suporte básico já implementado (`hyparquet` + `parseTabularFile()` + `registerExtensions(['csv', 'parquet'])`). Size guard ✅ FEITO 2026-04-28 (banner inline com "Load anyway" pra parquet >50MB / csv >100MB — mata "abri sem querer e travei Obsidian"). Lazy loading completo continua contingente ao LLM coding.
 
 **Problema**: lê arquivo inteiro pra memória. Datasets grandes (ex: export Qualtrics 2M rows) crasham o Obsidian (~500MB-2GB de memória, main thread bloqueada).
 
