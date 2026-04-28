@@ -24,7 +24,7 @@ function makeCallbacks(overrides: Partial<CodebookTreeCallbacks> = {}): Codebook
 }
 
 function makeState(): CodebookTreeState {
-	return { expanded: { codes: new Set(), folders: new Set() } as any, searchQuery: '', dragMode: 'reorganize' };
+	return { expanded: { codes: new Set(), folders: new Set() } as any, searchQuery: '', dragMode: 'reorganize', selectedGroupId: null, selectedCodeIds: new Set<string>() };
 }
 
 describe('codebookTreeRenderer — visibility UI', () => {

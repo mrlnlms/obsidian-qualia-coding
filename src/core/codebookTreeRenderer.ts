@@ -19,7 +19,8 @@ const INDENT_PX = 18;
 // ─── Interfaces ──────────────────────────────────────────
 
 export interface CodebookTreeCallbacks {
-	onCodeClick(codeId: string): void;
+	/** Recebe o MouseEvent pra que o caller possa decidir baseado em modifiers (ctrl/meta = toggle select; shift = range; bare = navigate). */
+	onCodeClick(codeId: string, event: MouseEvent): void;
 	onCodeRightClick(codeId: string, event: MouseEvent): void;
 	onToggleExpand(codeId: string): void;
 	onFolderToggleExpand(folderId: string): void;
@@ -32,6 +33,8 @@ export interface CodebookTreeState {
 	searchQuery: string;
 	dragMode: 'reorganize' | 'merge';
 	selectedGroupId: string | null;
+	/** Ids de códigos selecionados (multi-select via Cmd/Shift+click). Vazio se nenhum. */
+	selectedCodeIds: Set<string>;
 }
 
 // ─── Main render function ────────────────────────────────
@@ -86,7 +89,7 @@ export function renderCodebookTree(
 		for (let i = startIdx; i < endIdx; i++) {
 			if (rowPool.has(i)) continue;
 			const node = nodes[i]!;
-			const rowEl = renderRow(node, counts, i, callbacks, model.registry, state.selectedGroupId);
+			const rowEl = renderRow(node, counts, i, callbacks, model.registry, state.selectedGroupId, state.selectedCodeIds);
 			spacer.appendChild(rowEl);
 			rowPool.set(i, rowEl);
 		}
@@ -111,11 +114,12 @@ function renderRow(
 	callbacks: CodebookTreeCallbacks,
 	registry: CodeDefinitionRegistry,
 	selectedGroupId: string | null,
+	selectedCodeIds: Set<string>,
 ): HTMLElement {
 	if (node.type === 'folder') {
 		return renderFolderRow(node, index, callbacks);
 	}
-	return renderCodeRow(node, counts, index, callbacks, registry, selectedGroupId);
+	return renderCodeRow(node, counts, index, callbacks, registry, selectedGroupId, selectedCodeIds);
 }
 
 function renderFolderRow(
@@ -186,6 +190,7 @@ function renderCodeRow(
 	callbacks: CodebookTreeCallbacks,
 	registry: CodeDefinitionRegistry,
 	selectedGroupId: string | null,
+	selectedCodeIds: Set<string>,
 ): HTMLElement {
 	const row = document.createElement('div');
 	row.className = 'codebook-tree-row';
@@ -279,9 +284,12 @@ function renderCodeRow(
 	if (membership === 'member') row.classList.add('is-group-member');
 	else if (membership === 'non-member') row.classList.add('is-group-non-member');
 
-	// Click → navigate to code detail
-	row.addEventListener('click', () => {
-		callbacks.onCodeClick(node.def.id);
+	// Multi-select visual
+	if (selectedCodeIds.has(node.def.id)) row.classList.add('is-selected');
+
+	// Click → caller decide o que fazer (bare = navigate, modifiers = select toggle/range)
+	row.addEventListener('click', (e) => {
+		callbacks.onCodeClick(node.def.id, e);
 	});
 
 	// Right-click → context menu
