@@ -15,6 +15,8 @@ export interface CodeGroupsPanelCallbacks {
 	onChipContextMenu(groupId: string, event: MouseEvent): void;
 	onEditDescription(groupId: string): void;
 	onEditMemo(groupId: string): void;
+	/** Optional. Drop a code (dragged from the codebook tree) onto a group chip → add to group. */
+	onDropCodeOnGroup?(codeId: string, groupId: string): void;
 }
 
 export function renderCodeGroupsPanel(
@@ -74,6 +76,28 @@ export function renderCodeGroupsPanel(
 			e.preventDefault();
 			callbacks.onChipContextMenu(g.id, e);
 		});
+
+		// Drop target: chip aceita um code arrastado da árvore. Visual feedback via .is-drop-target.
+		// dropEffect='move' bate com effectAllowed='move' setado no dragstart do tree;
+		// 'link' ou 'copy' fariam o navegador cancelar o drop silenciosamente.
+		if (callbacks.onDropCodeOnGroup) {
+			chip.addEventListener('dragover', (e) => {
+				if (!e.dataTransfer) return;
+				e.preventDefault();
+				e.dataTransfer.dropEffect = 'move';
+				chip.classList.add('is-drop-target');
+			});
+			chip.addEventListener('dragleave', () => {
+				chip.classList.remove('is-drop-target');
+			});
+			chip.addEventListener('drop', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				chip.classList.remove('is-drop-target');
+				const codeId = e.dataTransfer?.getData('text/plain');
+				if (codeId) callbacks.onDropCodeOnGroup?.(codeId, g.id);
+			});
+		}
 	}
 
 	// Description do group selected, sempre visível quando há filter ativo.

@@ -18,6 +18,8 @@ export interface ListRendererCallbacks extends CodebookTreeCallbacks {
 	onGroupChipContextMenu(groupId: string, event: MouseEvent): void;
 	onEditGroupDescription(groupId: string): void;
 	onEditGroupMemo(groupId: string): void;
+	/** Drop de código na chip de um group → adicionar membership. Optional. */
+	onDropCodeOnGroup?(codeId: string, groupId: string): void;
 }
 
 /**
@@ -91,6 +93,7 @@ export function renderListContent(
 		onChipContextMenu: callbacks.onGroupChipContextMenu,
 		onEditDescription: callbacks.onEditGroupDescription,
 		onEditMemo: callbacks.onEditGroupMemo,
+		onDropCodeOnGroup: callbacks.onDropCodeOnGroup,
 	});
 
 	renderCodebookTree(treeDiv, model, treeState, callbacks);

@@ -32,6 +32,11 @@ export interface DragDropCallbacks {
 	refresh(): void;
 	/** Expand a collapsed folder when the cursor hovers it during a drag. Optional — if omitted, auto-expand is disabled. */
 	onFolderHoverExpand?(folderId: string): void;
+	/**
+	 * Optional. Drop em zona vazia do tree (sem hover row, sem hover folder) com callback presente
+	 * dispara remoção do group ativo. Caller decide se há group selected; se não houver, no-op.
+	 */
+	onDropOnEmptySpace?(codeId: string): void;
 }
 
 export function setupDragDrop(
@@ -328,6 +333,12 @@ export function setupDragDrop(
 		const row = lastHoverRow ?? findRow(e.target);
 		const targetId = row?.dataset.codeId;
 		if (!row || !targetId || targetId === draggedCodeId) {
+			// Drop em zona vazia (sem row sob cursor, sem folder hover): se caller registrou
+			// callback de "empty space drop", repassa o codeId. Usado pra remover do group ativo.
+			if (!folderRow && callbacks.onDropOnEmptySpace) {
+				const codeId = draggedCodeId;
+				callbacks.onDropOnEmptySpace(codeId);
+			}
 			cleanupDrag();
 			return;
 		}
