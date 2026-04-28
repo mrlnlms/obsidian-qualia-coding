@@ -5,7 +5,7 @@
 
 import { WorkspaceLeaf, MarkdownView, TFile } from 'obsidian';
 import { EditorView } from '@codemirror/view';
-import { BaseCodeDetailView } from './baseCodeDetailView';
+import { BaseCodeDetailView, type AuditAccess } from './baseCodeDetailView';
 import type { BaseMarker, SidebarModelInterface } from './types';
 import type { CodeMarkerModel, Marker } from '../markdown/models/codeMarkerModel';
 import { isPdfMarker, isImageMarker, isCsvMarker, isAudioMarker, isVideoMarker, shortenPath as _shortenPath, getMarkerLabel as _getMarkerLabel } from './markerResolvers';
@@ -15,8 +15,8 @@ export const CODE_DETAIL_VIEW_TYPE = 'qualia-code-detail';
 export class UnifiedCodeDetailView extends BaseCodeDetailView {
 	private mdModel: CodeMarkerModel | null;
 
-	constructor(leaf: WorkspaceLeaf, model: SidebarModelInterface, mdModel: CodeMarkerModel | null) {
-		super(leaf, model);
+	constructor(leaf: WorkspaceLeaf, model: SidebarModelInterface, mdModel: CodeMarkerModel | null, auditAccess?: AuditAccess) {
+		super(leaf, model, auditAccess);
 		this.mdModel = mdModel;
 	}
 

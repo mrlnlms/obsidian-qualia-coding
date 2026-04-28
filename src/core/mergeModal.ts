@@ -81,7 +81,26 @@ export function executeMerge(params: MergeParams): MergeResult {
 	if (destinationName) registry.update(destinationId, { name: destinationName });
 	if (destinationParentId !== undefined) registry.setParent(destinationId, destinationParentId || undefined);
 
-	// 5. Delete source codes
+	// 5. Audit: capture nomes dos sources ANTES de deletar — pra registrar no log
+	//    com nomes legíveis (não só ids). Suprime o `deleted` automático do registry pra
+	//    cada source, e emite `merged_into`/`absorbed` próprio.
+	const finalDestDef = registry.getById(destinationId);
+	const finalDestName = finalDestDef?.name ?? destinationId;
+	const sourceSnapshot = sourceIds
+		.map(id => ({ id, name: registry.getById(id)?.name ?? id }));
+
+	for (const src of sourceSnapshot) {
+		registry.emitAuditExternal({ type: 'merged_into', codeId: src.id, intoId: destinationId, intoName: finalDestName });
+		registry.suppressNextDelete(src.id);
+	}
+	registry.emitAuditExternal({
+		type: 'absorbed',
+		codeId: destinationId,
+		absorbedNames: sourceSnapshot.map(s => s.name),
+		absorbedIds: sourceSnapshot.map(s => s.id),
+	});
+
+	// 6. Delete source codes (deleted audit suprimido pelo passo 5)
 	for (const srcId of sourceIds) registry.delete(srcId);
 
 	return { updatedMarkers: markers, affectedCount };

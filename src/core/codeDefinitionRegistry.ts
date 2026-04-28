@@ -30,12 +30,31 @@ export const DEFAULT_PALETTE: string[] = [
 	'#FF5722', // deep orange
 ];
 
+/**
+ * Eventos de audit emitidos pelo registry. Caller (plugin) registra listener
+ * via `setAuditListener` e converte em entries de `data.auditLog`. Eventos de
+ * `merged_into`/`absorbed` ficam fora do registry — são emitidos no `executeMerge`
+ * (porque o registry só vê deletes individuais, não conhece a semântica de merge).
+ */
+export type AuditMutationEvent =
+	| { type: 'created'; codeId: string }
+	| { type: 'renamed'; codeId: string; from: string; to: string }
+	| { type: 'description_edited'; codeId: string; from: string; to: string }
+	| { type: 'memo_edited'; codeId: string; from: string; to: string }
+	| { type: 'deleted'; codeId: string }
+	// Emitidos pelo executeMerge (não pelo registry sozinho), mas passam pelo mesmo listener.
+	| { type: 'absorbed'; codeId: string; absorbedNames: string[]; absorbedIds: string[] }
+	| { type: 'merged_into'; codeId: string; intoId: string; intoName: string };
+
 export class CodeDefinitionRegistry {
 	private definitions: Map<string, CodeDefinition> = new Map();
 	private nameIndex: Map<string, string> = new Map(); // name → id
 	private nextPaletteIndex: number = 0;
 	private onMutateListeners: Set<() => void> = new Set();
 	private visibilityListeners: Set<(detail: VisibilityChangedDetail) => void> = new Set();
+	private auditListener: ((event: AuditMutationEvent) => void) | null = null;
+	/** Suprime emit do próximo `delete` — usado pelo merge pra emitir `merged_into` próprio em vez de `deleted`. */
+	private suppressNextDeleteAudit: Set<string> = new Set();
 
 	/** Per-doc overrides: overrides[fileId][codeId] = visibility nesse doc. */
 	visibilityOverrides: VisibilityOverrides = {};
@@ -61,6 +80,25 @@ export class CodeDefinitionRegistry {
 	/** Unregister a previously registered mutation callback. */
 	removeOnMutate(fn: () => void): void {
 		this.onMutateListeners.delete(fn);
+	}
+
+	/** Set the single audit listener — caller mints AuditEntry entries from these events. */
+	setAuditListener(fn: ((event: AuditMutationEvent) => void) | null): void {
+		this.auditListener = fn;
+	}
+
+	/** Marca o próximo delete deste codeId pra NÃO emitir audit `deleted` (caller emite seu próprio event de merge). */
+	suppressNextDelete(codeId: string): void {
+		this.suppressNextDeleteAudit.add(codeId);
+	}
+
+	private emitAudit(event: AuditMutationEvent): void {
+		if (this.auditListener) this.auditListener(event);
+	}
+
+	/** Pública pra `executeMerge` emitir `absorbed`/`merged_into` (eventos que registry sozinho não conhece). */
+	emitAuditExternal(event: AuditMutationEvent): void {
+		this.emitAudit(event);
 	}
 
 	/** Register a callback invoked on visibility changes (global or per-doc). */
@@ -204,6 +242,7 @@ export class CodeDefinitionRegistry {
 			this.rootOrder.push(def.id);
 		}
 
+		this.emitAudit({ type: 'created', codeId: def.id });
 		for (const fn of this.onMutateListeners) fn();
 		return def;
 	}
@@ -211,6 +250,11 @@ export class CodeDefinitionRegistry {
 	update(id: string, changes: Partial<Pick<CodeDefinition, 'name' | 'color' | 'description' | 'memo' | 'magnitude' | 'relations'>>): boolean {
 		const def = this.definitions.get(id);
 		if (!def) return false;
+
+		// Snapshot pra audit (antes de mutar)
+		const oldName = def.name;
+		const oldDescription = def.description ?? '';
+		const oldMemo = def.memo ?? '';
 
 		if (changes.name !== undefined && changes.name !== def.name) {
 			// Reject rename if target name already exists (prevents ghost codes)
@@ -220,15 +264,24 @@ export class CodeDefinitionRegistry {
 			this.nameIndex.delete(def.name);
 			def.name = changes.name;
 			this.nameIndex.set(def.name, def.id);
+			this.emitAudit({ type: 'renamed', codeId: id, from: oldName, to: changes.name });
 		}
 		if (changes.color !== undefined) {
 			def.color = changes.color;
 		}
 		if (changes.description !== undefined) {
-			def.description = changes.description || undefined;
+			const newDescription = changes.description || '';
+			if (newDescription !== oldDescription) {
+				def.description = newDescription || undefined;
+				this.emitAudit({ type: 'description_edited', codeId: id, from: oldDescription, to: newDescription });
+			}
 		}
 		if (changes.memo !== undefined) {
-			def.memo = changes.memo || undefined;
+			const newMemo = changes.memo || '';
+			if (newMemo !== oldMemo) {
+				def.memo = newMemo || undefined;
+				this.emitAudit({ type: 'memo_edited', codeId: id, from: oldMemo, to: newMemo });
+			}
 		}
 		if ('magnitude' in changes) {
 			def.magnitude = changes.magnitude;
@@ -243,7 +296,15 @@ export class CodeDefinitionRegistry {
 
 	delete(id: string): boolean {
 		const result = this._deleteCodeNoEmit(id);
-		if (result) for (const fn of this.onMutateListeners) fn();
+		if (result) {
+			// Suppress quando merge marcou esse code (vai emitir merged_into próprio)
+			if (this.suppressNextDeleteAudit.has(id)) {
+				this.suppressNextDeleteAudit.delete(id);
+			} else {
+				this.emitAudit({ type: 'deleted', codeId: id });
+			}
+			for (const fn of this.onMutateListeners) fn();
+		}
 		return result;
 	}
 

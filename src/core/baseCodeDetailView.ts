@@ -13,7 +13,18 @@
  */
 
 import { FuzzySuggestModal, ItemView, Menu, Notice, WorkspaceLeaf } from 'obsidian';
-import { BaseMarker, GroupDefinition, SidebarModelInterface } from './types';
+import { BaseMarker, GroupDefinition, SidebarModelInterface, AuditEntry } from './types';
+
+/**
+ * Audit log accessor — passado pelo plugin pra views que querem renderizar a timeline.
+ * Opcional: views construídas sem ele funcionam normal, só não mostram a seção History.
+ */
+export interface AuditAccess {
+	getLog(): AuditEntry[];
+	hideEntry(id: string): void;
+	unhideEntry(id: string): void;
+	exportCodeHistory(codeId: string, codeName: string): void;
+}
 import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
@@ -57,9 +68,12 @@ export abstract class BaseCodeDetailView extends ItemView {
 	private dragDropCleanup: (() => void) | null = null;
 	private listMode = false;
 
-	constructor(leaf: WorkspaceLeaf, model: SidebarModelInterface) {
+	protected auditAccess?: AuditAccess;
+
+	constructor(leaf: WorkspaceLeaf, model: SidebarModelInterface, auditAccess?: AuditAccess) {
 		super(leaf);
 		this.model = model;
+		this.auditAccess = auditAccess;
 	}
 
 	// ─── Abstract hooks (engine implements) ──────────────────
@@ -1062,6 +1076,14 @@ export abstract class BaseCodeDetailView extends ItemView {
 				this.model.registry.removeCodeFromGroup(codeId, groupId);
 				this.model.saveMarkers();
 				this.refreshCurrentMode();
+			},
+			// Audit log — degrada gracioso se auditAccess não foi injetado
+			getAuditLog: () => this.auditAccess?.getLog() ?? [],
+			onHideAuditEntry: (id) => this.auditAccess?.hideEntry(id),
+			onUnhideAuditEntry: (id) => this.auditAccess?.unhideEntry(id),
+			onExportCodeHistory: (codeId) => {
+				const name = this.model.registry.getById(codeId)?.name ?? codeId;
+				this.auditAccess?.exportCodeHistory(codeId, name);
 			},
 		}, this.app);
 	}
