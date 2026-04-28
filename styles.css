@@ -5066,6 +5066,13 @@ body.codebook-dragging * {
 .codebook-group-chip.is-selected .codebook-group-chip-count {
 	color: var(--text-on-accent);
 }
+/* Drop target: chip aceita um code arrastado da árvore */
+.codebook-group-chip.is-drop-target {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+	transform: scale(1.05);
+	transition: transform 100ms ease;
+}
 
 /* ─── Tree chip contador (groups) ──────────────────── */
 .codebook-tree-group-chip {
@@ -5086,6 +5093,13 @@ body.codebook-dragging * {
 }
 .codebook-tree-row.is-group-non-member:not(.qc-code-row-hidden) {
 	opacity: 0.4;
+}
+/* Durante drag, rows desbotadas (não-membros do group ativo, ou ocultas via toggle)
+   ficam não-interativas pra cursor. Sem isso, o "drop em zona vazia" nunca dispara —
+   o cursor passa por cima de uma row escondida e o handler trata como reparent. */
+body.codebook-dragging .codebook-tree-row.is-group-non-member,
+body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
+	pointer-events: none;
 }
 
 /* ─── Code Detail — Groups section ─────────────────── */

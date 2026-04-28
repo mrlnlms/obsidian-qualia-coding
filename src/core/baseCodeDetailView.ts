@@ -212,6 +212,13 @@ export abstract class BaseCodeDetailView extends ItemView {
 						this.model.saveMarkers();
 						if (folderId) this.expanded.folders.add(folderId);
 					},
+					onDropOnEmptySpace: (codeId) => {
+						// Drop em zona vazia da árvore só faz sentido se há um group filtrado:
+						// remove o código do group ativo. Sem filter ativo, é no-op (gesto natural).
+						if (!this.selectedGroupId) return;
+						this.model.registry.removeCodeFromGroup(codeId, this.selectedGroupId);
+						this.model.saveMarkers();
+					},
 					setDragMode: (mode) => {
 						this.treeDragMode = mode;
 					},
@@ -375,6 +382,11 @@ export abstract class BaseCodeDetailView extends ItemView {
 			},
 			onEditGroupMemo: (groupId: string) => {
 				this.editGroupMemo(groupId);
+			},
+			onDropCodeOnGroup: (codeId: string, groupId: string) => {
+				this.model.registry.addCodeToGroup(codeId, groupId);
+				this.model.saveMarkers();
+				this.refreshCurrentMode();
 			},
 		};
 	}

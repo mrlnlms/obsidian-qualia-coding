@@ -11,6 +11,12 @@
 
 **Nenhum bloqueador aberto.** Single item ativo: §11 E3 (limitação de formato, won't-fix documentado). Tudo o que era débito técnico foi resolvido entre 2026-03 e 2026-04.
 
+### 🔍 Sintomas observados sem repro confiável
+
+Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não viram tarefa porque sem repro o debug é especulação. Investigar quando aparecer caso reproduzível.
+
+- **(2026-04-28) Suspeita de código duplicado no codebook após uso do drag-drop inter-groups** — user observou um código aparecer duas vezes na árvore, não conseguiu replicar. Hipóteses não validadas: (1) virtual scroll glitch (`rowPool` fora de sync após refresh sob filter); (2) dois códigos com mesmo nome e IDs diferentes pré-existindo (registry não dedupe por nome); (3) race no refresh entre `addCodeToGroup` → save → re-render. As mudanças do #26 não criam códigos — só mexem em membership e os helpers do registry são idempotentes. Provavelmente não é regressão; mais provável é (1) ou (2). Se reproduzir, capturar passos exatos + screenshot do `data.json` correspondente.
+
 Áreas com polish opcional foram migradas pro `ROADMAP.md`:
 - Relations Network (hover-focus ✅, filtro N+ ✅, edge bundling condicional)
 - Multi-tab spreadsheet export
