@@ -3,7 +3,7 @@ import { Notice } from "obsidian";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { FilterConfig, ChiSquareResult } from "../../data/dataTypes";
 import { calculateChiSquare } from "../../data/statsEngine";
-import { buildCsv } from "../shared/chartHelpers";
+import { downloadCsv } from "../shared/chartHelpers";
 
 export function renderChiSquareOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -178,8 +178,8 @@ export function renderMiniChiSquare(ctx: AnalyticsViewContext, canvas: HTMLCanva
   }
 }
 
-export function exportChiSquareCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildChiSquareRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const result = calculateChiSquare(ctx.data, filters, ctx.chiGroupBy);
 
@@ -187,11 +187,11 @@ export function exportChiSquareCSV(ctx: AnalyticsViewContext, date: string): voi
   for (const e of result.entries) {
     rows.push([e.code, String(e.chiSquare), String(e.df), String(e.pValue), String(e.cramersV), e.significant ? "yes" : "no"]);
   }
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-chi-square-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportChiSquareCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildChiSquareRows(ctx);
+  if (!rows) return;
+  downloadCsv(rows, `codemarker-chi-square-${date}.csv`);
 }

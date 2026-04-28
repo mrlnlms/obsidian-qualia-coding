@@ -3,7 +3,7 @@ import type { FilterConfig, FrequencyResult, UnifiedMarker } from "../../data/da
 import { calculateTextStats } from "../../data/statsEngine";
 import { TextExtractor } from "../../data/textExtractor";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { buildCsv } from "../shared/chartHelpers";
+import { downloadCsv } from "../shared/chartHelpers";
 
 export function renderTextStats(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
@@ -156,33 +156,30 @@ export function renderMiniTextStats(canvas: HTMLCanvasElement, freq: FrequencyRe
   }
 }
 
-export function exportTextStatsCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export async function buildTextStatsRows(ctx: AnalyticsViewContext): Promise<string[][] | null> {
+  if (!ctx.data) return null;
 
   const enabledCodes = ctx.enabledCodes;
   const filtered = ctx.data.markers.filter((m) => ctx.enabledSources.has(m.source) && m.codes.some((c) => enabledCodes.has(c)));
-  const loadAndExport = async () => {
-    const extractor = new TextExtractor(ctx.plugin.app.vault);
-    const segments = await extractor.extractBatch(filtered);
-    // Filter segment codes to only enabled (same as render)
-    const filteredSegments = segments.map(s => ({
-      ...s,
-      codes: s.codes.filter(c => enabledCodes.has(c)),
-    })).filter(s => s.codes.length > 0);
-    const codeDisplay = new Map(ctx.data!.codes.map((c) => [c.id, { name: c.name, color: c.color }]));
-    const result = calculateTextStats(filteredSegments, codeDisplay);
+  const extractor = new TextExtractor(ctx.plugin.app.vault);
+  const segments = await extractor.extractBatch(filtered);
+  const filteredSegments = segments.map(s => ({
+    ...s,
+    codes: s.codes.filter(c => enabledCodes.has(c)),
+  })).filter(s => s.codes.length > 0);
+  const codeDisplay = new Map(ctx.data!.codes.map((c) => [c.id, { name: c.name, color: c.color }]));
+  const result = calculateTextStats(filteredSegments, codeDisplay);
 
-    const rows: string[][] = [["code", "segments", "total_words", "unique_words", "ttr", "avg_words_per_segment", "avg_chars_per_segment"]];
-    for (const e of result.codes) {
-      rows.push([e.code, String(e.segmentCount), String(e.totalWords), String(e.uniqueWords), String(e.ttr), String(e.avgWordsPerSegment), String(e.avgCharsPerSegment)]);
-    }
-    const csvContent = buildCsv(rows);
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const link = document.createElement("a");
-    link.download = `codemarker-text-stats-${date}.csv`;
-    link.href = URL.createObjectURL(blob);
-    link.click();
-    URL.revokeObjectURL(link.href);
-  };
-  loadAndExport();
+  const rows: string[][] = [["code", "segments", "total_words", "unique_words", "ttr", "avg_words_per_segment", "avg_chars_per_segment"]];
+  for (const e of result.codes) {
+    rows.push([e.code, String(e.segmentCount), String(e.totalWords), String(e.uniqueWords), String(e.ttr), String(e.avgWordsPerSegment), String(e.avgCharsPerSegment)]);
+  }
+  return rows;
+}
+
+export function exportTextStatsCSV(ctx: AnalyticsViewContext, date: string): void {
+  buildTextStatsRows(ctx).then((rows) => {
+    if (!rows) return;
+    downloadCsv(rows, `codemarker-text-stats-${date}.csv`);
+  });
 }

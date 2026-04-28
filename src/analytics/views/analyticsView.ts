@@ -299,6 +299,12 @@ export class AnalyticsView extends ItemView {
     csvBtn.setAttribute("aria-label", "Export data as CSV");
     csvBtn.addEventListener("click", () => this.exportCSV());
 
+    const xlsxBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn" });
+    setIcon(xlsxBtn, "table");
+    xlsxBtn.createSpan({ text: "Export XLSX" });
+    xlsxBtn.setAttribute("aria-label", "Export all analyses as multi-tab Excel");
+    xlsxBtn.addEventListener("click", () => this.exportXlsx());
+
     const mdBtn = toolbar.createDiv({ cls: "codemarker-analytics-toolbar-btn codemarker-analytics-toolbar-btn-conditional" });
     setIcon(mdBtn, "file-text");
     mdBtn.createSpan({ text: "Export Markdown" });
@@ -490,6 +496,17 @@ export class AnalyticsView extends ItemView {
       return;
     }
     entry.exportCSV(this, new Date().toISOString().slice(0, 10));
+  }
+
+  // ─── Export XLSX (multi-tab, all modes) ───
+
+  private async exportXlsx(): Promise<void> {
+    if (!this.data) {
+      new Notice("No data to export.");
+      return;
+    }
+    const { exportAllToXlsx } = await import("../export/xlsxExporter");
+    await exportAllToXlsx(this, new Date().toISOString().slice(0, 10));
   }
 
   // ─── Export Markdown (mode-specific) ───

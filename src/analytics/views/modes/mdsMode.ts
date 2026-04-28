@@ -3,7 +3,7 @@ import { Notice } from "obsidian";
 import type { FilterConfig, UnifiedMarker, FrequencyResult } from "../../data/dataTypes";
 import { calculateMDS, type MDSResult } from "../../data/mdsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { buildCsv } from "../shared/chartHelpers";
+import { downloadCsv } from "../shared/chartHelpers";
 
 export function renderMDSOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -283,35 +283,35 @@ export function renderMiniMDS(canvas: HTMLCanvasElement, freq: FrequencyResult[]
   }
 }
 
-export function exportMDSCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export async function buildMDSRows(ctx: AnalyticsViewContext): Promise<string[][] | null> {
+  if (!ctx.data) return null;
   const filtered = ctx.data.markers.filter((m) =>
     ctx.enabledSources.has(m.source) &&
     m.codes.some((c) => ctx.enabledCodes.has(c))
   );
 
-  new Notice("Computing MDS for export...");
-  calculateMDS(
+  const result = await calculateMDS(
     filtered,
     ctx.data.codes,
     ctx.mdsMode,
     Array.from(ctx.enabledSources),
-  ).then((result) => {
-    if (!result) {
+  );
+  if (!result) return null;
+
+  const rows: string[][] = [["name", "dim1", "dim2", "size", "mode"]];
+  for (const p of result.points) {
+    rows.push([p.name, p.x.toFixed(4), p.y.toFixed(4), String(p.size), result.mode]);
+  }
+  return rows;
+}
+
+export function exportMDSCSV(ctx: AnalyticsViewContext, date: string): void {
+  new Notice("Computing MDS for export...");
+  buildMDSRows(ctx).then((rows) => {
+    if (!rows) {
       new Notice("Insufficient data for MDS export.");
       return;
     }
-
-    const rows: string[][] = [["name", "dim1", "dim2", "size", "mode"]];
-    for (const p of result.points) {
-      rows.push([p.name, p.x.toFixed(4), p.y.toFixed(4), String(p.size), result.mode]);
-    }
-    const csvContent = buildCsv(rows);
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const link = document.createElement("a");
-    link.download = `codemarker-mds-${date}.csv`;
-    link.href = URL.createObjectURL(blob);
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadCsv(rows, `codemarker-mds-${date}.csv`);
   });
 }

@@ -3,7 +3,7 @@ import { Notice } from "obsidian";
 import type { FilterConfig, UnifiedMarker } from "../../data/dataTypes";
 import { calculateMCA, type MCAResult } from "../../data/mcaEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { buildCsv } from "../shared/chartHelpers";
+import { downloadCsv } from "../shared/chartHelpers";
 
 export function renderACMOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -303,8 +303,8 @@ export function renderMiniACM(canvas: HTMLCanvasElement, ctx: AnalyticsViewConte
   }
 }
 
-export function exportACMCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export async function buildACMRows(ctx: AnalyticsViewContext): Promise<string[][] | null> {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const ids = Array.from(ctx.enabledCodes);
   const codes = ids.map((id) => ctx.data!.codes.find((c) => c.id === id)?.name ?? id);
@@ -319,26 +319,26 @@ export function exportACMCSV(ctx: AnalyticsViewContext, date: string): void {
     codes: m.codes.filter(c => enabledCodesSet.has(c)),
   })).filter(m => m.codes.length > 0);
 
+  const result = await calculateMCA(filtered, codes, colors);
+  if (!result) return null;
+
+  const rows: string[][] = [["type", "name", "dim1", "dim2", "file", "codes"]];
+  for (const cp of result.codePoints) {
+    rows.push(["code", cp.name, cp.x.toFixed(4), cp.y.toFixed(4), "", ""]);
+  }
+  for (const mp of result.markerPoints) {
+    rows.push(["marker", mp.id, mp.x.toFixed(4), mp.y.toFixed(4), mp.fileId, mp.codes.join("; ")]);
+  }
+  return rows;
+}
+
+export function exportACMCSV(ctx: AnalyticsViewContext, date: string): void {
   new Notice("Computing MCA for export...");
-  calculateMCA(filtered, codes, colors).then((result) => {
-    if (!result) {
+  buildACMRows(ctx).then((rows) => {
+    if (!rows) {
       new Notice("Insufficient data for MCA export.");
       return;
     }
-
-    const rows: string[][] = [["type", "name", "dim1", "dim2", "file", "codes"]];
-    for (const cp of result.codePoints) {
-      rows.push(["code", cp.name, cp.x.toFixed(4), cp.y.toFixed(4), "", ""]);
-    }
-    for (const mp of result.markerPoints) {
-      rows.push(["marker", mp.id, mp.x.toFixed(4), mp.y.toFixed(4), mp.fileId, mp.codes.join("; ")]);
-    }
-    const csvContent = buildCsv(rows);
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const link = document.createElement("a");
-    link.download = `codemarker-mca-${date}.csv`;
-    link.href = URL.createObjectURL(blob);
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadCsv(rows, `codemarker-mca-${date}.csv`);
   });
 }

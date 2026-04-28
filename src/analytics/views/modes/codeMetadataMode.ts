@@ -2,7 +2,7 @@ import { Notice } from "obsidian";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { FilterConfig, CodeMetadataResult } from "../../data/dataTypes";
 import { calculateCodeMetadata } from "../../data/statsEngine";
-import { heatmapColor, isLightColor, buildCsv } from "../shared/chartHelpers";
+import { heatmapColor, isLightColor, downloadCsv } from "../shared/chartHelpers";
 
 export function renderCodeMetadataView(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   const container = ctx.chartContainer;
@@ -405,21 +405,14 @@ export function renderCodeMetadataOptionsSection(ctx: AnalyticsViewContext): voi
   });
 }
 
-export function exportCodeMetadataCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data || !ctx.cmVariable) {
-    new Notice("Nothing to export — select a variable first");
-    return;
-  }
+export function buildCodeMetadataRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data || !ctx.cmVariable) return null;
   const filters = ctx.buildFilterConfig();
   const registry = ctx.plugin.caseVariablesRegistry;
   const result = calculateCodeMetadata(ctx.data, filters, ctx.cmVariable, registry, {
     includeMissing: !ctx.cmHideMissing,
   });
-
-  if (result.codes.length === 0) {
-    new Notice("Nothing to export — no codes after filters");
-    return;
-  }
+  if (result.codes.length === 0) return null;
 
   const header = ["code", "total", ...result.values, "chi2", "df", "p", "cramers_v"];
   const rows: string[][] = [header];
@@ -436,12 +429,18 @@ export function exportCodeMetadataCSV(ctx: AnalyticsViewContext, date: string): 
     ];
     rows.push(row);
   }
+  return rows;
+}
 
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-code-metadata-${ctx.cmVariable}-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+export function exportCodeMetadataCSV(ctx: AnalyticsViewContext, date: string): void {
+  if (!ctx.cmVariable) {
+    new Notice("Nothing to export — select a variable first");
+    return;
+  }
+  const rows = buildCodeMetadataRows(ctx);
+  if (!rows) {
+    new Notice("Nothing to export — no codes after filters");
+    return;
+  }
+  downloadCsv(rows, `codemarker-code-metadata-${ctx.cmVariable}-${date}.csv`);
 }

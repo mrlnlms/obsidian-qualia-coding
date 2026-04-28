@@ -2,7 +2,7 @@
 import type { FilterConfig, EvolutionResult } from "../../data/dataTypes";
 import { calculateEvolution } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { buildCsv } from "../shared/chartHelpers";
+import { downloadCsv } from "../shared/chartHelpers";
 
 export function renderEvolutionFileSection(ctx: AnalyticsViewContext): void {
   if (!ctx.data) return;
@@ -28,8 +28,8 @@ export function renderEvolutionFileSection(ctx: AnalyticsViewContext): void {
   });
 }
 
-export function exportEvolutionCSV(ctx: AnalyticsViewContext, date: string): void {
-  if (!ctx.data) return;
+export function buildEvolutionRows(ctx: AnalyticsViewContext): string[][] | null {
+  if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const result = calculateEvolution(ctx.data, filters);
 
@@ -41,13 +41,13 @@ export function exportEvolutionCSV(ctx: AnalyticsViewContext, date: string): voi
   for (const p of pts) {
     rows.push([p.fileId, p.code, p.position.toFixed(4), String(p.fromLine), String(p.toLine)]);
   }
-  const csvContent = buildCsv(rows);
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.download = `codemarker-evolution-${date}.csv`;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  return rows;
+}
+
+export function exportEvolutionCSV(ctx: AnalyticsViewContext, date: string): void {
+  const rows = buildEvolutionRows(ctx);
+  if (!rows) return;
+  downloadCsv(rows, `codemarker-evolution-${date}.csv`);
 }
 
 export function renderEvolutionChart(ctx: AnalyticsViewContext, filters: FilterConfig): void {
