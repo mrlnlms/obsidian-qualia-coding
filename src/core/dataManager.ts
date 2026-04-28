@@ -138,7 +138,7 @@ export class DataManager {
 	async clearAllSections(): Promise<void> {
 		this.data.registry = { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0 };
 		this.data.markdown = { markers: {}, settings: this.data.markdown.settings };
-		this.data.csv = { segmentMarkers: [], rowMarkers: [] };
+		this.data.csv = { segmentMarkers: [], rowMarkers: [], settings: this.data.csv.settings };
 		this.data.image = { markers: [], settings: this.data.image.settings };
 		this.data.pdf = { markers: [], shapes: [], settings: this.data.pdf.settings };
 		this.data.audio = { files: [], settings: this.data.audio.settings };

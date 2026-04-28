@@ -153,7 +153,16 @@ export interface QualiaData {
 	};
 	general: GeneralSettings;
 	markdown: { markers: Record<string, Marker[]>; settings: CodeMarkerSettings };
-	csv: { segmentMarkers: SegmentMarker[]; rowMarkers: RowMarker[] };
+	csv: {
+		segmentMarkers: SegmentMarker[];
+		rowMarkers: RowMarker[];
+		settings: {
+			/** Limite em MB pra mostrar banner de "Large file" antes de carregar parquet. Default 50. */
+			parquetSizeWarningMB: number;
+			/** Limite em MB pra mostrar banner antes de carregar csv. Default 100. */
+			csvSizeWarningMB: number;
+		};
+	};
 	image: { markers: ImageMarker[]; settings: { autoOpen: boolean; showButton: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> } };
 	pdf: { markers: PdfMarker[]; shapes: PdfShapeMarker[]; settings: { autoOpen: boolean; showButton: boolean } };
 	audio: {
@@ -226,7 +235,10 @@ export function createDefaultData(): QualiaData {
 			showMenuOnRightClick: true,
 			showRibbonButton: true,
 		} },
-		csv: { segmentMarkers: [], rowMarkers: [] },
+		csv: {
+			segmentMarkers: [], rowMarkers: [],
+			settings: { parquetSizeWarningMB: 50, csvSizeWarningMB: 100 },
+		},
 		image: { markers: [], settings: { autoOpen: false, showButton: true, fileStates: {} } },
 		pdf: { markers: [], shapes: [], settings: { autoOpen: false, showButton: true } },
 		audio: {
