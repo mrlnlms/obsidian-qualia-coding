@@ -29,6 +29,7 @@ export interface AnalyticsPluginAPI {
   addExcerptToBoard(text: string, file: string, source: string, location: string, codes: string[], codeColors: string[]): Promise<void>;
   openExportModal(defaultFormat?: 'qdc' | 'qdpx'): void;
   openImportModal(defaultFormat?: 'qdc' | 'qdpx'): void;
+  revealCodeDetailForCode(codeId: string): Promise<void>;
 }
 
 /**
@@ -99,6 +100,10 @@ export function registerAnalyticsEngine(plugin: QualiaCodingPlugin, cache?: Cons
 
     openImportModal(defaultFormat: 'qdc' | 'qdpx' = 'qdpx'): void {
       openImportModal(plugin, defaultFormat);
+    },
+
+    revealCodeDetailForCode(codeId: string): Promise<void> {
+      return plugin.revealCodeDetailForCode(codeId);
     },
   };
 

@@ -4,10 +4,11 @@ import type { ConsolidatedData, FilterConfig, SourceType } from "../data/dataTyp
 import type { ExtractedSegment } from "../data/textExtractor";
 import type { StopWordsLang } from "../data/wordFrequency";
 import type { MDSMode } from "../data/mdsEngine";
+import type { Granularity, EventTypeFilter } from "../data/codebookTimelineEngine";
 
 // ─── Type aliases (moved from analyticsView.ts) ───
 
-export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap" | "relations-network" | "code-metadata" | "memo-view";
+export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap" | "relations-network" | "code-metadata" | "memo-view" | "codebook-timeline";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
 export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
@@ -98,6 +99,12 @@ export interface AnalyticsViewContext {
   mvShowTypes: { code: boolean; group: boolean; relation: boolean; marker: boolean };
   mvMarkerLimit: 5 | 10 | 25 | "all";
   mvExpanded: Set<string>; // codeIds com markers expandidos além do limit (volátil, por sessão)
+
+  // Codebook Timeline state
+  ctGranularity: Granularity;                 // default 'day'
+  ctEventBuckets: Set<EventTypeFilter>;       // default = all 6
+  ctCodeSearch: string;                       // default ''
+  ctShowHidden: boolean;                      // default false
 
   // Refresh suspend (5a)
   suspendRefresh(): void;
