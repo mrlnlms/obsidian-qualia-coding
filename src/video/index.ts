@@ -51,8 +51,8 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			const file = plugin.app.workspace.getActiveFile();
 			if (!file || !VIDEO_EXTENSIONS.has(file.extension.toLowerCase())) return false;
 			if (!checking) {
-				const view = plugin.app.workspace.activeLeaf?.view;
-				if (view instanceof FileView) void performToggleCommand(plugin, view, 'video');
+				const view = plugin.app.workspace.getActiveViewOfType(FileView);
+				if (view) void performToggleCommand(plugin, view, 'video');
 				else openVideoView(plugin, file);
 			}
 			return true;

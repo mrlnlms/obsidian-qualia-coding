@@ -53,8 +53,8 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			const file = plugin.app.workspace.getActiveFile();
 			if (!file || !AUDIO_EXTENSIONS.has(file.extension.toLowerCase())) return false;
 			if (!checking) {
-				const view = plugin.app.workspace.activeLeaf?.view;
-				if (view instanceof FileView) void performToggleCommand(plugin, view, 'audio');
+				const view = plugin.app.workspace.getActiveViewOfType(FileView);
+				if (view) void performToggleCommand(plugin, view, 'audio');
 				else openAudioView(plugin, model, file);
 			}
 			return true;

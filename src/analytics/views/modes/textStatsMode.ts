@@ -55,7 +55,13 @@ export async function loadAndRenderTextStats(
 
   // Global summary
   const summary = wrapper.createDiv({ cls: "codemarker-ts-summary" });
-  summary.innerHTML = `<strong>${result.global.totalSegments}</strong> segments · <strong>${result.global.totalWords}</strong> words · <strong>${result.global.uniqueWords}</strong> unique · TTR: <strong>${result.global.ttr.toFixed(3)}</strong>`;
+  summary.createEl("strong", { text: String(result.global.totalSegments) });
+  summary.appendText(" segments · ");
+  summary.createEl("strong", { text: String(result.global.totalWords) });
+  summary.appendText(" words · ");
+  summary.createEl("strong", { text: String(result.global.uniqueWords) });
+  summary.appendText(" unique · TTR: ");
+  summary.createEl("strong", { text: result.global.ttr.toFixed(3) });
 
   // Table
   const table = wrapper.createEl("table", { cls: "codemarker-ts-table" });
