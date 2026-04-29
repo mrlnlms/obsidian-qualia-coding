@@ -63,7 +63,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	csvModel?: CsvCodingModel;
 	audioModel?: AudioCodingModel;
 	videoModel?: VideoCodingModel;
-	togglePdfInstrumentation?: (view: unknown) => void;
+	togglePdfInstrumentation?: (view: unknown, force?: 'on' | 'off') => void;
 
 	async onload() {
 		this.dataManager = new DataManager(this);

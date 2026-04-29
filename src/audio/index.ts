@@ -70,8 +70,6 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			const { all, toCoding } = collectAudioTargets(plugin);
 			if (all.length === 0) { new Notice('No audio file open.'); return; }
 			if (toCoding.length === 0) { new Notice('All audio files already in coding view.'); return; }
-			plugin.dataManager.section('audio').settings.autoOpen = true;
-			plugin.dataManager.markDirty();
 			for (const view of toCoding) void performToggleCommand(plugin, view, 'audio');
 		},
 	});
@@ -82,8 +80,6 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			const { all, toNative } = collectAudioTargets(plugin);
 			if (all.length === 0) { new Notice('No audio file open.'); return; }
 			if (toNative.length === 0) { new Notice('All audio files already in native view.'); return; }
-			plugin.dataManager.section('audio').settings.autoOpen = false;
-			plugin.dataManager.markDirty();
 			for (const view of toNative) void performToggleCommand(plugin, view, 'audio');
 		},
 	});

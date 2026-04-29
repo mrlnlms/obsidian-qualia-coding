@@ -54,8 +54,6 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			const { all, toCoding } = collectImageTargets(plugin);
 			if (all.length === 0) { new Notice('No image file open.'); return; }
 			if (toCoding.length === 0) { new Notice('All images already in coding view.'); return; }
-			plugin.dataManager.section('image').settings.autoOpen = true;
-			plugin.dataManager.markDirty();
 			for (const view of toCoding) void performToggleCommand(plugin, view, 'image');
 		},
 	});
@@ -66,8 +64,6 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			const { all, toNative } = collectImageTargets(plugin);
 			if (all.length === 0) { new Notice('No image file open.'); return; }
 			if (toNative.length === 0) { new Notice('All images already in native view.'); return; }
-			plugin.dataManager.section('image').settings.autoOpen = false;
-			plugin.dataManager.markDirty();
 			for (const view of toNative) void performToggleCommand(plugin, view, 'image');
 		},
 	});

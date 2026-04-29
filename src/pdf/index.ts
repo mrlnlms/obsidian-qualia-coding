@@ -314,10 +314,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 		callback: () => {
 			const targets = collectPdfViews();
 			if (targets.length === 0) { new Notice('No PDF file open.'); return; }
-			if (model.settings.autoOpen) { new Notice('PDF coding already enabled.'); return; }
-			model.settings.autoOpen = true;
-			plugin.dataManager.markDirty();
-			for (const view of targets) plugin.togglePdfInstrumentation?.(view);
+			for (const view of targets) plugin.togglePdfInstrumentation?.(view, 'on');
 		},
 	});
 	plugin.addCommand({
@@ -326,19 +323,21 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 		callback: () => {
 			const targets = collectPdfViews();
 			if (targets.length === 0) { new Notice('No PDF file open.'); return; }
-			if (!model.settings.autoOpen) { new Notice('PDF coding already disabled.'); return; }
-			model.settings.autoOpen = false;
-			plugin.dataManager.markDirty();
-			for (const view of targets) plugin.togglePdfInstrumentation?.(view);
+			for (const view of targets) plugin.togglePdfInstrumentation?.(view, 'off');
 		},
 	});
 
 	// Expose instrument/deinstrument to the plugin so the media toggle button
 	// can flip PDF coding on/off in-place (no view swap, no reload).
-	plugin.togglePdfInstrumentation = (view: unknown) => {
+	// Without `force`, follows model.settings.autoOpen (used by header button toggle).
+	// With `force`, applies the requested state regardless of setting (used by
+	// "Enable/Disable coding for all PDFs" commands which act on open views, not on the rule).
+	plugin.togglePdfInstrumentation = (view: unknown, force?: 'on' | 'off') => {
 		const child = (view as any)?.viewer?.child;
 		if (!child) return;
-		const shouldBeInstrumented = model.settings.autoOpen;
+		const shouldBeInstrumented = force === 'on' ? true
+			: force === 'off' ? false
+			: model.settings.autoOpen;
 		const isInstrumented = instrumentedViewers.has(child);
 		if (shouldBeInstrumented && !isInstrumented) instrumentPdfView(view);
 		else if (!shouldBeInstrumented && isInstrumented) deinstrumentPdfView(view);

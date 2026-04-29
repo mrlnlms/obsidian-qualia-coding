@@ -68,8 +68,6 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			const { all, toCoding } = collectVideoTargets(plugin);
 			if (all.length === 0) { new Notice('No video file open.'); return; }
 			if (toCoding.length === 0) { new Notice('All videos already in coding view.'); return; }
-			plugin.dataManager.section('video').settings.autoOpen = true;
-			plugin.dataManager.markDirty();
 			for (const view of toCoding) void performToggleCommand(plugin, view, 'video');
 		},
 	});
@@ -80,8 +78,6 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			const { all, toNative } = collectVideoTargets(plugin);
 			if (all.length === 0) { new Notice('No video file open.'); return; }
 			if (toNative.length === 0) { new Notice('All videos already in native view.'); return; }
-			plugin.dataManager.section('video').settings.autoOpen = false;
-			plugin.dataManager.markDirty();
 			for (const view of toNative) void performToggleCommand(plugin, view, 'video');
 		},
 	});
