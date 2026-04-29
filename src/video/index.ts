@@ -10,6 +10,23 @@ import { performToggleCommand } from '../core/mediaToggleButton';
 import { VideoCodingModel } from './videoCodingModel';
 import { VideoView, VIDEO_VIEW_TYPE, VIDEO_EXTENSIONS } from './videoView';
 
+function collectVideoTargets(plugin: QualiaCodingPlugin): { all: FileView[]; toCoding: FileView[]; toNative: FileView[] } {
+	const all: FileView[] = [];
+	const toCoding: FileView[] = [];
+	const toNative: FileView[] = [];
+	plugin.app.workspace.iterateAllLeaves((leaf) => {
+		const v = leaf.view;
+		if (v instanceof FileView
+			&& v.file instanceof TFile
+			&& VIDEO_EXTENSIONS.has(v.file.extension.toLowerCase())) {
+			all.push(v);
+			if (v.getViewType() === VIDEO_VIEW_TYPE) toNative.push(v);
+			else toCoding.push(v);
+		}
+	});
+	return { all, toCoding, toNative };
+}
+
 export { VIDEO_VIEW_TYPE };
 
 export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineRegistration<VideoCodingModel> {
@@ -43,25 +60,29 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 	});
 	plugin.registerEvent(fileMenuRef);
 
-	// Command: toggle video coding view (all open video files)
+	// Commands: enable/disable coding for all open video files
 	plugin.addCommand({
-		id: 'toggle-video-coding',
-		name: 'Toggle video coding',
+		id: 'enable-video-coding-all',
+		name: 'Enable coding for all videos',
 		callback: () => {
-			const targets: FileView[] = [];
-			plugin.app.workspace.iterateAllLeaves((leaf) => {
-				const v = leaf.view;
-				if (v instanceof FileView
-					&& v.file instanceof TFile
-					&& VIDEO_EXTENSIONS.has(v.file.extension.toLowerCase())) {
-					targets.push(v);
-				}
-			});
-			if (targets.length === 0) {
-				new Notice('No video file open. Open one to toggle coding.');
-				return;
-			}
-			for (const view of targets) void performToggleCommand(plugin, view, 'video');
+			const { all, toCoding } = collectVideoTargets(plugin);
+			if (all.length === 0) { new Notice('No video file open.'); return; }
+			if (toCoding.length === 0) { new Notice('All videos already in coding view.'); return; }
+			plugin.dataManager.section('video').settings.autoOpen = true;
+			plugin.dataManager.markDirty();
+			for (const view of toCoding) void performToggleCommand(plugin, view, 'video');
+		},
+	});
+	plugin.addCommand({
+		id: 'disable-video-coding-all',
+		name: 'Disable coding for all videos',
+		callback: () => {
+			const { all, toNative } = collectVideoTargets(plugin);
+			if (all.length === 0) { new Notice('No video file open.'); return; }
+			if (toNative.length === 0) { new Notice('All videos already in native view.'); return; }
+			plugin.dataManager.section('video').settings.autoOpen = false;
+			plugin.dataManager.markDirty();
+			for (const view of toNative) void performToggleCommand(plugin, view, 'video');
 		},
 	});
 

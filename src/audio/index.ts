@@ -10,6 +10,23 @@ import { performToggleCommand } from '../core/mediaToggleButton';
 import { AudioCodingModel } from './audioCodingModel';
 import { AudioView, AUDIO_VIEW_TYPE, AUDIO_EXTENSIONS } from './audioView';
 
+function collectAudioTargets(plugin: QualiaCodingPlugin): { all: FileView[]; toCoding: FileView[]; toNative: FileView[] } {
+	const all: FileView[] = [];
+	const toCoding: FileView[] = [];
+	const toNative: FileView[] = [];
+	plugin.app.workspace.iterateAllLeaves((leaf) => {
+		const v = leaf.view;
+		if (v instanceof FileView
+			&& v.file instanceof TFile
+			&& AUDIO_EXTENSIONS.has(v.file.extension.toLowerCase())) {
+			all.push(v);
+			if (v.getViewType() === AUDIO_VIEW_TYPE) toNative.push(v);
+			else toCoding.push(v);
+		}
+	});
+	return { all, toCoding, toNative };
+}
+
 export { AUDIO_VIEW_TYPE };
 
 export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistration<AudioCodingModel> {
@@ -45,25 +62,29 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 	});
 	plugin.registerEvent(fileMenuRef);
 
-	// Command: toggle audio coding view (all open audio files)
+	// Commands: enable/disable coding for all open audio files
 	plugin.addCommand({
-		id: 'toggle-audio-coding',
-		name: 'Toggle audio coding',
+		id: 'enable-audio-coding-all',
+		name: 'Enable coding for all audio files',
 		callback: () => {
-			const targets: FileView[] = [];
-			plugin.app.workspace.iterateAllLeaves((leaf) => {
-				const v = leaf.view;
-				if (v instanceof FileView
-					&& v.file instanceof TFile
-					&& AUDIO_EXTENSIONS.has(v.file.extension.toLowerCase())) {
-					targets.push(v);
-				}
-			});
-			if (targets.length === 0) {
-				new Notice('No audio file open. Open one to toggle coding.');
-				return;
-			}
-			for (const view of targets) void performToggleCommand(plugin, view, 'audio');
+			const { all, toCoding } = collectAudioTargets(plugin);
+			if (all.length === 0) { new Notice('No audio file open.'); return; }
+			if (toCoding.length === 0) { new Notice('All audio files already in coding view.'); return; }
+			plugin.dataManager.section('audio').settings.autoOpen = true;
+			plugin.dataManager.markDirty();
+			for (const view of toCoding) void performToggleCommand(plugin, view, 'audio');
+		},
+	});
+	plugin.addCommand({
+		id: 'disable-audio-coding-all',
+		name: 'Disable coding for all audio files',
+		callback: () => {
+			const { all, toNative } = collectAudioTargets(plugin);
+			if (all.length === 0) { new Notice('No audio file open.'); return; }
+			if (toNative.length === 0) { new Notice('All audio files already in native view.'); return; }
+			plugin.dataManager.section('audio').settings.autoOpen = false;
+			plugin.dataManager.markDirty();
+			for (const view of toNative) void performToggleCommand(plugin, view, 'audio');
 		},
 	});
 

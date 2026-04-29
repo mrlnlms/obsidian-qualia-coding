@@ -295,24 +295,41 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 		},
 	});
 
-	plugin.addCommand({
-		id: 'toggle-pdf-coding',
-		name: 'Toggle PDF coding',
-		callback: () => {
-			const targets: FileView[] = [];
-			plugin.app.workspace.iterateAllLeaves((leaf) => {
-				const v = leaf.view;
-				if (v instanceof FileView
-					&& v.file instanceof TFile
-					&& v.file.extension.toLowerCase() === 'pdf') {
-					targets.push(v);
-				}
-			});
-			if (targets.length === 0) {
-				new Notice('No PDF file open. Open one to toggle coding.');
-				return;
+	const collectPdfViews = (): FileView[] => {
+		const out: FileView[] = [];
+		plugin.app.workspace.iterateAllLeaves((leaf) => {
+			const v = leaf.view;
+			if (v instanceof FileView
+				&& v.file instanceof TFile
+				&& v.file.extension.toLowerCase() === 'pdf') {
+				out.push(v);
 			}
-			for (const view of targets) void performToggleCommand(plugin, view, 'pdf');
+		});
+		return out;
+	};
+
+	plugin.addCommand({
+		id: 'enable-pdf-coding-all',
+		name: 'Enable coding for all PDFs',
+		callback: () => {
+			const targets = collectPdfViews();
+			if (targets.length === 0) { new Notice('No PDF file open.'); return; }
+			if (model.settings.autoOpen) { new Notice('PDF coding already enabled.'); return; }
+			model.settings.autoOpen = true;
+			plugin.dataManager.markDirty();
+			for (const view of targets) plugin.togglePdfInstrumentation?.(view);
+		},
+	});
+	plugin.addCommand({
+		id: 'disable-pdf-coding-all',
+		name: 'Disable coding for all PDFs',
+		callback: () => {
+			const targets = collectPdfViews();
+			if (targets.length === 0) { new Notice('No PDF file open.'); return; }
+			if (!model.settings.autoOpen) { new Notice('PDF coding already disabled.'); return; }
+			model.settings.autoOpen = false;
+			plugin.dataManager.markDirty();
+			for (const view of targets) plugin.togglePdfInstrumentation?.(view);
 		},
 	});
 

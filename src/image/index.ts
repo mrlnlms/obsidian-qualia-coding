@@ -10,6 +10,23 @@ import { performToggleCommand } from '../core/mediaToggleButton';
 import { ImageCodingModel } from './imageCodingModel';
 import { ImageCodingView, IMAGE_CODING_VIEW_TYPE, IMAGE_EXTENSIONS } from './views/imageView';
 
+function collectImageTargets(plugin: QualiaCodingPlugin): { all: FileView[]; toCoding: FileView[]; toNative: FileView[] } {
+	const all: FileView[] = [];
+	const toCoding: FileView[] = [];
+	const toNative: FileView[] = [];
+	plugin.app.workspace.iterateAllLeaves((leaf) => {
+		const v = leaf.view;
+		if (v instanceof FileView
+			&& v.file instanceof TFile
+			&& IMAGE_EXTENSIONS.has(v.file.extension.toLowerCase())) {
+			all.push(v);
+			if (v.getViewType() === IMAGE_CODING_VIEW_TYPE) toNative.push(v);
+			else toCoding.push(v);
+		}
+	});
+	return { all, toCoding, toNative };
+}
+
 export { IMAGE_CODING_VIEW_TYPE };
 
 export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistration<ImageCodingModel> {
@@ -29,25 +46,29 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 		new ImageCodingView(leaf, plugin, model),
 	);
 
-	// Command: open image in coding view (all open image files)
+	// Commands: enable/disable coding for all open image files
 	plugin.addCommand({
-		id: 'toggle-image-coding',
-		name: 'Toggle image coding',
+		id: 'enable-image-coding-all',
+		name: 'Enable coding for all images',
 		callback: () => {
-			const targets: FileView[] = [];
-			plugin.app.workspace.iterateAllLeaves((leaf) => {
-				const v = leaf.view;
-				if (v instanceof FileView
-					&& v.file instanceof TFile
-					&& IMAGE_EXTENSIONS.has(v.file.extension.toLowerCase())) {
-					targets.push(v);
-				}
-			});
-			if (targets.length === 0) {
-				new Notice('No image file open. Open one to toggle coding.');
-				return;
-			}
-			for (const view of targets) void performToggleCommand(plugin, view, 'image');
+			const { all, toCoding } = collectImageTargets(plugin);
+			if (all.length === 0) { new Notice('No image file open.'); return; }
+			if (toCoding.length === 0) { new Notice('All images already in coding view.'); return; }
+			plugin.dataManager.section('image').settings.autoOpen = true;
+			plugin.dataManager.markDirty();
+			for (const view of toCoding) void performToggleCommand(plugin, view, 'image');
+		},
+	});
+	plugin.addCommand({
+		id: 'disable-image-coding-all',
+		name: 'Disable coding for all images',
+		callback: () => {
+			const { all, toNative } = collectImageTargets(plugin);
+			if (all.length === 0) { new Notice('No image file open.'); return; }
+			if (toNative.length === 0) { new Notice('All images already in native view.'); return; }
+			plugin.dataManager.section('image').settings.autoOpen = false;
+			plugin.dataManager.markDirty();
+			for (const view of toNative) void performToggleCommand(plugin, view, 'image');
 		},
 	});
 
