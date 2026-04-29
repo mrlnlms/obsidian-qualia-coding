@@ -25,7 +25,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 - **[Parquet lazy loading](#parquet-lazy-loading)** — contingente ao LLM coding. Sem LLM, "parquet 500MB sequencial" não existe no workflow real
 - **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability)** — gap estratégico, complexidade alta no contexto single-user
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
-- **[Research Board Enhancements](#research-board-enhancements)** — 4/6 sub-items resolvidos (3 feitos + 2 won't-do). Resta: drag do Code Explorer pro board (Tier 1, ~1 sessão)
+- ~~**Research Board Enhancements**~~ — ✅ todos 6 sub-items resolvidos (4 feitos + 2 won't-do)
 - **Tabular round-trip (import)** — reimportar zip de CSVs. Viabilidade incerta (text anchors podem não casar se arquivo fonte mudou)
 - **[Convert memo to note](#analytical-memos)** — materializar memo como arquivo markdown. Sub-item residual de "Analytical Memos" (grosso da feature já feito em #25 + Analytic Memo View)
 
@@ -197,7 +197,7 @@ Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de
 | ~~**Sync com registry**~~ | ✅ FEITO — `boardReconciler.ts` (cor/nome/contagens em real time) |
 | ~~**Context menu "Refresh"**~~ | ✅ FEITO — `reconcileBoard()` exposto via "Refresh on open" |
 | ~~**Export board (PNG/SVG)**~~ | ✅ FEITO — `boardExport.ts` (PNG + SVG + bbox scene-coord) |
-| **Drag do Code Explorer pro board** | ⚠️ Tier 1 — drag SOURCE pronto (`codebookDragDrop.ts:157` faz setData; rows.draggable=true). Falta drop TARGET no board (~6-10h, ver detalhes abaixo) |
+| ~~**Drag do Code Explorer pro board**~~ | ✅ FEITO 2026-04-29 — `handleDrop` em `boardView.ts:536` estendido pra aceitar raw codeId além de JSON payload da Frequency. Async reconcile preenche count/sources após drop. Fix DnD: `effectAllowed='copyMove'` (era 'move' — bloqueava o drop com `dropEffect='copy'` do board) |
 
 > **Export PDF dispensado** em #20 (2026-04-24) — SVG cobre o caso vetorial melhor sem adicionar dependência externa. Ver registro em "Implementados".
 > **Templates pré-definidos** (2x2, timeline, etc.) movido pra "Decisões fechadas sem implementar" em 2026-04-29 — board é canvas livre, user recria qualquer layout em <1min, manter biblioteca é overhead.
