@@ -65,6 +65,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	private listSearchWrap: HTMLElement | null = null;
 	private listContentZone: HTMLElement | null = null;
 	private listShellCleanup: (() => void) | null = null;
+	private listUpdateHeaderCount: ((searchQuery?: string) => void) | null = null;
 	private dragDropCleanup: (() => void) | null = null;
 	private listMode = false;
 
@@ -102,7 +103,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 
 		const onVisibilityChange = () => {
 			if (this.listContentZone) {
-				renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+				this.refreshListContent();
 			}
 		};
 		this.model.registry.addVisibilityListener(onVisibilityChange);
@@ -193,7 +194,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		} else {
 			// In list mode, only rebuild the list content (preserve search input)
 			if (this.listMode && this.listContentZone) {
-				renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+				this.refreshListContent();
 			} else {
 				this.renderList();
 			}
@@ -487,6 +488,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	private refreshListContent(): void {
 		if (this.listContentZone) {
 			renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+			this.listUpdateHeaderCount?.(this.searchQuery);
 		}
 	}
 
@@ -497,8 +499,9 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.listSearchWrap = result.listSearchWrap;
 		this.listContentZone = result.listContentZone;
 		this.listShellCleanup = result.cleanup;
+		this.listUpdateHeaderCount = result.updateHeaderCount;
 		if (this.listContentZone) {
-			renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+			this.refreshListContent();
 			this.dragDropCleanup = setupDragDrop(
 				this.listContentZone,
 				this.model.registry,
@@ -558,14 +561,14 @@ export abstract class BaseCodeDetailView extends ItemView {
 					},
 					refresh: () => {
 						if (this.listContentZone) {
-							renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+							this.refreshListContent();
 						}
 					},
 					onFolderHoverExpand: (folderId) => {
 						if (this.expanded.folders.has(folderId)) return;
 						this.expanded.folders.add(folderId);
 						if (this.listContentZone) {
-							renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+							this.refreshListContent();
 						}
 					},
 				},
@@ -607,7 +610,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			onSearchChange: (query: string) => {
 				this.searchQuery = query;
 				if (this.listContentZone) {
-					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+					this.refreshListContent();
 				}
 			},
 			onToggleExpand: (codeId: string) => {
@@ -617,7 +620,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 					this.expanded.codes.add(codeId);
 				}
 				if (this.listContentZone) {
-					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+					this.refreshListContent();
 				}
 			},
 			onCodeRightClick: (codeId: string, event: MouseEvent) => {
@@ -635,7 +638,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 					this.expanded.folders.add(folderId);
 				}
 				if (this.listContentZone) {
-					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+					this.refreshListContent();
 				}
 			},
 			onFolderRightClick: (folderId: string, event: MouseEvent) => {
@@ -714,7 +717,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 				const currentlyHidden = def.hidden === true;
 				this.model.registry.setGlobalHidden(codeId, !currentlyHidden);
 				if (this.listContentZone) {
-					renderListContent(this.listContentZone, this.model, this.getTreeState(), this.listCallbacks());
+					this.refreshListContent();
 				}
 			},
 			onSelectGroup: (groupId: string | null) => {

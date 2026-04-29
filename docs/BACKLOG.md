@@ -35,7 +35,7 @@ Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não 
 
 Items pequenos (<2h cada) sem guarda-chuva próprio. Quando atacar, vira commit direto.
 
-- **(2026-04-29) Codebook panel — search result counter** — header `All Codes (1000)` mantém o total mesmo sob filter ativo. Sem feedback de quantos resultados o search retornou. Sintoma surgiu em diagnóstico de outro bug (impossível confirmar contagem dos `Dup-NN` filtrados no stress test). Proposta: quando search ativo, header vira `Filtered N of 1000` ou badge inline ao lado do total. Arquivo provável: `src/core/codebookTreeRenderer.ts` ou onde monta o painel.
+(nenhum item aberto)
 
 ---
 

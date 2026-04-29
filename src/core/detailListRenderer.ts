@@ -31,22 +31,30 @@ export function renderListShell(
 	container: HTMLElement,
 	model: SidebarModelInterface,
 	callbacks: ListRendererCallbacks,
-): { listSearchWrap: HTMLElement | null; listContentZone: HTMLElement | null; cleanup: () => void } {
+): { listSearchWrap: HTMLElement | null; listContentZone: HTMLElement | null; cleanup: () => void; updateHeaderCount: (searchQuery?: string) => void } {
 	container.empty();
 
 	const codes = model.registry.getAll();
+	const total = codes.length;
 
 	// Header
 	const header = container.createDiv({ cls: 'codemarker-explorer-header' });
 	header.createSpan({ text: 'All Codes', cls: 'codemarker-explorer-title' });
-	header.createSpan({ text: `${codes.length}`, cls: 'codemarker-explorer-count' });
+	const countSpan = header.createSpan({ text: `${total}`, cls: 'codemarker-explorer-count' });
+
+	const updateHeaderCount = (searchQuery?: string) => {
+		const q = searchQuery?.trim().toLowerCase() ?? '';
+		if (!q) { countSpan.setText(`${total}`); return; }
+		const filtered = codes.filter(c => c.name.toLowerCase().includes(q)).length;
+		countSpan.setText(`${filtered}/${total}`);
+	};
 
 	// Toolbar: drag mode toggle + New Code button
 	renderCodebookToolbar(container, model, callbacks);
 
 	if (codes.length === 0) {
 		container.createEl('p', { text: 'No codes yet.', cls: 'codemarker-detail-empty' });
-		return { listSearchWrap: null, listContentZone: null, cleanup: () => {} };
+		return { listSearchWrap: null, listContentZone: null, cleanup: () => {}, updateHeaderCount };
 	}
 
 	// Search input (persistent — focus preserved across data refreshes)
@@ -68,7 +76,7 @@ export function renderListShell(
 		if (searchTimeout) { clearTimeout(searchTimeout); searchTimeout = null; }
 	};
 
-	return { listSearchWrap, listContentZone, cleanup };
+	return { listSearchWrap, listContentZone, cleanup, updateHeaderCount };
 }
 
 /**
