@@ -155,7 +155,7 @@ export function setupDragDrop(
 			row.classList.add('is-dragging');
 			document.body.classList.add(BODY_DRAGGING_CLASS);
 			e.dataTransfer?.setData('text/plain', draggedCodeId);
-			if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+			if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copyMove';
 			return;
 		}
 		// Folder drag (only in reorganize mode — merge mode is for code-on-code merge)
@@ -166,7 +166,7 @@ export function setupDragDrop(
 			folderRow.classList.add('is-dragging');
 			document.body.classList.add(BODY_DRAGGING_CLASS);
 			e.dataTransfer?.setData('text/plain', draggedFolderId);
-			if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+			if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copyMove';
 		}
 	};
 
