@@ -210,7 +210,7 @@ src/
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
 - `npm run test` — 2438 testes em 140 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
-- `npm run test:e2e` — 65 testes e2e em 19 specs (wdio + Obsidian real)
+- `npm run test:e2e` — 66 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
 - Views compartilhadas: UnifiedCodeExplorerView, UnifiedCodeDetailView
 - Type guards compartilhados em `markerResolvers.ts`
