@@ -25,7 +25,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 - **[Parquet lazy loading](#parquet-lazy-loading)** — contingente ao LLM coding. Sem LLM, "parquet 500MB sequencial" não existe no workflow real
 - **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability)** — gap estratégico, complexidade alta no contexto single-user
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
-- **[Research Board Enhancements](#research-board-enhancements)** — 3/5 sub-items já feitos. Restam: drag do Code Explorer (parcial), board templates, export PDF
+- **[Research Board Enhancements](#research-board-enhancements)** — 4/6 sub-items resolvidos (3 feitos + 2 won't-do). Resta: drag do Code Explorer pro board (Tier 1, ~1 sessão)
 - **Tabular round-trip (import)** — reimportar zip de CSVs. Viabilidade incerta (text anchors podem não casar se arquivo fonte mudou)
 - **[Convert memo to note](#analytical-memos)** — materializar memo como arquivo markdown. Sub-item residual de "Analytical Memos" (grosso da feature já feito em #25 + Analytic Memo View)
 
@@ -197,10 +197,32 @@ Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de
 | ~~**Sync com registry**~~ | ✅ FEITO — `boardReconciler.ts` (cor/nome/contagens em real time) |
 | ~~**Context menu "Refresh"**~~ | ✅ FEITO — `reconcileBoard()` exposto via "Refresh on open" |
 | ~~**Export board (PNG/SVG)**~~ | ✅ FEITO — `boardExport.ts` (PNG + SVG + bbox scene-coord) |
-| **Drag do Code Explorer** | ⚠️ Parcial — dataTransfer setado em `codebookDragDrop.ts:157` pra reparenting interno; drop handler no board não confirmado |
-| **Board templates** (2x2 matrix, timeline) | ❌ Aberto — escopo médio |
+| **Drag do Code Explorer pro board** | ⚠️ Tier 1 — drag SOURCE pronto (`codebookDragDrop.ts:157` faz setData; rows.draggable=true). Falta drop TARGET no board (~6-10h, ver detalhes abaixo) |
 
 > **Export PDF dispensado** em #20 (2026-04-24) — SVG cobre o caso vetorial melhor sem adicionar dependência externa. Ver registro em "Implementados".
+> **Templates pré-definidos** (2x2, timeline, etc.) movido pra "Decisões fechadas sem implementar" em 2026-04-29 — board é canvas livre, user recria qualquer layout em <1min, manter biblioteca é overhead.
+
+#### Drag do Code Explorer pro board — escopo (1 sessão / 6-10h)
+
+**Comportamento:** user arrasta um Code da árvore do codebook (sidepanel) → solta no canvas do Research Board (workspace) → aparece um `CodeCard` node na posição do drop. Permite duplicatas (drop 3x = 3 cards).
+
+**Estado atual:**
+- ✅ Drag SOURCE — `codebookDragDrop.ts:157` faz `setData('text/plain', draggedCodeId)`, `row.draggable = true` em `codebookTreeRenderer.ts`
+- ❌ Drop TARGET — zero handlers em `src/analytics/board/`
+
+**Implementação:**
+
+| Etapa | LOC | Tempo |
+|---|---|---|
+| Handlers `dragover` + `drop` no canvas wrapper do board | ~30-50 | 1-2h |
+| Coord conversion mouse → Fabric scene coord (considerando viewportTransform — pattern já resolvido em `boardExport`) | ~20-30 | 1-2h |
+| Criar `CodeCard` node ao drop (factory `createCodeCardNode` já existe em `nodes/`) | ~10-20 | 30min-1h |
+| Persistir no boardState | ~10-20 | 30min |
+| Edge cases (drop fora da área, sobre objeto existente, dataTransfer com payload inválido) | ~20-30 | 1h |
+| Tests (drop sem zoom, com zoom 2x, com pan, codeId inválido) | ~80-150 | 2-3h |
+| Smoke manual no workbench | — | 30min |
+
+**Risco:** coord conversion no Fabric. Pattern já resolvido em `boardExport.ts` — reuso.
 
 ### Analytical Memos
 
@@ -299,6 +321,7 @@ Items que foram considerados, discutidos e **conscientemente dispensados**. Raz�
 
 - **Full export do projeto (Parquet/JSON)** (fechado 2026-04-29) — coberto pela combinação atual: Tabular CSV zip pra análise externa (R/Python/BI) + REFI-QDA (QDPX) pra interop com Atlas.ti/NVivo/MAXQDA + `data.json` pra backup/restore. Não há caso de uso identificado que ficou fora dessa combinação. Reabrir só se aparecer demanda concreta.
 - **Board export PDF** (fechado 2026-04-24, ver #20) — SVG nativo do Fabric cobre o caso vetorial melhor sem adicionar dependência externa de PDF lib (~100KB+).
+- **Board templates pré-definidos** (2x2 matrix, timeline, affinity diagram) (fechado 2026-04-29) — board é canvas livre; user recria qualquer layout em <1min com sticky notes. Inflexibilidade do template > economia de tempo. Manter biblioteca de templates é overhead. Não há demanda concreta de pesquisador real (ideia de catálogo, não uso). Reabrir só se aparecer pedido específico.
 
 ---
 
