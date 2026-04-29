@@ -85,23 +85,29 @@ A few technical choices worth knowing about:
 - **CodeMirror 6 native.** Markdown highlights are real CodeMirror decorations, not DOM overlays. The margin panel is a custom `ViewPlugin` with column-resolved label layout — same UX as MAXQDA's
 - **Per-engine viewers, no shared state.** PDF (pdf.js), Image (Fabric.js), Audio/Video (WaveSurfer.js), CSV/Parquet (AG Grid Community + hyparquet WASM). Each engine is self-contained — adding a format doesn't touch the others
 - **Incremental analytics cache.** Dirty flags per engine; analytics modes recompute only the affected slice. Stays fast on large projects
-- **2,000+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, and analytics consolidators
+- **2,400+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, and analytics consolidators
 - **TypeScript strict** end-to-end, with ambient types for Obsidian internals where needed
 - **No build-time secrets, no runtime servers.** The entire plugin is the three files in your `.obsidian/plugins/qualia-coding/` folder
 
 ## Installation
 
-### From Community Plugins
+> Qualia Coding is **pre-alpha (0.1.x)** — distributed via BRAT for testing with selected researchers. Submission to the Obsidian Community Plugins directory is planned for the 0.2.x line.
 
-1. Open **Settings → Community plugins → Browse**
-2. Search **Qualia Coding**
-3. Click **Install**, then **Enable**
+### Via BRAT (recommended while pre-alpha)
+
+1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) from Community Plugins
+2. **BRAT settings → Add Beta Plugin** → enter `mrlnlms/obsidian-qualia-coding`
+3. Enable **Qualia Coding** in Community Plugins
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, `styles.css` from the latest release
+1. Download `main.js`, `manifest.json`, `styles.css` from the [latest release](https://github.com/mrlnlms/obsidian-qualia-coding/releases)
 2. Place inside `your-vault/.obsidian/plugins/qualia-coding/`
 3. Enable in **Settings → Community plugins**
+
+### From Community Plugins (after approval)
+
+Once approved, **Settings → Community plugins → Browse → Qualia Coding → Install → Enable**.
 
 > Desktop only. Requires Obsidian 1.5.0+.
 
@@ -119,7 +125,7 @@ A few technical choices worth knowing about:
 
 **Case Variables** — Open from sidebar or command palette. Add typed properties per file. Filter Analytics by these.
 
-**Analytics** — Command palette → **Open Analytics**. Pick from 20 modes. All filters apply globally.
+**Analytics** — Command palette → **Open Analytics**. Pick from 20+ modes. All filters apply globally.
 
 **Research Board** — Command palette → **Open Research Board**. Drag excerpts from sidebar onto the canvas.
 
@@ -135,10 +141,12 @@ A few technical choices worth knowing about:
 | Show menu on selection | Auto-show coding menu on text selection |
 | Show menu on right-click | Show coding menu on right-click |
 | Show ribbon button | Display the Qualia Coding icon in the ribbon |
-| Auto-reveal on segment click | Scroll to marker when clicked in sidebar |
 | Show magnitude in popover | Display magnitude picker in the coding popover |
 | Show relations in popover | Display relations section in the coding popover |
+| Open toggle in a new tab | Open coding view in a new tab when toggling on |
 | Auto-open coding view | Per-engine toggle: enable PDF / Image / Audio / Video coding view by default |
+| Parquet size warning (MB) | Show a banner before loading large Parquet files |
+| CSV size warning (MB) | Show a banner before loading large CSV files |
 
 ## In development
 
