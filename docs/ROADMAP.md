@@ -23,7 +23,6 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 
 - **[LLM-assisted coding](#llm-assisted-coding)** — batch coding via LLM. Destrava "parquet gigante" como caso de uso. Amarra Parquet lazy loading e Smart Codes
 - **[Parquet lazy loading](#parquet-lazy-loading)** — contingente ao LLM coding. Sem LLM, "parquet 500MB sequencial" não existe no workflow real
-- **Full export do projeto (Parquet/JSON)** — user esperava formato Parquet quando ouviu "JSON full export" (memory `project_export_grupo_b_notes.md`). Tabular CSV zip cobriu parte; full project export binário/columnar fica em aberto
 - **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability)** — gap estratégico, complexidade alta no contexto single-user
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
 - **[Research Board Enhancements](#research-board-enhancements)** — 3/5 sub-items já feitos. Restam: drag do Code Explorer (parcial), board templates, export PDF
@@ -198,9 +197,10 @@ Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de
 | ~~**Sync com registry**~~ | ✅ FEITO — `boardReconciler.ts` (cor/nome/contagens em real time) |
 | ~~**Context menu "Refresh"**~~ | ✅ FEITO — `reconcileBoard()` exposto via "Refresh on open" |
 | ~~**Export board (PNG/SVG)**~~ | ✅ FEITO — `boardExport.ts` (PNG + SVG + bbox scene-coord) |
-| **Export board (PDF)** | ❌ Aberto — só PNG/SVG hoje. SVG → PDF via print/canvas seria simples |
 | **Drag do Code Explorer** | ⚠️ Parcial — dataTransfer setado em `codebookDragDrop.ts:157` pra reparenting interno; drop handler no board não confirmado |
 | **Board templates** (2x2 matrix, timeline) | ❌ Aberto — escopo médio |
+
+> **Export PDF dispensado** em #20 (2026-04-24) — SVG cobre o caso vetorial melhor sem adicionar dependência externa. Ver registro em "Implementados".
 
 ### Analytical Memos
 
@@ -233,6 +233,15 @@ Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de
 | 3 `as any` PDF viewer | API interna Obsidian não exporta tipos |
 | 3 `as any` dataManager deepMerge | Type gymnastics genérica |
 | fflate bundled (~8KB gzip) | Dependência do QDPX export — sem alternativa nativa |
+
+---
+
+## ⛔ Decisões fechadas sem implementar
+
+Items que foram considerados, discutidos e **conscientemente dispensados**. Razão registrada pra evitar re-debate.
+
+- **Full export do projeto (Parquet/JSON)** (fechado 2026-04-29) — coberto pela combinação atual: Tabular CSV zip pra análise externa (R/Python/BI) + REFI-QDA (QDPX) pra interop com Atlas.ti/NVivo/MAXQDA + `data.json` pra backup/restore. Não há caso de uso identificado que ficou fora dessa combinação. Reabrir só se aparecer demanda concreta.
+- **Board export PDF** (fechado 2026-04-24, ver #20) — SVG nativo do Fabric cobre o caso vetorial melhor sem adicionar dependência externa de PDF lib (~100KB+).
 
 ---
 
