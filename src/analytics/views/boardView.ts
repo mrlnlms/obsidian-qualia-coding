@@ -537,35 +537,65 @@ export class BoardView extends ItemView {
     if (!this.canvasState || !e.dataTransfer) return;
     const raw = e.dataTransfer.getData("text/plain");
     if (!raw) return;
+
+    const canvas = this.canvasState.canvas;
+    const vt = canvas.viewportTransform;
+    const zoom = canvas.getZoom();
+    const rect = this.canvasState.container.getBoundingClientRect();
+    const x = (e.clientX - rect.left - vt[4]) / zoom;
+    const y = (e.clientY - rect.top - vt[5]) / zoom;
+
+    // Path 1: JSON payload (Frequency mode drag — pre-computed count/sources)
     try {
       const payload = JSON.parse(raw);
-      if (payload.type !== "codemarker-code-card") return;
-      const canvas = this.canvasState.canvas;
-      const vt = canvas.viewportTransform;
-      const zoom = canvas.getZoom();
-      // Convert DOM coords to canvas coords
-      const rect = this.canvasState.container.getBoundingClientRect();
-      const x = (e.clientX - rect.left - vt[4]) / zoom;
-      const y = (e.clientY - rect.top - vt[5]) / zoom;
+      if (payload.type === "codemarker-code-card") {
+        createCodeCardNode(canvas, {
+          id: nextCodeCardId(),
+          x: x - 100,
+          y: y - 60,
+          codeName: payload.codeName,
+          color: payload.color,
+          description: payload.description ?? "",
+          markerCount: payload.markerCount ?? 0,
+          sources: payload.sources ?? [],
+          createdAt: Date.now(),
+        });
+        this.setTool("select");
+        if (this.toolbarApi) this.toolbarApi.setActiveTool("select");
+        this.scheduleSave();
+        new Notice(`Added "${payload.codeName}" to board`);
+        return;
+      }
+    } catch {
+      // Not JSON — fall through to raw codeId path
+    }
 
+    // Path 2: raw codeId (Code Explorer / codebook tree drag)
+    if (raw.startsWith("c_")) {
+      const def = this.plugin.registry.getById(raw);
+      if (!def) return;
       createCodeCardNode(canvas, {
         id: nextCodeCardId(),
         x: x - 100,
         y: y - 60,
-        codeName: payload.codeName,
-        color: payload.color,
-        description: payload.description ?? "",
-        markerCount: payload.markerCount ?? 0,
-        sources: payload.sources ?? [],
+        codeName: def.name,
+        color: def.color,
+        description: def.description ?? "",
+        markerCount: 0, // populated via reconcile (async)
+        sources: [],
         createdAt: Date.now(),
       });
-
       this.setTool("select");
       if (this.toolbarApi) this.toolbarApi.setActiveTool("select");
       this.scheduleSave();
-      new Notice(`Added "${payload.codeName}" to board`);
-    } catch {
-      // Not a valid code card drop — ignore
+      new Notice(`Added "${def.name}" to board`);
+
+      // Async reconcile pra preencher count/sources sem bloquear o drop
+      this.plugin.loadConsolidatedData().then(data => {
+        if (!this.canvasState) return;
+        reconcileBoard(this.canvasState.canvas, this.plugin.registry, data, this.app);
+        this.canvasState.canvas.renderAll();
+      }).catch(() => { /* silent — card stays with count 0 */ });
     }
   }
 
