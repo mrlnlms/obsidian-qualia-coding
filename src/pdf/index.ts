@@ -298,19 +298,21 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	plugin.addCommand({
 		id: 'toggle-pdf-coding',
 		name: 'Toggle PDF coding',
-		checkCallback: (checking) => {
-			const file = plugin.app.workspace.getActiveFile();
-			if (!file || file.extension.toLowerCase() !== 'pdf') return false;
-			if (!checking) {
-				let target: FileView | null = null;
-				plugin.app.workspace.iterateAllLeaves((leaf) => {
-					if (target) return;
-					const v = leaf.view;
-					if (v instanceof FileView && v.file?.path === file.path) target = v;
-				});
-				if (target) void performToggleCommand(plugin, target, 'pdf');
+		callback: () => {
+			const targets: FileView[] = [];
+			plugin.app.workspace.iterateAllLeaves((leaf) => {
+				const v = leaf.view;
+				if (v instanceof FileView
+					&& v.file instanceof TFile
+					&& v.file.extension.toLowerCase() === 'pdf') {
+					targets.push(v);
+				}
+			});
+			if (targets.length === 0) {
+				new Notice('No PDF file open. Open one to toggle coding.');
+				return;
 			}
-			return true;
+			for (const view of targets) void performToggleCommand(plugin, view, 'pdf');
 		},
 	});
 
