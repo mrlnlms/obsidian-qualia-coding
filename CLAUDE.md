@@ -295,7 +295,7 @@ Docs narrativos/historicos (fora do repo, em `obsidian-qualia-coding/plugin-docs
 3. `TECHNICAL-PATTERNS.md` — padroes/gotchas descobertos durante a implementacao
 4. `DEVELOPMENT.md` — novos commands, settings, fluxos de teste
 5. `BACKLOG.md` — nova divida tecnica surgida, marcar resolvidos
-6. `CLAUDE.md` (gitignored) — so se estrutura de arquivos, convencoes ou contagem de testes mudaram. Nao atualizar por mudanca menor.
+6. `CLAUDE.md` — so se estrutura de arquivos, convencoes ou contagem de testes mudaram. Nao atualizar por mudanca menor.
 
 **Triggers por tipo de mudanca:**
 - Feature nova → 1, 2, 4 (+ 3 se descobriu pattern)
