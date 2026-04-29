@@ -34,18 +34,18 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 		id: 'toggle-image-coding',
 		name: 'Toggle image coding',
 		checkCallback: (checking) => {
-			const file = plugin.app.workspace.getActiveFile();
-			if (!file || !IMAGE_EXTENSIONS.has(file.extension.toLowerCase())) return false;
-			if (!checking) {
-				let target: FileView | null = null;
-				plugin.app.workspace.iterateAllLeaves((leaf) => {
-					if (target) return;
-					const v = leaf.view;
-					if (v instanceof FileView && v.file?.path === file.path) target = v;
-				});
-				if (target) void performToggleCommand(plugin, target, 'image');
-				else openImageCodingView(plugin, file);
-			}
+			let target: FileView | null = null;
+			plugin.app.workspace.iterateAllLeaves((leaf) => {
+				if (target) return;
+				const v = leaf.view;
+				if (v instanceof FileView
+					&& v.file instanceof TFile
+					&& IMAGE_EXTENSIONS.has(v.file.extension.toLowerCase())) {
+					target = v;
+				}
+			});
+			if (!target) return false;
+			if (!checking) void performToggleCommand(plugin, target, 'image');
 			return true;
 		},
 	});

@@ -50,18 +50,18 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 		id: 'toggle-audio-coding',
 		name: 'Toggle audio coding',
 		checkCallback: (checking) => {
-			const file = plugin.app.workspace.getActiveFile();
-			if (!file || !AUDIO_EXTENSIONS.has(file.extension.toLowerCase())) return false;
-			if (!checking) {
-				let target: FileView | null = null;
-				plugin.app.workspace.iterateAllLeaves((leaf) => {
-					if (target) return;
-					const v = leaf.view;
-					if (v instanceof FileView && v.file?.path === file.path) target = v;
-				});
-				if (target) void performToggleCommand(plugin, target, 'audio');
-				else openAudioView(plugin, model, file);
-			}
+			let target: FileView | null = null;
+			plugin.app.workspace.iterateAllLeaves((leaf) => {
+				if (target) return;
+				const v = leaf.view;
+				if (v instanceof FileView
+					&& v.file instanceof TFile
+					&& AUDIO_EXTENSIONS.has(v.file.extension.toLowerCase())) {
+					target = v;
+				}
+			});
+			if (!target) return false;
+			if (!checking) void performToggleCommand(plugin, target, 'audio');
 			return true;
 		},
 	});
