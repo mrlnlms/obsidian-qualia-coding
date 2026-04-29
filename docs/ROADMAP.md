@@ -26,7 +26,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 - **Full export do projeto (Parquet/JSON)** — user esperava formato Parquet quando ouviu "JSON full export" (memory `project_export_grupo_b_notes.md`). Tabular CSV zip cobriu parte; full project export binário/columnar fica em aberto
 - **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability)** — gap estratégico, complexidade alta no contexto single-user
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
-- **[Research Board Enhancements](#research-board-enhancements)** — escopo amplo, decidir subset
+- **[Research Board Enhancements](#research-board-enhancements)** — 3/5 sub-items já feitos. Restam: drag do Code Explorer (parcial), board templates, export PDF
 - **Tabular round-trip (import)** — reimportar zip de CSVs. Viabilidade incerta (text anchors podem não casar se arquivo fonte mudou)
 - **[Convert memo to note](#analytical-memos)** — materializar memo como arquivo markdown. Sub-item residual de "Analytical Memos" (grosso da feature já feito em #25 + Analytic Memo View)
 
@@ -191,15 +191,16 @@ Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de
 
 ### Research Board Enhancements
 
-Escopo amplo — decidir subset antes de atacar:
+3 dos 5 sub-items originais já feitos. Restam 3 abertos (1 incerto, 2 não-feitos):
 
-| Feature | Detalhe |
-|---------|---------|
-| Drag do Code Explorer | Arrastar códigos direto da tree (não só da lista de frequência) |
-| Sync com registry | Atualizar cor/nome de code cards em real time |
-| Context menu "Refresh" | Atualizar contagem de code cards sob demanda |
-| Board templates | Layouts pré-definidos (e.g., 2x2 matrix, timeline) |
-| Export board | Imagem/PDF do canvas completo |
+| Feature | Status |
+|---------|--------|
+| ~~**Sync com registry**~~ | ✅ FEITO — `boardReconciler.ts` (cor/nome/contagens em real time) |
+| ~~**Context menu "Refresh"**~~ | ✅ FEITO — `reconcileBoard()` exposto via "Refresh on open" |
+| ~~**Export board (PNG/SVG)**~~ | ✅ FEITO — `boardExport.ts` (PNG + SVG + bbox scene-coord) |
+| **Export board (PDF)** | ❌ Aberto — só PNG/SVG hoje. SVG → PDF via print/canvas seria simples |
+| **Drag do Code Explorer** | ⚠️ Parcial — dataTransfer setado em `codebookDragDrop.ts:157` pra reparenting interno; drop handler no board não confirmado |
+| **Board templates** (2x2 matrix, timeline) | ❌ Aberto — escopo médio |
 
 ### Analytical Memos
 
