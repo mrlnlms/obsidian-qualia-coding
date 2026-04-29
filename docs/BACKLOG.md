@@ -15,7 +15,11 @@
 
 Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não viram tarefa porque sem repro o debug é especulação. Investigar quando aparecer caso reproduzível.
 
-- **(2026-04-28) Suspeita de código duplicado no codebook após uso do drag-drop inter-groups** — user observou um código aparecer duas vezes na árvore, não conseguiu replicar. Hipóteses não validadas: (1) virtual scroll glitch (`rowPool` fora de sync após refresh sob filter); (2) dois códigos com mesmo nome e IDs diferentes pré-existindo (registry não dedupe por nome); (3) race no refresh entre `addCodeToGroup` → save → re-render. As mudanças do #26 não criam códigos — só mexem em membership e os helpers do registry são idempotentes. Provavelmente não é regressão; mais provável é (1) ou (2). Se reproduzir, capturar passos exatos + screenshot do `data.json` correspondente.
+- **(2026-04-28, atualizado 2026-04-29) Suspeita de código duplicado no codebook** — user observou um código aparecer duas vezes na árvore. Atualização 2026-04-29: aparece também **na abertura do vault** e após **movimentações genéricas** (caminho exato não reproduzível). Hipóteses ativas (todas no radar — nenhuma descartada):
+  - **(1) Virtual scroll glitch** — `rowPool` fora de sync após refresh sob filter / no render inicial
+  - **(2) Dado pré-existente** — dois códigos com mesmo nome e IDs diferentes acumulados (registry não dedupe por nome)
+  - **(3) Race em mutações** — `add*/setParent/setCodeFolder` → save → re-render desincronizado em algum caminho
+  - Estratégia de diagnóstico: **Fase A** (5min) — scan no `data.json` por códigos com `name` igual e `id` diferente. **Fase B** (se A não achar nada) — seed de N=1000 codes com cenários controlados (pastas profundas, nomes iguais, etc.) + reload vault + observar. Se reproduzir manualmente: capturar passos exatos + screenshot do `data.json` correspondente.
 
 Áreas com polish opcional foram migradas pro `ROADMAP.md`:
 - Relations Network (hover-focus ✅, filtro N+ ✅, edge bundling condicional)
