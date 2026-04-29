@@ -206,7 +206,64 @@ Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de
 
 **Mostly done.** O conceito original (memos em códigos, grupos, relações; view dedicada) foi entregue em #25 (Memos em todas entidades) + Analytic Memo View (2026-04-27).
 
-**O que sobrou em aberto:** ideia de "Convert to Note" — botão que materializa um memo como arquivo markdown no vault com template de memo analítico (código referenciado, data, tipo de reflexão). Pesquisador escreve no Obsidian normalmente em vez de em textarea inline. Reavaliar se há demanda real antes de implementar.
+**O que sobrou em aberto:** "Convert memo to note" — materializar memo como arquivo `.md` no vault. Pesquisador escreve no Obsidian normalmente (com backlinks, graph view, Templater) em vez de só em textarea inline.
+
+**Origem da demanda:** pesquisa com usuário sintético (não real). Trata como hipótese a testar, não feature blockbuster.
+
+#### Design já discutido (2026-04-29) — para retomar sem re-pensar
+
+A questão central é **reatividade** entre memo no `data.json` e arquivo `.md` materializado. 3 designs foram considerados:
+
+| Design | Como funciona | Custo | Veredito |
+|---|---|---|---|
+| **A. Snapshot one-way** | Convert cria `.md` com conteúdo atual; depois divergem livres | ~1 sessão | ❌ Confunde — qual é source of truth? |
+| **B. Two-way file sync clássico** | Edita aqui, atualiza lá; edita lá, atualiza aqui | 4-6 sessões | ❌ Excesso. Race, conflict, infinite loop, fragilidade de vault events |
+| **C. Reference-based** | Memo no `data.json` vira ponteiro; arquivo é canonical | 3-5 sessões | ⚠️ Quebra se user deleta o arquivo (perde memo) |
+| **D. Hybrid (recomendado)** | `data.json` é canonical; arquivo é view materializada opcional; mudanças propagam de volta; deleção do arquivo só remove materialização (content preservado) | **1.5-2 sessões** | ✅ Resolve elegantemente — design honesto |
+
+#### Design recomendado (D) — schema
+
+```ts
+memo: {
+  content: string;                          // canonical, sempre presente
+  materialized?: { path: string; mtime: number };  // opcional
+}
+```
+
+**Fluxos:**
+- **Convert** → cria `.md` no path escolhido, popula `materialized.path` + `mtime`
+- **User edita `.md`** → `vault.on('modify')` dispara → atualiza `content` no `data.json`
+- **User edita popover** → atualiza `content` + escreve no `.md` (suprimindo próprio modify pra evitar loop, ~10 LOC de self-write tracking)
+- **User deleta `.md`** → `vault.on('delete')` dispara → remove `materialized`, **content fica preservado** em data.json (volta automático pro modo inline)
+- **User renomeia `.md`** → `vault.on('rename')` → atualiza `materialized.path`
+
+#### Custo real (~1.5-2 sessões / 10-15h)
+
+| Etapa | Tempo |
+|---|---|
+| Schema + types | 2-3h |
+| Convert button + file creation flow (path picker, template) | 2-3h |
+| Vault listener (modify/delete/rename) + reactive update das views | 2-3h |
+| Tests (modify, delete, rename, suprimir self-write, edge cases) | 2-3h |
+| Edge cases (rename, conflict de path, multi-pane) | 2-3h |
+
+#### Estimativa de impacto
+
+| Audiência | Beneficio |
+|---|---|
+| Pesquisador que escreve memos longos analíticos | Alto — destrava ferramental Obsidian (backlinks, graph, templates) |
+| Pesquisador que escreve memos curtos | Baixo — popover inline já basta |
+| Demo/marketing | Médio — "memos viram notas reais com backlinks" é feature linda de demo |
+
+**Não é blocker.** Sinaliza maturidade do produto mas ninguém está bloqueado por não ter.
+
+#### Como atacar quando virar prioridade
+
+Como demanda é sintética, fazer como **spike**, não feature de catálogo:
+
+1. Implementa design D em 1.5-2 sessões
+2. Marlon usa por 2 semanas em research real
+3. Decide: manter+polir ou archive como "tentamos, não pegou"
 
 ---
 
