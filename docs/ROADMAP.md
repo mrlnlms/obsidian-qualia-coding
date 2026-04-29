@@ -209,31 +209,6 @@ Escopo amplo — decidir subset antes de atacar:
 
 ---
 
-## Gaps identificados na pesquisa de mercado
-
-### Gaps estratégicos (fundamentados em benchmark)
-
-| Gap | Por que importa | Status |
-|-----|----------------|--------|
-| ~~**Case/Document Variables**~~ | ~~FEITO — Registry central, popover em todos file types, painel lateral, filter analytics, QDPX round-trip, rename/delete hooks~~ | ✅ 2026-04-21 |
-| ~~**REFI-QDA (QDPX) Export/Import**~~ | ~~FEITO — Export QDPX/QDC + Import com resolução de conflitos~~ | ✅ 2026-03-22 |
-| ~~**Export CSV/Excel**~~ | ~~FEITO — Analytics exporta CSV de frequencies, co-occurrence, Doc-Code Matrix~~ | ✅ 2026-03-22 |
-| **Intercoder Reliability** | Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers. | [❓ Decisão de produto aberta](#intercoder-reliability) |
-
-### Diferenciais confirmados pela pesquisa
-
-| Diferencial | Status | Concorrência |
-|------------|--------|-------------|
-| **20 analytics modes** (incl. MCA, MDS, LSA, Polar, CHAID, Relations Network) | Implementado | Zero concorrentes oferecem built-in |
-| **REFI-QDA interoperability** (export + import QDC/QDPX) | Implementado | NVivo, ATLAS.ti, MAXQDA cobram licença; QualCoder tem suporte parcial |
-| **Parquet support** | Implementado | Único no mercado CAQDAS |
-| **Dentro do Obsidian** (vault = dados, zero lock-in) | Implementado | Só o Quadro (muito mais limitado) |
-| **7 formatos + unified analytics** grátis | Implementado | Concorrentes cobram $130-1,005/ano |
-| **Research Board** (canvas freeform) | Implementado | Zero concorrentes têm equivalent |
-| **Margin bars MAXQDA-style** em open source | Implementado | MAXQDA cobra EUR 600+/3 anos |
-
----
-
 ## Riscos
 
 | Risco | Impacto | Mitigação |
