@@ -194,6 +194,13 @@ src/
 - Desktop only, min Obsidian 1.5.0
 - `main.js` no root e gitignored (artefato de build, nao commitado)
 
+## Release
+
+- Workflow automatizado em `.github/workflows/release.yml` — push de tag `X.Y.Z` (sem `v` prefix) dispara build + criação de GitHub Release com `main.js`, `manifest.json`, `styles.css` anexados.
+- Bump version em 3 arquivos: `manifest.json`, `versions.json`, `package.json`. Atualizar `CHANGELOG.md`. Commit. Push tag.
+- Detalhes completos em `docs/DEVELOPMENT.md` §9.
+- BRAT puxa o release latest do repo. Pre-release (alpha/beta) requer `--prerelease` flag pra não virar default.
+
 ## Demo vault
 
 - `demo/` — vault de teste com arquivos de cada tipo

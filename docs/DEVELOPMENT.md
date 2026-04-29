@@ -686,6 +686,64 @@ Convenções de naming aplicadas em todos os engines e interfaces:
 
 ---
 
+## 9. Release Workflow
+
+### Onde os releases vivem
+- **Tag git** = versão (sem prefixo `v`, ex: `0.1.0`)
+- **GitHub Release** = container com 3 artifacts: `main.js`, `manifest.json`, `styles.css`
+- BRAT puxa esses 3 arquivos da release latest do repo
+
+### Workflow automatizado (`.github/workflows/release.yml`)
+
+Push de qualquer tag no formato `[0-9]+.[0-9]+.[0-9]+*` dispara automaticamente:
+1. Checkout + setup Node 20
+2. `npm ci --legacy-peer-deps`
+3. `npm run build` (tsc + esbuild)
+4. `gh release create <tag>` com os 3 artifacts e `--generate-notes`
+
+### Como fazer um novo release
+
+```bash
+# 1. Bump version em 3 arquivos (manter alinhados):
+#    - manifest.json   → "version"
+#    - versions.json   → adicionar nova entrada "X.Y.Z": "<minAppVersion>"
+#    - package.json    → "version"
+
+# 2. Atualizar CHANGELOG.md com nova entrada (formato Keep a Changelog)
+
+# 3. (Opcional) Build local pra checar antes de pushar
+npm run build
+
+# 4. Commit das mudanças via script
+~/.claude/scripts/commit.sh "chore: prep X.Y.Z release"
+
+# 5. Push commit + tag — workflow dispara
+git push origin main
+git tag X.Y.Z
+git push origin X.Y.Z
+
+# 6. Verificar workflow + release
+gh run list --workflow=release.yml --limit 1
+gh release view X.Y.Z
+
+# 7. (Opcional) Marcar como pre-release se for alpha/beta
+gh release edit X.Y.Z --prerelease
+```
+
+### Notas
+
+- **Nada de `v` prefix nas tags** — Obsidian community plugin guidelines exigem tag = versão exata.
+- **Pre-release flag**: alpha/beta releases devem ter `--prerelease` pra sinalizar instabilidade. Latest release não-pre-release é o que BRAT default puxa; pre-release exige opt-in no BRAT.
+- **Submissão à Community Plugins**: PR no [obsidianmd/obsidian-releases](https://github.com/obsidianmd/obsidian-releases) — review estrito, semanas. Fazer só depois de feedback de alpha (BRAT users).
+- **Workflow precisa de `permissions: contents: write`** — já configurado no `release.yml` pra o `gh release create` funcionar.
+
+### Estado atual
+
+- `0.1.0` (pre-release) shipado em 2026-04-29.
+- Release pipeline testada e funcional.
+
+---
+
 ## Fontes
 
 Este documento consolidou conteúdo de (arquivos originais já arquivados):
