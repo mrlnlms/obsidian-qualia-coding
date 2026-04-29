@@ -302,8 +302,13 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			const file = plugin.app.workspace.getActiveFile();
 			if (!file || file.extension.toLowerCase() !== 'pdf') return false;
 			if (!checking) {
-				const view = plugin.app.workspace.getActiveViewOfType(FileView);
-				if (view) void performToggleCommand(plugin, view, 'pdf');
+				let target: FileView | null = null;
+				plugin.app.workspace.iterateAllLeaves((leaf) => {
+					if (target) return;
+					const v = leaf.view;
+					if (v instanceof FileView && v.file?.path === file.path) target = v;
+				});
+				if (target) void performToggleCommand(plugin, target, 'pdf');
 			}
 			return true;
 		},

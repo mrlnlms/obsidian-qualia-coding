@@ -37,8 +37,13 @@ export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 			const file = plugin.app.workspace.getActiveFile();
 			if (!file || !IMAGE_EXTENSIONS.has(file.extension.toLowerCase())) return false;
 			if (!checking) {
-				const view = plugin.app.workspace.getActiveViewOfType(FileView);
-				if (view) void performToggleCommand(plugin, view, 'image');
+				let target: FileView | null = null;
+				plugin.app.workspace.iterateAllLeaves((leaf) => {
+					if (target) return;
+					const v = leaf.view;
+					if (v instanceof FileView && v.file?.path === file.path) target = v;
+				});
+				if (target) void performToggleCommand(plugin, target, 'image');
 				else openImageCodingView(plugin, file);
 			}
 			return true;
