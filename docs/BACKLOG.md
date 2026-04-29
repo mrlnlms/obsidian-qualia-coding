@@ -15,12 +15,7 @@
 
 Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não viram tarefa porque sem repro o debug é especulação. Investigar quando aparecer caso reproduzível.
 
-- **(2026-04-28, atualizado 2026-04-29) Suspeita de código duplicado no codebook** — user observou um código aparecer duas vezes na árvore. Aparece também **na abertura do vault** e após **movimentações genéricas** (caminho exato não reproduzível). Hipóteses:
-  - **(1) Virtual scroll glitch** — `rowPool` fora de sync após refresh sob filter / no render inicial
-  - **(2) Dado pré-existente** — dois códigos com mesmo nome e IDs diferentes acumulados (registry não dedupe por nome) — **DESCARTADA 2026-04-29**
-  - **(3) Race em mutações** — `add*/setParent/setCodeFolder` → save → re-render desincronizado em algum caminho
-  - **Diagnóstico tentado 2026-04-29** via `scripts/seed-stress-codebook.mjs` (1000 codes + 30 dup pairs deliberados). 4 cenários de stress: clear filter + scroll, reload (Cmd+R), drag-drop simples, chained group ops. **Bug NÃO reproduziu**. H2 explicitamente descartada — registry renderiza duplicates corretamente (60 entradas pra 30 nomes plantados, sem fantasmas). H1 e H3 continuam em jogo — precisam condição mais sutil que stress sintético não capturou.
-  - **Quando reproduzir** (vai acontecer eventualmente): capturar **na hora** `cp data.json data.json.bug-<timestamp>` + screenshot da árvore com o duplicate visível + últimos N passos. Sem forensic data o diagnóstico continua especulativo. Seed mantido como baseline pra comparação.
+- **(2026-04-28→04-29) Suspeita de código duplicado no codebook** — investigação completa em `plugin-docs/archive/claude_sources/sessions/20260429-duplicate-code-bug-investigation.md`. Resumo: stress test com 1000 codes + 30 dup pairs deliberados (`scripts/seed-stress-codebook.mjs`) **não reproduziu**. H2 (registry tolera dups) descartada. H1 (virtual scroll) e H3 (race em mutações) sem repro mas não eliminadas. **Quando voltar a aparecer**, capturar `data.json` + screenshot + steps na hora — diagnóstico fica trivial com forensic data.
 
 Áreas com polish opcional foram migradas pro `ROADMAP.md`:
 - Relations Network (hover-focus ✅, filtro N+ ✅, edge bundling condicional)
