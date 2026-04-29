@@ -15,11 +15,12 @@
 
 Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não viram tarefa porque sem repro o debug é especulação. Investigar quando aparecer caso reproduzível.
 
-- **(2026-04-28, atualizado 2026-04-29) Suspeita de código duplicado no codebook** — user observou um código aparecer duas vezes na árvore. Atualização 2026-04-29: aparece também **na abertura do vault** e após **movimentações genéricas** (caminho exato não reproduzível). Hipóteses ativas (todas no radar — nenhuma descartada):
+- **(2026-04-28, atualizado 2026-04-29) Suspeita de código duplicado no codebook** — user observou um código aparecer duas vezes na árvore. Aparece também **na abertura do vault** e após **movimentações genéricas** (caminho exato não reproduzível). Hipóteses:
   - **(1) Virtual scroll glitch** — `rowPool` fora de sync após refresh sob filter / no render inicial
-  - **(2) Dado pré-existente** — dois códigos com mesmo nome e IDs diferentes acumulados (registry não dedupe por nome)
+  - **(2) Dado pré-existente** — dois códigos com mesmo nome e IDs diferentes acumulados (registry não dedupe por nome) — **DESCARTADA 2026-04-29**
   - **(3) Race em mutações** — `add*/setParent/setCodeFolder` → save → re-render desincronizado em algum caminho
-  - Estratégia de diagnóstico: **Fase A** (5min) — scan no `data.json` por códigos com `name` igual e `id` diferente. **Fase B** (se A não achar nada) — seed de N=1000 codes com cenários controlados (pastas profundas, nomes iguais, etc.) + reload vault + observar. Se reproduzir manualmente: capturar passos exatos + screenshot do `data.json` correspondente.
+  - **Diagnóstico tentado 2026-04-29** via `scripts/seed-stress-codebook.mjs` (1000 codes + 30 dup pairs deliberados). 4 cenários de stress: clear filter + scroll, reload (Cmd+R), drag-drop simples, chained group ops. **Bug NÃO reproduziu**. H2 explicitamente descartada — registry renderiza duplicates corretamente (60 entradas pra 30 nomes plantados, sem fantasmas). H1 e H3 continuam em jogo — precisam condição mais sutil que stress sintético não capturou.
+  - **Quando reproduzir** (vai acontecer eventualmente): capturar **na hora** `cp data.json data.json.bug-<timestamp>` + screenshot da árvore com o duplicate visível + últimos N passos. Sem forensic data o diagnóstico continua especulativo. Seed mantido como baseline pra comparação.
 
 Áreas com polish opcional foram migradas pro `ROADMAP.md`:
 - Relations Network (hover-focus ✅, filtro N+ ✅, edge bundling condicional)
@@ -27,6 +28,14 @@ Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não 
 - Code × Metadata ✅
 - Pastas nested ✅
 - Margin Panel customization (bloqueado por plugin externo)
+
+---
+
+## 🪶 Polish curto (UX/qualidade de vida)
+
+Items pequenos (<2h cada) sem guarda-chuva próprio. Quando atacar, vira commit direto.
+
+- **(2026-04-29) Codebook panel — search result counter** — header `All Codes (1000)` mantém o total mesmo sob filter ativo. Sem feedback de quantos resultados o search retornou. Sintoma surgiu em diagnóstico de outro bug (impossível confirmar contagem dos `Dup-NN` filtrados no stress test). Proposta: quando search ativo, header vira `Filtered N of 1000` ou badge inline ao lado do total. Arquivo provável: `src/core/codebookTreeRenderer.ts` ou onde monta o painel.
 
 ---
 
@@ -116,4 +125,4 @@ Resumo cronológico das dívidas técnicas eliminadas. Detalhes longos foram con
 
 - **Abrir item novo:** criar entrada acima do registro (won't-fix com razão, ou aberto com severidade + arquivo + problema)
 - **Resolver item:** mover pro registro como one-liner com data + raiz
-- **Item de polish curto sem guarda-chuva:** voltar a usar §17 do roadmap antigo (hoje vazio). Se passar de "curto" pra "refactor grande" (>4h), abrir plan dedicado
+- **Item de polish curto sem guarda-chuva:** adicionar na seção "🪶 Polish curto" deste arquivo. Se passar de "curto" pra "refactor grande" (>4h), abrir plan dedicado
