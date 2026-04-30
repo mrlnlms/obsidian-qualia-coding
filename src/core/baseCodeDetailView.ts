@@ -14,6 +14,7 @@
 
 import { FuzzySuggestModal, ItemView, Menu, Notice, WorkspaceLeaf } from 'obsidian';
 import { BaseMarker, GroupDefinition, SidebarModelInterface, AuditEntry } from './types';
+import { getMemoContent } from './memoHelpers';
 
 /**
  * Audit log accessor — passado pelo plugin pra views que querem renderizar a timeline.
@@ -897,7 +898,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		new PromptModal({
 			app: this.app,
 			title: 'Edit memo',
-			initialValue: g.memo ?? '',
+			initialValue: getMemoContent(g.memo),
 			placeholder: 'Reflexão analítica (opcional)',
 			onSubmit: (memo) => {
 				const trimmed = memo.trim();

@@ -42,7 +42,7 @@ function makeRegistry(opts?: {
         label: r.label,
         target: ids.get(r.target) ?? r.target,
         directed: r.directed ?? true,
-        memo: r.memo,
+        memo: r.memo ? { content: r.memo } : undefined,
       }));
       reg.update(id, { relations: rels });
     }
@@ -117,7 +117,7 @@ describe("aggregateMemos — coverage", () => {
       { name: "B" },
     ]});
     const allData = makeAllData({
-      markdownMarkers: [{ id: "m1", fileId: "P01.md", codes: [{ codeId: getId(reg, "A"), relations: [{ label: "x", target: "B", directed: true, memo: "app rel memo" }] }] } as any],
+      markdownMarkers: [{ id: "m1", fileId: "P01.md", codes: [{ codeId: getId(reg, "A"), relations: [{ label: "x", target: "B", directed: true, memo: { content: "app rel memo" } }] }] } as any],
     });
     const r = aggregateMemos(allData, reg, baseFilters);
     expect(r.coverage.relationsTotal).toBe(3);
@@ -128,8 +128,8 @@ describe("aggregateMemos — coverage", () => {
     const reg = makeRegistry({ codes: [{ name: "A" }] });
     const aId = getId(reg, "A");
     const allData = makeAllData({
-      markdownMarkers: [{ id: "m1", fileId: "P01.md", codes: [{ codeId: aId }], memo: "x" } as any],
-      pdfMarkers: [{ id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: "y" } as any],
+      markdownMarkers: [{ id: "m1", fileId: "P01.md", codes: [{ codeId: aId }], memo: { content: "x" } } as any],
+      pdfMarkers: [{ id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: { content: "y" } } as any],
     });
     const onlyMd: MemoViewFilters = { ...baseFilters, sources: ["markdown"] };
     const r = aggregateMemos(allData, reg, onlyMd);
@@ -187,7 +187,7 @@ describe("aggregateMemos — by code", () => {
     const allData = makeAllData({
       markdownMarkers: [{
         id: "m1", fileId: "P01.md",
-        codes: [{ codeId: aId, relations: [{ label: "x", target: bId, directed: true, memo: "app memo" }] }],
+        codes: [{ codeId: aId, relations: [{ label: "x", target: bId, directed: true, memo: { content: "app memo" } }] }],
       } as any],
     });
     const r = aggregateMemos(allData, reg, baseFilters);
@@ -205,7 +205,7 @@ describe("aggregateMemos — by code", () => {
     const aId = getId(reg, "A");
     const allData = makeAllData({
       markdownMarkers: [
-        { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }], memo: "marker 1" } as any,
+        { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }], memo: { content: "marker 1" } } as any,
         { id: "m2", fileId: "P01.md", codes: [{ codeId: aId }] } as any, // no memo
       ],
     });
@@ -261,10 +261,10 @@ describe("aggregateMemos — by file", () => {
     const aId = getId(reg, "A");
     const allData = makeAllData({
       markdownMarkers: [
-        { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }], memo: "x" } as any,
+        { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }], memo: { content: "x" } } as any,
       ],
       pdfMarkers: [
-        { id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: "y" } as any,
+        { id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: { content: "y" } } as any,
       ],
     });
     const r = aggregateMemos(allData, reg, { ...baseFilters, groupBy: "file" });
@@ -280,7 +280,7 @@ describe("aggregateMemos — by file", () => {
     const bId = getId(reg, "B");
     const allData = makeAllData({
       markdownMarkers: [
-        { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }, { codeId: bId }], memo: "x" } as any,
+        { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }, { codeId: bId }], memo: { content: "x" } } as any,
       ],
     });
     const r = aggregateMemos(allData, reg, { ...baseFilters, groupBy: "file" });
@@ -309,7 +309,7 @@ describe("aggregateMemos — decisão iv (marker em múltiplos códigos)", () =>
     const bId = getId(reg, "B");
     const allData = makeAllData({
       markdownMarkers: [
-        { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }, { codeId: bId }], memo: "x" } as any,
+        { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }, { codeId: bId }], memo: { content: "x" } } as any,
       ],
     });
     // No code filter: aId is first surviving — marker goes to A, not B
@@ -328,7 +328,7 @@ describe("aggregateMemos — decisão iv (marker em múltiplos códigos)", () =>
     const bId = getId(reg, "B");
     const allData = makeAllData({
       markdownMarkers: [
-        { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }, { codeId: bId }], memo: "x" } as any,
+        { id: "m1", fileId: "P01.md", codes: [{ codeId: aId }, { codeId: bId }], memo: { content: "x" } } as any,
       ],
     });
     const filtered = { ...baseFilters, codes: [bId] };
@@ -362,8 +362,8 @@ describe("aggregateMemos — caseVariableFilter", () => {
     // Use PDF markers — they carry their own fileId field (not grouped under map key like markdown)
     const allData = makeAllData({
       pdfMarkers: [
-        { id: "m1", fileId: "P01.pdf", codes: [{ codeId: aId }], memo: "included" } as any,
-        { id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: "excluded" } as any,
+        { id: "m1", fileId: "P01.pdf", codes: [{ codeId: aId }], memo: { content: "included" } } as any,
+        { id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: { content: "excluded" } } as any,
       ],
     });
     const cvReg = makeCVRegistry({
@@ -386,8 +386,8 @@ describe("aggregateMemos — caseVariableFilter", () => {
     const aId = getId(reg, "A");
     const allData = makeAllData({
       pdfMarkers: [
-        { id: "m1", fileId: "P01.pdf", codes: [{ codeId: aId }], memo: "x" } as any,
-        { id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: "y" } as any,
+        { id: "m1", fileId: "P01.pdf", codes: [{ codeId: aId }], memo: { content: "x" } } as any,
+        { id: "m2", fileId: "P02.pdf", codes: [{ codeId: aId }], memo: { content: "y" } } as any,
       ],
     });
     const filters: MemoViewFilters = { ...baseFilters, caseVariableFilter: { name: "group", value: "A" } };

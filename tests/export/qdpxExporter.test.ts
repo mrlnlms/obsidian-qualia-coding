@@ -74,7 +74,7 @@ describe('buildTextSourceXml', () => {
       id: 'marker-1', fileId: 'notes/interview.md',
       range: { from: { line: 2, ch: 0 }, to: { line: 2, ch: 10 } },
       codes: [{ codeId: 'code-1' }],
-      memo: 'Interesting',
+      memo: { content: 'Interesting' },
       createdAt: Date.now(), updatedAt: Date.now(),
     }];
     const fileContent = 'line 0\nline 1\nline 2 has content here\nline 3';
@@ -130,7 +130,7 @@ describe('buildVideoSourceXml', () => {
       id: 'vm-1', fileId: 'video/session.mp4',
       from: 1.5, to: 3.7,
       codes: [{ codeId: 'code-2' }],
-      memo: 'Note here',
+      memo: { content: 'Note here' },
       createdAt: Date.now(), updatedAt: Date.now(),
     }];
     const guidMap = new Map<string, string>();
@@ -249,7 +249,7 @@ describe('buildLinksXml — memo emission', () => {
     const reg = new CodeDefinitionRegistry();
     const a = reg.create('a', '#FF0000');
     const b = reg.create('b', '#00FF00');
-    reg.update(a.id, { relations: [{ label: 'causa', target: b.id, directed: true, memo: 'relation memo' }] });
+    reg.update(a.id, { relations: [{ label: 'causa', target: b.id, directed: true, memo: { content: 'relation memo' } }] });
     const xml = buildLinksXml(reg.getAll(), [], new Map());
     expect(xml).toMatch(/<Link [^>]*>[\s\S]*<\/Link>/);
     expect(xml).toContain('<MemoText>relation memo</MemoText>');
@@ -262,7 +262,7 @@ describe('buildLinksXml — memo emission', () => {
     const markers = [{
       id: '550e8400-e29b-41d4-a716-446655440aaa',
       codes: [
-        { codeId: a.id, relations: [{ label: 'reforça', target: b.id, directed: false, memo: 'app-level memo' }] },
+        { codeId: a.id, relations: [{ label: 'reforça', target: b.id, directed: false, memo: { content: 'app-level memo' } }] },
       ] as CodeApplication[],
     }];
     const xml = buildLinksXml(reg.getAll(), markers, new Map());
@@ -273,7 +273,7 @@ describe('buildLinksXml — memo emission', () => {
     const reg = new CodeDefinitionRegistry();
     const a = reg.create('a', '#FF0000');
     const b = reg.create('b', '#00FF00');
-    reg.update(a.id, { relations: [{ label: 'l', target: b.id, directed: false, memo: '<x> & "y"' }] });
+    reg.update(a.id, { relations: [{ label: 'l', target: b.id, directed: false, memo: { content: '<x> & "y"' } }] });
     const xml = buildLinksXml(reg.getAll(), [], new Map());
     expect(xml).toContain('<MemoText>&lt;x&gt; &amp; &quot;y&quot;</MemoText>');
   });
@@ -336,7 +336,7 @@ describe('full export assembly', () => {
       id: 'md-1', fileId: 'test.md',
       range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
       codes: [{ codeId: code1.id }],
-      memo: 'A note',
+      memo: { content: 'A note' },
       createdAt: Date.now(), updatedAt: Date.now(),
     }];
     const mdXml = buildTextSourceXml('test.md', mdMarkers as any, 'hello world', guidMap, notes);

@@ -7,6 +7,7 @@
 
 import { App, setIcon, ToggleComponent } from 'obsidian';
 import type { AuditEntry, BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
+import { getMemoContent } from './memoHelpers';
 import { getEntriesForCode, renderEntryMarkdown } from './auditLog';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import { hasCode } from './codeApplicationHelpers';
@@ -356,14 +357,14 @@ function renderCodeMemo(
 		cls: 'codemarker-detail-memo',
 		attr: { placeholder: 'Reflexão analítica…', rows: '3' },
 	});
-	textarea.value = def?.memo ?? '';
+	textarea.value = getMemoContent(def?.memo);
 	let memoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 	textarea.addEventListener('input', () => {
 		if (!def) return;
 		if (memoSaveTimer) clearTimeout(memoSaveTimer);
 		memoSaveTimer = setTimeout(() => {
 			memoSaveTimer = null;
-			const val = textarea.value.trim() || undefined;
+			const val = textarea.value.trim();
 			model.registry.update(def.id, { memo: val });
 			model.saveMarkers();
 		}, 500);
@@ -769,7 +770,7 @@ function renderRelationsSection(
 				new PromptModal({
 					app,
 					title: 'Edit relation memo',
-					initialValue: rel.memo ?? '',
+					initialValue: getMemoContent(rel.memo),
 					placeholder: 'Reflexão sobre essa relação',
 					onSubmit: (newMemo) => {
 						const trimmed = newMemo.trim();

@@ -1,5 +1,6 @@
 import type { DataManager } from '../../core/dataManager';
 import type { CellValue } from './csvWriter';
+import { getMemoContent } from '../../core/memoHelpers';
 
 export interface SegmentsOptions {
 	includeShapeCoords: boolean;
@@ -48,7 +49,7 @@ export function buildSegmentsTable(
 	for (const markers of Object.values(dm.section('markdown').markers)) {
 		for (const m of markers) {
 			const row = newRow();
-			setCommon(row, m.id, m.fileId, 'markdown', 'markdown', m.text ?? '', m.memo ?? '', m.createdAt, m.updatedAt);
+			setCommon(row, m.id, m.fileId, 'markdown', 'markdown', m.text ?? '', getMemoContent(m.memo), m.createdAt, m.updatedAt);
 			row[idx('line_from')] = m.range.from.line;
 			row[idx('ch_from')] = m.range.from.ch;
 			row[idx('line_to')] = m.range.to.line;
@@ -59,7 +60,7 @@ export function buildSegmentsTable(
 
 	for (const m of dm.section('pdf').markers) {
 		const row = newRow();
-		setCommon(row, m.id, m.fileId, 'pdf', 'pdf_text', m.text, m.memo ?? '', m.createdAt, m.updatedAt);
+		setCommon(row, m.id, m.fileId, 'pdf', 'pdf_text', m.text, getMemoContent(m.memo), m.createdAt, m.updatedAt);
 		row[idx('page')] = m.page;
 		row[idx('begin_index')] = m.beginIndex;
 		row[idx('begin_offset')] = m.beginOffset;
@@ -70,7 +71,7 @@ export function buildSegmentsTable(
 
 	for (const s of dm.section('pdf').shapes) {
 		const row = newRow();
-		setCommon(row, s.id, s.fileId, 'pdf', 'pdf_shape', '', s.memo ?? '', s.createdAt, s.updatedAt);
+		setCommon(row, s.id, s.fileId, 'pdf', 'pdf_shape', '', getMemoContent(s.memo), s.createdAt, s.updatedAt);
 		row[idx('page')] = s.page;
 		fillShape(row, s.shape, s.coords, header, opts.includeShapeCoords, s.id, warnings);
 		rows.push(row);
@@ -78,7 +79,7 @@ export function buildSegmentsTable(
 
 	for (const m of dm.section('image').markers) {
 		const row = newRow();
-		setCommon(row, m.id, m.fileId, 'image', 'image', '', m.memo ?? '', m.createdAt, m.updatedAt);
+		setCommon(row, m.id, m.fileId, 'image', 'image', '', getMemoContent(m.memo), m.createdAt, m.updatedAt);
 		fillShape(row, m.shape, m.coords, header, opts.includeShapeCoords, m.id, warnings);
 		rows.push(row);
 	}
@@ -87,7 +88,7 @@ export function buildSegmentsTable(
 		for (const f of dm.section(sourceType).files) {
 			for (const m of f.markers) {
 				const row = newRow();
-				setCommon(row, m.id, m.fileId, sourceType, sourceType, '', m.memo ?? '', m.createdAt, m.updatedAt);
+				setCommon(row, m.id, m.fileId, sourceType, sourceType, '', getMemoContent(m.memo), m.createdAt, m.updatedAt);
 				row[idx('time_from')] = secondsToMs(m.from, m.id, 'from', warnings);
 				row[idx('time_to')] = secondsToMs(m.to, m.id, 'to', warnings);
 				rows.push(row);
@@ -97,7 +98,7 @@ export function buildSegmentsTable(
 
 	for (const m of dm.section('csv').segmentMarkers) {
 		const row = newRow();
-		setCommon(row, m.id, m.fileId, 'csv', 'csv_segment', csvTexts.get(m.id) ?? '', m.memo ?? '', m.createdAt, m.updatedAt);
+		setCommon(row, m.id, m.fileId, 'csv', 'csv_segment', csvTexts.get(m.id) ?? '', getMemoContent(m.memo), m.createdAt, m.updatedAt);
 		row[idx('row')] = m.row;
 		row[idx('column')] = m.column;
 		row[idx('cell_from')] = m.from;
@@ -106,7 +107,7 @@ export function buildSegmentsTable(
 	}
 	for (const m of dm.section('csv').rowMarkers) {
 		const row = newRow();
-		setCommon(row, m.id, m.fileId, 'csv', 'csv_row', csvTexts.get(m.id) ?? '', m.memo ?? '', m.createdAt, m.updatedAt);
+		setCommon(row, m.id, m.fileId, 'csv', 'csv_row', csvTexts.get(m.id) ?? '', getMemoContent(m.memo), m.createdAt, m.updatedAt);
 		row[idx('row')] = m.row;
 		row[idx('column')] = m.column;
 		rows.push(row);

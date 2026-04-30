@@ -14,6 +14,7 @@ import type { BaseMarker, CodeDefinition } from './types';
 import { hasCode, removeCodeApplication, addCodeApplication } from './codeApplicationHelpers';
 import type { NameChoice, ColorChoice, TextPolicy } from './mergePolicies';
 import { resolveName, resolveColor, applyTextPolicy } from './mergePolicies';
+import { getMemoContent } from './memoHelpers';
 
 // ─── Merge Logic ─────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ export function executeMerge(params: MergeParams): MergeResult {
 
 	// 5. Apply MEMO (audit: memo_edited automático se mudou)
 	const finalMemo = applyTextPolicy(memoPolicy, target, sources, 'memo');
-	const currentMemo = target.memo ?? '';
+	const currentMemo = getMemoContent(target.memo);
 	const newMemo = finalMemo ?? '';
 	if (newMemo !== currentMemo) {
 		registry.update(destinationId, { memo: newMemo });
@@ -423,7 +424,8 @@ export class MergeModal extends Modal {
 
 		const { target, sources } = this.getParticipants();
 		const allParticipants = [target, ...sources];
-		const withContent = allParticipants.filter(p => (p[opts.field] ?? '').trim().length > 0);
+		const fieldText = (p: CodeDefinition): string => opts.field === 'memo' ? getMemoContent(p.memo) : (p.description ?? '');
+		const withContent = allParticipants.filter(p => fieldText(p).trim().length > 0);
 
 		// Decisão #8: nenhum participante com conteúdo → seção inteira somem
 		if (withContent.length === 0) return;

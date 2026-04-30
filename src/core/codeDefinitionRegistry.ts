@@ -8,6 +8,8 @@ import type { CodeDefinition, FolderDefinition, GroupDefinition } from './types'
 import { GROUP_PALETTE } from './types';
 import { cleanOverridesAfterGlobalChange, shouldStoreOverride, isCodeVisibleInFile as isVisibleHelper } from './codeVisibility';
 import type { VisibilityOverrides } from './codeVisibility';
+import type { MemoRecord } from './memoTypes';
+import { getMemoContent, setMemoContent } from './memoHelpers';
 
 export interface VisibilityChangedDetail {
 	codeIds: Set<string>;
@@ -247,14 +249,19 @@ export class CodeDefinitionRegistry {
 		return def;
 	}
 
-	update(id: string, changes: Partial<Pick<CodeDefinition, 'name' | 'color' | 'description' | 'memo' | 'magnitude' | 'relations'>>): boolean {
+	update(
+		id: string,
+		changes: Partial<Pick<CodeDefinition, 'name' | 'color' | 'description' | 'magnitude' | 'relations'>> & {
+			memo?: MemoRecord | string | undefined;
+		},
+	): boolean {
 		const def = this.definitions.get(id);
 		if (!def) return false;
 
 		// Snapshot pra audit (antes de mutar)
 		const oldName = def.name;
 		const oldDescription = def.description ?? '';
-		const oldMemo = def.memo ?? '';
+		const oldMemoContent = getMemoContent(def.memo);
 
 		if (changes.name !== undefined && changes.name !== def.name) {
 			// Reject rename if target name already exists (prevents ghost codes)
@@ -277,10 +284,23 @@ export class CodeDefinitionRegistry {
 			}
 		}
 		if (changes.memo !== undefined) {
-			const newMemo = changes.memo || '';
-			if (newMemo !== oldMemo) {
-				def.memo = newMemo || undefined;
-				this.emitAudit({ type: 'memo_edited', codeId: id, from: oldMemo, to: newMemo });
+			// Caller pode passar string (caminho UI atual) ou MemoRecord (caller quer setar materialized).
+			if (typeof changes.memo === 'string') {
+				const newContent = changes.memo;
+				if (newContent !== oldMemoContent) {
+					def.memo = setMemoContent(def.memo, newContent);
+					this.emitAudit({ type: 'memo_edited', codeId: id, from: oldMemoContent, to: newContent });
+				}
+			} else {
+				const newRecord = changes.memo;
+				const newContent = getMemoContent(newRecord);
+				const materializedChanged = newRecord?.materialized !== def.memo?.materialized;
+				if (newContent !== oldMemoContent || materializedChanged) {
+					def.memo = newRecord && (newRecord.content || newRecord.materialized) ? newRecord : undefined;
+					if (newContent !== oldMemoContent) {
+						this.emitAudit({ type: 'memo_edited', codeId: id, from: oldMemoContent, to: newContent });
+					}
+				}
 			}
 		}
 		if ('magnitude' in changes) {
@@ -501,7 +521,7 @@ export class CodeDefinitionRegistry {
 	setGroupMemo(id: string, memo: string | undefined): void {
 		const g = this.groups.get(id);
 		if (!g) return;
-		g.memo = memo && memo.length > 0 ? memo : undefined;
+		g.memo = setMemoContent(g.memo, memo ?? '');
 		for (const fn of this.onMutateListeners) fn();
 	}
 
@@ -517,7 +537,7 @@ export class CodeDefinitionRegistry {
 		if (!def?.relations) return false;
 		const rel = def.relations.find(r => r.label === label && r.target === target);
 		if (!rel) return false;
-		rel.memo = memo && memo.length > 0 ? memo : undefined;
+		rel.memo = setMemoContent(rel.memo, memo ?? '');
 		def.updatedAt = Date.now();
 		for (const fn of this.onMutateListeners) fn();
 		return true;

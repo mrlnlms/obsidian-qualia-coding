@@ -6,6 +6,7 @@
  */
 
 import type { CodeApplication } from '../core/types';
+import type { MemoRecord } from '../core/memoTypes';
 
 export type RegionShape = 'rect' | 'ellipse' | 'polygon';
 
@@ -15,7 +16,7 @@ export interface ImageMarker {
 	shape: RegionShape;
 	coords: NormalizedCoords;
 	codes: CodeApplication[];
-	memo?: string;
+	memo?: MemoRecord;
 	colorOverride?: string;
 	createdAt: number;
 	updatedAt: number;

@@ -150,7 +150,7 @@ describe('executeMerge', () => {
 			...defaultDecision,
 			memoPolicy: { kind: 'concatenate' },
 		});
-		expect(registry.getById(dest.id)!.memo).toBe('dest memo\n\n--- From Src ---\nsrc memo');
+		expect(registry.getById(dest.id)!.memo).toEqual({ content: 'dest memo\n\n--- From Src ---\nsrc memo' });
 	});
 
 	it('discard memo policy clears destination memo', () => {
@@ -175,7 +175,7 @@ describe('executeMerge', () => {
 			...defaultDecision,
 			memoPolicy: { kind: 'keep-only', codeId: src.id },
 		});
-		expect(registry.getById(dest.id)!.memo).toBe('src memo');
+		expect(registry.getById(dest.id)!.memo).toEqual({ content: 'src memo' });
 	});
 
 	it('description concatenate works analogously to memo', () => {

@@ -64,7 +64,7 @@ describe('buildRelationsTable', () => {
 	it('memo column populated for code-level relation with memo', () => {
 		const c1 = reg.create('C1', '#000');
 		const c2 = reg.create('C2', '#000');
-		reg.update(c1.id, { relations: [{ label: 'causa', target: c2.id, directed: true, memo: 'reflexão' }] });
+		reg.update(c1.id, { relations: [{ label: 'causa', target: c2.id, directed: true, memo: { content: 'reflexão' } }] });
 
 		const { rows } = buildRelationsTable(dm, reg);
 		const memoIdx = RELATIONS_HEADER.indexOf('memo');

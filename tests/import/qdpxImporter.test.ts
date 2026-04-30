@@ -244,7 +244,7 @@ describe('applyLinks', () => {
     ];
     const mockDm = { section: () => ({ markers: {}, shapes: [], files: [] }), setSection: () => {} } as any;
     applyLinks(links, resolver, registry, mockDm);
-    expect(registry.getById(c1.id)!.relations![0]!.memo).toBe('reflexão code-level');
+    expect(registry.getById(c1.id)!.relations![0]!.memo?.content).toBe('reflexão code-level');
   });
 
   it('preserves memo on application-level relation (markdown marker)', () => {
@@ -274,7 +274,7 @@ describe('applyLinks', () => {
 
     const relations = (mockDm.section('markdown') as any).markers['file1.md'][0].codes[0].relations;
     expect(relations).toHaveLength(1);
-    expect(relations[0].memo).toBe('app-level memo');
+    expect(relations[0].memo?.content).toBe('app-level memo');
   });
 });
 

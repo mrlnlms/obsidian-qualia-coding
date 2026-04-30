@@ -1,4 +1,10 @@
 import type { CodeDefinition } from './types';
+import { getMemoContent } from './memoHelpers';
+
+function readField(entity: CodeDefinition, field: 'description' | 'memo'): string {
+	if (field === 'description') return entity.description ?? '';
+	return getMemoContent(entity.memo);
+}
 
 export type NameChoice =
 	| { kind: 'target' }
@@ -37,7 +43,7 @@ export function applyTextPolicy(
 	if (policy.kind === 'discard') return undefined;
 
 	if (policy.kind === 'keep-target') {
-		const val = target[field]?.trim();
+		const val = readField(target, field).trim();
 		return val ? val : undefined;
 	}
 
@@ -45,15 +51,15 @@ export function applyTextPolicy(
 		const entity = policy.codeId === target.id
 			? target
 			: sources.find(s => s.id === policy.codeId);
-		const val = entity?.[field]?.trim();
+		const val = entity ? readField(entity, field).trim() : '';
 		return val ? val : undefined;
 	}
 
 	const parts: string[] = [];
-	const targetText = target[field]?.trim();
+	const targetText = readField(target, field).trim();
 	if (targetText) parts.push(targetText);
 	for (const src of sources) {
-		const text = src[field]?.trim();
+		const text = readField(src, field).trim();
 		if (text) parts.push(`--- From ${src.name} ---\n${text}`);
 	}
 	return parts.length > 0 ? parts.join('\n\n') : undefined;

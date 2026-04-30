@@ -1,5 +1,6 @@
 import type { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
 import type { CellValue } from './csvWriter';
+import { getMemoContent } from '../../core/memoHelpers';
 
 export const CODES_HEADER: string[] = [
 	'id', 'name', 'color', 'parent_id', 'description', 'memo', 'magnitude_config', 'groups',
@@ -18,7 +19,7 @@ export function buildCodesTable(registry: CodeDefinitionRegistry): CellValue[][]
 			def.color,
 			def.parentId ?? '',
 			def.description ?? '',
-			def.memo ?? '',
+			getMemoContent(def.memo),
 			def.magnitude ? JSON.stringify(def.magnitude) : '',
 			groupNames,
 		]);

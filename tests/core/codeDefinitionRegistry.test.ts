@@ -435,7 +435,7 @@ describe('Code memo via update()', () => {
 		const reg = new CodeDefinitionRegistry();
 		const def = reg.create('frustacao', '#FF0000');
 		reg.update(def.id, { memo: 'reflexão sobre código' });
-		expect(reg.getById(def.id)!.memo).toBe('reflexão sobre código');
+		expect(reg.getById(def.id)!.memo).toEqual({ content: 'reflexão sobre código' });
 	});
 
 	it('clears memo when given empty string', () => {
@@ -451,7 +451,7 @@ describe('Code memo via update()', () => {
 		const def = reg.create('frustacao', '#FF0000');
 		reg.update(def.id, { memo: 'algo' });
 		reg.update(def.id, { color: '#00FF00' });
-		expect(reg.getById(def.id)!.memo).toBe('algo');
+		expect(reg.getById(def.id)!.memo).toEqual({ content: 'algo' });
 	});
 
 	it('emits onMutate when memo updated', () => {
@@ -469,7 +469,7 @@ describe('Group memo via setGroupMemo', () => {
 		const reg = new CodeDefinitionRegistry();
 		const g = reg.createGroup('Theme');
 		reg.setGroupMemo(g.id, 'reflexão analítica do grupo');
-		expect(reg.getGroup(g.id)!.memo).toBe('reflexão analítica do grupo');
+		expect(reg.getGroup(g.id)!.memo).toEqual({ content: 'reflexão analítica do grupo' });
 	});
 
 	it('clears memo when given empty string', () => {
@@ -512,7 +512,7 @@ describe('Relation memo via setRelationMemo', () => {
 
 		const ok = reg.setRelationMemo(a.id, 'causa', b.id, 'A causa B porque...');
 		expect(ok).toBe(true);
-		expect(reg.getById(a.id)!.relations![0].memo).toBe('A causa B porque...');
+		expect(reg.getById(a.id)!.relations![0].memo).toEqual({ content: 'A causa B porque...' });
 	});
 
 	it('returns false when codeId does not exist', () => {
@@ -547,7 +547,7 @@ describe('Relation memo via setRelationMemo', () => {
 		] });
 		reg.setRelationMemo(a.id, 'causa', b.id, 'first match');
 		const rels = reg.getById(a.id)!.relations!;
-		expect(rels[0].memo).toBe('first match');
+		expect(rels[0].memo).toEqual({ content: 'first match' });
 		expect(rels[1].memo).toBeUndefined();
 	});
 

@@ -1,5 +1,6 @@
 import type { CodeApplication, CodeRelation } from './types';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+import { setMemoContent } from './memoHelpers';
 
 export function hasCode(codes: CodeApplication[], codeId: string): boolean {
 	return codes.some(c => c.codeId === codeId);
@@ -67,7 +68,7 @@ export function setApplicationRelationMemo(
 		if (ca.codeId !== codeId) continue;
 		for (const r of ca.relations ?? []) {
 			if (r.label === label && r.target === target) {
-				r.memo = memo;
+				r.memo = setMemoContent(r.memo, memo);
 				return true;
 			}
 		}

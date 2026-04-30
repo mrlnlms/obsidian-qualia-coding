@@ -8,6 +8,7 @@
 
 import type { BaseMarker, SidebarModelInterface } from './types';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+import type { MemoRecord } from './memoTypes';
 
 export class UnifiedModelAdapter implements SidebarModelInterface {
 	readonly registry: CodeDefinitionRegistry;
@@ -61,7 +62,7 @@ export class UnifiedModelAdapter implements SidebarModelInterface {
 		for (const m of this.models) m.saveMarkers();
 	}
 
-	updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
+	updateMarkerFields(markerId: string, fields: { memo?: MemoRecord; colorOverride?: string }): void {
 		for (const m of this.models) {
 			if (m.getMarkerById(markerId)) {
 				m.updateMarkerFields(markerId, fields);

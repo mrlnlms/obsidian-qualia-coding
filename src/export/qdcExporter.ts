@@ -1,6 +1,7 @@
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CodeDefinition, GroupDefinition } from '../core/types';
 import { escapeXml, xmlAttr, xmlDeclaration } from './xmlBuilder';
+import { getMemoContent } from '../core/memoHelpers';
 
 const CODEBOOK_NS = 'urn:QDA-XML:codebook:1.0';
 
@@ -52,8 +53,9 @@ function buildSetElement(
     ? `\n<Description>${escapeXml(group.description)}</Description>`
     : '';
 
-  const memoEl = group.memo
-    ? `\n<MemoText>${escapeXml(group.memo)}</MemoText>`
+  const groupMemoText = getMemoContent(group.memo);
+  const memoEl = groupMemoText
+    ? `\n<MemoText>${escapeXml(groupMemoText)}</MemoText>`
     : '';
 
   const members = registry.getCodesInGroup(group.id);
@@ -90,8 +92,9 @@ function buildCodeElement(
     ? `\n<Description>${escapeXml(code.description)}</Description>`
     : '';
 
-  const memoEl = code.memo
-    ? `\n<MemoText>${escapeXml(code.memo)}</MemoText>`
+  const codeMemoText = getMemoContent(code.memo);
+  const memoEl = codeMemoText
+    ? `\n<MemoText>${escapeXml(codeMemoText)}</MemoText>`
     : '';
 
   const children = registry.getChildren(code.id);

@@ -1,6 +1,7 @@
 import { escapeXml, xmlAttr, xmlDeclaration } from './xmlBuilder';
 import { buildCodebookXml } from './qdcExporter';
 import { buildQdcFile } from './qdcExporter';
+import { getMemoContent } from '../core/memoHelpers';
 import { zipSync, strToU8 } from 'fflate';
 import type { App, Vault, TFile } from 'obsidian';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
@@ -98,7 +99,7 @@ export function buildTextSourceXml(
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
-        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(fileId)}`, m.memo));
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(fileId)}`, getMemoContent(m.memo)));
         noteRef = `\n${buildNoteRefXml(noteGuid)}`;
       }
 
@@ -137,7 +138,7 @@ function buildMediaSourceXml(
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
-        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, getMemoContent(m.memo)));
         noteRef = `\n${buildNoteRefXml(noteGuid)}`;
       }
       return `<${selTag} ${xmlAttr('guid', selGuid)} ${xmlAttr('begin', mediaToMs(m.from))} ${xmlAttr('end', mediaToMs(m.to))} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</${selTag}>`;
@@ -189,7 +190,7 @@ export function buildImageSourceXml(
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
-        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, getMemoContent(m.memo)));
         noteRef = `\n${buildNoteRefXml(noteGuid)}`;
       }
       return `<PictureSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('firstX', px.firstX)} ${xmlAttr('firstY', px.firstY)} ${xmlAttr('secondX', px.secondX)} ${xmlAttr('secondY', px.secondY)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PictureSelection>`;
@@ -239,7 +240,7 @@ export function buildPdfSourceXml(
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
-        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, getMemoContent(m.memo)));
         noteRef = `\n${buildNoteRefXml(noteGuid)}`;
       }
       return `<PlainTextSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('startPosition', offsets.start)} ${xmlAttr('endPosition', offsets.end)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PlainTextSelection>`;
@@ -258,7 +259,7 @@ export function buildPdfSourceXml(
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
-        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, getMemoContent(m.memo)));
         noteRef = `\n${buildNoteRefXml(noteGuid)}`;
       }
       return `<PDFSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('page', m.page)} ${xmlAttr('firstX', rect.firstX)} ${xmlAttr('firstY', rect.firstY)} ${xmlAttr('secondX', rect.secondX)} ${xmlAttr('secondY', rect.secondY)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PDFSelection>`;
@@ -326,7 +327,7 @@ function buildPdfSourceXmlInternal(
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
-        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, getMemoContent(m.memo)));
         noteRef = `\n${buildNoteRefXml(noteGuid)}`;
       }
       return `<PlainTextSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('startPosition', offsets.start)} ${xmlAttr('endPosition', offsets.end)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PlainTextSelection>`;
@@ -345,7 +346,7 @@ function buildPdfSourceXmlInternal(
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
-        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, m.memo));
+        notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, getMemoContent(m.memo)));
         noteRef = `\n${buildNoteRefXml(noteGuid)}`;
       }
       return `<PDFSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('page', m.page)} ${xmlAttr('firstX', rect.firstX)} ${xmlAttr('firstY', rect.firstY)} ${xmlAttr('secondX', rect.secondX)} ${xmlAttr('secondY', rect.secondY)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PDFSelection>`;
@@ -380,7 +381,7 @@ export function buildLinksXml(
       const targetGuid = ensureGuid(rel.target, guidMap);
       const direction = rel.directed ? 'OneWay' : 'Associative';
       const linkAttrs = `${xmlAttr('guid', linkGuid)} ${xmlAttr('name', rel.label)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}`;
-      const memoEl = rel.memo ? `<MemoText>${escapeXml(rel.memo)}</MemoText>` : '';
+      const memoEl = rel.memo ? `<MemoText>${escapeXml(getMemoContent(rel.memo))}</MemoText>` : '';
       links.push(memoEl
         ? `<Link ${linkAttrs}>${memoEl}</Link>`
         : `<Link ${linkAttrs}/>`,
@@ -398,7 +399,7 @@ export function buildLinksXml(
         const targetGuid = ensureGuid(rel.target, guidMap);
         const direction = rel.directed ? 'OneWay' : 'Associative';
         const linkAttrs = `${xmlAttr('guid', linkGuid)} ${xmlAttr('name', rel.label)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}`;
-        const memoEl = rel.memo ? `<MemoText>${escapeXml(rel.memo)}</MemoText>` : '';
+        const memoEl = rel.memo ? `<MemoText>${escapeXml(getMemoContent(rel.memo))}</MemoText>` : '';
         links.push(memoEl
           ? `<Link ${linkAttrs}>${memoEl}</Link>`
           : `<Link ${linkAttrs}/>`,

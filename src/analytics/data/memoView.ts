@@ -4,6 +4,8 @@ import type { CodeApplication } from "../../core/types";
 import type { AllEngineData } from "./dataReader";
 import type { CaseVariablesRegistry } from "../../core/caseVariables/caseVariablesRegistry";
 import { buildFlatTree, type ExpandedState } from "../../core/hierarchyHelpers";
+import { getMemoContent } from "../../core/memoHelpers";
+import type { MemoRecord } from "../../core/memoTypes";
 import type {
   CodeMemoSection,
   CoverageStats,
@@ -66,8 +68,14 @@ function applyMemoFilters(
   });
 }
 
-function nonEmpty(s: string | undefined | null): boolean {
-  return !!s && s.trim().length > 0;
+function nonEmpty(s: string | MemoRecord | undefined | null): boolean {
+  if (s == null) return false;
+  const text = typeof s === "string" ? s : getMemoContent(s);
+  return text.trim().length > 0;
+}
+
+function readMemo(m: MemoRecord | undefined): string {
+  return getMemoContent(m).trim();
 }
 
 function computeCoverage(
@@ -144,11 +152,11 @@ function buildByCode(
 
     const groupsForCode = registry.getGroupsForCode(def.id);
     const groupIds = groupsForCode.map((g) => g.id);
-    const codeMemo = nonEmpty(def.memo) ? def.memo!.trim() : null;
+    const codeMemo = nonEmpty(def.memo) ? readMemo(def.memo) : null;
 
     const groupMemos: MemoEntry[] = groupsForCode
       .filter((g) => nonEmpty(g.memo))
-      .map((g) => ({ kind: "group" as const, groupId: g.id, groupName: g.name, color: g.color, memo: g.memo!.trim() }));
+      .map((g) => ({ kind: "group" as const, groupId: g.id, groupName: g.name, color: g.color, memo: readMemo(g.memo) }));
 
     const relationMemos: MemoEntry[] = [];
     for (const r of def.relations ?? []) {
@@ -161,7 +169,7 @@ function buildByCode(
           targetId: r.target,
           targetName: target?.name ?? r.target,
           directed: r.directed ?? true,
-          memo: r.memo!.trim(),
+          memo: readMemo(r.memo),
           level: "code",
         });
       }
@@ -185,7 +193,7 @@ function buildByCode(
               targetId: r.target,
               targetName: target?.name ?? r.target,
               directed: r.directed ?? true,
-              memo: r.memo!.trim(),
+              memo: readMemo(r.memo),
               level: "application",
               markerId: fm.marker.id,
               engineType: fm.engineType,
@@ -206,7 +214,7 @@ function buildByCode(
           fileId,
           sourceType: (source.startsWith("csv") ? "csv" : source) as EngineType,
           excerpt: extractExcerpt(marker, source),
-          memo: marker.memo!.trim(),
+          memo: readMemo(marker.memo),
           magnitude: ca?.magnitude,
         };
       });
@@ -296,7 +304,7 @@ function buildByFile(
           fileId: fid,
           sourceType: (source.startsWith("csv") ? "csv" : source) as EngineType,
           excerpt: extractExcerpt(marker, source),
-          memo: marker.memo!.trim(),
+          memo: readMemo(marker.memo),
           magnitude: ca.magnitude,
         };
       }),

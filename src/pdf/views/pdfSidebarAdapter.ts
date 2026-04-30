@@ -8,6 +8,7 @@
 import type { BaseMarker } from '../../core/types';
 import type { PdfCodingModel } from '../pdfCodingModel';
 import type { PdfMarker, PdfShapeMarker } from '../pdfCodingTypes';
+import type { MemoRecord } from '../../core/memoTypes';
 import { BaseSidebarAdapter } from '../../core/baseSidebarAdapter';
 import { hasCode } from '../../core/codeApplicationHelpers';
 
@@ -94,7 +95,7 @@ export class PdfSidebarAdapter extends BaseSidebarAdapter {
 		this.model.notify();
 	}
 
-	override updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
+	override updateMarkerFields(markerId: string, fields: { memo?: MemoRecord; colorOverride?: string }): void {
 		const tm = this.model.findMarkerById(markerId);
 		if (tm) {
 			if ('memo' in fields) tm.memo = fields.memo;

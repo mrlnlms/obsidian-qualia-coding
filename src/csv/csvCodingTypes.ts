@@ -1,4 +1,5 @@
 import type { CodeApplication } from '../core/types';
+import type { MemoRecord } from '../core/memoTypes';
 
 /** Coding of a specific text segment within a cell */
 export interface SegmentMarker {
@@ -9,7 +10,7 @@ export interface SegmentMarker {
 	from: number;       // char offset start within cell text
 	to: number;         // char offset end within cell text
 	codes: CodeApplication[];
-	memo?: string;
+	memo?: MemoRecord;
 	colorOverride?: string;
 	createdAt: number;
 	updatedAt: number;
@@ -22,7 +23,7 @@ export interface RowMarker {
 	row: number;
 	column: string;
 	codes: CodeApplication[];
-	memo?: string;
+	memo?: MemoRecord;
 	colorOverride?: string;
 	createdAt: number;
 	updatedAt: number;

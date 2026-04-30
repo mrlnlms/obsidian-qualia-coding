@@ -4,6 +4,7 @@
 
 import type { CodeApplication } from '../core/types';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { MemoRecord } from '../core/memoTypes';
 
 /** A coded region on a timeline (used by both Audio and Video). */
 export interface MediaMarker {
@@ -13,7 +14,7 @@ export interface MediaMarker {
 	to: number;
 	codes: CodeApplication[];
 	colorOverride?: string;
-	memo?: string;
+	memo?: MemoRecord;
 	createdAt: number;
 	updatedAt: number;
 }

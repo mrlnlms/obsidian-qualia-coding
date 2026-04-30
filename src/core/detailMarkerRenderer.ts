@@ -7,6 +7,7 @@
 
 import { App, setIcon } from 'obsidian';
 import type { BaseMarker, CodeApplication, CodeDefinition, SidebarModelInterface } from './types';
+import { getMemoContent, setMemoContent } from './memoHelpers';
 import { renderBackButton } from './detailCodeRenderer';
 import { getCodeIds } from './codeApplicationHelpers';
 import { collectAllLabels } from './relationHelpers';
@@ -100,9 +101,9 @@ function renderMemoSection(
 		cls: 'codemarker-detail-memo',
 		attr: { placeholder: 'Add a memo...', rows: '3' },
 	});
-	memoTextarea.value = marker.memo ?? '';
+	memoTextarea.value = getMemoContent(marker.memo);
 	memoTextarea.addEventListener('input', () => {
-		model.updateMarkerFields(marker.id, { memo: memoTextarea.value || undefined });
+		model.updateMarkerFields(marker.id, { memo: setMemoContent(marker.memo, memoTextarea.value) });
 	});
 	memoTextarea.addEventListener('focus', () => {
 		callbacks.suspendRefresh();

@@ -688,7 +688,7 @@ export function createPdfMarker(
       endOffset: 0,
       text: extracted.text,
       codes,
-      memo,
+      memo: memo ? { content: memo } : undefined,
       createdAt: ts,
       updatedAt: ts,
     };
@@ -715,7 +715,7 @@ export function createPdfMarker(
       shape: 'rect',
       coords,
       page: sel.page,
-      memo,
+      memo: memo ? { content: memo } : undefined,
       createdAt: ts,
       updatedAt: ts,
     };
@@ -768,7 +768,7 @@ async function createImageMarker(
     codes,
     shape: 'rect',
     coords,
-    memo,
+    memo: memo ? { content: memo } : undefined,
     createdAt: ts,
     updatedAt: ts,
   };
@@ -802,7 +802,7 @@ function createMediaMarker(
     codes,
     from: msToSeconds(sel.begin),
     to: msToSeconds(sel.end),
-    memo,
+    memo: memo ? { content: memo } : undefined,
     createdAt: ts,
     updatedAt: ts,
   };
@@ -868,7 +868,7 @@ export async function createTextMarkers(
         codes,
         color,
         range: { from: fromPos, to: toPos },
-        memo,
+        memo: memo ? { content: memo } : undefined,
         createdAt: ts,
         updatedAt: ts,
       };
@@ -906,7 +906,7 @@ export function applyLinks(
       label: link.label,
       target: targetId,
       directed: link.directed,
-      ...(link.memo ? { memo: link.memo } : {}),
+      ...(link.memo ? { memo: { content: link.memo } } : {}),
     };
 
     // Try code-level origin first

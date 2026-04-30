@@ -13,6 +13,7 @@ import type { App } from 'obsidian';
 import type { PdfCodingModel } from './pdfCodingModel';
 import type { PdfSelectionResult } from './selectionCapture';
 import type { PdfMarker } from './pdfCodingTypes';
+import { getMemoContent, setMemoContent } from '../core/memoHelpers';
 import { cancelHoverCloseTimer, startHoverCloseTimer } from './highlightRenderer';
 import { findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
 import { openCodingPopover, type CodingPopoverAdapter, type CodingPopoverOptions } from '../core/codingPopover';
@@ -89,13 +90,13 @@ export function openPdfCodingPopover(
 					firstResult.beginIndex, firstResult.beginOffset,
 					firstResult.endIndex, firstResult.endOffset,
 				);
-			return m?.memo ?? '';
+			return getMemoContent(m?.memo);
 		},
 		setMemo: (value) => {
 			// Re-query marker — it may have been lazily created after addCode
 			const markers = getMarkers();
 			for (const m of markers) {
-				m.memo = value || undefined;
+				m.memo = setMemoContent(m.memo, value);
 				m.updatedAt = Date.now();
 			}
 			model.notify();
@@ -218,9 +219,9 @@ export function openShapeCodingPopover(
 			const def = model.registry.getByName(name);
 			if (def) model.removeCodeFromShape(shapeId, def.id, true);
 		},
-		getMemo: () => shape.memo ?? '',
+		getMemo: () => getMemoContent(shape.memo),
 		setMemo: (value) => {
-			shape.memo = value || undefined;
+			shape.memo = setMemoContent(shape.memo, value);
 			shape.updatedAt = Date.now();
 			model.notify();
 		},

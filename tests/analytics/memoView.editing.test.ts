@@ -146,13 +146,13 @@ describe("onSaveHandlers", () => {
 	});
 
 	it("onSaveMarkerMemo: findMarker + mutates marker.memo + markDirty", () => {
-		const marker = { id: "m1", memo: "old" };
+		const marker = { id: "m1", memo: { content: "old" } };
 		const findMarker = vi.fn().mockReturnValue(marker);
 		const markDirty = vi.fn();
 		const ctx = { plugin: { dataManager: { findMarker, markDirty } } } as any;
 		onSaveMarkerMemo(ctx, "markdown", "m1", "new");
 		expect(findMarker).toHaveBeenCalledWith("markdown", "m1");
-		expect(marker.memo).toBe("new");
+		expect(marker.memo).toEqual({ content: "new" });
 		expect(markDirty).toHaveBeenCalled();
 	});
 
@@ -165,12 +165,12 @@ describe("onSaveHandlers", () => {
 	});
 
 	it("onSaveAppRelationMemo: findMarker + setApplicationRelationMemo + markDirty", () => {
-		const marker = { id: "m1", codes: [{ codeId: "c1", relations: [{ label: "x", target: "c2", directed: true, memo: "old" }] }] };
+		const marker = { id: "m1", codes: [{ codeId: "c1", relations: [{ label: "x", target: "c2", directed: true, memo: { content: "old" } }] }] };
 		const findMarker = vi.fn().mockReturnValue(marker);
 		const markDirty = vi.fn();
 		const ctx = { plugin: { dataManager: { findMarker, markDirty } } } as any;
 		onSaveAppRelationMemo(ctx, "markdown", "m1", "c1", "x", "c2", "new");
-		expect(marker.codes[0]!.relations![0]!.memo).toBe("new");
+		expect(marker.codes[0]!.relations![0]!.memo).toEqual({ content: "new" });
 		expect(markDirty).toHaveBeenCalled();
 	});
 });

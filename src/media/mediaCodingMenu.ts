@@ -8,6 +8,7 @@ import type { MediaMarker } from './mediaTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
 import type { MediaRegionRenderer } from './regionRenderer';
+import { getMemoContent, setMemoContent } from '../core/memoHelpers';
 import { findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
 import {
 	openCodingPopover,
@@ -69,11 +70,11 @@ export function openMediaCodingPopover(
 		},
 		getMemo: () => {
 			const m = model.findExistingMarker(filePath, regionStart, regionEnd);
-			return m?.memo ?? '';
+			return getMemoContent(m?.memo);
 		},
 		setMemo: (value) => {
 			const m = getMarker();
-			m.memo = value || undefined;
+			m.memo = setMemoContent(m.memo, value);
 			m.updatedAt = Date.now();
 			model.save();
 		},

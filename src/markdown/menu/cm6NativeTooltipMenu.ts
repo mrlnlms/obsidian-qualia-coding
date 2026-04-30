@@ -10,6 +10,7 @@ import { Notice } from 'obsidian';
 import { EditorView } from '@codemirror/view';
 import { CodeMarkerModel } from '../models/codeMarkerModel';
 import { SelectionSnapshot } from './menuTypes';
+import { getMemoContent, setMemoContent } from '../../core/memoHelpers';
 import {
 	addCodeAction,
 	addCodeWithDetailsAction,
@@ -52,13 +53,13 @@ export function buildNativeTooltipMenuDOM(
 		getActiveCodes: () => getCodesAtSelection(model, snapshot),
 		addCode: (name) => addCodeAction(model, snapshot, name),
 		removeCode: (name) => removeCodeAction(model, snapshot, name),
-		getMemo: () => existingMarker?.memo ?? '',
+		getMemo: () => getMemoContent(existingMarker?.memo),
 		setMemo: (value) => {
 			const marker = snapshot.hoverMarkerId
 				? model.getMarkerById(snapshot.hoverMarkerId)
 				: model.findMarkerAtExactRange(snapshot);
 			if (!marker) return;
-			marker.memo = value || undefined;
+			marker.memo = setMemoContent(marker.memo, value);
 			marker.updatedAt = Date.now();
 			model.saveMarkers();
 		},

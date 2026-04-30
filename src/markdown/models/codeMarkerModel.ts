@@ -6,6 +6,7 @@ import { CodeItem, SelectionSnapshot } from '../menu/menuTypes';
 import { getViewForFile as getViewForFileLookup } from '../cm6/utils/viewLookupUtils';
 import { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
 import type { CodeApplication, SidebarModelInterface } from '../../core/types';
+import type { MemoRecord } from '../../core/memoTypes';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../../core/codeApplicationHelpers';
 import { setFileIdEffect } from '../cm6/markerStateField';
 
@@ -21,7 +22,7 @@ export interface Marker {
 	colorOverride?: string;
 	codes: CodeApplication[];
 	text?: string;
-	memo?: string;
+	memo?: MemoRecord;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -416,7 +417,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		return this.markers.get(fileId) || [];
 	}
 
-	updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
+	updateMarkerFields(markerId: string, fields: { memo?: MemoRecord; colorOverride?: string }): void {
 		const marker = this.getMarkerById(markerId);
 		if (!marker) return;
 		if ('memo' in fields) marker.memo = fields.memo;

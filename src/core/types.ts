@@ -7,6 +7,7 @@ import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
 import type { AudioFile } from '../audio/audioCodingTypes';
 import type { VideoFile } from '../video/videoCodingTypes';
 import type { CaseVariablesSection } from './caseVariables/caseVariablesTypes';
+import type { MemoRecord } from './memoTypes';
 
 // ─── Base interfaces for sidebar views (all engines) ─────────────
 
@@ -28,7 +29,7 @@ export interface CodeRelation {
 	label: string;
 	target: string;
 	directed: boolean;
-	memo?: string;
+	memo?: MemoRecord;
 }
 
 export interface CodeApplication {
@@ -43,7 +44,7 @@ export interface BaseMarker {
 	fileId: string;
 	codes: CodeApplication[];
 	colorOverride?: string;
-	memo?: string;
+	memo?: MemoRecord;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -60,7 +61,7 @@ export interface SidebarModelInterface {
 	saveMarkers(): void;
 
 	/** Update mutable fields (memo, colorOverride) on a marker by ID. */
-	updateMarkerFields(markerId: string, fields: { memo?: string | undefined; colorOverride?: string | undefined }): void;
+	updateMarkerFields(markerId: string, fields: { memo?: MemoRecord | undefined; colorOverride?: string | undefined }): void;
 
 	/** Force CM6 decoration rebuild for a file (e.g. after color change). */
 	updateDecorations(fileId: string): void;
@@ -86,7 +87,7 @@ export interface CodeDefinition {
 	name: string;
 	color: string;
 	description?: string;
-	memo?: string;
+	memo?: MemoRecord;
 	paletteIndex: number;
 	createdAt: number;
 	updatedAt: number;
@@ -120,7 +121,7 @@ export interface GroupDefinition {
 	name: string;            // livre, renameable
 	color: string;           // REQUIRED — auto-atribuído do GROUP_PALETTE
 	description?: string;    // opcional, multiline
-	memo?: string;           // opcional, reflexão analítica processual
+	memo?: MemoRecord;       // opcional, reflexão analítica processual
 	paletteIndex: number;    // índice no GROUP_PALETTE; -1 se cor customizada
 	parentId?: string;       // SCHEMA-READY pra tier 3; UI 1.5 NUNCA escreve
 	createdAt: number;

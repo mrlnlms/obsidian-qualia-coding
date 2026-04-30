@@ -55,9 +55,9 @@ describe('resolveColor', () => {
 });
 
 describe('applyTextPolicy', () => {
-	const target = makeCode({ id: 't', name: 'T', memo: 'target memo' });
-	const srcA = makeCode({ id: 'a', name: 'A', memo: 'memo from A' });
-	const srcB = makeCode({ id: 'b', name: 'B', memo: 'memo from B' });
+	const target = makeCode({ id: 't', name: 'T', memo: { content: 'target memo' } });
+	const srcA = makeCode({ id: 'a', name: 'A', memo: { content: 'memo from A' } });
+	const srcB = makeCode({ id: 'b', name: 'B', memo: { content: 'memo from B' } });
 
 	it('keep-target returns target value', () => {
 		expect(applyTextPolicy({ kind: 'keep-target' }, target, [srcA, srcB], 'memo')).toBe('target memo');
@@ -80,7 +80,7 @@ describe('applyTextPolicy', () => {
 
 	it('concatenate skips empty entries', () => {
 		const noMemoTarget = makeCode({ id: 't', name: 'T', memo: undefined });
-		const emptyA = makeCode({ id: 'a', name: 'A', memo: '   ' });
+		const emptyA = makeCode({ id: 'a', name: 'A', memo: { content: '   ' } });
 		expect(applyTextPolicy({ kind: 'concatenate' }, noMemoTarget, [emptyA, srcB], 'memo')).toBe(
 			'--- From B ---\nmemo from B',
 		);

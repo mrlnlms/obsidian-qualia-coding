@@ -6,6 +6,7 @@
 import type { App } from 'obsidian';
 import type { ImageCodingModel } from './imageCodingModel';
 import { findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
+import { getMemoContent, setMemoContent } from '../core/memoHelpers';
 import {
 	openCodingPopover,
 	type CodingPopoverAdapter,
@@ -58,11 +59,11 @@ export class CodingMenu {
 				const def = this.model.registry.getByName(name);
 				if (def) this.model.removeCodeFromMarker(markerId, def.id, true);
 			},
-			getMemo: () => this.model.findMarkerById(markerId)?.memo ?? '',
+			getMemo: () => getMemoContent(this.model.findMarkerById(markerId)?.memo),
 			setMemo: (value) => {
 				const m = this.model.findMarkerById(markerId);
 				if (m) {
-					m.memo = value || undefined;
+					m.memo = setMemoContent(m.memo, value);
 					m.updatedAt = Date.now();
 					this.model.saveMarkers();
 				}

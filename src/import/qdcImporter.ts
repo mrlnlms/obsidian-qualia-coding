@@ -1,5 +1,6 @@
 import { getChildElements, getAttr, getTextContent, getAllElements } from './xmlParser';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import { getMemoContent } from '../core/memoHelpers';
 
 /** Parsed code from REFI-QDA XML. */
 export interface ParsedCode {
@@ -93,9 +94,10 @@ export function applyCodebook(
       if (strategy === 'merge') {
         codeGuidMap.set(pc.guid, existing.id);
         if (pc.memo) {
-          const mergedMemo = mergeMemos(existing.memo, pc.memo);
-          if (mergedMemo !== existing.memo) {
-            registry.update(existing.id, { memo: mergedMemo });
+          const existingContent = getMemoContent(existing.memo);
+          const mergedMemo = mergeMemos(existingContent || undefined, pc.memo);
+          if (mergedMemo !== existingContent) {
+            registry.update(existing.id, { memo: mergedMemo ?? '' });
           }
         }
         merged++;

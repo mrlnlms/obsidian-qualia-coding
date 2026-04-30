@@ -9,7 +9,7 @@ describe("setApplicationRelationMemo", () => {
 		];
 		const ok = setApplicationRelationMemo(codes, "c1", "x", "c2", "new memo");
 		expect(ok).toBe(true);
-		expect(codes[0]!.relations![0]!.memo).toBe("new memo");
+		expect(codes[0]!.relations![0]!.memo).toEqual({ content: "new memo" });
 	});
 
 	it("returns false when no match (different codeId)", () => {
@@ -26,13 +26,13 @@ describe("setApplicationRelationMemo", () => {
 		const codes: CodeApplication[] = [{
 			codeId: "c1",
 			relations: [
-				{ label: "x", target: "c2", directed: true, memo: "old1" },
-				{ label: "x", target: "c2", directed: true, memo: "old2" },
+				{ label: "x", target: "c2", directed: true, memo: { content: "old1" } },
+				{ label: "x", target: "c2", directed: true, memo: { content: "old2" } },
 			],
 		}];
 		setApplicationRelationMemo(codes, "c1", "x", "c2", "new");
-		expect(codes[0]!.relations![0]!.memo).toBe("new");
-		expect(codes[0]!.relations![1]!.memo).toBe("old2");
+		expect(codes[0]!.relations![0]!.memo).toEqual({ content: "new" });
+		expect(codes[0]!.relations![1]!.memo).toEqual({ content: "old2" });
 	});
 
 	it("handles missing relations array (undefined)", () => {

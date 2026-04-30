@@ -8,6 +8,7 @@
 
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import type { BaseMarker, CodeApplication, SidebarModelInterface } from './types';
+import type { MemoRecord } from './memoTypes';
 import { hasCode } from './codeApplicationHelpers';
 
 /** Minimal model interface that all engine models satisfy for adapter plumbing. */
@@ -23,7 +24,7 @@ export interface AdapterModel {
 	getAllMarkers(): Array<{ id: string; codes: CodeApplication[] }>;
 	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty?: boolean): void;
 	removeMarker(id: string): boolean;
-	findMarkerById(id: string): { memo?: string; colorOverride?: string; updatedAt: number } | undefined | null;
+	findMarkerById(id: string): { memo?: MemoRecord; colorOverride?: string; updatedAt: number } | undefined | null;
 }
 
 export abstract class BaseSidebarAdapter implements SidebarModelInterface {
@@ -105,7 +106,7 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 	protected abstract notifyAfterFieldUpdate(): void;
 
 	/** Update memo/colorOverride on a marker. PDF overrides for dual text/shape lookup. */
-	updateMarkerFields(markerId: string, fields: { memo?: string; colorOverride?: string }): void {
+	updateMarkerFields(markerId: string, fields: { memo?: MemoRecord; colorOverride?: string }): void {
 		const m = this.model.findMarkerById(markerId);
 		if (!m) return;
 		if ('memo' in fields) m.memo = fields.memo;

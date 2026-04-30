@@ -1,6 +1,7 @@
 import type { AnalyticsViewContext } from "../../analyticsViewContext";
 import type { EngineType } from "../../../data/dataTypes";
 import { setApplicationRelationMemo } from "../../../../core/codeApplicationHelpers";
+import { setMemoContent } from "../../../../core/memoHelpers";
 
 export function onSaveCodeMemo(ctx: AnalyticsViewContext, codeId: string, value: string): void {
 	ctx.plugin.registry.update(codeId, { memo: value });
@@ -21,7 +22,7 @@ export function onSaveMarkerMemo(
 ): void {
 	const marker = ctx.plugin.dataManager.findMarker(engineType, markerId);
 	if (!marker) return;
-	marker.memo = value;
+	marker.memo = setMemoContent(marker.memo, value);
 	ctx.plugin.dataManager.markDirty();
 }
 

@@ -188,7 +188,7 @@ describe('applyCodebook — memo', () => {
       codes: [{ guid: 'g1', name: 'New', color: '#ff0000', memo: 'imported memo', childrenGuids: [], noteGuids: [] }],
     };
     applyCodebook(codebook, registry, 'merge');
-    expect(registry.getByName('New')!.memo).toBe('imported memo');
+    expect(registry.getByName('New')!.memo?.content).toBe('imported memo');
   });
 
   it('mergeMemos when importing into existing code with memo', () => {
@@ -200,9 +200,9 @@ describe('applyCodebook — memo', () => {
     };
     applyCodebook(codebook, registry, 'merge');
     const updated = registry.getByName('Existing')!;
-    expect(updated.memo).toContain('existing');
-    expect(updated.memo).toContain('--- Imported memo ---');
-    expect(updated.memo).toContain('imported');
+    expect(updated.memo?.content).toContain('existing');
+    expect(updated.memo?.content).toContain('--- Imported memo ---');
+    expect(updated.memo?.content).toContain('imported');
   });
 
   it('uses imported memo when existing code has no memo', () => {
@@ -212,7 +212,7 @@ describe('applyCodebook — memo', () => {
       codes: [{ guid: 'g1', name: 'Existing', color: '#00ff00', memo: 'imported', childrenGuids: [], noteGuids: [] }],
     };
     applyCodebook(codebook, registry, 'merge');
-    expect(registry.getByName('Existing')!.memo).toBe('imported');
+    expect(registry.getByName('Existing')!.memo?.content).toBe('imported');
   });
 
   it('separate strategy: applies memo on (imported) duplicate', () => {
@@ -222,6 +222,6 @@ describe('applyCodebook — memo', () => {
       codes: [{ guid: 'g1', name: 'Existing', color: '#00ff00', memo: 'mine', childrenGuids: [], noteGuids: [] }],
     };
     applyCodebook(codebook, registry, 'separate');
-    expect(registry.getByName('Existing (imported)')!.memo).toBe('mine');
+    expect(registry.getByName('Existing (imported)')!.memo?.content).toBe('mine');
   });
 });

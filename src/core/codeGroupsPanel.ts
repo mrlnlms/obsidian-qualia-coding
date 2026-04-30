@@ -7,6 +7,7 @@
 
 import { setIcon } from 'obsidian';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+import { getMemoContent, hasContent } from './memoHelpers';
 
 export interface CodeGroupsPanelCallbacks {
 	selectedGroupId: string | null;
@@ -118,8 +119,8 @@ export function renderCodeGroupsPanel(
 
 		const memo = panel.createDiv({ cls: 'codebook-groups-memo' });
 		memo.title = 'Click to edit memo';
-		if (selected.memo) {
-			memo.createSpan({ text: selected.memo });
+		if (hasContent(selected.memo)) {
+			memo.createSpan({ text: getMemoContent(selected.memo) });
 		} else {
 			memo.addClass('is-placeholder');
 			memo.createSpan({ text: 'Add memo...' });
