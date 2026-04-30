@@ -34,6 +34,7 @@ import { setupFileInterceptor, registerFileRename } from './core/fileInterceptor
 import { setupMediaToggleButton } from './core/mediaToggleButton';
 import { visibilityEventBus } from './core/visibilityEventBus';
 import { registerMemoListeners, rebuildMemoReverseLookup } from './core/memoMaterializerListeners';
+import { convertMemoToNote, unmaterialize as unmaterializeMemo } from './core/memoMaterializer';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -331,11 +332,27 @@ export default class QualiaCodingPlugin extends Plugin {
 			},
 		};
 
+		// Memo materialization access — wireado pra UnifiedCodeDetailView
+		const memoAccess = {
+			convertCodeMemo: async (codeId: string) => {
+				await convertMemoToNote(this, { type: 'code', id: codeId });
+			},
+			unmaterializeCodeMemo: (codeId: string) => {
+				unmaterializeMemo(this, { type: 'code', id: codeId });
+			},
+			openMaterializedFile: (path: string) => {
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (file instanceof TFile) {
+					this.app.workspace.getLeaf('tab').openFile(file);
+				}
+			},
+		};
+
 		// Register unified sidebar views (single set for ALL engines)
 		this.registerView(CODE_EXPLORER_VIEW_TYPE, (leaf) =>
 			new UnifiedCodeExplorerView(leaf, unifiedModel, mdModel));
 		this.registerView(CODE_DETAIL_VIEW_TYPE, (leaf) =>
-			new UnifiedCodeDetailView(leaf, unifiedModel, mdModel, auditAccess));
+			new UnifiedCodeDetailView(leaf, unifiedModel, mdModel, auditAccess, memoAccess));
 		this.registerView(CASE_VARIABLES_VIEW_TYPE, (leaf) =>
 			new CaseVariablesView(leaf, this));
 

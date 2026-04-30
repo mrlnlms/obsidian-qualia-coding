@@ -5761,3 +5761,59 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	margin-top: var(--size-4-3);
 	justify-content: flex-end;
 }
+
+/* ─── Memo materialization (Convert to note) ─── */
+.codemarker-detail-section-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.qc-memo-convert-btn {
+	font-size: 0.85em;
+	padding: 2px 8px;
+}
+
+.qc-memo-materialized-card {
+	padding: 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	margin-top: 8px;
+}
+
+.qc-memo-materialized-label-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.qc-memo-materialized-icon {
+	display: inline-flex;
+	color: var(--text-muted);
+}
+
+.qc-memo-materialized-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-memo-materialized-path {
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	margin: 6px 0 12px;
+	word-break: break-all;
+	color: var(--text-normal);
+}
+
+.qc-memo-materialized-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.qc-memo-open-btn,
+.qc-memo-unmaterialize-btn {
+	font-size: 0.85em;
+	padding: 4px 10px;
+}

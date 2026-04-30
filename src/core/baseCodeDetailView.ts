@@ -26,6 +26,17 @@ export interface AuditAccess {
 	unhideEntry(id: string): void;
 	exportCodeHistory(codeId: string, codeName: string): void;
 }
+
+/**
+ * Memo materialization accessor — passado pelo plugin pra views que querem
+ * expor o botão "Convert to note" + card materializado. Opcional: sem ele,
+ * memos ficam só inline (textarea).
+ */
+export interface MemoMaterializerAccess {
+	convertCodeMemo(codeId: string): Promise<void>;
+	unmaterializeCodeMemo(codeId: string): void;
+	openMaterializedFile(path: string): void;
+}
 import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
@@ -71,11 +82,18 @@ export abstract class BaseCodeDetailView extends ItemView {
 	private listMode = false;
 
 	protected auditAccess?: AuditAccess;
+	protected memoAccess?: MemoMaterializerAccess;
 
-	constructor(leaf: WorkspaceLeaf, model: SidebarModelInterface, auditAccess?: AuditAccess) {
+	constructor(
+		leaf: WorkspaceLeaf,
+		model: SidebarModelInterface,
+		auditAccess?: AuditAccess,
+		memoAccess?: MemoMaterializerAccess,
+	) {
 		super(leaf);
 		this.model = model;
 		this.auditAccess = auditAccess;
+		this.memoAccess = memoAccess;
 	}
 
 	// ─── Abstract hooks (engine implements) ──────────────────
@@ -1101,6 +1119,8 @@ export abstract class BaseCodeDetailView extends ItemView {
 				const name = this.model.registry.getById(codeId)?.name ?? codeId;
 				this.auditAccess?.exportCodeHistory(codeId, name);
 			},
+			// Memo materialization — degrada gracioso se memoAccess não foi injetado
+			memoAccess: this.memoAccess,
 		}, this.app);
 	}
 
