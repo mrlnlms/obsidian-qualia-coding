@@ -71,6 +71,13 @@ src/
       propertiesPopover.ts       — wrapper popover via view.addAction
       caseVariablesView.ts       — painel lateral (ItemView)
       caseVariablesViewTypes.ts  — constante CASE_VARIABLES_VIEW_TYPE
+    memoTypes.ts             — MemoRecord, MaterializedRef, EntityRef (5-way union) + serializers
+    memoHelpers.ts           — getMemoContent / setMemoContent / hasContent (centraliza accesso ao schema MemoRecord)
+    memoNoteFormat.ts        — parse/serialize de memo notes (frontmatter `qualiaMemoOf` + body)
+    memoPathResolver.ts      — sanitizeFilename + resolveConflictPath (sufixo `(2)/(3)`)
+    memoMigration.ts         — migra `memo: string` legacy → MemoRecord no DataManager.load (idempotente)
+    memoMaterializer.ts      — convertMemoToNote / unmaterialize / syncFromFile (Phase 1: Code only)
+    memoMaterializerListeners.ts — vault.on(modify/rename/delete) + reverse-lookup Map + self-write Set
     ...                      — DataManager, CodeDefinitionRegistry, settings, types
   markdown/                  — CodeMirror 6 engine para markdown
     cm6/
@@ -215,7 +222,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2438 testes em 140 suites (Vitest + jsdom)
+- `npm run test` — 2479 testes em 144 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 66 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
