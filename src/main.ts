@@ -64,6 +64,8 @@ export default class QualiaCodingPlugin extends Plugin {
 	audioModel?: AudioCodingModel;
 	videoModel?: VideoCodingModel;
 	togglePdfInstrumentation?: (view: unknown, force?: 'on' | 'off') => void;
+	memoReverseLookup: Map<string, import('./core/memoTypes').EntityRef> = new Map();
+	memoSelfWriting: Set<string> = new Set();
 
 	async onload() {
 		this.dataManager = new DataManager(this);
