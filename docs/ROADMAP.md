@@ -27,7 +27,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
 - ~~**Research Board Enhancements**~~ — ✅ todos 6 sub-items resolvidos (4 feitos + 2 won't-do)
 - ~~**Tabular round-trip (import)**~~ — fechado 2026-04-30, ver "Decisões fechadas sem implementar"
-- **[Convert memo to note](#analytical-memos)** — materializar memo como arquivo markdown. Sub-item residual de "Analytical Memos" (grosso da feature já feito em #25 + Analytic Memo View)
+- ~~**Convert memo to note**~~ — Phase 1 entregue 2026-04-30 (#33, Code only). Extensão pra Group/Marker/Relation aguarda decisão pós-spike
 
 ---
 
