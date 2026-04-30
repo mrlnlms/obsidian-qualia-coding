@@ -2,7 +2,7 @@ import type { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EntityRef, MaterializedRef, MemoRecord } from './memoTypes';
 import { entityRefToString } from './memoTypes';
-import { getMemoContent, setMemoContent } from './memoHelpers';
+import { getMemoContent } from './memoHelpers';
 import { resolveConflictPath, sanitizeFilename } from './memoPathResolver';
 import { serializeMemoNote, parseMemoNote } from './memoNoteFormat';
 import { buildMarkerFilename } from './memoMarkerNaming';
@@ -61,8 +61,14 @@ function writeMemo(plugin: QualiaCodingPlugin, ref: EntityRef, content: string, 
 	if (ref.type === 'marker') {
 		const marker = plugin.dataManager.findMarker(ref.engineType, ref.id);
 		if (!marker) return;
-		// setMemoContent normaliza (drop quando vazio sem materialized) — preserva semântica do schema
-		marker.memo = materialized ? memo : setMemoContent(marker.memo, content);
+		// Assign explícito — caller decide se inclui materialized. Não delegar pra setMemoContent
+		// porque ele preserva materialized do estado atual (preserva no caso de edição inline,
+		// mas writeMemo é caller-driven: se chamou sem materialized, é unmaterialize → drop).
+		if (content || materialized) {
+			marker.memo = materialized ? { content, materialized } : { content };
+		} else {
+			marker.memo = undefined;
+		}
 		marker.updatedAt = Date.now();
 		plugin.dataManager.markDirty();
 		// Notifica views (BaseCodeDetailView, memoView) que o marker mudou — code/group fluem via
