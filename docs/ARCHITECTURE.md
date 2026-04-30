@@ -1151,6 +1151,74 @@ Mode `memo-view` no Analytics que agrega memos das 4 entidades em uma view de le
 - Markdown: `buildMemoMarkdown(result, opts)` puro + wrapper que cria nota em `Analytic Memos/YYYY-MM-DD.md` e abre em nova leaf. Hierarquia indentada via H2→H6 (cap em H6 pra depth ≥ 5). Wikilinks pra files. Excerpt em blockquote.
 - `ModeEntry.exportMarkdown?` opcional adicionado ao registry — botão "Export Markdown" no toolbar do Analytics aparece SÓ quando mode tem `exportMarkdown` definido (declarativo, sem switch hardcoded).
 
+### 14.8 Convert memo to note (#33, 2026-04-30)
+
+Schema breaking — `memo?: string` virou `memo?: MemoRecord = { content: string; materialized?: { path, mtime } }` em CodeDefinition + GroupDefinition + BaseMarker + CodeRelation. Materialização de memo como `.md` no vault, com sync bidirecional via vault listeners. Phase 1 wira só Code; Group/Marker/Relation ficam reservados (mesmo schema, extensão mecânica).
+
+**Decisão fundadora:** schema breaking (não aditivo) porque memo é uma coisa só conceitualmente. Aditivo (`memo` + `memoFile?` paralelos) inventaria sincronização desnecessária e fonte de bug. Plugin sem usuários (CLAUDE.md) autoriza breaking; ~30 pontos de toque mecânico via accessors.
+
+**Endereçamento universal — `EntityRef`:**
+
+```ts
+type EntityRef =
+  | { type: 'code'; id: string }
+  | { type: 'group'; id: string }
+  | { type: 'marker'; engineType: EngineType; id: string }
+  | { type: 'relation-code'; codeId: string; label: string; target: string }
+  | { type: 'relation-app'; engineType: EngineType; markerId: string; codeId: string; label: string; target: string };
+```
+
+Serializa pra string canônica em frontmatter (`code:abc123`, `marker:pdf:m1`, etc). 5-way union prepara extensão sem refactor de schema.
+
+**Frontmatter do `.md` materializado:**
+```yaml
+---
+qualiaMemoOf: code:c_0001
+qualiaCodeName: Wellbeing
+---
+```
+`qualiaMemoOf` é o ponteiro estável (sobrevive rename do .md, do code). `qualiaCodeName` é cosmético — espelho do nome atual pro Properties view do Obsidian; desatualiza quando user renomeia o code (sem efeito funcional).
+
+**Reatividade — 3 vault listeners:**
+
+| Evento | Handler | Comportamento |
+|---|---|---|
+| `vault.on('modify')` | `onMaterializedFileModified` | Lê `.md`, parse frontmatter, atualiza `entity.memo.content` no data.json. Frontmatter quebrado → desmaterializa graciosamente (volta a inline). Frontmatter aponta pra ref diferente → no-op com console.warn. |
+| `vault.on('rename')` | `onMaterializedFileRenamed` | Atualiza `materialized.path` da entidade. Reverse-lookup map também atualiza. |
+| `vault.on('delete')` | `onMaterializedFileDeleted` | Remove `materialized` da entidade. **`content` preservado** — entidade volta automático pra inline. |
+
+**Reverse-lookup `Map<path, EntityRef>`** mantido em memória (`plugin.memoReverseLookup`). Reconstruído no `onload` varrendo registry. O(1) lookup em event handler — sem ele, cada vault event seria O(n) sobre todas entidades.
+
+**Self-write tracker `Set<string>`** (`plugin.memoSelfWriting`) — pattern reusável pra prevenir loop em vault listeners. Convert/syncToFile adicionam path antes de `vault.modify/create`, removem em `queueMicrotask`. Listener `modify` ignora paths nesse set. Pattern conhecido (Templater faz parecido). Documentado em `TECHNICAL-PATTERNS.md`.
+
+**Componentes (`src/core/`):**
+- `memoTypes.ts` — MemoRecord, EntityRef + serializers
+- `memoHelpers.ts` — getMemoContent / setMemoContent / hasContent (centraliza acesso ao schema)
+- `memoNoteFormat.ts` — parseMemoNote / serializeMemoNote (frontmatter + body)
+- `memoPathResolver.ts` — sanitizeFilename + resolveConflictPath (sufixo `(2)/(3)`)
+- `memoMigration.ts` — migra `memo: string` legacy → MemoRecord no DataManager.load (idempotente)
+- `memoMaterializer.ts` — convertMemoToNote / unmaterialize / syncFromFile (Phase 1: Code only)
+- `memoMaterializerListeners.ts` — registerMemoListeners + rebuildMemoReverseLookup
+
+**UI:** `detailCodeRenderer.renderCodeMemo` faz render condicional — quando `memo.materialized` existe, textarea some e vira card `📄 Materialized at <path>` com botões Open / Unmaterialize. Botão "Convert to note" no header da seção quando ainda inline. `memoAccess?: MemoMaterializerAccess` opcional injetado pelo plugin via `BaseCodeDetailView` constructor (degrada gracioso quando não injetado — útil pra futuras views).
+
+**Settings — `memoFolders`:**
+```ts
+memoFolders: {
+  code: 'Analytic Memos/Codes',     // Phase 1 ativo
+  group: 'Analytic Memos/Groups',   // reservado
+  marker: 'Analytic Memos/Markers', // reservado
+  relation: 'Analytic Memos/Relations', // reservado
+}
+```
+Settings tab mostra os 4 inputs (3 disabled). Defaults criam folder hierarchy on demand via `vault.createFolder`.
+
+**Não-objetivos Phase 1:**
+- UI pra Group/Marker/Relation (extensão futura mecânica)
+- Templater integration
+- Materialização batch
+- Reconciliação de `qualiaCodeName` quando user renomeia o code (cosmético, fica desatualizado)
+
 ---
 
 ## Fontes

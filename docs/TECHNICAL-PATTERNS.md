@@ -1836,6 +1836,62 @@ Aplicado em Memo View (chunk 9, 2026-04-27): só essa view gera nota markdown fo
 
 ---
 
+## 29. Self-write tracker pra prevenir loop em vault listeners
+
+### Problema
+
+Plugin que mantém sync bidirecional entre `data.json` e arquivo do vault tem loop natural:
+
+1. User edita popover → plugin escreve content → `vault.modify(file)` → dispara `vault.on('modify')` → listener lê file → atualiza data.json → notifica view → ...
+
+Cada `vault.modify` chamado pelo plugin volta pelo seu próprio listener. Se o listener fizer qualquer mutação ou re-render, vira loop infinito.
+
+### Pattern
+
+```ts
+class Plugin {
+  selfWriting: Set<string> = new Set();
+}
+
+// Caminho interno (UI/popover edit):
+plugin.selfWriting.add(file.path);
+await plugin.app.vault.modify(file, newText);
+queueMicrotask(() => plugin.selfWriting.delete(file.path));
+
+// Listener:
+plugin.app.vault.on('modify', (file) => {
+  if (plugin.selfWriting.has(file.path)) return;  // ignora self-writes
+  // ...processa edit externo...
+});
+```
+
+### Por que `queueMicrotask` e não `setTimeout(0)`
+
+- `vault.modify` resolve a Promise depois que o listener `modify` é chamado (mesmo tick).
+- `queueMicrotask` agenda pra rodar depois que toda a callback chain do tick atual terminar.
+- `setTimeout(0)` é um tick inteiro depois — tarde demais; eventos legítimos no meio podem ser ignorados.
+
+### Cuidados
+
+- **Nunca `delete` antes do `modify` resolver** — listener ainda não rodou. Default seguro: `queueMicrotask` depois do `await`.
+- **Set por path, não por TFile** — TFile é instância; usuário pode pegar uma instância nova via `vault.getAbstractFileByPath` e o listener recebe outra. Path é estável.
+- **`vault.create` também precisa do tracker** — `create` dispara `modify` quando outras tabs do mesmo arquivo estiverem abertas (raro, mas aconteceu em smoke test do Templater).
+
+### Quando aplicar
+
+Qualquer feature que escreve arquivo do vault como side-effect de edit interno + escuta mudanças externas no mesmo arquivo. Exemplos no projeto:
+- Convert memo to note (#33) — popover edit ↔ `.md` materializado.
+
+Templater faz pattern análogo. Sync extensions do Logseq também.
+
+### Onde está implementado
+
+- `src/main.ts` — `memoSelfWriting: Set<string>` no plugin field
+- `src/core/memoMaterializer.ts:32` — `add` antes de `vault.create`, `queueMicrotask(delete)` depois
+- `src/core/memoMaterializerListeners.ts:9` — listener filtra `if (plugin.memoSelfWriting.has(file.path)) return`
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
