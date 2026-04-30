@@ -210,6 +210,18 @@ src/
 - Detalhes completos em `docs/DEVELOPMENT.md` §9.
 - BRAT puxa o release latest do repo. Pre-release (alpha/beta) requer `--prerelease` flag pra não virar default.
 
+### Convenção de versionamento (semver)
+
+- **Patch (X.Y.Z+1)**: bugfix, polish, refinement de feature existente. Ex: 0.1.0 → 0.1.1 (Convert memo to note Phase 1+2).
+- **Minor (X.Y+1.0)**: feature nova (capability ou módulo novo). Ex: LLM-assisted coding entraria como minor.
+- **Major (X+1.0.0)**: marca "pronto pra produção" ou breaking interface visível pro usuário. Só atacar quando tiver feedback de alpha real.
+
+### Estado atual e próximos releases
+
+- **Latest**: `0.1.1` (pre-release, 2026-04-30) — Convert memo to note Phase 1 + Phase 2 completa (Code, Group, Marker, Relation).
+- **Próximo planejado**: `0.1.2` se Phase 3 (Materialize all memos) for a única mudança. Sobe pra `0.2.0` se entrar combinada com feature substancial (LLM coding, etc.) ou com submissão à Community Plugins + onboarding docs (decisão de marketing — pode até virar `1.0.0` se for "lançamento oficial").
+- Manter sempre **pre-release flag** até feedback de alpha real chegar.
+
 ## Demo vault
 
 - `demo/` — vault de teste com arquivos de cada tipo
