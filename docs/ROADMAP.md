@@ -247,6 +247,26 @@ Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de
 
 **Phase 2 fechada — 4/4 tipos materializam memo (Code, Group, Marker, Relation).**
 
+#### Phase 3 — "Materialize all memos" (em backlog, 2026-04-30)
+
+**Ideia:** ação batch que materializa **todos** os memos não-materializados do plugin numa tacada. Reusa 100% do plumbing de Phase 2 — itera registry/markers/relations, filtra os com `memo.content` mas sem `materialized`, loop chamando `convertMemoToNote(plugin, ref)`.
+
+**Por que importa estrategicamente:**
+- **Onboarding-killer**: pesquisador importa REFI-QDA do Atlas.ti com 200 memos → 1 click → 200 notas no graph view do Obsidian. "Wow moment" pra demo.
+- **Power user**: termina de codificar projeto, materializa tudo, escreve análise no Obsidian com backlinks ativos.
+- Diferencial de marketing: nenhum concorrente faz isso porque nenhum tem graph view nativo.
+
+**Decisões abertas:**
+1. **Escopo**: 4 tipos com checkboxes (granular), ou botão simples "todos"? Recomendado: simples agora, granular se aparecer pedido.
+2. **Surface**: Settings tab + Command palette? (Recomendado ambos — Settings descobre pra novato, palette pra power user.)
+3. **Memos vazios**: pular (não polui vault com .md em branco). Idempotente — pré-existentes materializados são pulados silenciosamente.
+4. **UX**: progress modal durante (200 memos = 200 `vault.create`s sequenciais, pode levar ~5-10s) + Notice final ("Materialized 47 memos · 12 already had notes").
+5. **Atomicidade**: se falhar no item N, parar e mostrar Notice com lista do que conseguiu? Ou continuar e reportar erros no fim? (Recomendado: continuar, reporta no fim — falhas individuais não devem bloquear o resto.)
+
+**Estimativa:** ~2h. Building blocks prontos.
+
+**Quando atacar:** sessão dedicada. Pode ser combinado com submissão à Community Plugins (Phase 3 + onboarding docs).
+
 ~~**O que sobrou em aberto:** "Convert memo to note"~~ — Phase 1 entregue 2026-04-30 pra Code memos. Phase 2 (Group/Marker/Relation) em andamento, ver detalhes acima.
 
 **Origem da demanda:** pesquisa com usuário sintético (não real). Trata como hipótese a testar, não feature blockbuster.
