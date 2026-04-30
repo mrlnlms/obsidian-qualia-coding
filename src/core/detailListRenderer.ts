@@ -6,6 +6,7 @@
 
 import { SearchComponent, setIcon } from 'obsidian';
 import type { BaseMarker, SidebarModelInterface } from './types';
+import type { MemoMaterializerAccess } from './baseCodeDetailView';
 import { renderCodebookTree, type CodebookTreeCallbacks, type CodebookTreeState } from './codebookTreeRenderer';
 import { renderCodeGroupsPanel } from './codeGroupsPanel';
 
@@ -20,6 +21,8 @@ export interface ListRendererCallbacks extends CodebookTreeCallbacks {
 	onEditGroupMemo(groupId: string): void;
 	/** Drop de código na chip de um group → adicionar membership. Optional. */
 	onDropCodeOnGroup?(codeId: string, groupId: string): void;
+	/** Memo materialization access — habilita botão "Convert to note" + card no group memo. Optional. */
+	memoAccess?: MemoMaterializerAccess;
 }
 
 /**
@@ -102,6 +105,7 @@ export function renderListContent(
 		onEditDescription: callbacks.onEditGroupDescription,
 		onEditMemo: callbacks.onEditGroupMemo,
 		onDropCodeOnGroup: callbacks.onDropCodeOnGroup,
+		memoAccess: callbacks.memoAccess,
 	});
 
 	renderCodebookTree(treeDiv, model, treeState, callbacks);

@@ -332,13 +332,13 @@ export default class QualiaCodingPlugin extends Plugin {
 			},
 		};
 
-		// Memo materialization access — wireado pra UnifiedCodeDetailView
+		// Memo materialization access — wireado pra UnifiedCodeDetailView (Phase 1+2: code, group)
 		const memoAccess = {
-			convertCodeMemo: async (codeId: string) => {
-				await convertMemoToNote(this, { type: 'code', id: codeId });
+			convertMemo: async (ref: import('./core/memoTypes').EntityRef) => {
+				await convertMemoToNote(this, ref);
 			},
-			unmaterializeCodeMemo: (codeId: string) => {
-				unmaterializeMemo(this, { type: 'code', id: codeId });
+			unmaterializeMemo: (ref: import('./core/memoTypes').EntityRef) => {
+				unmaterializeMemo(this, ref);
 			},
 			openMaterializedFile: (path: string) => {
 				const file = this.app.vault.getAbstractFileByPath(path);

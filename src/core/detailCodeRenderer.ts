@@ -370,7 +370,7 @@ function renderCodeMemo(
 			attr: { title: 'Materialize memo as a markdown note in the vault' },
 		});
 		convertBtn.addEventListener('click', async () => {
-			await callbacks.memoAccess!.convertCodeMemo(def.id);
+			await callbacks.memoAccess!.convertMemo({ type: 'code', id: def.id });
 		});
 	}
 
@@ -419,7 +419,7 @@ function renderMaterializedCard(
 
 	const unBtn = actions.createEl('button', { text: 'Unmaterialize', cls: 'qc-memo-unmaterialize-btn' });
 	unBtn.addEventListener('click', () => {
-		callbacks.memoAccess!.unmaterializeCodeMemo(def.id);
+		callbacks.memoAccess!.unmaterializeMemo({ type: 'code', id: def.id });
 	});
 }
 

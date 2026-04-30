@@ -228,7 +228,34 @@ Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de
 
 **Mostly done.** O conceito original (memos em códigos, grupos, relações; view dedicada) foi entregue em #25 (Memos em todas entidades) + Analytic Memo View (2026-04-27) + #33 Convert memo to note Phase 1 (2026-04-30 — Code only).
 
-~~**O que sobrou em aberto:** "Convert memo to note"~~ — Phase 1 entregue 2026-04-30 pra Code memos. Extensão pra Group/Marker/Relation continua aberta (decisão pós-spike).
+#### Phase 2 — extensão do Convert memo to note (Group/Marker/Relation)
+
+**Group** — atacado em sessão (2026-04-30). UI atual: PromptModal abre via click em `codeGroupsPanel` quando group selected. Pattern de implementação = copy-paste do Code, com filename = `<groupName>.md`. Esforço estimado: 1.5-2h.
+
+**Marker** — aguarda decisão de UX. Esforço estimado: 3-4h. Decisões abertas:
+
+1. **Path naming**: marker não tem `name`. Opções:
+   - `<filename>-<id-curto>` (ex: `interview-01-m_5xy.md`) — estável, feio
+   - Excerpt-based (ex: `interview-01-no-começo-do-projeto.md`) — legível pra texto, falha em image/audio/video
+   - Híbrido por engine: texto = excerpt, image/audio/video = `<file>-<engine>-<id>`
+2. **Surface da UI**: 6 lugares hoje editam marker memo (popovers de coding image/media/pdf/markdown + detailMarkerRenderer + memoView card). Popovers de coding são contextuais ("coding rápido"), botão "Convert to note" lá fica fora de contexto. Decisão: wirea só em `detailMarkerRenderer` e Memo View (deixa popovers como entry rápido)?
+3. **Relevância questionável**: Saldaña diz memos analíticos vão em códigos, não em markers. Marker memos são notas fugazes ("aqui o informante hesitou"). Pode até valer pular Phase 2 pra marker.
+
+**Relation** — aguarda decisão de UX. Esforço estimado: 3-4h. Decisões abertas:
+
+1. **Code-level UX atual quebra pra Convert**: ✎ button no row de relation (Code Detail) abre `PromptModal` (single-line). PromptModal é dialog modal — sem header pra botão Convert; adicionar Convert "dentro" do modal é estranho. Alternativas:
+   - **A. Modal com Convert no rodapé** + ✎ vira 📄 quando materializado (Open). 2 cliques pra Convert. Mantém UX compacta atual.
+   - **B. Row inline expansível** (accordion). Click ✎ expande mostrando memo + textarea + Convert. Mais visível, adiciona altura variável.
+   - **C. Relation Detail view** (igual Code Detail). Click row → tela própria. Coerente com app, mas é feature substancial.
+2. **App-level relation tem zero UI Phase 1**: schema-ready, round-trip QDPX/CSV preserva, mas nada visual pra editar. Phase 2 precisa criar UI básica antes de Convert. Surface where? (popover de coding? marker detail?)
+3. **Filename**: `<codeName>-<label>-<targetCodeName>.md` (ex: `Wellbeing-causa-Frustration.md`) — code-level OK; app-level precisa de `<filename>-<id-curto>` pra distinguir múltiplas instâncias da mesma tupla.
+
+**Próximos passos (ordem sugerida):**
+1. ~~Implementar Group~~ — em andamento.
+2. Brainstorm Marker UX (path naming + surfaces) — sessão dedicada.
+3. Brainstorm Relation UX (code-level + criar app-level UI) — sessão dedicada.
+
+~~**O que sobrou em aberto:** "Convert memo to note"~~ — Phase 1 entregue 2026-04-30 pra Code memos. Phase 2 (Group/Marker/Relation) em andamento, ver detalhes acima.
 
 **Origem da demanda:** pesquisa com usuário sintético (não real). Trata como hipótese a testar, não feature blockbuster.
 

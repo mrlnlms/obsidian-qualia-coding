@@ -31,10 +31,13 @@ export interface AuditAccess {
  * Memo materialization accessor — passado pelo plugin pra views que querem
  * expor o botão "Convert to note" + card materializado. Opcional: sem ele,
  * memos ficam só inline (textarea).
+ *
+ * API genérica via EntityRef — Phase 1+2 suportam code, group. Phase futuro:
+ * marker, relation-code, relation-app reusam o mesmo método.
  */
 export interface MemoMaterializerAccess {
-	convertCodeMemo(codeId: string): Promise<void>;
-	unmaterializeCodeMemo(codeId: string): void;
+	convertMemo(ref: import('./memoTypes').EntityRef): Promise<void>;
+	unmaterializeMemo(ref: import('./memoTypes').EntityRef): void;
 	openMaterializedFile(path: string): void;
 }
 import { renderListShell, renderListContent } from './detailListRenderer';
@@ -774,6 +777,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 				this.model.saveMarkers();
 				this.refreshCurrentMode();
 			},
+			memoAccess: this.memoAccess,
 		};
 	}
 

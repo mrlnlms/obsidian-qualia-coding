@@ -518,10 +518,15 @@ export class CodeDefinitionRegistry {
 		for (const fn of this.onMutateListeners) fn();
 	}
 
-	setGroupMemo(id: string, memo: string | undefined): void {
+	setGroupMemo(id: string, memo: string | MemoRecord | undefined): void {
 		const g = this.groups.get(id);
 		if (!g) return;
-		g.memo = setMemoContent(g.memo, memo ?? '');
+		if (typeof memo === 'string' || memo === undefined) {
+			g.memo = setMemoContent(g.memo, memo ?? '');
+		} else {
+			// MemoRecord — preserva passed-in (caller quer setar materialized)
+			g.memo = memo.content || memo.materialized ? memo : undefined;
+		}
 		for (const fn of this.onMutateListeners) fn();
 	}
 

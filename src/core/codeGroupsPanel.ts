@@ -7,6 +7,7 @@
 
 import { setIcon } from 'obsidian';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
+import type { MemoMaterializerAccess } from './baseCodeDetailView';
 import { getMemoContent, hasContent } from './memoHelpers';
 
 export interface CodeGroupsPanelCallbacks {
@@ -18,6 +19,8 @@ export interface CodeGroupsPanelCallbacks {
 	onEditMemo(groupId: string): void;
 	/** Optional. Drop a code (dragged from the codebook tree) onto a group chip → add to group. */
 	onDropCodeOnGroup?(codeId: string, groupId: string): void;
+	/** Optional. When provided, exposes Convert to note button + materialized card pra group memo. */
+	memoAccess?: MemoMaterializerAccess;
 }
 
 export function renderCodeGroupsPanel(
@@ -117,15 +120,51 @@ export function renderCodeGroupsPanel(
 		}
 		desc.addEventListener('click', () => callbacks.onEditDescription(selected.id));
 
-		const memo = panel.createDiv({ cls: 'codebook-groups-memo' });
-		memo.title = 'Click to edit memo';
-		if (hasContent(selected.memo)) {
-			memo.createSpan({ text: getMemoContent(selected.memo) });
+		// Memo block — render condicional:
+		//   1. Materializado → card compacto (📄 path + Open + Unmaterialize)
+		//   2. Inline com conteúdo → texto clicável + botão "Convert to note" (se memoAccess)
+		//   3. Vazio → "Add memo..." placeholder
+		if (selected.memo?.materialized && callbacks.memoAccess) {
+			const card = panel.createDiv({ cls: 'qc-memo-materialized-card codebook-groups-memo-card' });
+			const labelRow = card.createDiv({ cls: 'qc-memo-materialized-label-row' });
+			const iconSpan = labelRow.createSpan({ cls: 'qc-memo-materialized-icon' });
+			setIcon(iconSpan, 'file-text');
+			labelRow.createSpan({ text: 'Materialized at', cls: 'qc-memo-materialized-label' });
+
+			card.createEl('div', { text: selected.memo.materialized.path, cls: 'qc-memo-materialized-path' });
+
+			const actions = card.createDiv({ cls: 'qc-memo-materialized-actions' });
+			const openBtn = actions.createEl('button', { text: 'Open', cls: 'qc-memo-open-btn' });
+			openBtn.addEventListener('click', () => {
+				callbacks.memoAccess!.openMaterializedFile(selected.memo!.materialized!.path);
+			});
+			const unBtn = actions.createEl('button', { text: 'Unmaterialize', cls: 'qc-memo-unmaterialize-btn' });
+			unBtn.addEventListener('click', () => {
+				callbacks.memoAccess!.unmaterializeMemo({ type: 'group', id: selected.id });
+			});
 		} else {
-			memo.addClass('is-placeholder');
-			memo.createSpan({ text: 'Add memo...' });
+			const memoWrap = panel.createDiv({ cls: 'codebook-groups-memo-wrap' });
+			const memo = memoWrap.createDiv({ cls: 'codebook-groups-memo' });
+			memo.title = 'Click to edit memo';
+			if (hasContent(selected.memo)) {
+				memo.createSpan({ text: getMemoContent(selected.memo) });
+			} else {
+				memo.addClass('is-placeholder');
+				memo.createSpan({ text: 'Add memo...' });
+			}
+			memo.addEventListener('click', () => callbacks.onEditMemo(selected.id));
+
+			if (callbacks.memoAccess) {
+				const convertBtn = memoWrap.createEl('button', {
+					cls: 'qc-memo-convert-btn codebook-groups-memo-convert-btn',
+					text: 'Convert to note',
+					attr: { title: 'Materialize this memo as a markdown note' },
+				});
+				convertBtn.addEventListener('click', async () => {
+					await callbacks.memoAccess!.convertMemo({ type: 'group', id: selected.id });
+				});
+			}
 		}
-		memo.addEventListener('click', () => callbacks.onEditMemo(selected.id));
 	}
 
 	return { cleanup: () => {} };
