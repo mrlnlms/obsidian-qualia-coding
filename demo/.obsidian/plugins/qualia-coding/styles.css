@@ -2844,8 +2844,6 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 
 /* ── Config Panel ── */
 
-.codemarker-config-row input[type="checkbox"],
-
 /* ── Chart Area ── */
 
 /* ── Footer ── */
@@ -5066,6 +5064,13 @@ body.codebook-dragging * {
 .codebook-group-chip.is-selected .codebook-group-chip-count {
 	color: var(--text-on-accent);
 }
+/* Drop target: chip aceita um code arrastado da árvore */
+.codebook-group-chip.is-drop-target {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+	transform: scale(1.05);
+	transition: transform 100ms ease;
+}
 
 /* ─── Tree chip contador (groups) ──────────────────── */
 .codebook-tree-group-chip {
@@ -5086,6 +5091,154 @@ body.codebook-dragging * {
 }
 .codebook-tree-row.is-group-non-member:not(.qc-code-row-hidden) {
 	opacity: 0.4;
+}
+/* Multi-select: tint accent + borda esquerda. Convive com is-group-member (que já tem
+   inset shadow accent) e com hover. Distinção sutil pra não competir com chips/swatch. */
+.codebook-tree-row.is-selected {
+	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	box-shadow: inset 3px 0 0 var(--interactive-accent);
+}
+.codebook-tree-row.is-selected:hover {
+	background: color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+}
+
+/* ─── Audit log — History section no Code Detail ───── */
+.codemarker-history-section .codemarker-history-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.codemarker-history-toggle-hidden {
+	font-size: var(--font-smallest);
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	padding: 2px 8px;
+	border-radius: 3px;
+	cursor: pointer;
+}
+.codemarker-history-toggle-hidden:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+.codemarker-history-export {
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	padding: 2px 6px;
+	border-radius: 3px;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+}
+.codemarker-history-export:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+.codemarker-history-list {
+	list-style: none;
+	margin: 8px 0 0;
+	padding: 0;
+	border-left: 2px solid var(--background-modifier-border);
+}
+.codemarker-history-item {
+	position: relative;
+	padding: 4px 8px 4px 14px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: var(--font-smaller);
+}
+.codemarker-history-item::before {
+	content: '';
+	position: absolute;
+	left: -5px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+}
+.codemarker-history-item.is-hidden-entry {
+	opacity: 0.5;
+	font-style: italic;
+}
+.codemarker-history-item.is-hidden-entry::before {
+	background: var(--text-faint);
+}
+.codemarker-history-stamp {
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-size: var(--font-smallest);
+	min-width: 116px;
+}
+.codemarker-history-text {
+	color: var(--text-normal);
+	flex: 1;
+}
+.codemarker-history-hide-btn {
+	background: transparent;
+	border: none;
+	color: var(--text-faint);
+	padding: 2px 4px;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 100ms ease;
+	display: inline-flex;
+	align-items: center;
+}
+.codemarker-history-item:hover .codemarker-history-hide-btn,
+.codemarker-history-item.is-hidden-entry .codemarker-history-hide-btn {
+	opacity: 1;
+}
+.codemarker-history-hide-btn:hover {
+	color: var(--text-normal);
+}
+
+/* ─── Bulk rename modal preview ──────────────────── */
+.codemarker-bulk-rename .codemarker-bulk-rename-preview {
+	margin-top: 12px;
+	padding: 10px 12px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	font-size: var(--font-smaller);
+}
+.codemarker-bulk-rename-preview-label {
+	margin: 0 0 6px;
+	color: var(--text-muted);
+	font-weight: 600;
+}
+.codemarker-bulk-rename-preview-list {
+	margin: 0;
+	padding-left: 16px;
+	list-style: none;
+}
+.codemarker-bulk-rename-preview-list li {
+	margin-bottom: 4px;
+	font-family: var(--font-monospace);
+	font-size: var(--font-smallest);
+}
+.codemarker-bulk-rename-old { color: var(--text-muted); }
+.codemarker-bulk-rename-arrow { color: var(--text-faint); padding: 0 4px; }
+.codemarker-bulk-rename-new { color: var(--text-normal); font-weight: 500; }
+.codemarker-bulk-rename-more {
+	margin: 8px 0 0;
+	color: var(--text-faint);
+	font-style: italic;
+	font-size: var(--font-smallest);
+}
+.codemarker-bulk-rename-preview .is-placeholder {
+	margin: 0;
+	color: var(--text-faint);
+	font-style: italic;
+}
+/* Durante drag, rows desbotadas (não-membros do group ativo, ou ocultas via toggle)
+   ficam não-interativas pra cursor. Sem isso, o "drop em zona vazia" nunca dispara —
+   o cursor passa por cima de uma row escondida e o handler trata como reparent. */
+body.codebook-dragging .codebook-tree-row.is-group-non-member,
+body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
+	pointer-events: none;
 }
 
 /* ─── Code Detail — Groups section ─────────────────── */
@@ -5441,4 +5594,226 @@ body.codebook-dragging * {
 	background: var(--background-primary);
 	border-color: var(--interactive-accent);
 	outline: none;
+}
+
+/* ─── Merge Modal — Tier 2 expanded ─── */
+
+.codebook-merge-modal .codebook-merge-section {
+	margin: var(--size-4-3) 0;
+}
+
+.codebook-merge-modal .codebook-merge-radio-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1) 0;
+	cursor: pointer;
+}
+
+.codebook-merge-modal .codebook-merge-radio-row input[type="radio"] {
+	margin: 0;
+}
+
+.codebook-merge-modal .codebook-merge-radio-row-swatch {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	display: inline-block;
+}
+
+.codebook-merge-modal .codebook-merge-radio-row .codebook-merge-name-input {
+	flex: 1;
+	margin-left: var(--size-2-2);
+}
+
+.codebook-merge-modal .codebook-merge-radio-row select {
+	margin-left: var(--size-2-2);
+}
+
+.codebook-merge-modal .codebook-merge-name-error {
+	color: var(--text-error);
+	font-size: var(--font-ui-small);
+	padding: var(--size-2-1) 0;
+}
+
+.codebook-merge-modal .codebook-merge-preview-list ul {
+	margin: var(--size-2-2) 0;
+	padding-left: var(--size-4-4);
+}
+
+.codebook-merge-modal .codebook-merge-preview-list li {
+	padding: var(--size-2-1) 0;
+}
+
+/* ─── Codebook Timeline (Analytics mode) ─── */
+
+.codebook-timeline-list {
+	margin-top: var(--size-4-3);
+}
+
+.codebook-timeline-day-header {
+	margin: var(--size-4-3) 0 var(--size-2-2) 0;
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	font-weight: 600;
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding-bottom: 4px;
+}
+
+.codebook-timeline-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1) 0;
+	font-size: var(--font-ui-small);
+}
+
+.codebook-timeline-row.is-deleted {
+	opacity: 0.5;
+	font-style: italic;
+}
+
+.codebook-timeline-time {
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+	min-width: 3.5em;
+}
+
+.codebook-timeline-dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.codebook-timeline-codename {
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.codebook-timeline-codename:hover {
+	color: var(--interactive-accent);
+	text-decoration: underline;
+}
+
+.codebook-timeline-action {
+	color: var(--text-muted);
+}
+
+.codebook-timeline-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.codebook-timeline-chip {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 8px 2px 6px;
+	background: var(--background-secondary);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	font-size: var(--font-ui-small);
+	opacity: 0.55;
+	user-select: none;
+	white-space: nowrap;
+}
+
+.codebook-timeline-chip:hover {
+	opacity: 0.85;
+}
+
+.codebook-timeline-chip.is-on {
+	opacity: 1;
+	background: var(--background-modifier-hover);
+}
+
+/* ─── Tabular size warning banner ─── */
+
+.qualia-tabular-size-warning {
+	max-width: 520px;
+	margin: var(--size-4-6) auto;
+	padding: var(--size-4-4);
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.qualia-tabular-size-warning h3 {
+	margin: 0 0 var(--size-4-2) 0;
+	color: var(--text-warning);
+}
+
+.qualia-tabular-size-warning p {
+	margin: var(--size-2-2) 0;
+}
+
+.qualia-tabular-size-warning-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.qualia-tabular-size-warning-actions {
+	display: flex;
+	gap: var(--size-2-3);
+	margin-top: var(--size-4-3);
+	justify-content: flex-end;
+}
+
+/* ─── Memo materialization (Convert to note) ─── */
+.codemarker-detail-section-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.qc-memo-convert-btn {
+	font-size: 0.85em;
+	padding: 2px 8px;
+}
+
+.qc-memo-materialized-card {
+	padding: 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	margin-top: 8px;
+}
+
+.qc-memo-materialized-label-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.qc-memo-materialized-icon {
+	display: inline-flex;
+	color: var(--text-muted);
+}
+
+.qc-memo-materialized-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-memo-materialized-path {
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	margin: 6px 0 12px;
+	word-break: break-all;
+	color: var(--text-normal);
+}
+
+.qc-memo-materialized-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.qc-memo-open-btn,
+.qc-memo-unmaterialize-btn {
+	font-size: 0.85em;
+	padding: 4px 10px;
 }
