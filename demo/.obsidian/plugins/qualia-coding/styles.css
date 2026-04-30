@@ -5840,3 +5840,106 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	font-size: 0.85em;
 	padding: 4px 10px;
 }
+
+/* ─── Relation Detail (Phase 2 Relation) ─── */
+.codemarker-detail-relation-row-clickable {
+	cursor: pointer;
+	border-radius: 4px;
+	padding: 4px 6px;
+}
+.codemarker-detail-relation-row-clickable:hover {
+	background: var(--background-modifier-hover);
+}
+
+.codemarker-detail-relation-memo-badge {
+	display: inline-flex;
+	align-items: center;
+	color: var(--text-muted);
+	margin-left: auto;
+	margin-right: 4px;
+	flex-shrink: 0;
+}
+.codemarker-detail-relation-memo-badge svg {
+	width: 12px;
+	height: 12px;
+}
+.codemarker-detail-relation-memo-badge.has-materialized {
+	color: var(--text-accent);
+}
+
+.codemarker-detail-relation-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+	padding: 8px 0;
+	font-size: var(--font-ui-medium);
+}
+
+.codemarker-detail-relation-chip {
+	cursor: pointer;
+}
+.codemarker-detail-relation-chip:hover {
+	background: var(--background-modifier-hover);
+}
+
+.codemarker-detail-relation-label-large {
+	font-style: italic;
+	color: var(--text-muted);
+	padding: 0 4px;
+}
+
+.codemarker-detail-relation-banner {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	padding: 6px 8px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	margin-bottom: 8px;
+}
+.codemarker-detail-relation-banner-count,
+.codemarker-detail-relation-banner-file {
+	color: var(--text-normal);
+	font-weight: 500;
+}
+.codemarker-detail-relation-banner-link {
+	color: var(--text-accent);
+	cursor: pointer;
+	text-decoration: underline;
+}
+.codemarker-detail-relation-banner-link:hover {
+	color: var(--text-accent-hover);
+}
+
+.codemarker-detail-relation-direction {
+	margin-bottom: 8px;
+}
+.codemarker-detail-relation-direction-text {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.codemarker-detail-relation-evidence-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px;
+	cursor: pointer;
+	border-radius: 4px;
+	font-size: var(--font-ui-small);
+}
+.codemarker-detail-relation-evidence-row:hover {
+	background: var(--background-modifier-hover);
+}
+.codemarker-detail-relation-evidence-file {
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+}
+.codemarker-detail-relation-evidence-label {
+	color: var(--text-normal);
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}

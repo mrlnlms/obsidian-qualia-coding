@@ -8,6 +8,7 @@
 import { App, setIcon } from 'obsidian';
 import type { BaseMarker, CodeApplication, CodeDefinition, SidebarModelInterface } from './types';
 import type { MemoMaterializerAccess } from './baseCodeDetailView';
+import type { RelationContext } from './detailRelationRenderer';
 import { getMemoContent, setMemoContent } from './memoHelpers';
 import { renderBackButton } from './detailCodeRenderer';
 import { getCodeIds } from './codeApplicationHelpers';
@@ -20,6 +21,7 @@ export interface MarkerRendererCallbacks {
 	shortenPath(fileId: string): string;
 	showList(): void;
 	showCodeDetail(codeId: string): void;
+	showRelationDetail(ctx: RelationContext): void;
 	renderCustomSection(container: HTMLElement, marker: BaseMarker): void;
 	/** Temporarily suspend/resume model onChange listener during editing. */
 	suspendRefresh(): void;
@@ -235,7 +237,7 @@ function renderRelationsPerCode(
 			relBody.empty();
 			const rels = ca.relations ?? [];
 			for (const rel of rels) {
-				const row = relBody.createDiv({ cls: 'codemarker-detail-relation-row' });
+				const row = relBody.createDiv({ cls: 'codemarker-detail-relation-row codemarker-detail-relation-row-clickable' });
 				const dirIcon = row.createSpan({ cls: 'codemarker-detail-relation-dir' });
 				setIcon(dirIcon, rel.directed ? 'arrow-right' : 'minus');
 
@@ -247,7 +249,21 @@ function renderRelationsPerCode(
 					const dot = chip.createSpan({ cls: 'codemarker-detail-chip-dot' });
 					dot.style.backgroundColor = targetDef.color;
 					chip.createSpan({ text: targetDef.name });
-					chip.addEventListener('click', () => callbacks.showCodeDetail(targetDef.id));
+					chip.addEventListener('click', (e) => {
+						e.stopPropagation();
+						callbacks.showCodeDetail(targetDef.id);
+					});
+				}
+
+				// Indicator pra memo (badge se há content/materialized)
+				if (rel.memo?.materialized) {
+					const badge = row.createSpan({ cls: 'codemarker-detail-relation-memo-badge has-materialized' });
+					setIcon(badge, 'file-text');
+					badge.title = 'Memo materialized';
+				} else if (rel.memo?.content) {
+					const badge = row.createSpan({ cls: 'codemarker-detail-relation-memo-badge' });
+					setIcon(badge, 'pencil');
+					badge.title = 'Memo';
 				}
 
 				const removeBtn = row.createSpan({ cls: 'codemarker-detail-magnitude-remove' });
@@ -257,6 +273,18 @@ function renderRelationsPerCode(
 					if (!ca.relations) return;
 					ca.relations = ca.relations.filter(r => !(r.label === rel.label && r.target === rel.target));
 					saveAndRebuild();
+				});
+
+				// Click anywhere else on the row → open Relation Detail (app-level)
+				row.addEventListener('click', () => {
+					callbacks.showRelationDetail({
+						kind: 'app-level',
+						engineType: marker.markerType,
+						markerId: marker.id,
+						sourceCodeId: ca.codeId,
+						label: rel.label,
+						target: rel.target,
+					});
 				});
 			}
 

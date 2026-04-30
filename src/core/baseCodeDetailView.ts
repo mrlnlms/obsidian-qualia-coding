@@ -43,6 +43,7 @@ export interface MemoMaterializerAccess {
 import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
+import { renderRelationDetail, type RelationContext } from './detailRelationRenderer';
 import type { CodebookTreeState } from './codebookTreeRenderer';
 import { createExpandedState, collectAllCodesUnderFolder, buildFlatTree, type ExpandedState } from './hierarchyHelpers';
 import { showCodeContextMenu, showFolderContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
@@ -56,6 +57,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	protected model: SidebarModelInterface;
 	protected markerId: string | null = null;
 	protected codeId: string | null = null;
+	protected relationContext: RelationContext | null = null;
 
 	// Tree state for codebook panel
 	protected expanded: ExpandedState = createExpandedState();
@@ -179,6 +181,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	showList() {
 		this.markerId = null;
 		this.codeId = null;
+		this.relationContext = null;
 		this.leaf.updateHeader?.();
 		this.renderList();
 	}
@@ -187,6 +190,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	showCodeDetail(codeId: string) {
 		this.markerId = null;
 		this.codeId = codeId;
+		this.relationContext = null;
 		this.leaf.updateHeader?.();
 		this.doRenderCodeDetail();
 	}
@@ -195,8 +199,18 @@ export abstract class BaseCodeDetailView extends ItemView {
 	setContext(markerId: string, codeId: string) {
 		this.markerId = markerId;
 		this.codeId = codeId;
+		this.relationContext = null;
 		this.leaf.updateHeader?.();
 		this.doRenderMarkerDetail();
+	}
+
+	/** Navigate to relation-focused detail (code-level or app-level). */
+	showRelationDetail(ctx: RelationContext) {
+		this.markerId = null;
+		this.codeId = ctx.sourceCodeId; // breadcrumb context: back goes to source code
+		this.relationContext = ctx;
+		this.leaf.updateHeader?.();
+		this.doRenderRelationDetail();
 	}
 
 	getDisplayText(): string {
@@ -209,7 +223,9 @@ export abstract class BaseCodeDetailView extends ItemView {
 	// ─── Refresh routing ────────────────────────────────────
 
 	protected refreshCurrentMode() {
-		if (this.markerId && this.codeId) {
+		if (this.relationContext) {
+			this.doRenderRelationDetail();
+		} else if (this.markerId && this.codeId) {
 			this.doRenderMarkerDetail();
 		} else if (this.codeId) {
 			this.doRenderCodeDetail();
@@ -1106,6 +1122,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			shortenPath: (f) => this.shortenPath(f),
 			showList: () => this.showList(),
 			showCodeDetail: (c) => this.showCodeDetail(c),
+			showRelationDetail: (rc) => this.showRelationDetail(rc),
 			setContext: (mid, c) => this.setContext(mid, c),
 			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
 			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
@@ -1146,11 +1163,56 @@ export abstract class BaseCodeDetailView extends ItemView {
 			shortenPath: (f) => this.shortenPath(f),
 			showList: () => this.showList(),
 			showCodeDetail: (c) => this.showCodeDetail(c),
+			showRelationDetail: (rc) => this.showRelationDetail(rc),
 			renderCustomSection: (el, m) => this.renderCustomSection(el, m),
 			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
 			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
 			memoAccess: this.memoAccess,
 		}, this.app);
+	}
+
+	private doRenderRelationDetail() {
+		const container = this.contentEl;
+		container.empty();
+		this.listMode = false;
+		this.listSearchWrap = null;
+		this.listContentZone = null;
+		if (this.listShellCleanup) { this.listShellCleanup(); this.listShellCleanup = null; }
+
+		if (!this.relationContext) return;
+
+		renderRelationDetail(container, this.relationContext, this.model, {
+			showCodeDetail: (c) => this.showCodeDetail(c),
+			showRelationDetail: (rc) => this.showRelationDetail(rc),
+			setContext: (mid, c) => this.setContext(mid, c),
+			memoAccess: this.memoAccess,
+			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
+			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
+			shortenPath: (f) => this.shortenPath(f),
+			getMarkerLabel: (m) => this.getMarkerLabel(m),
+			onSaveMemo: (ref, content) => this.saveRelationMemoFromInline(ref, content),
+		}, this.app);
+	}
+
+	private saveRelationMemoFromInline(ref: import('./memoTypes').EntityRef, content: string): void {
+		if (ref.type === 'relation-code') {
+			this.model.registry.setRelationMemo(ref.codeId, ref.label, ref.target, content || undefined);
+			this.model.saveMarkers();
+			return;
+		}
+		if (ref.type === 'relation-app') {
+			const marker = this.model.getMarkerById(ref.markerId);
+			const ca = marker?.codes.find(c => c.codeId === ref.codeId);
+			const rel = ca?.relations?.find(r => r.label === ref.label && r.target === ref.target);
+			if (!rel || !marker) return;
+			rel.memo = content
+				? (rel.memo?.materialized ? { content, materialized: rel.memo.materialized } : { content })
+				: undefined;
+			marker.updatedAt = Date.now();
+			this.model.saveMarkers();
+			document.dispatchEvent(new Event('qualia:registry-changed'));
+			return;
+		}
 	}
 
 	// ─── Hover sync (model → sidebar) ───────────────────────

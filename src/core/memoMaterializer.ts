@@ -27,7 +27,38 @@ function resolveEntity(plugin: QualiaCodingPlugin, ref: EntityRef): { name: stri
 		if (!m) throw new Error(`Marker not found: ${ref.engineType}:${ref.id}`);
 		return { name: buildMarkerFilename(plugin, ref), content: getMemoContent(m.memo) };
 	}
-	throw new Error(`Phase 2: ref type '${ref.type}' not yet supported`);
+	if (ref.type === 'relation-code') {
+		const def = plugin.sharedRegistry.getById(ref.codeId);
+		if (!def?.relations) throw new Error(`Code-level relation not found: ${ref.codeId}`);
+		const rel = def.relations.find(r => r.label === ref.label && r.target === ref.target);
+		if (!rel) throw new Error(`Relation not found: ${ref.codeId} -[${ref.label}]-> ${ref.target}`);
+		return { name: buildRelationCodeFilename(plugin, def, rel), content: getMemoContent(rel.memo) };
+	}
+	if (ref.type === 'relation-app') {
+		const marker = plugin.dataManager.findMarker(ref.engineType, ref.markerId);
+		if (!marker) throw new Error(`App-level relation marker not found: ${ref.markerId}`);
+		const ca = marker.codes.find(c => c.codeId === ref.codeId);
+		const rel = ca?.relations?.find(r => r.label === ref.label && r.target === ref.target);
+		if (!rel) throw new Error(`App-level relation not found`);
+		return { name: buildRelationAppFilename(plugin, ref, marker), content: getMemoContent(rel.memo) };
+	}
+	throw new Error(`Phase 2: ref type '${(ref as EntityRef).type}' not yet supported`);
+}
+
+function buildRelationCodeFilename(plugin: QualiaCodingPlugin, sourceDef: { name: string }, rel: { label: string; target: string }): string {
+	const targetDef = plugin.sharedRegistry.getById(rel.target);
+	const targetName = targetDef?.name ?? rel.target.slice(-6);
+	return `${sourceDef.name}-${rel.label}-${targetName}`;
+}
+
+function buildRelationAppFilename(plugin: QualiaCodingPlugin, ref: { codeId: string; label: string; target: string; markerId: string }, marker: { fileId: string }): string {
+	const sourceDef = plugin.sharedRegistry.getById(ref.codeId);
+	const targetDef = plugin.sharedRegistry.getById(ref.target);
+	const sourceName = sourceDef?.name ?? ref.codeId.slice(-6);
+	const targetName = targetDef?.name ?? ref.target.slice(-6);
+	const fileBase = (marker.fileId.split('/').pop() ?? marker.fileId).replace(/\.[^.]+$/, '');
+	const idCurto = ref.markerId.slice(-6);
+	return `${fileBase}-${sourceName}-${ref.label}-${targetName}-${idCurto}`;
 }
 
 /** Folder configurado em settings, por tipo. */
@@ -36,7 +67,8 @@ function resolveFolder(plugin: QualiaCodingPlugin, ref: EntityRef): string {
 	if (ref.type === 'code') return folders.code;
 	if (ref.type === 'group') return folders.group;
 	if (ref.type === 'marker') return folders.marker;
-	throw new Error(`Phase 2: ref type '${ref.type}' not yet supported`);
+	if (ref.type === 'relation-code' || ref.type === 'relation-app') return folders.relation;
+	throw new Error(`Phase 2: ref type '${(ref as EntityRef).type}' not yet supported`);
 }
 
 /** Read current MemoRecord from registry, agnostic to entity type. */
@@ -44,7 +76,16 @@ function readMemoRecord(plugin: QualiaCodingPlugin, ref: EntityRef): MemoRecord 
 	if (ref.type === 'code') return plugin.sharedRegistry.getById(ref.id)?.memo;
 	if (ref.type === 'group') return plugin.sharedRegistry.getGroup(ref.id)?.memo;
 	if (ref.type === 'marker') return plugin.dataManager.findMarker(ref.engineType, ref.id)?.memo;
-	throw new Error(`Phase 2: ref type '${ref.type}' not yet supported`);
+	if (ref.type === 'relation-code') {
+		const def = plugin.sharedRegistry.getById(ref.codeId);
+		return def?.relations?.find(r => r.label === ref.label && r.target === ref.target)?.memo;
+	}
+	if (ref.type === 'relation-app') {
+		const marker = plugin.dataManager.findMarker(ref.engineType, ref.markerId);
+		const ca = marker?.codes.find(c => c.codeId === ref.codeId);
+		return ca?.relations?.find(r => r.label === ref.label && r.target === ref.target)?.memo;
+	}
+	throw new Error(`Phase 2: ref type '${(ref as EntityRef).type}' not yet supported`);
 }
 
 /** Persiste o memo atualizado (com ou sem materialized) no registry, agnostic to entity type. */
@@ -77,7 +118,29 @@ function writeMemo(plugin: QualiaCodingPlugin, ref: EntityRef, content: string, 
 		document.dispatchEvent(new Event('qualia:registry-changed'));
 		return;
 	}
-	throw new Error(`Phase 2: ref type '${ref.type}' not yet supported`);
+	if (ref.type === 'relation-code') {
+		// Via setRelationMemo (já dispara onMutate → qualia:registry-changed)
+		plugin.sharedRegistry.setRelationMemo(ref.codeId, ref.label, ref.target, memo);
+		return;
+	}
+	if (ref.type === 'relation-app') {
+		const marker = plugin.dataManager.findMarker(ref.engineType, ref.markerId);
+		if (!marker) return;
+		const ca = marker.codes.find(c => c.codeId === ref.codeId);
+		const rel = ca?.relations?.find(r => r.label === ref.label && r.target === ref.target);
+		if (!rel) return;
+		if (content || materialized) {
+			rel.memo = materialized ? { content, materialized } : { content };
+		} else {
+			rel.memo = undefined;
+		}
+		marker.updatedAt = Date.now();
+		plugin.dataManager.markDirty();
+		notifyMarkerOwner(plugin, ref.engineType);
+		document.dispatchEvent(new Event('qualia:registry-changed'));
+		return;
+	}
+	throw new Error(`Phase 2: ref type '${(ref as EntityRef).type}' not yet supported`);
 }
 
 /**

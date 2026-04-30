@@ -8,6 +8,7 @@
 import { App, setIcon, ToggleComponent } from 'obsidian';
 import type { AuditEntry, BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
 import type { MemoMaterializerAccess } from './baseCodeDetailView';
+import type { RelationContext } from './detailRelationRenderer';
 import { getMemoContent } from './memoHelpers';
 import { getEntriesForCode, renderEntryMarkdown } from './auditLog';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
@@ -24,6 +25,7 @@ export interface CodeRendererCallbacks {
 	shortenPath(fileId: string): string;
 	showList(): void;
 	showCodeDetail(codeId: string): void;
+	showRelationDetail(ctx: RelationContext): void;
 	setContext(markerId: string, codeId: string): void;
 	/** Temporarily suspend/resume model onChange listener during color editing. */
 	suspendRefresh(): void;
@@ -764,7 +766,7 @@ function renderRelationsSection(
 	container: HTMLElement,
 	def: CodeDefinition,
 	model: SidebarModelInterface,
-	callbacks: Pick<CodeRendererCallbacks, 'showCodeDetail' | 'suspendRefresh' | 'resumeRefresh'>,
+	callbacks: Pick<CodeRendererCallbacks, 'showCodeDetail' | 'showRelationDetail' | 'suspendRefresh' | 'resumeRefresh'>,
 	app: App,
 ): void {
 	const section = container.createDiv({ cls: 'codemarker-detail-section codemarker-detail-relations' });
@@ -786,7 +788,7 @@ function renderRelationsSection(
 		const currentRelations = def.relations ?? [];
 
 		for (const rel of currentRelations) {
-			const row = body.createDiv({ cls: 'codemarker-detail-relation-row' });
+			const row = body.createDiv({ cls: 'codemarker-detail-relation-row codemarker-detail-relation-row-clickable' });
 
 			const dirIcon = row.createSpan({ cls: 'codemarker-detail-relation-dir' });
 			setIcon(dirIcon, rel.directed ? 'arrow-right' : 'minus');
@@ -800,32 +802,24 @@ function renderRelationsSection(
 				const dot = chip.createSpan({ cls: 'codemarker-detail-chip-dot' });
 				dot.style.backgroundColor = targetDef.color;
 				chip.createSpan({ text: targetDef.name });
-				chip.addEventListener('click', () => callbacks.showCodeDetail(targetDef.id));
+				chip.addEventListener('click', (e) => {
+					e.stopPropagation();
+					callbacks.showCodeDetail(targetDef.id);
+				});
 			} else {
 				row.createSpan({ cls: 'codemarker-detail-relation-target-missing', text: '(deleted)' });
 			}
 
-			const editMemoBtn = row.createSpan({ cls: 'codemarker-detail-relation-edit-memo' });
-			setIcon(editMemoBtn, 'pencil');
-			editMemoBtn.title = rel.memo ? 'Edit memo' : 'Add memo';
-			if (rel.memo) editMemoBtn.addClass('has-memo');
-			editMemoBtn.addEventListener('click', (e) => {
-				e.stopPropagation();
-				const label = rel.label;
-				const target = rel.target;
-				new PromptModal({
-					app,
-					title: 'Edit relation memo',
-					initialValue: getMemoContent(rel.memo),
-					placeholder: 'Reflexão sobre essa relação',
-					onSubmit: (newMemo) => {
-						const trimmed = newMemo.trim();
-						model.registry.setRelationMemo(def.id, label, target, trimmed || undefined);
-						model.saveMarkers();
-						renderRows();
-					},
-				}).open();
-			});
+			// Memo indicator badge (replace antigo ✎ button — agora click na row inteira abre Relation Detail)
+			if (rel.memo?.materialized) {
+				const badge = row.createSpan({ cls: 'codemarker-detail-relation-memo-badge has-materialized' });
+				setIcon(badge, 'file-text');
+				badge.title = 'Memo materialized';
+			} else if (rel.memo?.content) {
+				const badge = row.createSpan({ cls: 'codemarker-detail-relation-memo-badge' });
+				setIcon(badge, 'pencil');
+				badge.title = 'Memo';
+			}
 
 			const removeBtn = row.createSpan({ cls: 'codemarker-detail-magnitude-remove' });
 			setIcon(removeBtn, 'x');
@@ -835,6 +829,16 @@ function renderRelationsSection(
 				def.relations = def.relations.filter(r => !(r.label === rel.label && r.target === rel.target));
 				saveRelations();
 				renderRows();
+			});
+
+			// Click row → Relation Detail (code-level)
+			row.addEventListener('click', () => {
+				callbacks.showRelationDetail({
+					kind: 'code-level',
+					sourceCodeId: def.id,
+					label: rel.label,
+					target: rel.target,
+				});
 			});
 		}
 

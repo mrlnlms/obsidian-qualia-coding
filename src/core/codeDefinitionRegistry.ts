@@ -537,12 +537,16 @@ export class CodeDefinitionRegistry {
 	 * Limite: se houver relations duplicadas com mesmo (label, target), atualiza
 	 * só a primeira. Mesmo limite do delete existente.
 	 */
-	setRelationMemo(codeId: string, label: string, target: string, memo: string | undefined): boolean {
+	setRelationMemo(codeId: string, label: string, target: string, memo: string | MemoRecord | undefined): boolean {
 		const def = this.definitions.get(codeId);
 		if (!def?.relations) return false;
 		const rel = def.relations.find(r => r.label === label && r.target === target);
 		if (!rel) return false;
-		rel.memo = setMemoContent(rel.memo, memo ?? '');
+		if (typeof memo === 'string' || memo === undefined) {
+			rel.memo = setMemoContent(rel.memo, memo ?? '');
+		} else {
+			rel.memo = memo.content || memo.materialized ? memo : undefined;
+		}
 		def.updatedAt = Date.now();
 		for (const fn of this.onMutateListeners) fn();
 		return true;

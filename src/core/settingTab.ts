@@ -54,7 +54,7 @@ export class QualiaSettingTab extends PluginSettingTab {
 		// ── Memo materialization ──────────────────────────────
 		containerEl.createEl('h2', { text: 'Memo materialization' });
 		containerEl.createEl('p', {
-			text: 'Folders where memos materialize as .md notes. Code, Group, and Marker memos are active. Relation is reserved for future extension.',
+			text: 'Folders where memos materialize as .md notes. All four types active: Code, Group, Marker, and Relation (code-level + application-level).',
 			cls: 'setting-item-description',
 		});
 
@@ -90,11 +90,13 @@ export class QualiaSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Relation memo folder')
-			.setDesc('Reserved — not wired up yet.')
-			.addText(t => {
-				t.setValue(generalSettings.memoFolders.relation);
-				t.inputEl.disabled = true;
-			});
+			.setDesc('Path inside vault where relation memos save when materialized (code-level and application-level).')
+			.addText(t => t
+				.setValue(generalSettings.memoFolders.relation)
+				.onChange((v) => {
+					generalSettings.memoFolders.relation = v.trim();
+					save();
+				}));
 
 		// ── Markdown ────────────────────────────────────────────
 		containerEl.createEl('h2', { text: 'Markdown' });

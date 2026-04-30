@@ -8,6 +8,15 @@ function readMemo(plugin: QualiaCodingPlugin, ref: EntityRef): MemoRecord | unde
 	if (ref.type === 'code') return plugin.sharedRegistry.getById(ref.id)?.memo;
 	if (ref.type === 'group') return plugin.sharedRegistry.getGroup(ref.id)?.memo;
 	if (ref.type === 'marker') return plugin.dataManager.findMarker(ref.engineType, ref.id)?.memo;
+	if (ref.type === 'relation-code') {
+		const def = plugin.sharedRegistry.getById(ref.codeId);
+		return def?.relations?.find(r => r.label === ref.label && r.target === ref.target)?.memo;
+	}
+	if (ref.type === 'relation-app') {
+		const marker = plugin.dataManager.findMarker(ref.engineType, ref.markerId);
+		const ca = marker?.codes.find(c => c.codeId === ref.codeId);
+		return ca?.relations?.find(r => r.label === ref.label && r.target === ref.target)?.memo;
+	}
 	return undefined;
 }
 
@@ -19,6 +28,30 @@ function writeMemo(plugin: QualiaCodingPlugin, ref: EntityRef, memo: MemoRecord)
 	}
 	if (ref.type === 'group') {
 		plugin.sharedRegistry.setGroupMemo(ref.id, memo);
+		return;
+	}
+	if (ref.type === 'relation-code') {
+		plugin.sharedRegistry.setRelationMemo(ref.codeId, ref.label, ref.target, memo);
+		return;
+	}
+	if (ref.type === 'relation-app') {
+		const marker = plugin.dataManager.findMarker(ref.engineType, ref.markerId);
+		if (!marker) return;
+		const ca = marker.codes.find(c => c.codeId === ref.codeId);
+		const rel = ca?.relations?.find(r => r.label === ref.label && r.target === ref.target);
+		if (!rel) return;
+		rel.memo = memo.content || memo.materialized ? memo : undefined;
+		marker.updatedAt = Date.now();
+		plugin.dataManager.markDirty();
+		switch (ref.engineType) {
+			case 'markdown': plugin.markdownModel?.notifyChange(); break;
+			case 'pdf': plugin.pdfModel?.notify(); break;
+			case 'image': plugin.imageModel?.notify(); break;
+			case 'csv': plugin.csvModel?.notify(); break;
+			case 'audio': plugin.audioModel?.notify(); break;
+			case 'video': plugin.videoModel?.notify(); break;
+		}
+		document.dispatchEvent(new Event('qualia:registry-changed'));
 		return;
 	}
 	if (ref.type === 'marker') {
@@ -80,13 +113,24 @@ export function registerMemoListeners(plugin: QualiaCodingPlugin): void {
 
 /**
  * Reconstrói o reverse-lookup map varrendo registry. Chamado no onload depois da migration legacy.
- * Phase 1+2: codes + groups + markers (6 collections).
+ * Phase 1+2 completa: codes + groups + markers (6 collections) + relations (code-level + app-level).
  */
 export function rebuildMemoReverseLookup(plugin: QualiaCodingPlugin): void {
 	plugin.memoReverseLookup.clear();
 	for (const def of plugin.sharedRegistry.getAll()) {
 		if (def.memo?.materialized) {
 			plugin.memoReverseLookup.set(def.memo.materialized.path, { type: 'code', id: def.id });
+		}
+		// Code-level relations
+		for (const rel of def.relations ?? []) {
+			if (rel.memo?.materialized) {
+				plugin.memoReverseLookup.set(rel.memo.materialized.path, {
+					type: 'relation-code',
+					codeId: def.id,
+					label: rel.label,
+					target: rel.target,
+				});
+			}
 		}
 	}
 	for (const g of plugin.sharedRegistry.getAllGroups()) {
@@ -97,9 +141,24 @@ export function rebuildMemoReverseLookup(plugin: QualiaCodingPlugin): void {
 
 	// Markers — varrer 6 collections; cada marker com materialized vira entry
 	const dm = plugin.dataManager;
-	const addMarker = (engineType: 'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video', m: { id: string; memo?: MemoRecord }) => {
+	const addMarker = (engineType: 'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video', m: { id: string; memo?: MemoRecord; codes: { codeId: string; relations?: { label: string; target: string; memo?: MemoRecord }[] }[] }) => {
 		if (m.memo?.materialized) {
 			plugin.memoReverseLookup.set(m.memo.materialized.path, { type: 'marker', engineType, id: m.id });
+		}
+		// App-level relations
+		for (const ca of m.codes ?? []) {
+			for (const rel of ca.relations ?? []) {
+				if (rel.memo?.materialized) {
+					plugin.memoReverseLookup.set(rel.memo.materialized.path, {
+						type: 'relation-app',
+						engineType,
+						markerId: m.id,
+						codeId: ca.codeId,
+						label: rel.label,
+						target: rel.target,
+					});
+				}
+			}
 		}
 	};
 	for (const fileMarkers of Object.values(dm.section('markdown').markers)) {
