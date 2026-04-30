@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-04-28.
+> Última atualização: 2026-04-30.
 
 ---
 
@@ -26,7 +26,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 - **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability)** — gap estratégico, complexidade alta no contexto single-user
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
 - ~~**Research Board Enhancements**~~ — ✅ todos 6 sub-items resolvidos (4 feitos + 2 won't-do)
-- **Tabular round-trip (import)** — reimportar zip de CSVs. Viabilidade incerta (text anchors podem não casar se arquivo fonte mudou)
+- ~~**Tabular round-trip (import)**~~ — fechado 2026-04-30, ver "Decisões fechadas sem implementar"
 - **[Convert memo to note](#analytical-memos)** — materializar memo como arquivo markdown. Sub-item residual de "Analytical Memos" (grosso da feature já feito em #25 + Analytic Memo View)
 
 ---
@@ -322,6 +322,7 @@ Items que foram considerados, discutidos e **conscientemente dispensados**. Raz�
 - **Full export do projeto (Parquet/JSON)** (fechado 2026-04-29) — coberto pela combinação atual: Tabular CSV zip pra análise externa (R/Python/BI) + REFI-QDA (QDPX) pra interop com Atlas.ti/NVivo/MAXQDA + `data.json` pra backup/restore. Não há caso de uso identificado que ficou fora dessa combinação. Reabrir só se aparecer demanda concreta.
 - **Board export PDF** (fechado 2026-04-24, ver #20) — SVG nativo do Fabric cobre o caso vetorial melhor sem adicionar dependência externa de PDF lib (~100KB+).
 - **Board templates pré-definidos** (2x2 matrix, timeline, affinity diagram) (fechado 2026-04-29) — board é canvas livre; user recria qualquer layout em <1min com sticky notes. Inflexibilidade do template > economia de tempo. Manter biblioteca de templates é overhead. Não há demanda concreta de pesquisador real (ideia de catálogo, não uso). Reabrir só se aparecer pedido específico.
+- **Tabular round-trip (import)** (fechado 2026-04-30) — reimportar zip de CSVs do tabular export. Registrado como decisão aberta junto com a spec do export (2026-04-22) e listado nos "Não-objetivos" da spec original (export-only foi decisão deliberada, não esquecimento). Os 3 use cases hipotéticos (Excel bulk edit / colaboração CSV / merge de codings externos) cada um redefine o shape do import — atacar antes de uma decisão pai cravar = trabalho especulativo. Excel bulk edit já coberto pelo Codebook UI (rename/recolor/move/group em bulk). Colaboração entre vaults coberta por QDPX (schema com sources embutidas, round-trip integrity validada). Merge de codings externos amarra na decisão de **LLM-assisted coding** (que define o shape de "trazer applications novos sobre segments existentes") e potencialmente em **Intercoder Reliability** (que define se o shape é merge incremental ou import paralelo como snapshot). Tabular zip foi feito explicitamente como ramo de **análise externa** (R/Python/BI), não interop interno — não há fluxo claro de "o que volta de R pro plugin". Reabrir só quando LLM-assisted coding ou Intercoder Reliability decidirem entrar e o shape do import ficar definido por eles.
 
 ---
 
