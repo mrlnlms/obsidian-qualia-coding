@@ -51,6 +51,47 @@ export class QualiaSettingTab extends PluginSettingTab {
 					save();
 				}));
 
+		// ── Memo materialization ──────────────────────────────
+		containerEl.createEl('h2', { text: 'Memo materialization' });
+		containerEl.createEl('p', {
+			text: 'Folders where memos materialize as .md notes. Phase 1: only Code memos are wired up. Other types (Group, Marker, Relation) are reserved for future extension.',
+			cls: 'setting-item-description',
+		});
+
+		new Setting(containerEl)
+			.setName('Code memo folder')
+			.setDesc('Path inside vault where code memos save when materialized.')
+			.addText(t => t
+				.setValue(generalSettings.memoFolders.code)
+				.onChange((v) => {
+					generalSettings.memoFolders.code = v.trim();
+					save();
+				}));
+
+		new Setting(containerEl)
+			.setName('Group memo folder')
+			.setDesc('Reserved — not wired up in Phase 1.')
+			.addText(t => {
+				t.setValue(generalSettings.memoFolders.group);
+				t.inputEl.disabled = true;
+			});
+
+		new Setting(containerEl)
+			.setName('Marker memo folder')
+			.setDesc('Reserved — not wired up in Phase 1.')
+			.addText(t => {
+				t.setValue(generalSettings.memoFolders.marker);
+				t.inputEl.disabled = true;
+			});
+
+		new Setting(containerEl)
+			.setName('Relation memo folder')
+			.setDesc('Reserved — not wired up in Phase 1.')
+			.addText(t => {
+				t.setValue(generalSettings.memoFolders.relation);
+				t.inputEl.disabled = true;
+			});
+
 		// ── Markdown ────────────────────────────────────────────
 		containerEl.createEl('h2', { text: 'Markdown' });
 

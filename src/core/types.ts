@@ -134,10 +134,18 @@ export interface EngineRegistration<M = unknown> {
 	model: M;
 }
 
+export interface MemoFolders {
+	code: string;
+	group: string;
+	marker: string;
+	relation: string;
+}
+
 export interface GeneralSettings {
 	showMagnitudeInPopover: boolean;
 	showRelationsInPopover: boolean;
 	openToggleInNewTab: boolean;
+	memoFolders: MemoFolders;
 }
 
 export interface QualiaData {
@@ -226,7 +234,17 @@ export type AuditEntry =
 export function createDefaultData(): QualiaData {
 	return {
 		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0 },
-		general: { showMagnitudeInPopover: true, showRelationsInPopover: true, openToggleInNewTab: false },
+		general: {
+			showMagnitudeInPopover: true,
+			showRelationsInPopover: true,
+			openToggleInNewTab: false,
+			memoFolders: {
+				code: 'Analytic Memos/Codes',
+				group: 'Analytic Memos/Groups',
+				marker: 'Analytic Memos/Markers',
+				relation: 'Analytic Memos/Relations',
+			},
+		},
 		markdown: { markers: {}, settings: {
 			defaultColor: '#6200EE',
 			markerOpacity: 0.4,
