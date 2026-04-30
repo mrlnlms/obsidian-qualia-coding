@@ -1892,6 +1892,32 @@ Templater faz pattern análogo. Sync extensions do Logseq também.
 
 ---
 
+## 30. Field names que colidem com protótipo de `Modal`/`Component` (gotcha do Obsidian)
+
+### Sintoma
+
+Field declarado em subclasse de `Modal` é setado no constructor (log confirma valor correto), mas em `onOpen` ou método chamado depois, o mesmo `this.X` retorna outro objeto (com circular ref pra `window`/`global`, ou `undefined`). Acessar propriedades dele estoura `Cannot read properties of undefined (reading 'foo')` ou `Converting circular structure to JSON`.
+
+### Causa
+
+`Modal` extends `Component` extends algo do Obsidian que tem **getter no prototype** com o mesmo nome (no caso descoberto: `selection`, provavelmente expondo `window.getSelection()` ou similar). A atribuição direta `this.X = Y` no constructor parece sobrescrever, mas algum mecanismo restaura o getter antes do próximo método rodar.
+
+Suspeitos potenciais (qualquer um pode estar reservado por `Modal`/`Component`/`HTMLElement`): `selection`, `style`, `title`, `id`, `name`, `value`, `state`, `parent`, `children`, `app`, `scope`. Várias dessas Modal já usa internamente (`containerEl`, `modalEl`, `contentEl`, `titleEl`).
+
+### Fix
+
+Renomear o field pra um identificador específico do domínio. Caso real: `selection` → `batchOptions`. Bug some na hora — sem hack, sem `Object.defineProperty`, só nome diferente.
+
+### Como detectar
+
+Pôr `console.log` do field no FIM do constructor + INÍCIO do onOpen. Se o segundo log mostrar objeto diferente do primeiro (ou circular ref via window), é colisão de protótipo. Não perca tempo investigando esbuild/minify/class fields — vai pelo nome.
+
+### Onde está documentado
+
+`src/core/materializeAllMemosModal.ts` — comentário no header da classe explica.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

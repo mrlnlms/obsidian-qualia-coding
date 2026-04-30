@@ -247,29 +247,22 @@ Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de
 
 **Phase 2 fechada — 4/4 tipos materializam memo (Code, Group, Marker, Relation).**
 
-#### Phase 3 — "Materialize all memos" (em backlog, 2026-04-30)
+#### Phase 3 — "Materialize all memos" — ✅ FEITO 2026-04-30
 
-**Ideia:** ação batch que materializa **todos** os memos não-materializados do plugin numa tacada. Reusa 100% do plumbing de Phase 2 — itera registry/markers/relations, filtra os com `memo.content` mas sem `materialized`, loop chamando `convertMemoToNote(plugin, ref)`.
+Command palette: **"Materialize all memos"**. Modal com:
+- Toggles por tipo (5 kinds: Code, Group, Marker, Relation code-level, Relation segment-level — todos on por default).
+- Toggle "Include empty memos" (default off).
+- Toggle "Overwrite existing notes" (default off, com banner ⚠ quando ligado).
+- Preview live com 4 buckets: a criar, a sobrescrever, já materializadas, vazias puladas.
+- Botão dinâmico ("Materialize 5", "Overwrite 12", disabled quando 0).
+- Estado **progress** in-modal (status do item atual + barra + counter X/Y).
+- Estado **resultados** in-modal (✓ created · ↻ overwritten · ✗ failed com details expansíveis).
 
-**Por que importa estrategicamente:**
-- **Onboarding-killer**: pesquisador importa REFI-QDA do Atlas.ti com 200 memos → 1 click → 200 notas no graph view do Obsidian. "Wow moment" pra demo.
-- **Power user**: termina de codificar projeto, materializa tudo, escreve análise no Obsidian com backlinks ativos.
-- Diferencial de marketing: nenhum concorrente faz isso porque nenhum tem graph view nativo.
+Implementação: `src/core/memoBatchMaterializer.ts` (`collectAllMemoRefs` + `categorize` + `materializeBatch` com `onProgress`) + `src/core/materializeAllMemosModal.ts` (3 estados de UI). `convertMemoToNote` ganhou `{ openInTab?: boolean }` pra batch não abrir N abas. `refreshMemoNote` novo pra overwrite (vault.modify do .md existente).
 
-**Decisões abertas:**
-1. **Escopo**: 4 tipos com checkboxes (granular), ou botão simples "todos"? Recomendado: simples agora, granular se aparecer pedido.
-2. **Surface**: Settings tab + Command palette? (Recomendado ambos — Settings descobre pra novato, palette pra power user.)
-3. **Memos vazios**: pular (não polui vault com .md em branco). Idempotente — pré-existentes materializados são pulados silenciosamente.
-4. **UX**: progress modal durante (200 memos = 200 `vault.create`s sequenciais, pode levar ~5-10s) + Notice final ("Materialized 47 memos · 12 already had notes").
-5. **Atomicidade**: se falhar no item N, parar e mostrar Notice com lista do que conseguiu? Ou continuar e reportar erros no fim? (Recomendado: continuar, reporta no fim — falhas individuais não devem bloquear o resto.)
+**Esforço real:** ~2h. **Bug caça-bruxa:** field name `selection` na classe colidia com algo do protótipo de `Modal`/`Component` do Obsidian — atribuição no constructor era sobrescrita antes do `onOpen`. Renomeado pra `batchOptions`. Pattern documentado em TECHNICAL-PATTERNS §32.
 
-**Estimativa:** ~2h. Building blocks prontos.
-
-**Quando atacar:** sessão dedicada. Pode ser combinado com submissão à Community Plugins (Phase 3 + onboarding docs).
-
-~~**O que sobrou em aberto:** "Convert memo to note"~~ — Phase 1 entregue 2026-04-30 pra Code memos. Phase 2 (Group/Marker/Relation) em andamento, ver detalhes acima.
-
-**Origem da demanda:** pesquisa com usuário sintético (não real). Trata como hipótese a testar, não feature blockbuster.
+**Origem:** pesquisa com usuário sintético. Validar em demo pra ver se vira "wow moment" real.
 
 #### Design já discutido (2026-04-29) — para retomar sem re-pensar
 

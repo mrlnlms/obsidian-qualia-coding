@@ -500,7 +500,7 @@ Fluxo mínimo pra validar após mudanças nessa área:
 
 ---
 
-## 5e. Convert memo to note — Phase 1 + Phase 2 completa (#33–#36)
+## 5e. Convert memo to note — Phase 1 + 2 + 3 completa (#33–#37)
 
 ### Settings (seção "Memo materialization")
 
@@ -560,6 +560,28 @@ Relation rows (em Code Detail e Marker focused detail) ficaram clickable: cursor
 - **API genérica via `EntityRef`:** desde Phase 2, `convertMemo(ref)` / `unmaterializeMemo(ref)` aceitam qualquer tipo. Pra adicionar Marker ou Relation, estender helpers `resolveEntity` / `resolveFolder` / `readMemoRecord` / `writeMemo` em `memoMaterializer.ts` (~5 linhas cada, 1 case novo no switch) + wirear UI da entidade. Sem refactor do core necessário.
 - **Smart open:** `openMaterializedFile` em `main.ts` procura leaf existente via `iterateAllLeaves` antes de criar nova aba. Pattern reusável pra qualquer "abrir arquivo que pode já estar aberto" (offer to use this pattern em outros lugares se aparecer).
 - **Marker notification quirk:** code/group passam por `registry.update`/`setGroupMemo` que disparam `onMutateListeners` → `qualia:registry-changed` global automatic. Marker muta direto via `dataManager.findMarker`, não passa pelo registry → `writeMemo`/`syncFromFile` pra marker dispara `dispatchEvent('qualia:registry-changed')` explícito. Sem esse emit, `BaseCodeDetailView` não refresh e card não aparece (bug pego em smoke 2026-04-30).
+
+### Phase 3 — "Materialize all memos" batch (#37, 2026-04-30)
+
+Command palette: **`Materialize all memos`**. Modal com 3 estados:
+
+**Form:**
+- 5 toggles por kind (Codes / Groups / Markers (segments) / Relations code-level / Relations segment-level), todos on por default.
+- Toggle `Include empty memos` (off): cria `.md` mesmo pra memos sem content (scaffolding).
+- Toggle `Overwrite existing notes` (off): re-escreve `.md` já materializados com o memo atual do `data.json`. Banner ⚠ aparece quando ligado.
+- **Preview live** com 4 contadores (`X notes will be created`, `Y notes will be overwritten`, `Z already materialized`, `W empty (skipped)`). Botão muda label dinâmico (`Materialize 5`, `Overwrite 12`, disabled se 0).
+
+**Progress:**
+- Status do item atual + barra + counter X/Y. Modal não fecha.
+
+**Resultados:**
+- ✓ created · ↻ overwritten · • already materialized · • empty · ✗ failed (com `<details>` expansível listando erros).
+
+**Implementação:** `src/core/memoBatchMaterializer.ts` (`collectAllMemoRefs` itera registry/markers/relations, `categorize` separa em 4 buckets, `materializeBatch` com `onProgress`) + `src/core/materializeAllMemosModal.ts` (modal). `convertMemoToNote(plugin, ref, { openInTab: false })` no batch evita abrir N abas. `refreshMemoNote(plugin, ref)` (novo) faz `vault.modify` do `.md` existente pra overwrite.
+
+**Erros individuais não param o batch** — capturados por try/catch em `materializeBatch`, reportados na UI de results.
+
+**Bug caça-bruxa pago:** field `selection` na classe colidia com algo do protótipo de `Modal`/`Component` do Obsidian (atribuição no constructor era sobrescrita antes do `onOpen`). Renomeado pra `batchOptions`. Pattern documentado em `TECHNICAL-PATTERNS.md §30`.
 
 ---
 

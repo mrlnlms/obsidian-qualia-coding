@@ -35,6 +35,7 @@ import { setupMediaToggleButton } from './core/mediaToggleButton';
 import { visibilityEventBus } from './core/visibilityEventBus';
 import { registerMemoListeners, rebuildMemoReverseLookup } from './core/memoMaterializerListeners';
 import { convertMemoToNote, unmaterialize as unmaterializeMemo } from './core/memoMaterializer';
+import { MaterializeAllMemosModal } from './core/materializeAllMemosModal';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -370,6 +371,14 @@ export default class QualiaCodingPlugin extends Plugin {
 			new UnifiedCodeDetailView(leaf, unifiedModel, mdModel, auditAccess, memoAccess));
 		this.registerView(CASE_VARIABLES_VIEW_TYPE, (leaf) =>
 			new CaseVariablesView(leaf, this));
+
+		this.addCommand({
+			id: 'materialize-all-memos',
+			name: 'Materialize all memos',
+			callback: () => {
+				new MaterializeAllMemosModal(this).open();
+			},
+		});
 
 		this.addCommand({
 			id: 'open-case-variables-panel',

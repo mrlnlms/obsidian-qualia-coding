@@ -1,4 +1,4 @@
-import type { TFile } from 'obsidian';
+import { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EntityRef, MaterializedRef, MemoRecord } from './memoTypes';
 import { entityRefToString } from './memoTypes';
@@ -159,11 +159,19 @@ function notifyMarkerOwner(plugin: QualiaCodingPlugin, engineType: 'markdown' | 
 	}
 }
 
+export interface ConvertMemoOptions {
+	openInTab?: boolean;
+}
+
 /**
- * Cria .md materializado pra entity, popula `materialized` no data.json, abre em nova aba.
- * Phase 1+2: code, group.
+ * Cria .md materializado pra entity, popula `materialized` no data.json. Default abre em
+ * nova aba; batch mode passa `openInTab: false` pra evitar abrir N abas.
  */
-export async function convertMemoToNote(plugin: QualiaCodingPlugin, ref: EntityRef): Promise<TFile> {
+export async function convertMemoToNote(
+	plugin: QualiaCodingPlugin,
+	ref: EntityRef,
+	opts: ConvertMemoOptions = {},
+): Promise<TFile> {
 	const { name, content } = resolveEntity(plugin, ref);
 	const folder = resolveFolder(plugin, ref);
 	const filename = sanitizeFilename(name) + '.md';
@@ -186,7 +194,40 @@ export async function convertMemoToNote(plugin: QualiaCodingPlugin, ref: EntityR
 
 	plugin.memoReverseLookup.set(finalPath, ref);
 
-	plugin.app.workspace.getLeaf('tab').openFile(file);
+	if (opts.openInTab !== false) {
+		plugin.app.workspace.getLeaf('tab').openFile(file);
+	}
+
+	return file;
+}
+
+/**
+ * Reescreve o .md já materializado com o conteúdo atual do data.json (sobrescrita).
+ * Caller deve garantir que `ref` já tem `materialized` setado.
+ * Se o .md sumiu do vault, cai pra convertMemoToNote (cria novo).
+ */
+export async function refreshMemoNote(plugin: QualiaCodingPlugin, ref: EntityRef): Promise<TFile> {
+	const memo = readMemoRecord(plugin, ref);
+	if (!memo?.materialized) {
+		return convertMemoToNote(plugin, ref, { openInTab: false });
+	}
+
+	const file = plugin.app.vault.getAbstractFileByPath(memo.materialized.path);
+	if (!(file instanceof TFile)) {
+		// Arquivo sumiu — drop materialized e cria novo
+		plugin.memoReverseLookup.delete(memo.materialized.path);
+		writeMemo(plugin, ref, memo.content);
+		return convertMemoToNote(plugin, ref, { openInTab: false });
+	}
+
+	const { name, content } = resolveEntity(plugin, ref);
+	const text = serializeMemoNote(ref, name, content);
+
+	plugin.memoSelfWriting.add(file.path);
+	await plugin.app.vault.modify(file, text);
+	queueMicrotask(() => plugin.memoSelfWriting.delete(file.path));
+
+	writeMemo(plugin, ref, content, { path: file.path, mtime: file.stat.mtime });
 
 	return file;
 }
