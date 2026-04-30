@@ -1151,9 +1151,9 @@ Mode `memo-view` no Analytics que agrega memos das 4 entidades em uma view de le
 - Markdown: `buildMemoMarkdown(result, opts)` puro + wrapper que cria nota em `Analytic Memos/YYYY-MM-DD.md` e abre em nova leaf. Hierarquia indentada via H2→H6 (cap em H6 pra depth ≥ 5). Wikilinks pra files. Excerpt em blockquote.
 - `ModeEntry.exportMarkdown?` opcional adicionado ao registry — botão "Export Markdown" no toolbar do Analytics aparece SÓ quando mode tem `exportMarkdown` definido (declarativo, sem switch hardcoded).
 
-### 14.8 Convert memo to note (#33 Phase 1: Code + #34 Phase 2: Group + #35 Phase 2: Marker — 2026-04-30)
+### 14.8 Convert memo to note — Phase 1 + Phase 2 completa (#33–#36, 2026-04-30)
 
-Schema breaking — `memo?: string` virou `memo?: MemoRecord = { content: string; materialized?: { path, mtime } }` em CodeDefinition + GroupDefinition + BaseMarker + CodeRelation. Materialização de memo como `.md` no vault, com sync bidirecional via vault listeners. **3 dos 4 tipos wirados: Code + Group + Marker.** Relation reservado (mesmo schema, decisão UX pendente — ver ROADMAP).
+Schema breaking — `memo?: string` virou `memo?: MemoRecord = { content: string; materialized?: { path, mtime } }` em CodeDefinition + GroupDefinition + BaseMarker + CodeRelation. Materialização de memo como `.md` no vault, com sync bidirecional via vault listeners. **4/4 tipos wirados: Code, Group, Marker, Relation (code-level + app-level).**
 
 **Decisão fundadora:** schema breaking (não aditivo) porque memo é uma coisa só conceitualmente. Aditivo (`memo` + `memoFile?` paralelos) inventaria sincronização desnecessária e fonte de bug. Plugin sem usuários (CLAUDE.md) autoriza breaking; ~30 pontos de toque mecânico via accessors.
 
@@ -1197,18 +1197,20 @@ qualiaCodeName: Wellbeing
 - `memoNoteFormat.ts` — parseMemoNote / serializeMemoNote (frontmatter + body)
 - `memoPathResolver.ts` — sanitizeFilename + resolveConflictPath (sufixo `(2)/(3)`)
 - `memoMigration.ts` — migra `memo: string` legacy → MemoRecord no DataManager.load (idempotente)
-- `memoMaterializer.ts` — convertMemoToNote / unmaterialize / syncFromFile + helpers genéricos `resolveEntity` / `resolveFolder` / `readMemoRecord` / `writeMemo` (switch por `ref.type`). Phase 1+2: code, group, marker.
-- `memoMarkerNaming.ts` (Phase 2 Marker) — `buildMarkerFilename(plugin, ref)` com estratégia híbrida por engine: texto = `<file>-<excerpt-4-palavras>`; pdf-shape/image = `<file>-<shape>-<id-curto>`; audio/video = `<file>-<timecode>`. Funções puras testáveis isoladas.
+- `memoMaterializer.ts` — convertMemoToNote / unmaterialize / syncFromFile + helpers genéricos `resolveEntity` / `resolveFolder` / `readMemoRecord` / `writeMemo` (switch por `ref.type`). Phase 1+2 completa: code, group, marker, relation-code, relation-app.
+- `memoMarkerNaming.ts` (Phase 2 Marker) — `buildMarkerFilename(plugin, ref)` com estratégia híbrida por engine: texto = `<file>-<excerpt-4-palavras>` (threshold ≥3 palavras); pdf-shape/image = `<file>-<shape>-<id-curto>`; audio/video = `<file>-<timecode>`. Funções puras testáveis isoladas.
+- `detailRelationRenderer.ts` (Phase 2 Relation) — Relation Detail view (code-level + app-level com banner contextual). Header com chips clicáveis source/target, Direction, Memo (textarea/card), Evidence list (só code-level), Delete. `RelationContext` discriminated union define o kind. Caller (`baseCodeDetailView`) injeta `onSaveMemo(ref, content)` callback pra rotear write pelo registry/dataManager.
 - `memoMaterializerListeners.ts` — registerMemoListeners + rebuildMemoReverseLookup
 
-**UI:** render condicional em 3 surfaces:
+**UI:** render condicional em 4 surfaces:
 - **Code Detail** (`detailCodeRenderer.renderCodeMemo`) — quando `memo.materialized` existe, textarea some e vira card `📄 Materialized at <path>` com botões Open / Unmaterialize. Botão "Convert to note" no header da seção quando ainda inline.
 - **Group panel** (`codeGroupsPanel.ts`, quando group selected) — block do memo ganha botão "Convert to note" ao lado do texto (`codebook-groups-memo-wrap` flex layout). Quando materializado, block vira card compacto (`codebook-groups-memo-card` variant).
 - **Marker focused detail** (`detailMarkerRenderer.renderMemoSection`) — mesmo pattern do Code Detail. Popovers de coding (image/media/pdf/markdown) e Memo View card ficam intocados — Convert é decisão analítica, popover é coding rápido. User materializa via marker detail (1 click do source chip do memoView).
+- **Relation Detail** (`detailRelationRenderer.renderRelationMemo`) — view nova drill-down. Acessível via click em row de relation no Code Detail (code-level) ou Marker focused detail (app-level). Banner contextual distingue os 2 kinds. Memo no centro com Convert/card. Evidence list (só code-level) cruza markers que aplicam.
 
 `memoAccess?: MemoMaterializerAccess` é opcional, injetado pelo plugin via `BaseCodeDetailView` constructor + propagado pra `ListRendererCallbacks` → `CodeGroupsPanelCallbacks`. Degrada gracioso quando não injetado.
 
-**API genérica via `EntityRef`:** `MemoMaterializerAccess.convertMemo(ref)` / `unmaterializeMemo(ref)` aceitam qualquer tipo; switch interno em `memoMaterializer.ts` resolve. Adicionar novo tipo (Relation) = ~5 linhas por helper (`resolveEntity`, `resolveFolder`, `readMemoRecord`, `writeMemo`).
+**API genérica via `EntityRef`:** `MemoMaterializerAccess.convertMemo(ref)` / `unmaterializeMemo(ref)` aceitam qualquer tipo (5-way union); switch interno em `memoMaterializer.ts` resolve. EntityRef cobre `code`, `group`, `marker`, `relation-code`, `relation-app` — todos wirados.
 
 **Quirk de notification — code/group vs marker:** code e group passam por `registry.update` / `setGroupMemo` que disparam `onMutateListeners` → main.ts dispatch `qualia:registry-changed`. Marker muta direto via `dataManager.findMarker` (não passa pelo registry), então `writeMemo`/`syncFromFile` pra marker dispara `dispatchEvent('qualia:registry-changed')` explícito. Sem esse emit, BaseCodeDetailView não refresh e o card materializado não aparece.
 

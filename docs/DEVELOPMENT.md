@@ -500,7 +500,7 @@ Fluxo mínimo pra validar após mudanças nessa área:
 
 ---
 
-## 5e. Convert memo to note (#33 Code + #34 Group + #35 Marker)
+## 5e. Convert memo to note — Phase 1 + Phase 2 completa (#33–#36)
 
 ### Settings (seção "Memo materialization")
 
@@ -511,9 +511,9 @@ Bloco no Settings tab com 4 paths, um por tipo de entidade. Persiste em `general
 | `Code memo folder` | `Analytic Memos/Codes` | ✅ Phase 1 |
 | `Group memo folder` | `Analytic Memos/Groups` | ✅ Phase 2 |
 | `Marker memo folder` | `Analytic Memos/Markers` | ✅ Phase 2 |
-| `Relation memo folder` | `Analytic Memos/Relations` | ❌ (disabled, reservado) |
+| `Relation memo folder` | `Analytic Memos/Relations` | ✅ Phase 2 |
 
-Os 4 nascem juntos. Ativar Relation = trocar o `t.inputEl.disabled = true` por handler `.onChange()` + estender helpers `resolveEntity`/`resolveFolder`/`readMemoRecord`/`writeMemo` em `memoMaterializer.ts` + decidir UX (PromptModal não comporta botão Convert; ver ROADMAP §"Convert memo to note Phase 2 — Relation").
+**4/4 tipos materializam memo** (incluindo relation code-level e app-level). EntityRef é 5-way union (`code`, `group`, `marker`, `relation-code`, `relation-app`).
 
 ### Fluxo manual de teste
 
@@ -534,11 +534,21 @@ Os 4 nascem juntos. Ativar Relation = trocar o `t.inputEl.disabled = true` por h
 **Group memo (Phase 2):** mesmo fluxo, mas via `codeGroupsPanel`. Click chip de um group → quando há memo, ver botão "Convert to note" ao lado do texto. Quando materializado, block do memo vira card compacto. Filename = `<groupName>.md` em `Analytic Memos/Groups/`. Open button reusa leaf existente se arquivo já aberto (smart open — Phase 2). Aplicado a Code também.
 
 **Marker memo (Phase 2):** via Marker focused detail (Code Detail → Segments → click num segmento). Botão "Convert to note" no header da seção Memo. Quando materializado, vira card. **Path naming híbrido por engine** em `memoMarkerNaming.ts`:
-- markdown / csv / pdf-text: `<filename>-<excerpt-4-palavras>` (ex: `interview-no-comeco-do-projeto.md`)
+- markdown / csv / pdf-text: `<filename>-<excerpt-4-palavras>` (threshold ≥3 palavras)
 - pdf-shape / image: `<file>-<shape>-<id-curto>` (ex: `paper-rect-m_5xy.md`)
 - audio / video: `<file>-<timecode>` (ex: `entrevista-00m32s-01m15s.md`)
 
 Popovers de coding (image/media/pdf/markdown) e Memo View card **não** têm botão Convert — popover é coding rápido, memoView é compacto. Materializar é decisão analítica, surface dedicada (marker focused detail).
+
+**Relation memo (Phase 2):** via **Relation Detail view** nova (drill-down). Surface única pros 2 tipos:
+- **Code-level**: Code Detail → seção Relations → click numa row → Relation Detail. Banner: "Defined in codebook · applied in N markers" + Evidence list (clicável → marker detail).
+- **App-level**: Marker focused detail → seção Relations → click numa row → Relation Detail. Banner: "From segment in `<file>` · code-level: [link]" pra cross-nav.
+
+Path naming:
+- code-level: `<source>-<label>-<target>.md` (ex: `Wellbeing-causa-Frustration.md`)
+- app-level: `<file>-<source>-<label>-<target>-<id-curto>.md` (id distingue múltiplas instâncias da mesma tupla)
+
+Relation rows (em Code Detail e Marker focused detail) ficaram clickable: cursor pointer + hover, badge de memo (✏ inline / 📄 materializado) substitui o ✎ button antigo. Click no chip do target → navega pro code (com `stopPropagation`); click no resto da row → Relation Detail; click no X → delete.
 
 ### Armadilhas
 

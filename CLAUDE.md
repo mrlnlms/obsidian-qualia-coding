@@ -76,9 +76,10 @@ src/
     memoNoteFormat.ts        — parse/serialize de memo notes (frontmatter `qualiaMemoOf` + body)
     memoPathResolver.ts      — sanitizeFilename + resolveConflictPath (sufixo `(2)/(3)`)
     memoMigration.ts         — migra `memo: string` legacy → MemoRecord no DataManager.load (idempotente)
-    memoMaterializer.ts      — convertMemoToNote / unmaterialize / syncFromFile (Phase 1+2: Code, Group, Marker)
+    memoMaterializer.ts      — convertMemoToNote / unmaterialize / syncFromFile (Phase 1+2 completa: Code, Group, Marker, Relation code-level + app-level)
     memoMaterializerListeners.ts — vault.on(modify/rename/delete) + reverse-lookup Map + self-write Set
     memoMarkerNaming.ts      — buildMarkerFilename híbrido por engine (excerpt / shape / timecode)
+    detailRelationRenderer.ts — Relation Detail view (Phase 2 Relation): header com chips clickable + banner contextual code/app + Memo + Evidence list (só code-level) + Delete
     ...                      — DataManager, CodeDefinitionRegistry, settings, types
   markdown/                  — CodeMirror 6 engine para markdown
     cm6/
