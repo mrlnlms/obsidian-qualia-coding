@@ -1,6 +1,7 @@
 import type { Plugin } from 'obsidian';
 import type { QualiaData, BaseMarker, MarkerType } from './types';
 import { createDefaultData } from './types';
+import { migrateLegacyMemos, migrateMarkerMemo } from './memoMigration';
 
 export class DataManager {
 	private data: QualiaData;
@@ -29,8 +30,29 @@ export class DataManager {
 			raw.pdf.settings = deepMerge(defaults.pdf.settings, raw.pdf.settings);
 			raw.general = deepMerge(defaults.general, raw.general);
 			this.data = raw as QualiaData;
+			// Migrate legacy `memo: string` → MemoRecord (registry + groups + relations)
+			migrateLegacyMemos(this.data);
+			// Migrate marker memos across all engines
+			this.migrateMarkerMemos();
 		} else {
 			this.data = defaults;
+		}
+	}
+
+	private migrateMarkerMemos(): void {
+		for (const fileMarkers of Object.values(this.data.markdown.markers ?? {})) {
+			for (const m of fileMarkers) migrateMarkerMemo(m);
+		}
+		for (const m of this.data.pdf.markers ?? []) migrateMarkerMemo(m);
+		for (const s of this.data.pdf.shapes ?? []) migrateMarkerMemo(s);
+		for (const m of this.data.image.markers ?? []) migrateMarkerMemo(m);
+		for (const m of this.data.csv.segmentMarkers ?? []) migrateMarkerMemo(m);
+		for (const m of this.data.csv.rowMarkers ?? []) migrateMarkerMemo(m);
+		for (const f of this.data.audio.files ?? []) {
+			for (const m of f.markers) migrateMarkerMemo(m);
+		}
+		for (const f of this.data.video.files ?? []) {
+			for (const m of f.markers) migrateMarkerMemo(m);
 		}
 	}
 
