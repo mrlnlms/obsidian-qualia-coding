@@ -1,4 +1,4 @@
-import { Plugin, FileView, TFile, type View } from 'obsidian';
+import { Plugin, FileView, TFile, type View, type WorkspaceLeaf } from 'obsidian';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
@@ -342,7 +342,22 @@ export default class QualiaCodingPlugin extends Plugin {
 			},
 			openMaterializedFile: (path: string) => {
 				const file = this.app.vault.getAbstractFileByPath(path);
-				if (file instanceof TFile) {
+				if (!(file instanceof TFile)) return;
+
+				// Smart open — se já há leaf aberto com esse arquivo, reativa em vez de criar nova aba.
+				// Evita poluir workspace com tabs duplicadas quando user clica Open múltiplas vezes.
+				let existingLeaf: WorkspaceLeaf | null = null;
+				this.app.workspace.iterateAllLeaves((leaf) => {
+					if (existingLeaf) return;
+					const view = leaf.view;
+					if (view instanceof FileView && view.file?.path === path) {
+						existingLeaf = leaf;
+					}
+				});
+
+				if (existingLeaf) {
+					this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
+				} else {
 					this.app.workspace.getLeaf('tab').openFile(file);
 				}
 			},

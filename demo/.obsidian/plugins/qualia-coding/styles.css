@@ -5368,6 +5368,29 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	opacity: 0.7;
 }
 
+/* Group memo wrap — texto + botão Convert lado a lado */
+.codebook-groups-memo-wrap {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	margin-top: 6px;
+}
+.codebook-groups-memo-wrap .codebook-groups-memo {
+	flex: 1;
+	margin-top: 0;
+}
+.codebook-groups-memo-convert-btn {
+	flex-shrink: 0;
+	margin-top: 0 !important;
+}
+
+/* Materialized card no panel de groups — variant compacta */
+.codebook-groups-memo-card {
+	margin-top: 6px;
+	padding: 8px;
+	font-size: var(--font-smaller);
+}
+
 /* ─── Memo View ──────────────────────────────────────────────── */
 .memo-view-wrapper {
 	padding: 12px;

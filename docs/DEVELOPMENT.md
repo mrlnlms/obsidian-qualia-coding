@@ -500,24 +500,26 @@ Fluxo mínimo pra validar após mudanças nessa área:
 
 ---
 
-## 5e. Convert memo to note (#33)
+## 5e. Convert memo to note (#33 Code + #34 Group)
 
 ### Settings (seção "Memo materialization")
 
 Bloco no Settings tab com 4 paths, um por tipo de entidade. Persiste em `general.memoFolders`:
 
-| Setting | Default | Phase 1 ativo? |
+| Setting | Default | Ativo? |
 |---|---|---|
-| `Code memo folder` | `Analytic Memos/Codes` | ✅ |
-| `Group memo folder` | `Analytic Memos/Groups` | ❌ (disabled, reservado) |
+| `Code memo folder` | `Analytic Memos/Codes` | ✅ Phase 1 |
+| `Group memo folder` | `Analytic Memos/Groups` | ✅ Phase 2 |
 | `Marker memo folder` | `Analytic Memos/Markers` | ❌ (disabled, reservado) |
 | `Relation memo folder` | `Analytic Memos/Relations` | ❌ (disabled, reservado) |
 
-Os 4 nascem juntos pra extensão futura (Group/Marker/Relation) não precisar tocar Settings tab — só `memoMaterializer.ts` e UI render.
+Os 4 nascem juntos. Ativar um tipo = trocar o `t.inputEl.disabled = true` por handler `.onChange()` + estender helpers `resolveEntity`/`resolveFolder`/`readMemoRecord`/`writeMemo` em `memoMaterializer.ts` + wirear UI da entidade.
 
 ### Fluxo manual de teste
 
 **Pré-requisitos:** vault com pelo menos 1 code que tenha `memo.content` populado (inline). Plugin carregado.
+
+**Code memo (Phase 1):**
 
 1. **Convert básico:** Code Detail de qualquer code com memo → click "Convert to note" no header da seção Memo → arquivo aparece em `Analytic Memos/Codes/<NomeDoCode>.md`, abre em nova aba. Voltar pro Code Detail → seção Memo virou card com path + Open + Unmaterialize.
 2. **Conflito de path:** colocar arquivo `.md` qualquer (não-Qualia) em `Analytic Memos/Codes/<NomeDoCode>.md` antes de Convert → Convert cria `<NomeDoCode> (2).md` (sufixo automático).
@@ -529,6 +531,8 @@ Os 4 nascem juntos pra extensão futura (Group/Marker/Relation) não precisar to
 8. **Frontmatter quebrado pelo user:** apagar linha `qualiaMemoOf: code:...` no `.md` → no próximo modify, listener detecta ausência e desmaterializa graciosamente (sem erro ruidoso).
 9. **Persistência através de reload:** Convert qualquer code → Cmd+P "Reload app without saving" → reabrir Code Detail → card materializado ainda lá (reverse-lookup map reconstruído no `onload`).
 
+**Group memo (Phase 2):** mesmo fluxo, mas via `codeGroupsPanel`. Click chip de um group → quando há memo, ver botão "Convert to note" ao lado do texto. Quando materializado, block do memo vira card compacto. Filename = `<groupName>.md` em `Analytic Memos/Groups/`. Open button reusa leaf existente se arquivo já aberto (smart open — Phase 2). Aplicado a Code também.
+
 ### Armadilhas
 
 - **`vault.create` precisa de folder existente:** `convertMemoToNote` chama `vault.createFolder` antes do create se o path não existe. Sem isso, `vault.create` falha em vault novo.
@@ -536,6 +540,8 @@ Os 4 nascem juntos pra extensão futura (Group/Marker/Relation) não precisar to
 - **Self-write loop:** sempre chamar `plugin.memoSelfWriting.add(path)` antes de `vault.modify/create`, e `queueMicrotask(() => delete)` depois. Sem isso, listener `modify` pega o próprio write e dispara `syncFromFile`. Pattern documentado em `TECHNICAL-PATTERNS.md §29`.
 - **`reverse-lookup` precisa rebuild no onload:** `rebuildMemoReverseLookup(this)` no `onload` varre registry e popula `Map<path, EntityRef>`. Sem isso, depois de reload o plugin não sabe quais arquivos são memos materializados.
 - **Migração legacy é idempotente:** `migrateLegacyMemos` no `DataManager.load` converte `memo: string` → `{ content }` em todas entidades. Roda toda vez que load — barato (Object.values forEach), e idempotente (se já é MemoRecord, no-op).
+- **API genérica via `EntityRef`:** desde Phase 2, `convertMemo(ref)` / `unmaterializeMemo(ref)` aceitam qualquer tipo. Pra adicionar Marker ou Relation, estender helpers `resolveEntity` / `resolveFolder` / `readMemoRecord` / `writeMemo` em `memoMaterializer.ts` (~5 linhas cada, 1 case novo no switch) + wirear UI da entidade. Sem refactor do core necessário.
+- **Smart open:** `openMaterializedFile` em `main.ts` procura leaf existente via `iterateAllLeaves` antes de criar nova aba. Pattern reusável pra qualquer "abrir arquivo que pode já estar aberto" (offer to use this pattern em outros lugares se aparecer).
 
 ---
 

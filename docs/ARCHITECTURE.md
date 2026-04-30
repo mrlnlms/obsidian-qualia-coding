@@ -1151,9 +1151,9 @@ Mode `memo-view` no Analytics que agrega memos das 4 entidades em uma view de le
 - Markdown: `buildMemoMarkdown(result, opts)` puro + wrapper que cria nota em `Analytic Memos/YYYY-MM-DD.md` e abre em nova leaf. Hierarquia indentada via H2→H6 (cap em H6 pra depth ≥ 5). Wikilinks pra files. Excerpt em blockquote.
 - `ModeEntry.exportMarkdown?` opcional adicionado ao registry — botão "Export Markdown" no toolbar do Analytics aparece SÓ quando mode tem `exportMarkdown` definido (declarativo, sem switch hardcoded).
 
-### 14.8 Convert memo to note (#33, 2026-04-30)
+### 14.8 Convert memo to note (#33 Phase 1: Code 2026-04-30 + #34 Phase 2: Group 2026-04-30)
 
-Schema breaking — `memo?: string` virou `memo?: MemoRecord = { content: string; materialized?: { path, mtime } }` em CodeDefinition + GroupDefinition + BaseMarker + CodeRelation. Materialização de memo como `.md` no vault, com sync bidirecional via vault listeners. Phase 1 wira só Code; Group/Marker/Relation ficam reservados (mesmo schema, extensão mecânica).
+Schema breaking — `memo?: string` virou `memo?: MemoRecord = { content: string; materialized?: { path, mtime } }` em CodeDefinition + GroupDefinition + BaseMarker + CodeRelation. Materialização de memo como `.md` no vault, com sync bidirecional via vault listeners. **Phase 1+2 wirados: Code + Group.** Marker e Relation reservados (mesmo schema, extensão mecânica).
 
 **Decisão fundadora:** schema breaking (não aditivo) porque memo é uma coisa só conceitualmente. Aditivo (`memo` + `memoFile?` paralelos) inventaria sincronização desnecessária e fonte de bug. Plugin sem usuários (CLAUDE.md) autoriza breaking; ~30 pontos de toque mecânico via accessors.
 
@@ -1197,10 +1197,18 @@ qualiaCodeName: Wellbeing
 - `memoNoteFormat.ts` — parseMemoNote / serializeMemoNote (frontmatter + body)
 - `memoPathResolver.ts` — sanitizeFilename + resolveConflictPath (sufixo `(2)/(3)`)
 - `memoMigration.ts` — migra `memo: string` legacy → MemoRecord no DataManager.load (idempotente)
-- `memoMaterializer.ts` — convertMemoToNote / unmaterialize / syncFromFile (Phase 1: Code only)
+- `memoMaterializer.ts` — convertMemoToNote / unmaterialize / syncFromFile + helpers genéricos `resolveEntity` / `resolveFolder` / `readMemoRecord` / `writeMemo` (switch por `ref.type`). Phase 1+2: code, group.
 - `memoMaterializerListeners.ts` — registerMemoListeners + rebuildMemoReverseLookup
 
-**UI:** `detailCodeRenderer.renderCodeMemo` faz render condicional — quando `memo.materialized` existe, textarea some e vira card `📄 Materialized at <path>` com botões Open / Unmaterialize. Botão "Convert to note" no header da seção quando ainda inline. `memoAccess?: MemoMaterializerAccess` opcional injetado pelo plugin via `BaseCodeDetailView` constructor (degrada gracioso quando não injetado — útil pra futuras views).
+**UI:** render condicional em 2 surfaces:
+- **Code Detail** (`detailCodeRenderer.renderCodeMemo`) — quando `memo.materialized` existe, textarea some e vira card `📄 Materialized at <path>` com botões Open / Unmaterialize. Botão "Convert to note" no header da seção quando ainda inline.
+- **Group panel** (`codeGroupsPanel.ts`, quando group selected) — block do memo ganha botão "Convert to note" ao lado do texto (`codebook-groups-memo-wrap` flex layout). Quando materializado, block vira card compacto (`codebook-groups-memo-card` variant).
+
+`memoAccess?: MemoMaterializerAccess` é opcional, injetado pelo plugin via `BaseCodeDetailView` constructor + propagado pra `ListRendererCallbacks` → `CodeGroupsPanelCallbacks`. Degrada gracioso quando não injetado.
+
+**API genérica via `EntityRef`:** `MemoMaterializerAccess.convertMemo(ref)` / `unmaterializeMemo(ref)` aceitam qualquer tipo; switch interno em `memoMaterializer.ts` resolve. Adicionar Marker/Relation = ~5 linhas por helper (`resolveEntity`, `resolveFolder`, `readMemoRecord`, `writeMemo`).
+
+**Smart Open:** `openMaterializedFile` reusa leaf existente (`iterateAllLeaves` filtrado por `view.file.path`) antes de criar nova aba. Evita poluir workspace com tabs duplicadas em clicks múltiplos.
 
 **Settings — `memoFolders`:**
 ```ts
