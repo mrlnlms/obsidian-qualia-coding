@@ -1149,6 +1149,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			renderCustomSection: (el, m) => this.renderCustomSection(el, m),
 			suspendRefresh: () => this.model.offChange(this.scheduleRefresh),
 			resumeRefresh: () => this.model.onChange(this.scheduleRefresh),
+			memoAccess: this.memoAccess,
 		}, this.app);
 	}
 

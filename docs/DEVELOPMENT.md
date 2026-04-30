@@ -500,7 +500,7 @@ Fluxo mínimo pra validar após mudanças nessa área:
 
 ---
 
-## 5e. Convert memo to note (#33 Code + #34 Group)
+## 5e. Convert memo to note (#33 Code + #34 Group + #35 Marker)
 
 ### Settings (seção "Memo materialization")
 
@@ -510,10 +510,10 @@ Bloco no Settings tab com 4 paths, um por tipo de entidade. Persiste em `general
 |---|---|---|
 | `Code memo folder` | `Analytic Memos/Codes` | ✅ Phase 1 |
 | `Group memo folder` | `Analytic Memos/Groups` | ✅ Phase 2 |
-| `Marker memo folder` | `Analytic Memos/Markers` | ❌ (disabled, reservado) |
+| `Marker memo folder` | `Analytic Memos/Markers` | ✅ Phase 2 |
 | `Relation memo folder` | `Analytic Memos/Relations` | ❌ (disabled, reservado) |
 
-Os 4 nascem juntos. Ativar um tipo = trocar o `t.inputEl.disabled = true` por handler `.onChange()` + estender helpers `resolveEntity`/`resolveFolder`/`readMemoRecord`/`writeMemo` em `memoMaterializer.ts` + wirear UI da entidade.
+Os 4 nascem juntos. Ativar Relation = trocar o `t.inputEl.disabled = true` por handler `.onChange()` + estender helpers `resolveEntity`/`resolveFolder`/`readMemoRecord`/`writeMemo` em `memoMaterializer.ts` + decidir UX (PromptModal não comporta botão Convert; ver ROADMAP §"Convert memo to note Phase 2 — Relation").
 
 ### Fluxo manual de teste
 
@@ -533,6 +533,13 @@ Os 4 nascem juntos. Ativar um tipo = trocar o `t.inputEl.disabled = true` por ha
 
 **Group memo (Phase 2):** mesmo fluxo, mas via `codeGroupsPanel`. Click chip de um group → quando há memo, ver botão "Convert to note" ao lado do texto. Quando materializado, block do memo vira card compacto. Filename = `<groupName>.md` em `Analytic Memos/Groups/`. Open button reusa leaf existente se arquivo já aberto (smart open — Phase 2). Aplicado a Code também.
 
+**Marker memo (Phase 2):** via Marker focused detail (Code Detail → Segments → click num segmento). Botão "Convert to note" no header da seção Memo. Quando materializado, vira card. **Path naming híbrido por engine** em `memoMarkerNaming.ts`:
+- markdown / csv / pdf-text: `<filename>-<excerpt-4-palavras>` (ex: `interview-no-comeco-do-projeto.md`)
+- pdf-shape / image: `<file>-<shape>-<id-curto>` (ex: `paper-rect-m_5xy.md`)
+- audio / video: `<file>-<timecode>` (ex: `entrevista-00m32s-01m15s.md`)
+
+Popovers de coding (image/media/pdf/markdown) e Memo View card **não** têm botão Convert — popover é coding rápido, memoView é compacto. Materializar é decisão analítica, surface dedicada (marker focused detail).
+
 ### Armadilhas
 
 - **`vault.create` precisa de folder existente:** `convertMemoToNote` chama `vault.createFolder` antes do create se o path não existe. Sem isso, `vault.create` falha em vault novo.
@@ -542,6 +549,7 @@ Os 4 nascem juntos. Ativar um tipo = trocar o `t.inputEl.disabled = true` por ha
 - **Migração legacy é idempotente:** `migrateLegacyMemos` no `DataManager.load` converte `memo: string` → `{ content }` em todas entidades. Roda toda vez que load — barato (Object.values forEach), e idempotente (se já é MemoRecord, no-op).
 - **API genérica via `EntityRef`:** desde Phase 2, `convertMemo(ref)` / `unmaterializeMemo(ref)` aceitam qualquer tipo. Pra adicionar Marker ou Relation, estender helpers `resolveEntity` / `resolveFolder` / `readMemoRecord` / `writeMemo` em `memoMaterializer.ts` (~5 linhas cada, 1 case novo no switch) + wirear UI da entidade. Sem refactor do core necessário.
 - **Smart open:** `openMaterializedFile` em `main.ts` procura leaf existente via `iterateAllLeaves` antes de criar nova aba. Pattern reusável pra qualquer "abrir arquivo que pode já estar aberto" (offer to use this pattern em outros lugares se aparecer).
+- **Marker notification quirk:** code/group passam por `registry.update`/`setGroupMemo` que disparam `onMutateListeners` → `qualia:registry-changed` global automatic. Marker muta direto via `dataManager.findMarker`, não passa pelo registry → `writeMemo`/`syncFromFile` pra marker dispara `dispatchEvent('qualia:registry-changed')` explícito. Sem esse emit, `BaseCodeDetailView` não refresh e card não aparece (bug pego em smoke 2026-04-30).
 
 ---
 

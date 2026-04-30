@@ -7,6 +7,7 @@
 
 import { App, setIcon } from 'obsidian';
 import type { BaseMarker, CodeApplication, CodeDefinition, SidebarModelInterface } from './types';
+import type { MemoMaterializerAccess } from './baseCodeDetailView';
 import { getMemoContent, setMemoContent } from './memoHelpers';
 import { renderBackButton } from './detailCodeRenderer';
 import { getCodeIds } from './codeApplicationHelpers';
@@ -23,6 +24,8 @@ export interface MarkerRendererCallbacks {
 	/** Temporarily suspend/resume model onChange listener during editing. */
 	suspendRefresh(): void;
 	resumeRefresh(): void;
+	/** Memo materialization access — habilita Convert/Card no marker memo. Optional. */
+	memoAccess?: MemoMaterializerAccess;
 }
 
 /**
@@ -96,7 +99,27 @@ function renderMemoSection(
 	callbacks: MarkerRendererCallbacks,
 ) {
 	const memoSection = container.createDiv({ cls: 'codemarker-detail-section' });
-	memoSection.createEl('h6', { text: 'Memo' });
+	const header = memoSection.createDiv({ cls: 'codemarker-detail-section-header' });
+	header.createEl('h6', { text: 'Memo' });
+
+	const ref = { type: 'marker' as const, engineType: marker.markerType, id: marker.id };
+
+	if (marker.memo?.materialized && callbacks.memoAccess) {
+		renderMaterializedCard(memoSection, marker.memo.materialized.path, callbacks.memoAccess, ref);
+		return;
+	}
+
+	if (callbacks.memoAccess) {
+		const convertBtn = header.createEl('button', {
+			cls: 'qc-memo-convert-btn',
+			text: 'Convert to note',
+			attr: { title: 'Materialize memo as a markdown note in the vault' },
+		});
+		convertBtn.addEventListener('click', async () => {
+			await callbacks.memoAccess!.convertMemo(ref);
+		});
+	}
+
 	const memoTextarea = memoSection.createEl('textarea', {
 		cls: 'codemarker-detail-memo',
 		attr: { placeholder: 'Add a memo...', rows: '3' },
@@ -111,6 +134,28 @@ function renderMemoSection(
 	memoTextarea.addEventListener('blur', () => {
 		callbacks.resumeRefresh();
 	});
+}
+
+function renderMaterializedCard(
+	container: HTMLElement,
+	path: string,
+	memoAccess: MemoMaterializerAccess,
+	ref: { type: 'marker'; engineType: BaseMarker['markerType']; id: string },
+): void {
+	const card = container.createDiv({ cls: 'qc-memo-materialized-card' });
+	const labelRow = card.createDiv({ cls: 'qc-memo-materialized-label-row' });
+	const iconSpan = labelRow.createSpan({ cls: 'qc-memo-materialized-icon' });
+	setIcon(iconSpan, 'file-text');
+	labelRow.createSpan({ text: 'Materialized at', cls: 'qc-memo-materialized-label' });
+
+	card.createEl('div', { text: path, cls: 'qc-memo-materialized-path' });
+
+	const actions = card.createDiv({ cls: 'qc-memo-materialized-actions' });
+	const openBtn = actions.createEl('button', { text: 'Open', cls: 'qc-memo-open-btn' });
+	openBtn.addEventListener('click', () => memoAccess.openMaterializedFile(path));
+
+	const unBtn = actions.createEl('button', { text: 'Unmaterialize', cls: 'qc-memo-unmaterialize-btn' });
+	unBtn.addEventListener('click', () => memoAccess.unmaterializeMemo(ref));
 }
 
 function renderMagnitudePerCode(

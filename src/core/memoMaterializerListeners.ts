@@ -7,6 +7,7 @@ import { syncFromFile } from './memoMaterializer';
 function readMemo(plugin: QualiaCodingPlugin, ref: EntityRef): MemoRecord | undefined {
 	if (ref.type === 'code') return plugin.sharedRegistry.getById(ref.id)?.memo;
 	if (ref.type === 'group') return plugin.sharedRegistry.getGroup(ref.id)?.memo;
+	if (ref.type === 'marker') return plugin.dataManager.findMarker(ref.engineType, ref.id)?.memo;
 	return undefined;
 }
 
@@ -18,6 +19,15 @@ function writeMemo(plugin: QualiaCodingPlugin, ref: EntityRef, memo: MemoRecord)
 	}
 	if (ref.type === 'group') {
 		plugin.sharedRegistry.setGroupMemo(ref.id, memo);
+		return;
+	}
+	if (ref.type === 'marker') {
+		const marker = plugin.dataManager.findMarker(ref.engineType, ref.id);
+		if (!marker) return;
+		marker.memo = memo.content || memo.materialized ? memo : undefined;
+		marker.updatedAt = Date.now();
+		plugin.dataManager.markDirty();
+		document.dispatchEvent(new Event('qualia:registry-changed'));
 		return;
 	}
 }
@@ -60,7 +70,7 @@ export function registerMemoListeners(plugin: QualiaCodingPlugin): void {
 
 /**
  * Reconstrói o reverse-lookup map varrendo registry. Chamado no onload depois da migration legacy.
- * Phase 1+2: codes + groups.
+ * Phase 1+2: codes + groups + markers (6 collections).
  */
 export function rebuildMemoReverseLookup(plugin: QualiaCodingPlugin): void {
 	plugin.memoReverseLookup.clear();
@@ -73,5 +83,27 @@ export function rebuildMemoReverseLookup(plugin: QualiaCodingPlugin): void {
 		if (g.memo?.materialized) {
 			plugin.memoReverseLookup.set(g.memo.materialized.path, { type: 'group', id: g.id });
 		}
+	}
+
+	// Markers — varrer 6 collections; cada marker com materialized vira entry
+	const dm = plugin.dataManager;
+	const addMarker = (engineType: 'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video', m: { id: string; memo?: MemoRecord }) => {
+		if (m.memo?.materialized) {
+			plugin.memoReverseLookup.set(m.memo.materialized.path, { type: 'marker', engineType, id: m.id });
+		}
+	};
+	for (const fileMarkers of Object.values(dm.section('markdown').markers)) {
+		for (const m of fileMarkers) addMarker('markdown', m);
+	}
+	for (const m of dm.section('pdf').markers) addMarker('pdf', m);
+	for (const s of dm.section('pdf').shapes) addMarker('pdf', s);
+	for (const m of dm.section('image').markers) addMarker('image', m);
+	for (const m of dm.section('csv').segmentMarkers) addMarker('csv', m);
+	for (const m of dm.section('csv').rowMarkers) addMarker('csv', m);
+	for (const f of dm.section('audio').files) {
+		for (const m of f.markers) addMarker('audio', m);
+	}
+	for (const f of dm.section('video').files) {
+		for (const m of f.markers) addMarker('video', m);
 	}
 }

@@ -2,9 +2,10 @@ import type { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { EntityRef, MaterializedRef, MemoRecord } from './memoTypes';
 import { entityRefToString } from './memoTypes';
-import { getMemoContent } from './memoHelpers';
+import { getMemoContent, setMemoContent } from './memoHelpers';
 import { resolveConflictPath, sanitizeFilename } from './memoPathResolver';
 import { serializeMemoNote, parseMemoNote } from './memoNoteFormat';
+import { buildMarkerFilename } from './memoMarkerNaming';
 
 /**
  * Resolve a entidade-alvo da ref pra obter `name` (filename) + `content` atual do memo.
@@ -21,6 +22,11 @@ function resolveEntity(plugin: QualiaCodingPlugin, ref: EntityRef): { name: stri
 		if (!g) throw new Error(`Group not found: ${ref.id}`);
 		return { name: g.name, content: getMemoContent(g.memo) };
 	}
+	if (ref.type === 'marker') {
+		const m = plugin.dataManager.findMarker(ref.engineType, ref.id);
+		if (!m) throw new Error(`Marker not found: ${ref.engineType}:${ref.id}`);
+		return { name: buildMarkerFilename(plugin, ref), content: getMemoContent(m.memo) };
+	}
 	throw new Error(`Phase 2: ref type '${ref.type}' not yet supported`);
 }
 
@@ -29,6 +35,7 @@ function resolveFolder(plugin: QualiaCodingPlugin, ref: EntityRef): string {
 	const folders = plugin.dataManager.section('general').memoFolders;
 	if (ref.type === 'code') return folders.code;
 	if (ref.type === 'group') return folders.group;
+	if (ref.type === 'marker') return folders.marker;
 	throw new Error(`Phase 2: ref type '${ref.type}' not yet supported`);
 }
 
@@ -36,6 +43,7 @@ function resolveFolder(plugin: QualiaCodingPlugin, ref: EntityRef): string {
 function readMemoRecord(plugin: QualiaCodingPlugin, ref: EntityRef): MemoRecord | undefined {
 	if (ref.type === 'code') return plugin.sharedRegistry.getById(ref.id)?.memo;
 	if (ref.type === 'group') return plugin.sharedRegistry.getGroup(ref.id)?.memo;
+	if (ref.type === 'marker') return plugin.dataManager.findMarker(ref.engineType, ref.id)?.memo;
 	throw new Error(`Phase 2: ref type '${ref.type}' not yet supported`);
 }
 
@@ -48,6 +56,18 @@ function writeMemo(plugin: QualiaCodingPlugin, ref: EntityRef, content: string, 
 	}
 	if (ref.type === 'group') {
 		plugin.sharedRegistry.setGroupMemo(ref.id, memo);
+		return;
+	}
+	if (ref.type === 'marker') {
+		const marker = plugin.dataManager.findMarker(ref.engineType, ref.id);
+		if (!marker) return;
+		// setMemoContent normaliza (drop quando vazio sem materialized) — preserva semântica do schema
+		marker.memo = materialized ? memo : setMemoContent(marker.memo, content);
+		marker.updatedAt = Date.now();
+		plugin.dataManager.markDirty();
+		// Notifica views (BaseCodeDetailView, memoView) que o marker mudou — code/group fluem via
+		// registry.onMutate, mas marker não passa pelo registry, então emit explícito.
+		document.dispatchEvent(new Event('qualia:registry-changed'));
 		return;
 	}
 	throw new Error(`Phase 2: ref type '${ref.type}' not yet supported`);
