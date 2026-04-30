@@ -33,6 +33,7 @@ import { registerImportCommands } from './import/importCommands';
 import { setupFileInterceptor, registerFileRename } from './core/fileInterceptor';
 import { setupMediaToggleButton } from './core/mediaToggleButton';
 import { visibilityEventBus } from './core/visibilityEventBus';
+import { registerMemoListeners, rebuildMemoReverseLookup } from './core/memoMaterializerListeners';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -93,6 +94,11 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.sharedRegistry.addVisibilityListener((detail) => {
 			visibilityEventBus.notify(detail.codeIds);
 		});
+
+		// Memo materialization: reconstrói reverse-lookup + registra vault listeners
+		// (modify/rename/delete espelham mudanças do .md de volta pro data.json).
+		rebuildMemoReverseLookup(this);
+		registerMemoListeners(this);
 
 		// Hydrate visibility overrides from persisted data
 		const storedOverrides = this.dataManager.section('visibilityOverrides');
@@ -557,6 +563,8 @@ export default class QualiaCodingPlugin extends Plugin {
 	async onunload() {
 		clearFileInterceptRules();
 		teardownMediaToggleButtons();
+		this.memoReverseLookup.clear();
+		this.memoSelfWriting.clear();
 		// Close any open Case Variables popover before tearing down the registry
 		this.activePopoverClose?.();
 		this.activePopoverClose = null;
