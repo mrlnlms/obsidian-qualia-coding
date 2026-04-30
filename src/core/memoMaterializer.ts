@@ -71,12 +71,29 @@ function writeMemo(plugin: QualiaCodingPlugin, ref: EntityRef, content: string, 
 		}
 		marker.updatedAt = Date.now();
 		plugin.dataManager.markDirty();
+		notifyMarkerOwner(plugin, ref.engineType);
 		// Notifica views (BaseCodeDetailView, memoView) que o marker mudou — code/group fluem via
 		// registry.onMutate, mas marker não passa pelo registry, então emit explícito.
 		document.dispatchEvent(new Event('qualia:registry-changed'));
 		return;
 	}
 	throw new Error(`Phase 2: ref type '${ref.type}' not yet supported`);
+}
+
+/**
+ * Notifica o model dono do engine — invalida cache do `UnifiedModelAdapter` (que cacheia
+ * snapshots de markers; engines como pdf/image/csv/media fazem cópia em vez de retornar
+ * referência direta, então mutação via dataManager não atualiza o cache sozinha).
+ */
+function notifyMarkerOwner(plugin: QualiaCodingPlugin, engineType: 'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video'): void {
+	switch (engineType) {
+		case 'markdown': plugin.markdownModel?.notifyChange(); return;
+		case 'pdf': plugin.pdfModel?.notify(); return;
+		case 'image': plugin.imageModel?.notify(); return;
+		case 'csv': plugin.csvModel?.notify(); return;
+		case 'audio': plugin.audioModel?.notify(); return;
+		case 'video': plugin.videoModel?.notify(); return;
+	}
 }
 
 /**

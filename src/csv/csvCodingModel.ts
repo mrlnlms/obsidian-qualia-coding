@@ -66,7 +66,7 @@ export class CsvCodingModel {
 		});
 	}
 
-	private notify(): void {
+	notify(): void {
 		this.saveMarkers();
 		for (const fn of this.listeners) fn();
 	}

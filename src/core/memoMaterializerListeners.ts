@@ -27,6 +27,16 @@ function writeMemo(plugin: QualiaCodingPlugin, ref: EntityRef, memo: MemoRecord)
 		marker.memo = memo.content || memo.materialized ? memo : undefined;
 		marker.updatedAt = Date.now();
 		plugin.dataManager.markDirty();
+		// Invalida cache do UnifiedModelAdapter via notify do model dono (adapters que copiam
+		// markers — pdf/image/csv/media — não pegam mutação direta sem notify).
+		switch (ref.engineType) {
+			case 'markdown': plugin.markdownModel?.notifyChange(); break;
+			case 'pdf': plugin.pdfModel?.notify(); break;
+			case 'image': plugin.imageModel?.notify(); break;
+			case 'csv': plugin.csvModel?.notify(); break;
+			case 'audio': plugin.audioModel?.notify(); break;
+			case 'video': plugin.videoModel?.notify(); break;
+		}
 		document.dispatchEvent(new Event('qualia:registry-changed'));
 		return;
 	}

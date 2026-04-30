@@ -46,13 +46,20 @@ export function buildMarkerFilename(plugin: QualiaCodingPlugin, ref: EntityRef):
 	}
 }
 
-/** Tenta extrair primeiras 4 palavras de campos textuais comuns ao engine. */
+/**
+ * Tenta extrair primeiras 4 palavras de campos textuais. Threshold mínimo de 3 palavras —
+ * abaixo disso, retorna null pra forçar ID fallback (evita filename muito curto/genérico
+ * que se confunde com o filebase, ex: PDF "International" → filename = "<pdfBase>-International.md"
+ * fica idêntico ao PDF original).
+ */
 function extractExcerpt(marker: unknown): string | null {
 	const m = marker as { text?: string; markerText?: string };
 	const raw = m.text ?? m.markerText;
 	if (!raw || typeof raw !== 'string') return null;
-	const words = raw.trim().split(/\s+/).slice(0, 4).join(' ');
-	const cleaned = sanitizeFilename(words);
+	const allWords = raw.trim().split(/\s+/);
+	if (allWords.length < 3) return null;
+	const taken = allWords.slice(0, 4).join(' ');
+	const cleaned = sanitizeFilename(taken);
 	return cleaned.length > 0 ? cleaned : null;
 }
 
