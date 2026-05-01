@@ -299,8 +299,12 @@ Docs operacionais (repo — usados no trabalho diario):
 - `docs/ARCHITECTURE.md` — arquitetura detalhada
 - `docs/TECHNICAL-PATTERNS.md` — padroes recorrentes
 - `docs/DEVELOPMENT.md` — guia de desenvolvimento
-- `docs/ROADMAP.md` — features planejadas por prioridade (com secao "Proximos a atacar" no topo)
+- `docs/ROADMAP.md` — features planejadas por prioridade (com secao "⚡ Status atual" no topo — leitura obrigatoria pra proxima sessao)
 - `docs/BACKLOG.md` — divida tecnica e oportunidades de refactor
+
+Docs de design/pesquisa (consultar antes de iniciar sessoes em features grandes):
+- `docs/parquet-lazy-design.md` — design doc autoritativo Parquet/CSV lazy loading (DuckDB-Wasm + OPFS, 7 fases, 13-15 sessões). Revisado por Codex+Gemini. **Sempre consultar antes de virar spec/plan.**
+- `docs/_study/llm-coding/` — pesquisa de mercado profunda (40 ferramentas + 5 patterns, 41 arquivos). Pontos de entrada: `index.md` (TOC), `comparison.md` (sintese cross-tool), `qualia-fit.md` (cruzamento arquitetura Qualia × patterns mercado), `methodology.md`. **Consultar antes de qualquer brainstorm sobre LLM.**
 
 Docs narrativos/historicos (fora do repo, em `obsidian-qualia-coding/plugin-docs/`):
 - `HISTORY.md`, `PREHISTORY.md` — historia e pre-historia
