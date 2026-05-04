@@ -504,7 +504,20 @@ export class CsvCodingModel {
 		return this.markerTextCache.size;
 	}
 
+	/**
+	 * Pra parear com markdown/pdf/audio/video, label preferred is the cell excerpt
+	 * (segment: substring `from..to`; row: célula inteira). Coordenada `Row X · Column`
+	 * fica como fallback quando o cell text não está disponível (rowDataCache miss
+	 * em eager, markerTextCache miss em lazy antes do populate).
+	 */
 	getMarkerLabel(marker: CsvMarker): string {
+		const text = this.getMarkerText(marker);
+		if (text != null) {
+			const trimmed = text.trim();
+			if (trimmed.length > 0) {
+				return trimmed.length > 60 ? trimmed.slice(0, 60) + '…' : trimmed;
+			}
+		}
 		const isSegment = 'from' in marker;
 		return `Row ${marker.sourceRowId + 1} · ${marker.column}${isSegment ? ' (seg)' : ''}`;
 	}

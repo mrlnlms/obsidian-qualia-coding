@@ -255,16 +255,52 @@ describe('setHoverState / getHoverMarkerIds', () => {
 // ── getMarkerLabel ──
 
 describe('getMarkerLabel', () => {
-	it('returns label for segment marker', () => {
+	it('falls back to coordinate when no rowData cached', () => {
 		const seg = model.findOrCreateSegmentMarker({
-			fileId: 'f.csv', sourceRowId:2, column: 'notes', from: 0, to: 5, text: 'x',
+			fileId: 'f.csv', sourceRowId: 2, column: 'notes', from: 0, to: 5, text: 'x',
 		});
 		const label = model.getMarkerLabel(seg);
 		expect(label).toBe('Row 3 · notes (seg)');
 	});
 
-	it('returns label for row marker', () => {
+	it('falls back to coordinate for row marker without data', () => {
 		const row = model.findOrCreateRowMarker('f.csv', 0, 'name');
+		const label = model.getMarkerLabel(row);
+		expect(label).toBe('Row 1 · name');
+	});
+
+	it('returns cell content for row marker when rowDataCache populated', () => {
+		const row = model.findOrCreateRowMarker('f.csv', 0, 'comment');
+		model.rowDataCache.set('f.csv', [
+			{ comment: 'Equipe perdeu autonomia depois da reorg' } as any,
+		]);
+		const label = model.getMarkerLabel(row);
+		expect(label).toBe('Equipe perdeu autonomia depois da reorg');
+	});
+
+	it('returns substring for segment marker', () => {
+		const seg = model.findOrCreateSegmentMarker({
+			fileId: 'f.csv', sourceRowId: 0, column: 'comment', from: 7, to: 16, text: 'x',
+		});
+		model.rowDataCache.set('f.csv', [
+			{ comment: 'Equipe perdeu autonomia depois da reorg' } as any,
+		]);
+		const label = model.getMarkerLabel(seg);
+		expect(label).toBe('perdeu au');
+	});
+
+	it('truncates long content to 60 chars + ellipsis', () => {
+		const row = model.findOrCreateRowMarker('f.csv', 0, 'comment');
+		const longText = 'A'.repeat(120);
+		model.rowDataCache.set('f.csv', [{ comment: longText } as any]);
+		const label = model.getMarkerLabel(row);
+		expect(label.length).toBe(61);
+		expect(label.endsWith('…')).toBe(true);
+	});
+
+	it('falls back to coordinate when cell content is whitespace-only', () => {
+		const row = model.findOrCreateRowMarker('f.csv', 0, 'name');
+		model.rowDataCache.set('f.csv', [{ name: '   ' } as any]);
 		const label = model.getMarkerLabel(row);
 		expect(label).toBe('Row 1 · name');
 	});
