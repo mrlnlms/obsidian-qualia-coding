@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the wasm assets — esbuild loaders aren't available in vitest.
 vi.mock('../../../src/csv/duckdb/wasmAssets', () => ({
-	wasmBytes: new Uint8Array([0x00, 0x61, 0x73, 0x6d]), // dummy "asm" magic
+	getWasmBytes: () => new Uint8Array([0x00, 0x61, 0x73, 0x6d]), // dummy "asm" magic
+	clearWasmBytesCache: () => {},
 	workerSource: '/* dummy worker source */',
 }));
 

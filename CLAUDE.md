@@ -120,7 +120,7 @@ src/
       filterModelToSql.ts    — buildWhereClause(filterModel) → SQL WHERE escapado (text + number + combined AND/OR). Helper puro
       opfs.ts                — copyVaultFileToOPFS streaming chunks 1MB; idempotente via mtime. isOpfsCached(opfsKey, mtime) consultado pelo prepopulate (não força download)
       rowProvider.ts         — interface RowProvider + MockRowProvider (tests)
-      wasmAssets.ts          — WASM bytes embedded via esbuild loader binary
+      wasmAssets.ts          — WASM bytes embedded gzipados via esbuild plugin duckdbWasmGzipPlugin (32.7MB → 7.6MB). getWasmBytes() faz gunzip lazy + cached. clearWasmBytesCache() libera ~34MB no plugin onunload
   image/                     — Image coding (fabric.js, zoom/pan per-file)
     imageCodingModel.ts      — model CRUD para ImageMarkers + persistence
     imageCodingTypes.ts      — ImageMarker, RegionShape, NormalizedCoords

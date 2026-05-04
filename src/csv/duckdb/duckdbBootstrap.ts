@@ -1,5 +1,5 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
-import { wasmBytes, workerSource } from "./wasmAssets";
+import { getWasmBytes, workerSource } from "./wasmAssets";
 
 export interface DuckDBRuntime {
 	db: duckdb.AsyncDuckDB;
@@ -42,9 +42,12 @@ export async function createDuckDBRuntime(): Promise<DuckDBRuntime> {
 	const workerUrl = URL.createObjectURL(workerBlob);
 	const worker = new Worker(workerUrl);
 
+	// Lazy decompress: the WASM ships gzipped (esbuild plugin) and is gunzipped
+	// here on first DuckDB boot. Subsequent boots reuse the cached Uint8Array.
 	// `as BlobPart` cast: TS5 strict treats Uint8Array<ArrayBufferLike> as potentially
 	// SharedArrayBuffer-backed, which doesn't satisfy BlobPart's ArrayBufferView<ArrayBuffer>.
 	// At runtime this is a regular Uint8Array — Blob() accepts it.
+	const wasmBytes = getWasmBytes();
 	const wasmBlob = new Blob([wasmBytes as BlobPart], { type: "application/wasm" });
 	const wasmUrl = URL.createObjectURL(wasmBlob);
 

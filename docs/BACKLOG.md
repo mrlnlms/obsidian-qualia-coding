@@ -72,13 +72,9 @@ Resolvido. `src/csv/prepopulateMarkerCaches.ts` roda após `app.workspace.onLayo
 
 Smoke 2026-05-04: row marker em célula `"   "` (whitespace) deveria cair no fallback `Row 3 · comment`, mas no DOM o entry aparece com label visualmente vazio. Lógica em `getMarkerLabel` está correta (`trimmed.length === 0` cai no fallback) — provável causa: papaparse parsing whitespace-only quoted cell como string vazia ou similar. Investigar quando virar bloqueante. Não-urgente.
 
-### Bundle size pós-DuckDB (atacar na Fase 6 do parquet-lazy)
+### ~~Bundle size pós-DuckDB~~ ✅ (2026-05-04, Fase 6 Slice D)
 
-`main.js` cresce de 2.5 MB → ~49 MB em prod com `@duckdb/duckdb-wasm@^1.29.0` embedded. Design doc previa ~9 MB referenciando WASM antigo de 6.4 MB; versão atual tem WASM EH de 34 MB. Não bloqueia funcionalmente (Excalidraw é 8.4 MB, não há limite duro), mas vale comprimir antes de cogitar Community Plugins.
-
-**Mitigação:** comprimir o WASM bytes via `fflate` (já dependency do projeto pra zip export) embedded como gzip, decompress em runtime no `createDuckDBRuntime()`. Custo: ~10-30ms no boot, redução estimada 40-60% (WASM comprime bem). Aplicar antes do `URL.createObjectURL`.
-
-**Quando:** Fase 6 do parquet-lazy (cleanup pré-merge da feature flag). Outras alternativas (pinar versão antiga 1.18, lazy fetch externo) ficam fora — pinar quebra features que vão entrar nas Fases 4-5; lazy fetch externo viola distribução Community Plugins.
+Resolvido. `main.js` 49MB → 14.2MB (71% redução). esbuild plugin `duckdbWasmGzipPlugin` gzipa o WASM em build-time (32.7MB → 7.6MB com level 9). Runtime decompress lazy via `getWasmBytes()` em `wasmAssets.ts` (cached após primeira boot, custo ~10-30ms one-shot). Destrava Community Plugins.
 
 ---
 

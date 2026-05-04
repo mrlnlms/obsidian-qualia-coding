@@ -3,5 +3,8 @@
 // run. Aliased via `vitest.config.ts` so any test that transitively imports
 // the duckdb stack (e.g. via the export pipeline) doesn't crash on the .wasm
 // extension.
-export const wasmBytes = new Uint8Array(0);
+export function getWasmBytes(): Uint8Array {
+	return new Uint8Array(0);
+}
+export function clearWasmBytesCache(): void { /* no-op */ }
 export const workerSource = '';
