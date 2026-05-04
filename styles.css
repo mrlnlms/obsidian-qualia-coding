@@ -3019,6 +3019,49 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   height: 16px;
 }
 
+.codemarker-cluster-banner {
+  display: none;
+}
+
+.codemarker-cluster-banner-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  margin: 8px 12px 0 12px;
+  background-color: var(--background-modifier-hover);
+  border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--interactive-accent);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.codemarker-cluster-banner-label {
+  color: var(--text-normal);
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codemarker-cluster-banner-clear {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 2px 10px;
+  cursor: pointer;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  color: var(--text-muted);
+}
+
+.codemarker-cluster-banner-clear:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
 .codemarker-analytics-body {
   flex: 1;
   display: flex;

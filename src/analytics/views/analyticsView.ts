@@ -121,6 +121,7 @@ export class AnalyticsView extends ItemView {
   chartContainer: HTMLElement | null = null;
   configPanelEl: HTMLElement | null = null;
   footerEl: HTMLElement | null = null;
+  private clusterBannerEl: HTMLElement | null = null;
   private exportMarkdownBtn: HTMLElement | null = null;
   activeChartInstance: import("chart.js").Chart | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -227,6 +228,7 @@ export class AnalyticsView extends ItemView {
     this.renderConfigPanel();
 
     const chartArea = body.createDiv({ cls: "codemarker-chart-area" });
+    this.clusterBannerEl = chartArea.createDiv({ cls: "codemarker-cluster-banner" });
     this.chartContainer = chartArea.createDiv({ cls: "codemarker-chart-container" });
 
     // Footer
@@ -419,6 +421,37 @@ export class AnalyticsView extends ItemView {
     this.refreshSuspendedCount = Math.max(0, this.refreshSuspendedCount - 1);
   }
 
+  // ─── Cluster filter banner (S3) ───
+
+  private renderClusterFilterBanner(): void {
+    if (!this.clusterBannerEl) return;
+    this.clusterBannerEl.empty();
+
+    const cluster = this.selectedFileCluster;
+    if (!cluster) {
+      this.clusterBannerEl.style.display = "none";
+      return;
+    }
+
+    this.clusterBannerEl.style.display = "";
+    const inner = this.clusterBannerEl.createDiv({ cls: "codemarker-cluster-banner-inner" });
+
+    const label = inner.createSpan({ cls: "codemarker-cluster-banner-label" });
+    const fileNames = cluster.fileIds.map((f) => {
+      const parts = f.split("/");
+      const name = parts[parts.length - 1] ?? f;
+      return name.replace(/\.[^.]+$/, "");
+    });
+    const preview = fileNames.slice(0, 4).join(", ") + (fileNames.length > 4 ? ` +${fileNames.length - 4} more` : "");
+    label.textContent = `Filtered to cluster ${cluster.clusterIdx} · ${cluster.fileIds.length} files (${preview})`;
+
+    const clearBtn = inner.createEl("button", { text: "Clear filter", cls: "codemarker-cluster-banner-clear" });
+    clearBtn.addEventListener("click", () => {
+      this.selectedFileCluster = null;
+      this.scheduleUpdate();
+    });
+  }
+
   // ─── Chart rendering ───
 
   private updateChart(): void {
@@ -428,6 +461,7 @@ export class AnalyticsView extends ItemView {
       this.activeChartInstance = null;
     }
     this.chartContainer.empty();
+    this.renderClusterFilterBanner();
     this.renderGeneration++;
 
     // Pre-filter data by case variable so all 20 modes benefit automatically
@@ -436,11 +470,24 @@ export class AnalyticsView extends ItemView {
       const { name, value } = this.caseVariableFilter;
       const registry = this.plugin.caseVariablesRegistry;
       this.data = {
-        ...savedData,
-        markers: savedData.markers.filter((m) => {
+        ...this.data,
+        markers: this.data.markers.filter((m) => {
           const vars = registry.getVariables(m.fileId);
           return vars[name] === value;
         }),
+      };
+    }
+
+    // Cluster drill-down (S3): pre-filter data by selected cluster's fileIds.
+    // Q-mode views (Files Dendrogram, File Similarity) bypass — they need the
+    // full population to compute similarity and are themselves the source of
+    // the cluster selection (filtering them would be recursive).
+    const Q_MODE_BYPASS_VIEWS = new Set<ViewMode>(["files-dendrogram", "file-similarity"]);
+    if (this.selectedFileCluster && !Q_MODE_BYPASS_VIEWS.has(this.viewMode)) {
+      const fileSet = new Set(this.selectedFileCluster.fileIds);
+      this.data = {
+        ...this.data,
+        markers: this.data.markers.filter((m) => fileSet.has(m.fileId)),
       };
     }
 
