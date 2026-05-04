@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-04 — Pre-alpha
+
+Fechamento da Fase 6 do parquet/CSV lazy loading: capability shift de "abre arquivos pequenos" pra "abre parquet de 297MB sem travar". Bundle 49MB → 14.2MB destrava distribuição via Community Plugins. QDPX export+import round-trip pra CSV/parquet via custom namespace (Decisão 5 do design doc).
+
 ### Added
+
+- **Open de parquet/CSV grande sem popup (Fase 6 Slice A)** — popup `Lazy / Eager / Cancel` removido; lazy mode automático acima do threshold (50 MB parquet / 100 MB CSV). Placeholder de workspace-restore tem botão único "Open this file" (anti-race com plugin init de 49 MB). Reveal de marker em parquet lazy redondo: `ensureColumnVisible(column)` (faltava — flash invisível em parquet largo) + polling 100 ms × 50 tentativas (em AG Grid v33+ algumas transições de scroll-settle/row-render não emitem `modelUpdated`) + RAF defer no flash + `flashDuration: 500` explícito (default vira 0 em alguns minor) + `infiniteInitialRowCount: totalRows` no createGrid (resolve error #88 quando reveal chega antes do primeiro getRows). Pre-populate de `markerTextCache` no startup (`src/csv/prepopulateMarkerCaches.ts`): eager parses + cellText slice; lazy só popula se OPFS já cacheado (não força download). Novos módulos: `parseTabular.ts` (compartilhado), `prepopulateMarkerCaches.ts`. DuckDB CSV reader tolerante (`all_varchar=true` + `null_padding=true` + `ignore_errors=true`) — sobrevive a CSVs malformados, type inference quebrada, rows com colunas extras.
+
+- **Exports lazy-aware (Fase 6 Slice B)** — tabular CSV export e QDPX agora resolvem cell text de markers em parquet/CSV lazy sem re-parsear o arquivo inteiro em RAM. Novo `src/csv/resolveExportTexts.ts` cobre 6 cases (eager/lazy × aberto/fechado/pre-populated/OPFS-cached): `csvModel.getMarkerText` sync first; cache miss → `parseTabularFile` (suporta parquet via hyparquet); arquivo > threshold → DuckDB batch via OPFS, dispose provider no finally. **Antes do fix:** parquet ia com texto vazio silenciosamente (`Papa.parse` só sabe CSV); arquivo grande estourava RAM 5-18× via `vault.read()` + `Papa.parse()` inteiro. **QDPX `<Sources>` agora inclui CSV/parquet** via custom namespace `<qualia:TabularSource>` + `<qualia:CellSelection>` (Decisão 5 do parquet-lazy-design.md). `xmlns:qualia` declarado no Project root quando section usa o prefixo. ExportModal recebe `plugin` (não só `app`) pra ter `csvModel + getDuckDB`.
+
+- **Progress bar com ETA + UI Manage cache (Fase 6 Slice C)** — banner do OPFS copy mostra `45% — 134.5 / 297.0 MB · ETA 8s` em vez de só percentual + MB. ETA computada da throughput observada (`written / elapsedMs`); suprimida nos primeiros 250 ms (estimativa ruidosa) e em 100% (nada restante). Helpers puros `formatLazyProgress` + `formatDuration` em `src/csv/lazyProgressFormat.ts` (12 test cases). Settings UI nova "Lazy cache (large CSV/parquet)" lista entries OPFS via `listOpfsEntries` (helper novo: itera namespace, lê `meta.json`, soma file size). Cada entry tem botão `Clear` per-entry (`removeOPFSFile`); botão `Clear all` warning chama `clearOPFSCache`.
+
+- **Auto-cleanup OPFS no fechamento de arquivo** — quando user fecha leaf de um arquivo lazy, o OPFS daquele arquivo é wipado automaticamente. Disco fica previsível, sem cache invisível crescendo. Refcount via `workspace.getLeavesOfType` — se outro leaf ainda tem mesmo file, mantém; só wipa quando é a última leaf. `clearWasmBytesCache()` no `plugin.onunload` libera o ~34 MB do gunzip cache que ficava em module scope entre hot-reloads.
+
+- **QDPX import round-trip pra CSV/parquet (Fase 6 Slice E)** — `qdpxImporter.parseSources` reconhece `<qualia:TabularSource>` (custom namespace introduzido no Slice B). `parseSelection` lê `qualia:sourceRowId/column/from/to`. Novo `createTabularMarker` reconstrói `SegmentMarker` (com from/to) ou `RowMarker` (sem) no csvModel. `reloadAfterImport` já chama `csvModel.reload()`. Round-trip QDPX validado em integration test (export → unzip → parseXml → parseSources → asserts).
 
 - **Filter UI server-side em modo lazy (Parquet-lazy Fase 5)** — funnel icon do AG Grid agora aparece nas colunas reais em modo lazy. Filter UI nativo (Contains/Equals/StartsWith/EndsWith/inRange/Blank/etc) emite `filterModel`, traduzido pra SQL `WHERE` no DuckDB. Filter + sort + scroll mantêm display_row mapping coerente (rebuild em cada mudança). Batch coding em lazy (tag button no header) opera nas linhas filtradas via SQL `SELECT __source_row WHERE ...`. Novo módulo:
   - `src/csv/duckdb/filterModelToSql.ts` — `buildWhereClause(filterModel)` traduz AG Grid filter (text + number + combined AND/OR) pra SQL fragment escapado. Helper puro.
@@ -41,16 +55,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Cleanup race entre `onUnloadFile` e queries DuckDB em flight** — `onUnloadFile` agora snapshot do `lazyState` e seta `null` ANTES da teardown async. Concurrent paths (`refreshLazyDisplayMap`, `refreshLazyFilter`, datasource em flight) re-checam após cada await e abortam se `lazyState` virou null. Resolveu o crash "DuckDBRowProvider has been disposed" no `dropDisplayMap` durante teardown.
 
-### Tech debt
+### Performance
 
-- **Bundle size:** com a dependência DuckDB-Wasm, `main.js` cresce de 2.5 MB → ~49 MB em prod (era esperado ~9 MB no design doc, mas referenciava versão antiga do duckdb-wasm com WASM de 6.4 MB; versão 1.29 atual tem WASM EH de 34 MB). Mitigação na Fase 6: comprimir WASM bytes via `fflate` (já dependency) + decompress no bootstrap (~10ms overhead, redução ~50%). Anotado em `BACKLOG.md`.
+- **Bundle 49 MB → 14.2 MB (-71%) via WASM gzip (Fase 6 Slice D)** — esbuild plugin `duckdbWasmGzipPlugin` gzipa o `duckdb-eh.wasm` em build-time via fflate level 9 (32.7 MB raw → 7.6 MB gz). Runtime: `wasmAssets.ts` ganha `getWasmBytes()` que decomprime lazy + cached via `gunzipSync(fflate)`. Custo one-shot ~10-30 ms na primeira boot do DuckDB. `clearWasmBytesCache()` libera o ~34 MB Uint8Array em onunload pra survivor module scope não segurar memória entre reloads. Destrava distribuição via Community Plugins.
 
 ### Technical
 
 - Spike findings (2026-05-03) validaram empiricamente as 3 premissas críticas do design (`ROW_NUMBER()` stability em parquet patológico MERGED de 297MB, sourceRowId latency p95 ≤ 125ms em 2.4M rows, OPFS streaming com heap Δ = 0 MB). 2 shims obrigatórios pro Worker em Electron Obsidian descobertos (process fake + nuke `WebAssembly.instantiateStreaming`) — entram na Fase 2 (DuckDB bootstrap) sem precedente público.
-- Spec: `docs/superpowers/specs/20260503-parquet-lazy-fase-0-design.md`. Design doc atualizado em `docs/parquet-lazy-design.md` §14.
-- 8 arquivos do plugin (`csvCodingTypes.ts`, `csvCodingModel.ts`, `csvCodingMenu.ts`, `csvCodingView.ts`, `csvCodingCellRenderer.ts`, `columnToggleModal.ts`, `segmentEditor.ts`, `csvSidebarAdapter.ts`) + 3 externos (`dataConsolidator.ts`, `buildSegmentsTable.ts`, `tabularExporter.ts`).
-- Tests: 2479 → 2490 verdes (+11 da migration `migrationFase0.mjs`). Acceptance grep `marker\.row|m\.row` em `src/` retorna 0 hits.
+- Spec: `docs/superpowers/specs/20260503-parquet-lazy-fase-0-design.md`. Design doc completo em `docs/parquet-lazy-design.md` (versionado a partir desta release como referência arquitetural pra LLM/Whisper futuros).
+- 6 commits de Slices da Fase 6 (`5617773` A, `4260591` B, `8017027` B-test, `1aa39fa` C, `9ddb71a` D, `c292700` E) + ajustes finais (`1327d70` clearWasmBytes, `e2fa9e3` auto-cleanup OPFS).
+- Tags `pre-fase6-baseline` (4885d3e) / `post-fase6-checkpoint` pra rollback granular se necessário.
+- Vitest plugin `stubDuckDBAssets` em `vitest.config.ts` intercepta `.wasm`/`.worker.js` imports — qualquer test que toque transitivamente o stack DuckDB funciona sem mock manual por arquivo.
+- Tests: 2490 → 2603 verdes (+113 cobrindo Fase 6 — integration tests do export lazy-aware com fixture parquet real, formatLazyProgress, round-trip QDPX, etc).
 
 ## [0.1.2] — 2026-04-30 — Pre-alpha
 
