@@ -1,11 +1,11 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-04 (análise prospectiva pós-Fase 6 + reclassificação Smart Codes como autônomo).
+> Última atualização: 2026-05-04 (release 0.2.0 tagueado + reordenação Q-mode → Smart Codes pra próximas sessões).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
-**Versão:** 0.1.2 (2026-04-30). **Fase 6 fechada** — bump pra 0.1.3 ou 0.2.0 quando quiser tagear release. Checklist de testes manuais em `docs/MANUAL-TESTS-FASE-6.md`.
+**Versão:** 0.2.0 (2026-05-04, tag pushed, GitHub Release automático via `.github/workflows/release.yml`). Fase 6 do parquet/CSV lazy loading fechada. Checklist de testes manuais em `docs/MANUAL-TESTS-FASE-6.md`.
 
 **Infra que a Fase 6 estabeleceu (não é só "abrir parquet grande"):**
 - DuckDB-Wasm + Worker + Blob URLs → reusável pra LLM provider (Ollama/OpenAI/Anthropic) e Whisper transcription
@@ -16,13 +16,15 @@
 - Bundle 14MB → distribuição via Community Plugins viável
 - `mergePolicies` puro → merge LLM batch em codebook existente
 
-**Frentes engatilhadas (próximas a atacar, ordem opinativa):**
+**Frentes engatilhadas (ordem cravada com user 2026-05-04, pós-release 0.2.0):**
 
-1. **Release 0.2.0 + Community Plugins PR** — bump em 3 arquivos (`manifest.json`, `versions.json`, `package.json`), atualiza `CHANGELOG.md`, push tag (`X.Y.Z` sem prefix `v`), workflow `.github/workflows/release.yml` cuida do resto. Submissão à Community Plugins é PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas é grande pra padrão da Community — pode receber pushback no review. **Esforço: 1-2 sessões. Sem dependência.**
+1. **Q-mode gaps que sobraram** — atacar primeiro porque é cirúrgico e desbloqueia clareza analítica que conecta com decisões maiores depois. Ver §"Q-mode / P-mode analytics" pra estado atual de cobertura. Trabalho concreto: dendrograma de Files (cluster hierárquico de docs por similaridade de coding) + Q-mode equivalents pontuais de outras views R-mode quando fizer sentido + ranking explícito "esse doc se parece com aqueles". **Esforço estimado: 2-3 sessões.**
 
-2. **Smart Codes (Tier 3 Coding Management)** — códigos virtuais por predicate, padrão ATLAS.ti. **Reclassificado 2026-05-04 como autônomo** (era listado como "bloqueado por LLM" — framing errado, ver §"Tier 3 — Smart Codes" abaixo). Auto-contido, escopo de produto fechado, diferencial direto. **Esforço: 4-5 sessões. Sem dependência.**
+2. **Smart Codes (Tier 3 Coding Management)** — códigos virtuais por predicate, padrão ATLAS.ti. Reclassificado 2026-05-04 como autônomo (era listado como "bloqueado por LLM" — framing errado, ver §"Tier 3 — Smart Codes" abaixo). Auto-contido, escopo de produto fechado, diferencial direto. **Esforço: 4-5 sessões. Sem dependência.**
 
-3. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão de produto pendente:** qual escola Qualia subscreve, qual use case primário, qual provider strategy, onde no fluxo entra, qual granularidade de revisão humana. Antes dessas 5 decisões cravadas (1 sessão de brainstorm dedicado), design não rola. Pós-decisão: ~10-15 sessões pra MVP S+M.
+3. **Submissão Community Plugins PR** — pode rolar em paralelo a #1/#2 quando quiser. Release 0.2.0 já tem o artefato; falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas é grande pra padrão da Community — pode receber pushback no review.
+
+4. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão de produto pendente:** qual escola Qualia subscreve, qual use case primário, qual provider strategy, onde no fluxo entra, qual granularidade de revisão humana. Antes dessas 5 decisões cravadas (1 sessão de brainstorm dedicado), design não rola. Pós-decisão: ~10-15 sessões pra MVP S+M.
 
 **Frentes em decisão de produto** (sem spec, sem design doc):
 - **Intercoder Reliability + LLM-assisted coding** — duas decisões com possível acoplamento epistemológico (ver §"Intercoder Reliability"). Material de repertório acumulado em `docs/_study/llm-coding/` (40 ferramentas + 5 patterns) + 2 conversas externas com claude_ai (2026-04-26 sobre ICR + 2026-04-28 sobre tensão LLM-as-coder). Os 2 ângulos sobre ICR (clássico Kappa/α vs auditabilidade interpretativa) e as 5 escolas LLM ficam como repertório pra brainstorm — uma perspectiva não anula a outra. Brainstorm dedicado precede design técnico.
@@ -331,9 +333,14 @@ Brainstorm dedicado (1 sessão de produto, sem código) cobrindo:
 - Friese (post-coding), Braun & Clarke (reflexive TA), Saldaña (coding manual), Krippendorff (content analysis) — citar diretamente da fonte se o tema voltar
 - ATLAS.ti / MAXQDA / NVivo / Dedoose docs — implementações concretas pra olhar UX
 
-### Q-mode / P-mode analytics — registro de cobertura parcial
+### Q-mode / P-mode analytics — próxima frente engatilhada
 
-**Não é trabalho aberto agora — registro pra outra sessão.**
+**Promovida 2026-05-04 a frente #1** (ver §Status atual). Trabalho concreto pra atacar:
+- Dendrograma de Files (cluster hierárquico de docs por similaridade de coding) — hoje dendrogram só faz códigos
+- Ranking explícito "esse documento se parece com aqueles" (MDS Files cobre 2D, falta lista ordenada)
+- Q-mode equivalents pontuais de outras views R-mode quando fizer sentido (ex: cooccurrence by file similarity)
+
+Estimativa: 2-3 sessões.
 
 Trecho da conversa de 2026-04-28 com claude_ai sobre as views Analytics:
 
@@ -370,9 +377,9 @@ Trecho da conversa de 2026-04-28 com claude_ai sobre as views Analytics:
 - **Q-mode equivalents** das outras views R-mode quando fizer sentido (ex: cooccurrence by file similarity)
 - Ranking explícito "esse documento se parece com aqueles outros" (MDS Files cobre 2D mas não lista ordenada)
 
-**P-mode** já está bem coberto (Temporal + Evolution + Codebook Timeline).
+**P-mode** já está bem coberto (Temporal + Evolution + Codebook Timeline) — não é trabalho aberto.
 
-**Quando virar tarefa concreta:** brainstorm próprio (não acoplado a ICR/LLM). Pode aparecer como onda futura de Analytics depois que LLM-assisted coding ou outras frentes maiores fecharem.
+**Acoplamento com decisões maiores:** Q-mode é cirúrgico, não acopla com ICR/LLM. Atacar antes desbloqueia clareza analítica que ajuda a discutir as decisões maiores depois.
 
 ### Projects + Workspace
 
