@@ -25,7 +25,7 @@
 3. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão de produto pendente:** qual escola Qualia subscreve, qual use case primário, qual provider strategy, onde no fluxo entra, qual granularidade de revisão humana. Antes dessas 5 decisões cravadas (1 sessão de brainstorm dedicado), design não rola. Pós-decisão: ~10-15 sessões pra MVP S+M.
 
 **Frentes em decisão de produto** (sem spec, sem design doc):
-- **Intercoder Reliability (kappa/alpha)** — `quallmer` (R) tem referência matemática. Acopla bem com LLM (humano-vs-LLM kappa é caso forte). Atacar antes de LLM é viável mas perde alavancagem.
+- **Intercoder Reliability + LLM como decisão epistemológica pai** — reframeado 2026-05-04 como ÚNICA decisão pai com 2 dimensões acopladas (ICR clássico vs auditabilidade interpretativa × 5 escolas LLM). Qualia já tem >50% da infra pra "auditabilidade interpretativa" (Caminho B do ICR) — audit log + memo cross-entidade + magnitude. Brainstorm dedicado de 1 sessão cobre as 5 decisões LLM + decisão epistemológica de fundo. Material de referência: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns) + 2 conversas externas registradas no §"Intercoder Reliability".
 - **Projects + Workspace** — provavelmente reinventa Workspaces nativo. User cravou "reavaliar antes de implementar" — provavelmente passar.
 - **Margin Panel customization** — bloqueado por decisão em plugin externo.
 
@@ -53,7 +53,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 
 - **[Parquet/CSV lazy loading](#parquetcsv-lazy-loading)** — **design doc fechado** (`docs/parquet-lazy-design.md`, 539 linhas, revisado por Codex+Gemini). Stack escolhida: DuckDB-Wasm + OPFS + AG Grid Infinite. 7 fases, 13-15 sessões. Decisão atualizada: **NÃO é mais contingente a LLM** — Fase 0 (sourceRowId) destrava ambos
 - **[LLM-assisted coding](#llm-assisted-coding)** — **pesquisa de mercado profunda concluída** (`docs/_study/llm-coding/`, 41 arquivos: 40 tools + 5 patterns + síntese cross-tool + qualia-fit). 5 escolas filosóficas mapeadas. Decisão pendente: posicionamento (qual escola). Sem isso, design não rola
-- **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability)** — gap estratégico, complexidade alta no contexto single-user
+- **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability--registrar-como-decisão-epistemológica-não-feature-técnica)** — **reframeado 2026-05-04** com base em 2 conversas externas. Não é feature técnica isolada — é decisão epistemológica (3 caminhos: A clássico Kappa/α, B auditabilidade interpretativa via Friese/B&C, C híbrido). Acopla com decisão LLM como decisão pai. Qualia já tem >50% da infra do Caminho B (audit log #29 + memo schema #25 + magnitude #14)
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
 - ~~**Research Board Enhancements**~~ — ✅ todos 6 sub-items resolvidos (4 feitos + 2 won't-do)
 - ~~**Tabular round-trip (import)**~~ — fechado 2026-04-30, ver "Decisões fechadas sem implementar"
@@ -252,11 +252,74 @@ Mitigação atual (size guard #28, 2026-04-28) já cobre crash via banner "Load 
 
 **Estimativa MVP** (após decisão de posicionamento): provavelmente 10-15 sessões pra MVP cobrindo S+M; L é roadmap próprio.
 
-### Intercoder Reliability
+### Intercoder Reliability — registrar como decisão epistemológica, não feature técnica
 
-Cohen's kappa / Krippendorff's alpha. Esperado por peer reviewers para claims de rigor acadêmico. NVivo, ATLAS.ti, MAXQDA, Dedoose e QualCoder oferecem.
+**Reframe 2026-05-04** baseado em duas conversas externas (`claude_ai conversations 2026-04-26 "Intercoder reliability em ferramentas QDA"` + `2026-04-28 "Status dos projetos em andamento"`). Antes de implementar qualquer coisa, vale ter as duas perspectivas lado a lado.
 
-**Status**: existem ideias via git-like workflow, mas a complexidade de implementação no contexto atual do plugin (single-user Obsidian) é alta. Requer modelagem de "coders" como primeira classe, reconciliação de discordâncias, agregação estatística. **Decidir antes se faz sentido atacar.**
+**Stats clássicas:** Percent Agreement, Cohen's κ (2 coders, nominais), Fleiss' κ (3+ coders), Krippendorff's α (multi-coder + dados faltantes + diferentes níveis de mensuração — **mais robusto, padrão ATLAS.ti em 3 variantes cu-α/c-α/α-binary**), Scott's Pi, Gwet's AC1.
+
+**Implementações dominantes:** ATLAS.ti (Inter-coder Agreement dedicada com 3 variantes de Krippendorff), MAXQDA (PA + Kappa, paralelo de docs), NVivo (Coding Comparison Query, Cohen's κ), Dedoose (Training Center workflow-oriented), Quirkos (mais simples). Todos comparam "coding cycles" — projetos paralelos do mesmo material por coders diferentes.
+
+**Boundary disagreement** em coding holístico (segmentos com fronteiras flexíveis) é problema crítico — coders podem concordar no código mas discordar de onde o trecho começa/termina. Stats clássicas não resolvem.
+
+**Threshold convencional** (Landis & Koch): κ > 0.61 substancial, > 0.81 quase perfeito. Krippendorff: α ≥ 0.80, tentativo a partir de 0.667.
+
+#### Perspectiva A — ICR clássico como "rigor acadêmico"
+
+**Argumento:** peer reviewers de mixed methods e content analysis pedem; sem isso, paper rejeita em journals de tradição realista/pós-positivista. ATLAS.ti/NVivo/MAXQDA implementam bem. Caso forte adicional: **humano-vs-LLM kappa** — quando LLM auto-coding entrar, kappa entre LLM e humano vira métrica natural de validação automática.
+
+**Esforço:** modelar "coders" como first-class, reconciliação de discordâncias, cálculo estatístico, UI de comparação. ~5-8 sessões. No contexto single-user Obsidian, multi-coder via git branches ou arquivos paralelos.
+
+**Acoplamento com LLM:** humano-vs-LLM kappa exige que LLM auto-coding já exista. Faz sentido depois de LLM, não antes.
+
+#### Perspectiva B — Auditabilidade interpretativa como alternativa
+
+**Argumento (Friese, Saldaña com ressalvas, Braun & Clarke):** ICR é importação positivista mal-ajustada. Pressupõe códigos como categorias estáveis com fronteiras objetivas, não construções analíticas em desenvolvimento. Em grounded theory ou reflexive thematic analysis, **o coding É a análise** — forçar consenso prematuro empobrece interpretação. Pressiona codebooks pro "menor denominador comum" (códigos descritivos rasos concordam mais que analíticos densos). **Braun & Clarke é explícita: ICR é incompatível com reflexive TA.**
+
+**Resposta interpretativista alternativa:** "auditabilidade interpretativa" — capacidade de **reconstruir o caminho analítico** (Lincoln & Guba *confirmability* + audit trail; tradição francesa *traçabilité*). Componentes:
+
+- Audit trail nativo (não só "quando código foi criado" mas história analítica: definição → revisões → memos vinculados a revisões → trechos que motivaram cada mudança)
+- Codebook versionado git-style com diffs semânticos
+- Memo-trace linking estrutural (memo ↔ código ↔ trecho ↔ decisão como grafo navegável)
+- Reflexividade registrada (campos pro pesquisador documentar viés, posicionalidade, mudanças de interpretação)
+- **Negotiated agreement** em vez de Kappa quando há múltiplos coders — registrar a *discussão* das discordâncias (argumentos, resolução, abertos), não a métrica
+- Magnitude/intensity coding com traço (justificativa registrada, não só valor)
+- Análise de cobertura interpretativa (% do corpus com coding denso vs raso)
+
+**O que Qualia já tem dessa lista** (>50% da infra B):
+- Audit log central (#29) — base pra trajetória do código
+- Memo schema cross-entidade (#25) — memo-trace linking estrutural
+- Magnitude (#14) — registrar justificativa
+- mergePolicies #30 — auditável
+- Vault-as-git — codebook versionado git-style sai de graça (commit history do data.json)
+
+**Citação literal da conversa de 2026-04-26:** _"auditabilidade não é uma feature, é uma propriedade emergente da arquitetura de dados. Se você modelar memo, código, trecho e suas relações como entidades versionadas com histórico, a auditabilidade cai de graça — não precisa de UI dedicada pra cada uma das coisas que listei."_
+
+**Posicionamento sugerido na conversa:** _"ferramenta de origem interpretativista (você está literalmente no Obsidian, ambiente de PKM, com memos como primeira classe) que pode opcionalmente oferecer ICR pra quem precisa, mas cuja proposta central é auditabilidade analítica."_
+
+#### Conexão epistemológica com LLM-assisted coding
+
+A segunda conversa (2026-04-28) registrou tensão importante:
+
+> _"você é crítico de synthetic data/synthetic users no mercado BR (taxonomia dos 4 tipos, Chapman), e LLM batch-coding sobre células tabulares é primo desse problema — o LLM é coder, ainda que humano valide. A epistemologia do espelho/janela complica também: quem é o codificador quando códigos vêm de LLM? O ciclo R→Q→recodificação→R que von Foerster ancora pressupõe um codificador humano que aprende. Se o codificador é LLM, ainda funciona? Vale separar essa decisão como tendo dimensão produto E dimensão epistêmica."_
+
+Isso amarra ICR e LLM como **uma decisão pai**, não duas independentes. As 5 escolas filosóficas mapeadas em `docs/_study/llm-coding/comparison.md` se cruzam com os 3 caminhos de ICR:
+
+| Escola LLM | Caminho ICR natural |
+|---|---|
+| "AI faz tudo" | A (Kappa clássico humano-vs-LLM como gate) |
+| "AI auxilia, humano decide" | B (auditabilidade) ou C (híbrido) |
+| "AI explora, humano codifica" | B |
+| "Methodology > AI" (Quirkos, Dedoose anti-AI manifesto 2025) | B |
+| "Sem AI" | B ou A clássico (sem LLM no kappa) |
+
+#### Decisão pra próxima sessão de produto (não de código)
+
+1. Qualia subscreve qual posicionamento epistemológico? Realista (A) / interpretativista (B) / híbrido (C)?
+2. Decisão #1 amarra qual escola LLM Qualia adota
+3. Se B ou C, "Intercoder Reliability" deixa de ser feature pendente e vira propriedade emergente (data model já tem 50%+) — caso A, vira tarefa técnica de 5-8 sessões
+
+**Brainstorm dedicado** (1 sessão de produto, sem código) cobre essa decisão pai junto com as 5 decisões LLM existentes (escola, use case primário, provider strategy, fluxo, granularidade revisão).
 
 ### Projects + Workspace
 
