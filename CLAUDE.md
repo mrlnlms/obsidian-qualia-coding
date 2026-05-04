@@ -398,3 +398,52 @@ Docs narrativos/historicos (fora do repo, em `obsidian-qualia-coding/plugin-docs
 - Bug fix significativo → 3 se revelou padrao
 - Padrao tecnico novo isolado → 3
 - Novo modulo/arquivo → 2, 6
+
+## Consultar base de interacoes AI (cross-projeto)
+
+Quando o Marlon pedir "procura conversa sobre X", "o que falamos sobre Y", "tem discussao anterior sobre Z" — qualquer historico que possa estar em ChatGPT, Claude.ai, Gemini, NotebookLM, Claude Code, Codex, Gemini CLI, Qwen, DeepSeek ou Perplexity — consultar a base unified do projeto analise.
+
+**Localizacao:** `~/Desktop/AI Interaction Analysis/data/unified/` (parquets DuckDB), wrapper CLI em `scripts/search-conversations.py`.
+
+**Interface principal — wrapper CLI:**
+
+```bash
+PY=~/Desktop/AI\ Interaction\ Analysis/.venv/bin/python
+SCRIPT=~/Desktop/AI\ Interaction\ Analysis/scripts/search-conversations.py
+
+# Buscar termo full-text em messages (todas as fontes)
+$PY $SCRIPT --query "kappa"
+
+# Filtrar por fonte
+$PY $SCRIPT --query "kappa" --source claude_ai
+# fontes validas: claude_ai, chatgpt, qwen, deepseek, perplexity, gemini,
+#                 notebooklm, claude_code, codex, gemini_cli
+
+# Filtrar por projeto (entity/sub_entity da curated layer)
+$PY $SCRIPT --query "kappa" --entity "Obsidian Qualia Coding"
+
+# Excluir subagents Claude Code e stubs orfaos (analise de conteudo)
+$PY $SCRIPT --query "kappa" --source claude_code --exclude-subagents
+
+# Imprimir conversa inteira (passa conversation_id)
+$PY $SCRIPT --show ca9f15d1-6304-490c-a68a-6e354be52c3b
+
+# Listar entities disponiveis pra filtrar
+$PY $SCRIPT --list-entities
+
+# Schema completo das views DuckDB + curated layer
+$PY $SCRIPT --schema
+```
+
+**Saida do search:** uma linha por conversa — `conversation_id  [source, data, N msgs]  titulo` + URL na linha seguinte (quando disponivel). Use `--show <id>` pra puxar conteudo.
+
+**Workflow tipico** (usuario: "procura conversa sobre kappa"):
+1. `$PY $SCRIPT --query "kappa" --source claude_ai --limit 10` — lista candidatos
+2. Identificar a conv pelo titulo + data + msg_count
+3. `$PY $SCRIPT --show <id>` — puxar conteudo, ler, resumir pro usuario
+
+**Quando o usuario pedir contexto deste projeto especificamente:** combinar `--query` com `--entity "Obsidian Qualia Coding"` (748+ convs marcadas).
+
+**Casos avancados** (DuckDB direto): se o wrapper nao cobrir, ler `~/Desktop/AI\ Interaction\ Analysis/CLAUDE.md` secao "Dissecacao das orfas — nb 15" pra schema completo das views (conversations, messages, events, conversation_projects) e padroes DuckDB. Em ultimo caso, `cd` no projeto e rodar Python com `from src.db import DuckDBManager`.
+
+**NAO atualizar a base.** Esse projeto eh consumer read-only — nunca rodar nada que modifique parquets em `data/unified/` ou `data/curated/`.
