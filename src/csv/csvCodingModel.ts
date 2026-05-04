@@ -131,6 +131,113 @@ export class CsvCodingModel {
 		return marker;
 	}
 
+	// ── Bulk Row operations ──
+	//
+	// Per-marker `findOrCreateRowMarker` + `addCodeToMarker`/`removeCodeFromMarker`
+	// is O(R × M) and notifies once per row — unusable for batch coding on
+	// large files (660k+ rows). The bulk variants below build a single index
+	// from `rowMarkers`, mutate in place, and emit one `notify()` at the end.
+
+	private buildRowMarkerIndex(file: string, column: string): Map<number, RowMarker> {
+		const idx = new Map<number, RowMarker>();
+		for (const m of this.rowMarkers) {
+			if (m.fileId === file && m.column === column) {
+				idx.set(m.sourceRowId, m);
+			}
+		}
+		return idx;
+	}
+
+	addCodeToManyRows(file: string, sourceRowIds: ReadonlyArray<number>, column: string, codeId: string): void {
+		if (sourceRowIds.length === 0) return;
+		const idx = this.buildRowMarkerIndex(file, column);
+		const now = Date.now();
+		let mutated = false;
+		for (const rowId of sourceRowIds) {
+			let marker = idx.get(rowId);
+			if (!marker) {
+				marker = {
+					id: this.generateId(),
+					fileId: file, sourceRowId: rowId, column,
+					codes: [],
+					createdAt: now,
+					updatedAt: now,
+				};
+				this.rowMarkers.push(marker);
+				idx.set(rowId, marker);
+				mutated = true;
+			}
+			if (!hasCode(marker.codes, codeId)) {
+				marker.codes = addCodeApplication(marker.codes, codeId);
+				marker.updatedAt = now;
+				mutated = true;
+			}
+		}
+		if (mutated) this.notify();
+	}
+
+	removeCodeFromManyRows(file: string, sourceRowIds: ReadonlyArray<number>, column: string, codeId: string): void {
+		if (sourceRowIds.length === 0) return;
+		const idx = this.buildRowMarkerIndex(file, column);
+		const now = Date.now();
+		let mutated = false;
+		const toDeleteIds = new Set<string>();
+		for (const rowId of sourceRowIds) {
+			const marker = idx.get(rowId);
+			if (!marker || !hasCode(marker.codes, codeId)) continue;
+			marker.codes = removeCodeApplication(marker.codes, codeId);
+			marker.updatedAt = now;
+			mutated = true;
+			if (marker.codes.length === 0) toDeleteIds.add(marker.id);
+		}
+		if (toDeleteIds.size > 0) {
+			this.rowMarkers = this.rowMarkers.filter(m => !toDeleteIds.has(m.id));
+		}
+		if (mutated) this.notify();
+	}
+
+	/** Removes all row markers for the given (file, column, sourceRowId) tuples. */
+	removeAllRowMarkersFromMany(file: string, sourceRowIds: ReadonlyArray<number>, column: string): void {
+		if (sourceRowIds.length === 0) return;
+		const rowSet = new Set(sourceRowIds);
+		const before = this.rowMarkers.length;
+		this.rowMarkers = this.rowMarkers.filter(m =>
+			!(m.fileId === file && m.column === column && rowSet.has(m.sourceRowId))
+		);
+		if (this.rowMarkers.length !== before) this.notify();
+	}
+
+	/**
+	 * Returns the set of codeIds present in EVERY supplied row (intersection).
+	 * Empty if any row has no markers, or if `sourceRowIds` is empty.
+	 *
+	 * Single pass over `rowMarkers` to build per-row code sets; intersection
+	 * walks the visible rows with early-exit on empty intersection. O(M + R)
+	 * worst-case, much faster than the O(K × R × M) naive approach.
+	 */
+	getCodeIntersectionForRows(file: string, sourceRowIds: ReadonlyArray<number>, column: string): Set<string> {
+		if (sourceRowIds.length === 0) return new Set();
+		const rowCodes = new Map<number, Set<string>>();
+		for (const m of this.rowMarkers) {
+			if (m.fileId !== file || m.column !== column) continue;
+			let set = rowCodes.get(m.sourceRowId);
+			if (!set) { set = new Set(); rowCodes.set(m.sourceRowId, set); }
+			for (const id of getCodeIds(m.codes)) set.add(id);
+		}
+		let intersect: Set<string> | null = null;
+		for (const rowId of sourceRowIds) {
+			const codes = rowCodes.get(rowId);
+			if (!codes || codes.size === 0) return new Set();
+			if (intersect === null) {
+				intersect = new Set(codes);
+			} else {
+				for (const id of intersect) if (!codes.has(id)) intersect.delete(id);
+				if (intersect.size === 0) return new Set();
+			}
+		}
+		return intersect ?? new Set();
+	}
+
 	// ── Segment Markers ──
 
 	getSegmentMarkersForCell(file: string, sourceRowId: number, column: string): SegmentMarker[] {

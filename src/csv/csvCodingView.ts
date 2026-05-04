@@ -16,6 +16,7 @@ import {
 	copyVaultFileToOPFS,
 	opfsKeyFor,
 } from './duckdb';
+import { buildWhereClause, type AgFilterModel } from './duckdb/filterModelToSql';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -68,7 +69,14 @@ interface LazyState {
 	rowProvider: DuckDBRowProvider;
 	fileType: TabularFileType;
 	totalRows: number;
-	displayMap?: { name: string; orderBy: Array<{ column: string; descending: boolean }> };
+	displayMap?: { name: string; orderBy: Array<{ column: string; descending: boolean }>; whereClause?: string };
+	/**
+	 * Cached current filter — recomputed on `filterChanged`. `whereClause` is the
+	 * SQL fragment passed to DuckDB; `filteredCount` is what the datasource uses
+	 * to signal `lastRow` to AG Grid Infinite. Both are absent when no filter is
+	 * active (full-table queries).
+	 */
+	currentFilter?: { whereClause?: string; filteredCount: number };
 }
 
 // ── Main FileView ──
@@ -132,6 +140,40 @@ export class CsvCodingView extends FileView {
 		});
 	}
 
+	/**
+	 * Inert "click to load" placeholder rendered during workspace restoration for
+	 * files above the size threshold. Avoids racing the plugin bundle parse with
+	 * an auto-triggered banner — user explicitly opts in to load by clicking.
+	 */
+	private renderDeferredLoadPlaceholder(file: TFile, sizeBytes: number, thresholdBytes: number): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		const banner = contentEl.createDiv({ cls: 'qualia-tabular-size-warning' });
+		banner.createEl('h3', { text: 'Large file — load deferred' });
+		const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
+		const limitMb = (thresholdBytes / (1024 * 1024)).toFixed(0);
+		banner.createEl('p', {
+			text: `${file.name} (${sizeMb} MB, threshold ${limitMb} MB) was not auto-loaded on workspace restore to keep Obsidian responsive.`,
+		});
+		banner.createEl('p', {
+			text: 'Click below to choose how to open this file.',
+			cls: 'qualia-tabular-size-warning-hint',
+		});
+		const actions = banner.createDiv({ cls: 'qualia-tabular-size-warning-actions' });
+		const openBtn = actions.createEl('button', { text: 'Open this file', cls: 'mod-cta' });
+		openBtn.addEventListener('click', () => {
+			// Non-blocking: same rationale as onLoadFile — awaiting the banner here
+			// would freeze Obsidian's loadFile pipeline if the user switches files
+			// before clicking a banner button.
+			void this.confirmLoadLargeFile(file, sizeBytes, thresholdBytes).then(choice => {
+				if (this.file !== file) return;
+				if (choice === 'cancel') { this.leaf.detach(); return; }
+				if (choice === 'lazy') { void this.setupLazyMode(file); return; }
+				void this.loadEagerPath(file);
+			});
+		});
+	}
+
 	async onLoadFile(file: TFile): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
@@ -144,18 +186,46 @@ export class CsvCodingView extends FileView {
 		const parquetMB = csvSettings?.settings?.parquetSizeWarningMB ?? 50;
 		const csvMB = csvSettings?.settings?.csvSizeWarningMB ?? 100;
 		const thresholdBytes = (file.extension === 'parquet' ? parquetMB : csvMB) * 1024 * 1024;
-		if (sizeBytes > thresholdBytes) {
-			const choice = await this.confirmLoadLargeFile(file, sizeBytes, thresholdBytes);
-			if (choice === 'cancel') {
-				this.readyResolve?.();
-				this.leaf.detach();
-				return;
-			}
-			if (choice === 'lazy') {
-				return this.setupLazyMode(file);
-			}
-			contentEl.empty();
+
+		// Workspace restoration path: when Obsidian is reopening a saved layout that
+		// included a leaf with a heavy file, do NOT auto-load. Auto-loading at this
+		// stage races with plugin initialization (49MB bundle parse) and the user
+		// perceives "Obsidian froze". Render an inert placeholder; user clicks to load.
+		// Heuristic: `workspace.layoutReady` is false during restore, true on user open.
+		if (sizeBytes > thresholdBytes && !this.app.workspace.layoutReady) {
+			this.renderDeferredLoadPlaceholder(file, sizeBytes, thresholdBytes);
+			this.readyResolve?.();
+			return;
 		}
+
+		if (sizeBytes > thresholdBytes) {
+			// CRITICAL: do NOT await the banner here. Awaiting blocks `onLoadFile` from
+			// resolving, which freezes Obsidian's loadFile pipeline — the user can no
+			// longer switch to any other file (markdown included). Render the banner
+			// and return immediately; button handlers drive the next step asynchronously.
+			this.readyResolve?.();
+			void this.confirmLoadLargeFile(file, sizeBytes, thresholdBytes).then(choice => {
+				// User may have switched to another file while the banner was up —
+				// in that case onUnloadFile already ran and `this.file` no longer matches.
+				if (this.file !== file) return;
+				if (choice === 'cancel') { this.leaf.detach(); return; }
+				if (choice === 'lazy') { void this.setupLazyMode(file); return; }
+				void this.loadEagerPath(file);
+			});
+			return;
+		}
+
+		return this.loadEagerPath(file);
+	}
+
+	/**
+	 * Eager load path: read the entire file into memory (papaparse / hyparquet) and
+	 * mount AG Grid Client-Side Row Model. Used when the file is below the size
+	 * threshold OR when the user explicitly chose "Load full" on the warning banner.
+	 */
+	private async loadEagerPath(file: TFile): Promise<void> {
+		const { contentEl } = this;
+		contentEl.empty();
 
 		const loading = contentEl.createEl('p');
 		loading.textContent = file.extension === 'parquet' ? 'Loading Parquet...' : 'Loading CSV...';
@@ -236,10 +306,24 @@ export class CsvCodingView extends FileView {
 		this.unsubscribeVisibility?.();
 		this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
 
-		// Inject custom header buttons via MutationObserver
+		// Inject custom header buttons via MutationObserver. Eager mode: source row IDs
+		// for batch coding come from AG Grid's filtered/sorted node iterator (entire
+		// dataset is in client memory).
 		const headerRoot = wrapper.querySelector('.ag-header');
 		if (headerRoot) {
-			const ctx = { gridApi: this.gridApi, csvModel: this.csvModel, filePath: this.file?.path, app: this.app };
+			const ctx = {
+				gridApi: this.gridApi,
+				csvModel: this.csvModel,
+				filePath: this.file?.path,
+				app: this.app,
+				getFilteredSourceRowIds: async (): Promise<number[]> => {
+					const ids: number[] = [];
+					this.gridApi?.forEachNodeAfterFilterAndSort(node => {
+						ids.push(node.sourceRowIndex);
+					});
+					return ids;
+				},
+			};
 			const inject = () => injectHeaderButtons(wrapper, ctx);
 			inject();
 			this.headerObserver = new MutationObserver(inject);
@@ -357,7 +441,14 @@ export class CsvCodingView extends FileView {
 			this.gridApi = createGrid(wrapper, {
 				theme: obsidianTheme,
 				columnDefs: columns.map((h) => ({ field: h, headerName: h })),
-				defaultColDef: { sortable: true, filter: false, resizable: true },
+				// `filter: true` enables AG Grid's built-in filter UI per column. The
+				// datasource translates `params.filterModel` into a SQL WHERE fragment
+				// via `buildWhereClause` so DuckDB does the actual filtering server-side
+				// (client-side filtering is not viable in Infinite Row Model — only the
+				// page cache is materialized). Virtual cod-seg/cod-frow/comment columns
+				// override this to `false` in `columnToggleModal` because they don't
+				// exist in the DuckDB schema.
+				defaultColDef: { sortable: true, filter: true, resizable: true },
 				rowModelType: 'infinite',
 				cacheBlockSize: 100,
 				maxBlocksInCache: 10,
@@ -381,13 +472,16 @@ export class CsvCodingView extends FileView {
 									column: s.colId,
 									descending: s.sort === 'desc',
 								}));
+							const whereClause = this.lazyState.currentFilter?.whereClause;
+							const effectiveTotal = this.lazyState.currentFilter?.filteredCount ?? this.lazyState.totalRows;
 							const rows = await this.lazyState.rowProvider.getRowsByDisplayRange({
 								offset: params.startRow,
 								limit: params.endRow - params.startRow,
 								orderBy,
+								whereClause,
 							});
-							const lastRow = (params.startRow + rows.length) >= this.lazyState.totalRows
-								? this.lazyState.totalRows
+							const lastRow = (params.startRow + rows.length) >= effectiveTotal
+								? effectiveTotal
 								: -1;
 							params.successCallback(rows, lastRow);
 						} catch (err) {
@@ -402,6 +496,11 @@ export class CsvCodingView extends FileView {
 				// (spike Premise B addendum §14.5.2). The mapping is a DuckDB temp table
 				// keyed by __source_row → display_row under the current sort.
 				onSortChanged: () => { void this.refreshLazyDisplayMap(); },
+				// Filter change → recompute filtered count (so AG Grid's scrollbar shows
+				// the right total) + rebuild display_row mapping (display index of any
+				// given source row depends on which rows survive the filter). The grid
+				// purges its row cache automatically on filter change.
+				onFilterChanged: () => { void this.refreshLazyFilter(); },
 			});
 
 			this.readyResolve?.();
@@ -410,12 +509,24 @@ export class CsvCodingView extends FileView {
 			this.unsubscribeVisibility?.();
 			this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
 
-			// Inject custom header buttons via MutationObserver — enables the same
-			// coding affordances (cod-seg/cod-frow column tag buttons) as eager mode.
-			// `isLazy: true` so the batch popover knows to short-circuit.
+			// Inject custom header buttons via MutationObserver — same coding affordances
+			// (cod-seg/cod-frow tag buttons) as eager mode. Lazy batch coding queries
+			// DuckDB directly using the cached `whereClause` from `currentFilter`,
+			// because AG Grid Infinite only sees the page cache (a few hundred rows).
 			const headerRoot = wrapper.querySelector('.ag-header');
 			if (headerRoot) {
-				const ctx = { gridApi: this.gridApi, csvModel: this.csvModel, filePath: this.file?.path, app: this.app, isLazy: true };
+				const ctx = {
+					gridApi: this.gridApi,
+					csvModel: this.csvModel,
+					filePath: this.file?.path,
+					app: this.app,
+					getFilteredSourceRowIds: async (): Promise<number[]> => {
+						if (!this.lazyState) return [];
+						return this.lazyState.rowProvider.getFilteredSourceRowIds(
+							this.lazyState.currentFilter?.whereClause,
+						);
+					},
+				};
 				const inject = () => injectHeaderButtons(wrapper, ctx);
 				inject();
 				this.headerObserver = new MutationObserver(inject);
@@ -459,17 +570,69 @@ export class CsvCodingView extends FileView {
 			column: c.getColId(),
 			descending: c.getSort() === 'desc',
 		}));
+		const whereClause = this.lazyState.currentFilter?.whereClause;
 		try {
 			if (this.lazyState.displayMap) {
 				const oldName = this.lazyState.displayMap.name;
 				this.lazyState.displayMap = undefined;
-				await this.lazyState.rowProvider.dropDisplayMap(oldName);
+				// Re-check after each await — onUnloadFile may have run concurrently.
+				const provider = this.lazyState?.rowProvider;
+				if (!provider) return;
+				await provider.dropDisplayMap(oldName);
 			}
-			if (orderBy.length === 0) return; // no sort → no map needed
-			const name = await this.lazyState.rowProvider.buildDisplayMap(orderBy);
-			if (this.lazyState) this.lazyState.displayMap = { name, orderBy };
+			if (!this.lazyState) return;
+			// No sort AND no filter → display index == source row index (natural order),
+			// no mapping needed. Filter alone still requires a map because surviving rows
+			// get re-numbered.
+			if (orderBy.length === 0 && !whereClause) return;
+			const provider = this.lazyState?.rowProvider;
+			if (!provider) return;
+			const name = await provider.buildDisplayMap(orderBy, whereClause);
+			if (this.lazyState) this.lazyState.displayMap = { name, orderBy, whereClause };
 		} catch (err) {
 			console.warn('[qualia-csv lazy] refreshLazyDisplayMap failed', err);
+		}
+	}
+
+	/**
+	 * Filter change handler for lazy mode. The `whereClause` is updated SYNCHRONOUSLY
+	 * before any async work — AG Grid purges its cache and re-invokes `datasource.getRows`
+	 * within the same tick, and that call needs to see the new clause (otherwise it
+	 * fetches rows without the filter applied and the grid shows stale data).
+	 *
+	 * The async tail recomputes `filteredCount` (drives Infinite Row Model's `lastRow`)
+	 * and rebuilds the display_row map. During the brief window where filteredCount is
+	 * stale, `lastRow` falls back to `totalRows` — slightly imprecise scrollbar, fine.
+	 */
+	private async refreshLazyFilter(): Promise<void> {
+		if (!this.lazyState || !this.gridApi) return;
+		const filterModel = this.gridApi.getFilterModel() as AgFilterModel | null;
+		const whereClause = buildWhereClause(filterModel) ?? undefined;
+
+		// Synchronous swap — getRows must see this on the next tick.
+		if (whereClause) {
+			this.lazyState.currentFilter = {
+				whereClause,
+				filteredCount: this.lazyState.totalRows,
+			};
+		} else {
+			this.lazyState.currentFilter = undefined;
+		}
+
+		try {
+			if (whereClause) {
+				// Re-read lazyState after each await — onUnloadFile may have nulled it.
+				const provider = this.lazyState?.rowProvider;
+				if (!provider) return;
+				const filteredCount = await provider.getRowCount(whereClause);
+				if (this.lazyState?.currentFilter && this.lazyState.currentFilter.whereClause === whereClause) {
+					this.lazyState.currentFilter.filteredCount = filteredCount;
+				}
+			}
+			if (!this.lazyState) return;
+			await this.refreshLazyDisplayMap();
+		} catch (err) {
+			console.warn('[qualia-csv lazy] refreshLazyFilter failed', err);
 		}
 	}
 
@@ -554,21 +717,28 @@ export class CsvCodingView extends FileView {
 			this.headerObserver.disconnect();
 			this.headerObserver = null;
 		}
+
+		// Snapshot + null `lazyState` BEFORE the async teardown. If anything during
+		// `gridApi.destroy()` (or another concurrent path like `refreshLazyFilter`)
+		// re-enters and reads `this.lazyState`, it sees null and skips work — avoids
+		// double-dispose / double-dropDisplayMap on the same provider.
+		const lazyState = this.lazyState;
+		this.lazyState = null;
+		if (lazyState && this.file) this.csvModel.unregisterLazyProvider(this.file.path);
+
 		if (this.gridApi) {
 			this.gridApi.destroy();
 			this.gridApi = null;
 		}
-		// Lazy mode teardown — drop display map (if cached), unregister provider
-		// from the model, dispose the RowProvider. The DuckDB runtime itself stays
-		// alive (other lazy views may share it).
-		if (this.lazyState) {
-			const { rowProvider, displayMap } = this.lazyState;
-			if (this.file) this.csvModel.unregisterLazyProvider(this.file.path);
+
+		// Lazy mode teardown — drop display map (if cached), dispose the RowProvider.
+		// The DuckDB runtime itself stays alive (other lazy views may share it).
+		if (lazyState) {
+			const { rowProvider, displayMap } = lazyState;
 			if (displayMap) {
 				try { await rowProvider.dropDisplayMap(displayMap.name); } catch (e) { console.warn(e); }
 			}
 			try { await rowProvider.dispose(); } catch (e) { console.warn(e); }
-			this.lazyState = null;
 		}
 		this.contentEl.empty();
 	}

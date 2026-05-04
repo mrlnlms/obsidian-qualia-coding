@@ -6,10 +6,10 @@
  *   2. openBatchCodingPopover — all visible/filtered rows in a column
  */
 
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
 import type { CsvCodingModel } from './csvCodingModel';
 import type { GridApi } from 'ag-grid-community';
-import { hasCode, findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
+import { findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
 import {
 	openCodingPopover,
 	type CodingPopoverAdapter,
@@ -127,51 +127,41 @@ export function openCsvCodingPopover(
 
 /**
  * Opens a batch coding popover for a column header.
- * Applies/removes codes to ALL visible (filtered) rows at once.
+ * Applies/removes codes to ALL filtered rows in the column.
+ *
+ * The set of filtered rows is collected via `getFilteredSourceRowIds` — caller
+ * decides the strategy (`forEachNodeAfterFilterAndSort` in eager mode, SQL
+ * `WHERE` in lazy mode). The popover itself is mode-agnostic.
  */
-export function openBatchCodingPopover(
+export async function openBatchCodingPopover(
 	anchorEl: HTMLElement,
 	model: CsvCodingModel,
 	file: string,
 	column: string,
 	gridApi: GridApi,
 	app: App,
+	getFilteredSourceRowIds: () => Promise<number[]>,
 	anchorRect?: DOMRect,
-	isLazy?: boolean,
-): void {
-	// Batch coding in lazy mode (AG Grid Infinite Row Model) requires a SQL
-	// predicate path — `forEachNodeAfterFilterAndSort` only sees rows in the
-	// current page cache, not the full dataset. Phase 5 brings a predicate-builder
-	// modal; until then we block batch in lazy with a clear notice. Caller passes
-	// `isLazy` explicitly so we don't need to introspect AG Grid internals.
-	if (isLazy) {
-		new Notice('Batch coding em modo lazy ainda não implementado — use o botão de tag em cada célula. Predicate-based batch chega na próxima fase.', 8000);
-		return;
-	}
-
+): Promise<void> {
 	const savedRect = anchorRect ?? anchorEl.getBoundingClientRect();
 	const pos = { x: savedRect.left, y: savedRect.bottom + 4 };
 
-	// Collect stable source row IDs — node.sourceRowIndex is the original data position,
-	// unaffected by sort/filter. Maps directly to our persisted sourceRowId.
-	const filteredSourceRowIds: number[] = [];
-	gridApi.forEachNodeAfterFilterAndSort(node => {
-		filteredSourceRowIds.push(node.sourceRowIndex);
-	});
+	const filteredSourceRowIds = await getFilteredSourceRowIds();
 
-	// "Active" = codes present in ALL visible rows
-	const allCodes = model.registry.getAll();
+	// "Active" = codes present in EVERY filtered row. Computed via set intersection
+	// (single pass over rowMarkers, early-exit). Skipped on huge datasets — the hint
+	// is only useful when applying to a focused subset; on 600k+ rows the intersection
+	// is almost always empty anyway.
+	const FULLY_ACTIVE_LIMIT = 5000;
+	let fullyActiveIds = new Set<string>();
+	if (filteredSourceRowIds.length > 0 && filteredSourceRowIds.length <= FULLY_ACTIVE_LIMIT) {
+		fullyActiveIds = model.getCodeIntersectionForRows(file, filteredSourceRowIds, column);
+	}
+	const idToName = new Map(model.registry.getAll().map(c => [c.id, c.name]));
 	const fullyActiveCodes: string[] = [];
-	for (const codeDef of allCodes) {
-		let count = 0;
-		for (const sourceRowId of filteredSourceRowIds) {
-			if (model.getRowMarkersForCell(file, sourceRowId, column).some(m => hasCode(m.codes, codeDef.id))) {
-				count++;
-			}
-		}
-		if (count === filteredSourceRowIds.length && filteredSourceRowIds.length > 0) {
-			fullyActiveCodes.push(codeDef.name);
-		}
+	for (const id of fullyActiveIds) {
+		const name = idToName.get(id);
+		if (name) fullyActiveCodes.push(name);
 	}
 
 	const adapter: CodingPopoverAdapter = {
@@ -180,19 +170,13 @@ export function openBatchCodingPopover(
 		addCode: (name) => {
 			let def = model.registry.getByName(name);
 			if (!def) def = model.registry.create(name);
-			for (const sourceRowId of filteredSourceRowIds) {
-				const m = model.findOrCreateRowMarker(file, sourceRowId, column);
-				model.addCodeToMarker(m.id, def.id);
-			}
+			model.addCodeToManyRows(file, filteredSourceRowIds, column, def.id);
 			gridApi.refreshCells({ force: true });
 		},
 		removeCode: (name) => {
 			const def = model.registry.getByName(name);
 			if (!def) return;
-			for (const sourceRowId of filteredSourceRowIds) {
-				const m = model.findOrCreateRowMarker(file, sourceRowId, column);
-				model.removeCodeFromMarker(m.id, def.id, true);
-			}
+			model.removeCodeFromManyRows(file, filteredSourceRowIds, column, def.id);
 			gridApi.refreshCells({ force: true });
 		},
 		getMemo: () => '',
@@ -207,23 +191,16 @@ export function openBatchCodingPopover(
 		pos,
 		app,
 		isHoverMode: false,
-		badge: `Apply to ${filteredSourceRowIds.length} visible row${filteredSourceRowIds.length !== 1 ? 's' : ''}`,
+		badge: `Apply to ${filteredSourceRowIds.length.toLocaleString()} visible row${filteredSourceRowIds.length !== 1 ? 's' : ''}`,
 		className: 'codemarker-popover',
 		onRebuild: () => {
-			openBatchCodingPopover(anchorEl, model, file, column, gridApi, app, savedRect);
+			void openBatchCodingPopover(anchorEl, model, file, column, gridApi, app, getFilteredSourceRowIds, savedRect);
 		},
 		deleteAction: {
 			label: 'Remove All Codes',
 			icon: 'trash',
 			onDelete: () => {
-				for (const sourceRowId of filteredSourceRowIds) {
-					const markers = model.getRowMarkersForCell(file, sourceRowId, column);
-					for (const m of markers) {
-						for (const ca of [...m.codes]) {
-							model.removeCodeFromMarker(m.id, ca.codeId);
-						}
-					}
-				}
+				model.removeAllRowMarkersFromMany(file, filteredSourceRowIds, column);
 				gridApi.refreshCells({ force: true });
 			},
 		},

@@ -134,11 +134,36 @@ export class DuckDBRowProvider implements RowProvider {
 		return out;
 	}
 
-	async getRowCount(): Promise<number> {
+	/**
+	 * Total row count. When `whereClause` is provided (already escaped — see
+	 * `filterModelToSql.buildWhereClause`), returns the count post-filter.
+	 */
+	async getRowCount(whereClause?: string): Promise<number> {
 		this.guard();
-		const result = await this.conn.query(`SELECT COUNT(*) AS n FROM ${this.tableName}`);
+		const where = whereClause ? `WHERE ${whereClause}` : "";
+		const result = await this.conn.query(`SELECT COUNT(*) AS n FROM ${this.tableName} ${where}`);
 		const rows = result.toArray();
 		return Number(rows[0]?.toJSON().n ?? 0);
+	}
+
+	/**
+	 * Returns the `__source_row` IDs of all rows matching `whereClause`. Used by
+	 * batch coding in lazy mode (Infinite Row Model only sees the page cache, so
+	 * `forEachNodeAfterFilterAndSort` is unreliable). No `whereClause` → all rows.
+	 */
+	async getFilteredSourceRowIds(whereClause?: string): Promise<number[]> {
+		this.guard();
+		const where = whereClause ? `WHERE ${whereClause}` : "";
+		const result = await this.conn.query(
+			`SELECT __source_row FROM ${this.tableName} ${where} ORDER BY __source_row`,
+		);
+		// Pull from the Arrow vector directly — `result.toArray().map(r => r.toJSON())`
+		// allocates a fresh object per row and is ~10× slower on 600k+ row sets.
+		const col = result.getChild("__source_row");
+		if (!col) return [];
+		const out = new Array<number>(col.length);
+		for (let i = 0; i < col.length; i++) out[i] = Number(col.get(i));
+		return out;
 	}
 
 	/** Original column names (excludes the synthetic __source_row). */
@@ -174,8 +199,11 @@ export class DuckDBRowProvider implements RowProvider {
 		limit: number;
 		orderBy?: Array<{ column: string; descending: boolean }>;
 		columns?: string[];
+		/** Pre-built SQL WHERE fragment (already escaped — see `filterModelToSql.buildWhereClause`). */
+		whereClause?: string;
 	}): Promise<Array<Record<string, unknown>>> {
 		this.guard();
+		const where = opts.whereClause ? `WHERE ${opts.whereClause}` : "";
 		const orderClause = opts.orderBy && opts.orderBy.length > 0
 			? `ORDER BY ${opts.orderBy.map(o => `${quoteIdent(o.column)} ${o.descending ? "DESC" : "ASC"}`).join(", ")}`
 			: "";
@@ -183,7 +211,7 @@ export class DuckDBRowProvider implements RowProvider {
 			? opts.columns.map(quoteIdent).concat("__source_row").join(", ")
 			: "*";
 		const result = await this.conn.query(
-			`SELECT ${select} FROM ${this.tableName} ${orderClause} LIMIT ${opts.limit} OFFSET ${opts.offset}`,
+			`SELECT ${select} FROM ${this.tableName} ${where} ${orderClause} LIMIT ${opts.limit} OFFSET ${opts.offset}`,
 		);
 		return result.toArray().map(r => r.toJSON() as Record<string, unknown>);
 	}
@@ -195,15 +223,19 @@ export class DuckDBRowProvider implements RowProvider {
 	 * The result is a temporary DuckDB table; lookups go via `displayRowFor()`.
 	 * Caller is responsible for disposing via `dropDisplayMap()` when sort changes.
 	 */
-	async buildDisplayMap(orderBy: Array<{ column: string; descending: boolean }>): Promise<string> {
+	async buildDisplayMap(
+		orderBy: Array<{ column: string; descending: boolean }>,
+		whereClause?: string,
+	): Promise<string> {
 		this.guard();
 		const mapName = `qualia_display_map_${uniqueSuffix()}`;
 		const orderClause = orderBy.length > 0
 			? `ORDER BY ${orderBy.map(o => `${quoteIdent(o.column)} ${o.descending ? "DESC" : "ASC"}`).join(", ")}`
 			: "";
+		const where = whereClause ? `WHERE ${whereClause}` : "";
 		await this.conn.query(
 			`CREATE OR REPLACE TABLE ${mapName} AS ` +
-			`SELECT __source_row, row_number() OVER (${orderClause}) - 1 AS display_row FROM ${this.tableName}`,
+			`SELECT __source_row, row_number() OVER (${orderClause}) - 1 AS display_row FROM ${this.tableName} ${where}`,
 		);
 		return mapName;
 	}
