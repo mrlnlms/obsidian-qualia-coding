@@ -76,7 +76,19 @@ interface QualiaData {
 }
 ```
 
-`MarkerRef = { engine: EngineType; fileId: string; markerId: string }` — tipo leve compartilhado pra resultados de match.
+**`MarkerRef`** — tipo leve compartilhado pra resultados de match, exportado nomeado em `src/core/types.ts` (sibling de `AuditEntry`):
+
+```ts
+export type EngineType = 'markdown' | 'pdf' | 'image' | 'audio' | 'video' | 'csv';
+
+export interface MarkerRef {
+  engine: EngineType;
+  fileId: string;
+  markerId: string;
+}
+```
+
+Reusado por: `SmartCodeCache` (indexes + matches), `evaluator` (parâmetro), `applyFilters` (Analytics filter chain), `detailSmartCodeRenderer` (match list rows).
 
 ## 4. Arquitetura de módulos
 
@@ -88,7 +100,7 @@ src/core/smartCodes/
   cache.ts              — SmartCodeCache class (singleton): indexes, matches map, deps map
   dependencyExtractor.ts — extractDependencies(predicate) → Sets de codeIds/caseVarKeys/etc
   predicateNormalizer.ts — reorder children por custo (otimização AND/OR), sem alterar semântica
-  predicateValidator.ts — validateForSave(predicate, registry) → ValidationResult (broken refs, cycles, vazio)
+  predicateValidator.ts — validateForSave(definition, predicate, registry) → ValidationResult (broken refs, cycles, vazio, name collision com outro smart code)
   predicateSerializer.ts — toJson/fromJson (estável pra QDPX e diff)
   builderModal.ts       — UI modal de create/edit (row-based linear)
   detailSmartCodeRenderer.ts — Code Detail equivalente pra smart code (header + predicate display + matches list)
@@ -114,26 +126,41 @@ src/core/auditLog.ts    — adiciona event types pro smart code stream (smart_co
 
 ## 5. Predicate evaluator
 
+Evaluator **não** acessa marker shape pra resolver engine. `engineType` vem do `MarkerRef.engine` passado separado — markers persistidos não ganham `__engine` field (mantém schema enxuto).
+
+Discriminant da AST split em 2 switches pra TS narrowing limpo: outer detecta operator (`'op' in node`) ou leaf (`'kind' in node`).
+
 ```ts
 function evaluate(
-  predicate: PredicateNode,
+  node: PredicateNode,
+  ref: MarkerRef,
   marker: AnyMarker,
   ctx: EvaluatorContext
 ): boolean {
-  switch (predicate.op ?? predicate.kind) {
-    case 'AND': return predicate.children.every(c => evaluate(c, marker, ctx));
-    case 'OR':  return predicate.children.some(c => evaluate(c, marker, ctx));
-    case 'NOT': return !evaluate(predicate.child, marker, ctx);
-    case 'hasCode': return hasCode(marker, predicate.codeId);
-    case 'caseVarEquals': return ctx.caseVars.get(marker.fileId, predicate.variable) === predicate.value;
-    case 'caseVarRange': return inRange(ctx.caseVars.get(marker.fileId, predicate.variable), predicate);
-    case 'magnitudeGte': return (getMagnitude(marker, predicate.codeId) ?? 0) >= predicate.n;
-    case 'magnitudeLte': return (getMagnitude(marker, predicate.codeId) ?? Infinity) <= predicate.n;
-    case 'inFolder': return ctx.codesInFolder(predicate.folderId).some(cId => hasCode(marker, cId));
-    case 'inGroup':  return ctx.codesInGroup(predicate.groupId).some(cId => hasCode(marker, cId));
-    case 'engineType': return marker.__engine === predicate.engine;
-    case 'relationExists': return checkRelation(marker, predicate, ctx);
-    case 'smartCode': return evaluateNested(predicate.smartCodeId, marker, ctx);
+  if ('op' in node) return evaluateOp(node, ref, marker, ctx);
+  return evaluateLeaf(node, ref, marker, ctx);
+}
+
+function evaluateOp(node: OpNode, ref, marker, ctx): boolean {
+  switch (node.op) {
+    case 'AND': return node.children.every(c => evaluate(c, ref, marker, ctx));
+    case 'OR':  return node.children.some(c => evaluate(c, ref, marker, ctx));
+    case 'NOT': return !evaluate(node.child, ref, marker, ctx);
+  }
+}
+
+function evaluateLeaf(node: LeafNode, ref, marker, ctx): boolean {
+  switch (node.kind) {
+    case 'hasCode':       return hasCode(marker, node.codeId);
+    case 'caseVarEquals': return ctx.caseVars.get(ref.fileId, node.variable) === node.value;
+    case 'caseVarRange':  return inRange(ctx.caseVars.get(ref.fileId, node.variable), node);
+    case 'magnitudeGte':  return (getMagnitude(marker, node.codeId) ?? 0) >= node.n;
+    case 'magnitudeLte':  return (getMagnitude(marker, node.codeId) ?? Infinity) <= node.n;
+    case 'inFolder':      return ctx.codesInFolder(node.folderId).some(cId => hasCode(marker, cId));
+    case 'inGroup':       return ctx.codesInGroup(node.groupId).some(cId => hasCode(marker, cId));
+    case 'engineType':    return ref.engine === node.engine;
+    case 'relationExists':return checkRelation(marker, node, ctx);
+    case 'smartCode':     return evaluateNested(node.smartCodeId, ref, marker, ctx);
   }
 }
 ```
@@ -141,6 +168,8 @@ function evaluate(
 `evaluateNested` checa `ctx.evaluating.has(targetSmartId)` (cycle), retorna false se hit. Senão entra em recursão com `evaluating` clonado + `targetSmartId` adicionado.
 
 `AND`/`OR` consomem children em ordem `predicateNormalizer` (cheap-first heuristic): `engineType` < `inFolder` < `inGroup` < `hasCode` < `caseVarEquals` < `caseVarRange` < `magnitudeGte/Lte` < `relationExists` < `smartCode`.
+
+**`magnitudeLte` em magnitude categórica não-numérica:** picker do builder oculta operador `≤` quando `code.magnitude.type !== 'continuous'`. Categorical strings só aceitam `magnitudeGte` no sentido de "tem essa magnitude exata" via `caseVarEquals` análogo — out of scope (categorical magnitude check fica como `hasCode` puro). Decisão: leaves `magnitudeGte/Lte` exigem `code.magnitude.type === 'continuous'`. Validator rejeita.
 
 ## 6. Cache & invalidação
 
@@ -158,14 +187,14 @@ class SmartCodeCache {
   rebuildIndexes(data: QualiaData): void;
   invalidateForCode(codeId: string): void;
   invalidateForCaseVar(varKey: string): void;
-  invalidateForMarker(engine, fileId, codeIds: string[]): void;
+  invalidateForMarker(args: { engine: EngineType; fileId: string; codeIds: string[] }): void;
   invalidateForFolder(folderId: string): void;
   invalidateForGroup(groupId: string): void;
   invalidateAll(): void;
   invalidate(smartCodeId: string): void;  // single (cascata via deps grafo)
-  getMatches(smartCodeId): MarkerRef[];
-  getCount(smartCodeId): number;
-  subscribe(fn): () => void;  // returns unsubscriber
+  getMatches(smartCodeId: string): MarkerRef[];
+  getCount(smartCodeId: string): number;
+  subscribe(fn: (changedSmartCodeIds: string[]) => void): () => void;  // returns unsubscriber
 }
 ```
 
@@ -175,8 +204,8 @@ class SmartCodeCache {
 
 - `addCodeApplication(marker, codeId)` → `indexByCode.get(codeId).add(ref)` + `cache.invalidateForCode(codeId)`
 - `removeCodeApplication(marker, codeId)` → remove do index + invalida
-- `addMarker(engine, fileId, marker)` → adiciona ao `indexByFile` + invalida codes do marker
-- `removeMarker` → remove tudo + invalida codes que estavam aplicados
+- `addMarker(engine, fileId, marker)` → adiciona ao `indexByFile` + `cache.invalidateForMarker({ engine, fileId, codeIds: getCodeIds(marker) })`
+- `removeMarker` → remove tudo + `cache.invalidateForMarker({ engine, fileId, codeIds })` com codes que estavam aplicados
 
 **Cascata de invalidação por smart code nesting:** quando smart code A muda, BFS pelo grafo reverso de deps (smart codes que referenciam A) e marca todos como dirty.
 
@@ -206,7 +235,15 @@ Layout em 3 zonas verticais (Bloco 2 do brainstorm). Implementação em `builder
 
 **Drag-reorder:** `[⋮]` handle permite reordenar dentro do mesmo parent. Drop em group header move pra dentro do group como último filho. Drop em zona vazia entre rows promove pro parent acima.
 
-**Validation:** save bloqueado se predicate vazio. Save habilitado com warning se há broken refs (banner amarelo "X conditions reference deleted entities — they will evaluate as no-match"). Save bloqueado vermelho se cycle detected.
+**Validation** (chama `predicateValidator.validateForSave(definition, predicate, registry)`):
+
+| Caso | Severidade | Save bloqueado? |
+|---|---|---|
+| Predicate vazio (sem leaves) | error | sim |
+| Cycle detected (smart code A → B → A) | error | sim |
+| Name colide com outro smart code (case-insensitive) | error | sim |
+| Broken refs (code/folder/group/case var/smart code deletado) | warning | não — banner amarelo "X conditions reference deleted entities — they will evaluate as no-match" |
+| `magnitudeGte/Lte` apontando pra code com magnitude não-continuous | error | sim |
 
 **Preview live:** debounced 300ms a cada edit. Reusa cache se predicate idêntico ao último compute (hash do JSON serializado).
 
@@ -225,10 +262,11 @@ Em `codebookTreeRenderer.ts`, antes da árvore de regulares, renderiza seção "
    ...árvore de regulares (folders + codes)
 ```
 
-Header colapsável (`collapsed: boolean` em estado per-view). Count "(3)" mostra quantos smart codes existem (visíveis após hidden filter).
+Header colapsável (`collapsed: boolean` em estado per-view). Count na seção: "X" se nenhum hidden, "X / Y" (visíveis / total) se algum hidden.
 
 Cada row:
 - `⚡` ícone fixo + nome + count de matches + eye toggle (hidden)
+- Count enquanto cache está dirty+computing: render `…` placeholder no lugar do número (não bloqueia render do row).
 - Click no nome → navega pro Smart Code Detail
 - Right-click → context menu: Edit predicate / Rename / Recolor / Edit memo / Hide / Delete
 - Sem drag (nada aceita smart code como drop target)
@@ -242,7 +280,7 @@ Smart codes não entram em `buildFlatTree` (que retorna FlatCodeNode | FlatFolde
 `detailSmartCodeRenderer.ts` espelha `detailCodeRenderer.ts`:
 
 ```
-⚡ Frustração de juniores                          [Edit predicate]
+⚡ Frustração de juniores
 Color: ●   Memo: [textarea inline auto-save 500ms]
 
 PREDICATE
@@ -250,7 +288,7 @@ PREDICATE
     • Code is "frustração"
     • Case var "seniority" = "junior"
     • Magnitude of "frustração" ≥ 3
-  [Edit predicate]
+  [Edit predicate]              ← único, abaixo da árvore
 
 MATCHES (47)
   📄 P01 — interview transcript                       (8)
@@ -267,6 +305,8 @@ Match list reusa `virtualList.ts` (já usado em `detailCodeRenderer` pra markers
 Memo editor: textarea inline com debounced 500ms + suspendRefresh/resumeRefresh (mesmo pattern do code memo, #25).
 
 Sem botão "Add marker" (smart code não é aplicável). Sem seção Hierarchy (parents/children — não se aplica). Sem seção Groups (não se aplica). Sem seção Relations (não se aplica).
+
+**Loading state:** quando cache está dirty+computing pra esse smart code, header mostra "MATCHES (calculating…)" e match list mostra placeholder "Computing matches… X/Y markers scanned" com progress baseado em chunked compute. Match list previa (cached anterior) fica visível atrás de um overlay translúcido se houver — evita flash de tela vazia.
 
 ## 10. Analytics integration
 
@@ -289,7 +329,9 @@ Modes que **não** aceitam (smart codes ficam fora):
 
 **Filter chips no config panel:** `renderCodesFilter` ganha sub-seção "Smart Codes" com chips ⚡ separados dos regulares. Mesmo toggle on/off.
 
-**FilterConfig:** `applyFilters` aceita smart code id como filter. Quando código de filter é smart, resolve via `cache.getMatches(id)` e usa o set de fileIds desses matches no filter em vez do "files que têm esse código".
+**FilterConfig:** smart code ids compartilham o mesmo array `codeIds: string[]` da `FilterConfig` existente — diferenciados pelo prefixo `sc_*` (regulares são `c_*`). `applyFilters` faz dispatch interno: id começando com `sc_` resolve via `cache.getMatches(id)` e usa o set de markerRefs dos matches; id começando com `c_` mantém o pipeline atual (markers que aplicam o code). `buildFilterConfig` não precisa mudança de shape; só ganha um helper `partitionByPrefix(codeIds)` no caller que monta o config.
+
+**Loading state em modes:** quando filter ou dimension inclui smart code com cache dirty, render do mode mostra "Computing smart codes…" overlay até cache resolver. Charts não re-renderizam até resolved (evita flicker de empty → full).
 
 ## 11. Sidebar adapters
 
@@ -297,9 +339,10 @@ Cada engine sidebar adapter (audio, video, csv, image, pdf, markdown) já lista 
 
 - Após a lista de códigos regulares, renderiza "Smart Codes (N)" se algum smart code tem ≥1 match no file.
 - Cada row: `⚡ name (count)` + click vai pro próximo match no file (igual click num código regular).
+- Loading state: row mostra "⚡ name (…)" enquanto cache está dirty+computing pra esse smart code.
 - Sem "remove from marker" (não está aplicado).
 
-Visibility per-doc: smart code segue mesmo padrão (`visibilityOverrides[fileId][smartCodeId]`). Eye toggle no popover compartilhado de visibilidade.
+**Visibility per-doc:** smart code segue mesmo padrão (`visibilityOverrides[fileId][smartCodeId]`). Eye toggle no popover compartilhado de visibilidade. **Migrators (`migrateFilePathForOverrides`, `clearFilePathForOverrides`, `cleanOverridesAfterGlobalChange`) não precisam mudança** — operam por string key sem assumir lookup em `registry.definitions`. Auditável trivialmente: nenhum desses helpers chama `registry.get(codeId)`. Spec confirma: zero mudança nos migrators.
 
 ## 12. Edge cases (matriz)
 
@@ -320,19 +363,63 @@ Visibility per-doc: smart code segue mesmo padrão (`visibilityOverrides[fileId]
 
 ## 13. Audit log integration (#29)
 
-Smart codes têm seu próprio audit stream em `data.auditLog` mas com `entity: 'smartCode'` (vs `entity: 'code'` existente). Eventos:
+**Schema extension obrigatória.** Hoje `BaseAuditEntry` (em `src/core/types.ts:214-223`) é `{ id, codeId, at, hidden? }` e `AuditEntry` é discriminated union por `type` apenas, sem `entity`. Spec estende:
 
-- `smart_code_created`
-- `predicate_edited` (com diff resumido — leaves added/removed/changed)
-- `memo_edited` (coalescing 60s)
-- `auto_rewritten_on_merge` (quando code referenciado é mergeado)
-- `deleted`
+```ts
+// types.ts — extensão aditiva
+interface BaseAuditEntry {
+  id: string;
+  /** Polimórfico: codeId pra entity='code' (default), smartCodeId pra entity='smartCode'. */
+  codeId: string;
+  at: number;
+  hidden?: true;
+  /** Discriminator de entidade. Ausente = 'code' implícito (entries existentes seguem válidas). */
+  entity?: 'code' | 'smartCode';
+}
 
-Mesma infra de `auditLog.ts` (helpers `appendEntry`, `renderEntryMarkdown`). Coalescing 60s em `predicate_edited` e `memo_edited`.
+export type AuditEntry =
+  // Code entries (existentes — entity='code' ou ausente)
+  | (BaseAuditEntry & { type: 'created' })
+  | (BaseAuditEntry & { type: 'renamed'; from: string; to: string })
+  | (BaseAuditEntry & { type: 'description_edited'; from: string; to: string })
+  | (BaseAuditEntry & { type: 'memo_edited'; from: string; to: string })
+  | (BaseAuditEntry & { type: 'absorbed'; absorbedNames: string[]; absorbedIds: string[] })
+  | (BaseAuditEntry & { type: 'merged_into'; intoId: string; intoName: string })
+  | (BaseAuditEntry & { type: 'deleted' })
+  // Smart code entries (novos — entity='smartCode' obrigatório, codeId carrega smartCodeId)
+  | (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_created' })
+  | (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_predicate_edited'; addedLeafKinds: string[]; removedLeafKinds: string[]; changedLeafCount: number })
+  | (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_memo_edited'; from: string; to: string })
+  | (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_auto_rewritten_on_merge'; sourceCodeId: string; targetCodeId: string })
+  | (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_deleted' });
+```
 
-Code Detail audit history mostra só eventos de regulares. Smart Code Detail terá sua própria seção History (mesma renderização, filtrada por `entity: 'smartCode' AND smartCodeId: id`).
+Naming convention `sc_*` no `type` evita colisão com types de code (já que filtramos por `entity` mas type também precisa ser único pra renderEntryMarkdown distinguir). `codeId` polimórfico mantém shape leve (sem `smartCodeId` adicional).
 
-Codebook Timeline mode (#31) inclui eventos de smart codes? **Decisão:** sim, mas com cor distinta (paleta `EVENT_COLORS` ganha uma 7ª cor pra `smart_code_*`). Filter chip "Smart codes" no config panel da timeline.
+**`appendEntry` helper:** recebe entry + coalescing window. Spec: novo overload aceita entries com `entity: 'smartCode'` — coalescing 60s aplica em `sc_predicate_edited` e `sc_memo_edited` (mesma janela do code `description_edited`/`memo_edited`).
+
+**Eventos emitidos:**
+
+| Type | Quando | Coalescing |
+|---|---|---|
+| `sc_created` | createSmartCode | — |
+| `sc_predicate_edited` | updateSmartCode com predicate change | 60s |
+| `sc_memo_edited` | setSmartCodeMemo | 60s |
+| `sc_auto_rewritten_on_merge` | executeMerge afeta refs | — |
+| `sc_deleted` | deleteSmartCode | — |
+
+`color_changed`/`renamed` propositalmente fora (cosmético; `description_edited` não existe — smart codes não têm description).
+
+**Smart Code Detail history section** filtra `auditLog.filter(e => e.entity === 'smartCode' && e.codeId === smartCodeId)`. Renderização reusa `renderEntryMarkdown` que ganha switch case pros novos types.
+
+**Code Detail history section** filtra `auditLog.filter(e => (e.entity ?? 'code') === 'code' && e.codeId === codeId)`. Default-when-missing preserva entries antigas como 'code'.
+
+**Codebook Timeline mode (#31) — single source of truth.** Smart code events **entram** na timeline existente (decisão final, supera qualquer ambiguidade em §19). Implementação:
+
+- `EventTypeFilter` (em `codebookTimelineEngine.ts:15`) **não** ganha 7º bucket — tipos de smart code **mapeiam pros buckets existentes** via `EVENT_TYPE_TO_FILTER` extension: `sc_created → 'created'`, `sc_predicate_edited → 'edited'`, `sc_memo_edited → 'edited'`, `sc_auto_rewritten_on_merge → 'edited'`, `sc_deleted → 'deleted'`.
+- Render: bullet do entry usa ícone `⚡` em vez de `•` quando `entity === 'smartCode'`. Cor segue o bucket (mesma paleta `EVENT_COLORS`). Sem 7ª cor.
+- Config panel da timeline ganha checkbox extra "Include smart code events" (default on). Quando off, filtra `entity !== 'smartCode'`.
+- `bucketByGranularity` e `buildTimelineEvents` aceitam entries de qualquer entity sem mudança estrutural — só o renderer distingue visualmente.
 
 ## 14. Export QDPX
 
@@ -352,13 +439,15 @@ Codebook Timeline mode (#31) inclui eventos de smart codes? **Decisão:** sim, m
           {"kind":"magnitudeGte","codeId":"c_...","n":3}
         ]}
       ]]></qualia:Predicate>
-      <MemoText>Justificativa metodológica...</MemoText>
+      <qualia:Memo>Justificativa metodológica...</qualia:Memo>
     </qualia:SmartCode>
   </qualia:SmartCodes>
 
   <Sources> ... </Sources>
 </Project>
 ```
+
+Elementos exportados dentro de cada `<qualia:SmartCode>`: `<qualia:Predicate>` (sempre, JSON serializado em CDATA) + `<qualia:Memo>` (opcional, omitido se memo vazio). Atributos: `guid`, `name`, `color` sempre presentes. Namespace `qualia:` consistente — não mistura com elementos REFI-QDA padrão (`<MemoText>`, `<Description>`).
 
 **Toggle "Materialize smart codes as Sets" no export modal:** quando ligado, gera adicionalmente um `<Set>` REFI-QDA padrão por smart code, com `<MemberCode targetGUID="...">` listando os códigos referenciados (não os matches — os códigos do predicate). Outros tools veem como group.
 
@@ -391,27 +480,30 @@ sc["predicate"] = sc["predicate_json"].apply(json.loads)
 
 `qdpxImporter.parseSmartCodes(xml, idMap)`:
 
-1. Parse `<qualia:SmartCodes>` (regex-based pure function como `parseSetsFromXml`).
-2. Para cada `<qualia:SmartCode>`, deserializa `<qualia:Predicate>` (JSON.parse).
-3. Walk no AST e re-mapeia refs via `idMap` (que já mantém oldGuid → newId pra codes/sets/etc):
+1. Parse `<qualia:SmartCodes>` (regex-based pure function como `parseSetsFromXml`). Extrai elements: predicate JSON (CDATA), memo opcional (`<qualia:Memo>`), atributos `guid/name/color`.
+2. **Pass 1 (allocate):** itera todos `<qualia:SmartCode>` e cria `SmartCodeDefinition` placeholder com `predicate: { op: 'AND', children: [] }` (vazio temporário) + memo + name + color. Registra `idMap.smartCodes[oldGuid] → newId`. Isso garante que pass 2 pode resolver `smartCode` leaf refs entre smart codes do mesmo import.
+3. **Pass 2 (resolve):** itera novamente, faz `JSON.parse(predicate)`, walk no AST e re-mapeia refs via `idMap` (que já mantém oldGuid → newId pra codes/sets/folders/cases/smartCodes):
    - `hasCode.codeId` → idMap.codes
    - `inFolder.folderId` → idMap.folders
    - `inGroup.groupId` → idMap.groups
    - `magnitudeGte/Lte.codeId` → idMap.codes
    - `relationExists.codeId/targetCodeId` → idMap.codes
-   - `smartCode.smartCodeId` → idMap.smartCodes
+   - `smartCode.smartCodeId` → idMap.smartCodes (populated em pass 1)
    - `caseVarEquals/Range.variable` → mantém literal (case vars têm names estáveis)
-4. Refs sem match no idMap viram leaves "broken" + entrada no import report ("X smart codes have broken references").
+4. Atualiza `SmartCodeDefinition.predicate` com AST resolvido.
+5. Refs sem match no idMap viram leaves "broken" + entrada no import report ("X smart codes have broken references — Y leaves preserved as broken stubs"). Broken stubs preservam shape original (codeId antigo) pra debug; evaluator trata como always-false.
 
-`qdpxImporter` ganha pass adicional **após** Sets/Cases (smart codes podem referenciar tudo isso).
+**Por que 2-pass:** smart code A pode referenciar smart code B no mesmo arquivo QDPX. Pass 1 garante que ambos existem em `idMap.smartCodes` antes de qualquer resolve de leaf `smartCode`. Topological sort seria alternativa, mas 2-pass é mais simples e zero overhead em arquivo típico (<100 smart codes).
 
-Round-trip Qualia→Qualia: bit-idêntico (modulo idMap remap, que é determinístico).
+`qdpxImporter` chama `parseSmartCodes` **após** parseSets/parseCases (smart codes podem referenciar grupos e case vars), em pass dedicado.
+
+Round-trip Qualia→Qualia: bit-idêntico (modulo idMap remap, que é determinístico — IDs novos mas estrutura preservada). Test fixture cobre AST de 9 leaves variadas + nesting de 2 smart codes referenciando-se mutuamente.
 
 ## 17. Testing strategy
 
 **Unit (puros, jsdom dispensável):**
 
-- `evaluator.test.ts` — matriz de leaves × marker shapes (PDF marker, image marker, csv row marker, etc.). Cobre AND/OR/NOT combinatorial, short-circuit, NOT vazio, deeply nested.
+- `evaluator.test.ts` — todas as 10 leaves × shapes de marker de cada engine (markdown, pdf, image, audio, video, csv segment, csv row). Cobre AND/OR/NOT combinatorial, short-circuit, NOT aninhado, deeply nested.
 - `dependencyExtractor.test.ts` — predicates variados produzem dep sets corretos.
 - `predicateNormalizer.test.ts` — reorder mantém semântica (eval pré e pós são iguais em N fixtures).
 - `predicateValidator.test.ts` — vazio, broken refs, cycles.
@@ -436,15 +528,16 @@ Round-trip Qualia→Qualia: bit-idêntico (modulo idMap remap, que é determiní
 - 10000 markers (distribuição variada por engine, 1-5 codes por marker, 30% com magnitude)
 - 100 smart codes (predicates variados, 30% com nesting até 4 níveis)
 
-Asserts:
+Asserts (mecanismo: `performance.now()` deltas dentro de `it()` blocks regulares no vitest, com **2x headroom** sobre os targets locais pra absorver variance do CI Linux runner — ex: target local <500ms vira assert `<1000ms` no CI). Sem bench framework separado; tudo roda em `npm run test` padrão. Targets locais (sem headroom) são tracking goals em `docs/perf-baseline.md`.
 
-- Cold rebuildIndexes <500ms
-- Cold compute de smart code novo (cache miss) <500ms
-- Cached read <5ms
-- Single-marker mutation invalidate + recompute afetados <50ms
-- Memory footprint do cache <50MB
+- Cold rebuildIndexes — local <500ms / CI <1000ms
+- Cold compute de smart code novo (cache miss) — local <500ms / CI <1000ms
+- Cached read — local <5ms / CI <10ms
+- Single-marker mutation invalidate + recompute afetados — local <50ms / CI <100ms
 
-Falha do stress test = blocker pra merge.
+**Memory footprint** não é assertable confiável em jsdom. Substituído por garantia estrutural testável: `cache.indexByCode.values()` retorna `Set<MarkerRef>` com refs apontando pros mesmos objetos de `data.{engine}.markers` (não clones). Test verifica via `===` (referential identity) em fixture pequeno.
+
+Falha de qualquer assert temporal = blocker pra merge.
 
 **Smoke manual (obrigatório por CLAUDE.md):**
 
@@ -460,16 +553,18 @@ Vault real workbench: criar 5 smart codes via builder (predicates de complexidad
 
 ## 18. Performance targets (CI gates)
 
-| Operação | Target | Falha = |
-|---|---|---|
-| `rebuildIndexes` (10k markers) | <500ms | blocker merge |
-| Cold compute smart code novo (predicate típico) | <500ms | blocker merge |
-| Cached read `getMatches` | <5ms | blocker merge |
-| `getCount` (cached) | <1ms | blocker merge |
-| Single-marker mutation invalidate + recompute | <50ms | blocker merge |
-| Builder preview live (debounce + compute) | <300ms p95 | blocker merge |
-| Cache memory (10k markers + 100 smart codes) | <50MB | warning, investigar |
-| QDPX round-trip de smart code complexo | <100ms | blocker merge |
+Todos asserts via `performance.now()` em vitest com **2x headroom** sobre target local pra CI variance. Mecanismo descrito em §17.
+
+| Operação | Local | CI assert | Falha = |
+|---|---|---|---|
+| `rebuildIndexes` (10k markers) | <500ms | <1000ms | blocker merge |
+| Cold compute smart code novo (predicate típico) | <500ms | <1000ms | blocker merge |
+| Cached read `getMatches` | <5ms | <10ms | blocker merge |
+| `getCount` (cached) | <1ms | <2ms | blocker merge |
+| Single-marker mutation invalidate + recompute | <50ms | <100ms | blocker merge |
+| Builder preview live (debounce + compute) | <300ms p95 | <600ms p95 | blocker merge |
+| QDPX round-trip de smart code complexo | <100ms | <200ms | blocker merge |
+| Cache structural: indexByCode refs ===  data.markers refs | exact | exact | blocker merge |
 
 ## 19. Non-goals (escopo fechado)
 
@@ -481,26 +576,23 @@ Vault real workbench: criar 5 smart codes via builder (predicates de complexidad
 - LLM NL→predicate (ATLAS.ti "AI Smart Coding"). Extensão futura aditiva.
 - Drag de smart code (sem target válido).
 - Per-code opacity blending de smart code no CM6 markdown editor (render só sidebar/Analytics).
-- Smart code em Codebook Timeline com seu próprio mode separado (entra junto com a stream existente, com cor distinta).
+- Smart code em Codebook Timeline com seu próprio mode separado. **Decisão final em §13:** smart code events entram na timeline existente, mapeados pros buckets created/edited/deleted, distinguidos visualmente por ícone `⚡` (sem 7ª cor). Toggle "Include smart code events" no config panel.
 - Smart code visível no coding popover de marker (filtrado out).
 - Web Worker pro evaluator (premature; aditivo se stress test apontar).
 
 ## 20. Quebra em sessões (estimativa)
 
-| # | Escopo | Sessão | Notas |
+| Sessão | Escopo | Estimativa | Notas |
 |---|---|---|---|
-| 1 | Schema + evaluator + dependencyExtractor + serializer + validator (puros) + 100% unit tests | 1 | Tudo testável em jsdom. Foundation. |
-| 2 | Cache + indexes + invalidation listeners + stress test fixtures | 1 | Wire em main.ts mas sem UI ainda. Stress test é parte deste. |
-| 3 | Builder modal + Smart Code Detail + Code Explorer section | 1-2 | UI maior. Smoke test manual obrigatório no fim. |
-| 4 | Analytics integration + sidebar adapters + visibility per-doc | 1 | Wiring em N modes. |
-| 5 | Export QDPX + import QDPX + CSV tabular + audit log integration | 1 | Round-trip tests. |
+| 1 | Schema (§3) + evaluator (§5) + dependencyExtractor + serializer + validator + audit log type extension (§13) | 1 sessão | Tudo testável puro. Foundation; unit tests cobrem todas leaves × marker shapes. |
+| 2 | Cache (§6) + indexes + invalidation listeners + stress test fixture | 1 sessão | Wire em main.ts mas sem UI ainda. Stress test obrigatório (§17/§18). |
+| 3 | Builder modal (§7) + Smart Code Detail (§9) + Code Explorer section (§8) | 1-2 sessões | UI maior do ciclo. Smoke test manual obrigatório no fim. |
+| 4 | Analytics integration (§10) + sidebar adapters (§11) + visibility per-doc + Codebook Timeline integration (§13) | 1 sessão | Wiring em N modes + 6 sidebars. |
+| 5 | Export QDPX (§14) + import QDPX (§16) + CSV tabular (§15) + audit log emit em smart code mutations | 1 sessão | Round-trip tests. |
 
-Total: 4-5 sessões alinhado ao ROADMAP.
+Total: 5 sessões (alinhado ao "4-5 sessões" do ROADMAP — extremo superior).
 
 ## 21. Open questions (pra resolver no Plan)
 
-- **`getAllMarkers(data)`** — verificar se já existe helper que itera markers de todos engines. Se não, criar em `src/core/getAllMarkers.ts` (nem deve ser difícil — já tem barrel re-exports nos models).
-- **`AnyMarker` type** — verificar se discriminated union já existe ou se precisa criar.
-- **`__engine` field em markers** — não existe hoje. `engineType` leaf precisa do engine resolvable a partir do marker. Opções: (a) adicionar `__engine` ao marker no momento de carregar (hidratação), (b) o `MarkerRef` já carrega `engine`, então o evaluator recebe ref com engine separado em vez de marker puro. **Recomendação:** (b) — evaluator opera em `MarkerRef + AnyMarker resolvido`, sem mudar shape persistido.
-- **Magnitude config inverso (`magnitudeLte`)** — magnitude é continuous range pickers. Verificar se faz sentido `≤` em todos casos (ex: continuous decimal já cobre, mas categorical com strings ordenadas?).
-- **Smart code count na seção do Code Explorer** — a count "(3)" é total ou só visíveis (após hidden filter)? **Decisão:** mostra "X / Y" (visíveis / total) se há hidden, senão só "X".
+- **`getAllMarkers(data)`** — verificar se já existe helper que itera markers de todos engines. Se não, criar em `src/core/getAllMarkers.ts` (deve ser trivial — já tem barrel re-exports nos models).
+- **`AnyMarker` type** — verificar se discriminated union já existe ou se precisa criar. Se sim, reusar; se não, montar como `MarkdownMarker | PdfMarker | ImageMarker | AudioMarker | VideoMarker | CsvSegmentMarker | CsvRowMarker`.
