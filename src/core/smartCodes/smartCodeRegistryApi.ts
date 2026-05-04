@@ -7,9 +7,13 @@ function makeSmartCodeId(): string {
 	return `sc_${Date.now().toString(36)}_${(_idCounter++).toString(36)}`;
 }
 
+/** Tipo permissivo pra emit — aceita qualquer variant do union AuditEntry sem 'id' obrigatório.
+ *  Usar `any` aqui é mais limpo que listar 12+ variants; o caller (appendEntry) já tipa estrito. */
+export type SmartCodeAuditEmit = (entry: any) => void;
+
 export interface SmartCodeApiDeps {
 	data: QualiaData;
-	auditEmit: (entry: Omit<AuditEntry, 'id'> & { id?: string }) => void;
+	auditEmit: SmartCodeAuditEmit;
 	onMutate?: () => void;
 	persist?: () => void;
 }

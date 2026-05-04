@@ -38,6 +38,8 @@ import { visibilityEventBus } from './core/visibilityEventBus';
 import { registerMemoListeners, rebuildMemoReverseLookup } from './core/memoMaterializerListeners';
 import { convertMemoToNote, unmaterialize as unmaterializeMemo } from './core/memoMaterializer';
 import { MaterializeAllMemosModal } from './core/materializeAllMemosModal';
+import { SmartCodeCache } from './core/smartCodes/cache';
+import { SmartCodeApi } from './core/smartCodes/smartCodeRegistryApi';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -76,6 +78,10 @@ export default class QualiaCodingPlugin extends Plugin {
 	togglePdfInstrumentation?: (view: unknown, force?: 'on' | 'off') => void;
 	memoReverseLookup: Map<string, import('./core/memoTypes').EntityRef> = new Map();
 	memoSelfWriting: Set<string> = new Set();
+
+	// Smart Codes (Tier 3)
+	smartCodeCache!: SmartCodeCache;
+	smartCodeApi!: SmartCodeApi;
 
 	async onload() {
 		this.dataManager = new DataManager(this);
@@ -133,6 +139,43 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.caseVariablesRegistry = new CaseVariablesRegistry(this.app, this.dataManager);
 		this.caseVariablesRegistry.initialize();
 		this.cleanups.push(() => this.caseVariablesRegistry.unload());
+
+		// ─── Smart Codes (Tier 3) ───────────────────────────────
+		this.smartCodeCache = new SmartCodeCache();
+		this.smartCodeApi = new SmartCodeApi({
+			data: this.dataManager.getDataRef(),
+			auditEmit: (entry) => {
+				const log = (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+				appendEntry(log, { ...entry, at: entry.at ?? Date.now() });
+				this.dataManager.setSection('auditLog', log);
+			},
+			onMutate: () => {
+				// Re-configure cache (smart codes podem ter sido added/removed) + persist registry
+				this.refreshSmartCodeCacheConfig();
+				this.dataManager.setSection('registry', this.sharedRegistry.toJSON());
+				document.dispatchEvent(new Event('qualia:registry-changed'));
+			},
+		});
+		this.refreshSmartCodeCacheConfig();
+		this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
+
+		// Code mutation → invalida smart codes que dependem do code afetado
+		this.sharedRegistry.addOnMutate(() => {
+			this.refreshSmartCodeCacheConfig();
+			this.smartCodeCache.invalidateAll();
+		});
+		// Case var mutation → invalida smart codes que dependem
+		this.caseVariablesRegistry.addOnMutate(() => {
+			this.smartCodeCache.invalidateAll();
+		});
+		// Marker mutations: re-build indexes + invalidate (event emit em saveMarkers de cada engine)
+		const onMarkersChanged = () => {
+			this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
+			this.smartCodeCache.invalidateAll();
+		};
+		document.addEventListener('qualia:markers-changed', onMarkersChanged);
+		this.cleanups.push(() => document.removeEventListener('qualia:markers-changed', onMarkersChanged));
+
 
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
 			const view = leaf?.view;
@@ -555,6 +598,32 @@ export default class QualiaCodingPlugin extends Plugin {
 		view.register(() => {
 			this.caseVariablesRegistry.removeOnMutate(listener);
 			this.caseVariablesButtons.delete(view);
+		});
+	}
+
+	/** Re-aplica config do smart code cache: smart codes mais recentes do data + lookups frescos. */
+	private refreshSmartCodeCacheConfig(): void {
+		const data = this.dataManager.getDataRef();
+		this.smartCodeCache.configure({
+			smartCodes: data.registry.smartCodes,
+			caseVars: {
+				get: (fileId, variable) => {
+					const v = this.caseVariablesRegistry.getVariables(fileId)[variable];
+					if (v === null || Array.isArray(v)) return undefined;  // null/multitext não suportados em leaf scalar
+					return v;
+				},
+				allKeys: () => {
+					const out = new Set<string>();
+					for (const fileId of Object.keys(data.caseVariables.values)) {
+						for (const k of Object.keys(this.caseVariablesRegistry.getVariables(fileId))) out.add(k);
+					}
+					return out;
+				},
+			},
+			codeStruct: {
+				codesInFolder: (folderId) => this.sharedRegistry.getCodesInFolder(folderId).map(c => c.id),
+				codesInGroup: (groupId) => this.sharedRegistry.getCodesInGroup(groupId).map(c => c.id),
+			},
 		});
 	}
 

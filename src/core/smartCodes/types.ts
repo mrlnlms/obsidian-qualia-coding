@@ -6,6 +6,7 @@ export type {
 	EngineType,
 	MarkerRef,
 	AnyMarker,
+	QualiaData,
 } from '../types';
 
 import type { PredicateNode, OpNode, LeafNode } from '../types';
