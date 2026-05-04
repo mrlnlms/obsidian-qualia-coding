@@ -26,7 +26,7 @@
 
 **Frentes em decisão de produto** (sem spec, sem design doc):
 - **Intercoder Reliability + LLM-assisted coding** — duas decisões com possível acoplamento epistemológico (ver §"Intercoder Reliability"). Material de repertório acumulado em `docs/_study/llm-coding/` (40 ferramentas + 5 patterns) + 2 conversas externas com claude_ai (2026-04-26 sobre ICR + 2026-04-28 sobre tensão LLM-as-coder). Os 2 ângulos sobre ICR (clássico Kappa/α vs auditabilidade interpretativa) e as 5 escolas LLM ficam como repertório pra brainstorm — uma perspectiva não anula a outra. Brainstorm dedicado precede design técnico.
-- **Q-mode / P-mode analytics** — ponteiro futuro. Hoje as 20 views Analytics operam em R-mode (variáveis); Q-mode (centrado em casos) e P-mode (temporal via `createdAt`) ficaram registrados como gap mas não viram trabalho até outra onda de Analytics abrir.
+- **Q-mode / P-mode analytics** — cobertura parcial já em prod (MDS Files, Source Comparison, Code × Metadata + Case Variables como infra; Temporal + Evolution + Codebook Timeline cobrem P-mode). Gap genuíno que sobra: dendrograma de Files (cluster de docs por similaridade), Q-mode equivalents de outras views R quando fizer sentido. Não é trabalho aberto — registro pra onda futura de Analytics.
 - **Projects + Workspace** — provavelmente reinventa Workspaces nativo. User cravou "reavaliar antes de implementar" — provavelmente passar.
 - **Margin Panel customization** — bloqueado por decisão em plugin externo.
 
@@ -331,20 +331,46 @@ Brainstorm dedicado (1 sessão de produto, sem código) cobrindo:
 - Friese (post-coding), Braun & Clarke (reflexive TA), Saldaña (coding manual), Krippendorff (content analysis) — citar diretamente da fonte se o tema voltar
 - ATLAS.ti / MAXQDA / NVivo / Dedoose docs — implementações concretas pra olhar UX
 
-### Q-mode / P-mode analytics — ponteiro futuro
+### Q-mode / P-mode analytics — registro de cobertura parcial
 
 **Não é trabalho aberto agora — registro pra outra sessão.**
 
-Trecho da conversa de 2026-04-28 com claude_ai sobre as 20 views Analytics atuais:
+Trecho da conversa de 2026-04-28 com claude_ai sobre as views Analytics:
 
 > _"20 lentes diferentes num microscópio que só aponta pra uma direção"_
 
 > _"as 20 views operam todas em R-mode sobre snapshot. Q-mode é o gap óbvio, P-mode é viável (já tem `createdAt`), os outros são lower priority."_
 
+**Correção factual (2026-05-04):** a frase "todas em R-mode" foi simplificação retórica. Cobertura real hoje:
+
 **Tipologia rápida (verificar contra fonte original quando atacar):**
-- **R-mode** — análise centrada em variáveis (códigos × frequência, co-occurrence, doc-code matrix). É o que TODAS as 20 views Analytics fazem hoje.
-- **Q-mode** — análise centrada em casos/documentos (que documentos se parecem entre si por padrão de coding). Gap atual.
-- **P-mode** — análise temporal (sequência de coding ao longo do tempo). Viável porque `createdAt` já existe nos markers.
+- **R-mode** — análise centrada em variáveis (códigos × frequência, co-occurrence, doc-code matrix)
+- **Q-mode** — análise centrada em casos/documentos (que docs se parecem entre si pelo padrão de coding)
+- **P-mode** — análise temporal (sequência de coding ao longo do tempo)
+
+**Estado atual cruzado com a tipologia:**
+
+| Mode | R | Q | P | Notas |
+|---|---|---|---|---|
+| Frequency, cooccurrence, docMatrix, polar, ACM, decisionTree, chiSquare, overlap, relationsNetwork, wordCloud, textStats, textRetrieval, dendrogram (codes), graph, lagSequential | ✅ | — | — | Pure R-mode |
+| **MDS** | ✅ | ✅ | — | Toggle "Project: Codes / Files" — Files já é Q-mode (similaridade entre docs no 2D) |
+| **Source comparison** | — | ✅ | — | Q-mode coarse — compara métricas entre engines/source types |
+| **Code × Metadata (#24)** | ✅ | parcial | — | Heatmap código × valor de case variable + chi². Q-mode por *grupos* de casos (segmentado pela case variable), não casos individuais |
+| **Temporal** | — | — | ✅ | `marker.createdAt` |
+| **Evolution** | — | — | ✅ | Sequência temporal |
+| **Codebook Timeline (#31)** | — | — | ✅ | Audit log temporal |
+
+**Infra de Q-mode pavimentada por Case Variables:**
+- Atribui propriedades tipadas aos casos (senioridade, region, age, etc) por arquivo
+- Filter de Analytics por case variable (`groupFilter` equivalente)
+- Code × Metadata cruza códigos × valor de case variable
+
+**Gaps de Q-mode genuíno que sobram:**
+- **Dendrogram de Files** — cluster hierárquico de docs por similaridade de coding (hoje dendrogram só faz códigos)
+- **Q-mode equivalents** das outras views R-mode quando fizer sentido (ex: cooccurrence by file similarity)
+- Ranking explícito "esse documento se parece com aqueles outros" (MDS Files cobre 2D mas não lista ordenada)
+
+**P-mode** já está bem coberto (Temporal + Evolution + Codebook Timeline).
 
 **Quando virar tarefa concreta:** brainstorm próprio (não acoplado a ICR/LLM). Pode aparecer como onda futura de Analytics depois que LLM-assisted coding ou outras frentes maiores fecharem.
 
