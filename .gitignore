@@ -3,6 +3,7 @@ node_modules/
 data.json
 data.json.backup-*
 data.json.bak
+data.json.pre-*.bak
 .DS_Store
 .obsidian-cache/
 CLAUDE.md

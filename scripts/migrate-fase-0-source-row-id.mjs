@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { migrateData, isAlreadyMigrated } from './migrationFase0.mjs';
 
-const DEFAULT_PATH = '/Users/mosx/Desktop/obsidian-plugins-workbench/.obsidian/plugins/qualia-coding/data.json';
+const DEFAULT_PATH = '/Users/mosx/Desktop/obsidian-plugins-workbench/.obsidian/plugins/obsidian-qualia-coding/data.json';
 const dataPath = process.argv[2] ?? DEFAULT_PATH;
 const backupPath = dataPath + '.pre-fase-0.bak';
 

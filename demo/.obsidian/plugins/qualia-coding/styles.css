@@ -2682,6 +2682,108 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 	white-space: pre-line;
 }
 
+.qualia-materialize-all-memos .modal-content {
+	max-height: 70vh;
+	overflow-y: auto;
+}
+
+.qualia-materialize-all-memos h4 {
+	margin-top: 16px;
+	margin-bottom: 4px;
+	font-size: var(--font-ui-medium);
+}
+
+.qualia-materialize-all-memos .setting-item {
+	border-top: none;
+	padding: 6px 0;
+}
+
+.qualia-materialize-preview ul {
+	margin: 4px 0 0;
+	padding-left: 20px;
+}
+
+.qualia-materialize-preview-muted {
+	color: var(--text-muted);
+}
+
+.qualia-materialize-warning {
+	margin-top: 8px;
+	color: var(--text-warning, var(--text-accent));
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+}
+
+.qualia-materialize-warning:empty {
+	display: none;
+}
+
+.qualia-materialize-progress-status {
+	margin-top: 8px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	min-height: 1.4em;
+}
+
+.qualia-materialize-progress-bar {
+	margin-top: 8px;
+	height: 6px;
+	background: var(--background-modifier-border);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.qualia-materialize-progress-fill {
+	height: 100%;
+	background: var(--interactive-accent);
+	width: 0;
+	transition: width 120ms ease-out;
+}
+
+.qualia-materialize-progress-counter {
+	margin-top: 4px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	text-align: right;
+}
+
+.qualia-materialize-results {
+	list-style: none;
+	margin: 4px 0 0;
+	padding: 0;
+}
+
+.qualia-materialize-results li {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 0;
+}
+
+.qualia-materialize-results-icon {
+	display: inline-block;
+	width: 1em;
+	color: var(--text-accent);
+	font-weight: 600;
+}
+
+.qualia-materialize-results-failed,
+.qualia-materialize-results-failed .qualia-materialize-results-icon {
+	color: var(--text-error, var(--text-warning));
+}
+
+.qualia-materialize-results-details {
+	margin-top: 12px;
+	padding: 8px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+}
+
+.qualia-materialize-results-details summary {
+	cursor: pointer;
+	color: var(--text-muted);
+}
+
 /* ========================================
    Transport — Volume, Speed, Separator
    ======================================== */

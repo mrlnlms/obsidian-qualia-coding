@@ -8,7 +8,7 @@ Plugin Obsidian para analise qualitativa de dados (QDA). Codifica texto, PDF, CS
 
 Pensar em backcompat aqui é ruído que enviesa decisão de design. Se eu me pegar perguntando "e os vaults existentes?" — é sinal de que errei. A resposta é sempre: não existem.
 
-**Vault de teste real:** `/Users/mosx/Desktop/obsidian-plugins-workbench/` (o vault que contém este repo). `data.json` em `.obsidian/plugins/qualia-coding/data.json` na raiz do vault. NÃO usar `demo/` como fonte de verdade — é vault de demonstração com dados sintéticos.
+**Vault de teste real:** `/Users/mosx/Desktop/obsidian-plugins-workbench/` (o vault que contém este repo). `data.json` em `.obsidian/plugins/obsidian-qualia-coding/data.json` (Obsidian usa o nome da pasta do plugin, que é `obsidian-qualia-coding`, não o `id` do manifest). NÃO usar `demo/` como fonte de verdade — é vault de demonstração com dados sintéticos.
 
 **Raiz do vault vs repo do plugin:**
 - Vault (o que o usuário abre no Obsidian): `/Users/mosx/Desktop/obsidian-plugins-workbench/`
@@ -238,7 +238,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2479 testes em 144 suites (Vitest + jsdom)
+- `npm run test` — 2490 testes em 145 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 66 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)

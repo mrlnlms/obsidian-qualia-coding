@@ -5,6 +5,23 @@ All notable changes to Qualia Coding will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **CSV schema (Parquet-lazy Fase 0)**: `CsvMarker.row` (índice posicional do papaparse) → `CsvMarker.sourceRowId` (identidade estável). Refactor interno preparando o schema pras Fases 1-6 do parquet/CSV lazy loading e pra LLM coding em tabular (anchoring estável após sort/filter). Em modo eager (atual), `sourceRowId === papaparse row index` — comportamento e UX 100% inalterados. Nomes externos preservados (coluna `row` no CSV de export, `meta.row` do consolidator de analytics, payload do evento `qualia-csv:navigate`) pra evitar ripple effect downstream.
+
+### Migration
+
+- One-shot: `node scripts/migrate-fase-0-source-row-id.mjs` no vault workbench. Backup automático em `data.json.pre-fase-0.bak`. Idempotente. Reverso disponível em `scripts/revert-fase-0-source-row-id.mjs`. Vault workbench migrado em 2026-05-03 (2 segment markers existentes preservados; smoke test com novo marker confirmou persistência no schema novo).
+
+### Technical
+
+- Spike findings (2026-05-03) validaram empiricamente as 3 premissas críticas do design (`ROW_NUMBER()` stability em parquet patológico MERGED de 297MB, sourceRowId latency p95 ≤ 125ms em 2.4M rows, OPFS streaming com heap Δ = 0 MB). 2 shims obrigatórios pro Worker em Electron Obsidian descobertos (process fake + nuke `WebAssembly.instantiateStreaming`) — entram na Fase 2 (DuckDB bootstrap) sem precedente público.
+- Spec: `docs/superpowers/specs/20260503-parquet-lazy-fase-0-design.md`. Design doc atualizado em `docs/parquet-lazy-design.md` §14.
+- 8 arquivos do plugin (`csvCodingTypes.ts`, `csvCodingModel.ts`, `csvCodingMenu.ts`, `csvCodingView.ts`, `csvCodingCellRenderer.ts`, `columnToggleModal.ts`, `segmentEditor.ts`, `csvSidebarAdapter.ts`) + 3 externos (`dataConsolidator.ts`, `buildSegmentsTable.ts`, `tabularExporter.ts`).
+- Tests: 2479 → 2490 verdes (+11 da migration `migrationFase0.mjs`). Acceptance grep `marker\.row|m\.row` em `src/` retorna 0 hits.
+
 ## [0.1.2] — 2026-04-30 — Pre-alpha
 
 ### Added

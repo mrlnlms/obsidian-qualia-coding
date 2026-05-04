@@ -1,7 +1,7 @@
 {
   "id": "qualia-coding",
   "name": "Qualia Coding",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minAppVersion": "1.5.0",
   "description": "Local-first CAQDAS for Obsidian: multi-modal qualitative coding with mixed-methods analysis and REFI-QDA interop.",
   "author": "Marlon Lemes",

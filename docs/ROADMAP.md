@@ -9,7 +9,7 @@
 
 **Frentes engatilhadas (próximas a atacar, ordem sugerida):**
 
-1. **Parquet/CSV lazy loading** — design doc completo: `docs/parquet-lazy-design.md`. **Decisão final cravada** (DuckDB-Wasm + OPFS + AG Grid Infinite). Pré-requisito (Convert-to-note) ✅ mergeado. **§9 inteiro cravado em 2026-05-03** — todas as 9 decisões fechadas (incluindo regra "detalhe técnico nunca vira setting"). **Próximo passo: virar spec da Fase 0** (sourceRowId estável via `ROW_NUMBER()`, dual-purpose com LLM tabular) — invocar `superpowers:writing-plans` direto sobre §7.1 + §6.10 do design doc.
+1. **Parquet/CSV lazy loading** — design doc completo: `docs/parquet-lazy-design.md` (§14 com spike findings empíricos). **Decisão final cravada** (DuckDB-Wasm + OPFS + AG Grid Infinite). **Fase 0 (sourceRowId) ✅ FEITA 2026-05-04** — schema rename `CsvMarker.row → sourceRowId`, migração one-shot do vault workbench, 2490 testes verdes, smoke test passou. **Próximo passo: Fase 1** (refator `getMarkerText` async + adapter batch resolver) — invocar `superpowers:writing-plans` sobre §7.2 + §6.11 do design doc.
 
 2. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão pendente:** qual escola Qualia subscreve? Antes disso, design real não rola — virou guard-rail.
 
