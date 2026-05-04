@@ -27,7 +27,7 @@ src/core/getAllMarkers.ts                            [CREATE] — helper iterado
 src/core/smartCodes/                                 [CREATE DIRECTORY]
   types.ts                                           [CREATE] — re-exports + helpers de discriminação (isOpNode, isLeafNode, isBrokenLeaf)
   predicateSerializer.ts                             [CREATE] — toJson/fromJson estável (chave order canônica)
-  predicateValidator.ts                              [CREATE] — validateForSave(definition, predicate, registry, allSmartCodes) — vazio, cycles, broken refs, name collision, magnitude type
+  predicateValidator.ts                              [CREATE] — validateForSave(definition, predicate, registrySnapshot, caseVarsKeys?) — vazio, cycles, broken refs, name collision, magnitude type. Smart codes lookup vem dentro de registrySnapshot.smartCodes.
   predicateNormalizer.ts                             [CREATE] — reorderChildrenByCost(predicate) — heurística cheap-first, sem alterar semântica
   dependencyExtractor.ts                             [CREATE] — extractDependencies(predicate) → { codeIds, caseVarKeys, folderIds, groupIds, smartCodeIds, needsRelations, needsEngineType }
   evaluator.ts                                       [CREATE] — evaluate/evaluateOp/evaluateLeaf/evaluateNested + checkRelation helper
@@ -726,13 +726,40 @@ const mkCode = (id: string, name: string, magType?: 'continuous' | 'categorical'
 } as any);
 
 describe('validateForSave', () => {
-  it('rejects empty AND', () => {
+  it('rejects empty root AND', () => {
     const r = validateForSave(
       { id: 'sc_1', name: 'X' } as any,
       { op: 'AND', children: [] },
       { definitions: {}, smartCodes: {}, folders: {}, groups: {} } as any,
     );
     expect(r.errors).toContainEqual(expect.objectContaining({ code: 'empty' }));
+  });
+
+  it('rejects empty root OR', () => {
+    const r = validateForSave(
+      { id: 'sc_1', name: 'X' } as any,
+      { op: 'OR', children: [] },
+      { definitions: {}, smartCodes: {}, folders: {}, groups: {} } as any,
+    );
+    expect(r.errors).toContainEqual(expect.objectContaining({ code: 'empty' }));
+  });
+
+  it('rejects empty group nested (NOT of empty AND)', () => {
+    const r = validateForSave(
+      { id: 'sc_1', name: 'X' } as any,
+      { op: 'NOT', child: { op: 'AND', children: [] }} as any,
+      { definitions: {}, smartCodes: {}, folders: {}, groups: {} } as any,
+    );
+    expect(r.errors).toContainEqual(expect.objectContaining({ code: 'empty' }));
+  });
+
+  it('accepts root-level single leaf como predicate válido', () => {
+    const r = validateForSave(
+      { id: 'sc_1', name: 'X' } as any,
+      { kind: 'hasCode', codeId: 'c_a' },
+      { definitions: { 'c_a': { id: 'c_a', name: 'a', color: '#fff', paletteIndex: 0, createdAt: 0 } as any }, smartCodes: {}, folders: {}, groups: {} } as any,
+    );
+    expect(r.errors).toEqual([]);
   });
 
   it('rejects name collision (case-insensitive)', () => {
@@ -827,9 +854,9 @@ export function validateForSave(
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
 
-  // 1. Empty
-  if (isOpNode(predicate) && predicate.op !== 'NOT' && predicate.children.length === 0) {
-    errors.push({ code: 'empty', message: 'Predicate must have at least one condition' });
+  // 1. Empty — recursive (qualquer AND/OR no AST com 0 children é error)
+  if (hasEmptyGroup(predicate)) {
+    errors.push({ code: 'empty', message: 'Predicate must have at least one condition (no empty AND/OR groups)' });
   }
 
   // 2. Name collision (case-insensitive, exclude self)
@@ -846,6 +873,15 @@ export function validateForSave(
   walk(predicate, definition.id, new Set([definition.id]), registry, caseVarsKeys, errors, warnings);
 
   return { errors, warnings };
+}
+
+function hasEmptyGroup(node: PredicateNode): boolean {
+  if (isOpNode(node)) {
+    if (node.op === 'NOT') return hasEmptyGroup(node.child);
+    if (node.children.length === 0) return true;
+    return node.children.some(hasEmptyGroup);
+  }
+  return false;
 }
 
 function walk(
@@ -1097,9 +1133,39 @@ function checkRelation(marker: AnyMarker, node: LeafNode & { kind: 'relationExis
 
 - [ ] **Step 4: Run, expect PASS**
 
-- [ ] **Step 5: Add test pra todos os 6 marker shapes (markdown, image, audio, video, csv segment, csv row) — copy o test pattern de PDF, ajustando shape**
+- [ ] **Step 5: Add test pra todos os 6 outros marker shapes — enumeração explícita**
 
-Adicione 6 testes parametrizados no fim do arquivo de teste. Cada um cria marker do shape correto e verifica `hasCode` + `magnitudeGte`.
+Pra cada shape, criar 2 testes: `hasCode true quando código presente` + `magnitudeGte usa CodeApplication.magnitude`. Os 6 shapes:
+
+```ts
+const mkMarkdownMarker = (codes: any[] = []) => ({ id: 'md1', codes, ranges: [] }) as any;
+const mkImageMarker = (codes: any[] = []) => ({ id: 'img1', codes, shape: 'rect', coords: { x: 0, y: 0, w: 1, h: 1 }}) as any;
+const mkAudioMarker = (codes: any[] = []) => ({ id: 'au1', codes, start: 0, end: 1 }) as any;
+const mkVideoMarker = (codes: any[] = []) => ({ id: 'vd1', codes, start: 0, end: 1 }) as any;
+const mkCsvSegmentMarker = (codes: any[] = []) => ({ id: 'seg1', codes, sourceRowId: 'r1', column: 'col', from: 0, to: 5, file: 'data.csv' }) as any;
+const mkCsvRowMarker = (codes: any[] = []) => ({ id: 'row1', codes, sourceRowId: 'r1', file: 'data.csv' }) as any;
+
+describe.each([
+  ['markdown', mkMarkdownMarker, 'note.md'],
+  ['image',    mkImageMarker,    'pic.png'],
+  ['audio',    mkAudioMarker,    'rec.mp3'],
+  ['video',    mkVideoMarker,    'rec.mp4'],
+  ['csv',      mkCsvSegmentMarker, 'data.csv'],
+  ['csv',      mkCsvRowMarker,     'data.csv'],
+])('evaluator on %s shape', (engine, mkMarker, fileId) => {
+  it('hasCode true', () => {
+    const m = mkMarker([{ codeId: 'c_a' }]);
+    expect(evaluate({ kind: 'hasCode', codeId: 'c_a' }, mkRef(engine, fileId, 'x'), m, baseCtx)).toBe(true);
+  });
+  it('magnitudeGte usa CodeApplication.magnitude', () => {
+    const m = mkMarker([{ codeId: 'c_a', magnitude: 5 }]);
+    expect(evaluate({ kind: 'magnitudeGte', codeId: 'c_a', n: 3 }, mkRef(engine, fileId, 'x'), m, baseCtx)).toBe(true);
+    expect(evaluate({ kind: 'magnitudeGte', codeId: 'c_a', n: 7 }, mkRef(engine, fileId, 'x'), m, baseCtx)).toBe(false);
+  });
+});
+```
+
+Total: 12 testes parametrizados (6 shapes × 2 leaves cada).
 
 - [ ] **Step 6: Run all evaluator tests**
 
@@ -1246,6 +1312,12 @@ describe('SmartCodeCache', () => {
   let cache: SmartCodeCache;
   let data: any;
 
+  const lookups = (data: any) => ({
+    smartCodes: data.registry.smartCodes,
+    caseVars: { get: () => undefined, allKeys: () => new Set<string>() },
+    codeStruct: { codesInFolder: () => [], codesInGroup: () => [] },
+  });
+
   beforeEach(() => {
     data = createDefaultData();
     data.markdown.markers = {
@@ -1255,6 +1327,8 @@ describe('SmartCodeCache', () => {
       'sc_x': { id: 'sc_x', name: 'X', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_a' }},
     };
     cache = new SmartCodeCache();
+    // CONTRACT: configure() obrigatório ANTES de rebuildIndexes — wires smart codes + lookups.
+    cache.configure(lookups(data));
     cache.rebuildIndexes(data);
   });
 
@@ -1277,6 +1351,7 @@ describe('SmartCodeCache', () => {
 
   it('invalidateForCode invalida só smart codes que dependem', () => {
     data.registry.smartCodes['sc_y'] = { id: 'sc_y', name: 'Y', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_b' }};
+    cache.configure(lookups(data));  // re-configure pra pegar sc_y
     cache.rebuildIndexes(data);
     cache.getMatches('sc_x');
     cache.getMatches('sc_y');
@@ -1293,6 +1368,7 @@ describe('SmartCodeCache', () => {
 
   it('cascata: invalidate sc_x propaga pra sc_z que referencia sc_x', () => {
     data.registry.smartCodes['sc_z'] = { id: 'sc_z', name: 'Z', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'smartCode', smartCodeId: 'sc_x' }};
+    cache.configure(lookups(data));  // re-configure pra pegar sc_z
     cache.rebuildIndexes(data);
     cache.getMatches('sc_x');
     cache.getMatches('sc_z');
@@ -1350,6 +1426,11 @@ export class SmartCodeCache {
   private caseVars: CaseVarsLookup = { get: () => undefined, allKeys: () => new Set() };
   private codeStruct: CodeStructureLookup = { codesInFolder: () => [], codesInGroup: () => [] };
 
+  /**
+   * Wires smart codes registry + lookups. DEVE ser chamada antes de rebuildIndexes()
+   * e re-chamada sempre que `data.registry.smartCodes` muda (create/update/delete) pra atualizar
+   * o dependency graph. rebuildIndexes() não atualiza smartCodes — só os indexes de markers.
+   */
   configure(opts: { smartCodes: Record<string, SmartCodeDefinition>; caseVars: CaseVarsLookup; codeStruct: CodeStructureLookup }): void {
     this.smartCodes = opts.smartCodes;
     this.caseVars = opts.caseVars;
@@ -1432,6 +1513,8 @@ export class SmartCodeCache {
   // Test-only helpers
   __flushPendingForTest(): void { this.flush(); }
   __getIndexByCodeForTest(): Map<string, Set<MarkerRef>> { return this.indexByCode; }
+  __getMarkerByRefForTest(): Map<MarkerRef, AnyMarker> { return this.markerByRef; }
+  isDirty(smartCodeId: string): boolean { return this.dirty.has(smartCodeId); }
 
   private markDirty(smartCodeId: string): void {
     this.dirty.add(smartCodeId);
@@ -1559,6 +1642,93 @@ API segue padrão do registry existente: armazena em `data.registry.smartCodes`,
 ```bash
 git add src/core/smartCodes/smartCodeRegistryApi.ts tests/core/smartCodes/smartCodeRegistryApi.test.ts src/core/codeDefinitionRegistry.ts src/core/mergeModal.ts
 ~/.claude/scripts/commit.sh "feat(smartCodes): registry API CRUD + autoRewriteOnMerge integration"
+```
+
+### Task 2.4a: Auditar e padronizar event emitters em models de cada engine
+
+**Pre-req da Task 2.4 — sem isso, o wire de listeners falha silenciosamente.**
+
+**Files:**
+- Modify (se necessário): `src/markdown/`, `src/pdf/pdfCodingModel.ts`, `src/image/imageCodingModel.ts`, `src/audio/`, `src/video/`, `src/csv/csvCodingModel.ts`
+- Modify (se necessário): `src/core/codeDefinitionRegistry.ts` (verificar `onMutate`)
+- Modify (se necessário): `src/core/caseVariables/caseVariablesRegistry.ts` (verificar `onChange`, `allKeys`, `getValue`)
+
+- [ ] **Step 1: Auditar APIs existentes**
+
+```bash
+grep -n "onMutate\|onChange\|onMarkerChange\|emit(" \
+  src/core/codeDefinitionRegistry.ts \
+  src/core/caseVariables/caseVariablesRegistry.ts \
+  src/markdown/*.ts src/pdf/pdfCodingModel.ts src/image/imageCodingModel.ts \
+  src/audio/*.ts src/video/*.ts src/csv/csvCodingModel.ts \
+  src/media/mediaCodingModel.ts
+```
+
+Documentar numa tabela em `notes/event-emitter-audit.md` (temporário, deletar após Chunk 2):
+
+| Source | Method | Sig | Existe? |
+|---|---|---|---|
+| codeDefinitionRegistry | onMutate | (event: { type, codeId, ... }) => void | ? |
+| caseVariablesRegistry | onChange | (fileId, varKey) => void | ? |
+| caseVariablesRegistry | allKeys | () => Set<string> | ? |
+| caseVariablesRegistry | getValue | (fileId, key) => any | ? |
+| markdownModel | onMarkerChange | (engine, fileId, codeIds) => void | ? |
+| pdfCodingModel | onMarkerChange | idem | ? |
+| imageCodingModel | onMarkerChange | idem | ? |
+| mediaCodingModel (audio/video shared) | onMarkerChange | idem | ? |
+| csvCodingModel | onMarkerChange (segment + row) | idem | ? |
+
+- [ ] **Step 2: Pra cada API ausente, adicionar listener pattern**
+
+Pattern padrão pra adicionar quando ausente (exemplo em pdfCodingModel.ts):
+
+```ts
+private markerChangeListeners = new Set<(args: { engine: 'pdf'; fileId: string; codeIds: string[] }) => void>();
+
+onMarkerChange(fn: (args: { engine: 'pdf'; fileId: string; codeIds: string[] }) => void): () => void {
+  this.markerChangeListeners.add(fn);
+  return () => this.markerChangeListeners.delete(fn);
+}
+
+private emitMarkerChange(fileId: string, codeIds: string[]): void {
+  for (const fn of this.markerChangeListeners) fn({ engine: 'pdf', fileId, codeIds });
+}
+
+// Chamar emitMarkerChange em: addMarker, removeMarker, addCodeApplication, removeCodeApplication, updateMarker
+```
+
+**Mídia compartilhada (audio + video via mediaCodingModel.ts):** o emitter ideal vai em `mediaCodingModel.ts`, com `engine: 'audio' | 'video'` resolvido pelo wrapper específico (`audio/audioModel.ts` chama `super.emitMarkerChange('audio', ...)`).
+
+**CSV special case:** segmentMarkers e rowMarkers são collections separadas. Wire 2 emit calls com mesmo `engine: 'csv'` mas `markerId` diferente.
+
+- [ ] **Step 3: Test pra cada model — emit dispara quando esperado**
+
+Padrão de test (cobrir no minimum 1 model novo):
+
+```ts
+// tests/pdf/pdfCodingModel.events.test.ts
+describe('pdfCodingModel events', () => {
+  it('emits onMarkerChange ao addMarker', () => {
+    const model = new PdfCodingModel(...);
+    const events: any[] = [];
+    model.onMarkerChange(e => events.push(e));
+    model.addMarker('doc.pdf', { id: 'm1', codes: [{ codeId: 'c_a' }] } as any);
+    expect(events).toContainEqual({ engine: 'pdf', fileId: 'doc.pdf', codeIds: ['c_a'] });
+  });
+});
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/markdown/ src/pdf/ src/image/ src/audio/ src/video/ src/csv/ src/media/ src/core/codeDefinitionRegistry.ts src/core/caseVariables/caseVariablesRegistry.ts tests/
+~/.claude/scripts/commit.sh "feat(events): padronizar onMarkerChange listeners em 6 engines + onMutate/onChange/allKeys/getValue audit"
+```
+
+- [ ] **Step 5: Deletar `notes/event-emitter-audit.md`**
+
+```bash
+rm notes/event-emitter-audit.md && rmdir notes 2>/dev/null || true
 ```
 
 ### Task 2.4: Wire SmartCodeCache em `main.ts` + listeners
@@ -1753,7 +1923,7 @@ describe('SmartCodeCache stress', () => {
     expect(dt).toBeLessThan(100);
   });
 
-  it('referential identity: index refs === marker objects', () => {
+  it('referential identity: indexByCode aponta pros mesmos marker objects de data', () => {
     const data = buildLargeFixture({ codes: 100, markers: 1000, smartCodes: 10, caseVars: 5 });
     const cache = new SmartCodeCache();
     cache.configure({ smartCodes: data.registry.smartCodes, caseVars: { get: () => undefined, allKeys: () => new Set() }, codeStruct: { codesInFolder: () => [], codesInGroup: () => [] } });
@@ -1761,7 +1931,19 @@ describe('SmartCodeCache stress', () => {
     const idx = cache.__getIndexByCodeForTest();
     const refs = idx.get('c_0');
     expect(refs).toBeDefined();
-    // refs apontam pro markerByRef do cache; mesma identity
+    expect(refs!.size).toBeGreaterThan(0);
+
+    // Pra cada ref no index, verificar que o marker correspondente é o MESMO objeto persistido em data
+    const markerByRef = cache.__getMarkerByRefForTest();
+    for (const ref of refs!) {
+      const cachedMarker = markerByRef.get(ref);
+      let originalMarker: any = undefined;
+      if (ref.engine === 'markdown') originalMarker = data.markdown.markers[ref.fileId]?.find(m => m.id === ref.markerId);
+      else if (ref.engine === 'pdf') originalMarker = data.pdf.markers[ref.fileId]?.find(m => m.id === ref.markerId);
+      else if (ref.engine === 'csv') originalMarker = (data.csv.rowMarkers ?? []).find(m => m.id === ref.markerId) ?? (data.csv.segmentMarkers ?? []).find(m => m.id === ref.markerId);
+      expect(originalMarker).toBeDefined();
+      expect(cachedMarker).toBe(originalMarker);  // === referential
+    }
   });
 });
 ```
@@ -1798,17 +1980,175 @@ git add tests/core/smartCodes/_fixtures/ tests/core/smartCodes/stress.test.ts
 - Create: `src/core/smartCodes/builderTreeOps.ts`
 - Test: `tests/core/smartCodes/builderTreeOps.test.ts`
 
-Helpers puros pra manipular AST: `addLeafToGroup(predicate, parentPath, newLeaf)`, `removeNodeAt(predicate, path)`, `moveNodeBetweenParents(predicate, fromPath, toPath, index)`, `changeOperator(predicate, path, newOp)`.
+Helpers puros pra manipular AST. `Path` é `number[]` representando índice em cada level (ex: `[0, 2]` = primeiro filho do root, terceiro filho dele).
 
-`Path` é `number[]` representando índice em cada level.
+API:
 
-- [ ] **Steps 1-5 padrão TDD pra cada helper.**
+```ts
+export type Path = number[];
 
-- [ ] **Commit:**
+export function getNodeAt(predicate: PredicateNode, path: Path): PredicateNode | undefined;
+export function addChildToGroup(predicate: PredicateNode, parentPath: Path, newChild: PredicateNode): PredicateNode;
+export function removeNodeAt(predicate: PredicateNode, path: Path): PredicateNode;
+export function moveNode(predicate: PredicateNode, fromPath: Path, toParentPath: Path, toIndex: number): PredicateNode;
+export function changeOperator(predicate: PredicateNode, path: Path, newOp: 'AND' | 'OR' | 'NOT'): PredicateNode;
+export function replaceLeafAt(predicate: PredicateNode, path: Path, newLeaf: LeafNode): PredicateNode;
+```
+
+Convention: todos retornam **novo** AST (immutable). Path inválido = no-op (retorna predicate inalterado).
+
+- [ ] **Step 1: Write failing test pra `getNodeAt`**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { getNodeAt, addChildToGroup, removeNodeAt, moveNode, changeOperator, replaceLeafAt } from '../../../src/core/smartCodes/builderTreeOps';
+
+describe('builderTreeOps', () => {
+  describe('getNodeAt', () => {
+    it('returns root for empty path', () => {
+      const p: any = { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_a' }]};
+      expect(getNodeAt(p, [])).toBe(p);
+    });
+    it('returns nested by path', () => {
+      const leaf = { kind: 'hasCode' as const, codeId: 'c_a' };
+      const p: any = { op: 'AND', children: [{ op: 'OR', children: [leaf]}]};
+      expect(getNodeAt(p, [0, 0])).toBe(leaf);
+    });
+    it('returns NOT child via path [0]', () => {
+      const leaf = { kind: 'hasCode' as const, codeId: 'c_a' };
+      const p: any = { op: 'NOT', child: leaf };
+      expect(getNodeAt(p, [0])).toBe(leaf);
+    });
+    it('returns undefined for invalid path', () => {
+      const p: any = { kind: 'hasCode', codeId: 'c_a' };
+      expect(getNodeAt(p, [0])).toBeUndefined();
+    });
+  });
+});
+```
+
+- [ ] **Step 2: Run, expect FAIL (module not found)**
+
+- [ ] **Step 3: Implement getNodeAt**
+
+```ts
+// src/core/smartCodes/builderTreeOps.ts
+import type { PredicateNode, LeafNode } from './types';
+import { isOpNode, isLeafNode } from './types';
+
+export type Path = number[];
+
+export function getNodeAt(node: PredicateNode, path: Path): PredicateNode | undefined {
+  let cur: PredicateNode | undefined = node;
+  for (const idx of path) {
+    if (!cur || isLeafNode(cur)) return undefined;
+    if (cur.op === 'NOT') cur = idx === 0 ? cur.child : undefined;
+    else cur = cur.children[idx];
+  }
+  return cur;
+}
+```
+
+- [ ] **Step 4: Test pra `addChildToGroup`**
+
+```ts
+describe('addChildToGroup', () => {
+  it('adiciona child ao final do group no path', () => {
+    const p: any = { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_a' }]};
+    const newLeaf = { kind: 'hasCode' as const, codeId: 'c_b' };
+    const result = addChildToGroup(p, [], newLeaf);
+    expect((result as any).children).toHaveLength(2);
+    expect((result as any).children[1]).toEqual(newLeaf);
+  });
+  it('no-op se parentPath aponta pra leaf', () => {
+    const p: any = { kind: 'hasCode', codeId: 'c_a' };
+    expect(addChildToGroup(p, [], { kind: 'hasCode', codeId: 'c_b' })).toEqual(p);
+  });
+  it('no-op se parentPath aponta pra NOT', () => {
+    const p: any = { op: 'NOT', child: { kind: 'hasCode', codeId: 'c_a' }};
+    expect(addChildToGroup(p, [], { kind: 'hasCode', codeId: 'c_b' })).toEqual(p);
+  });
+});
+```
+
+- [ ] **Step 5: Implement addChildToGroup**
+
+```ts
+export function addChildToGroup(node: PredicateNode, parentPath: Path, newChild: PredicateNode): PredicateNode {
+  return mapAt(node, parentPath, (target) => {
+    if (isLeafNode(target) || target.op === 'NOT') return target;
+    return { op: target.op, children: [...target.children, newChild] };
+  });
+}
+
+function mapAt(node: PredicateNode, path: Path, fn: (n: PredicateNode) => PredicateNode): PredicateNode {
+  if (path.length === 0) return fn(node);
+  if (isLeafNode(node)) return node;
+  if (node.op === 'NOT') {
+    if (path[0] !== 0) return node;
+    return { op: 'NOT', child: mapAt(node.child, path.slice(1), fn) };
+  }
+  const idx = path[0];
+  if (idx < 0 || idx >= node.children.length) return node;
+  const newChildren = node.children.slice();
+  newChildren[idx] = mapAt(node.children[idx], path.slice(1), fn);
+  return { op: node.op, children: newChildren };
+}
+```
+
+- [ ] **Step 6: Test + implement `removeNodeAt`** (similar pattern: usa parent path + child index, returns new tree sem o node).
+
+```ts
+describe('removeNodeAt', () => {
+  it('remove child do AND group', () => {
+    const p: any = { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_a' }, { kind: 'hasCode', codeId: 'c_b' }]};
+    const result = removeNodeAt(p, [0]);
+    expect((result as any).children).toHaveLength(1);
+    expect((result as any).children[0].codeId).toBe('c_b');
+  });
+  it('no-op se path vazio (não pode deletar root)', () => {
+    const p: any = { kind: 'hasCode', codeId: 'c_a' };
+    expect(removeNodeAt(p, [])).toEqual(p);
+  });
+});
+```
+
+Implementation: split path em parentPath + childIndex; mapAt(parentPath, group => filter out childIndex).
+
+- [ ] **Step 7: Test + implement `moveNode`** (composição: get from source path → remove from source → addChild to dest path at index).
+
+- [ ] **Step 8: Test + implement `changeOperator`**
+
+```ts
+describe('changeOperator', () => {
+  it('muda AND pra OR preservando children', () => {
+    const p: any = { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_a' }]};
+    const result = changeOperator(p, [], 'OR');
+    expect((result as any).op).toBe('OR');
+    expect((result as any).children).toHaveLength(1);
+  });
+  it('muda AND→NOT joga primeiro child como child do NOT (resto descartado, com console.warn)', () => {
+    const p: any = { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_a' }, { kind: 'hasCode', codeId: 'c_b' }]};
+    const result = changeOperator(p, [], 'NOT');
+    expect((result as any).op).toBe('NOT');
+    expect((result as any).child.codeId).toBe('c_a');
+  });
+});
+```
+
+- [ ] **Step 9: Test + implement `replaceLeafAt`** (mapAt + replace whole node se target é leaf).
+
+- [ ] **Step 10: Run all builderTreeOps tests, expect PASS**
+
+```bash
+npx vitest run tests/core/smartCodes/builderTreeOps.test.ts
+```
+
+- [ ] **Step 11: Commit**
 
 ```bash
 git add src/core/smartCodes/builderTreeOps.ts tests/core/smartCodes/builderTreeOps.test.ts
-~/.claude/scripts/commit.sh "feat(smartCodes): builder tree ops puros (add/remove/move/changeOp)"
+~/.claude/scripts/commit.sh "feat(smartCodes): builder tree ops puros (add/remove/move/changeOp/replaceLeaf)"
 ```
 
 ### Task 3.2: Criar `builderRowRenderer.ts` (render de cada row)
@@ -1836,19 +2176,191 @@ git add src/core/smartCodes/builderRowRenderer.ts
 **Files:**
 - Create: `src/core/smartCodes/builderModal.ts`
 
-Layout 3 zonas (header / body / footer) conforme spec §7. Usa builderTreeOps + builderRowRenderer. Preview live debounced 300ms calling `cache.compute` (helper que aceita predicate sem persistir).
+Layout 3 zonas (header / body / footer) conforme spec §7. Usa builderTreeOps + builderRowRenderer. Preview live debounced 300ms calling `cache.computePreview` (helper novo que aceita predicate sem persistir).
 
-Validation chama `validateForSave` no save; bloqueia se errors, mostra warnings.
+- [ ] **Step 1: Adicionar `computePreview(predicate, definitionStub)` em `cache.ts`**
 
-- [ ] **Step 1-N implementation**
+```ts
+// SmartCodeCache adiciona:
+computePreview(predicate: PredicateNode, stubId: string = '__preview__'): MarkerRef[] {
+  const stubSc = { id: stubId, predicate } as any;
+  const tempCtx: EvaluatorContext = {
+    caseVars: this.caseVars,
+    codesInFolder: this.codeStruct.codesInFolder,
+    codesInGroup: this.codeStruct.codesInGroup,
+    smartCodes: { ...this.smartCodes, [stubId]: stubSc },
+    evaluating: new Set([stubId]),
+    evaluator: evaluate,
+  };
+  const out: MarkerRef[] = [];
+  const seen = new Set<MarkerRef>();
+  for (const fset of this.indexByFile.values()) for (const ref of fset) seen.add(ref);
+  for (const ref of seen) {
+    const marker = this.markerByRef.get(ref);
+    if (!marker) continue;
+    if (evaluate(predicate, ref, marker, tempCtx)) out.push(ref);
+  }
+  return out;
+}
+```
 
-- [ ] **Smoke test:** abrir vault real, command palette → "Smart Code: New" → builder abre, criar predicate simples (`hasCode "X"`), preview mostra count, save persiste.
+Test: preview com predicate temporário não persiste em `this.matches` (assertion: `cache.getMatches(stubId)` returns `[]` after preview).
 
-- [ ] **Commit:**
+- [ ] **Step 2: Esqueleto do BuilderModal extends Obsidian Modal**
+
+```ts
+// src/core/smartCodes/builderModal.ts
+import { Modal, App } from 'obsidian';
+import type { SmartCodeDefinition, PredicateNode } from './types';
+import { renderRow } from './builderRowRenderer';
+import { addChildToGroup, removeNodeAt, moveNode, changeOperator, replaceLeafAt } from './builderTreeOps';
+import { validateForSave } from './predicateValidator';
+
+interface BuilderConfig {
+  app: App;
+  mode: 'create' | 'edit';
+  initialDefinition?: SmartCodeDefinition;
+  registry: any;       // tipo CodeDefinitionRegistry
+  caseVarsRegistry: any;
+  smartCodeApi: any;   // tipo SmartCodeApi
+  smartCodeCache: any; // SmartCodeCache (pra preview)
+  onSaved?: (saved: SmartCodeDefinition) => void;
+}
+
+export class SmartCodeBuilderModal extends Modal {
+  private name: string;
+  private color: string;
+  private memo: string;
+  private predicate: PredicateNode;
+  private previewDebounceHandle?: number;
+
+  constructor(private cfg: BuilderConfig) {
+    super(cfg.app);
+    this.name = cfg.initialDefinition?.name ?? '';
+    this.color = cfg.initialDefinition?.color ?? '#888';
+    this.memo = cfg.initialDefinition?.memo ?? '';
+    this.predicate = cfg.initialDefinition?.predicate ?? { op: 'AND', children: [] };
+  }
+
+  onOpen() { this.render(); }
+
+  private render(): void {
+    // 1. Header (name input + color picker + memo button)
+    // 2. Body (tree render via renderRow recursivo)
+    // 3. Footer (preview live "⚡ N matches" + Cancel/Save)
+  }
+
+  private schedulePreview(): void {
+    if (this.previewDebounceHandle) clearTimeout(this.previewDebounceHandle);
+    this.previewDebounceHandle = window.setTimeout(() => {
+      const matches = this.cfg.smartCodeCache.computePreview(this.predicate);
+      this.updatePreviewLabel(matches.length, this.countDistinctFiles(matches));
+    }, 300);
+  }
+
+  private save(): void {
+    const validation = validateForSave(
+      { id: this.cfg.initialDefinition?.id ?? '__new__', name: this.name },
+      this.predicate,
+      this.cfg.registry,
+      this.cfg.caseVarsRegistry.allKeys(),
+    );
+    if (validation.errors.length > 0) { this.showErrorBanner(validation.errors); return; }
+    if (validation.warnings.length > 0) this.showWarningBanner(validation.warnings);
+    const saved = this.cfg.mode === 'create'
+      ? this.cfg.smartCodeApi.createSmartCode({ name: this.name, color: this.color, predicate: this.predicate, memo: this.memo })
+      : this.cfg.smartCodeApi.updateSmartCode(this.cfg.initialDefinition!.id, { name: this.name, color: this.color, predicate: this.predicate, memo: this.memo });
+    this.cfg.onSaved?.(saved);
+    this.close();
+  }
+
+  // Outros métodos: updatePreviewLabel, countDistinctFiles, showErrorBanner, showWarningBanner
+}
+```
+
+- [ ] **Step 3: Render header (name + color + memo)**
+
+Standard pattern Obsidian: `this.contentEl.createDiv({ cls: 'qc-builder-header' })` com `Setting` + text input pra name, swatch HTML5 `<input type="color">` pra color, button "Edit memo" abrindo `PromptModal` (existente em `dialogs.ts`).
+
+- [ ] **Step 4: Render body (tree recursive)**
+
+```ts
+private renderBody(container: HTMLElement, node: PredicateNode, path: number[] = []): void {
+  const rowEl = renderRow({
+    node, path, depth: path.length,
+    registry: this.cfg.registry,
+    caseVarsRegistry: this.cfg.caseVarsRegistry,
+    smartCodeApi: this.cfg.smartCodeApi,
+    onChangeOp: (newOp) => { this.predicate = changeOperator(this.predicate, path, newOp); this.rerender(); },
+    onAddChild: (newChild) => { this.predicate = addChildToGroup(this.predicate, path, newChild); this.rerender(); },
+    onDelete: () => { this.predicate = removeNodeAt(this.predicate, path); this.rerender(); },
+    onReplaceLeaf: (newLeaf) => { this.predicate = replaceLeafAt(this.predicate, path, newLeaf); this.rerender(); },
+    onDragMove: (toParentPath, toIndex) => { this.predicate = moveNode(this.predicate, path, toParentPath, toIndex); this.rerender(); },
+  });
+  container.appendChild(rowEl);
+  if (isOpNode(node) && node.op !== 'NOT') {
+    for (let i = 0; i < node.children.length; i++) this.renderBody(container, node.children[i], [...path, i]);
+  } else if (isOpNode(node) && node.op === 'NOT') {
+    this.renderBody(container, node.child, [...path, 0]);
+  }
+}
+
+private rerender(): void {
+  this.contentEl.empty();
+  this.render();
+  this.schedulePreview();
+}
+```
+
+`[+ Condition]` button no rodapé do body adiciona leaf default (`{ kind: 'hasCode', codeId: '' }`) ao group root. `[+ Group]` adiciona `{ op: 'AND', children: [] }`.
+
+- [ ] **Step 5: Render footer (preview label + actions)**
+
+```ts
+private renderFooter(container: HTMLElement): void {
+  const previewEl = container.createDiv({ cls: 'qc-builder-preview' });
+  previewEl.setText('⚡ Calculating…');
+  this.previewLabelEl = previewEl;
+
+  const actions = container.createDiv({ cls: 'qc-builder-actions' });
+  actions.createEl('button', { text: 'Cancel' }).onclick = () => this.close();
+  const saveBtn = actions.createEl('button', { text: 'Save', cls: 'mod-cta' });
+  saveBtn.onclick = () => this.save();
+}
+```
+
+- [ ] **Step 6: Wire command palette + entry no `main.ts`**
+
+```ts
+this.addCommand({
+  id: 'smart-code-new',
+  name: 'Smart Code: New',
+  callback: () => new SmartCodeBuilderModal({
+    app: this.app, mode: 'create', registry: this.registry,
+    caseVarsRegistry: this.caseVariablesRegistry, smartCodeApi: this.smartCodeApi, smartCodeCache: this.smartCodeCache,
+    onSaved: () => this.refreshCodeExplorer(),
+  }).open(),
+});
+```
+
+- [ ] **Step 7: Smoke test obrigatório no vault**
 
 ```bash
-git add src/core/smartCodes/builderModal.ts src/main.ts
-~/.claude/scripts/commit.sh "feat(smartCodes): builder modal funcional + command palette entry"
+npm run build && cp -p main.js manifest.json styles.css demo/.obsidian/plugins/qualia-coding/
+```
+
+Reload Obsidian, command palette → "Smart Code: New":
+1. Modal abre
+2. Add condition → leaf row aparece
+3. Choose code from picker → preview atualiza ("⚡ N matches")
+4. Save → modal fecha, smart code aparece no Code Explorer (Task 3.5 pré-req)
+5. Edit predicate → preview re-atualiza < 300ms
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/core/smartCodes/builderModal.ts src/core/smartCodes/cache.ts src/main.ts
+~/.claude/scripts/commit.sh "feat(smartCodes): builder modal + cache.computePreview + command palette entry"
 ```
 
 ### Task 3.4: Criar `detailSmartCodeRenderer.ts` (Smart Code Detail)
@@ -1856,15 +2368,154 @@ git add src/core/smartCodes/builderModal.ts src/main.ts
 **Files:**
 - Create: `src/core/smartCodes/detailSmartCodeRenderer.ts`
 
-Espelha `detailCodeRenderer.ts`. Layout per spec §9. Usa `virtualList.ts` pra match list. Loading state per spec.
+Espelha `detailCodeRenderer.ts`. Layout per spec §9.
 
-- [ ] **Steps 1-N**
+- [ ] **Step 1: Esqueleto + signature**
 
-- [ ] **Commit:**
+```ts
+// src/core/smartCodes/detailSmartCodeRenderer.ts
+import type { SmartCodeDefinition, MarkerRef } from './types';
+import { renderVirtualList } from '../virtualList';
+
+interface RenderArgs {
+  container: HTMLElement;
+  smartCode: SmartCodeDefinition;
+  cache: any;        // SmartCodeCache
+  smartCodeApi: any; // SmartCodeApi
+  registry: any;
+  caseVarsRegistry: any;
+  app: any;
+  onEditPredicate: () => void;  // abre BuilderModal em edit mode
+  onDelete: () => void;
+  onNavigateToMarker: (ref: MarkerRef) => void;
+}
+
+export function renderSmartCodeDetail(args: RenderArgs): void {
+  args.container.empty();
+  renderHeader(args);
+  renderMemo(args);
+  renderPredicateDisplay(args);
+  renderMatchesSection(args);
+  renderHistorySection(args);  // audit log filtrado por entity='smartCode' + codeId
+  renderDeleteAction(args);
+}
+```
+
+- [ ] **Step 2: Header (icon + name + color swatch)**
+
+```ts
+function renderHeader({ container, smartCode }: RenderArgs): void {
+  const headerEl = container.createDiv({ cls: 'qc-sc-detail-header' });
+  headerEl.createSpan({ text: '⚡ ', cls: 'qc-sc-icon' });
+  headerEl.createSpan({ text: smartCode.name, cls: 'qc-sc-name' });
+  // color swatch + click → color picker
+}
+```
+
+- [ ] **Step 3: Memo editor inline (textarea + debounced 500ms)**
+
+Pattern do `renderCodeMemo` em `detailCodeRenderer.ts`:
+
+```ts
+function renderMemo({ container, smartCode, smartCodeApi }: RenderArgs): void {
+  const memoEl = container.createEl('textarea', { cls: 'qc-sc-memo' });
+  memoEl.value = smartCode.memo ?? '';
+  let debounceHandle: number | undefined;
+  memoEl.addEventListener('input', () => {
+    if (debounceHandle) clearTimeout(debounceHandle);
+    debounceHandle = window.setTimeout(() => {
+      smartCodeApi.setSmartCodeMemo(smartCode.id, memoEl.value);
+    }, 500);
+  });
+}
+```
+
+- [ ] **Step 4: Predicate display (read-only summary do AST)**
+
+```ts
+function renderPredicateDisplay({ container, smartCode, registry, onEditPredicate }: RenderArgs): void {
+  const sectionEl = container.createDiv({ cls: 'qc-sc-predicate-section' });
+  sectionEl.createEl('h4', { text: 'Predicate' });
+  const treeEl = sectionEl.createDiv({ cls: 'qc-sc-predicate-tree' });
+  renderPredicateLine(treeEl, smartCode.predicate, registry, 0);
+  const editBtn = sectionEl.createEl('button', { text: 'Edit predicate' });
+  editBtn.onclick = onEditPredicate;
+}
+
+function renderPredicateLine(parent: HTMLElement, node: PredicateNode, registry: any, depth: number): void {
+  const line = parent.createDiv({ cls: 'qc-sc-pred-line', attr: { style: `padding-left: ${depth * 16}px` }});
+  if (isOpNode(node)) {
+    line.setText(node.op === 'NOT' ? 'NOT' : node.op);
+    if (node.op === 'NOT') renderPredicateLine(parent, node.child, registry, depth + 1);
+    else for (const c of node.children) renderPredicateLine(parent, c, registry, depth + 1);
+  } else {
+    line.setText(formatLeaf(node, registry));
+  }
+}
+
+function formatLeaf(leaf: LeafNode, registry: any): string {
+  switch (leaf.kind) {
+    case 'hasCode': return `Code is "${registry.definitions[leaf.codeId]?.name ?? leaf.codeId + ' (deleted)'}"`;
+    case 'caseVarEquals': return `Case var "${leaf.variable}" = ${JSON.stringify(leaf.value)}`;
+    // ... outros 8 kinds
+  }
+}
+```
+
+- [ ] **Step 5: Matches section (virtual list, agrupado por file, com loading state)**
+
+```ts
+function renderMatchesSection({ container, smartCode, cache, onNavigateToMarker }: RenderArgs): void {
+  const sectionEl = container.createDiv({ cls: 'qc-sc-matches-section' });
+  const headerEl = sectionEl.createEl('h4');
+  const matches = cache.getMatches(smartCode.id);
+  const isDirty = cache.isDirty?.(smartCode.id);  // adicionar em cache.ts
+  headerEl.setText(isDirty ? 'MATCHES (calculating…)' : `MATCHES (${matches.length})`);
+
+  const groupedByFile = groupMatchesByFile(matches);
+  const items = flattenForVirtualList(groupedByFile);
+
+  renderVirtualList(sectionEl, items, {
+    rowHeight: 24,
+    renderRow: (item, el) => renderMatchRow(item, el, onNavigateToMarker),
+  });
+}
+```
+
+- [ ] **Step 6: History section (audit log filtrado)**
+
+```ts
+function renderHistorySection({ container, smartCode, app }: RenderArgs): void {
+  const sectionEl = container.createDiv({ cls: 'qc-sc-history-section' });
+  sectionEl.createEl('h4', { text: 'History' });
+  const entries = getEntriesForSmartCode(app.plugin.data.auditLog, smartCode.id);
+  // render entries via renderEntryMarkdown (audit log helper)
+}
+```
+
+- [ ] **Step 7: Delete action (com Confirm modal)**
+
+```ts
+function renderDeleteAction({ container, smartCode, smartCodeApi }: RenderArgs): void {
+  const btn = container.createEl('button', { text: 'Delete smart code', cls: 'mod-warning' });
+  btn.onclick = async () => {
+    const ok = await new ConfirmModal(/* ... */).open();
+    if (ok) smartCodeApi.deleteSmartCode(smartCode.id);
+  };
+}
+```
+
+- [ ] **Step 8: Wire dispatch em `baseCodeDetailView.ts`**
+
+`baseCodeDetailView` ganha switch: se `selectedId.startsWith('sc_')` → renderSmartCodeDetail, senão renderCodeDetail.
+
+- [ ] **Step 9: Smoke test no vault** — abrir smart code criado em Task 3.3, verificar header/memo/predicate/matches/history.
+
+- [ ] **Step 10: Commit**
 
 ```bash
-git add src/core/smartCodes/detailSmartCodeRenderer.ts src/core/baseCodeDetailView.ts
-~/.claude/scripts/commit.sh "feat(smartCodes): Smart Code Detail (header + predicate display + matches virtual list)"
+git add src/core/smartCodes/detailSmartCodeRenderer.ts src/core/smartCodes/cache.ts src/core/baseCodeDetailView.ts styles.css
+~/.claude/scripts/commit.sh "feat(smartCodes): Smart Code Detail (header + memo + predicate display + matches virtual + history + delete)"
 ```
 
 ### Task 3.5: Code Explorer section "Smart Codes" + integração
@@ -1874,26 +2525,135 @@ git add src/core/smartCodes/detailSmartCodeRenderer.ts src/core/baseCodeDetailVi
 - Modify: `src/core/baseCodeDetailView.ts`
 - Modify: `styles.css`
 
-Section colapsável no topo. Cada row: `⚡ name (count)` + eye toggle. Click navega pro Smart Code Detail. Context menu (Edit / Rename / Recolor / Edit memo / Hide / Delete). Loading state per spec §8.
+Section colapsável no topo. Cada row: `⚡ name (count)` + eye toggle. Click navega pro Smart Code Detail. Context menu (Edit / Rename / Recolor / Edit memo / Hide / Delete).
 
-`baseCodeDetailView` ganha dispatch: se `selectedId` começa com `sc_`, renderiza Smart Code Detail; senão Code Detail.
+- [ ] **Step 1: Adicionar `renderSmartCodesSection(container, state, callbacks)` em `codebookTreeRenderer.ts`**
 
-CSS pra `.qc-smart-code-row`, `.qc-smart-codes-section`, `.qc-smart-codes-section-header` (padrão visual coerente com codebook existente, badge `⚡` antes do nome).
+```ts
+interface SmartCodesSectionState {
+  collapsed: boolean;
+  smartCodes: SmartCodeDefinition[];     // ordered via smartCodeOrder
+  hiddenIds: Set<string>;
+  countsById: Map<string, number | 'computing'>;
+}
 
-- [ ] **Steps 1-N**
+function renderSmartCodesSection(container: HTMLElement, state: SmartCodesSectionState, callbacks: SmartCodesCallbacks): void {
+  const sectionEl = container.createDiv({ cls: 'qc-smart-codes-section' });
+  const headerEl = sectionEl.createDiv({ cls: 'qc-smart-codes-section-header' });
+  const visibleCount = state.smartCodes.filter(sc => !state.hiddenIds.has(sc.id)).length;
+  const total = state.smartCodes.length;
+  const countLabel = state.hiddenIds.size > 0 ? `${visibleCount} / ${total}` : `${visibleCount}`;
+  headerEl.setText(`${state.collapsed ? '▸' : '▾'} ⚡ Smart Codes (${countLabel})`);
+  headerEl.onclick = () => callbacks.onToggleCollapsed();
 
-- [ ] **Smoke test em vault:** criar 3 smart codes; verificar:
-  - Section aparece no topo do Code Explorer com count "3"
-  - Click num smart code abre Smart Code Detail correto
-  - Context menu funciona (delete pede confirmação)
-  - Eye toggle hide/unhide
-  - Loading state aparece em smart code grande durante invalidate
+  if (state.collapsed) return;
 
-- [ ] **Commit:**
+  for (const sc of state.smartCodes) {
+    if (state.hiddenIds.has(sc.id)) continue;  // hidden ones suppressed unless toggle "show hidden"
+    const row = sectionEl.createDiv({ cls: 'qc-smart-code-row' });
+    const count = state.countsById.get(sc.id);
+    row.createSpan({ text: '⚡ ' });
+    row.createSpan({ text: sc.name, cls: 'qc-sc-name' });
+    row.createSpan({ text: count === 'computing' ? '…' : String(count ?? 0), cls: 'qc-sc-count' });
+    addEyeToggle(row, sc.hidden ?? false, () => callbacks.onToggleHidden(sc.id));
+    row.onclick = (e) => { if (e.target === row || (e.target as HTMLElement).classList.contains('qc-sc-name')) callbacks.onNavigate(sc.id); };
+    row.oncontextmenu = (e) => { e.preventDefault(); callbacks.onContextMenu(sc.id, e); };
+  }
+
+  const newBtn = sectionEl.createEl('button', { text: '+ New smart code', cls: 'qc-sc-new-btn' });
+  newBtn.onclick = () => callbacks.onNew();
+}
+```
+
+- [ ] **Step 2: Wire em `baseCodeDetailView.ts` — chamar renderSmartCodesSection antes da árvore de regulares**
+
+Em `renderTree` (ou equivalente), chamar `renderSmartCodesSection(treeContainer, smartCodesState, smartCodesCallbacks)` antes da render dos folders/codes regulares.
+
+- [ ] **Step 3: Wire counts dinâmicos via cache subscribe**
+
+```ts
+// no construtor da view
+this.smartCodeCacheUnsub = plugin.smartCodeCache.subscribe((changedIds) => {
+  for (const id of changedIds) this.smartCodesState.countsById.set(id, plugin.smartCodeCache.getCount(id));
+  this.renderTree();
+});
+```
+
+Cleanup em `onClose`/`onUnload`: `this.smartCodeCacheUnsub()`.
+
+- [ ] **Step 4: Context menu — usar Obsidian Menu com 6 itens**
+
+```ts
+function showSmartCodeContextMenu(sc: SmartCodeDefinition, e: MouseEvent, plugin: any): void {
+  const menu = new Menu();
+  menu.addItem(i => i.setTitle('Edit predicate').onClick(() => openBuilderInEditMode(sc, plugin)));
+  menu.addItem(i => i.setTitle('Rename').onClick(() => promptRename(sc, plugin)));
+  menu.addItem(i => i.setTitle('Recolor').onClick(() => openColorPicker(sc, plugin)));
+  menu.addItem(i => i.setTitle('Edit memo').onClick(() => openMemoModal(sc, plugin)));
+  menu.addItem(i => i.setTitle(sc.hidden ? 'Unhide' : 'Hide').onClick(() => plugin.smartCodeApi.updateSmartCode(sc.id, { hidden: !sc.hidden })));
+  menu.addSeparator();
+  menu.addItem(i => i.setTitle('Delete').setWarning(true).onClick(async () => {
+    const ok = await new ConfirmModal(/* ... */).open();
+    if (ok) plugin.smartCodeApi.deleteSmartCode(sc.id);
+  }));
+  menu.showAtMouseEvent(e);
+}
+```
+
+- [ ] **Step 5: Visibility per-doc integration**
+
+Quando view é aberta com active file, ler `data.visibilityOverrides[fileId]?.[sc.id]` ou fallback `sc.hidden`. Smart code só renderiza no Code Explorer se `isCodeVisibleInFile(sc.id, fileId)` retornar true. Reusa helper existente `isCodeVisibleInFile` — verificar que aceita string key qualquer (per spec §11, deve aceitar; auditar Step 6).
+
+- [ ] **Step 6: Audit `isCodeVisibleInFile` aceita string key qualquer**
+
+```bash
+grep -A 5 "function isCodeVisibleInFile" src/core/codeVisibility.ts
+```
+
+Confirmar que função recebe `codeId: string` e não chama `registry.definitions[codeId]`. Per spec §11, deve passar limpo.
+
+- [ ] **Step 7: CSS em `styles.css`**
+
+```css
+.qc-smart-codes-section {
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.qc-smart-codes-section-header {
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  user-select: none;
+}
+.qc-smart-code-row {
+  display: flex;
+  align-items: center;
+  padding: 2px 8px 2px 16px;
+  cursor: pointer;
+}
+.qc-smart-code-row:hover { background: var(--background-modifier-hover); }
+.qc-smart-code-row.is-selected { background: var(--background-modifier-active-hover); }
+.qc-sc-name { flex: 1; }
+.qc-sc-count { color: var(--text-muted); margin-left: 8px; font-variant-numeric: tabular-nums; }
+.qc-sc-new-btn { margin: 4px 8px; }
+```
+
+- [ ] **Step 8: Smoke test em vault**
+
+Criar 3 smart codes. Verificar:
+- Section aparece no topo do Code Explorer com count "3"
+- Click num smart code abre Smart Code Detail correto
+- Context menu funciona (todos 6 itens; delete pede confirmação)
+- Eye toggle hide/unhide
+- Count atualiza em tempo real ao adicionar/remover marker
+- Loading state ("…" no lugar do número) aparece em smart code grande durante invalidate
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add src/core/codebookTreeRenderer.ts src/core/baseCodeDetailView.ts styles.css
-~/.claude/scripts/commit.sh "feat(smartCodes): Code Explorer section + dispatch pro Smart Code Detail"
+~/.claude/scripts/commit.sh "feat(smartCodes): Code Explorer section + context menu + dispatch pro Smart Code Detail + visibility integration"
 ```
 
 ### Chunk 3 closeout — Smoke test obrigatório
@@ -1934,13 +2694,83 @@ Rodar smoke completo no workbench:
 
 Adicionar `getCodeDimensions(data, registry, smartCodeCache): CodeDimension[]` retornando union {code, smartCode} com `isSmart` flag e `getMatches()` resolved via cache pra smart, via pipeline existente pra regular.
 
-- [ ] **Steps 1-5 TDD**
+- [ ] **Step 1: Write failing test**
 
-- [ ] **Commit:**
+```ts
+import { describe, it, expect } from 'vitest';
+import { getCodeDimensions } from '../../../src/analytics/data/dataReader';
+import { createDefaultData } from '../../../src/core/types';
+
+describe('getCodeDimensions', () => {
+  it('returns regulares + smart codes em union ordenada (regulares primeiro)', () => {
+    const data = createDefaultData();
+    data.registry.definitions['c_a'] = { id: 'c_a', name: 'A', color: '#fff' } as any;
+    data.registry.rootOrder = ['c_a'];
+    data.registry.smartCodes['sc_x'] = { id: 'sc_x', name: 'X', color: '#aaa', predicate: { kind: 'hasCode', codeId: 'c_a' }} as any;
+    data.registry.smartCodeOrder = ['sc_x'];
+    const fakeCache = { getMatches: (id: string) => id === 'sc_x' ? [{ engine: 'pdf', fileId: 'f1', markerId: 'm1' }] : [] };
+    const dims = getCodeDimensions(data, data.registry, fakeCache as any);
+    expect(dims).toHaveLength(2);
+    expect(dims[0]).toMatchObject({ id: 'c_a', isSmart: false });
+    expect(dims[1]).toMatchObject({ id: 'sc_x', isSmart: true });
+    expect(dims[1].getMatches()).toHaveLength(1);
+  });
+
+  it('respects hidden flag (smart codes hidden filtrados)', () => {
+    const data = createDefaultData();
+    data.registry.smartCodes['sc_x'] = { id: 'sc_x', name: 'X', color: '#aaa', hidden: true, predicate: { op: 'AND', children: [] }} as any;
+    data.registry.smartCodeOrder = ['sc_x'];
+    const dims = getCodeDimensions(data, data.registry, { getMatches: () => [] } as any);
+    expect(dims).toEqual([]);
+  });
+});
+```
+
+- [ ] **Step 2: Run, expect FAIL**
+
+- [ ] **Step 3: Implement getCodeDimensions**
+
+```ts
+// src/analytics/data/dataReader.ts
+export interface CodeDimension {
+  id: string;
+  name: string;
+  color: string;
+  isSmart: boolean;
+  getMatches(): MarkerRef[];
+}
+
+export function getCodeDimensions(data: QualiaData, registry: { definitions: any; smartCodes: any }, smartCodeCache: any): CodeDimension[] {
+  const dims: CodeDimension[] = [];
+  // Regulares (ordem via existing helper buildFlatTree ou rootOrder)
+  for (const id of data.registry.rootOrder ?? []) {
+    const code = registry.definitions[id];
+    if (!code || code.hidden) continue;
+    dims.push({
+      id, name: code.name, color: code.color, isSmart: false,
+      getMatches: () => collectMarkersForRegularCode(data, id),  // helper existente — usar o mesmo do current pipeline
+    });
+  }
+  // Smart codes (ordem via smartCodeOrder, hidden filter)
+  for (const id of data.registry.smartCodeOrder ?? []) {
+    const sc = registry.smartCodes[id];
+    if (!sc || sc.hidden) continue;
+    dims.push({
+      id, name: sc.name, color: sc.color, isSmart: true,
+      getMatches: () => smartCodeCache.getMatches(id),
+    });
+  }
+  return dims;
+}
+```
+
+- [ ] **Step 4: Run, expect PASS**
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/analytics/data/dataReader.ts tests/analytics/data/dataReaderSmartCodes.test.ts
-~/.claude/scripts/commit.sh "feat(analytics): dataReader.getCodeDimensions inclui smart codes"
+~/.claude/scripts/commit.sh "feat(analytics): dataReader.getCodeDimensions inclui smart codes (isSmart flag)"
 ```
 
 ### Task 4.2: applyFilters dispatch via prefix
@@ -1951,13 +2781,64 @@ git add src/analytics/data/dataReader.ts tests/analytics/data/dataReaderSmartCod
 
 Helper `partitionByPrefix(codeIds): { regular: string[], smart: string[] }`. Em `applyFilters`, smart codes resolvem via `cache.getMatches(id)` → set de markerRefs.
 
-- [ ] **Steps**
+- [ ] **Step 1: Write failing test**
 
-- [ ] **Commit:**
+```ts
+import { describe, it, expect } from 'vitest';
+import { partitionByPrefix, applyFilters } from '../../../src/analytics/data/statsHelpers';
+
+describe('applyFilters smart codes dispatch', () => {
+  it('partitionByPrefix splits by sc_ vs c_', () => {
+    expect(partitionByPrefix(['c_a', 'sc_x', 'c_b', 'sc_y'])).toEqual({
+      regular: ['c_a', 'c_b'], smart: ['sc_x', 'sc_y']
+    });
+  });
+
+  it('applyFilters com filter contendo sc_x usa cache.getMatches pra filtrar markers', () => {
+    const consolidated = [/* markers consolidados */] as any;
+    const filters = { codeIds: ['sc_x'], /* outros campos */ } as any;
+    const cache = { getMatches: (_id: string) => [{ engine: 'pdf', fileId: 'f1', markerId: 'm1' }] };
+    const result = applyFilters(consolidated, filters, { smartCodeCache: cache });
+    // Asserts que result inclui só markers cujos refs estão no set retornado
+  });
+});
+```
+
+- [ ] **Step 2: Run, expect FAIL**
+
+- [ ] **Step 3: Implement**
+
+```ts
+// statsHelpers.ts
+export function partitionByPrefix(codeIds: string[]): { regular: string[]; smart: string[] } {
+  const regular: string[] = [];
+  const smart: string[] = [];
+  for (const id of codeIds) (id.startsWith('sc_') ? smart : regular).push(id);
+  return { regular, smart };
+}
+
+// Em applyFilters existente:
+// Antes do filter loop, se filter inclui smart codes:
+const partition = partitionByPrefix(filters.codeIds ?? []);
+let smartMatchRefs: Set<string> | undefined;
+if (partition.smart.length > 0 && opts?.smartCodeCache) {
+  smartMatchRefs = new Set();
+  for (const scId of partition.smart) {
+    for (const ref of opts.smartCodeCache.getMatches(scId)) {
+      smartMatchRefs.add(`${ref.engine}:${ref.fileId}:${ref.markerId}`);
+    }
+  }
+}
+// No marker filter loop, se smartMatchRefs definido, reject markers cujo ref-string não está no set.
+```
+
+- [ ] **Step 4: Run, expect PASS**
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/analytics/data/statsHelpers.ts tests/analytics/data/applyFiltersSmartCodes.test.ts
-~/.claude/scripts/commit.sh "feat(analytics): applyFilters dispatch via sc_/c_ prefix"
+~/.claude/scripts/commit.sh "feat(analytics): applyFilters dispatch via sc_/c_ prefix com smart code matches"
 ```
 
 ### Task 4.3: configSections — filter chips Smart Codes
@@ -1967,13 +2848,51 @@ git add src/analytics/data/statsHelpers.ts tests/analytics/data/applyFiltersSmar
 
 `renderCodesFilter` ganha sub-section "Smart Codes" com chips ⚡ separados.
 
-- [ ] **Steps + smoke test no vault**
+- [ ] **Step 1: Localizar `renderCodesFilter` em `configSections.ts`**
 
-- [ ] **Commit:**
+```bash
+grep -n "renderCodesFilter\|renderFilter" src/analytics/views/configSections.ts
+```
+
+- [ ] **Step 2: Adicionar sub-section após chips de regulares**
+
+```ts
+function renderCodesFilter(container: HTMLElement, ctx: ViewContext): void {
+  // ... render chips de regulares (existente)
+  const smartCodes = ctx.plugin.data.registry.smartCodeOrder
+    .map((id: string) => ctx.plugin.data.registry.smartCodes[id])
+    .filter((sc: any) => sc && !sc.hidden);
+  if (smartCodes.length === 0) return;
+
+  const scSection = container.createDiv({ cls: 'qc-codes-filter-smart-section' });
+  scSection.createEl('h5', { text: 'Smart Codes', cls: 'qc-filter-subsection-header' });
+  for (const sc of smartCodes) {
+    const chip = scSection.createDiv({ cls: 'qc-filter-chip qc-filter-chip-smart' });
+    chip.style.borderColor = sc.color;
+    chip.createSpan({ text: '⚡ ' });
+    chip.createSpan({ text: sc.name });
+    if (ctx.filter.codeIds.includes(sc.id)) chip.addClass('is-active');
+    chip.onclick = () => toggleFilterCodeId(ctx, sc.id);
+  }
+}
+```
+
+- [ ] **Step 3: CSS pra chip-smart**
+
+```css
+.qc-filter-chip-smart { border-style: dashed; }
+.qc-filter-chip-smart.is-active { background: var(--background-modifier-active-hover); }
+.qc-codes-filter-smart-section { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--background-modifier-border); }
+.qc-filter-subsection-header { color: var(--text-muted); font-size: 0.85em; margin: 4px 0; }
+```
+
+- [ ] **Step 4: Smoke test no vault** — abrir Analytics, verificar chips ⚡ separados aparecem na filter sidebar quando há smart codes.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/analytics/views/configSections.ts styles.css
-~/.claude/scripts/commit.sh "feat(analytics): filter chips section pra smart codes"
+~/.claude/scripts/commit.sh "feat(analytics): filter chips section pra smart codes (chip-smart com border dashed)"
 ```
 
 ### Task 4.4: Wire smart codes em modes que aceitam dimension de código
@@ -1990,13 +2909,73 @@ Cada mode chama `getCodeDimensions(data, registry, smartCodeCache)` em vez de it
 
 Loading state: se algum dim.isSmart e cache.dirty, render "Computing smart codes…" overlay.
 
-- [ ] **Steps + smoke test em cada mode no vault**
-
-- [ ] **Commit:**
+- [ ] **Step 1: Localizar onde cada mode itera código**
 
 ```bash
-git add src/analytics/views/modes/
-~/.claude/scripts/commit.sh "feat(analytics): smart codes como dimension em frequency/evolution/cooccurrence/sequential/codeMetadata/memoView"
+grep -l "Object.values(registry.definitions)\|for.*registry.definitions\|registry.rootOrder" src/analytics/views/modes/
+```
+
+Lista esperada de modes a tocar (em ordem):
+1. `frequencyMode.ts`
+2. `evolutionMode.ts`
+3. `cooccurrenceMode.ts`
+4. `sequentialMode.ts`
+5. `codeMetadataMode.ts`
+6. `memoView/memoViewMode.ts` (+ `renderCodeSection.ts`)
+
+Modes que **não** entram (per spec §10): `relationsNetworkMode.ts`, `codebookTimelineMode.ts` (último é tratado em Task 4.6 com escopo diferente).
+
+- [ ] **Step 2: Pra CADA um dos 6 modes — substituir iteração de codes por getCodeDimensions**
+
+Padrão de patch:
+
+```ts
+// ANTES:
+const codes = Object.values(plugin.data.registry.definitions).filter(c => !c.hidden);
+const matrix = codes.map(c => ({ codeId: c.id, count: countMarkersWithCode(c.id, filteredMarkers) }));
+
+// DEPOIS:
+import { getCodeDimensions } from '../../data/dataReader';
+const dims = getCodeDimensions(plugin.data, plugin.data.registry, plugin.smartCodeCache);
+const filtered = applyHiddenAndFilter(dims, filterConfig);
+const matrix = filtered.map(d => ({ codeId: d.id, isSmart: d.isSmart, count: d.getMatches().length }));
+```
+
+Cada mode tem seu próprio fluxo (frequency é simples count, evolution agrupa por tempo, cooccurrence faz matriz, etc). Pra cada, identificar o site de "iterate codes" + adaptar pra `dims`. Smart codes resolvem matches via `dim.getMatches()` (cache hit) — não precisa pipeline custom.
+
+- [ ] **Step 3: Loading overlay (compartilhado)**
+
+Helper em `analyticsView.ts`:
+
+```ts
+function checkComputingState(dims: CodeDimension[], cache: any): boolean {
+  return dims.some(d => d.isSmart && cache.isDirty?.(d.id));
+}
+```
+
+Cada mode chama no início do render: se true, render `<div class="qc-mode-computing-overlay">Computing smart codes…</div>` em vez do chart, e re-render quando cache notifica via subscribe.
+
+- [ ] **Step 4: Per-mode test smoke no vault**
+
+Pra cada um dos 6 modes:
+1. Abrir Analytics → mode
+2. Toggle filter chip ⚡ Smart Code
+3. Verificar chart/matrix inclui smart code com count correto
+4. Edit predicate do smart code → mode atualiza em <1s
+
+- [ ] **Step 5: Commit (1 por mode pra granularidade ou bundle)**
+
+```bash
+git add src/analytics/views/modes/frequencyMode.ts
+~/.claude/scripts/commit.sh "feat(analytics/frequency): smart codes como dimension"
+# repete pra outros 5
+```
+
+Ou bundle se ficou consistente:
+
+```bash
+git add src/analytics/views/modes/ src/analytics/views/analyticsView.ts
+~/.claude/scripts/commit.sh "feat(analytics): smart codes como dimension em 6 modes (frequency/evolution/cooccurrence/sequential/codeMetadata/memoView) + loading overlay"
 ```
 
 ### Task 4.5: Sidebar adapters — Smart Codes group
@@ -2010,13 +2989,87 @@ Após renderização de regulares, render "Smart Codes (N)" se N > 0. Cada row `
 
 Visibility per-doc: smart code segue mesmo padrão (`visibilityOverrides[fileId][smartCodeId]`).
 
-- [ ] **Steps + smoke test em cada engine**
+- [ ] **Step 1: Adicionar `renderSmartCodesGroup(container, fileId, smartCodeCache, smartCodes, callbacks)` em `baseSidebarAdapter.ts`**
 
-- [ ] **Commit:**
+```ts
+// src/core/baseSidebarAdapter.ts (extensão)
+protected renderSmartCodesGroup(container: HTMLElement, fileId: string): void {
+  const smartCodes = this.plugin.data.registry.smartCodeOrder
+    .map((id: string) => this.plugin.data.registry.smartCodes[id])
+    .filter((sc: any) => sc && this.isCodeVisibleInFile(sc.id, fileId));
+
+  // Filter smart codes que têm ≥1 match nesse file
+  const withMatches = smartCodes.filter((sc: any) => {
+    const matches = this.plugin.smartCodeCache.getMatches(sc.id);
+    return matches.some((ref: any) => ref.fileId === fileId);
+  });
+  if (withMatches.length === 0) return;
+
+  const groupEl = container.createDiv({ cls: 'qc-sidebar-sc-group' });
+  groupEl.createEl('h5', { text: `Smart Codes (${withMatches.length})`, cls: 'qc-sidebar-sc-header' });
+
+  for (const sc of withMatches) {
+    const matchesInFile = this.plugin.smartCodeCache.getMatches(sc.id).filter((r: any) => r.fileId === fileId);
+    const isDirty = this.plugin.smartCodeCache.isDirty?.(sc.id);
+    const row = groupEl.createDiv({ cls: 'qc-sidebar-sc-row' });
+    row.createSpan({ text: '⚡ ' });
+    row.createSpan({ text: sc.name });
+    row.createSpan({ text: isDirty ? '…' : `(${matchesInFile.length})`, cls: 'qc-sidebar-sc-count' });
+    let cursorIdx = 0;
+    row.onclick = () => {
+      const ref = matchesInFile[cursorIdx % matchesInFile.length];
+      this.navigateToMarker(ref);  // implementação varia por engine — método protected
+      cursorIdx++;
+    };
+  }
+}
+```
+
+`navigateToMarker(ref: MarkerRef)`: já existe em cada sidebar adapter pra códigos regulares (jump pro próximo marker). Reusar mesmo método (refs apontam pra markers persistidos).
+
+- [ ] **Step 2: Subscribe ao cache no construtor do adapter pra re-render**
+
+```ts
+// no init do adapter:
+this.scCacheUnsub = this.plugin.smartCodeCache.subscribe(() => this.refresh());
+// no destroy/unload:
+this.scCacheUnsub?.();
+```
+
+- [ ] **Step 3: Chamar `renderSmartCodesGroup` em CADA dos 6 sidebar adapters concretos**
+
+Lista:
+1. `src/markdown/markdownSidebarAdapter.ts` (ou wherever lives)
+2. `src/pdf/pdfSidebarAdapter.ts`
+3. `src/image/imageSidebarAdapter.ts`
+4. `src/csv/csvSidebarAdapter.ts`
+5. `src/media/mediaSidebarAdapter.ts` (compartilhado audio + video)
+
+Localizar ponto de render de códigos regulares, chamar `this.renderSmartCodesGroup(container, currentFileId)` logo após.
+
+- [ ] **Step 4: CSS**
+
+```css
+.qc-sidebar-sc-group { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--background-modifier-border); }
+.qc-sidebar-sc-header { color: var(--text-muted); font-size: 0.85em; margin: 0 0 4px; }
+.qc-sidebar-sc-row { display: flex; align-items: center; padding: 4px 8px; cursor: pointer; }
+.qc-sidebar-sc-row:hover { background: var(--background-modifier-hover); }
+.qc-sidebar-sc-count { margin-left: auto; color: var(--text-muted); }
+```
+
+- [ ] **Step 5: Visibility per-doc smoke test**
+
+No vault: criar smart code, criar 2 markdown notes, em uma toggle eye icon do smart code (no popover compartilhado). Smart code deve sumir do sidebar dessa nota mas continuar na outra. Test passes.
+
+- [ ] **Step 6: Per-engine smoke test**
+
+Pra cada engine (markdown, pdf, image, audio, video, csv): abrir um file com markers que dão match em pelo menos 1 smart code. Verificar que `Smart Codes (N)` group aparece no sidebar com count correto. Click navega pro próximo match.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/core/baseSidebarAdapter.ts src/media/mediaSidebarAdapter.ts src/markdown/ src/pdf/ src/image/ src/csv/ src/audio/ src/video/
-~/.claude/scripts/commit.sh "feat(smartCodes): sidebar adapters mostram smart codes com matches no file"
+git add src/core/baseSidebarAdapter.ts src/markdown/ src/pdf/ src/image/ src/csv/ src/media/ styles.css
+~/.claude/scripts/commit.sh "feat(smartCodes): sidebar adapters mostram smart codes com matches no file (6 engines)"
 ```
 
 ### Task 4.6: Codebook Timeline — sc_* events + ⚡ icon + checkbox
@@ -2028,13 +3081,126 @@ git add src/core/baseSidebarAdapter.ts src/media/mediaSidebarAdapter.ts src/mark
 
 Estender `EVENT_TYPE_TO_FILTER` com 5 sc_* keys per spec §13. Render bullet `⚡` quando `entry.entity === 'smartCode'`. Config panel ganha checkbox "Include smart code events" (default on).
 
-- [ ] **Steps**
+- [ ] **Step 1: Estender `EVENT_TYPE_TO_FILTER` em `codebookTimelineEngine.ts:17`**
 
-- [ ] **Commit:**
+```ts
+const EVENT_TYPE_TO_FILTER: Record<AuditEntry['type'], EventTypeFilter> = {
+  // ... existentes (created, renamed, description_edited, memo_edited, absorbed, merged_into, deleted)
+  // Smart code mappings:
+  sc_created: 'created',
+  sc_predicate_edited: 'edited',
+  sc_memo_edited: 'edited',
+  sc_auto_rewritten_on_merge: 'edited',
+  sc_deleted: 'deleted',
+};
+```
+
+TS exhaustiveness force inclusão dos 5 keys; faltar uma quebra build.
+
+- [ ] **Step 2: Write test pra inclusão de sc_* na timeline**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { buildTimelineEvents, bucketByGranularity } from '../../../src/analytics/data/codebookTimelineEngine';
+import type { AuditEntry } from '../../../src/core/types';
+
+describe('codebookTimeline smart codes', () => {
+  it('inclui sc_* events nos buckets corretos', () => {
+    const log: AuditEntry[] = [
+      { id: 'a1', codeId: 'c_a', at: 1000, type: 'created' },
+      { id: 'a2', codeId: 'sc_x', at: 2000, entity: 'smartCode', type: 'sc_created' },
+      { id: 'a3', codeId: 'sc_x', at: 3000, entity: 'smartCode', type: 'sc_predicate_edited', addedLeafKinds: ['hasCode'], removedLeafKinds: [], changedLeafCount: 1 },
+    ];
+    const events = buildTimelineEvents(log, /* nameLookup */ () => 'name');
+    expect(events).toHaveLength(3);
+    expect(events.find(e => e.entryId === 'a2')?.bucket).toBe('created');
+    expect(events.find(e => e.entryId === 'a3')?.bucket).toBe('edited');
+  });
+});
+```
+
+- [ ] **Step 3: Run, expect FAIL (TS will catch missing keys; test verifies behavior)**
+
+- [ ] **Step 4: Renderer — bullet `⚡` quando entity smartCode**
+
+Em `codebookTimelineMode.ts`, no render da lista descending agrupada por dia, adicionar:
+
+```ts
+const bulletChar = (entry as any).entity === 'smartCode' ? '⚡' : '•';
+listItem.createSpan({ text: bulletChar, cls: 'qc-tl-bullet' });
+```
+
+- [ ] **Step 5: Config checkbox "Include smart code events"**
+
+Em `configSections.renderTimelineConfig` (ou wherever the timeline config panel é renderizado):
+
+```ts
+const includeSmartCodes = ctx.timelineConfig.includeSmartCodes ?? true;
+const checkbox = container.createEl('label');
+checkbox.createEl('input', { type: 'checkbox', attr: { checked: includeSmartCodes } }).onchange = (e) => {
+  ctx.timelineConfig.includeSmartCodes = (e.target as HTMLInputElement).checked;
+  ctx.refreshMode();
+};
+checkbox.createSpan({ text: 'Include smart code events' });
+```
+
+- [ ] **Step 6: Filter aplicado em `buildTimelineEvents` ou no consumer**
+
+```ts
+const filtered = log.filter(e => {
+  if ((e as any).entity === 'smartCode' && !timelineConfig.includeSmartCodes) return false;
+  return true;
+});
+```
+
+- [ ] **Step 7: Run tests, smoke no vault**
+
+Smoke: editar predicate de smart code → entry aparece na timeline com bullet ⚡. Toggle checkbox off → entries de smart code somem.
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/analytics/data/codebookTimelineEngine.ts src/analytics/views/modes/codebookTimelineMode.ts tests/analytics/data/codebookTimelineSmartCodes.test.ts
-~/.claude/scripts/commit.sh "feat(analytics): codebook timeline inclui sc_* events com ⚡ icon"
+git add src/analytics/data/codebookTimelineEngine.ts src/analytics/views/modes/codebookTimelineMode.ts src/analytics/views/configSections.ts tests/analytics/data/codebookTimelineSmartCodes.test.ts
+~/.claude/scripts/commit.sh "feat(analytics): codebook timeline inclui sc_* events com ⚡ icon + checkbox toggle"
+```
+
+### Task 4.7: Visibility per-doc test pra smart code (string-key safety)
+
+**Files:**
+- Test: `tests/core/codeVisibilitySmartCodes.test.ts` (criar)
+
+- [ ] **Step 1: Test que `isCodeVisibleInFile` aceita smart code id sem registry lookup**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { isCodeVisibleInFile, shouldStoreOverride } from '../../src/core/codeVisibility';
+
+describe('codeVisibility com smart code ids', () => {
+  it('isCodeVisibleInFile aceita sc_* sem assumir registry.definitions', () => {
+    const overrides = { 'note.md': { 'sc_x': false }};
+    expect(isCodeVisibleInFile('sc_x', 'note.md', overrides, false /* globalHidden */)).toBe(false);
+    expect(isCodeVisibleInFile('sc_x', 'other.md', overrides, false)).toBe(true);  // sem override → global
+    expect(isCodeVisibleInFile('sc_x', 'other.md', overrides, true)).toBe(false);   // global hidden
+  });
+
+  it('shouldStoreOverride aceita sc_* (toggle só persiste se diverge do global)', () => {
+    expect(shouldStoreOverride('sc_x', false, false)).toBe(false);  // ambos hidden → no override
+    expect(shouldStoreOverride('sc_x', false, true)).toBe(true);    // override (visible) diverge do global hidden
+  });
+});
+```
+
+- [ ] **Step 2: Run, expect PASS** (per spec §11, helpers já são string-key safe — esse test é regression guard)
+
+- [ ] **Step 3: Smoke test no vault**
+
+Criar smart code, criar 2 markdown notes. Em uma, abrir popover de visibility (eye icon do header da view), toggle smart code off. Smart code deve sumir do sidebar dessa nota mas continuar na outra.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add tests/core/codeVisibilitySmartCodes.test.ts
+~/.claude/scripts/commit.sh "test(visibility): smart codes seguem padrão string-key (zero mudança em migrators)"
 ```
 
 ### Chunk 4 closeout — smoke test cross-surface
@@ -2055,17 +3221,107 @@ git add src/analytics/data/codebookTimelineEngine.ts src/analytics/views/modes/c
 - Modify: `src/core/smartCodes/smartCodeRegistryApi.ts`
 - Modify: `src/main.ts` (instalar audit listener pro smart code registry)
 
-Em cada método do API, após persist, chamar `auditEmit({ entity: 'smartCode', codeId: sc.id, type: 'sc_*', ... })`. Coalescing 60s pra `sc_predicate_edited` e `sc_memo_edited` é responsabilidade do `appendEntry` (já implementado).
+Em cada método do API, após persist, chamar `auditEmit({ entity: 'smartCode', codeId: sc.id, type: 'sc_*', ... })`. Coalescing 60s pra `sc_predicate_edited` e `sc_memo_edited` é responsabilidade do `appendEntry` (já estendido em Task 1.9).
 
-`predicate_edited` precisa do diff de leaves. Helper puro `diffPredicateLeaves(oldPred, newPred): { added: string[], removed: string[], changedCount: number }` walk em ambos AST coletando kinds.
+`predicate_edited` precisa do diff de leaves. Helper puro `diffPredicateLeaves(oldPred, newPred): { addedLeafKinds: string[], removedLeafKinds: string[], changedLeafCount: number }` walk em ambos AST coletando kinds.
 
-- [ ] **Steps 1-5 + test do diff helper**
+- [ ] **Step 1: Write failing test pra diffPredicateLeaves**
 
-- [ ] **Commit:**
+```ts
+import { describe, it, expect } from 'vitest';
+import { diffPredicateLeaves } from '../../../src/core/smartCodes/smartCodeRegistryApi';
+
+describe('diffPredicateLeaves', () => {
+  it('detects added leaf kinds', () => {
+    const old: any = { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_a' }]};
+    const next: any = { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_a' }, { kind: 'inFolder', folderId: 'f_x' }]};
+    const diff = diffPredicateLeaves(old, next);
+    expect(diff.addedLeafKinds).toEqual(['inFolder']);
+    expect(diff.removedLeafKinds).toEqual([]);
+  });
+  it('detects removed leaf kinds', () => {
+    const old: any = { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_a' }, { kind: 'inFolder', folderId: 'f_x' }]};
+    const next: any = { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_a' }]};
+    const diff = diffPredicateLeaves(old, next);
+    expect(diff.removedLeafKinds).toEqual(['inFolder']);
+  });
+  it('counts changes (different ref but same kind)', () => {
+    const old: any = { kind: 'hasCode', codeId: 'c_a' };
+    const next: any = { kind: 'hasCode', codeId: 'c_b' };
+    const diff = diffPredicateLeaves(old, next);
+    expect(diff.changedLeafCount).toBe(1);
+  });
+});
+```
+
+- [ ] **Step 2: Implement diff helper**
+
+```ts
+// smartCodeRegistryApi.ts (helper puro)
+export function diffPredicateLeaves(old: PredicateNode, next: PredicateNode): { addedLeafKinds: string[]; removedLeafKinds: string[]; changedLeafCount: number } {
+  const oldLeaves = collectLeaves(old);
+  const newLeaves = collectLeaves(next);
+  const oldByKind = countBy(oldLeaves, l => l.kind);
+  const newByKind = countBy(newLeaves, l => l.kind);
+  const added: string[] = [];
+  const removed: string[] = [];
+  for (const [kind, count] of newByKind) {
+    const oldCount = oldByKind.get(kind) ?? 0;
+    if (count > oldCount) added.push(kind);
+  }
+  for (const [kind, count] of oldByKind) {
+    const newCount = newByKind.get(kind) ?? 0;
+    if (count > newCount) removed.push(kind);
+  }
+  // changedLeafCount: leaves do mesmo kind com refs diferentes
+  let changed = 0;
+  // simplificação: compara serialização de leaves do mesmo kind
+  // (implementação completa depende do nível desejado de diff; pra audit, contagem aproximada basta)
+  return { addedLeafKinds: added, removedLeafKinds: removed, changedLeafCount: changed };
+}
+
+function collectLeaves(node: PredicateNode): LeafNode[] {
+  if (isLeafNode(node)) return [node];
+  if (node.op === 'NOT') return collectLeaves(node.child);
+  return node.children.flatMap(collectLeaves);
+}
+```
+
+- [ ] **Step 3: Wire emit em cada método do API**
+
+Sites de emit (em `smartCodeRegistryApi.ts`):
+
+| Method | Emit |
+|---|---|
+| `createSmartCode` | `{ entity: 'smartCode', codeId: sc.id, type: 'sc_created', at: Date.now(), id: uuid() }` |
+| `updateSmartCode` (predicate change) | `{ ..., type: 'sc_predicate_edited', ...diffPredicateLeaves(old, next) }` |
+| `setSmartCodeMemo` | `{ ..., type: 'sc_memo_edited', from: oldMemo, to: newMemo }` |
+| `setSmartCodeColor` | nada (cosmético, não auditado per spec §13) |
+| `autoRewriteOnMerge` (pra cada sc afetado) | `{ ..., type: 'sc_auto_rewritten_on_merge', sourceCodeId, targetCodeId }` |
+| `deleteSmartCode` | `{ ..., type: 'sc_deleted' }` |
+
+API pattern:
+
+```ts
+constructor(private deps: { data: QualiaData; auditEmit: (e: AuditEntry) => void; ... }) {}
+```
+
+- [ ] **Step 4: Wire `auditEmit` em main.ts**
+
+```ts
+const auditEmit = (e: AuditEntry) => appendEntry(this.data.auditLog, e);
+this.smartCodeApi = new SmartCodeApi({ data: this.data, auditEmit, /* ... */ });
+```
+
+`appendEntry` já handles coalescing pra `sc_predicate_edited`/`sc_memo_edited` (Task 1.9).
+
+- [ ] **Step 5: Test integration — chamar createSmartCode → entry no auditLog; chamar setSmartCodeMemo 2x dentro de 60s → entries coalescem**
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/core/smartCodes/smartCodeRegistryApi.ts src/main.ts
-~/.claude/scripts/commit.sh "feat(smartCodes): audit log emit em mutations + diff helper"
+git add src/core/smartCodes/smartCodeRegistryApi.ts src/main.ts tests/core/smartCodes/smartCodeRegistryApi.test.ts
+~/.claude/scripts/commit.sh "feat(smartCodes): audit log emit em mutations + diffPredicateLeaves helper"
 ```
 
 ### Task 5.2: Export QDPX — `qualia:SmartCodes` block
@@ -2091,18 +3347,178 @@ git add src/export/qdpxExporter.ts tests/export/qdpxSmartCodes.test.ts
 - Modify: `src/import/qdpxImporter.ts`
 - Test: `tests/import/qdpxSmartCodes.test.ts`
 
-`parseSmartCodes` recebe XML + `idMap` (que ganha `smartCodes: Map<string,string>`). Pass 1 aloca placeholders + popula idMap. Pass 2 deserializa predicates + remap refs. Broken refs → warning + leaf preservada com original ref.
+`parseSmartCodes` recebe XML + `GuidResolver` que ganha `smartCodes: Map<string,string>` field. Pass 1 aloca placeholders + popula idMap. Pass 2 deserializa predicates + remap refs. Broken refs → warning + leaf preservada com original ref.
 
-- [ ] **Steps 1-5 + tests pra:**
-  - Round-trip Qualia→QDPX→Qualia preserva tudo
-  - Import com broken ref produz warning sem quebrar
-  - Import com 2 smart codes mutuamente referenciados resolve corretamente
+- [ ] **Step 1: Estender `GuidResolver` em `src/import/qdpxImporter.ts:105`**
 
-- [ ] **Commit:**
+```bash
+sed -n '100,115p' src/import/qdpxImporter.ts
+```
+
+Adicionar field:
+
+```ts
+class GuidResolver {
+  codes = new Map<string, string>();
+  sources = new Map<string, string>();
+  selections = new Map<string, string>();
+  // ... outros existentes
+  smartCodes = new Map<string, string>();  // NOVO
+
+  // métodos: getOrCreateId, etc — reusar pattern existente pra smartCodes:
+  getOrCreateSmartCodeId(oldGuid: string): string {
+    let id = this.smartCodes.get(oldGuid);
+    if (!id) { id = `sc_${nanoid(8)}`; this.smartCodes.set(oldGuid, id); }
+    return id;
+  }
+}
+```
+
+- [ ] **Step 2: Write failing test pra parseSmartCodes (2-pass)**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { parseSmartCodes } from '../../src/import/qdpxImporter';
+
+describe('parseSmartCodes 2-pass', () => {
+  it('resolves 2 smart codes mutuamente referenciados', () => {
+    const xml = `
+      <qualia:SmartCodes xmlns:qualia="urn:qualia-coding:extensions:1.0">
+        <qualia:SmartCode guid="old-A" name="A" color="#aaa">
+          <qualia:Predicate><![CDATA[{"kind":"smartCode","smartCodeId":"old-B"}]]></qualia:Predicate>
+        </qualia:SmartCode>
+        <qualia:SmartCode guid="old-B" name="B" color="#bbb">
+          <qualia:Predicate><![CDATA[{"kind":"hasCode","codeId":"old-c1"}]]></qualia:Predicate>
+        </qualia:SmartCode>
+      </qualia:SmartCodes>
+    `;
+    const idMap = { codes: new Map([['old-c1', 'c_c1']]), smartCodes: new Map(), folders: new Map(), groups: new Map() } as any;
+    const result = parseSmartCodes(xml, idMap);
+    expect(result.smartCodes).toHaveLength(2);
+    const A = result.smartCodes.find((s: any) => s.name === 'A');
+    expect((A!.predicate as any).smartCodeId).toBe(idMap.smartCodes.get('old-B'));
+    const B = result.smartCodes.find((s: any) => s.name === 'B');
+    expect((B!.predicate as any).codeId).toBe('c_c1');
+  });
+
+  it('broken ref vira leaf preservada + warning', () => {
+    const xml = `
+      <qualia:SmartCodes xmlns:qualia="urn:qualia-coding:extensions:1.0">
+        <qualia:SmartCode guid="old-A" name="A" color="#aaa">
+          <qualia:Predicate><![CDATA[{"kind":"hasCode","codeId":"old-deleted"}]]></qualia:Predicate>
+        </qualia:SmartCode>
+      </qualia:SmartCodes>
+    `;
+    const idMap = { codes: new Map(), smartCodes: new Map(), folders: new Map(), groups: new Map() } as any;
+    const result = parseSmartCodes(xml, idMap);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toMatch(/broken/i);
+    const A = result.smartCodes[0];
+    expect((A.predicate as any).codeId).toBe('old-deleted');  // preservado pra debug
+  });
+});
+```
+
+- [ ] **Step 3: Run, expect FAIL**
+
+- [ ] **Step 4: Implement parseSmartCodes (regex-based como `parseSetsFromXml`)**
+
+```ts
+// qdpxImporter.ts
+export function parseSmartCodes(xml: string, idMap: GuidResolver): { smartCodes: SmartCodeDefinition[]; warnings: string[] } {
+  const warnings: string[] = [];
+  // Pass 1: extrair atributos + alocar IDs novos
+  const blockMatch = xml.match(/<qualia:SmartCodes[^>]*>([\s\S]*?)<\/qualia:SmartCodes>/);
+  if (!blockMatch) return { smartCodes: [], warnings };
+  const inner = blockMatch[1];
+  const scMatches = [...inner.matchAll(/<qualia:SmartCode\s+guid="([^"]+)"\s+name="([^"]+)"\s+color="([^"]+)"[^>]*>([\s\S]*?)<\/qualia:SmartCode>/g)];
+
+  const allocated: { oldGuid: string; newId: string; name: string; color: string; predicateRaw: string; memo?: string }[] = [];
+  for (const m of scMatches) {
+    const [_, oldGuid, name, color, body] = m;
+    const newId = idMap.getOrCreateSmartCodeId(oldGuid);
+    const predicateRaw = (body.match(/<qualia:Predicate><!\[CDATA\[([\s\S]*?)\]\]><\/qualia:Predicate>/)?.[1] ?? '').trim();
+    const memo = body.match(/<qualia:Memo>([\s\S]*?)<\/qualia:Memo>/)?.[1];
+    allocated.push({ oldGuid, newId, name, color, predicateRaw, memo });
+  }
+
+  // Pass 2: deserialize + remap refs
+  const out: SmartCodeDefinition[] = [];
+  for (const a of allocated) {
+    let predicate: PredicateNode;
+    try { predicate = JSON.parse(a.predicateRaw); }
+    catch (err) { warnings.push(`Failed to parse predicate for smart code "${a.name}"`); predicate = { op: 'AND', children: [] }; }
+    const remappedPredicate = remapPredicateRefs(predicate, idMap, warnings, a.name);
+    out.push({
+      id: a.newId, name: a.name, color: a.color, paletteIndex: 0, createdAt: Date.now(),
+      predicate: remappedPredicate,
+      memo: a.memo,
+    });
+  }
+  return { smartCodes: out, warnings };
+}
+
+function remapPredicateRefs(node: PredicateNode, idMap: GuidResolver, warnings: string[], scName: string): PredicateNode {
+  if (isOpNode(node)) {
+    if (node.op === 'NOT') return { op: 'NOT', child: remapPredicateRefs(node.child, idMap, warnings, scName) };
+    return { op: node.op, children: node.children.map(c => remapPredicateRefs(c, idMap, warnings, scName)) };
+  }
+  switch (node.kind) {
+    case 'hasCode':
+    case 'magnitudeGte':
+    case 'magnitudeLte':
+    case 'relationExists': {
+      const newId = idMap.codes.get(node.codeId);
+      if (!newId) { warnings.push(`Smart code "${scName}" references deleted code ${node.codeId}`); return node; }
+      return { ...node, codeId: newId, ...(node.kind === 'relationExists' && node.targetCodeId ? { targetCodeId: idMap.codes.get(node.targetCodeId) ?? node.targetCodeId } : {}) };
+    }
+    case 'inFolder': {
+      const newId = idMap.folders?.get(node.folderId);
+      if (!newId) { warnings.push(`Smart code "${scName}" references deleted folder ${node.folderId}`); return node; }
+      return { ...node, folderId: newId };
+    }
+    case 'inGroup': {
+      const newId = idMap.groups?.get(node.groupId);
+      if (!newId) { warnings.push(`Smart code "${scName}" references deleted group ${node.groupId}`); return node; }
+      return { ...node, groupId: newId };
+    }
+    case 'smartCode': {
+      const newId = idMap.smartCodes.get(node.smartCodeId);
+      if (!newId) { warnings.push(`Smart code "${scName}" references deleted smart code ${node.smartCodeId}`); return node; }
+      return { ...node, smartCodeId: newId };
+    }
+    case 'caseVarEquals':
+    case 'caseVarRange':
+    case 'engineType':
+      return node;  // names estáveis ou enum estático
+  }
+}
+```
+
+- [ ] **Step 5: Wire em orquestrador `qdpxImporter`**
+
+Após `parseSets` e `parseCases` (smart codes referenciam grupos/case vars), chamar `parseSmartCodes(xml, idMap)`. Persist smart codes em `data.registry.smartCodes` e `smartCodeOrder`. Append warnings ao import report.
+
+- [ ] **Step 6: Round-trip e2e test**
+
+```ts
+it('round-trip Qualia → QDPX → Qualia preserva smart code complexo', () => {
+  const original: SmartCodeDefinition = { /* AST com 9 leaves variadas + nesting */ } as any;
+  const qdpx = exportQdpx({ smartCodes: [original], ... });
+  const reimported = importQdpx(qdpx);
+  const restored = reimported.smartCodes[0];
+  expect(restored.name).toBe(original.name);
+  expect(restored.predicate).toEqual(matchPredicateModuloRemap(original.predicate));
+});
+```
+
+- [ ] **Step 7: Run all tests, expect PASS**
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add src/import/qdpxImporter.ts tests/import/qdpxSmartCodes.test.ts
-~/.claude/scripts/commit.sh "feat(import): parse smart codes em 2-pass (resolve nesting refs)"
+~/.claude/scripts/commit.sh "feat(import): parse smart codes em 2-pass (resolve nesting refs + GuidResolver.smartCodes)"
 ```
 
 ### Task 5.4: CSV tabular — `smart_codes.csv`
