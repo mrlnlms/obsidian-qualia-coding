@@ -1291,6 +1291,50 @@ Heurística: `app.workspace.layoutReady === false` durante restoration. Arquivos
 
 Fix: extraído `loadEagerPath(file)`. `onLoadFile` retorna IMEDIATAMENTE após renderizar o banner; botões disparam o próximo passo via `.then()`. Cada callback faz `if (this.file !== file) return` pra desistir se o user trocou de arquivo enquanto o banner estava aberto.
 
+### `markerTextCache` — preview de markers em lazy sem cascade async (2026-05-04)
+
+Lazy mode lê cellText de DuckDB+OPFS. Sidebar (`SidebarModelInterface.getMarkerText`) é sync — não pode `await`. Backlog original sugeria cascade async em `getAllMarkers / getMarkerById / getMarkersForFile` → `Promise<...>` (12+ sites em `core/`). Foi **rejeitado** por contaminar drag-drop, hover e listas que não precisam de markerText.
+
+**Solução adotada:** cache derivado em `CsvCodingModel.markerTextCache: Map<markerId, string>`.
+- `populateMarkerTextCacheForFile(fileId, provider)` no lazy `onLoadFile`: chunked (1000 markers/batch) + dedup por `(sourceRowId, column)` via `batchGetMarkerText`. Aplica `from..to` substring em segment markers.
+- `populateMissingMarkerTextsForFile(fileId, provider)` invocado via `model.onChange` listener debounced 100ms — top-up após batch coding sem refetch dos já cacheados. Retorna `added` pro caller decidir se chama `notifyListenersOnly`.
+- `getMarkerText` (sync) consulta cache → `rowDataCache` (eager) → null. `getMarkerTextAsync` cobre o caminho lazy on-demand e popula cache no hit.
+- Invalidação granular nos 6 sites de remove: `removeMarker`, `removeAllMarkersForFile`, `clearAllMarkers`, `deleteSegmentMarkersForCell`, `removeCodeFromManyRows`, `removeAllRowMarkersFromMany`. Cada um faz `markerTextCache.delete(id)` antes de splice/filter.
+- Cleanup per-file no `onUnloadFile` (`clearMarkerTextCacheForFile`).
+
+**Trade-off:** ~5MB RAM por file aberto com 10k markers (custo previsível, limpa no unload). +200-500ms no open de file lazy com 10k markers (chunked batch). Todos os outros engines (markdown/pdf/image/audio/video) continuam sync sem qualquer mudança — só CSV precisa do cache porque é o único cuja cellText vem de IO assíncrono.
+
+### `notifyListenersOnly` — re-render sem persistir cache derivado
+
+`CsvCodingModel.notify()` chama `saveMarkers()` antes de disparar listeners. Pra cache populates (rowDataCache eager + markerTextCache lazy), persistir o data.json é desnecessário — o cache é derivado do file no disco. `notifyListenersOnly()` foi adicionado pra triggerar re-render da sidebar sem write.
+
+Usos: `csvCodingView` chama após `rowDataCache.set` no eager path e após `populateMarkerTextCacheForFile` / `populateMissingMarkerTextsForFile` no lazy path.
+
+---
+
+## 17. Virtual scroll de listas planas (`core/virtualList.ts`)
+
+**Helper genérico**: viewport rendering com row pool diff. Itens fora do viewport (+ buffer) NÃO ficam no DOM. Scroll mounta novos, evicta os que saíram.
+
+**Por que existe.** `baseCodeExplorerView`, `detailCodeRenderer` (markers list + segments by file) e `detailRelationRenderer` (evidence list) iteravam todos os markers e criavam 1 `<div>` + listeners por marker. Vault de teste com batch coding em parquet (665k row markers, 661k num único code) travava o UI thread por segundos quando o user expandia a sidebar. `codebookTreeRenderer` já usava virtual scroll pra árvore de codes — `virtualList.ts` extrai a mecânica pra listas planas reusáveis.
+
+**API:**
+```ts
+const list = createVirtualList<BaseMarker>({
+  container: scrollEl,        // height-constrained via CSS
+  rowHeight: 26,
+  buffer: 5,                  // rows extras out-of-viewport
+  renderRow: (marker, idx) => buildRowEl(marker),
+});
+list.setItems(markers);       // troca itens (drop pool + recompute spacer)
+list.refresh();               // re-render preservando itens (hover state changes etc)
+list.cleanup();               // remove scroll listener (idempotente)
+```
+
+**Containers**: `max-height: 50-60vh` + `overflow-y: auto` + `position: relative`. Spacer interno reserva altura virtual completa; rows são `position: absolute; top: ${i * rowHeight}px`. Pra files com poucos markers, `naturalHeight = items.length * rowHeight` é menor que `maxByVh`, então container fica em altura natural sem scroll forçado.
+
+**Limitação:** introduz nested scroll dentro do sidebar (preferível à UI travada). Files muito pequenos com altura natural não têm overflow — cosmético.
+
 ---
 
 ## Fontes

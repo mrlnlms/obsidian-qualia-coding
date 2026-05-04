@@ -56,23 +56,32 @@ Cada view tem seu próprio `lazyState`/`displayMap`/`gridApi`. DuckDB runtime é
 
 Spike Premise B (§14.5.2 do design doc) mostrou p99 de 214ms em sorted scroll-to-row de 297MB. Resolvido — `csvCodingView.ts` liga `onSortChanged → refreshLazyDisplayMap` (drop+rebuild com `orderBy + whereClause`), `navigateToRow` consulta `displayRowFor()`, e `refreshLazyFilter` encadeia o rebuild. Verificado 2026-05-04.
 
-### Reveal de marker em parquet lazy não destaca a row
+### Reveal de marker em parquet lazy não destaca a row (atacar na Fase 6)
 
 Sintoma: clicar `file-search` num marker lazy abre o file (popup Lazy/Eager se necessário) e até scrolla pro lugar certo, mas `flashCells` não dispara — `getDisplayedRowAtIndex` retorna null porque a row do Infinite Row Model ainda é skeleton (page block não foi requisitado/recebido). User perde a referência visual.
 
 Fix: após `ensureIndexVisible`, escutar `modelUpdated` ou `rowDataUpdated` do AG Grid, detectar quando o `rowNode` da row alvo aparece, e só então `flashCells`. Timeout de 3-5s pra desistir caso a row nunca chegue (filter ativo escondendo).
 
-Atacar junto com Fase 6 do parquet-lazy (UX redonda do open + reveal).
+**Atacar junto com Fase 6 do parquet-lazy** (UX redonda do open + reveal).
 
-### Label de marker em CSV/parquet mostra coordenada, não conteúdo
+### Pre-populate cache no startup pra labels antes de file open (atacar na Fase 6)
 
-`CsvCodingModel.getMarkerLabel` retorna `Row X · Column` em vez do excerpt da célula. Em todos os outros engines (markdown, pdf, audio, video) o label é o conteúdo do trecho codificado — CSV é exceção que confunde quem usa sidebar pra reconhecer markers.
+Após a sessão 2026-05-04, label CSV/parquet usa cellText quando o cache está populado. Mas `rowDataCache` (eager) e `markerTextCache` (lazy) só populam **on file open**. Sidebar de quem nunca abriu o file na sessão vê fallback `Row X · Column`.
 
-Fix: trocar pra preferir `getMarkerText(marker)` (truncado a ~60 chars), com fallback pra `Row X · Column` quando text não disponível. Aplica nos 2 tipos:
-- Segment marker: substring `from..to` da célula
-- Row marker: célula inteira
+Fix: no plugin onload, varrer markers do `data.json`, agrupar por fileId, e em background:
+- File abaixo do threshold (eager): `vault.read` + papaparse/hyparquet → `rowDataCache.set` → `notifyListenersOnly`
+- File acima do threshold (lazy): só popula se OPFS já tem o file cacheado (não força download se ainda não foi aberto). Ler via DuckDB+OPFS pra `markerTextCache`
+- Background async com `requestIdleCallback` pra não bloquear startup
 
-Em **eager** funciona instantâneo. Em **lazy** depende da branch `feat/csv-lazy-marker-text-cache` (markerTextCache) — sem ela, fallback pra coordenada. Atacar logo após merge daquela branch.
+Coupling natural com a Fase 6 (mesma frente de "sistema escolhe Lazy/Eager"). User confirmou que essa UX faz sentido junto com a remoção do popup.
+
+### ~~Label de marker em CSV/parquet mostra coordenada, não conteúdo~~ ✅ (2026-05-04, pre-populate fica pra Fase 6)
+
+`CsvCodingModel.getMarkerLabel` agora prefere `getMarkerText(marker)` truncado a 60 chars, com fallback pra `Row X · Column` quando text não disponível. Em eager via `rowDataCache`, em lazy via `markerTextCache`. **Limitação atual:** ambos populam só on file open — pre-populate no startup ficou registrado acima como follow-up da Fase 6.
+
+### Carla label vazia (whitespace-only cell) — minor
+
+Smoke 2026-05-04: row marker em célula `"   "` (whitespace) deveria cair no fallback `Row 3 · comment`, mas no DOM o entry aparece com label visualmente vazio. Lógica em `getMarkerLabel` está correta (`trimmed.length === 0` cai no fallback) — provável causa: papaparse parsing whitespace-only quoted cell como string vazia ou similar. Investigar quando virar bloqueante. Não-urgente.
 
 ### Bundle size pós-DuckDB (atacar na Fase 6 do parquet-lazy)
 

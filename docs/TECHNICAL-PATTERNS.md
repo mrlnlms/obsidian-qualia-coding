@@ -2080,6 +2080,100 @@ Qualquer recurso que tem dispose async + é referenciado por handlers que dispar
 
 ---
 
+## 34. Virtual list helper genérico — viewport rendering pra listas planas
+
+### Problema
+
+Render path que itera N markers e cria 1 `<div>` + listeners por item trava UI thread quando N cresce. Vault de teste com 665k markers em parquet (batch coding em todo o dataset, 661k num único code) congelava Code Explorer / Code Detail / evidence list por dezenas de segundos. `codebookTreeRenderer` já tinha virtual scroll pra árvore de codes — faltava equivalente pra listas planas.
+
+### Solução
+
+`core/virtualList.ts`: createVirtualList<T>({ container, rowHeight, buffer?, renderRow }) → `{ setItems, refresh, cleanup }`. Container deve ter altura constrained (`max-height` + `overflow-y: auto`); spacer interno reserva altura virtual completa; rows são `position: absolute; top: ${i * rowHeight}px`. Pool de rows diff'ado a cada scroll: rows que continuam visíveis NÃO são re-renderizadas, só as que entraram/saíram.
+
+```ts
+const list = createVirtualList<BaseMarker>({
+    container: scrollEl,
+    rowHeight: 26,
+    buffer: 5,
+    renderRow: (marker) => buildRowEl(marker),
+});
+list.setItems(markers);
+```
+
+### Trade-offs
+
+- **Nested scroll** dentro da sidebar (preferível à UI travada). Files com poucos markers ficam em altura natural se `naturalHeight < maxByVh`, então scroll só aparece quando precisa.
+- `rowHeight` é fixo. Pra listas com altura heterogênea, este helper não serve — use `IntersectionObserver` ou similar.
+
+### Onde está implementado
+
+- `src/core/virtualList.ts` — helper
+- `src/core/baseCodeExplorerView.ts` — file expansion children
+- `src/core/detailCodeRenderer.ts` — markers list + segments by file
+- `src/core/detailRelationRenderer.ts` — evidence list
+
+Tests: `tests/core/virtualList.test.ts` (7 specs) — viewport mount/unmount, spacer height, scroll diff, setItems replace, cleanup idempotente.
+
+---
+
+## 35. Cache derivado com `notifyListenersOnly` — re-render sem persistir
+
+### Problema
+
+`CsvCodingModel.notify()` chama `saveMarkers()` (write em data.json) antes de disparar listeners. Pra populates de cache derivado (rowDataCache eager + markerTextCache lazy), persistir é desnecessário e custoso — o cache reflete o file no disco, não muda os markers persistidos.
+
+### Solução
+
+`notifyListenersOnly()` no model — itera listeners sem chamar `saveMarkers`. Usado em:
+- `csvCodingView` após `rowDataCache.set` (eager onLoadFile)
+- `csvCodingView` após `populateMarkerTextCacheForFile` (lazy onLoadFile)
+- `csvCodingView.runLazyPopulateMissing` quando `added > 0` (top-up debounced)
+
+### Quando aplicar
+
+Qualquer estado derivado que tem listener-de-UI mas NÃO precisa persistir. Distingue do cenário "edição real do user" (que ainda usa `notify()` regular).
+
+### Anti-pattern relacionado
+
+Chamar `notify()` em hot path de cache populate dispara save em cada chunk. Em populate de 50k markers em 50 chunks = 50 writes do data.json em sequência. Loop dos diabos.
+
+---
+
+## 36. `markerTextCache` — preview lazy sem cascade async
+
+### Problema
+
+CSV/parquet em lazy mode lê cellText de DuckDB+OPFS — IO async. Sidebar `getMarkerText` é sync (chamado de hover handlers, drag-drop, render direto). Cascading `Promise<...>` em `SidebarModelInterface.getAllMarkers / getMarkerById / getMarkersForFile` atinge ~12 sites em `core/` e contamina paths que nem precisam de markerText.
+
+### Solução rejeitada
+
+Cascade async dos 3 métodos centrais. Razão de rejeição: drag-drop e hover não precisam de markerText, mas pagariam overhead.
+
+### Solução adotada
+
+Cache derivado em `CsvCodingModel.markerTextCache: Map<markerId, string>`:
+
+1. **Populate eager** no lazy `onLoadFile`: `populateMarkerTextCacheForFile(fileId, provider)` chunked em 1000 markers/batch via `RowProvider.batchGetMarkerText`. Dedup por `(sourceRowId, column)` — múltiplos markers na mesma cell triggeram 1 fetch. Aplica `from..to` substring em segment markers.
+2. **Top-up debounced** após mutações (batch coding cria markers novos sem text cached): `model.onChange` listener com setTimeout 100ms → `populateMissingMarkerTextsForFile` (só fetcha markers sem cache hit).
+3. **Sync read** via `getMarkerText`: cache → rowDataCache (eager) → null. **Async fallback** via `getMarkerTextAsync` popula cache no hit pra próxima sync read ser O(1).
+4. **Invalidação granular** em todos os 6 sites de remove (`removeMarker`, `removeAllMarkersForFile`, `clearAllMarkers`, `deleteSegmentMarkersForCell`, `removeCodeFromManyRows`, `removeAllRowMarkersFromMany`). Cada um faz `markerTextCache.delete(id)` antes de splice/filter.
+5. **Cleanup per-file** no `onUnloadFile` (`clearMarkerTextCacheForFile`).
+
+### Trade-offs
+
+- ~5MB RAM por file aberto com 10k markers (limpa no unload)
+- +200-500ms no open de file lazy com 10k markers (chunked batch); menor pra files menores
+- Limitação: cache só popula on file open. Sidebar de quem nunca abriu o file na sessão vê fallback `Row X · Column`. Pre-populate startup é follow-up da Fase 6 do parquet-lazy.
+
+### Onde está implementado
+
+`src/csv/csvCodingModel.ts` — cache + populate methods.
+`src/csv/csvCodingView.ts` — hooks `onLoadFile` (lazy + eager) + `onUnloadFile` + `lazyChangeListener` debounced.
+
+Tests: `tests/engine-models/csvCodingModel.markerTextCache.test.ts` (16 specs).
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

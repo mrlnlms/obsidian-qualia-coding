@@ -1,15 +1,24 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-04.
+> Última atualização: 2026-05-04 (sessão virtual scroll + markerTextCache + label CSV).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
-**Versão:** 0.1.2 (2026-04-30) — Phase 3 "Materialize all memos batch" fechada → Memos completos (Code/Group/Marker/Relation × inline/materializado/batch).
+**Versão:** 0.1.2 (2026-04-30). Próximo bump (0.1.3 ou 0.2.0) quando Fase 6 fechar.
 
 **Frentes engatilhadas (próximas a atacar, ordem sugerida):**
 
-1. **Parquet/CSV lazy loading** — design doc: `docs/parquet-lazy-design.md`. **Fases 0 / 2 / 3 / 4 / 5 ✅ FEITAS** (2026-05-03 → 2026-05-04). Lazy mode operacional: abre parquet > 50MB via DuckDB-Wasm + OPFS, sort/filter via SQL no AG Grid Infinite Row Model, coding individual + batch funcionam idêntico ao eager. **Próximo passo: Fase 6** — `tabularExporter` streaming + UI Manage Cache (clear OPFS) + bundle compress via fflate (alvo: 49MB → ~15MB) + flag default. **Fase 5: caminho seguido difere do design original** (predicate modal foi rejeitado em favor do filter UI nativo do AG Grid + tradução `filterModel → SQL WHERE`); spec rejeitada em `plugin-docs/archive/.../20260504-parquet-lazy-fase-5-design-REJECTED.md`.
+1. **Parquet/CSV lazy loading — Fase 6** (única fase pendente da frente; design doc: `docs/parquet-lazy-design.md` §11). Fases 0–5 ✅ feitas. Sessão 2026-05-04 entregou pré-requisitos da Fase 6 (virtual scroll de marker lists nas sidebars + markerTextCache em lazy + label CSV vira conteúdo + reveal fix com file > threshold fechado). **Escopo restante da Fase 6:**
+   - Bundle compress fflate (49MB → ~15MB; destrava Community Plugins)
+   - `tabularExporter` streaming (não materializar export inteiro em RAM)
+   - UI Manage Cache em Settings (clear OPFS)
+   - Flag default + cleanup do código eager (lazy automático acima do threshold; tirar popup Lazy/Eager/Cancel — UX "sistema escolhe por como/onde abrir" que o user pediu)
+   - **Reveal redondo em lazy:** após `ensureIndexVisible`, escutar `modelUpdated` do AG Grid pra disparar `flashCells` quando o `rowNode` aparecer (skeleton em Infinite Row Model bloqueia hoje)
+   - **Pre-populate cache no startup:** varre markers, lê cellTexts em background pra labels já virem preenchidas antes de abrir o file (eager via `vault.read`, lazy via DuckDB+OPFS se cacheado)
+   - Mocks DuckDB-Wasm em jsdom (risco Gemini)
+   - Progress bar detalhada (% + bytes + ETA) — risco Gemini
+   - Estimativa: 2.5–3 sessões (era escopo anterior + 2 follow-ups novos absorvidos)
 
 2. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão pendente:** qual escola Qualia subscreve? Antes disso, design real não rola — virou guard-rail.
 
@@ -18,9 +27,9 @@
 - Projects + Workspace — provavelmente reinventa Workspaces nativo
 - Margin Panel customization — bloqueado por plugin externo
 
-**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)**.
+**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll de marker lists + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)**.
 
-**Bloqueadores no `BACKLOG.md`:** zero. Follow-ups novos da Fase 5 registrados (filter de virtual columns em lazy, async cascade pra preview de markerText, validação 2 parquets pesados em paralelo).
+**Bloqueadores no `BACKLOG.md`:** zero. Carla label vazia (whitespace-only) é minor não bloqueante.
 
 ---
 

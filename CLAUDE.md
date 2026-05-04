@@ -39,6 +39,7 @@ src/
     relationHelpers.ts       — collectAllLabels, buildRelationEdges (funcoes puras)
     hierarchyHelpers.ts      — buildFlatTree, buildCountIndex, getDirectCount, getAggregateCount
     codebookTreeRenderer.ts  — virtual scrolling tree com hierarquia e pastas
+    virtualList.ts           — helper genérico de virtual scroll pra listas planas (rowPool diff). Usado em baseCodeExplorerView (file expansion), detailCodeRenderer (markers list + segments by file), detailRelationRenderer (evidence list)
     codebookContextMenu.ts   — context menu codigos + pastas (Rename, Delete, Move to folder)
     codebookDragDrop.ts      — drag-drop lifecycle: reparent, merge, move to folder
     detailListRenderer.ts    — "All Codes" list mode + toolbar (New Code, New Folder, drag mode toggle)
@@ -101,9 +102,9 @@ src/
     extractAnchorFromPlainText.ts — slice do plainText → {text, page 1-based} (import)
     resolvePendingIndices.ts — text-search no DOM .textLayerNode → indices (import runtime resolve)
   csv/                       — CSV/Parquet engine (ag-grid, papaparse, hyparquet, duckdb-wasm)
-    csvCodingModel.ts        — model CRUD para markers de segmento e row + bulk row ops (addCodeToManyRows, removeCodeFromManyRows, removeAllRowMarkersFromMany, getCodeIntersectionForRows) + lazyProviders
+    csvCodingModel.ts        — model CRUD para markers de segmento e row + bulk row ops (addCodeToManyRows, removeCodeFromManyRows, removeAllRowMarkersFromMany, getCodeIntersectionForRows) + lazyProviders + markerTextCache (populate chunked + dedup, populateMissing debounced, invalidação granular nos 6 sites de remove). getMarkerLabel prefere getMarkerText truncado (60 chars + …) com fallback pra coordenada Row X · Column. notifyListenersOnly() pra trigger re-render sem persistir
     csvCodingTypes.ts        — SegmentMarker, RowMarker, CsvMarker
-    csvCodingView.ts         — FileView orquestrador: eager + lazy paths. loadEagerPath extraído do onLoadFile (non-blocking banner). LazyState com currentFilter cache. refreshLazyFilter/refreshLazyDisplayMap com sync swap + re-check após await
+    csvCodingView.ts         — FileView orquestrador: eager + lazy paths. loadEagerPath extraído do onLoadFile (non-blocking banner). LazyState com currentFilter cache. refreshLazyFilter/refreshLazyDisplayMap com sync swap + re-check após await. Hooks markerTextCache: populate inicial em setupLazyMode, lazyChangeListener debounced 100ms (populateMissing), clearMarkerTextCacheForFile no onUnloadFile. notifyListenersOnly após populates pra sidebar refresh sem save. readyPromise não resolve no popup early-return — só no grid pronto (reveal aguarda sem race)
     csvCodingMenu.ts         — popovers de codificacao (cell + batch). openBatchCodingPopover é mode-agnostic, recebe callback async pra coletar sourceRowIds
     csvCodingCellRenderer.ts — cell renderer AG Grid: tag chips + action button
     segmentEditor.ts         — CM6 split panel: open/close, marker sync, label alignment
@@ -245,7 +246,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2557 testes em 150 suites (Vitest + jsdom)
+- `npm run test` — 2584 testes em 152 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 66 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)
