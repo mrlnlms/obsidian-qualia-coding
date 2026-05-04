@@ -1,4 +1,5 @@
-import { Plugin, FileView, TFile, type View, type WorkspaceLeaf } from 'obsidian';
+import { Plugin, FileView, Notice, TFile, type View, type WorkspaceLeaf } from 'obsidian';
+import { createDuckDBRuntime, type DuckDBRuntime } from './csv/duckdb';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
@@ -60,6 +61,11 @@ export default class QualiaCodingPlugin extends Plugin {
 	private activePopoverClose: (() => void) | null = null;
 	updateFileMarkersEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
 	setFileIdEffect?: import('@codemirror/state').StateEffectType<{ fileId: string }>;
+
+	// DuckDB runtime — lazy. First call to getDuckDB() instantiates; subsequent calls
+	// return the cached instance. Null until first use; reset to null on onunload.
+	private duckdb: DuckDBRuntime | null = null;
+	private duckdbInitPromise: Promise<DuckDBRuntime> | null = null;
 	markdownModel?: import('./markdown/models/codeMarkerModel').CodeMarkerModel;
 	pdfModel?: PdfCodingModel;
 	imageModel?: ImageCodingModel;
@@ -380,6 +386,15 @@ export default class QualiaCodingPlugin extends Plugin {
 			},
 		});
 
+		// Dev smoke: confirms the DuckDB-Wasm runtime boots inside the real plugin
+		// (not just the spike). No user-visible flow consumes this yet — Fase 2 of the
+		// parquet-lazy work just lands the infrastructure.
+		this.addCommand({
+			id: 'duckdb-hello-query',
+			name: 'DuckDB hello query (dev smoke)',
+			callback: () => this.runDuckDBSmoke(),
+		});
+
 		this.addCommand({
 			id: 'open-case-variables-panel',
 			name: 'Open Case Variables panel',
@@ -601,7 +616,51 @@ export default class QualiaCodingPlugin extends Plugin {
 		return Array.from(ids).map(id => registry.getById(id)!).filter(Boolean);
 	}
 
+	/**
+	 * Lazy DuckDB runtime accessor. First call instantiates; concurrent callers
+	 * await the same in-flight promise. Returns null on transient init failure
+	 * — caller decides whether to retry or surface the error.
+	 */
+	async getDuckDB(): Promise<DuckDBRuntime> {
+		if (this.duckdb) return this.duckdb;
+		if (this.duckdbInitPromise) return this.duckdbInitPromise;
+		this.duckdbInitPromise = createDuckDBRuntime();
+		try {
+			this.duckdb = await this.duckdbInitPromise;
+			return this.duckdb;
+		} finally {
+			this.duckdbInitPromise = null;
+		}
+	}
+
+	private async runDuckDBSmoke(): Promise<void> {
+		try {
+			const t0 = performance.now();
+			const rt = await this.getDuckDB();
+			const tBoot = performance.now() - t0;
+			const tQ = performance.now();
+			const result = await rt.conn.query("SELECT 42 AS answer");
+			const tQuery = performance.now() - tQ;
+			const rows = result.toArray().map((r) => r.toJSON());
+			const msg = `✅ DuckDB OK · boot ${tBoot.toFixed(0)}ms · query ${tQuery.toFixed(1)}ms · ${JSON.stringify(rows)}`;
+			console.log("[qualia-coding] duckdb smoke", { rows, tBoot, tQuery });
+			new Notice(msg, 8000);
+		} catch (err) {
+			const msg = `❌ DuckDB smoke failed: ${err instanceof Error ? err.message : String(err)}`;
+			console.error("[qualia-coding] duckdb smoke", err);
+			new Notice(msg, 12000);
+		}
+	}
+
 	async onunload() {
+		// DuckDB lifecycle: dispose worker + revoke Blob URLs. Avoids hot-reload leak.
+		try {
+			await this.duckdb?.dispose();
+		} catch (e) {
+			console.warn("[qualia-coding] duckdb dispose failed", e);
+		}
+		this.duckdb = null;
+		this.duckdbInitPromise = null;
 		clearFileInterceptRules();
 		teardownMediaToggleButtons();
 		this.memoReverseLookup.clear();

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **DuckDB-Wasm bootstrap (Parquet-lazy Fase 2)** — runtime DuckDB-Wasm carregando dentro do plugin real (Electron Obsidian Worker). Infraestrutura compartilhada, ainda sem consumer (Fase 4 vai plugar `RowProvider` real). Inclui:
+  - `src/csv/duckdb/duckdbBootstrap.ts` — `createDuckDBRuntime()` factory com 2 shims obrigatórios (validados no spike): `process` fake (derrota detecção falsa de Node pelo js-sha256 transitivo) + nuke de `WebAssembly.instantiateStreaming` (força fallback XHR; Worker do Electron não tem `Request`/`fetch`).
+  - `src/csv/duckdb/rowProvider.ts` — interface `RowProvider` + `MockRowProvider` in-memory (impl real DuckDB-backed entra na Fase 4).
+  - `QualiaCodingPlugin.getDuckDB()` — lazy init no plugin principal; `onunload` chama `dispose()` (worker.terminate + revoga Blob URLs).
+  - Comando dev `DuckDB hello query (dev smoke)` — confirma bootstrap rodando no plugin real.
+  - esbuild config: `loader: { '.wasm': 'binary' }` + plugin custom inline do worker source.
+  - `@duckdb/duckdb-wasm@^1.29.0` adicionada como dependency.
+
 ### Changed
 
 - **CSV schema (Parquet-lazy Fase 0)**: `CsvMarker.row` (índice posicional do papaparse) → `CsvMarker.sourceRowId` (identidade estável). Refactor interno preparando o schema pras Fases 1-6 do parquet/CSV lazy loading e pra LLM coding em tabular (anchoring estável após sort/filter). Em modo eager (atual), `sourceRowId === papaparse row index` — comportamento e UX 100% inalterados. Nomes externos preservados (coluna `row` no CSV de export, `meta.row` do consolidator de analytics, payload do evento `qualia-csv:navigate`) pra evitar ripple effect downstream.
@@ -14,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Migration
 
 - One-shot: `node scripts/migrate-fase-0-source-row-id.mjs` no vault workbench. Backup automático em `data.json.pre-fase-0.bak`. Idempotente. Reverso disponível em `scripts/revert-fase-0-source-row-id.mjs`. Vault workbench migrado em 2026-05-03 (2 segment markers existentes preservados; smoke test com novo marker confirmou persistência no schema novo).
+
+### Tech debt
+
+- **Bundle size:** com a dependência DuckDB-Wasm, `main.js` cresce de 2.5 MB → ~49 MB em prod (era esperado ~9 MB no design doc, mas referenciava versão antiga do duckdb-wasm com WASM de 6.4 MB; versão 1.29 atual tem WASM EH de 34 MB). Mitigação na Fase 6: comprimir WASM bytes via `fflate` (já dependency) + decompress no bootstrap (~10ms overhead, redução ~50%). Anotado em `BACKLOG.md`.
 
 ### Technical
 

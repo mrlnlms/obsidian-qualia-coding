@@ -30,7 +30,13 @@ Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não 
 
 Items pequenos (<2h cada) sem guarda-chuva próprio. Quando atacar, vira commit direto.
 
-(nenhum item aberto)
+### Bundle size pós-DuckDB (atacar na Fase 6 do parquet-lazy)
+
+`main.js` cresce de 2.5 MB → ~49 MB em prod com `@duckdb/duckdb-wasm@^1.29.0` embedded. Design doc previa ~9 MB referenciando WASM antigo de 6.4 MB; versão atual tem WASM EH de 34 MB. Não bloqueia funcionalmente (Excalidraw é 8.4 MB, não há limite duro), mas vale comprimir antes de cogitar Community Plugins.
+
+**Mitigação:** comprimir o WASM bytes via `fflate` (já dependency do projeto pra zip export) embedded como gzip, decompress em runtime no `createDuckDBRuntime()`. Custo: ~10-30ms no boot, redução estimada 40-60% (WASM comprime bem). Aplicar antes do `URL.createObjectURL`.
+
+**Quando:** Fase 6 do parquet-lazy (cleanup pré-merge da feature flag). Outras alternativas (pinar versão antiga 1.18, lazy fetch externo) ficam fora — pinar quebra features que vão entrar nas Fases 4-5; lazy fetch externo viola distribução Community Plugins.
 
 ---
 

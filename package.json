@@ -15,6 +15,7 @@
     "test:visual:update": "npx wdio run wdio.conf.mts -- --update-visual-baseline"
   },
   "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.29.0",
     "ag-grid-community": "^33.0.0",
     "chart.js": "^4.4.0",
     "chartjs-adapter-date-fns": "^3.0.0",
