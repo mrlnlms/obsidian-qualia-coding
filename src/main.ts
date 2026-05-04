@@ -40,6 +40,8 @@ import { convertMemoToNote, unmaterialize as unmaterializeMemo } from './core/me
 import { MaterializeAllMemosModal } from './core/materializeAllMemosModal';
 import { SmartCodeCache } from './core/smartCodes/cache';
 import { SmartCodeApi } from './core/smartCodes/smartCodeRegistryApi';
+import { SmartCodeListModal } from './core/smartCodes/smartCodeListModal';
+import { SmartCodeBuilderModal } from './core/smartCodes/builderModal';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -436,6 +438,36 @@ export default class QualiaCodingPlugin extends Plugin {
 			name: 'Materialize all memos',
 			callback: () => {
 				new MaterializeAllMemosModal(this).open();
+			},
+		});
+
+		// Smart Codes (Tier 3)
+		this.addCommand({
+			id: 'smart-codes-open',
+			name: 'Smart Codes: Open hub',
+			callback: () => {
+				new SmartCodeListModal({
+					app: this.app,
+					smartCodeApi: this.smartCodeApi,
+					smartCodeCache: this.smartCodeCache,
+					registry: this.sharedRegistry,
+					caseVarsRegistry: this.caseVariablesRegistry,
+					getAuditLog: () => (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [],
+				}).open();
+			},
+		});
+		this.addCommand({
+			id: 'smart-codes-new',
+			name: 'Smart Codes: New',
+			callback: () => {
+				new SmartCodeBuilderModal({
+					app: this.app,
+					mode: 'create',
+					registry: this.sharedRegistry,
+					caseVarsRegistry: this.caseVariablesRegistry,
+					smartCodeApi: this.smartCodeApi,
+					smartCodeCache: this.smartCodeCache,
+				}).open();
 			},
 		});
 
