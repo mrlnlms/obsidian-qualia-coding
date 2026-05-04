@@ -304,8 +304,11 @@ export class CsvCodingView extends FileView {
 		wrapper.style.width = '100%';
 		this.gridWrapper = wrapper;
 
-		// Populate rowDataCache for sidebar views
+		// Populate rowDataCache for sidebar views — `notifyListenersOnly` triggers
+		// re-render of any open Code Detail/Explorer so marker labels switch from
+		// the coordinate fallback (Row X · Column) to the actual cell content.
 		this.csvModel.rowDataCache.set(file.path, rows);
+		this.csvModel.notifyListenersOnly();
 
 		this.gridApi = createGrid(wrapper, {
 			theme: obsidianTheme,
@@ -414,6 +417,8 @@ export class CsvCodingView extends FileView {
 			status.textContent = 'Loading marker previews…';
 			try {
 				await this.csvModel.populateMarkerTextCacheForFile(file.path, rowProvider);
+				// Notify sidebars so labels swap from coordinate to cell content.
+				this.csvModel.notifyListenersOnly();
 			} catch (err) {
 				console.warn('[qualia-csv lazy] populateMarkerTextCacheForFile failed', err);
 			}
