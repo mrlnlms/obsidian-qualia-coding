@@ -56,6 +56,24 @@ Cada view tem seu próprio `lazyState`/`displayMap`/`gridApi`. DuckDB runtime é
 
 Spike Premise B (§14.5.2 do design doc) mostrou p99 de 214ms em sorted scroll-to-row de 297MB. `DuckDBRowProvider.buildDisplayMap` já está implementado (Fase 4a) — falta ligar no CsvCodingView quando user muda sort: invalida display map antigo, constrói novo, scroll-to-row vira O(1). ~30 LOC, 30min.
 
+### Reveal de marker em parquet lazy não destaca a row
+
+Sintoma: clicar `file-search` num marker lazy abre o file (popup Lazy/Eager se necessário) e até scrolla pro lugar certo, mas `flashCells` não dispara — `getDisplayedRowAtIndex` retorna null porque a row do Infinite Row Model ainda é skeleton (page block não foi requisitado/recebido). User perde a referência visual.
+
+Fix: após `ensureIndexVisible`, escutar `modelUpdated` ou `rowDataUpdated` do AG Grid, detectar quando o `rowNode` da row alvo aparece, e só então `flashCells`. Timeout de 3-5s pra desistir caso a row nunca chegue (filter ativo escondendo).
+
+Atacar junto com Fase 6 do parquet-lazy (UX redonda do open + reveal).
+
+### Label de marker em CSV/parquet mostra coordenada, não conteúdo
+
+`CsvCodingModel.getMarkerLabel` retorna `Row X · Column` em vez do excerpt da célula. Em todos os outros engines (markdown, pdf, audio, video) o label é o conteúdo do trecho codificado — CSV é exceção que confunde quem usa sidebar pra reconhecer markers.
+
+Fix: trocar pra preferir `getMarkerText(marker)` (truncado a ~60 chars), com fallback pra `Row X · Column` quando text não disponível. Aplica nos 2 tipos:
+- Segment marker: substring `from..to` da célula
+- Row marker: célula inteira
+
+Em **eager** funciona instantâneo. Em **lazy** depende da branch `feat/csv-lazy-marker-text-cache` (markerTextCache) — sem ela, fallback pra coordenada. Atacar logo após merge daquela branch.
+
 ### Bundle size pós-DuckDB (atacar na Fase 6 do parquet-lazy)
 
 `main.js` cresce de 2.5 MB → ~49 MB em prod com `@duckdb/duckdb-wasm@^1.29.0` embedded. Design doc previa ~9 MB referenciando WASM antigo de 6.4 MB; versão atual tem WASM EH de 34 MB. Não bloqueia funcionalmente (Excalidraw é 8.4 MB, não há limite duro), mas vale comprimir antes de cogitar Community Plugins.
