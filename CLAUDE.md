@@ -224,6 +224,55 @@ src/
 - Detalhes completos em `docs/DEVELOPMENT.md` §9.
 - BRAT puxa o release latest do repo. Pre-release (alpha/beta) requer `--prerelease` flag pra não virar default.
 
+### Tags pra rollback de fase grande (não-release)
+
+Quando fechar uma fase substancial (Fase 6 do parquet-lazy foi a primeira), criar **par de tags** marcando antes/depois pra facilitar rollback ou comparação. Nome `pre-<fase>-baseline` / `post-<fase>-checkpoint`.
+
+```bash
+# Antes de começar a fase: marca o último commit estável
+git tag pre-fase6-baseline 4885d3e -m "Estado antes da Fase 6"
+
+# Ao fechar a fase: marca o commit mais recente
+git tag post-fase6-checkpoint HEAD -m "Fase 6 completa"
+
+# Push das duas
+git push origin pre-fase6-baseline post-fase6-checkpoint
+
+# Se fizer commit adicional na mesma fase depois (docs polish, etc),
+# move a tag pra HEAD com -f e re-push com --force:
+git tag -f post-fase6-checkpoint HEAD
+git push --force origin post-fase6-checkpoint
+```
+
+**Comandos de rollback:**
+```bash
+# Ver como tava antes (sem mexer em main)
+git checkout pre-fase6-baseline
+
+# Desfazer fase inteira preservando histórico (NÃO destrutivo)
+git revert --no-edit pre-fase6-baseline..post-fase6-checkpoint
+
+# Voltar pro checkpoint depois de explorar baseline
+git checkout main
+```
+
+**Tags atuais ativas:**
+- `pre-fase6-baseline` → `4885d3e` (estado antes do parquet-lazy Slice A)
+- `post-fase6-checkpoint` → `aee2e3c` (Fase 6 completa + docs redondo)
+
+**Quando remover:** quando o próximo release tagear (ex: `0.2.0` ou `0.3.0`) cobrir esse intervalo confortavelmente, pode deletar — release tags são o ponto de rollback canônico. Tags de fase são "redes de segurança" temporárias enquanto a fase ainda é recente.
+
+### Conferir estado git ao começar sessão nova
+
+Pra evitar dúvida sobre "tudo foi commit/push?":
+```bash
+git status                          # working tree clean + "up to date with origin/main"
+git log --oneline -5                # últimos 5 commits
+git ls-remote --tags origin | grep <fase>  # tags no remote
+```
+
+Se o output bater (working clean + branch alinhada com origin), nada está pendente. Working tree dirty ou "ahead by N commits" = falta commit ou push.
+
 ### Convenção de versionamento (semver)
 
 - **Patch (X.Y.Z+1)**: bugfix, polish, refinement de feature existente. Ex: 0.1.0 → 0.1.1 (Convert memo to note Phase 1+2).
