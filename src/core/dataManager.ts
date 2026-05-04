@@ -158,7 +158,7 @@ export class DataManager {
 
 	/** Clear all markers and code definitions from all engines. Preserves per-engine settings. */
 	async clearAllSections(): Promise<void> {
-		this.data.registry = { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0 };
+		this.data.registry = { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0, smartCodes: {}, smartCodeOrder: [], nextSmartCodePaletteIndex: 0 };
 		this.data.markdown = { markers: {}, settings: this.data.markdown.settings };
 		this.data.csv = { segmentMarkers: [], rowMarkers: [], settings: this.data.csv.settings };
 		this.data.image = { markers: [], settings: this.data.image.settings };

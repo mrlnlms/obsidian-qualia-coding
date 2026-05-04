@@ -1016,5 +1016,13 @@ function formatEntryDescription(entry: AuditEntry): string {
 		case 'absorbed': return `Absorbed: ${entry.absorbedNames.map(n => `"${n}"`).join(', ')}`;
 		case 'merged_into': return `Merged into "${entry.intoName}"`;
 		case 'deleted': return 'Deleted';
+		// Smart code entries não devem aparecer aqui (Code Detail filtra por entity='code'),
+		// mas TS exige exhaustiveness. Fallback defensivo:
+		case 'sc_created':
+		case 'sc_predicate_edited':
+		case 'sc_memo_edited':
+		case 'sc_auto_rewritten_on_merge':
+		case 'sc_deleted':
+			return '(smart code event)';
 	}
 }

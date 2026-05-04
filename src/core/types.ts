@@ -25,6 +25,16 @@ export const GROUP_PALETTE: readonly string[] = [
 
 export type MarkerType = 'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video';
 
+/** Alias de MarkerType com nome semântico pra Smart Codes (engine of a MarkerRef). */
+export type EngineType = MarkerType;
+
+/** Reference leve a um marker pra Smart Codes cache + evaluator (sem carregar o marker inteiro). */
+export interface MarkerRef {
+	engine: EngineType;
+	fileId: string;
+	markerId: string;
+}
+
 export interface CodeRelation {
 	label: string;
 	target: string;
@@ -48,6 +58,9 @@ export interface BaseMarker {
 	createdAt: number;
 	updatedAt: number;
 }
+
+/** Union de todos marker shapes. Reusa BaseMarker já que todos engines herdam dela e o evaluator só precisa de campos da base (codes, fileId). */
+export type AnyMarker = BaseMarker;
 
 export interface SidebarModelInterface {
 	registry: CodeDefinitionRegistry;
@@ -127,6 +140,38 @@ export interface GroupDefinition {
 	createdAt: number;
 }
 
+// ─── Smart Codes (Tier 3 do Coding Management) ────────────
+
+export interface SmartCodeDefinition {
+	id: string;             // sc_*
+	name: string;
+	color: string;
+	paletteIndex: number;
+	predicate: PredicateNode;
+	memo?: string;
+	hidden?: boolean;
+	createdAt: number;
+}
+
+export type OpNode =
+	| { op: 'AND'; children: PredicateNode[] }
+	| { op: 'OR';  children: PredicateNode[] }
+	| { op: 'NOT'; child: PredicateNode };
+
+export type LeafNode =
+	| { kind: 'hasCode';        codeId: string }
+	| { kind: 'caseVarEquals';  variable: string; value: string | number | boolean }
+	| { kind: 'caseVarRange';   variable: string; min?: number; max?: number; minDate?: string; maxDate?: string }
+	| { kind: 'magnitudeGte';   codeId: string; n: number }
+	| { kind: 'magnitudeLte';   codeId: string; n: number }
+	| { kind: 'inFolder';       folderId: string }
+	| { kind: 'inGroup';        groupId: string }
+	| { kind: 'engineType';     engine: EngineType }
+	| { kind: 'relationExists'; codeId: string; label?: string; targetCodeId?: string }
+	| { kind: 'smartCode';      smartCodeId: string };
+
+export type PredicateNode = OpNode | LeafNode;
+
 export type EngineCleanup = () => void | Promise<void>;
 
 export interface EngineRegistration<M = unknown> {
@@ -159,6 +204,10 @@ export interface QualiaData {
 		groups: Record<string, GroupDefinition>;
 		groupOrder: string[];
 		nextGroupPaletteIndex: number;
+		// Smart Codes (Tier 3)
+		smartCodes: Record<string, SmartCodeDefinition>;
+		smartCodeOrder: string[];
+		nextSmartCodePaletteIndex: number;
 	};
 	general: GeneralSettings;
 	markdown: { markers: Record<string, Marker[]>; settings: CodeMarkerSettings };
@@ -214,26 +263,35 @@ export interface QualiaData {
 interface BaseAuditEntry {
 	/** ID único pra hide/unhide reversível. */
 	id: string;
-	/** ID do código a que esse event se refere. Pra códigos deletados, ainda preserva o id. */
+	/** ID do código a que esse event se refere. Polimórfico: codeId pra entity='code' (default), smartCodeId pra entity='smartCode'. */
 	codeId: string;
 	/** Timestamp ms. */
 	at: number;
 	/** Soft delete: true esconde da timeline e do export, mas mantém no JSON pra auditoria/restore. */
 	hidden?: true;
+	/** Discriminator de entidade. Ausente = 'code' implícito (entries existentes seguem válidas). */
+	entity?: 'code' | 'smartCode';
 }
 
 export type AuditEntry =
+	// Code entries (entity='code' ou ausente — backcompat)
 	| (BaseAuditEntry & { type: 'created' })
 	| (BaseAuditEntry & { type: 'renamed'; from: string; to: string })
 	| (BaseAuditEntry & { type: 'description_edited'; from: string; to: string })
 	| (BaseAuditEntry & { type: 'memo_edited'; from: string; to: string })
 	| (BaseAuditEntry & { type: 'absorbed'; absorbedNames: string[]; absorbedIds: string[] })
 	| (BaseAuditEntry & { type: 'merged_into'; intoId: string; intoName: string })
-	| (BaseAuditEntry & { type: 'deleted' });
+	| (BaseAuditEntry & { type: 'deleted' })
+	// Smart code entries (entity='smartCode' obrigatório, codeId carrega smartCodeId)
+	| (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_created' })
+	| (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_predicate_edited'; addedLeafKinds: string[]; removedLeafKinds: string[]; changedLeafCount: number })
+	| (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_memo_edited'; from: string; to: string })
+	| (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_auto_rewritten_on_merge'; sourceCodeId: string; targetCodeId: string })
+	| (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_deleted' });
 
 export function createDefaultData(): QualiaData {
 	return {
-		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0 },
+		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0, smartCodes: {}, smartCodeOrder: [], nextSmartCodePaletteIndex: 0 },
 		general: {
 			showMagnitudeInPopover: true,
 			showRelationsInPopover: true,

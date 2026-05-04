@@ -156,6 +156,11 @@ function entryActionLabel(ev: TimelineEvent): string {
 		case 'absorbed': return ` absorbed: ${e.absorbedNames.map(n => `"${n}"`).join(', ')}`;
 		case 'merged_into': return ` merged into "${e.intoName}"`;
 		case 'deleted': return ' deleted';
+		case 'sc_created': return ' created (smart code)';
+		case 'sc_predicate_edited': return ' predicate edited';
+		case 'sc_memo_edited': return ' memo edited';
+		case 'sc_auto_rewritten_on_merge': return ` predicate auto-rewritten (${e.sourceCodeId} → ${e.targetCodeId})`;
+		case 'sc_deleted': return ' deleted (smart code)';
 	}
 }
 

@@ -22,6 +22,12 @@ export const EVENT_TYPE_TO_FILTER: Record<AuditEntry['type'], EventTypeFilter> =
 	absorbed: 'absorbed',
 	merged_into: 'merged_into',
 	deleted: 'deleted',
+	// Smart code events (Tier 3) — mapeiam pros mesmos buckets, distinguidos visualmente por ⚡ icon (Task 4.6)
+	sc_created: 'created',
+	sc_predicate_edited: 'edited',
+	sc_memo_edited: 'edited',
+	sc_auto_rewritten_on_merge: 'edited',
+	sc_deleted: 'deleted',
 };
 
 /** Cores fixas neutras (não match com paletteIndex de codes). */
@@ -185,5 +191,10 @@ export function renderTimelineEntryMarkdown(event: TimelineEvent): string {
 		case 'absorbed':           return `- ${time} — **${name}** absorbed: ${e.absorbedNames.map(n => `"${n}"`).join(', ')}`;
 		case 'merged_into':        return `- ${time} — **${name}** merged into "${e.intoName}"`;
 		case 'deleted':            return `- ${time} — **${name}** deleted`;
+		case 'sc_created':         return `- ${time} — ⚡ **${name}** created`;
+		case 'sc_predicate_edited':return `- ${time} — ⚡ **${name}** predicate edited`;
+		case 'sc_memo_edited':     return `- ${time} — ⚡ **${name}** memo edited`;
+		case 'sc_auto_rewritten_on_merge': return `- ${time} — ⚡ **${name}** predicate auto-rewritten (${e.sourceCodeId} → ${e.targetCodeId})`;
+		case 'sc_deleted':         return `- ${time} — ⚡ **${name}** deleted`;
 	}
 }

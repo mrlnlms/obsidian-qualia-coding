@@ -99,6 +99,16 @@ export function renderEntryMarkdown(entry: AuditEntry): string {
 			return `- ${stamp}  Merged into: "${entry.intoName}"`;
 		case 'deleted':
 			return `- ${stamp}  Deleted`;
+		case 'sc_created':
+			return `- ${stamp}  Smart code created`;
+		case 'sc_predicate_edited':
+			return `- ${stamp}  Predicate edited (added: ${entry.addedLeafKinds.join(', ') || '—'}; removed: ${entry.removedLeafKinds.join(', ') || '—'}; changed: ${entry.changedLeafCount})`;
+		case 'sc_memo_edited':
+			return `- ${stamp}  Memo edited`;
+		case 'sc_auto_rewritten_on_merge':
+			return `- ${stamp}  Predicate auto-rewritten: code merged (${entry.sourceCodeId} → ${entry.targetCodeId})`;
+		case 'sc_deleted':
+			return `- ${stamp}  Smart code deleted`;
 	}
 }
 
