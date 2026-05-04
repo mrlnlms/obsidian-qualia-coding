@@ -2,3 +2,4 @@ export { createDuckDBRuntime } from "./duckdbBootstrap";
 export type { DuckDBRuntime } from "./duckdbBootstrap";
 export { MockRowProvider, markerRefKey } from "./rowProvider";
 export type { RowProvider, MarkerRef } from "./rowProvider";
+export { opfsKeyFor, copyVaultFileToOPFS, openOPFSFile, removeOPFSFile, clearOPFSCache } from "./opfs";
