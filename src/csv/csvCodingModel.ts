@@ -2,6 +2,7 @@ import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { SegmentMarker, RowMarker, CsvMarker, CodingSnapshot } from './csvCodingTypes';
 import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
+import type { RowProvider } from './duckdb';
 
 type ChangeListener = () => void;
 type HoverListener = (markerId: string | null, codeName: string | null) => void;
@@ -19,6 +20,13 @@ export class CsvCodingModel {
 
 	/** Cache of row data per file — populated by CsvCodingView on load, cleared on unload */
 	rowDataCache: Map<string, Record<string, string>[]> = new Map();
+
+	/**
+	 * Lazy-mode RowProviders per fileId. Populated by CsvCodingView when entering
+	 * lazy mode for a file; cleared on unload. Used by getMarkerTextAsync to
+	 * resolve text on demand from DuckDB+OPFS.
+	 */
+	private lazyProviders: Map<string, RowProvider> = new Map();
 
 	constructor(dm: DataManager, registry: CodeDefinitionRegistry) {
 		this.dm = dm;
@@ -234,6 +242,35 @@ export class CsvCodingModel {
 			return cellText.substring(marker.from, marker.to);
 		}
 		return cellText;
+	}
+
+	/**
+	 * Async marker text resolution. In eager mode this delegates to the sync path
+	 * (rowDataCache hit) and returns immediately. In lazy mode (no rowDataCache,
+	 * but a RowProvider registered for the fileId) it queries DuckDB.
+	 */
+	async getMarkerTextAsync(marker: CsvMarker): Promise<string | null> {
+		const eager = this.getMarkerText(marker);
+		if (eager !== null) return eager;
+		const provider = this.lazyProviders.get(marker.fileId);
+		if (!provider) return null;
+		const cellText = await provider.getMarkerText({
+			sourceRowId: marker.sourceRowId,
+			column: marker.column,
+		});
+		if (cellText == null) return null;
+		if ('from' in marker && 'to' in marker) {
+			return cellText.substring(marker.from, marker.to);
+		}
+		return cellText;
+	}
+
+	registerLazyProvider(fileId: string, provider: RowProvider): void {
+		this.lazyProviders.set(fileId, provider);
+	}
+
+	unregisterLazyProvider(fileId: string): void {
+		this.lazyProviders.delete(fileId);
 	}
 
 	getMarkerLabel(marker: CsvMarker): string {

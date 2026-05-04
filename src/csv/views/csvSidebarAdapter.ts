@@ -29,6 +29,9 @@ function markerToBase(m: CsvMarker, model: CsvCodingModel): CsvBaseMarker {
 		columnId: m.column,
 		isSegment: 'from' in m,
 		markerLabel: model.getMarkerLabel(m),
+		// Sync path only — null in lazy mode until `getMarkerTextAsync` is wired
+		// through the rendering layer (separate phase). Sidebar previews are empty
+		// for markers in lazy-loaded files; coding popovers stay disabled (4b).
 		markerText: model.getMarkerText(m),
 	};
 }

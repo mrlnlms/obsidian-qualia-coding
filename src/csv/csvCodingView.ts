@@ -300,6 +300,9 @@ export class CsvCodingView extends FileView {
 
 			this.lazyState = { rowProvider, fileType, totalRows };
 			this.originalHeaders = columns;
+			// Surface markerText resolution to the model — sidebar/detail views
+			// pick this up automatically via getMarkerTextAsync.
+			this.csvModel.registerLazyProvider(file.path, rowProvider);
 
 			contentEl.empty();
 
@@ -459,10 +462,12 @@ export class CsvCodingView extends FileView {
 			this.gridApi.destroy();
 			this.gridApi = null;
 		}
-		// Lazy mode teardown — drop display map (if cached) + dispose RowProvider.
-		// The DuckDB runtime itself stays alive (other lazy views may share it).
+		// Lazy mode teardown — drop display map (if cached), unregister provider
+		// from the model, dispose the RowProvider. The DuckDB runtime itself stays
+		// alive (other lazy views may share it).
 		if (this.lazyState) {
 			const { rowProvider, displayMap } = this.lazyState;
+			if (this.file) this.csvModel.unregisterLazyProvider(this.file.path);
 			if (displayMap) {
 				try { await rowProvider.dropDisplayMap(displayMap.name); } catch (e) { console.warn(e); }
 			}
