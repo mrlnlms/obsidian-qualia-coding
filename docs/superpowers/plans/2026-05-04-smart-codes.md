@@ -1576,23 +1576,93 @@ git add src/core/smartCodes/cache.ts tests/core/smartCodes/cache.test.ts
 - Create: `src/core/smartCodes/matcher.ts`
 - Test: `tests/core/smartCodes/matcher.test.ts`
 
-- [ ] **Step 1-3: Write test, fail, implement**
-
-`matcher.ts` é wrapper sobre `cache.compute` mas com chunked async pra >5000 markers candidates:
+- [ ] **Step 1: Write failing test**
 
 ```ts
-// Esqueleto
+import { describe, it, expect } from 'vitest';
+import { collectMatchesChunked } from '../../../src/core/smartCodes/matcher';
+import { SmartCodeCache } from '../../../src/core/smartCodes/cache';
+import { buildLargeFixture } from './_fixtures/buildLargeFixture';
+
+describe('collectMatchesChunked', () => {
+  it('progresso reportado em chunks de 1000', async () => {
+    const data = buildLargeFixture({ codes: 50, markers: 5500, smartCodes: 5, caseVars: 3 });
+    const cache = new SmartCodeCache();
+    cache.configure({ smartCodes: data.registry.smartCodes, caseVars: { get: () => undefined, allKeys: () => new Set() }, codeStruct: { codesInFolder: () => [], codesInGroup: () => [] }});
+    cache.rebuildIndexes(data);
+    const progressCalls: Array<[number, number]> = [];
+    await collectMatchesChunked('sc_0', cache, { chunkSize: 1000, onProgress: (d, t) => progressCalls.push([d, t]) });
+    expect(progressCalls.length).toBeGreaterThan(0);
+    expect(progressCalls.at(-1)![0]).toBe(progressCalls.at(-1)![1]);
+  });
+
+  it('result idêntico ao sync compute', async () => {
+    const data = buildLargeFixture({ codes: 50, markers: 200, smartCodes: 5, caseVars: 3 });
+    const cache = new SmartCodeCache();
+    cache.configure({ smartCodes: data.registry.smartCodes, caseVars: { get: () => undefined, allKeys: () => new Set() }, codeStruct: { codesInFolder: () => [], codesInGroup: () => [] }});
+    cache.rebuildIndexes(data);
+    const sync = cache.getMatches('sc_0');
+    const chunked = await collectMatchesChunked('sc_0', cache, { chunkSize: 50 });
+    expect(chunked.map(r => r.markerId).sort()).toEqual(sync.map(r => r.markerId).sort());
+  });
+});
+```
+
+- [ ] **Step 2: Run, expect FAIL (module not found)**
+
+- [ ] **Step 3: Implement**
+
+```ts
+// src/core/smartCodes/matcher.ts
+import type { MarkerRef } from './types';
+import { evaluate, type EvaluatorContext } from './evaluator';
+import type { SmartCodeCache } from './cache';
+
+export interface CollectOptions {
+  chunkSize?: number;
+  onProgress?: (done: number, total: number) => void;
+}
+
 export async function collectMatchesChunked(
   smartCodeId: string,
   cache: SmartCodeCache,
-  options: { chunkSize?: number; onProgress?: (done: number, total: number) => void } = {},
+  options: CollectOptions = {},
 ): Promise<MarkerRef[]> {
-  // Implementação: itera markers em chunks de 1000, yield via setTimeout(0) entre chunks,
-  // chama onProgress, retorna matches no fim.
+  const chunk = options.chunkSize ?? 1000;
+  const all = cache.__getAllRefsForMatcher();  // adicionar helper test-only
+  const total = all.length;
+  const sc = cache.__getSmartCodeForMatcher(smartCodeId);
+  const ctx = cache.__buildEvaluatorContextForMatcher(smartCodeId);
+  if (!sc) return [];
+  const out: MarkerRef[] = [];
+  for (let i = 0; i < total; i += chunk) {
+    const slice = all.slice(i, i + chunk);
+    for (const { ref, marker } of slice) {
+      if (evaluate(sc.predicate, ref, marker, ctx)) out.push(ref);
+    }
+    options.onProgress?.(Math.min(i + chunk, total), total);
+    await new Promise(r => setTimeout(r, 0));
+  }
+  return out;
 }
 ```
 
-Test cobre: chunked progress reporting + result idêntico ao sync compute em fixture pequeno.
+Adicionar 3 helpers test-only em `cache.ts`:
+
+```ts
+__getAllRefsForMatcher(): { ref: MarkerRef; marker: AnyMarker }[] {
+  const out: { ref: MarkerRef; marker: AnyMarker }[] = [];
+  for (const fset of this.indexByFile.values()) for (const ref of fset) {
+    const marker = this.markerByRef.get(ref);
+    if (marker) out.push({ ref, marker });
+  }
+  return out;
+}
+__getSmartCodeForMatcher(id: string): SmartCodeDefinition | undefined { return this.smartCodes[id]; }
+__buildEvaluatorContextForMatcher(smartCodeId: string): EvaluatorContext {
+  return { caseVars: this.caseVars, codesInFolder: this.codeStruct.codesInFolder, codesInGroup: this.codeStruct.codesInGroup, smartCodes: this.smartCodes, evaluating: new Set([smartCodeId]), evaluator: evaluate };
+}
+```
 
 - [ ] **Step 4: Run, expect PASS**
 
@@ -1770,11 +1840,14 @@ this.registry.onMutate((event) => {
 this.caseVarsRegistry.onChange((fileId, varKey) => {
   this.smartCodeCache.invalidateForCaseVar(varKey);
 });
-// Pra cada model engine: hook em add/remove de marker e mudança em codes do marker
-this.markdownModel.onMarkerChange?.((engine, fileId, codeIds) => {
-  this.smartCodeCache.invalidateForMarker({ engine, fileId, codeIds });
-});
-// ... pdfModel, imageModel, audioModel, videoModel, csvModel
+// Pra cada model engine: hook em add/remove de marker e mudança em codes do marker.
+// Signature: emitter passa um único object (consistente com Task 2.4a).
+this.markdownModel.onMarkerChange?.((args) => this.smartCodeCache.invalidateForMarker(args));
+this.pdfModel.onMarkerChange?.((args) => this.smartCodeCache.invalidateForMarker(args));
+this.imageModel.onMarkerChange?.((args) => this.smartCodeCache.invalidateForMarker(args));
+this.audioModel.onMarkerChange?.((args) => this.smartCodeCache.invalidateForMarker(args));
+this.videoModel.onMarkerChange?.((args) => this.smartCodeCache.invalidateForMarker(args));
+this.csvModel.onMarkerChange?.((args) => this.smartCodeCache.invalidateForMarker(args));
 ```
 
 Cada engine model precisa ter event hook (alguns têm `onMutate`, outros precisam adicionar). Verificar e padronizar.
@@ -2204,7 +2277,36 @@ computePreview(predicate: PredicateNode, stubId: string = '__preview__'): Marker
 }
 ```
 
-Test: preview com predicate temporário não persiste em `this.matches` (assertion: `cache.getMatches(stubId)` returns `[]` after preview).
+Test: preview com predicate temporário NÃO polui internal Maps. Asserts (mais fortes que o naïve `getMatches(stubId) === []`):
+
+```ts
+it('computePreview não polui matches/dirty/deps internos', () => {
+  const cache = new SmartCodeCache();
+  cache.configure({ smartCodes: {}, caseVars: { get: () => undefined, allKeys: () => new Set() }, codeStruct: { codesInFolder: () => [], codesInGroup: () => [] }});
+  const data = createDefaultData();
+  data.markdown.markers = { 'f.md': [{ id: 'm1', codes: [{ codeId: 'c_a' }], ranges: [] } as any] };
+  cache.rebuildIndexes(data);
+
+  const matchesSizeBefore = cache.__getMatchesMapSizeForTest();
+  const dirtySizeBefore = cache.__getDirtySizeForTest();
+
+  const result = cache.computePreview({ kind: 'hasCode', codeId: 'c_a' }, '__preview__');
+  expect(result).toHaveLength(1);
+
+  expect(cache.__getMatchesMapSizeForTest()).toBe(matchesSizeBefore);
+  expect(cache.__getDirtySizeForTest()).toBe(dirtySizeBefore);
+  // Stub key não vaza
+  expect(cache.__getMatchesMapHasForTest('__preview__')).toBe(false);
+});
+```
+
+Adicionar 3 helpers test-only em `cache.ts`:
+
+```ts
+__getMatchesMapSizeForTest(): number { return this.matches.size; }
+__getDirtySizeForTest(): number { return this.dirty.size; }
+__getMatchesMapHasForTest(id: string): boolean { return this.matches.has(id); }
+```
 
 - [ ] **Step 2: Esqueleto do BuilderModal extends Obsidian Modal**
 
@@ -2927,7 +3029,7 @@ Modes que **não** entram (per spec §10): `relationsNetworkMode.ts`, `codebookT
 
 - [ ] **Step 2: Pra CADA um dos 6 modes — substituir iteração de codes por getCodeDimensions**
 
-Padrão de patch:
+Padrão de patch (válido pra **frequencyMode + evolutionMode + memoView**):
 
 ```ts
 // ANTES:
@@ -2941,7 +3043,15 @@ const filtered = applyHiddenAndFilter(dims, filterConfig);
 const matrix = filtered.map(d => ({ codeId: d.id, isSmart: d.isSmart, count: d.getMatches().length }));
 ```
 
-Cada mode tem seu próprio fluxo (frequency é simples count, evolution agrupa por tempo, cooccurrence faz matriz, etc). Pra cada, identificar o site de "iterate codes" + adaptar pra `dims`. Smart codes resolvem matches via `dim.getMatches()` (cache hit) — não precisa pipeline custom.
+**Modes que precisam design per-mode (não basta o patch acima):**
+
+- **`cooccurrenceMode`** — matriz `code × code`. Smart × smart deve computar via interseção de MarkerRef sets (`A.matches ∩ B.matches`). Smart × regular: smart matches + countMarkersWithCode regulares no mesmo file. Regular × regular: pipeline atual. Adicionar helper `intersectMarkerSets(refsA, refsB): MarkerRef[]` em `statsHelpers.ts` keyed por `${engine}:${fileId}:${markerId}`.
+
+- **`sequentialMode`** — analisa sequência temporal de markers (pre/post). Smart codes não têm `createdAt` próprio; o "marker virtual" do smart code herda timestamps dos matches. **Decisão:** quando smart code é dimension no sequential, usa `matches.flatMap(ref => marker.createdAt)` agrupado por instância. Funciona, mas o conceito "X precede Y" entre derived dim e regular fica ambíguo. Pragmático: aceita semântica "match do smart code precede/sucede outro código". Documentar limitação no tooltip do mode.
+
+- **`codeMetadataMode`** — heatmap `code × case_variable_value`. Smart codes com leaf `caseVarEquals(role, X)` no predicate **já filtram por case var**, então cruzar com mesma var é tautológico (smart code só aparece em rows do role X, χ² = 0/Inf). **Decisão:** quando smart code aparece como row do heatmap e seu predicate referencia a variable usada como column, exibir warning visual ("Smart code referencia variable selecionada — interpretação χ² indefinida"). Sem complexidade adicional além do warning.
+
+Pra cada mode, identificar o site de "iterate codes" + adaptar pra `dims`. Smart codes resolvem matches via `dim.getMatches()` (cache hit) — não precisa pipeline custom.
 
 - [ ] **Step 3: Loading overlay (compartilhado)**
 
@@ -2963,19 +3073,20 @@ Pra cada um dos 6 modes:
 3. Verificar chart/matrix inclui smart code com count correto
 4. Edit predicate do smart code → mode atualiza em <1s
 
-- [ ] **Step 5: Commit (1 por mode pra granularidade ou bundle)**
+- [ ] **Step 5: Commit em 2 grupos (granularidade pro git log)**
+
+Group 1 — modes diretos (mesmo patch pattern):
 
 ```bash
-git add src/analytics/views/modes/frequencyMode.ts
-~/.claude/scripts/commit.sh "feat(analytics/frequency): smart codes como dimension"
-# repete pra outros 5
+git add src/analytics/views/modes/frequencyMode.ts src/analytics/views/modes/evolutionMode.ts src/analytics/views/modes/memoView/ src/analytics/views/analyticsView.ts
+~/.claude/scripts/commit.sh "feat(analytics): smart codes como dimension em frequency/evolution/memoView + loading overlay"
 ```
 
-Ou bundle se ficou consistente:
+Group 2 — modes com semântica per-mode:
 
 ```bash
-git add src/analytics/views/modes/ src/analytics/views/analyticsView.ts
-~/.claude/scripts/commit.sh "feat(analytics): smart codes como dimension em 6 modes (frequency/evolution/cooccurrence/sequential/codeMetadata/memoView) + loading overlay"
+git add src/analytics/views/modes/cooccurrenceMode.ts src/analytics/views/modes/sequentialMode.ts src/analytics/views/modes/codeMetadataMode.ts src/analytics/data/statsHelpers.ts
+~/.claude/scripts/commit.sh "feat(analytics): smart codes em cooccurrence (intersect sets) + sequential (timestamp inheritance) + codeMetadata (warning ao auto-ref)"
 ```
 
 ### Task 4.5: Sidebar adapters — Smart Codes group
@@ -3273,11 +3384,33 @@ export function diffPredicateLeaves(old: PredicateNode, next: PredicateNode): { 
     const newCount = newByKind.get(kind) ?? 0;
     if (count > newCount) removed.push(kind);
   }
-  // changedLeafCount: leaves do mesmo kind com refs diferentes
+  // changedLeafCount: leaves do mesmo kind no mesmo position (path) com refs diferentes
   let changed = 0;
-  // simplificação: compara serialização de leaves do mesmo kind
-  // (implementação completa depende do nível desejado de diff; pra audit, contagem aproximada basta)
+  const oldByKindSerialized = groupByKindSerialized(oldLeaves);
+  const newByKindSerialized = groupByKindSerialized(newLeaves);
+  for (const [kind, oldList] of oldByKindSerialized) {
+    const newList = newByKindSerialized.get(kind) ?? [];
+    // Pra cada serialização do old kind que NÃO aparece no new (mesmo kind), conta como changed
+    const newSet = new Set(newList);
+    for (const s of oldList) if (!newSet.has(s)) changed++;
+  }
   return { addedLeafKinds: added, removedLeafKinds: removed, changedLeafCount: changed };
+}
+
+function countBy<T>(items: T[], keyFn: (t: T) => string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const i of items) out.set(keyFn(i), (out.get(keyFn(i)) ?? 0) + 1);
+  return out;
+}
+
+function groupByKindSerialized(leaves: LeafNode[]): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const l of leaves) {
+    const arr = out.get(l.kind) ?? [];
+    arr.push(JSON.stringify(l));
+    out.set(l.kind, arr);
+  }
+  return out;
 }
 
 function collectLeaves(node: PredicateNode): LeafNode[] {
@@ -3332,13 +3465,100 @@ git add src/core/smartCodes/smartCodeRegistryApi.ts src/main.ts tests/core/smart
 
 Adicionar `buildSmartCodesXml(smartCodes)` puro que gera o bloco per spec §14. `xmlns:qualia="urn:qualia-coding:extensions:1.0"` declarado no Project root quando `smartCodes` non-empty (já há precedente no Code Groups). Optional toggle "Materialize as Sets" gera `<Set>` paralelo.
 
-- [ ] **Steps 1-5 + 2 tests:** export com 0 smart codes (no `qualia:SmartCodes` no XML) e export com smart codes complexos (predicate + memo + 2 smart codes onde um referencia outro via `smartCode` leaf).
+- [ ] **Step 1: Write failing tests**
 
-- [ ] **Commit:**
+```ts
+import { describe, it, expect } from 'vitest';
+import { buildSmartCodesXml } from '../../src/export/qdpxExporter';
+
+describe('buildSmartCodesXml', () => {
+  it('returns empty string quando 0 smart codes', () => {
+    expect(buildSmartCodesXml([]).trim()).toBe('');
+  });
+
+  it('export com smart code simples preserva predicate JSON em CDATA', () => {
+    const sc = {
+      id: 'sc_1', name: 'Frustration jr', color: '#abc', paletteIndex: 0, createdAt: 0,
+      predicate: { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_x' }]},
+      memo: 'My memo',
+    };
+    const xml = buildSmartCodesXml([sc] as any);
+    expect(xml).toContain('<qualia:SmartCodes>');
+    expect(xml).toContain('guid="sc_1"');
+    expect(xml).toContain('name="Frustration jr"');
+    expect(xml).toContain('color="#abc"');
+    expect(xml).toContain('<qualia:Predicate><![CDATA[');
+    expect(xml).toMatch(/"op":"AND"/);
+    expect(xml).toContain('<qualia:Memo>My memo</qualia:Memo>');
+  });
+
+  it('omits qualia:Memo quando memo vazio/ausente', () => {
+    const sc = { id: 'sc_1', name: 'X', color: '#abc', paletteIndex: 0, createdAt: 0, predicate: { op: 'AND', children: [{ kind: 'hasCode', codeId: 'c_x' }]}};
+    expect(buildSmartCodesXml([sc] as any)).not.toContain('<qualia:Memo>');
+  });
+
+  it('escapa name com & " < > corretamente', () => {
+    const sc = { id: 'sc_1', name: 'A & B "test" <x>', color: '#abc', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_x' }};
+    const xml = buildSmartCodesXml([sc] as any);
+    expect(xml).toContain('name="A &amp; B &quot;test&quot; &lt;x&gt;"');
+  });
+
+  it('export com 2 smart codes onde sc_2 referencia sc_1 via smartCode leaf', () => {
+    const sc1 = { id: 'sc_1', name: 'A', color: '#aaa', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_x' }};
+    const sc2 = { id: 'sc_2', name: 'B', color: '#bbb', paletteIndex: 0, createdAt: 0, predicate: { kind: 'smartCode', smartCodeId: 'sc_1' }};
+    const xml = buildSmartCodesXml([sc1, sc2] as any);
+    expect(xml.match(/<qualia:SmartCode\s/g)?.length).toBe(2);
+    expect(xml).toMatch(/"smartCodeId":"sc_1"/);
+  });
+});
+```
+
+- [ ] **Step 2: Run, expect FAIL (function not exported)**
+
+- [ ] **Step 3: Implement**
+
+```ts
+// src/export/qdpxExporter.ts (helper exportado)
+import { escapeXml, xmlAttr } from './xmlBuilder';
+import { predicateToJson } from '../core/smartCodes/predicateSerializer';
+import type { SmartCodeDefinition } from '../core/types';
+
+export function buildSmartCodesXml(smartCodes: SmartCodeDefinition[]): string {
+  if (smartCodes.length === 0) return '';
+  const lines: string[] = ['<qualia:SmartCodes>'];
+  for (const sc of smartCodes) {
+    lines.push(`  <qualia:SmartCode ${xmlAttr('guid', sc.id)} ${xmlAttr('name', sc.name)} ${xmlAttr('color', sc.color)}>`);
+    lines.push(`    <qualia:Predicate><![CDATA[${predicateToJson(sc.predicate)}]]></qualia:Predicate>`);
+    if (sc.memo && sc.memo.trim().length > 0) {
+      lines.push(`    <qualia:Memo>${escapeXml(sc.memo)}</qualia:Memo>`);
+    }
+    lines.push(`  </qualia:SmartCode>`);
+  }
+  lines.push('</qualia:SmartCodes>');
+  return lines.join('\n');
+}
+```
+
+Wire em orquestrador `qdpxExporter`: quando `data.registry.smartCodes` non-empty, declara `xmlns:qualia="urn:qualia-coding:extensions:1.0"` no `<Project>` root + insere bloco de smart codes como sibling de `<CodeBook>`.
+
+- [ ] **Step 4: Implement opcional `buildSmartCodeSetsXml(smartCodes)` pro toggle "Materialize as Sets"**
+
+```ts
+export function buildSmartCodeSetsXml(smartCodes: SmartCodeDefinition[]): string {
+  // Pra cada smart code, gera <Set> REFI-QDA padrão com <MemberCode> listando codes referenciados (não matches)
+  // ...
+}
+```
+
+Toggle no export modal controla inclusão do output deste helper.
+
+- [ ] **Step 5: Run all tests, expect PASS**
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/export/qdpxExporter.ts tests/export/qdpxSmartCodes.test.ts
-~/.claude/scripts/commit.sh "feat(export): smart codes block em QDPX (qualia:SmartCodes namespace)"
+~/.claude/scripts/commit.sh "feat(export): smart codes block em QDPX (qualia:SmartCodes namespace + opcional Set materialize)"
 ```
 
 ### Task 5.3: Import QDPX — 2-pass parse
@@ -3431,15 +3651,30 @@ export function parseSmartCodes(xml: string, idMap: GuidResolver): { smartCodes:
   const blockMatch = xml.match(/<qualia:SmartCodes[^>]*>([\s\S]*?)<\/qualia:SmartCodes>/);
   if (!blockMatch) return { smartCodes: [], warnings };
   const inner = blockMatch[1];
-  const scMatches = [...inner.matchAll(/<qualia:SmartCode\s+guid="([^"]+)"\s+name="([^"]+)"\s+color="([^"]+)"[^>]*>([\s\S]*?)<\/qualia:SmartCode>/g)];
-
+  // Match each <qualia:SmartCode ...> tag; attribute order tolerant via separate regex per attr
+  const scTagRe = /<qualia:SmartCode\s+([^>]+)>([\s\S]*?)<\/qualia:SmartCode>/g;
   const allocated: { oldGuid: string; newId: string; name: string; color: string; predicateRaw: string; memo?: string }[] = [];
-  for (const m of scMatches) {
-    const [_, oldGuid, name, color, body] = m;
+  for (const m of inner.matchAll(scTagRe)) {
+    const [_, attrsStr, body] = m;
+    const guidMatch = attrsStr.match(/guid="([^"]+)"/);
+    const nameAttr = attrsStr.match(/name="([^"]*)"/);
+    const colorMatch = attrsStr.match(/color="([^"]+)"/);
+    if (!guidMatch || !nameAttr || !colorMatch) {
+      warnings.push('Smart code tag missing required attribute (guid, name, ou color)');
+      continue;
+    }
+    const oldGuid = guidMatch[1];
+    const name = unescapeXml(nameAttr[1]);  // decode &amp; &quot; etc
+    const color = colorMatch[1];
     const newId = idMap.getOrCreateSmartCodeId(oldGuid);
     const predicateRaw = (body.match(/<qualia:Predicate><!\[CDATA\[([\s\S]*?)\]\]><\/qualia:Predicate>/)?.[1] ?? '').trim();
-    const memo = body.match(/<qualia:Memo>([\s\S]*?)<\/qualia:Memo>/)?.[1];
+    const memoMatch = body.match(/<qualia:Memo>([\s\S]*?)<\/qualia:Memo>/);
+    const memo = memoMatch ? unescapeXml(memoMatch[1]) : undefined;
     allocated.push({ oldGuid, newId, name, color, predicateRaw, memo });
+  }
+
+  function unescapeXml(s: string): string {
+    return s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&apos;/g, "'");
   }
 
   // Pass 2: deserialize + remap refs
@@ -3533,9 +3768,77 @@ git add src/import/qdpxImporter.ts tests/import/qdpxSmartCodes.test.ts
 
 `tabularExporter` adiciona `smart_codes.csv` ao zip. `readmeBuilder` adiciona section "smart_codes.csv" com snippet R + Python.
 
-- [ ] **Steps 1-5 + test que parse RFC 4180 do output bate com input**
+- [ ] **Step 1: Write failing test**
 
-- [ ] **Commit:**
+```ts
+import { describe, it, expect } from 'vitest';
+import { buildSmartCodesCsv } from '../../../src/export/tabular/buildSmartCodesTable';
+import { parse } from 'papaparse';
+
+describe('buildSmartCodesCsv', () => {
+  it('header + 1 row com colunas certas', () => {
+    const sc = { id: 'sc_1', name: 'X', color: '#abc', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_x' }, memo: 'note' };
+    const cache = { getMatches: (_id: string) => Array(7).fill({ engine: 'pdf', fileId: 'f', markerId: 'm' }) };
+    const csv = buildSmartCodesCsv([sc] as any, cache as any);
+    const parsed = parse(csv, { header: true });
+    expect(parsed.data).toEqual([{ id: 'sc_1', name: 'X', color: '#abc', predicate_json: '{"codeId":"c_x","kind":"hasCode"}', memo: 'note', matches_at_export: '7' }]);
+  });
+
+  it('escapes RFC 4180 (commas, quotes, newlines no name + memo)', () => {
+    const sc = { id: 'sc_1', name: 'A, "B"', color: '#abc', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_x' }, memo: 'multi\nline' };
+    const csv = buildSmartCodesCsv([sc] as any, { getMatches: () => [] } as any);
+    const parsed = parse(csv, { header: true });
+    expect(parsed.data[0]).toMatchObject({ name: 'A, "B"', memo: 'multi\nline' });
+  });
+
+  it('memo vazio fica como string vazia', () => {
+    const sc = { id: 'sc_1', name: 'X', color: '#abc', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_x' }};
+    const csv = buildSmartCodesCsv([sc] as any, { getMatches: () => [] } as any);
+    expect(csv).toContain(',\n');  // memo column blank
+  });
+});
+```
+
+- [ ] **Step 2: Run, expect FAIL**
+
+- [ ] **Step 3: Implement `buildSmartCodesCsv`**
+
+```ts
+// src/export/tabular/buildSmartCodesTable.ts
+import { writeCsvLine } from './csvWriter';
+import { predicateToJson } from '../../core/smartCodes/predicateSerializer';
+import type { SmartCodeDefinition } from '../../core/types';
+
+export function buildSmartCodesCsv(smartCodes: SmartCodeDefinition[], cache: { getMatches: (id: string) => unknown[] }): string {
+  const header = ['id', 'name', 'color', 'predicate_json', 'memo', 'matches_at_export'];
+  const lines = [writeCsvLine(header)];
+  for (const sc of smartCodes) {
+    lines.push(writeCsvLine([
+      sc.id, sc.name, sc.color,
+      predicateToJson(sc.predicate),
+      sc.memo ?? '',
+      String(cache.getMatches(sc.id).length),
+    ]));
+  }
+  return lines.join('\n');
+}
+```
+
+- [ ] **Step 4: Run, expect PASS**
+
+- [ ] **Step 5: Wire em `tabularExporter.ts`**
+
+Após geração das outras tabelas, gerar `buildSmartCodesCsv(data.registry.smartCodes vals, plugin.smartCodeCache)` e adicionar ao zip via fflate.
+
+- [ ] **Step 6: Adicionar snippet R/Python em `readmeBuilder.ts`**
+
+```ts
+// section "smart_codes.csv":
+const r = `library(jsonlite)\nsmart_codes <- read.csv("smart_codes.csv", stringsAsFactors=FALSE)\nsmart_codes$predicate <- lapply(smart_codes$predicate_json, fromJSON)`;
+const python = `import json, pandas as pd\nsc = pd.read_csv("smart_codes.csv")\nsc["predicate"] = sc["predicate_json"].apply(json.loads)`;
+```
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/export/tabular/buildSmartCodesTable.ts src/export/tabular/tabularExporter.ts src/export/tabular/readmeBuilder.ts tests/export/tabular/buildSmartCodesTable.test.ts
