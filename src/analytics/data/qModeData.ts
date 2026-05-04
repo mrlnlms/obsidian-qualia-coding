@@ -6,6 +6,7 @@
  */
 
 import type { UnifiedMarker, SourceType } from "./dataTypes";
+import { jaccardDistancesFromReference } from "./distanceMatrix";
 
 export interface FileQModeData {
   /** Stable file identifiers (fileId / vault path). */
@@ -66,6 +67,65 @@ export function buildFileQModeData(markers: UnifiedMarker[]): FileQModeData {
     fileColors: colors,
     markerCounts: counts,
   };
+}
+
+/**
+ * One row of the File Similarity Ranking table — file vs reference file.
+ */
+export interface FileSimilarityRow {
+  fileIdx: number;
+  fileId: string;
+  fileName: string;
+  fileColor: string;
+  /** 1 - Jaccard distance. 1 = identical code coverage; 0 = disjoint. */
+  similarity: number;
+  /** Codes present in BOTH ref and this file. */
+  sharedCount: number;
+  /** Codes present in ref but NOT in this file. */
+  onlyRefCount: number;
+  /** Codes present in this file but NOT in ref. */
+  onlyOtherCount: number;
+  /** Marker count for this file (size hint, not deduplicated by code). */
+  markerCounts: number;
+}
+
+/**
+ * Build similarity ranking for a reference file against all others.
+ * Lazy compute: O(N · |codes|) instead of O(N² · |codes|) — only the ref's row.
+ * Returns rows sorted by similarity descending (most similar first).
+ */
+export function buildSimilarityRows(qData: FileQModeData, refIdx: number): FileSimilarityRow[] {
+  if (refIdx < 0 || refIdx >= qData.fileIds.length) return [];
+
+  const dists = jaccardDistancesFromReference(qData.fileSets, refIdx);
+  const refSet = qData.fileSets[refIdx]!;
+  const rows: FileSimilarityRow[] = [];
+
+  for (let j = 0; j < qData.fileIds.length; j++) {
+    if (j === refIdx) continue;
+    const otherSet = qData.fileSets[j]!;
+    let shared = 0;
+    let onlyOther = 0;
+    for (const c of otherSet) {
+      if (refSet.has(c)) shared++;
+      else onlyOther++;
+    }
+    const onlyRef = refSet.size - shared;
+    rows.push({
+      fileIdx: j,
+      fileId: qData.fileIds[j]!,
+      fileName: qData.fileNames[j]!,
+      fileColor: qData.fileColors[j]!,
+      similarity: 1 - dists[j]!,
+      sharedCount: shared,
+      onlyRefCount: onlyRef,
+      onlyOtherCount: onlyOther,
+      markerCounts: qData.markerCounts[j]!,
+    });
+  }
+
+  rows.sort((a, b) => b.similarity - a.similarity);
+  return rows;
 }
 
 /**

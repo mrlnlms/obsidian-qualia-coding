@@ -17,6 +17,7 @@ import { renderTemporalChart, exportTemporalCSV } from "./temporalMode";
 import { renderTextStats, exportTextStatsCSV } from "./textStatsMode";
 import { renderDendrogramView, renderDendrogramOptionsSection, exportDendrogramCSV } from "./dendrogramMode";
 import { renderFilesDendrogramView, renderFilesDendrogramOptionsSection, exportFilesDendrogramCSV } from "./filesDendrogramMode";
+import { renderFileSimilarityView, renderFileSimilarityOptionsSection, exportFileSimilarityCSV } from "./fileSimilarityMode";
 import { renderLagSequential, renderLagOptionsSection, exportLagCSV } from "./lagSequentialMode";
 import { renderPolarCoordinates, renderPolarOptionsSection, exportPolarCSV } from "./polarMode";
 import { renderChiSquareView, renderChiSquareOptionsSection, exportChiSquareCSV } from "./chiSquareMode";
@@ -123,13 +124,9 @@ export const MODE_REGISTRY: Record<ViewMode, ModeEntry> = {
   },
   "file-similarity": {
     label: "File Similarity",
-    render: (ctx) => {
-      ctx.chartContainer?.createDiv({
-        cls: "codemarker-analytics-empty",
-        text: "File Similarity Ranking — implementation pending (S2).",
-      });
-    },
-    canExport: false,
+    render: renderFileSimilarityView,
+    renderOptions: renderFileSimilarityOptionsSection,
+    exportCSV: exportFileSimilarityCSV,
   },
   "lag-sequential": {
     label: "Lag Sequential",
