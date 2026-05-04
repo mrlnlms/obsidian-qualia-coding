@@ -203,12 +203,23 @@ export class CsvCodingView extends FileView {
 			// resolving, which freezes Obsidian's loadFile pipeline — the user can no
 			// longer switch to any other file (markdown included). Render the banner
 			// and return immediately; button handlers drive the next step asynchronously.
-			this.readyResolve?.();
+			//
+			// `readyPromise` is NOT resolved here — callers awaiting waitUntilReady()
+			// (e.g. `qualia-csv:navigate` reveal handler) need to wait for the grid
+			// to be available. If the user cancels, we resolve below to unblock them
+			// gracefully (gridApi stays null → navigateToRow becomes a no-op).
 			void this.confirmLoadLargeFile(file, sizeBytes, thresholdBytes).then(choice => {
 				// User may have switched to another file while the banner was up —
 				// in that case onUnloadFile already ran and `this.file` no longer matches.
-				if (this.file !== file) return;
-				if (choice === 'cancel') { this.leaf.detach(); return; }
+				if (this.file !== file) {
+					this.readyResolve?.();
+					return;
+				}
+				if (choice === 'cancel') {
+					this.readyResolve?.();
+					this.leaf.detach();
+					return;
+				}
 				if (choice === 'lazy') { void this.setupLazyMode(file); return; }
 				void this.loadEagerPath(file);
 			});
