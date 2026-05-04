@@ -80,10 +80,10 @@ function walk(
 		case 'magnitudeGte':
 		case 'magnitudeLte':
 		case 'relationExists': {
-			if (!registry.definitions[node.codeId]) {
+			const code = registry.definitions[node.codeId];
+			if (!code) {
 				warnings.push({ code: 'broken-ref', message: `Code ${node.codeId} was deleted`, leaf: { kind: node.kind, ref: node.codeId }});
 			} else if (node.kind === 'magnitudeGte' || node.kind === 'magnitudeLte') {
-				const code = registry.definitions[node.codeId];
 				const magType = code.magnitude?.type;
 				if (magType && magType !== 'continuous') {
 					errors.push({ code: 'magnitude-not-continuous', message: `Code "${code.name}" has magnitude type "${magType}", magnitudeGte/Lte requires "continuous"`, leaf: { kind: node.kind, ref: node.codeId }});

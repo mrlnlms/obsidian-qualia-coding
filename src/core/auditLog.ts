@@ -27,19 +27,39 @@ function makeId(): string {
  * Mutates `log` in-place e retorna o array (pra encadeamento). Idempotente em hidden flag.
  */
 export function appendEntry(log: AuditEntry[], entry: Omit<AuditEntry, 'id'> & { id?: string }): AuditEntry[] {
-	const isCoalescable = entry.type === 'description_edited' || entry.type === 'memo_edited';
+	const isCoalescableTextEdit = entry.type === 'description_edited' || entry.type === 'memo_edited' || entry.type === 'sc_memo_edited';
+	const isCoalescablePredicateEdit = entry.type === 'sc_predicate_edited';
 
-	if (isCoalescable) {
-		// Procura última entry visível do mesmo type+codeId
+	if (isCoalescableTextEdit) {
+		// Procura última entry visível do mesmo type+codeId+entity
 		for (let i = log.length - 1; i >= 0; i--) {
 			const e = log[i]!;
 			if (e.codeId !== entry.codeId) continue;
 			if (e.type !== entry.type) continue;
+			if ((e as any).entity !== (entry as any).entity) continue;
 			if (e.hidden) continue;
 			if (entry.at - e.at > COALESCE_WINDOW_MS) break;
 			// Coalesce: mantém from, atualiza to e at
-			(e as Extract<AuditEntry, { type: 'description_edited' | 'memo_edited' }>).to =
-				(entry as Extract<AuditEntry, { type: 'description_edited' | 'memo_edited' }>).to;
+			(e as any).to = (entry as any).to;
+			e.at = entry.at;
+			return log;
+		}
+	}
+
+	if (isCoalescablePredicateEdit) {
+		// Coalesce sc_predicate_edited via Set union dos addedLeafKinds + removedLeafKinds + soma changedLeafCount
+		for (let i = log.length - 1; i >= 0; i--) {
+			const e = log[i]!;
+			if (e.codeId !== entry.codeId) continue;
+			if (e.type !== 'sc_predicate_edited') continue;
+			if ((e as any).entity !== 'smartCode') continue;
+			if (e.hidden) continue;
+			if (entry.at - e.at > COALESCE_WINDOW_MS) break;
+			const existing = e as Extract<AuditEntry, { type: 'sc_predicate_edited' }>;
+			const incoming = entry as Extract<AuditEntry, { type: 'sc_predicate_edited' }>;
+			existing.addedLeafKinds = [...new Set([...existing.addedLeafKinds, ...incoming.addedLeafKinds])];
+			existing.removedLeafKinds = [...new Set([...existing.removedLeafKinds, ...incoming.removedLeafKinds])];
+			existing.changedLeafCount += incoming.changedLeafCount;
 			e.at = entry.at;
 			return log;
 		}
@@ -73,7 +93,17 @@ export function getEntriesForCode(
 	codeId: string,
 	includeHidden = false,
 ): AuditEntry[] {
-	const filtered = log.filter(e => e.codeId === codeId && (includeHidden || !e.hidden));
+	const filtered = log.filter(e => ((e as any).entity ?? 'code') === 'code' && e.codeId === codeId && (includeHidden || !e.hidden));
+	return filtered.sort((a, b) => a.at - b.at);
+}
+
+/** Entries de smart code, filtradas por entity + smartCodeId. Default exclui hidden. */
+export function getEntriesForSmartCode(
+	log: AuditEntry[],
+	smartCodeId: string,
+	includeHidden = false,
+): AuditEntry[] {
+	const filtered = log.filter(e => (e as any).entity === 'smartCode' && e.codeId === smartCodeId && (includeHidden || !e.hidden));
 	return filtered.sort((a, b) => a.at - b.at);
 }
 
