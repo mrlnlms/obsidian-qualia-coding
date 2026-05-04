@@ -12,6 +12,10 @@
 
 import { ItemView, WorkspaceLeaf, setIcon, SearchComponent, ExtraButtonComponent } from 'obsidian';
 import { BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
+import { createVirtualList } from './virtualList';
+
+const EXPLORER_ROW_HEIGHT = 26;
+const EXPLORER_LIST_MAX_VH = 50;
 
 interface CollapsibleNode {
 	treeItem: HTMLElement;
@@ -319,21 +323,37 @@ export abstract class BaseCodeExplorerView extends ItemView {
 				fileSelf.createSpan({ cls: 'tree-item-flair', text: String(markers.length) });
 
 				const fileChildren = fileTreeItem.createDiv({ cls: 'search-result-file-matches' });
+				// Constrained height + virtual scroll. Files with thousands of
+				// markers (e.g. batch-coded parquet rows) would otherwise mount
+				// each match in the DOM and freeze the UI thread.
+				const naturalHeight = markers.length * EXPLORER_ROW_HEIGHT;
+				const maxByVh = Math.floor(window.innerHeight * (EXPLORER_LIST_MAX_VH / 100));
+				fileChildren.style.height = `${Math.min(naturalHeight, maxByVh)}px`;
+				if (naturalHeight > maxByVh) fileChildren.style.overflowY = 'auto';
+				fileChildren.style.position = 'relative';
 
-				for (const marker of markers) {
-					const label = this.getMarkerLabel(marker);
-					const matchEl = fileChildren.createDiv({ cls: 'search-result-file-match' });
-					matchEl.dataset.markerId = marker.id;
-					matchEl.textContent = label;
-					matchEl.addEventListener('click', () => this.navigateToMarker(marker));
-					matchEl.addEventListener('mouseenter', () => {
-						const firstCodeName = marker.codes[0] ? (this.model.registry.getById(marker.codes[0].codeId)?.name ?? null) : null;
-						this.model.setHoverState(marker.id, firstCodeName);
-					});
-					matchEl.addEventListener('mouseleave', () => {
-						this.model.setHoverState(null, null);
-					});
-				}
+				const list = createVirtualList<BaseMarker>({
+					container: fileChildren,
+					rowHeight: EXPLORER_ROW_HEIGHT,
+					renderRow: (marker) => {
+						const matchEl = document.createElement('div');
+						matchEl.className = 'search-result-file-match';
+						matchEl.dataset.markerId = marker.id;
+						matchEl.textContent = this.getMarkerLabel(marker);
+						matchEl.addEventListener('click', () => this.navigateToMarker(marker));
+						matchEl.addEventListener('mouseenter', () => {
+							const firstCodeName = marker.codes[0]
+								? (this.model.registry.getById(marker.codes[0].codeId)?.name ?? null)
+								: null;
+							this.model.setHoverState(marker.id, firstCodeName);
+						});
+						matchEl.addEventListener('mouseleave', () => {
+							this.model.setHoverState(null, null);
+						});
+						return matchEl;
+					},
+				});
+				list.setItems(markers);
 
 				const fileNode: CollapsibleNode = { treeItem: fileTreeItem, children: fileChildren, collapsed: false };
 				this.fileNodes.push(fileNode);

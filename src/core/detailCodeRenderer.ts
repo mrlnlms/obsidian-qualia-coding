@@ -18,6 +18,10 @@ import { collectAllLabels } from './relationHelpers';
 import { renderAddRelationRow } from './relationUI';
 import { generateContinuousRange } from './magnitudeRange';
 import { PromptModal } from './dialogs';
+import { createVirtualList } from './virtualList';
+
+const MARKER_ROW_HEIGHT = 56;
+const MARKER_LIST_MAX_VH = 60;
 
 export interface CodeRendererCallbacks {
 	getMarkerLabel(marker: BaseMarker): string;
@@ -204,40 +208,19 @@ export function renderCodeDetail(
 		segSection.createEl('h6', { text: `Segments (${allMarkers.length})` });
 	}
 
-	const list = segSection.createEl('ul', { cls: 'codemarker-detail-marker-list' });
-	for (const marker of allMarkers) {
-		const label = callbacks.getMarkerLabel(marker);
+	// Virtualized list — only viewport rows are mounted in the DOM. Renders
+	// flat without nesting per file (segmentsByFile section below covers that).
+	const scrollEl = segSection.createDiv({ cls: 'codemarker-detail-marker-list codemarker-virtual-marker-scroll' });
+	scrollEl.style.maxHeight = `${MARKER_LIST_MAX_VH}vh`;
+	scrollEl.style.overflowY = 'auto';
+	scrollEl.style.position = 'relative';
 
-		const li = list.createEl('li', { cls: 'codemarker-detail-marker-item' });
-		li.dataset.markerId = marker.id;
-
-		// File reference + navigate icon row
-		const fileRow = li.createDiv({ cls: 'codemarker-detail-marker-file-row' });
-		fileRow.createSpan({ cls: 'codemarker-detail-marker-file', text: callbacks.shortenPath(marker.fileId) });
-
-		// Navigate-to-document icon
-		const navIcon = fileRow.createSpan({ cls: 'codemarker-detail-nav-icon' });
-		setIcon(navIcon, 'file-search');
-		navIcon.title = 'Reveal in document';
-		navIcon.addEventListener('click', (e) => {
-			e.stopPropagation();
-			callbacks.navigateToMarker(marker);
-		});
-
-		// Text preview
-		li.createEl('span', { text: label });
-
-		// Click item -> drill-down to marker-focused detail (no navigation)
-		li.addEventListener('click', () => {
-			callbacks.setContext(marker.id, codeId);
-		});
-		li.addEventListener('mouseenter', () => {
-			model.setHoverState(marker.id, codeName);
-		});
-		li.addEventListener('mouseleave', () => {
-			model.setHoverState(null, null);
-		});
-	}
+	const flatList = createVirtualList<BaseMarker>({
+		container: scrollEl,
+		rowHeight: MARKER_ROW_HEIGHT,
+		renderRow: (marker) => buildMarkerRowEl(marker, codeId, codeName, model, callbacks),
+	});
+	flatList.setItems(allMarkers);
 
 	// Segments by file (tree grouped by file)
 	renderSegmentsByFile(container, allMarkers, codeId, codeName, model, callbacks);
@@ -252,6 +235,59 @@ export function renderCodeDetail(
 	if (def) {
 		renderDeleteCodeButton(container, codeId, codeName, model, callbacks);
 	}
+}
+
+// ─── Marker row builder (shared by flat list + segmentsByFile) ─────
+
+const COMPACT_MARKER_ROW_HEIGHT = 26;
+
+function buildMarkerRowEl(
+	marker: BaseMarker,
+	codeId: string,
+	codeName: string,
+	model: SidebarModelInterface,
+	callbacks: CodeRendererCallbacks,
+): HTMLElement {
+	const li = document.createElement('div');
+	li.className = 'codemarker-detail-marker-item';
+	li.dataset.markerId = marker.id;
+
+	// File reference + navigate icon row
+	const fileRow = li.createDiv({ cls: 'codemarker-detail-marker-file-row' });
+	fileRow.createSpan({ cls: 'codemarker-detail-marker-file', text: callbacks.shortenPath(marker.fileId) });
+
+	const navIcon = fileRow.createSpan({ cls: 'codemarker-detail-nav-icon' });
+	setIcon(navIcon, 'file-search');
+	navIcon.title = 'Reveal in document';
+	navIcon.addEventListener('click', (e) => {
+		e.stopPropagation();
+		callbacks.navigateToMarker(marker);
+	});
+
+	li.createEl('span', { text: callbacks.getMarkerLabel(marker) });
+
+	li.addEventListener('click', () => callbacks.setContext(marker.id, codeId));
+	li.addEventListener('mouseenter', () => model.setHoverState(marker.id, codeName));
+	li.addEventListener('mouseleave', () => model.setHoverState(null, null));
+
+	return li;
+}
+
+function buildCompactMarkerRowEl(
+	marker: BaseMarker,
+	codeId: string,
+	codeName: string,
+	model: SidebarModelInterface,
+	callbacks: CodeRendererCallbacks,
+): HTMLElement {
+	const matchEl = document.createElement('div');
+	matchEl.className = 'search-result-file-match';
+	matchEl.dataset.markerId = marker.id;
+	matchEl.textContent = callbacks.getMarkerLabel(marker);
+	matchEl.addEventListener('click', () => callbacks.setContext(marker.id, codeId));
+	matchEl.addEventListener('mouseenter', () => model.setHoverState(marker.id, codeName));
+	matchEl.addEventListener('mouseleave', () => model.setHoverState(null, null));
+	return matchEl;
 }
 
 // ─── Segments by File (tree in code-focused detail) ─────
@@ -289,22 +325,17 @@ function renderSegmentsByFile(
 		fileSelf.createSpan({ cls: 'tree-item-flair', text: String(markers.length) });
 
 		const fileChildren = fileTreeItem.createDiv({ cls: 'search-result-file-matches' });
+		// Constrained height + virtual scroll. Avoids mounting 100k+ matches at once.
+		fileChildren.style.maxHeight = `${MARKER_LIST_MAX_VH}vh`;
+		fileChildren.style.overflowY = 'auto';
+		fileChildren.style.position = 'relative';
 
-		for (const marker of markers) {
-			const label = callbacks.getMarkerLabel(marker);
-			const matchEl = fileChildren.createDiv({ cls: 'search-result-file-match' });
-			matchEl.dataset.markerId = marker.id;
-			matchEl.textContent = label;
-			matchEl.addEventListener('click', () => {
-				callbacks.setContext(marker.id, codeId);
-			});
-			matchEl.addEventListener('mouseenter', () => {
-				model.setHoverState(marker.id, codeName);
-			});
-			matchEl.addEventListener('mouseleave', () => {
-				model.setHoverState(null, null);
-			});
-		}
+		const list = createVirtualList<BaseMarker>({
+			container: fileChildren,
+			rowHeight: COMPACT_MARKER_ROW_HEIGHT,
+			renderRow: (marker) => buildCompactMarkerRowEl(marker, codeId, codeName, model, callbacks),
+		});
+		list.setItems(markers);
 
 		// Collapse toggle (local, no shared state needed)
 		let collapsed = false;

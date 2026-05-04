@@ -14,6 +14,10 @@ import type { MemoMaterializerAccess } from './baseCodeDetailView';
 import type { EntityRef } from './memoTypes';
 import { getMemoContent } from './memoHelpers';
 import { renderBackButton } from './detailCodeRenderer';
+import { createVirtualList } from './virtualList';
+
+const EVIDENCE_ROW_HEIGHT = 30;
+const EVIDENCE_LIST_MAX_VH = 50;
 
 export type RelationContext =
 	| { kind: 'code-level'; sourceCodeId: string; label: string; target: string }
@@ -256,15 +260,26 @@ function renderEvidenceList(
 	const section = container.createDiv({ cls: 'codemarker-detail-section' });
 	section.createEl('h6', { text: `Evidence (${matchingMarkers.length})` });
 
-	for (const m of matchingMarkers) {
-		const row = section.createDiv({ cls: 'codemarker-detail-relation-evidence-row' });
-		const fileSpan = row.createSpan({ cls: 'codemarker-detail-relation-evidence-file', text: callbacks.shortenPath(m.fileId) });
-		row.createSpan({ cls: 'codemarker-detail-seg-sep', text: ' · ' });
-		row.createSpan({ cls: 'codemarker-detail-relation-evidence-label', text: callbacks.getMarkerLabel(m) });
-		row.addEventListener('click', () => callbacks.setContext(m.id, ctx.sourceCodeId));
-		row.title = 'Open marker';
-		void fileSpan;
-	}
+	const scrollEl = section.createDiv();
+	scrollEl.style.maxHeight = `${EVIDENCE_LIST_MAX_VH}vh`;
+	scrollEl.style.overflowY = 'auto';
+	scrollEl.style.position = 'relative';
+
+	const list = createVirtualList<BaseMarker>({
+		container: scrollEl,
+		rowHeight: EVIDENCE_ROW_HEIGHT,
+		renderRow: (m) => {
+			const row = document.createElement('div');
+			row.className = 'codemarker-detail-relation-evidence-row';
+			row.createSpan({ cls: 'codemarker-detail-relation-evidence-file', text: callbacks.shortenPath(m.fileId) });
+			row.createSpan({ cls: 'codemarker-detail-seg-sep', text: ' · ' });
+			row.createSpan({ cls: 'codemarker-detail-relation-evidence-label', text: callbacks.getMarkerLabel(m) });
+			row.addEventListener('click', () => callbacks.setContext(m.id, ctx.sourceCodeId));
+			row.title = 'Open marker';
+			return row;
+		},
+	});
+	list.setItems(matchingMarkers);
 }
 
 function renderDeleteRelationButton(
