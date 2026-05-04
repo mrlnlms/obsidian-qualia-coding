@@ -161,7 +161,8 @@ export class SegmentEditor {
 
 		if (this.host.gridApi) {
 			const gridApi = this.host.gridApi;
-			setTimeout(() => gridApi?.setGridOption('domLayout', 'normal'), 50);
+			// Defensive: user can close the leaf before the timer fires, destroying the grid.
+			setTimeout(() => { if (!gridApi.isDestroyed()) gridApi.setGridOption('domLayout', 'normal'); }, 50);
 		}
 	}
 
@@ -198,11 +199,11 @@ export class SegmentEditor {
 		}
 		if (this.host.gridApi) {
 			const gridApi = this.host.gridApi;
-			setTimeout(() => gridApi?.setGridOption('domLayout', 'normal'), 50);
+			setTimeout(() => { if (!gridApi.isDestroyed()) gridApi.setGridOption('domLayout', 'normal'); }, 50);
 		}
 		if (this.host.gridApi) {
 			const gridApi = this.host.gridApi;
-			setTimeout(() => gridApi?.refreshCells({ force: true }), 100);
+			setTimeout(() => { if (!gridApi.isDestroyed()) gridApi.refreshCells({ force: true }); }, 100);
 		}
 	}
 
