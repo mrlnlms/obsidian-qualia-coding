@@ -369,10 +369,18 @@ export class CsvCodingView extends FileView {
 								params.failCallback();
 								return;
 							}
-							const orderBy = (params.sortModel ?? []).map((s) => ({
-								column: s.colId,
-								descending: s.sort === 'desc',
-							}));
+							// Filter out virtual cod-seg/cod-frow/comment columns — they don't
+							// exist in DuckDB schema and would emit a Binder Error. Defense in
+							// depth: ColumnToggleModal already sets `sortable: false` on those
+							// in lazy mode, but the AG Grid sortModel could still contain them
+							// if state was restored from elsewhere.
+							const realCols = new Set(this.originalHeaders);
+							const orderBy = (params.sortModel ?? [])
+								.filter((s) => realCols.has(s.colId))
+								.map((s) => ({
+									column: s.colId,
+									descending: s.sort === 'desc',
+								}));
 							const rows = await this.lazyState.rowProvider.getRowsByDisplayRange({
 								offset: params.startRow,
 								limit: params.endRow - params.startRow,
@@ -404,9 +412,10 @@ export class CsvCodingView extends FileView {
 
 			// Inject custom header buttons via MutationObserver — enables the same
 			// coding affordances (cod-seg/cod-frow column tag buttons) as eager mode.
+			// `isLazy: true` so the batch popover knows to short-circuit.
 			const headerRoot = wrapper.querySelector('.ag-header');
 			if (headerRoot) {
-				const ctx = { gridApi: this.gridApi, csvModel: this.csvModel, filePath: this.file?.path, app: this.app };
+				const ctx = { gridApi: this.gridApi, csvModel: this.csvModel, filePath: this.file?.path, app: this.app, isLazy: true };
 				const inject = () => injectHeaderButtons(wrapper, ctx);
 				inject();
 				this.headerObserver = new MutationObserver(inject);
@@ -439,9 +448,12 @@ export class CsvCodingView extends FileView {
 		if (!this.lazyState || !this.gridApi) return;
 		// AG Grid 33+ removed gridApi.getSortModel(). Iterate columns instead and
 		// pick the ones with an active sort, ordered by sortIndex (multi-sort).
+		// Filter out virtual columns (cod-seg/cod-frow/comment) — DuckDB schema
+		// doesn't know them.
+		const realCols = new Set(this.originalHeaders);
 		const cols = this.gridApi.getColumns?.() ?? [];
 		const sortedCols = cols
-			.filter(c => c.getSort() != null)
+			.filter(c => c.getSort() != null && realCols.has(c.getColId()))
 			.sort((a, b) => (a.getSortIndex() ?? 0) - (b.getSortIndex() ?? 0));
 		const orderBy = sortedCols.map(c => ({
 			column: c.getColId(),
@@ -489,6 +501,10 @@ export class CsvCodingView extends FileView {
 
 	openSegmentEditor(file: string, sourceRowId: number, column: string, cellText: string) {
 		this.segmentEditor.open(file, sourceRowId, column, cellText);
+	}
+
+	isLazyMode(): boolean {
+		return this.lazyState != null;
 	}
 
 	closeSegmentEditor() {

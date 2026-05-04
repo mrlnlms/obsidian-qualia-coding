@@ -7,6 +7,8 @@ import type { CsvCodingModel } from './csvCodingModel';
 // Minimal interface to avoid circular import with csvCodingView
 export interface CsvViewRef {
 	openSegmentEditor(file: string, sourceRowId: number, column: string, cellText: string): void;
+	/** True when the underlying grid uses Infinite Row Model — `autoHeight` is unsupported. */
+	isLazyMode?(): boolean;
 }
 
 // ── Column styles (shared with csvCodingView) ──
@@ -164,6 +166,13 @@ export class ColumnToggleModal extends Modal {
 				}
 			}
 
+			// AG Grid forbids autoHeight + wrapText with Infinite Row Model (lazy mode).
+			// And lazy mode can't sort virtual columns (cod-seg/cod-frow/comment) because
+			// DuckDB has no data for them — would emit "column not found" Binder Error.
+			const lazy = this.csvView.isLazyMode?.() ?? false;
+			const wrap = !lazy;
+			const sortable = !lazy;
+
 			if (isComment) {
 				const newCol: ColDef = {
 					field,
@@ -172,12 +181,12 @@ export class ColumnToggleModal extends Modal {
 					cellEditor: CommentCellEditor,
 					cellStyle: COD_FROW_STYLE,
 					headerClass: 'csv-coding-header-comment',
-					cellClass: 'csv-comment-cell',
-					sortable: true,
-					filter: true,
+					cellClass: wrap ? 'csv-comment-cell' : 'csv-comment-cell-nowrap',
+					sortable,
+					filter: !lazy,
 					resizable: true,
-					autoHeight: true,
-					wrapText: true,
+					autoHeight: wrap,
+					wrapText: wrap,
 				};
 				colDefs.splice(insertIdx, 0, newCol);
 			} else {
@@ -187,13 +196,13 @@ export class ColumnToggleModal extends Modal {
 					editable: false,
 					cellStyle: isFrow ? COD_FROW_STYLE : COD_SEG_STYLE,
 					headerClass: isFrow ? 'csv-coding-header-frow' : 'csv-coding-header-seg',
-					sortable: true,
-					filter: true,
+					sortable,
+					filter: !lazy,
 					resizable: true,
 					cellRenderer: codingCellRenderer,
 					cellRendererParams: { model: this.model, gridApi: this.gridApi, file: this.filePath, csvView: this.csvView, app: this.app },
-					autoHeight: true,
-					wrapText: true,
+					autoHeight: wrap,
+					wrapText: wrap,
 				};
 				colDefs.splice(insertIdx, 0, newCol);
 			}

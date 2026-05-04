@@ -9,6 +9,8 @@ export interface HeaderInjectionContext {
 	csvModel: CsvCodingModel;
 	filePath: string | undefined;
 	app: import('obsidian').App;
+	/** Lazy-mode flag so the batch popover can early-return with a Notice. */
+	isLazy?: boolean;
 }
 
 export function injectHeaderButtons(wrapper: HTMLElement, ctx: HeaderInjectionContext): void {
@@ -50,7 +52,7 @@ export function injectHeaderButtons(wrapper: HTMLElement, ctx: HeaderInjectionCo
 						e.stopPropagation();
 						const sourceColumn = colId.replace(/_cod-frow$/, '');
 						if (ctx.gridApi && ctx.filePath) {
-							openBatchCodingPopover(btn, ctx.csvModel, ctx.filePath, sourceColumn, ctx.gridApi, ctx.app);
+							openBatchCodingPopover(btn, ctx.csvModel, ctx.filePath, sourceColumn, ctx.gridApi, ctx.app, undefined, ctx.isLazy);
 						}
 					});
 				}

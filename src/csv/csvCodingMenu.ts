@@ -6,7 +6,7 @@
  *   2. openBatchCodingPopover — all visible/filtered rows in a column
  */
 
-import type { App } from 'obsidian';
+import { Notice, type App } from 'obsidian';
 import type { CsvCodingModel } from './csvCodingModel';
 import type { GridApi } from 'ag-grid-community';
 import { hasCode, findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
@@ -137,7 +137,18 @@ export function openBatchCodingPopover(
 	gridApi: GridApi,
 	app: App,
 	anchorRect?: DOMRect,
+	isLazy?: boolean,
 ): void {
+	// Batch coding in lazy mode (AG Grid Infinite Row Model) requires a SQL
+	// predicate path — `forEachNodeAfterFilterAndSort` only sees rows in the
+	// current page cache, not the full dataset. Phase 5 brings a predicate-builder
+	// modal; until then we block batch in lazy with a clear notice. Caller passes
+	// `isLazy` explicitly so we don't need to introspect AG Grid internals.
+	if (isLazy) {
+		new Notice('Batch coding em modo lazy ainda não implementado — use o botão de tag em cada célula. Predicate-based batch chega na próxima fase.', 8000);
+		return;
+	}
+
 	const savedRect = anchorRect ?? anchorEl.getBoundingClientRect();
 	const pos = { x: savedRect.left, y: savedRect.bottom + 4 };
 

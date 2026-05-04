@@ -15,14 +15,12 @@ export function codingCellRenderer(params: any): HTMLElement {
 	// In lazy mode (AG Grid Infinite Row Model), `node.sourceRowIndex` becomes the
 	// display index after a SQL sort — useless for matching persisted markers. The
 	// lazy datasource injects `__source_row` into every row payload (DuckDB virtual
-	// column), so we read that first. In eager mode `params.data.__source_row` is
-	// undefined and the fallback chain hits `node.sourceRowIndex` (stable in
-	// Client-Side Row Model under sort/filter).
-	const sourceRowId: number =
-		(params.data?.__source_row as number | undefined) ??
-		params.node?.sourceRowIndex ??
-		params.rowIndex ??
-		0;
+	// column), so we read that first. DuckDB returns BIGINT as native bigint —
+	// coerce to Number (row indices well within safe-integer range).
+	const sourceRowId: number = toNumberSafe(params.data?.__source_row)
+		?? params.node?.sourceRowIndex
+		?? params.rowIndex
+		?? 0;
 	const model: CsvCodingModel | undefined = params.model;
 	const gridApi: GridApi | undefined = params.gridApi;
 	const file: string = params.file ?? '';
@@ -82,7 +80,10 @@ export function codingCellRenderer(params: any): HTMLElement {
 					// Same eager-mode caveat as csvCodingView.navigateToRow:
 					// in modes with sort active, sourceRowId != display index.
 					const rowNode = gridApi?.getDisplayedRowAtIndex(sourceRowId);
-					const cellText: string = rowNode?.data?.[sourceColumn] ?? '';
+					// rowNode.data values may be BigInt from DuckDB — String() coerces
+					// safely; '' fallback for null/undefined.
+					const rawCell = rowNode?.data?.[sourceColumn];
+					const cellText: string = rawCell == null ? '' : String(rawCell);
 					csvView.openSegmentEditor(file, sourceRowId, sourceColumn, cellText);
 				}
 			});
@@ -148,11 +149,10 @@ export function sourceTagBtnRenderer(params: any): HTMLElement {
 	btn.addEventListener('click', (e) => {
 		e.stopPropagation();
 		const segField: string = params.codSegField;
-		const sourceRowId =
-			(params.data?.__source_row as number | undefined) ??
-			params.node?.sourceRowIndex ??
-			params.rowIndex ??
-			0;
+		const sourceRowId = toNumberSafe(params.data?.__source_row)
+			?? params.node?.sourceRowIndex
+			?? params.rowIndex
+			?? 0;
 		const file: string = params.file ?? '';
 		const csvView: CsvViewRef | undefined = params.csvView;
 		const cellText: string = params.value != null ? String(params.value) : '';
@@ -166,6 +166,18 @@ export function sourceTagBtnRenderer(params: any): HTMLElement {
 	wrapper.appendChild(text);
 	wrapper.appendChild(btn);
 	return wrapper;
+}
+
+/**
+ * Coerce a value to a safe integer. DuckDB-Wasm returns BIGINT columns as native
+ * bigint — these crash any code path that mixes them with `number` (segment editor,
+ * filter ops, etc). Row indices for tabular files stay well within Number.MAX_SAFE_INTEGER,
+ * so the conversion is lossless.
+ */
+function toNumberSafe(v: unknown): number | undefined {
+	if (typeof v === 'number') return v;
+	if (typeof v === 'bigint') return Number(v);
+	return undefined;
 }
 
 /** Convert hex color to rgba string */
