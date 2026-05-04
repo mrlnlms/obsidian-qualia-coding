@@ -6,6 +6,7 @@
  */
 
 import type { UnifiedMarker, UnifiedCode, SourceType } from "./dataTypes";
+import { buildJaccardDistanceMatrix } from "./distanceMatrix";
 
 export type MDSMode = "codes" | "files";
 
@@ -111,33 +112,6 @@ async function computeFilesMDS(
   const D = buildJaccardDistanceMatrix(files.map((f) => fileCodes.get(f)!));
 
   return runClassicalMDS(D, names, colors, sizes, "files");
-}
-
-// ── Shared utilities ──
-
-function buildJaccardDistanceMatrix(sets: Set<string>[]): number[][] {
-  const n = sets.length;
-  const D: number[][] = [];
-  for (let i = 0; i < n; i++) {
-    D.push(new Array(n).fill(0));
-  }
-
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const si = sets[i]!;
-      const sj = sets[j]!;
-      let intersection = 0;
-      for (const x of si) {
-        if (sj.has(x)) intersection++;
-      }
-      const union = si.size + sj.size - intersection;
-      const jaccard = union > 0 ? intersection / union : 0;
-      const dist = 1 - jaccard;
-      D[i]![j] = dist;
-      D[j]![i] = dist;
-    }
-  }
-  return D;
 }
 
 /**
