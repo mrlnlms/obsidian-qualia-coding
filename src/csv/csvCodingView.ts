@@ -92,6 +92,12 @@ export class CsvCodingView extends FileView {
 	private readyPromise: Promise<void> = new Promise(r => { this.readyResolve = r; });
 	private unsubscribeVisibility?: () => void;
 	private lazyState: LazyState | null = null;
+	/** onChange listener that tops up the marker preview cache when the user
+	 *  codes new rows in lazy mode. Set on lazy load, cleared on unload. */
+	private lazyChangeListener: (() => void) | null = null;
+	/** Debounce timer for lazyChangeListener — burst writes (e.g. batch coding)
+	 *  collapse into a single populateMissing pass. */
+	private populateMissingTimer: number | null = null;
 
 	get markdownModel() { return this.plugin.markdownModel!; }
 
@@ -403,6 +409,20 @@ export class CsvCodingView extends FileView {
 			// pick this up automatically via getMarkerTextAsync.
 			this.csvModel.registerLazyProvider(file.path, rowProvider);
 
+			// Pre-populate marker preview cache so sidebar/detail blockquotes are
+			// sync-ready right after open. Chunked + deduped inside the model.
+			status.textContent = 'Loading marker previews…';
+			try {
+				await this.csvModel.populateMarkerTextCacheForFile(file.path, rowProvider);
+			} catch (err) {
+				console.warn('[qualia-csv lazy] populateMarkerTextCacheForFile failed', err);
+			}
+
+			// Top up the cache on subsequent mutations (new markers from cell/batch
+			// coding). Debounced so bursts collapse to a single fetch.
+			this.lazyChangeListener = () => this.scheduleLazyPopulateMissing();
+			this.csvModel.onChange(this.lazyChangeListener);
+
 			contentEl.empty();
 
 			// Info bar — same layout as eager mode + a lazy badge + gear button.
@@ -647,6 +667,38 @@ export class CsvCodingView extends FileView {
 		}
 	}
 
+	/**
+	 * Schedule a populate-missing pass against the marker preview cache. Called
+	 * by the model.onChange listener registered in lazy mode. Debounced 100ms so
+	 * burst mutations (batch coding) collapse to a single fetch.
+	 */
+	private scheduleLazyPopulateMissing(): void {
+		if (!this.lazyState || !this.file) return;
+		if (this.populateMissingTimer != null) {
+			window.clearTimeout(this.populateMissingTimer);
+		}
+		this.populateMissingTimer = window.setTimeout(() => {
+			this.populateMissingTimer = null;
+			void this.runLazyPopulateMissing();
+		}, 100);
+	}
+
+	private async runLazyPopulateMissing(): Promise<void> {
+		const fileId = this.file?.path;
+		const provider = this.lazyState?.rowProvider;
+		if (!fileId || !provider) return;
+		try {
+			const added = await this.csvModel.populateMissingMarkerTextsForFile(fileId, provider);
+			// Re-check after await — onUnloadFile may have nulled lazyState.
+			if (added > 0 && this.lazyState && this.file?.path === fileId) {
+				// notifyListenersOnly: no save (cache is derived state, not persisted).
+				this.csvModel.notifyListenersOnly();
+			}
+		} catch (err) {
+			console.warn('[qualia-csv lazy] runLazyPopulateMissing failed', err);
+		}
+	}
+
 	async navigateToRow(sourceRowId: number, column?: string): Promise<void> {
 		if (!this.gridApi) return;
 		// In lazy mode with an active sort, sourceRowId != display index — resolve
@@ -721,7 +773,18 @@ export class CsvCodingView extends FileView {
 		this.unsubscribeVisibility?.();
 		this.unsubscribeVisibility = undefined;
 		this.closeSegmentEditor();
+		// Tear down lazy preview cache listener + drop cached previews. Done before
+		// dropping rowDataCache so getMarkersForFile() still finds markers to evict.
+		if (this.lazyChangeListener) {
+			this.csvModel.offChange(this.lazyChangeListener);
+			this.lazyChangeListener = null;
+		}
+		if (this.populateMissingTimer != null) {
+			window.clearTimeout(this.populateMissingTimer);
+			this.populateMissingTimer = null;
+		}
 		if (this.file) {
+			this.csvModel.clearMarkerTextCacheForFile(this.file.path);
 			this.csvModel.rowDataCache.delete(this.file.path);
 		}
 		if (this.headerObserver) {

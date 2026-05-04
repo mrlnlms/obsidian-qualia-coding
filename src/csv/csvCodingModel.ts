@@ -2,7 +2,7 @@ import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { SegmentMarker, RowMarker, CsvMarker, CodingSnapshot } from './csvCodingTypes';
 import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
-import type { RowProvider } from './duckdb';
+import type { RowProvider, MarkerRef } from './duckdb';
 
 type ChangeListener = () => void;
 type HoverListener = (markerId: string | null, codeName: string | null) => void;
@@ -27,6 +27,16 @@ export class CsvCodingModel {
 	 * resolve text on demand from DuckDB+OPFS.
 	 */
 	private lazyProviders: Map<string, RowProvider> = new Map();
+
+	/**
+	 * Marker preview cache: markerId → resolved excerpt (cellText for row markers,
+	 * `cellText.substring(from, to)` for segment markers). Populated on file load
+	 * in lazy mode (via populateMarkerTextCacheForFile) and on add/async hit.
+	 * Cleared per-file on unload + per-marker on remove. Sync `getMarkerText`
+	 * checks this first so all UI consumers (sidebar, detail, evidence list)
+	 * stay sync without cascading async into core/.
+	 */
+	private markerTextCache: Map<string, string> = new Map();
 
 	constructor(dm: DataManager, registry: CodeDefinitionRegistry) {
 		this.dm = dm;
@@ -76,6 +86,12 @@ export class CsvCodingModel {
 
 	notify(): void {
 		this.saveMarkers();
+		for (const fn of this.listeners) fn();
+	}
+
+	/** Fire change listeners without persisting — used after preview cache top-ups
+	 *  in lazy mode to trigger a UI re-render without spurious data.json writes. */
+	notifyListenersOnly(): void {
 		for (const fn of this.listeners) fn();
 	}
 
@@ -191,6 +207,7 @@ export class CsvCodingModel {
 			if (marker.codes.length === 0) toDeleteIds.add(marker.id);
 		}
 		if (toDeleteIds.size > 0) {
+			for (const id of toDeleteIds) this.markerTextCache.delete(id);
 			this.rowMarkers = this.rowMarkers.filter(m => !toDeleteIds.has(m.id));
 		}
 		if (mutated) this.notify();
@@ -201,6 +218,10 @@ export class CsvCodingModel {
 		if (sourceRowIds.length === 0) return;
 		const rowSet = new Set(sourceRowIds);
 		const before = this.rowMarkers.length;
+		const removed = this.rowMarkers.filter(m =>
+			m.fileId === file && m.column === column && rowSet.has(m.sourceRowId)
+		);
+		for (const m of removed) this.markerTextCache.delete(m.id);
 		this.rowMarkers = this.rowMarkers.filter(m =>
 			!(m.fileId === file && m.column === column && rowSet.has(m.sourceRowId))
 		);
@@ -340,6 +361,8 @@ export class CsvCodingModel {
 	}
 
 	getMarkerText(marker: CsvMarker): string | null {
+		const cached = this.markerTextCache.get(marker.id);
+		if (cached !== undefined) return cached;
 		const rows = this.rowDataCache.get(marker.fileId);
 		if (!rows || !rows[marker.sourceRowId]) return null;
 		const rawValue = rows[marker.sourceRowId]![marker.column];
@@ -352,13 +375,14 @@ export class CsvCodingModel {
 	}
 
 	/**
-	 * Async marker text resolution. In eager mode this delegates to the sync path
-	 * (rowDataCache hit) and returns immediately. In lazy mode (no rowDataCache,
-	 * but a RowProvider registered for the fileId) it queries DuckDB.
+	 * Async marker text resolution. Delegates to the sync path (cache → eager
+	 * rowDataCache); falls back to DuckDB query in lazy mode when neither has
+	 * the marker. Populates the cache on async hit so subsequent sync reads
+	 * hit immediately (e.g., reopening a marker detail).
 	 */
 	async getMarkerTextAsync(marker: CsvMarker): Promise<string | null> {
-		const eager = this.getMarkerText(marker);
-		if (eager !== null) return eager;
+		const sync = this.getMarkerText(marker);
+		if (sync !== null) return sync;
 		const provider = this.lazyProviders.get(marker.fileId);
 		if (!provider) return null;
 		const cellText = await provider.getMarkerText({
@@ -366,10 +390,11 @@ export class CsvCodingModel {
 			column: marker.column,
 		});
 		if (cellText == null) return null;
-		if ('from' in marker && 'to' in marker) {
-			return cellText.substring(marker.from, marker.to);
-		}
-		return cellText;
+		const text = ('from' in marker && 'to' in marker)
+			? cellText.substring(marker.from, marker.to)
+			: cellText;
+		this.markerTextCache.set(marker.id, text);
+		return text;
 	}
 
 	registerLazyProvider(fileId: string, provider: RowProvider): void {
@@ -380,6 +405,105 @@ export class CsvCodingModel {
 		this.lazyProviders.delete(fileId);
 	}
 
+	/**
+	 * Pre-populate the markerText cache for all markers in a file via batched
+	 * DuckDB queries. Called on lazy file load — UI stays sync for previews.
+	 *
+	 * Chunked to keep IN clauses bounded (default 1000 markers/chunk). Refs are
+	 * deduped per (sourceRowId, column) inside each chunk so multiple markers
+	 * sharing a cell trigger a single fetch. Failures fall through silently —
+	 * `getMarkerText` returns null on cache miss and the UI shows the marker
+	 * without a preview rather than crashing.
+	 */
+	async populateMarkerTextCacheForFile(
+		fileId: string,
+		provider: RowProvider,
+		opts: { chunkSize?: number } = {},
+	): Promise<void> {
+		const chunkSize = opts.chunkSize ?? 1000;
+		const markers = this.getMarkersForFile(fileId);
+		if (markers.length === 0) return;
+
+		for (let i = 0; i < markers.length; i += chunkSize) {
+			const slice = markers.slice(i, i + chunkSize);
+			// Dedupe refs per (sourceRowId, column) — same cell may host multiple markers.
+			const seen = new Set<string>();
+			const refs: MarkerRef[] = [];
+			for (const m of slice) {
+				const key = `${m.sourceRowId}|${m.column}`;
+				if (seen.has(key)) continue;
+				seen.add(key);
+				refs.push({ sourceRowId: m.sourceRowId, column: m.column });
+			}
+			const texts = await provider.batchGetMarkerText(refs);
+			for (const m of slice) {
+				const cellText = texts.get(`${m.sourceRowId}|${m.column}`);
+				if (cellText == null) continue;
+				const text = ('from' in m && 'to' in m)
+					? cellText.substring(m.from, m.to)
+					: cellText;
+				this.markerTextCache.set(m.id, text);
+			}
+		}
+	}
+
+	/** Cache an already-known excerpt (from popovers that read the cell to code it). */
+	cacheMarkerText(markerId: string, text: string): void {
+		this.markerTextCache.set(markerId, text);
+	}
+
+	/**
+	 * Idempotent variant of populate — only fetches markers without a cache hit.
+	 * Used by the lazy view's onChange listener to top up after add operations
+	 * without re-fetching previews already in cache. Returns the count of newly
+	 * cached markers so the caller can decide whether to fire a UI re-render.
+	 */
+	async populateMissingMarkerTextsForFile(
+		fileId: string,
+		provider: RowProvider,
+		opts: { chunkSize?: number } = {},
+	): Promise<number> {
+		const chunkSize = opts.chunkSize ?? 1000;
+		const missing = this.getMarkersForFile(fileId).filter(m => !this.markerTextCache.has(m.id));
+		if (missing.length === 0) return 0;
+
+		let added = 0;
+		for (let i = 0; i < missing.length; i += chunkSize) {
+			const slice = missing.slice(i, i + chunkSize);
+			const seen = new Set<string>();
+			const refs: MarkerRef[] = [];
+			for (const m of slice) {
+				const key = `${m.sourceRowId}|${m.column}`;
+				if (seen.has(key)) continue;
+				seen.add(key);
+				refs.push({ sourceRowId: m.sourceRowId, column: m.column });
+			}
+			const texts = await provider.batchGetMarkerText(refs);
+			for (const m of slice) {
+				const cellText = texts.get(`${m.sourceRowId}|${m.column}`);
+				if (cellText == null) continue;
+				const text = ('from' in m && 'to' in m)
+					? cellText.substring(m.from, m.to)
+					: cellText;
+				this.markerTextCache.set(m.id, text);
+				added += 1;
+			}
+		}
+		return added;
+	}
+
+	/** Drop all preview cache entries for markers in a file. Called on unload. */
+	clearMarkerTextCacheForFile(fileId: string): void {
+		for (const m of this.getMarkersForFile(fileId)) {
+			this.markerTextCache.delete(m.id);
+		}
+	}
+
+	/** Test/diagnostics — peek the cache size. */
+	getMarkerTextCacheSize(): number {
+		return this.markerTextCache.size;
+	}
+
 	getMarkerLabel(marker: CsvMarker): string {
 		const isSegment = 'from' in marker;
 		return `Row ${marker.sourceRowId + 1} · ${marker.column}${isSegment ? ' (seg)' : ''}`;
@@ -388,10 +512,15 @@ export class CsvCodingModel {
 	clearAllMarkers(): void {
 		this.segmentMarkers = [];
 		this.rowMarkers = [];
+		this.markerTextCache.clear();
 		this.notify();
 	}
 
 	deleteSegmentMarkersForCell(file: string, sourceRowId: number, column: string): void {
+		const matches = this.segmentMarkers.filter(
+			m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column,
+		);
+		for (const m of matches) this.markerTextCache.delete(m.id);
 		this.segmentMarkers = this.segmentMarkers.filter(
 			m => !(m.fileId === file && m.sourceRowId === sourceRowId && m.column === column)
 		);
@@ -405,15 +534,25 @@ export class CsvCodingModel {
 
 	removeMarker(id: string): boolean {
 		const segIdx = this.segmentMarkers.findIndex(m => m.id === id);
-		if (segIdx >= 0) { this.segmentMarkers.splice(segIdx, 1); return true; }
+		if (segIdx >= 0) {
+			this.segmentMarkers.splice(segIdx, 1);
+			this.markerTextCache.delete(id);
+			return true;
+		}
 		const rowIdx = this.rowMarkers.findIndex(m => m.id === id);
-		if (rowIdx >= 0) { this.rowMarkers.splice(rowIdx, 1); return true; }
+		if (rowIdx >= 0) {
+			this.rowMarkers.splice(rowIdx, 1);
+			this.markerTextCache.delete(id);
+			return true;
+		}
 		return false;
 	}
 
 	removeAllMarkersForFile(fileId: string): number {
 		const beforeSeg = this.segmentMarkers.length;
 		const beforeRow = this.rowMarkers.length;
+		// Drop cache entries before filtering — getMarkersForFile after the splice would return [].
+		this.clearMarkerTextCacheForFile(fileId);
 		this.segmentMarkers = this.segmentMarkers.filter(m => m.fileId !== fileId);
 		this.rowMarkers = this.rowMarkers.filter(m => m.fileId !== fileId);
 		const removed = (beforeSeg - this.segmentMarkers.length) + (beforeRow - this.rowMarkers.length);

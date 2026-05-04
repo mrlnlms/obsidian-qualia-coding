@@ -52,9 +52,9 @@ Mitigado em 2026-05-04 (snapshot de `lazyState` no `onUnloadFile`, re-check apó
 
 Cada view tem seu próprio `lazyState`/`displayMap`/`gridApi`. DuckDB runtime é singleton (queries serializam internamente). Memory headroom pode ser apertado se ambos > 500MB. Não testado — registrar caso de teste ad-hoc se aparecer.
 
-### Pre-compute display_row mapping ao aplicar sort em lazy mode
+### ~~Pre-compute display_row mapping ao aplicar sort em lazy mode~~ ✅ (já estava ligado em Fase 4a/5)
 
-Spike Premise B (§14.5.2 do design doc) mostrou p99 de 214ms em sorted scroll-to-row de 297MB. `DuckDBRowProvider.buildDisplayMap` já está implementado (Fase 4a) — falta ligar no CsvCodingView quando user muda sort: invalida display map antigo, constrói novo, scroll-to-row vira O(1). ~30 LOC, 30min.
+Spike Premise B (§14.5.2 do design doc) mostrou p99 de 214ms em sorted scroll-to-row de 297MB. Resolvido — `csvCodingView.ts` liga `onSortChanged → refreshLazyDisplayMap` (drop+rebuild com `orderBy + whereClause`), `navigateToRow` consulta `displayRowFor()`, e `refreshLazyFilter` encadeia o rebuild. Verificado 2026-05-04.
 
 ### Reveal de marker em parquet lazy não destaca a row
 
