@@ -127,6 +127,25 @@ export async function openOPFSFile(opfsKey: string): Promise<FileSystemFileHandl
 }
 
 /**
+ * Check if the vault file is already cached in OPFS at the given mtime.
+ * Returns false on any miss (entry absent, meta absent, mtime mismatch, OPFS
+ * unavailable). Used by background pre-populate to decide whether to read the
+ * file via DuckDB without forcing a fresh OPFS download.
+ */
+export async function isOpfsCached(opfsKey: string, mtime: number): Promise<boolean> {
+	if (!navigator.storage || typeof navigator.storage.getDirectory !== "function") {
+		return false;
+	}
+	try {
+		const entryDir = await getEntryDir(opfsKey, false);
+		const meta = await readMeta(entryDir);
+		return meta?.mtime === mtime;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Remove a single OPFS-cached file by key. Idempotent — no-op if missing.
  */
 export async function removeOPFSFile(opfsKey: string): Promise<void> {

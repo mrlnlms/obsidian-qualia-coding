@@ -1,8 +1,5 @@
-import { FileView, FileSystemAdapter, TFile, Vault, WorkspaceLeaf, setIcon } from 'obsidian';
+import { FileView, FileSystemAdapter, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import { AllCommunityModule, ModuleRegistry, createGrid, GridApi, themeQuartz } from 'ag-grid-community';
-import * as Papa from 'papaparse';
-import { parquetReadObjects } from 'hyparquet';
-import { compressors } from 'hyparquet-compressors';
 import { ColumnToggleModal } from './columnToggleModal';
 import { injectHeaderButtons } from './csvHeaderInjection';
 import { SegmentEditor } from './segmentEditor';
@@ -10,6 +7,7 @@ import type QualiaCodingPlugin from '../main';
 import type { CsvCodingModel } from './csvCodingModel';
 import { visibilityEventBus } from '../core/visibilityEventBus';
 import type { IRowNode } from 'ag-grid-community';
+import { parseTabularFile, type TabularData } from './parseTabular';
 import {
 	DuckDBRowProvider,
 	type TabularFileType,
@@ -19,33 +17,6 @@ import {
 import { buildWhereClause, type AgFilterModel } from './duckdb/filterModelToSql';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
-
-interface TabularData {
-	headers: string[];
-	rows: Record<string, any>[];
-}
-
-async function parseTabularFile(file: TFile, vault: Vault): Promise<TabularData> {
-	if (file.extension === 'parquet') {
-		const buffer = await vault.adapter.readBinary(file.path);
-		const rows = await parquetReadObjects({ file: buffer, compressors }) as Record<string, any>[];
-		const headers = rows.length > 0 ? Object.keys(rows[0]!) : [];
-		return { headers, rows };
-	}
-	const raw = await vault.read(file);
-	const parsed = await new Promise<Papa.ParseResult<Record<string, string>>>((resolve) => {
-		Papa.parse<Record<string, string>>(raw, {
-			header: true,
-			skipEmptyLines: true,
-			worker: true,
-			complete: resolve,
-		});
-	});
-	if (parsed.errors.length > 0 && parsed.data.length === 0) {
-		throw new Error(parsed.errors[0]!.message);
-	}
-	return { headers: parsed.meta.fields ?? [], rows: parsed.data };
-}
 
 export const CSV_CODING_VIEW_TYPE = 'qualia-csv';
 
@@ -114,42 +85,12 @@ export class CsvCodingView extends FileView {
 	canAcceptExtension(extension: string): boolean { return extension === 'csv' || extension === 'parquet'; }
 
 	/**
-	 * Banner offering 3 paths for files above the size threshold:
-	 *  - 'lazy'   → DuckDB-Wasm + OPFS (fast open, SQL-backed sort/filter)
-	 *  - 'eager'  → load everything into memory (current behavior; may freeze)
-	 *  - 'cancel' → user backed out
-	 */
-	private async confirmLoadLargeFile(file: TFile, sizeBytes: number, thresholdBytes: number): Promise<'lazy' | 'eager' | 'cancel'> {
-		const { contentEl } = this;
-		contentEl.empty();
-
-		const banner = contentEl.createDiv({ cls: 'qualia-tabular-size-warning' });
-		banner.createEl('h3', { text: '⚠️ Large file' });
-		const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
-		const limitMb = (thresholdBytes / (1024 * 1024)).toFixed(0);
-		banner.createEl('p', {
-			text: `${file.name} is ${sizeMb} MB (threshold: ${limitMb} MB for ${file.extension}).`,
-		});
-		banner.createEl('p', {
-			text: 'Lazy mode opens the file via DuckDB-Wasm + OPFS (no full-memory load). Coding lands in the next phase — for now lazy mode is view-only.',
-			cls: 'qualia-tabular-size-warning-hint',
-		});
-
-		return new Promise<'lazy' | 'eager' | 'cancel'>((resolve) => {
-			const actions = banner.createDiv({ cls: 'qualia-tabular-size-warning-actions' });
-			const cancelBtn = actions.createEl('button', { text: 'Cancel' });
-			const eagerBtn = actions.createEl('button', { text: 'Load full (eager)' });
-			const lazyBtn = actions.createEl('button', { text: 'Lazy mode', cls: 'mod-cta' });
-			cancelBtn.addEventListener('click', () => resolve('cancel'));
-			eagerBtn.addEventListener('click', () => resolve('eager'));
-			lazyBtn.addEventListener('click', () => resolve('lazy'));
-		});
-	}
-
-	/**
-	 * Inert "click to load" placeholder rendered during workspace restoration for
+	 * Inert "click to open" placeholder rendered during workspace restoration for
 	 * files above the size threshold. Avoids racing the plugin bundle parse with
-	 * an auto-triggered banner — user explicitly opts in to load by clicking.
+	 * an auto-triggered DuckDB boot — user explicitly opts in by clicking.
+	 *
+	 * Mode selection (lazy vs eager) is decided by the size threshold, not by the
+	 * user. Click → setupLazyMode directly.
 	 */
 	private renderDeferredLoadPlaceholder(file: TFile, sizeBytes: number, thresholdBytes: number): void {
 		const { contentEl } = this;
@@ -161,22 +102,11 @@ export class CsvCodingView extends FileView {
 		banner.createEl('p', {
 			text: `${file.name} (${sizeMb} MB, threshold ${limitMb} MB) was not auto-loaded on workspace restore to keep Obsidian responsive.`,
 		});
-		banner.createEl('p', {
-			text: 'Click below to choose how to open this file.',
-			cls: 'qualia-tabular-size-warning-hint',
-		});
 		const actions = banner.createDiv({ cls: 'qualia-tabular-size-warning-actions' });
 		const openBtn = actions.createEl('button', { text: 'Open this file', cls: 'mod-cta' });
 		openBtn.addEventListener('click', () => {
-			// Non-blocking: same rationale as onLoadFile — awaiting the banner here
-			// would freeze Obsidian's loadFile pipeline if the user switches files
-			// before clicking a banner button.
-			void this.confirmLoadLargeFile(file, sizeBytes, thresholdBytes).then(choice => {
-				if (this.file !== file) return;
-				if (choice === 'cancel') { this.leaf.detach(); return; }
-				if (choice === 'lazy') { void this.setupLazyMode(file); return; }
-				void this.loadEagerPath(file);
-			});
+			if (this.file !== file) return;
+			void this.setupLazyMode(file);
 		});
 	}
 
@@ -184,9 +114,10 @@ export class CsvCodingView extends FileView {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		// Size guard: arquivo grande pode travar Obsidian em modo eager.
-		// Defaults calibrados em bench empírico (2026-04-24): parquet 50 MB / csv 100 MB.
-		// Lazy mode (Fase 4) opens via DuckDB+OPFS — no full-memory materialization.
+		// Size threshold: above this, the file opens in lazy mode (DuckDB + OPFS);
+		// below, eager mode (full materialization). Defaults calibrados em bench
+		// empírico (2026-04-24): parquet 50 MB / csv 100 MB. The user does NOT pick
+		// the mode — system decides by size + open context.
 		const sizeBytes = file.stat.size;
 		const csvSettings = this.plugin.dataManager.section('csv') as { settings?: { parquetSizeWarningMB?: number; csvSizeWarningMB?: number } } | undefined;
 		const parquetMB = csvSettings?.settings?.parquetSizeWarningMB ?? 50;
@@ -194,10 +125,10 @@ export class CsvCodingView extends FileView {
 		const thresholdBytes = (file.extension === 'parquet' ? parquetMB : csvMB) * 1024 * 1024;
 
 		// Workspace restoration path: when Obsidian is reopening a saved layout that
-		// included a leaf with a heavy file, do NOT auto-load. Auto-loading at this
-		// stage races with plugin initialization (49MB bundle parse) and the user
-		// perceives "Obsidian froze". Render an inert placeholder; user clicks to load.
-		// Heuristic: `workspace.layoutReady` is false during restore, true on user open.
+		// included a leaf with a heavy file, do NOT auto-boot DuckDB. Auto-loading at
+		// this stage races with plugin initialization (49MB bundle parse) and the
+		// user perceives "Obsidian froze". Render an inert placeholder; user clicks
+		// to load. Heuristic: `workspace.layoutReady` is false during restore.
 		if (sizeBytes > thresholdBytes && !this.app.workspace.layoutReady) {
 			this.renderDeferredLoadPlaceholder(file, sizeBytes, thresholdBytes);
 			this.readyResolve?.();
@@ -205,31 +136,7 @@ export class CsvCodingView extends FileView {
 		}
 
 		if (sizeBytes > thresholdBytes) {
-			// CRITICAL: do NOT await the banner here. Awaiting blocks `onLoadFile` from
-			// resolving, which freezes Obsidian's loadFile pipeline — the user can no
-			// longer switch to any other file (markdown included). Render the banner
-			// and return immediately; button handlers drive the next step asynchronously.
-			//
-			// `readyPromise` is NOT resolved here — callers awaiting waitUntilReady()
-			// (e.g. `qualia-csv:navigate` reveal handler) need to wait for the grid
-			// to be available. If the user cancels, we resolve below to unblock them
-			// gracefully (gridApi stays null → navigateToRow becomes a no-op).
-			void this.confirmLoadLargeFile(file, sizeBytes, thresholdBytes).then(choice => {
-				// User may have switched to another file while the banner was up —
-				// in that case onUnloadFile already ran and `this.file` no longer matches.
-				if (this.file !== file) {
-					this.readyResolve?.();
-					return;
-				}
-				if (choice === 'cancel') {
-					this.readyResolve?.();
-					this.leaf.detach();
-					return;
-				}
-				if (choice === 'lazy') { void this.setupLazyMode(file); return; }
-				void this.loadEagerPath(file);
-			});
-			return;
+			return this.setupLazyMode(file);
 		}
 
 		return this.loadEagerPath(file);
@@ -238,7 +145,7 @@ export class CsvCodingView extends FileView {
 	/**
 	 * Eager load path: read the entire file into memory (papaparse / hyparquet) and
 	 * mount AG Grid Client-Side Row Model. Used when the file is below the size
-	 * threshold OR when the user explicitly chose "Load full" on the warning banner.
+	 * threshold. Above-threshold files always go through `setupLazyMode`.
 	 */
 	private async loadEagerPath(file: TFile): Promise<void> {
 		const { contentEl } = this;
@@ -413,14 +320,17 @@ export class CsvCodingView extends FileView {
 			this.csvModel.registerLazyProvider(file.path, rowProvider);
 
 			// Pre-populate marker preview cache so sidebar/detail blockquotes are
-			// sync-ready right after open. Chunked + deduped inside the model.
+			// sync-ready right after open. Use the missing-only variant: when the
+			// startup pre-populate already filled the cache (cross-session re-open
+			// of an OPFS-cached file), this skips the redundant DuckDB scan and the
+			// grid mounts ~1-2s sooner. First open of an uncached file pays the same
+			// cost as before (all markers are missing).
 			status.textContent = 'Loading marker previews…';
 			try {
-				await this.csvModel.populateMarkerTextCacheForFile(file.path, rowProvider);
-				// Notify sidebars so labels swap from coordinate to cell content.
-				this.csvModel.notifyListenersOnly();
+				const added = await this.csvModel.populateMissingMarkerTextsForFile(file.path, rowProvider);
+				if (added > 0) this.csvModel.notifyListenersOnly();
 			} catch (err) {
-				console.warn('[qualia-csv lazy] populateMarkerTextCacheForFile failed', err);
+				console.warn('[qualia-csv lazy] populateMissingMarkerTextsForFile failed', err);
 			}
 
 			// Top up the cache on subsequent mutations (new markers from cell/batch
@@ -489,6 +399,13 @@ export class CsvCodingView extends FileView {
 				cacheBlockSize: 100,
 				maxBlocksInCache: 10,
 				rowBuffer: 20,
+				// Tell AG Grid the dataset size up front. Without this it starts at
+				// rowCount=1 and any `ensureIndexVisible(idx)` with idx>1 throws
+				// error #88 (Invalid row index) until the first successCallback
+				// arrives. With totalRows known from `rowProvider.getRowCount()`,
+				// reveal works immediately even if the user navigates before the
+				// first page block lands.
+				infiniteInitialRowCount: totalRows,
 				datasource: {
 					getRows: async (params) => {
 						try {
@@ -706,6 +623,8 @@ export class CsvCodingView extends FileView {
 
 	async navigateToRow(sourceRowId: number, column?: string): Promise<void> {
 		if (!this.gridApi) return;
+		const api = this.gridApi;
+
 		// In lazy mode with an active sort, sourceRowId != display index — resolve
 		// via the display_row mapping table built on each sort change.
 		let displayIndex = sourceRowId;
@@ -716,16 +635,58 @@ export class CsvCodingView extends FileView {
 			);
 			if (mapped != null) displayIndex = mapped;
 		}
-		this.gridApi.ensureIndexVisible(displayIndex, 'middle');
-		const rowNode = this.gridApi.getDisplayedRowAtIndex(displayIndex);
-		if (rowNode) {
-			const flashOpts: { rowNodes: any[]; fadeDuration: number; columns?: string[] } = {
-				rowNodes: [rowNode],
+
+		// `flashDuration` is set explicitly: in some v33 minor versions the default
+		// behaves as 0 (silent flash). With both timings explicit the highlight is
+		// visible for ~2s total (500ms full + 1500ms fade).
+		const flash = (node: IRowNode): void => {
+			const flashOpts: { rowNodes: IRowNode[]; flashDuration: number; fadeDuration: number; columns?: string[] } = {
+				rowNodes: [node],
+				flashDuration: 500,
 				fadeDuration: 1500,
 			};
 			if (column) flashOpts.columns = [column];
-			this.gridApi.flashCells(flashOpts);
+			api.flashCells(flashOpts);
+		};
+
+		// Best-effort sync path (eager mode + lazy with warm cache): scroll + flash
+		// in one shot. Fall through to async polling when the rowNode is still a
+		// skeleton (Infinite Row Model: page block not fetched yet) or null.
+		api.ensureIndexVisible(displayIndex, 'middle');
+		if (column) api.ensureColumnVisible(column);
+		const immediate = api.getDisplayedRowAtIndex(displayIndex);
+		if (immediate?.data != null) {
+			flash(immediate);
+			return;
 		}
+		if (!this.lazyState) return;
+
+		// Lazy: poll every 100ms for up to 5s. Re-issuing scroll on each tick
+		// handles the just-mounted-grid case where the first ensureIndexVisible
+		// got swallowed by a not-yet-measured viewport. RAF deferral on the flash
+		// gives AG Grid a paint cycle to attach the cell DOM after data arrival —
+		// flashCells silently no-ops when fired against an unrendered cell.
+		// Polling is more robust than `modelUpdated` here because in v33 some
+		// scroll-settle / row-render transitions don't always emit modelUpdated.
+		let attempts = 0;
+		const MAX_ATTEMPTS = 50;
+		const tick = (): void => {
+			attempts += 1;
+			if (!this.gridApi) return;
+			this.gridApi.ensureIndexVisible(displayIndex, 'middle');
+			if (column) this.gridApi.ensureColumnVisible(column);
+			const node = this.gridApi.getDisplayedRowAtIndex(displayIndex);
+			if (node?.data != null) {
+				requestAnimationFrame(() => {
+					if (this.gridApi) flash(node);
+				});
+				return;
+			}
+			if (attempts < MAX_ATTEMPTS) {
+				window.setTimeout(tick, 100);
+			}
+		};
+		window.setTimeout(tick, 100);
 	}
 
 	// ─── Segment Editor delegates ────────────────────────────

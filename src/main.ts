@@ -25,6 +25,7 @@ import { registerMarkdownEngine } from './markdown';
 import { registerPdfEngine } from './pdf';
 import { registerImageEngine } from './image';
 import { registerCsvEngine } from './csv';
+import { prepopulateMarkerCaches } from './csv/prepopulateMarkerCaches';
 import { registerAudioEngine } from './audio';
 import { registerVideoEngine } from './video';
 import { registerAnalyticsEngine } from './analytics';
@@ -293,6 +294,15 @@ export default class QualiaCodingPlugin extends Plugin {
 		csvModel.onChange(() => consolidationCache.invalidateEngine('csv'));
 		audioModel.onChange(() => consolidationCache.invalidateEngine('audio'));
 		videoModel.onChange(() => consolidationCache.invalidateEngine('video'));
+
+		// Background pre-populate of CSV/parquet caches: lets sidebar/detail labels
+		// resolve from cell content for files the user hasn't opened yet this
+		// session. Eager parses small files; lazy uses OPFS only if already cached
+		// (no surprise downloads). Runs after layoutReady to avoid the plugin
+		// init / DuckDB boot race.
+		this.app.workspace.onLayoutReady(() => {
+			void prepopulateMarkerCaches(this, csvModel);
+		});
 
 		// Registry mutations → invalidate codes
 		this.sharedRegistry.addOnMutate(() => consolidationCache.invalidateRegistry());

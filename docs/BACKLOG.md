@@ -56,24 +56,13 @@ Cada view tem seu próprio `lazyState`/`displayMap`/`gridApi`. DuckDB runtime é
 
 Spike Premise B (§14.5.2 do design doc) mostrou p99 de 214ms em sorted scroll-to-row de 297MB. Resolvido — `csvCodingView.ts` liga `onSortChanged → refreshLazyDisplayMap` (drop+rebuild com `orderBy + whereClause`), `navigateToRow` consulta `displayRowFor()`, e `refreshLazyFilter` encadeia o rebuild. Verificado 2026-05-04.
 
-### Reveal de marker em parquet lazy não destaca a row (atacar na Fase 6)
+### ~~Reveal de marker em parquet lazy não destaca a row~~ ✅ (2026-05-04, Fase 6 Slice A)
 
-Sintoma: clicar `file-search` num marker lazy abre o file (popup Lazy/Eager se necessário) e até scrolla pro lugar certo, mas `flashCells` não dispara — `getDisplayedRowAtIndex` retorna null porque a row do Infinite Row Model ainda é skeleton (page block não foi requisitado/recebido). User perde a referência visual.
+Resolvido. `navigateToRow` agora chama `ensureIndexVisible` + `ensureColumnVisible(column)` (faltava o horizontal — flash invisível em parquet largo) + polling 100ms × 50 tentativas em vez de single-shot `modelUpdated` (em v33 algumas transições scroll-settle/row-render não emitem) + RAF defer no flash (cell DOM precisa de paint cycle pós-data) + `flashDuration: 500` explícito (default 0 em alguns minor) + `infiniteInitialRowCount: totalRows` no createGrid (resolve AG Grid error #88 quando reveal chega antes do primeiro getRows).
 
-Fix: após `ensureIndexVisible`, escutar `modelUpdated` ou `rowDataUpdated` do AG Grid, detectar quando o `rowNode` da row alvo aparece, e só então `flashCells`. Timeout de 3-5s pra desistir caso a row nunca chegue (filter ativo escondendo).
+### ~~Pre-populate cache no startup pra labels antes de file open~~ ✅ (2026-05-04, Fase 6 Slice A)
 
-**Atacar junto com Fase 6 do parquet-lazy** (UX redonda do open + reveal).
-
-### Pre-populate cache no startup pra labels antes de file open (atacar na Fase 6)
-
-Após a sessão 2026-05-04, label CSV/parquet usa cellText quando o cache está populado. Mas `rowDataCache` (eager) e `markerTextCache` (lazy) só populam **on file open**. Sidebar de quem nunca abriu o file na sessão vê fallback `Row X · Column`.
-
-Fix: no plugin onload, varrer markers do `data.json`, agrupar por fileId, e em background:
-- File abaixo do threshold (eager): `vault.read` + papaparse/hyparquet → `rowDataCache.set` → `notifyListenersOnly`
-- File acima do threshold (lazy): só popula se OPFS já tem o file cacheado (não força download se ainda não foi aberto). Ler via DuckDB+OPFS pra `markerTextCache`
-- Background async com `requestIdleCallback` pra não bloquear startup
-
-Coupling natural com a Fase 6 (mesma frente de "sistema escolhe Lazy/Eager"). User confirmou que essa UX faz sentido junto com a remoção do popup.
+Resolvido. `src/csv/prepopulateMarkerCaches.ts` roda após `app.workspace.onLayoutReady`. Eager (< threshold): se algum marker tá sem cache, `parseTabularFile` + popular `markerTextCache` (sem reter `rowDataCache` — simétrico com lazy, só excerpts ~60 chars/marker em memória). Lazy (> threshold): só popula se `isOpfsCached(opfsKey, mtime)` true — nunca força download. Boot DuckDB on demand, `populateMissingMarkerTextsForFile`, dispose provider no finally. `setupLazyMode` também trocou `populateMarkerTextCacheForFile` → `populateMissingMarkerTextsForFile` pra virar no-op em re-open quando pre-populate já encheu o cache.
 
 ### ~~Label de marker em CSV/parquet mostra coordenada, não conteúdo~~ ✅ (2026-05-04, pre-populate fica pra Fase 6)
 

@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-04 (sessão virtual scroll + markerTextCache + label CSV).
+> Última atualização: 2026-05-04 (sessão Fase 6 Slice A — open/reveal/labels redondos).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
@@ -9,16 +9,11 @@
 
 **Frentes engatilhadas (próximas a atacar, ordem sugerida):**
 
-1. **Parquet/CSV lazy loading — Fase 6** (única fase pendente da frente; design doc: `docs/parquet-lazy-design.md` §11). Fases 0–5 ✅ feitas. Sessão 2026-05-04 entregou pré-requisitos da Fase 6 (virtual scroll de marker lists nas sidebars + markerTextCache em lazy + label CSV vira conteúdo + reveal fix com file > threshold fechado). **Escopo restante da Fase 6:**
-   - Bundle compress fflate (49MB → ~15MB; destrava Community Plugins)
-   - `tabularExporter` streaming (não materializar export inteiro em RAM)
-   - UI Manage Cache em Settings (clear OPFS)
-   - Flag default + cleanup do código eager (lazy automático acima do threshold; tirar popup Lazy/Eager/Cancel — UX "sistema escolhe por como/onde abrir" que o user pediu)
-   - **Reveal redondo em lazy:** após `ensureIndexVisible`, escutar `modelUpdated` do AG Grid pra disparar `flashCells` quando o `rowNode` aparecer (skeleton em Infinite Row Model bloqueia hoje)
-   - **Pre-populate cache no startup:** varre markers, lê cellTexts em background pra labels já virem preenchidas antes de abrir o file (eager via `vault.read`, lazy via DuckDB+OPFS se cacheado)
-   - Mocks DuckDB-Wasm em jsdom (risco Gemini)
-   - Progress bar detalhada (% + bytes + ETA) — risco Gemini
-   - Estimativa: 2.5–3 sessões (era escopo anterior + 2 follow-ups novos absorvidos)
+1. **Parquet/CSV lazy loading — Fase 6** (única fase pendente da frente; design doc: `docs/parquet-lazy-design.md` §11). Fases 0–5 ✅ feitas. Sessão 2026-05-04 entregou pré-requisitos + **Slice A (UX redonda do open/reveal/labels) ✅** — popup Lazy/Eager/Cancel removido, lazy automático acima do threshold, reveal lazy redondo (`ensureColumnVisible` + polling robusto + `flashDuration`/`infiniteInitialRowCount` explícitos), pre-populate `markerTextCache` no startup (eager light + lazy se OPFS quente), DuckDB CSV reader tolerante (`all_varchar`/`null_padding`/`ignore_errors`), `parseTabularFile` não throw em warning não-fatal. **Escopo restante da Fase 6 (Slices B/C/D):**
+   - **B:** `tabularExporter`/QDPX streaming p/ lazy (não materializar export inteiro em RAM)
+   - **C:** UI "Manage Cache" em Settings (listar/limpar OPFS) + progress bar detalhada (% + bytes + ETA) cold-start
+   - **D:** Bundle compress fflate (49MB → ~15MB; destrava Community Plugins) + mocks DuckDB-Wasm em jsdom (risco Gemini) + cleanup tests
+   - Estimativa restante: 2–2.5 sessões
 
 2. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão pendente:** qual escola Qualia subscreve? Antes disso, design real não rola — virou guard-rail.
 
@@ -27,7 +22,7 @@
 - Projects + Workspace — provavelmente reinventa Workspaces nativo
 - Margin Panel customization — bloqueado por plugin externo
 
-**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll de marker lists + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)**.
+**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slice A — open/reveal/labels redondos ✅ (2026-05-04)**.
 
 **Bloqueadores no `BACKLOG.md`:** zero. Carla label vazia (whitespace-only) é minor não bloqueante.
 

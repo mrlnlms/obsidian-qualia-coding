@@ -104,7 +104,9 @@ src/
   csv/                       — CSV/Parquet engine (ag-grid, papaparse, hyparquet, duckdb-wasm)
     csvCodingModel.ts        — model CRUD para markers de segmento e row + bulk row ops (addCodeToManyRows, removeCodeFromManyRows, removeAllRowMarkersFromMany, getCodeIntersectionForRows) + lazyProviders + markerTextCache (populate chunked + dedup, populateMissing debounced, invalidação granular nos 6 sites de remove). getMarkerLabel prefere getMarkerText truncado (60 chars + …) com fallback pra coordenada Row X · Column. notifyListenersOnly() pra trigger re-render sem persistir
     csvCodingTypes.ts        — SegmentMarker, RowMarker, CsvMarker
-    csvCodingView.ts         — FileView orquestrador: eager + lazy paths. loadEagerPath extraído do onLoadFile (non-blocking banner). LazyState com currentFilter cache. refreshLazyFilter/refreshLazyDisplayMap com sync swap + re-check após await. Hooks markerTextCache: populate inicial em setupLazyMode, lazyChangeListener debounced 100ms (populateMissing), clearMarkerTextCacheForFile no onUnloadFile. notifyListenersOnly após populates pra sidebar refresh sem save. readyPromise não resolve no popup early-return — só no grid pronto (reveal aguarda sem race)
+    csvCodingView.ts         — FileView orquestrador: eager + lazy paths. loadEagerPath extraído do onLoadFile. Lazy automático acima do threshold (popup Lazy/Eager/Cancel removido em Fase 6 Slice A — placeholder de workspace-restore com botão "Open this file" → setupLazyMode direto). setupLazyMode usa populateMissingMarkerTextsForFile (no-op em re-open com cache quente). createGrid com infiniteInitialRowCount: totalRows. navigateToRow lazy: ensureIndexVisible + ensureColumnVisible + polling 100ms × 50 + RAF defer no flash + flashDuration:500 explícito.
+    parseTabular.ts          — parseTabularFile compartilhado (papaparse + hyparquet). Não throw em warning não-fatal; caller gates em headers/rows.length
+    prepopulateMarkerCaches.ts — pre-populate de markerTextCache no startup (after onLayoutReady). Eager: parseTabularFile + cellText slice. Lazy: só se isOpfsCached(opfsKey, mtime) — boot DuckDB on demand, dispose provider no finally
     csvCodingMenu.ts         — popovers de codificacao (cell + batch). openBatchCodingPopover é mode-agnostic, recebe callback async pra coletar sourceRowIds
     csvCodingCellRenderer.ts — cell renderer AG Grid: tag chips + action button
     segmentEditor.ts         — CM6 split panel: open/close, marker sync, label alignment
@@ -112,9 +114,9 @@ src/
     csvHeaderInjection.ts    — MutationObserver para injetar botoes nos headers AG Grid. HeaderInjectionContext exige callback getFilteredSourceRowIds (eager: forEachNodeAfterFilterAndSort, lazy: SQL via rowProvider)
     duckdb/                  — Lazy mode infra: DuckDB-Wasm + OPFS + filter SQL
       duckdbBootstrap.ts     — createDuckDBRuntime() factory + 2 shims pro Worker em Electron
-      duckdbRowProvider.ts   — DuckDBRowProvider: getRowCount/getRowsByDisplayRange/buildDisplayMap aceitam whereClause; getFilteredSourceRowIds via Arrow vector direct access
+      duckdbRowProvider.ts   — DuckDBRowProvider: getRowCount/getRowsByDisplayRange/buildDisplayMap aceitam whereClause; getFilteredSourceRowIds via Arrow vector direct access. read_csv_auto com all_varchar=true + null_padding=true + ignore_errors=true (tolerância a CSVs malformados)
       filterModelToSql.ts    — buildWhereClause(filterModel) → SQL WHERE escapado (text + number + combined AND/OR). Helper puro
-      opfs.ts                — copyVaultFileToOPFS streaming chunks 1MB; idempotente via mtime
+      opfs.ts                — copyVaultFileToOPFS streaming chunks 1MB; idempotente via mtime. isOpfsCached(opfsKey, mtime) consultado pelo prepopulate (não força download)
       rowProvider.ts         — interface RowProvider + MockRowProvider (tests)
       wasmAssets.ts          — WASM bytes embedded via esbuild loader binary
   image/                     — Image coding (fabric.js, zoom/pan per-file)

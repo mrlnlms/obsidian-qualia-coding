@@ -62,9 +62,23 @@ export class DuckDBRowProvider implements RowProvider {
 			true,
 		);
 
+		// CSV reader tuned for tolerance over strictness:
+		//  - `all_varchar=true`: every column as VARCHAR (no type inference). Coding
+		//    operates on raw cell text — type errors on heterogeneous real-world
+		//    CSVs (e.g. timestamp column with "false" sentinel mid-file) are not
+		//    worth a hard fail.
+		//  - `null_padding=true`: rows with fewer columns than the header become
+		//    NULL-padded instead of throwing.
+		//  - `ignore_errors=true`: rows with more columns or other parse errors
+		//    are skipped (DuckDB still prints a warning per skipped row to the
+		//    console, so the user can investigate). The alternative — strict mode
+		//    aborting the whole load over one malformed row — blocks coding the
+		//    other 99.99% of clean rows.
+		//    Caveat: markers that pointed to a skipped row become orphaned (sidebar
+		//    label falls back to coordinate). Acceptable for prosumer coding work.
 		const readFn = opts.fileType === "parquet"
 			? `read_parquet('${alias}')`
-			: `read_csv_auto('${alias}', header=true)`;
+			: `read_csv_auto('${alias}', header=true, all_varchar=true, null_padding=true, ignore_errors=true)`;
 
 		try {
 			await opts.runtime.conn.query(
