@@ -671,6 +671,28 @@ export default class QualiaCodingPlugin extends Plugin {
 		}
 		this.duckdb = null;
 		this.duckdbInitPromise = null;
+		// Release the ~34MB decompressed WASM Uint8Array cached at module scope.
+		// Without this, hot-reload (let/const survive across plugin reloads in Obsidian)
+		// keeps the buffer alive between sessions until the user restarts Obsidian.
+		try {
+			const { clearWasmBytesCache } = await import('./csv/duckdb/wasmAssets');
+			clearWasmBytesCache();
+		} catch (e) {
+			console.warn("[qualia-coding] clearWasmBytesCache failed", e);
+		}
+		// Optional: wipe the OPFS lazy cache when the user opts in via settings.
+		// Default off — keeping the cache makes re-opens of the same lazy file
+		// instant. Power users on tight disk may prefer to clear on every disable.
+		const csvSettings = (this.dataManager.section('csv') as { settings?: { clearLazyCacheOnDisable?: boolean } } | undefined)?.settings;
+		if (csvSettings?.clearLazyCacheOnDisable) {
+			try {
+				const { clearOPFSCache } = await import('./csv/duckdb');
+				const { removed } = await clearOPFSCache();
+				console.log(`[qualia-coding] cleared ${removed} cached lazy files on disable`);
+			} catch (e) {
+				console.warn("[qualia-coding] clearOPFSCache on unload failed", e);
+			}
+		}
 		clearFileInterceptRules();
 		teardownMediaToggleButtons();
 		this.memoReverseLookup.clear();

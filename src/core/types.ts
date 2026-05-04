@@ -170,6 +170,9 @@ export interface QualiaData {
 			parquetSizeWarningMB: number;
 			/** Limite em MB pra mostrar banner antes de carregar csv. Default 100. */
 			csvSizeWarningMB: number;
+			/** Quando ON, wipa o OPFS namespace inteiro no plugin onunload. Default OFF
+			 *  (mantém cache entre sessões — re-open do mesmo file lazy fica instant). */
+			clearLazyCacheOnDisable?: boolean;
 		};
 	};
 	image: { markers: ImageMarker[]; settings: { autoOpen: boolean; showButton: boolean; fileStates: Record<string, { zoom: number; panX: number; panY: number }> } };
