@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-04 (release 0.2.0 tagueado + reordenação Q-mode → Smart Codes pra próximas sessões).
+> Última atualização: 2026-05-04 (Q-mode frente #1 fechada — Files Dendrogram + File Similarity + cluster drill-down).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
@@ -18,21 +18,21 @@
 
 **Frentes engatilhadas (ordem cravada com user 2026-05-04, pós-release 0.2.0):**
 
-1. **Q-mode gaps que sobraram** — atacar primeiro porque é cirúrgico e desbloqueia clareza analítica que conecta com decisões maiores depois. Ver §"Q-mode / P-mode analytics" pra estado atual de cobertura. Trabalho concreto: dendrograma de Files (cluster hierárquico de docs por similaridade de coding) + Q-mode equivalents pontuais de outras views R-mode quando fizer sentido + ranking explícito "esse doc se parece com aqueles". **Esforço estimado: 2-3 sessões.**
+1. ~~**Q-mode gaps que sobraram**~~ ✅ **FEITO 2026-05-04** — Files Dendrogram + File Similarity Ranking + cluster drill-down cross-view (S0+S1+S2+S3, branch `feat/q-mode-gaps`). 4 commits + 2 fixes (papercut cluster IDs/silhouette + banner display). Ground truth do mock (corpus-teste-ia, 8 entrevistas × 16 codes × 6 groups) bate: 3 clusters separam Junior controle / Senior controle / Tratamento. 56 testes Q-mode passando (clusterEngine + distanceMatrix + qModeData). Frente analítica Q-mode 100% coberta — sem gaps abertos.
 
-2. **Smart Codes (Tier 3 Coding Management)** — códigos virtuais por predicate, padrão ATLAS.ti. Reclassificado 2026-05-04 como autônomo (era listado como "bloqueado por LLM" — framing errado, ver §"Tier 3 — Smart Codes" abaixo). Auto-contido, escopo de produto fechado, diferencial direto. **Esforço: 4-5 sessões. Sem dependência.**
+2. **Smart Codes (Tier 3 Coding Management)** — códigos virtuais por predicate, padrão ATLAS.ti. Reclassificado 2026-05-04 como autônomo (era listado como "bloqueado por LLM" — framing errado, ver §"Tier 3 — Smart Codes" abaixo). Auto-contido, escopo de produto fechado, diferencial direto. **Esforço: 4-5 sessões. Sem dependência.** **Próxima frente.**
 
-3. **Submissão Community Plugins PR** — pode rolar em paralelo a #1/#2 quando quiser. Release 0.2.0 já tem o artefato; falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas é grande pra padrão da Community — pode receber pushback no review.
+3. **Submissão Community Plugins PR** — pode rolar em paralelo a #2 quando quiser. Release 0.2.0 já tem o artefato; falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas é grande pra padrão da Community — pode receber pushback no review.
 
 4. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão de produto pendente:** qual escola Qualia subscreve, qual use case primário, qual provider strategy, onde no fluxo entra, qual granularidade de revisão humana. Antes dessas 5 decisões cravadas (1 sessão de brainstorm dedicado), design não rola. Pós-decisão: ~10-15 sessões pra MVP S+M.
 
 **Frentes em decisão de produto** (sem spec, sem design doc):
 - **Intercoder Reliability + LLM-assisted coding** — duas decisões com possível acoplamento epistemológico (ver §"Intercoder Reliability"). Material de repertório acumulado em `docs/_study/llm-coding/` (40 ferramentas + 5 patterns) + 2 conversas externas com claude_ai (2026-04-26 sobre ICR + 2026-04-28 sobre tensão LLM-as-coder). Os 2 ângulos sobre ICR (clássico Kappa/α vs auditabilidade interpretativa) e as 5 escolas LLM ficam como repertório pra brainstorm — uma perspectiva não anula a outra. Brainstorm dedicado precede design técnico.
-- **Q-mode / P-mode analytics** — cobertura parcial já em prod (MDS Files, Source Comparison, Code × Metadata + Case Variables como infra; Temporal + Evolution + Codebook Timeline cobrem P-mode). Gap genuíno que sobra: dendrograma de Files (cluster de docs por similaridade), Q-mode equivalents de outras views R quando fizer sentido. Não é trabalho aberto — registro pra onda futura de Analytics.
+- ~~**Q-mode / P-mode analytics**~~ ✅ **FEITO 2026-05-04** (frente #1). Cobertura completa agora: Files Dendrogram + File Similarity + cluster drill-down + MDS Files + Source Comparison + Code × Metadata. P-mode segue coberto por Temporal + Evolution + Codebook Timeline.
 - **Projects + Workspace** — provavelmente reinventa Workspaces nativo. User cravou "reavaliar antes de implementar" — provavelmente passar.
 - **Margin Panel customization** — bloqueado por decisão em plugin externo.
 
-**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slices A/B/C/D/E ✅ (2026-05-04 — open/reveal/labels redondos · exports lazy-aware · progress bar+Manage cache · bundle 49MB→14.2MB · QDPX import round-trip)**. **Fase 6 fechada.**
+**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slices A/B/C/D/E ✅ (2026-05-04)** · **Q-mode gaps S0+S1+S2+S3 ✅ (2026-05-04 — Files Dendrogram + File Similarity + cluster drill-down)**. **Frente Q-mode #1 fechada.**
 
 **Bloqueadores no `BACKLOG.md`:** zero. Carla label vazia (whitespace-only) é minor não bloqueante.
 
