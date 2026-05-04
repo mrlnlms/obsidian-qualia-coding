@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-04 (sessão Fase 6 Slice B — exports lazy-aware).
+> Última atualização: 2026-05-04 (sessão Fase 6 Slice C — progress bar + Manage Cache UI).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
@@ -9,10 +9,9 @@
 
 **Frentes engatilhadas (próximas a atacar, ordem sugerida):**
 
-1. **Parquet/CSV lazy loading — Fase 6** (única fase pendente da frente; design doc: `docs/parquet-lazy-design.md` §11). Fases 0–5 ✅ feitas. **Slice A** (UX redonda do open/reveal/labels) ✅ + **Slice B** (exports lazy-aware) ✅ entregues 2026-05-04. Slice B fechou: parquet vazio em tabular export (era papaparse no CSV-only), RAM spike em arquivo grande (vault.read inteiro → DuckDB batch), QDPX `<Sources>` embedding pra CSV/parquet com custom namespace `qualia:TabularSource` (Decisão 5 do design). **Escopo restante da Fase 6 (Slices C/D):**
-   - **C:** UI "Manage Cache" em Settings (listar/limpar OPFS) + progress bar detalhada (% + bytes + ETA) cold-start
+1. **Parquet/CSV lazy loading — Fase 6** (única fase pendente da frente; design doc: `docs/parquet-lazy-design.md` §11). Fases 0–5 ✅ feitas. **Slices A/B/C** ✅ entregues 2026-05-04. Slice C fechou: progress bar com ETA durante OPFS copy (`formatLazyProgress` puro + testado), UI "Manage cache" em Settings (`listOpfsEntries` + per-entry Clear + Clear all). **Escopo restante da Fase 6 (Slice D):**
    - **D:** Bundle compress fflate (49MB → ~15MB; destrava Community Plugins) + mocks DuckDB-Wasm em jsdom (risco Gemini) + cleanup tests
-   - Estimativa restante: 1.5–2 sessões
+   - Estimativa restante: 0.5–1 sessão
 
 2. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão pendente:** qual escola Qualia subscreve? Antes disso, design real não rola — virou guard-rail.
 
@@ -21,7 +20,7 @@
 - Projects + Workspace — provavelmente reinventa Workspaces nativo
 - Margin Panel customization — bloqueado por plugin externo
 
-**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slice A — open/reveal/labels redondos ✅ (2026-05-04)** · **Fase 6 Slice B — exports lazy-aware (parquet vazio, RAM spike, QDPX `<Sources>` embedding) ✅ (2026-05-04)**.
+**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slice A — open/reveal/labels redondos ✅ (2026-05-04)** · **Fase 6 Slice B — exports lazy-aware (parquet vazio, RAM spike, QDPX `<Sources>` embedding) ✅ (2026-05-04)** · **Fase 6 Slice C — progress bar com ETA + UI Manage cache ✅ (2026-05-04)**.
 
 **Bloqueadores no `BACKLOG.md`:** zero. Carla label vazia (whitespace-only) é minor não bloqueante.
 

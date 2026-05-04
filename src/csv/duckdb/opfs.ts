@@ -146,6 +146,58 @@ export async function isOpfsCached(opfsKey: string, mtime: number): Promise<bool
 }
 
 /**
+ * One entry in the qualia OPFS namespace. Used by the Settings "Manage cache"
+ * UI to surface what's cached, where it came from, and how much space it
+ * consumes.
+ */
+export interface OpfsEntryInfo {
+	opfsKey: string;
+	originalPath: string;
+	mtime: number;
+	bytes: number;
+}
+
+/**
+ * List all cached OPFS entries with their original vault paths and sizes.
+ * Returns empty array if OPFS is unavailable or the namespace doesn't exist.
+ * Entries with missing/corrupt meta are skipped silently — they'll be re-copied
+ * on next access anyway.
+ */
+export async function listOpfsEntries(): Promise<OpfsEntryInfo[]> {
+	if (!navigator.storage || typeof navigator.storage.getDirectory !== "function") {
+		return [];
+	}
+	const opfsRoot = await navigator.storage.getDirectory();
+	let root: FileSystemDirectoryHandle;
+	try {
+		root = await opfsRoot.getDirectoryHandle(ROOT_DIR, { create: false });
+	} catch {
+		return [];
+	}
+	const out: OpfsEntryInfo[] = [];
+	const entries = (root as unknown as {
+		entries(): AsyncIterable<[string, FileSystemHandle]>;
+	}).entries();
+	for await (const [opfsKey, handle] of entries) {
+		if (handle.kind !== "directory") continue;
+		const dir = handle as FileSystemDirectoryHandle;
+		const meta = await readMeta(dir);
+		if (!meta) continue;
+		let bytes = 0;
+		try {
+			const dataHandle = await dir.getFileHandle(DATA_FILENAME);
+			const file = await dataHandle.getFile();
+			bytes = file.size;
+		} catch {
+			continue;
+		}
+		out.push({ opfsKey, originalPath: meta.originalPath, mtime: meta.mtime, bytes });
+	}
+	out.sort((a, b) => a.originalPath.localeCompare(b.originalPath));
+	return out;
+}
+
+/**
  * Remove a single OPFS-cached file by key. Idempotent — no-op if missing.
  */
 export async function removeOPFSFile(opfsKey: string): Promise<void> {

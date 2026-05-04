@@ -1,8 +1,9 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import { ExportModal } from '../export/exportModal';
 import { openExportModal } from '../export/exportCommands';
 import { refreshMediaToggleButtons } from './mediaToggleButton';
+import { listOpfsEntries, removeOPFSFile, clearOPFSCache, type OpfsEntryInfo } from '../csv/duckdb';
 
 export class QualiaSettingTab extends PluginSettingTab {
 	plugin: QualiaCodingPlugin;
@@ -284,5 +285,87 @@ export class QualiaSettingTab extends PluginSettingTab {
 			.addButton(btn => btn
 				.setButtonText('Open export dialog')
 				.onClick(() => openExportModal(this.plugin, 'tabular')));
+
+		// ── Lazy cache ──────────────────────────────────────────
+		containerEl.createEl('h2', { text: 'Lazy cache (large CSV/parquet)' });
+
+		const cacheDescEl = containerEl.createEl('p', {
+			cls: 'setting-item-description',
+			text: 'Files above the size threshold are mirrored to OPFS so DuckDB can query them with partial reads. Entries persist between sessions; clear them here when reclaiming disk space.',
+		});
+		cacheDescEl.style.marginTop = '0';
+
+		const cacheListEl = containerEl.createDiv({ cls: 'qualia-lazy-cache-list' });
+		const renderCacheList = async () => {
+			cacheListEl.empty();
+			let entries: OpfsEntryInfo[];
+			try {
+				entries = await listOpfsEntries();
+			} catch (err) {
+				cacheListEl.createEl('p', {
+					cls: 'setting-item-description',
+					text: `Could not read OPFS: ${(err as Error).message}`,
+				});
+				return;
+			}
+			if (entries.length === 0) {
+				cacheListEl.createEl('p', {
+					cls: 'setting-item-description',
+					text: 'No cached files.',
+				});
+				return;
+			}
+			const totalBytes = entries.reduce((acc, e) => acc + e.bytes, 0);
+			cacheListEl.createEl('p', {
+				cls: 'setting-item-description',
+				text: `${entries.length} cached ${entries.length === 1 ? 'file' : 'files'} · ${formatBytes(totalBytes)} total`,
+			});
+			for (const entry of entries) {
+				const setting = new Setting(cacheListEl)
+					.setName(entry.originalPath)
+					.setDesc(`${formatBytes(entry.bytes)} · last sync ${formatTimestamp(entry.mtime)}`);
+				setting.addButton(btn => btn
+					.setButtonText('Clear')
+					.onClick(async () => {
+						try {
+							await removeOPFSFile(entry.opfsKey);
+							new Notice(`Cleared cache for ${entry.originalPath}`);
+							await renderCacheList();
+						} catch (err) {
+							new Notice(`Clear failed: ${(err as Error).message}`);
+						}
+					}));
+			}
+		};
+
+		new Setting(containerEl)
+			.setName('Clear all cached files')
+			.setDesc('Remove every entry from the qualia OPFS namespace. Files re-copy on next access.')
+			.addButton(btn => btn
+				.setButtonText('Clear all')
+				.setWarning()
+				.onClick(async () => {
+					try {
+						const { removed } = await clearOPFSCache();
+						new Notice(`Cleared ${removed} cached ${removed === 1 ? 'file' : 'files'}`);
+						await renderCacheList();
+					} catch (err) {
+						new Notice(`Clear all failed: ${(err as Error).message}`);
+					}
+				}));
+
+		void renderCacheList();
 	}
+}
+
+function formatBytes(bytes: number): string {
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function formatTimestamp(ms: number): string {
+	if (!ms) return 'unknown';
+	return new Date(ms).toLocaleString();
 }

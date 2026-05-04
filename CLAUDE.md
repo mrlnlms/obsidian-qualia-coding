@@ -108,6 +108,7 @@ src/
     parseTabular.ts          — parseTabularFile compartilhado (papaparse + hyparquet). Não throw em warning não-fatal; caller gates em headers/rows.length
     prepopulateMarkerCaches.ts — pre-populate de markerTextCache no startup (after onLayoutReady). Eager: parseTabularFile + cellText slice. Lazy: só se isOpfsCached(opfsKey, mtime) — boot DuckDB on demand, dispose provider no finally
     resolveExportTexts.ts    — resolve cellText pra export tabular/QDPX. Cobre 6 cases (eager/lazy × aberto/fechado/pre-populated/OPFS-cached): csvModel.getMarkerText sync first; cache miss → parseTabularFile (suporta parquet); arquivo > threshold → DuckDB batch via OPFS (sem RAM spike). Provider disposed no finally
+    lazyProgressFormat.ts    — formatLazyProgress puro: "45% — 134.5 / 297.0 MB · ETA 8s". ETA suprimida nos primeiros 250ms (estimativa ruidosa). formatDuration compacto (<60s = Xs, <10min = "Nm Ms", >=10min = "Nm")
     csvCodingMenu.ts         — popovers de codificacao (cell + batch). openBatchCodingPopover é mode-agnostic, recebe callback async pra coletar sourceRowIds
     csvCodingCellRenderer.ts — cell renderer AG Grid: tag chips + action button
     segmentEditor.ts         — CM6 split panel: open/close, marker sync, label alignment

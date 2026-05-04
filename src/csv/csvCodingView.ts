@@ -8,6 +8,7 @@ import type { CsvCodingModel } from './csvCodingModel';
 import { visibilityEventBus } from '../core/visibilityEventBus';
 import type { IRowNode } from 'ag-grid-community';
 import { parseTabularFile, type TabularData } from './parseTabular';
+import { formatLazyProgress } from './lazyProgressFormat';
 import {
 	DuckDBRowProvider,
 	type TabularFileType,
@@ -294,11 +295,10 @@ export class CsvCodingView extends FileView {
 
 		try {
 			status.textContent = 'Copying to lazy cache (0%)…';
+			const copyStart = performance.now();
 			const handle = await copyVaultFileToOPFS(absPath, opfsKey, file.stat.mtime, (w, t) => {
-				const pct = t > 0 ? ((w / t) * 100).toFixed(0) : '?';
-				const wMb = (w / (1024 * 1024)).toFixed(1);
-				const tMb = (t / (1024 * 1024)).toFixed(1);
-				status.textContent = `Copying to lazy cache (${pct}%) — ${wMb} / ${tMb} MB`;
+				const elapsed = performance.now() - copyStart;
+				status.textContent = `Copying to lazy cache · ${formatLazyProgress(w, t, elapsed)}`;
 			});
 
 			status.textContent = 'Booting DuckDB-Wasm…';
