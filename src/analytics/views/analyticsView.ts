@@ -433,7 +433,7 @@ export class AnalyticsView extends ItemView {
       return;
     }
 
-    this.clusterBannerEl.style.display = "";
+    this.clusterBannerEl.style.display = "block";
     const inner = this.clusterBannerEl.createDiv({ cls: "codemarker-cluster-banner-inner" });
 
     const label = inner.createSpan({ cls: "codemarker-cluster-banner-label" });
