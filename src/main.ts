@@ -680,19 +680,11 @@ export default class QualiaCodingPlugin extends Plugin {
 		} catch (e) {
 			console.warn("[qualia-coding] clearWasmBytesCache failed", e);
 		}
-		// Optional: wipe the OPFS lazy cache when the user opts in via settings.
-		// Default off — keeping the cache makes re-opens of the same lazy file
-		// instant. Power users on tight disk may prefer to clear on every disable.
-		const csvSettings = (this.dataManager.section('csv') as { settings?: { clearLazyCacheOnDisable?: boolean } } | undefined)?.settings;
-		if (csvSettings?.clearLazyCacheOnDisable) {
-			try {
-				const { clearOPFSCache } = await import('./csv/duckdb');
-				const { removed } = await clearOPFSCache();
-				console.log(`[qualia-coding] cleared ${removed} cached lazy files on disable`);
-			} catch (e) {
-				console.warn("[qualia-coding] clearOPFSCache on unload failed", e);
-			}
-		}
+		// OPFS lazy cache is wiped on file close (csvCodingView.onUnloadFile),
+		// so by the time the plugin unloads there should be no leftover entries.
+		// `clearOPFSCache` here would be a redundant safety net — skip to keep
+		// teardown lean. The Settings "Clear all" button stays as the manual
+		// recovery for the rare case where a crashed view left orphans behind.
 		clearFileInterceptRules();
 		teardownMediaToggleButtons();
 		this.memoReverseLookup.clear();

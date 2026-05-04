@@ -99,6 +99,16 @@ ver com Obsidian rodando + arquivos reais.
 - [ ] Botão `Clear all` (warning vermelho) limpa tudo, mostra Notice "Cleared N cached files"
 - [ ] Após clear, abre o mesmo parquet → recopia pro OPFS (cold start de novo, com progress bar)
 
+### C.4 Auto-cleanup ao fechar arquivo (default behavior)
+**Comportamento**: ao fechar a leaf de um arquivo lazy, o OPFS daquele arquivo é wipado automaticamente. Disco fica previsível — sem cache invisível crescendo.
+
+- [ ] Abre um parquet lazy → confirma na lista de Settings que aparece como cached
+- [ ] Fecha a leaf (Ctrl+W ou X no tab)
+- [ ] Volta em Settings → "Lazy cache" → entry **sumiu** da lista
+- [ ] Reabrir o mesmo parquet → cold start de novo (progress bar aparece)
+- [ ] Edge case: 2 leaves abertos com mesmo arquivo → fechar UMA mantém OPFS (refcount). Fechar a última remove.
+- [ ] Botões `Clear individual` / `Clear all` ainda funcionam como rede de segurança pra órfãos de crash
+
 ---
 
 ## Slice D — Bundle compress (49 MB → 14.2 MB)

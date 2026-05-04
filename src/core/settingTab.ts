@@ -354,17 +354,6 @@ export class QualiaSettingTab extends PluginSettingTab {
 					}
 				}));
 
-		const lazyCacheCsv = this.plugin.dataManager.section('csv');
-		new Setting(containerEl)
-			.setName('Clear cache when plugin is disabled')
-			.setDesc('When ON, the OPFS namespace is wiped automatically every time the plugin unloads (disable in Settings, Obsidian quits, hot-reload). Trade-off: privacy and disk reclaim, but re-opens of large files pay the full copy cost again.')
-			.addToggle(toggle => toggle
-				.setValue(lazyCacheCsv.settings.clearLazyCacheOnDisable ?? false)
-				.onChange((value) => {
-					lazyCacheCsv.settings.clearLazyCacheOnDisable = value;
-					this.plugin.dataManager.markDirty();
-				}));
-
 		void renderCacheList();
 	}
 }

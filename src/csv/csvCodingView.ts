@@ -14,6 +14,7 @@ import {
 	type TabularFileType,
 	copyVaultFileToOPFS,
 	opfsKeyFor,
+	removeOPFSFile,
 } from './duckdb';
 import { buildWhereClause, type AgFilterModel } from './duckdb/filterModelToSql';
 
@@ -758,13 +759,17 @@ export class CsvCodingView extends FileView {
 			this.headerObserver = null;
 		}
 
+		// Snapshot the file path before async teardown — `this.file` may be nulled
+		// by Obsidian's leaf machinery while we're still awaiting cleanup.
+		const filePathSnapshot = this.file?.path;
+
 		// Snapshot + null `lazyState` BEFORE the async teardown. If anything during
 		// `gridApi.destroy()` (or another concurrent path like `refreshLazyFilter`)
 		// re-enters and reads `this.lazyState`, it sees null and skips work — avoids
 		// double-dispose / double-dropDisplayMap on the same provider.
 		const lazyState = this.lazyState;
 		this.lazyState = null;
-		if (lazyState && this.file) this.csvModel.unregisterLazyProvider(this.file.path);
+		if (lazyState && filePathSnapshot) this.csvModel.unregisterLazyProvider(filePathSnapshot);
 
 		if (this.gridApi) {
 			this.gridApi.destroy();
@@ -779,6 +784,22 @@ export class CsvCodingView extends FileView {
 				try { await rowProvider.dropDisplayMap(displayMap.name); } catch (e) { console.warn(e); }
 			}
 			try { await rowProvider.dispose(); } catch (e) { console.warn(e); }
+		}
+
+		// OPFS cleanup: when the user closes a lazy file, drop its OPFS copy so
+		// disk usage doesn't silently grow. Re-open will copy again — the user
+		// already pays the open-time wait, so the trade-off is "predictable disk
+		// vs invisible cache". Skip when another leaf still has the same file
+		// open (refcount via workspace iteration).
+		if (lazyState && filePathSnapshot) {
+			const stillOpen = this.app.workspace
+				.getLeavesOfType(CSV_CODING_VIEW_TYPE)
+				.some(l => l !== this.leaf && (l.view as CsvCodingView).file?.path === filePathSnapshot);
+			if (!stillOpen) {
+				const vaultId = this.app.vault.getName();
+				const opfsKey = opfsKeyFor(vaultId, filePathSnapshot);
+				try { await removeOPFSFile(opfsKey); } catch (e) { console.warn('[qualia-csv lazy] OPFS cleanup failed', e); }
+			}
 		}
 		this.contentEl.empty();
 	}

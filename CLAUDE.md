@@ -118,7 +118,7 @@ src/
       duckdbBootstrap.ts     — createDuckDBRuntime() factory + 2 shims pro Worker em Electron
       duckdbRowProvider.ts   — DuckDBRowProvider: getRowCount/getRowsByDisplayRange/buildDisplayMap aceitam whereClause; getFilteredSourceRowIds via Arrow vector direct access. read_csv_auto com all_varchar=true + null_padding=true + ignore_errors=true (tolerância a CSVs malformados)
       filterModelToSql.ts    — buildWhereClause(filterModel) → SQL WHERE escapado (text + number + combined AND/OR). Helper puro
-      opfs.ts                — copyVaultFileToOPFS streaming chunks 1MB; idempotente via mtime. isOpfsCached(opfsKey, mtime) consultado pelo prepopulate (não força download)
+      opfs.ts                — copyVaultFileToOPFS streaming chunks 1MB; idempotente via mtime. isOpfsCached(opfsKey, mtime) consultado pelo prepopulate (não força download). removeOPFSFile chamado no csvCodingView.onUnloadFile pra limpar OPFS quando arquivo lazy fecha (com refcount via leaves do mesmo file path) — evita disco crescendo sem usuário perceber
       rowProvider.ts         — interface RowProvider + MockRowProvider (tests)
       wasmAssets.ts          — WASM bytes embedded gzipados via esbuild plugin duckdbWasmGzipPlugin (32.7MB → 7.6MB). getWasmBytes() faz gunzip lazy + cached. clearWasmBytesCache() libera ~34MB no plugin onunload
   image/                     — Image coding (fabric.js, zoom/pan per-file)
