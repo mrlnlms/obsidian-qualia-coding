@@ -420,6 +420,7 @@ Naming convention `sc_*` no `type` evita colisão com types de code (já que fil
 - Render: bullet do entry usa ícone `⚡` em vez de `•` quando `entity === 'smartCode'`. Cor segue o bucket (mesma paleta `EVENT_COLORS`). Sem 7ª cor.
 - Config panel da timeline ganha checkbox extra "Include smart code events" (default on). Quando off, filtra `entity !== 'smartCode'`.
 - `bucketByGranularity` e `buildTimelineEvents` aceitam entries de qualquer entity sem mudança estrutural — só o renderer distingue visualmente.
+- **`EVENT_TYPE_TO_FILTER` extension obrigatória** (em `src/analytics/data/codebookTimelineEngine.ts:17`): hoje tipado `Record<AuditEntry['type'], EventTypeFilter>`. Adicionar os 5 sc_* keys no literal: `sc_created → 'created'`, `sc_predicate_edited → 'edited'`, `sc_memo_edited → 'edited'`, `sc_auto_rewritten_on_merge → 'edited'`, `sc_deleted → 'deleted'`. TS força exhaustiveness; faltar uma key quebra build.
 
 ## 14. Export QDPX
 
@@ -481,7 +482,7 @@ sc["predicate"] = sc["predicate_json"].apply(json.loads)
 `qdpxImporter.parseSmartCodes(xml, idMap)`:
 
 1. Parse `<qualia:SmartCodes>` (regex-based pure function como `parseSetsFromXml`). Extrai elements: predicate JSON (CDATA), memo opcional (`<qualia:Memo>`), atributos `guid/name/color`.
-2. **Pass 1 (allocate):** itera todos `<qualia:SmartCode>` e cria `SmartCodeDefinition` placeholder com `predicate: { op: 'AND', children: [] }` (vazio temporário) + memo + name + color. Registra `idMap.smartCodes[oldGuid] → newId`. Isso garante que pass 2 pode resolver `smartCode` leaf refs entre smart codes do mesmo import.
+2. **Pass 1 (allocate):** itera todos `<qualia:SmartCode>` e cria `SmartCodeDefinition` placeholder com `predicate: { op: 'AND', children: [] }` (vazio temporário) + memo + name + color. Registra `idMap.smartCodes.set(oldGuid, newId)`. Isso garante que pass 2 pode resolver `smartCode` leaf refs entre smart codes do mesmo import. **Shape do `idMap.smartCodes`:** `Map<string, string>`, sibling de `idMap.codes`/`idMap.sources`/`idMap.selections` na `GuidResolver` existente em `src/import/qdpxImporter.ts:105` — mesma convenção, zero shape novo.
 3. **Pass 2 (resolve):** itera novamente, faz `JSON.parse(predicate)`, walk no AST e re-mapeia refs via `idMap` (que já mantém oldGuid → newId pra codes/sets/folders/cases/smartCodes):
    - `hasCode.codeId` → idMap.codes
    - `inFolder.folderId` → idMap.folders
