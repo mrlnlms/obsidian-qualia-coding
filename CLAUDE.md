@@ -133,7 +133,7 @@ src/
   video/                     — Video engine — thin wrapper (~54 LOC) via MediaViewCore
   export/                    — REFI-QDA export (QDC codebook + QDPX projeto completo) + CSV tabular
     qdcExporter.ts           — gera XML do codebook (hierarquia por nesting)
-    qdpxExporter.ts          — orquestra export completo (codigos + sources + segments + memos + links). Inclui CSV/parquet em <Sources> via custom namespace `<qualia:TabularSource>` + `<qualia:CellSelection>` (Decisão 5 do parquet-lazy-design). xmlns:qualia declarado no Project root quando section usa o prefixo. injectVariablesIntoSource regex aceita prefixo de namespace
+    qdpxExporter.ts          — orquestra export completo (codigos + sources + segments + memos + links). Inclui CSV/parquet em <Sources> via custom namespace `<qualia:TabularSource>` + `<qualia:CellSelection>` (Decisão 5 do parquet-lazy-design). xmlns:qualia declarado no Project root quando section usa o prefixo. injectVariablesIntoSource regex aceita prefixo de namespace. Round-trip via qdpxImporter.parseSources + createTabularMarker
     xmlBuilder.ts            — helpers XML (escapeXml, xmlAttr, xmlEl, xmlDeclaration)
     coordConverters.ts       — conversao de coords por engine (PDF, Image, Media)
     exportModal.ts           — modal pre-export (formato, toggle sources, disclaimer CSV)
@@ -151,7 +151,7 @@ src/
       tabularExporter.ts     — orchestrator (CSV text resolve via resolveExportTexts + fflate zip realm-safety). Recebe plugin (não app) pra ter acesso ao csvModel + getDuckDB
   import/                    — REFI-QDA import (QDC + QDPX)
     qdcImporter.ts           — parse XML codebook, popular registry
-    qdpxImporter.ts          — orquestra import completo (ZIP → vault)
+    qdpxImporter.ts          — orquestra import completo (ZIP → vault). parseSources reconhece `qualia:TabularSource` (custom namespace) e cria SegmentMarker/RowMarker via createTabularMarker. Round-trip QDPX preserva sourceRowId/column/from/to dos markers CSV/parquet
     xmlParser.ts             — helpers parse XML
     importModal.ts           — modal de import (conflitos, opcoes)
     importCommands.ts        — commands na palette

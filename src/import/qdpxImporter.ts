@@ -10,6 +10,7 @@ import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { MediaMarker } from '../media/mediaTypes';
 import type { ImageMarker } from '../image/imageCodingTypes';
 import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
+import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
 import type { AudioFile } from '../audio/audioCodingTypes';
 import type { VideoFile } from '../video/videoCodingTypes';
 import { parseXml, getChildElements, getAttr, getNumAttr, getTextContent, getAllElements } from './xmlParser';
@@ -35,7 +36,7 @@ export interface ParsedCase {
 
 export interface ParsedSelection {
   guid: string;
-  type: 'PlainTextSelection' | 'PDFSelection' | 'PictureSelection' | 'AudioSelection' | 'VideoSelection';
+  type: 'PlainTextSelection' | 'PDFSelection' | 'PictureSelection' | 'AudioSelection' | 'VideoSelection' | 'qualia:CellSelection';
   codeGuids: string[];
   noteGuids: string[];
   createdAt?: string;
@@ -51,12 +52,17 @@ export interface ParsedSelection {
   // Media selections
   begin?: number;
   end?: number;
+  // Tabular cell selections (qualia:CellSelection — custom namespace)
+  sourceRowId?: number;
+  column?: string;
+  cellFrom?: number;
+  cellTo?: number;
 }
 
 export interface ParsedSource {
   guid: string;
   name: string;
-  type: 'text' | 'pdf' | 'picture' | 'audio' | 'video';
+  type: 'text' | 'pdf' | 'picture' | 'audio' | 'video' | 'tabular';
   path?: string;           // internal:// or relative://
   plainTextPath?: string;  // for TextSource and PDF Representation
   selections: ParsedSelection[];
@@ -121,6 +127,7 @@ export function parseSources(doc: Document): ParsedSource[] {
     PictureSource: 'picture',
     AudioSource: 'audio',
     VideoSource: 'video',
+    'qualia:TabularSource': 'tabular',
   };
 
   for (const [tag, type] of Object.entries(typeMap)) {
@@ -147,7 +154,7 @@ export function parseSources(doc: Document): ParsedSource[] {
       }
 
       // Parse selections
-      const selectionTags = ['PlainTextSelection', 'PDFSelection', 'PictureSelection', 'AudioSelection', 'VideoSelection'];
+      const selectionTags = ['PlainTextSelection', 'PDFSelection', 'PictureSelection', 'AudioSelection', 'VideoSelection', 'qualia:CellSelection'];
       for (const selTag of selectionTags) {
         for (const selEl of getChildElements(el, selTag)) {
           src.selections.push(parseSelection(selEl, selTag as ParsedSelection['type']));
@@ -203,6 +210,12 @@ function parseSelection(el: Element, type: ParsedSelection['type']): ParsedSelec
     secondY: getNumAttr(el, 'secondY'),
     begin: getNumAttr(el, 'begin'),
     end: getNumAttr(el, 'end'),
+    // Tabular: attributes use the qualia: prefix literally — DOM keeps the
+    // prefix in the attribute name when no namespace is declared mid-doc.
+    sourceRowId: getNumAttr(el, 'qualia:sourceRowId'),
+    column: getAttr(el, 'qualia:column'),
+    cellFrom: getNumAttr(el, 'qualia:from'),
+    cellTo: getNumAttr(el, 'qualia:to'),
   };
 }
 
@@ -511,7 +524,7 @@ async function extractSource(
     return mdPath;
   }
 
-  // Binary sources (PDF, image, audio, video)
+  // Binary sources (PDF, image, audio, video, tabular CSV/parquet).
   const binPath = resolveInternalPath(src.path);
   const binData = binPath ? zipFiles[binPath] : undefined;
   if (!binData) return null;
@@ -632,6 +645,9 @@ async function createMarkersForSource(
           break;
         case 'video':
           count += createMediaMarker(sel, filePath, codes, memo, ts, dataManager, 'video', result);
+          break;
+        case 'tabular':
+          count += createTabularMarker(sel, filePath, codes, memo, ts, dataManager, result);
           break;
       }
 
@@ -808,6 +824,63 @@ function createMediaMarker(
   };
   (fileEntry as any).markers.push(marker);
   dataManager.setSection(engine, data);
+  return 1;
+}
+
+// ─── Tabular (CSV/parquet) marker creation ───
+
+/**
+ * Build a SegmentMarker (when from/to present) or RowMarker (no from/to) from
+ * a `<qualia:CellSelection>`. Round-trip companion to `buildTabularSourceXml`
+ * in `qdpxExporter.ts`.
+ */
+function createTabularMarker(
+  sel: ParsedSelection,
+  filePath: string,
+  codes: CodeApplication[],
+  memo: string | undefined,
+  ts: number,
+  dataManager: DataManager,
+  result: ImportResult,
+): number {
+  if (sel.sourceRowId === undefined || sel.column === undefined) {
+    result.warnings.push(`Tabular selection ${sel.guid} in ${filePath}: missing qualia:sourceRowId or qualia:column`);
+    return 0;
+  }
+
+  const csvData = dataManager.section('csv');
+  const id = `import_${sel.guid}`;
+  const isSegment = sel.cellFrom !== undefined && sel.cellTo !== undefined;
+
+  if (isSegment) {
+    const marker: SegmentMarker = {
+      id,
+      fileId: filePath,
+      sourceRowId: sel.sourceRowId,
+      column: sel.column,
+      from: sel.cellFrom!,
+      to: sel.cellTo!,
+      codes,
+      memo: memo ? { content: memo } : undefined,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    csvData.segmentMarkers.push(marker);
+  } else {
+    const marker: RowMarker = {
+      id,
+      fileId: filePath,
+      sourceRowId: sel.sourceRowId,
+      column: sel.column,
+      codes,
+      memo: memo ? { content: memo } : undefined,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    csvData.rowMarkers.push(marker);
+  }
+
+  dataManager.setSection('csv', csvData);
   return 1;
 }
 

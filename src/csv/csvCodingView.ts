@@ -285,7 +285,7 @@ export class CsvCodingView extends FileView {
 
 		const adapter = this.app.vault.adapter;
 		if (!(adapter instanceof FileSystemAdapter)) {
-			status.textContent = '❌ Lazy mode requires desktop FileSystemAdapter.';
+			status.textContent = '❌ Lazy mode could not access the local filesystem adapter.';
 			this.readyResolve?.();
 			return;
 		}

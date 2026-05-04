@@ -24,6 +24,8 @@ import { CsvCodingModel } from '../../src/csv/csvCodingModel';
 import { CaseVariablesRegistry } from '../../src/core/caseVariables/caseVariablesRegistry';
 import { exportTabular } from '../../src/export/tabular/tabularExporter';
 import { exportProject } from '../../src/export/qdpxExporter';
+import { parseSources } from '../../src/import/qdpxImporter';
+import { parseXml } from '../../src/import/xmlParser';
 import { TFile } from '../mocks/obsidian';
 import type { Plugin } from 'obsidian';
 import type QualiaCodingPlugin from '../../src/main';
@@ -257,6 +259,57 @@ describe('Fase 6 Slice B — exports lazy-aware', () => {
 			expect(fileNames.filter(n => n.startsWith('sources/'))).toEqual([]);
 			const projectXml = strFromU8(files['project.qde']!);
 			expect(projectXml).toContain('path="relative://data.parquet"');
+		});
+
+		it('round-trip: exported QDPX parses back into ParsedSource[] with tabular selections', async () => {
+			const segCodeId = reg.create('Skill', '#abc').id;
+			const rowCodeId = reg.create('Person', '#def').id;
+			const csv = dm.section('csv');
+			csv.segmentMarkers.push({
+				id: 'sg1', fileId: 'data.parquet', sourceRowId: 0, column: 'Comment',
+				from: 0, to: 9, codes: [{ codeId: segCodeId }], createdAt: 0, updatedAt: 0,
+			});
+			csv.rowMarkers.push({
+				id: 'rm1', fileId: 'data.parquet', sourceRowId: 1, column: 'Name',
+				codes: [{ codeId: rowCodeId }], createdAt: 0, updatedAt: 0,
+			});
+			dm.setSection('csv', csv);
+			csvModel.reload();
+
+			const plugin = mockPlugin(dm, csvModel, { parquet: { 'data.parquet': parquetBytes } });
+			const result = await exportProject(plugin.app as any, dm, reg, {
+				format: 'qdpx',
+				includeSources: true,
+				fileName: 'out.qdpx',
+				vaultName: 'test-vault',
+				pluginVersion: '0.0.1',
+			}, caseVars);
+
+			const files = unzipSync(result.data as Uint8Array);
+			const projectXml = strFromU8(files['project.qde']!);
+			const doc = parseXml(projectXml);
+			const sources = parseSources(doc);
+
+			const tabularSources = sources.filter(s => s.type === 'tabular');
+			expect(tabularSources).toHaveLength(1);
+			const tab = tabularSources[0]!;
+			expect(tab.name).toBe('data.parquet');
+			expect(tab.selections).toHaveLength(2);
+
+			// Segment marker round-trips with from/to.
+			const seg = tab.selections.find(s => s.cellFrom !== undefined);
+			expect(seg).toBeDefined();
+			expect(seg!.sourceRowId).toBe(0);
+			expect(seg!.column).toBe('Comment');
+			expect(seg!.cellFrom).toBe(0);
+			expect(seg!.cellTo).toBe(9);
+
+			// Row marker has sourceRowId/column but no from/to.
+			const row = tab.selections.find(s => s.cellFrom === undefined);
+			expect(row).toBeDefined();
+			expect(row!.sourceRowId).toBe(1);
+			expect(row!.column).toBe('Name');
+			expect(row!.cellTo).toBeUndefined();
 		});
 
 		it('row marker without from/to → CellSelection has no qualia:from/to attrs', async () => {

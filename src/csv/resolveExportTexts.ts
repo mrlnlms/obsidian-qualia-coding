@@ -105,7 +105,7 @@ export async function resolveExportTexts(
 			} else {
 				const adapter = plugin.app.vault.adapter as { getFullPath?: (p: string) => string };
 				if (typeof adapter.getFullPath !== 'function') {
-					warnings.push(`CSV ${fileId}: lazy export requires desktop FileSystemAdapter`);
+					warnings.push(`CSV ${fileId}: lazy export could not access the local filesystem adapter`);
 					continue;
 				}
 				const absPath = adapter.getFullPath(fileId);

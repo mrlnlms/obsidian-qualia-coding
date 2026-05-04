@@ -1,15 +1,15 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-04 (Fase 6 ✅ FECHADA — Slice D bundle compress entregue).
+> Última atualização: 2026-05-04 (Fase 6 ✅ FECHADA — Slice E import round-trip + checklist de testes).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
-**Versão:** 0.1.2 (2026-04-30). **Fase 6 fechada** — bump pra 0.1.3 ou 0.2.0 quando quiser tagear release.
+**Versão:** 0.1.2 (2026-04-30). **Fase 6 fechada** — bump pra 0.1.3 ou 0.2.0 quando quiser tagear release. Checklist de testes manuais em `docs/MANUAL-TESTS-FASE-6.md`.
 
 **Frentes engatilhadas (próximas a atacar, ordem sugerida):**
 
-1. **Parquet/CSV lazy loading — Fase 6 ✅ COMPLETA** (design doc: `docs/parquet-lazy-design.md`). Slices A/B/C/D entregues 2026-05-04. Slice D fechou: WASM bytes gzipados em build-time via fflate (32.7MB → 7.6MB), runtime decompress lazy/cached em `getWasmBytes()`. Bundle main.js caiu de **49MB → 14.2MB (71% redução)** — destrava Community Plugins. Mocks DuckDB-Wasm já cobertos via vitest plugin `stubDuckDBAssets` (Slice B) + per-test `vi.mock` em duckdbBootstrap.test.
+1. **Parquet/CSV lazy loading — Fase 6 ✅ COMPLETA** (design doc: `docs/parquet-lazy-design.md`). Slices A/B/C/D/E entregues 2026-05-04. Slice E fechou: QDPX importer agora lê `<qualia:TabularSource>` + `<qualia:CellSelection>` (segment + row markers reconstruídos no csvModel via `createTabularMarker`). Round-trip QDPX validado em integration test. Slice D já tinha entregue bundle compress 49MB → 14MB.
 
 2. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão pendente:** qual escola Qualia subscreve? Antes disso, design real não rola — virou guard-rail.
 
@@ -18,7 +18,7 @@
 - Projects + Workspace — provavelmente reinventa Workspaces nativo
 - Margin Panel customization — bloqueado por plugin externo
 
-**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slices A/B/C/D ✅ (2026-05-04 — open/reveal/labels redondos · exports lazy-aware · progress bar+Manage cache · bundle 49MB→14.2MB)**. **Fase 6 fechada.**
+**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slices A/B/C/D/E ✅ (2026-05-04 — open/reveal/labels redondos · exports lazy-aware · progress bar+Manage cache · bundle 49MB→14.2MB · QDPX import round-trip)**. **Fase 6 fechada.**
 
 **Bloqueadores no `BACKLOG.md`:** zero. Carla label vazia (whitespace-only) é minor não bloqueante.
 
