@@ -7,7 +7,7 @@ export function registerExportCommands(plugin: QualiaCodingPlugin): void {
     name: 'Export project (QDPX)',
     callback: () => {
       new ExportModal(
-        plugin.app,
+        plugin,
         plugin.dataManager,
         plugin.sharedRegistry,
         'qdpx',
@@ -22,7 +22,7 @@ export function registerExportCommands(plugin: QualiaCodingPlugin): void {
     name: 'Export codebook (QDC)',
     callback: () => {
       new ExportModal(
-        plugin.app,
+        plugin,
         plugin.dataManager,
         plugin.sharedRegistry,
         'qdc',
@@ -37,7 +37,7 @@ export function registerExportCommands(plugin: QualiaCodingPlugin): void {
     name: 'Export codes as tabular data (for R/Python)',
     callback: () => {
       new ExportModal(
-        plugin.app,
+        plugin,
         plugin.dataManager,
         plugin.sharedRegistry,
         'tabular',
@@ -51,7 +51,7 @@ export function registerExportCommands(plugin: QualiaCodingPlugin): void {
 /** Factory for analytics toolbar — avoids importing ExportModal in analytics view. */
 export function openExportModal(plugin: QualiaCodingPlugin, defaultFormat: 'qdc' | 'qdpx' | 'tabular' = 'qdpx'): void {
   new ExportModal(
-    plugin.app,
+    plugin,
     plugin.dataManager,
     plugin.sharedRegistry,
     defaultFormat,

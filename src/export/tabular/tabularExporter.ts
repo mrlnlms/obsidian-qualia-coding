@@ -1,9 +1,8 @@
-import { TFile } from 'obsidian';
-import type { App } from 'obsidian';
 import { zipSync, strToU8 } from 'fflate';
-import Papa from 'papaparse';
 import type { DataManager } from '../../core/dataManager';
 import type { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
+import type QualiaCodingPlugin from '../../main';
+import { resolveExportTexts } from '../../csv/resolveExportTexts';
 import { toCsv } from './csvWriter';
 import { buildSegmentsTable } from './buildSegmentsTable';
 import { buildCodeApplicationsTable } from './buildCodeApplicationsTable';
@@ -31,14 +30,14 @@ export interface TabularExportResult {
 const toU8 = (buf: Uint8Array): Uint8Array => new Uint8Array(buf);
 
 export async function exportTabular(
-	app: App,
+	plugin: QualiaCodingPlugin,
 	dm: DataManager,
 	registry: CodeDefinitionRegistry,
 	opts: TabularExportOptions,
 ): Promise<TabularExportResult> {
 	const warnings: string[] = [];
 
-	const csvTexts = await resolveCsvTexts(app, dm, warnings);
+	const csvTexts = await resolveExportTexts(plugin, warnings);
 
 	const segments = buildSegmentsTable(dm, csvTexts, { includeShapeCoords: opts.includeShapeCoords });
 	warnings.push(...segments.warnings);
@@ -80,43 +79,3 @@ export async function exportTabular(
 	};
 }
 
-async function resolveCsvTexts(app: App, dm: DataManager, warnings: string[]): Promise<Map<string, string>> {
-	const result = new Map<string, string>();
-	const csv = dm.section('csv');
-	const fileIds = new Set<string>();
-	for (const m of csv.segmentMarkers) fileIds.add(m.fileId);
-	for (const m of csv.rowMarkers) fileIds.add(m.fileId);
-
-	for (const fileId of fileIds) {
-		const abstractFile = app.vault.getAbstractFileByPath(fileId);
-		if (!(abstractFile instanceof TFile)) {
-			warnings.push(`CSV ${fileId}: cannot read source for text resolution (file not found)`);
-			continue;
-		}
-		let content: string;
-		try {
-			content = await app.vault.read(abstractFile);
-		} catch (err) {
-			warnings.push(`CSV ${fileId}: cannot read source for text resolution (${(err as Error).message})`);
-			continue;
-		}
-		const parsed = Papa.parse<Record<string, string>>(content, { header: true, skipEmptyLines: true });
-		if (parsed.data.length === 0 && parsed.errors.length > 0) {
-			warnings.push(`CSV ${fileId}: parse failed (${parsed.errors[0]!.message}) — skipping text resolution`);
-			continue;
-		}
-		// In eager mode (Fase 0) m.sourceRowId == papaparse row index; lookup by it.
-		for (const m of csv.segmentMarkers) {
-			if (m.fileId !== fileId) continue;
-			const cell = parsed.data[m.sourceRowId]?.[m.column] ?? '';
-			result.set(m.id, cell.slice(m.from, m.to));
-		}
-		for (const m of csv.rowMarkers) {
-			if (m.fileId !== fileId) continue;
-			const cell = parsed.data[m.sourceRowId]?.[m.column] ?? '';
-			result.set(m.id, cell);
-		}
-	}
-
-	return result;
-}

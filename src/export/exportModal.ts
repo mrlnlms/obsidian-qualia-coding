@@ -1,12 +1,13 @@
 import { Modal, Setting, Notice } from 'obsidian';
-import type { App } from 'obsidian';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
+import type QualiaCodingPlugin from '../main';
 import { exportProject } from './qdpxExporter';
 import { exportTabular } from './tabular/tabularExporter';
 
 export class ExportModal extends Modal {
+  private plugin: QualiaCodingPlugin;
   private format: 'qdc' | 'qdpx' | 'tabular';
   private includeSources = true;
   private includeRelations = true;
@@ -19,14 +20,15 @@ export class ExportModal extends Modal {
   private dynamicEl!: HTMLElement;
 
   constructor(
-    app: App,
+    plugin: QualiaCodingPlugin,
     dataManager: DataManager,
     registry: CodeDefinitionRegistry,
     defaultFormat: 'qdc' | 'qdpx' | 'tabular',
     pluginVersion: string,
     caseVariablesRegistry: CaseVariablesRegistry,
   ) {
-    super(app);
+    super(plugin.app);
+    this.plugin = plugin;
     this.dataManager = dataManager;
     this.registry = registry;
     this.caseVariablesRegistry = caseVariablesRegistry;
@@ -120,7 +122,7 @@ export class ExportModal extends Modal {
   private async doExport(): Promise<void> {
     try {
       if (this.format === 'tabular') {
-        const result = await exportTabular(this.app, this.dataManager, this.registry, {
+        const result = await exportTabular(this.plugin, this.dataManager, this.registry, {
           fileName: this.fileName,
           includeRelations: this.includeRelations,
           includeShapeCoords: this.includeShapeCoords,

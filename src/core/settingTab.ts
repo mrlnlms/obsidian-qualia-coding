@@ -266,7 +266,7 @@ export class QualiaSettingTab extends PluginSettingTab {
 			.addButton(btn => btn
 				.setButtonText('Export QDPX')
 				.onClick(() => {
-					new ExportModal(this.app, this.plugin.dataManager, this.plugin.sharedRegistry, 'qdpx', this.plugin.manifest.version, this.plugin.caseVariablesRegistry).open();
+					new ExportModal(this.plugin, this.plugin.dataManager, this.plugin.sharedRegistry, 'qdpx', this.plugin.manifest.version, this.plugin.caseVariablesRegistry).open();
 				}));
 
 		new Setting(containerEl)
@@ -275,7 +275,7 @@ export class QualiaSettingTab extends PluginSettingTab {
 			.addButton(btn => btn
 				.setButtonText('Export QDC')
 				.onClick(() => {
-					new ExportModal(this.app, this.plugin.dataManager, this.plugin.sharedRegistry, 'qdc', this.plugin.manifest.version, this.plugin.caseVariablesRegistry).open();
+					new ExportModal(this.plugin, this.plugin.dataManager, this.plugin.sharedRegistry, 'qdc', this.plugin.manifest.version, this.plugin.caseVariablesRegistry).open();
 				}));
 
 		new Setting(containerEl)

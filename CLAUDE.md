@@ -107,6 +107,7 @@ src/
     csvCodingView.ts         — FileView orquestrador: eager + lazy paths. loadEagerPath extraído do onLoadFile. Lazy automático acima do threshold (popup Lazy/Eager/Cancel removido em Fase 6 Slice A — placeholder de workspace-restore com botão "Open this file" → setupLazyMode direto). setupLazyMode usa populateMissingMarkerTextsForFile (no-op em re-open com cache quente). createGrid com infiniteInitialRowCount: totalRows. navigateToRow lazy: ensureIndexVisible + ensureColumnVisible + polling 100ms × 50 + RAF defer no flash + flashDuration:500 explícito.
     parseTabular.ts          — parseTabularFile compartilhado (papaparse + hyparquet). Não throw em warning não-fatal; caller gates em headers/rows.length
     prepopulateMarkerCaches.ts — pre-populate de markerTextCache no startup (after onLayoutReady). Eager: parseTabularFile + cellText slice. Lazy: só se isOpfsCached(opfsKey, mtime) — boot DuckDB on demand, dispose provider no finally
+    resolveExportTexts.ts    — resolve cellText pra export tabular/QDPX. Cobre 6 cases (eager/lazy × aberto/fechado/pre-populated/OPFS-cached): csvModel.getMarkerText sync first; cache miss → parseTabularFile (suporta parquet); arquivo > threshold → DuckDB batch via OPFS (sem RAM spike). Provider disposed no finally
     csvCodingMenu.ts         — popovers de codificacao (cell + batch). openBatchCodingPopover é mode-agnostic, recebe callback async pra coletar sourceRowIds
     csvCodingCellRenderer.ts — cell renderer AG Grid: tag chips + action button
     segmentEditor.ts         — CM6 split panel: open/close, marker sync, label alignment
@@ -131,7 +132,7 @@ src/
   video/                     — Video engine — thin wrapper (~54 LOC) via MediaViewCore
   export/                    — REFI-QDA export (QDC codebook + QDPX projeto completo) + CSV tabular
     qdcExporter.ts           — gera XML do codebook (hierarquia por nesting)
-    qdpxExporter.ts          — orquestra export completo (codigos + sources + segments + memos + links)
+    qdpxExporter.ts          — orquestra export completo (codigos + sources + segments + memos + links). Inclui CSV/parquet em <Sources> via custom namespace `<qualia:TabularSource>` + `<qualia:CellSelection>` (Decisão 5 do parquet-lazy-design). xmlns:qualia declarado no Project root quando section usa o prefixo. injectVariablesIntoSource regex aceita prefixo de namespace
     xmlBuilder.ts            — helpers XML (escapeXml, xmlAttr, xmlEl, xmlDeclaration)
     coordConverters.ts       — conversao de coords por engine (PDF, Image, Media)
     exportModal.ts           — modal pre-export (formato, toggle sources, disclaimer CSV)
@@ -146,7 +147,7 @@ src/
       buildCaseVariablesTable.ts — long format (fileId, variable)
       buildRelationsTable.ts — unifica code-level + application-level
       buildGroupsTable.ts    — groups.csv standalone (id, name, color, description)
-      tabularExporter.ts     — orchestrator (CSV text resolve + fflate zip realm-safety)
+      tabularExporter.ts     — orchestrator (CSV text resolve via resolveExportTexts + fflate zip realm-safety). Recebe plugin (não app) pra ter acesso ao csvModel + getDuckDB
   import/                    — REFI-QDA import (QDC + QDPX)
     qdcImporter.ts           — parse XML codebook, popular registry
     qdpxImporter.ts          — orquestra import completo (ZIP → vault)

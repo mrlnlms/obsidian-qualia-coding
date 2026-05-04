@@ -10,6 +10,7 @@ import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { MediaMarker } from '../media/mediaTypes';
 import type { ImageMarker } from '../image/imageCodingTypes';
 import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
+import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
 import { lineChToOffset, mediaToMs, imageToPixels, pdfShapeToRect } from './coordConverters';
 import { loadPdfExportData } from '../pdf/pdfExportData';
 import { resolveMarkerOffsets } from '../pdf/resolveMarkerOffsets';
@@ -160,6 +161,57 @@ export function buildVideoSourceXml(
   filePath: string, markers: MediaMarker[], guidMap: Map<string, string>, notes: string[], includeSources?: boolean,
 ): string {
   return buildMediaSourceXml('VideoSource', 'VideoSelection', filePath, markers, guidMap, notes, includeSources);
+}
+
+// ── Tabular (CSV / Parquet) ──
+//
+// REFI-QDA spec has no native tabular source type. We emit a custom-namespace
+// `<qualia:TabularSource>` with `<qualia:CellSelection>` children. Other QDA
+// tools (Atlas.ti / NVivo / MAXQDA) ignore the custom namespace; Qualia's own
+// importer can read it for round-trip. The source file (CSV/parquet) is copied
+// into the zip exactly like audio/video so the reimporter can re-bind markers.
+
+export function buildTabularSourceXml(
+  filePath: string,
+  segmentMarkers: SegmentMarker[],
+  rowMarkers: RowMarker[],
+  guidMap: Map<string, string>,
+  notes: string[],
+  includeSources?: boolean,
+): string {
+  if (segmentMarkers.length === 0 && rowMarkers.length === 0) return '';
+  const srcGuid = uuidV4();
+  guidMap.set(`source:${filePath}`, srcGuid);
+  const ext = filePath.split('.').pop() || '';
+  const pathAttr = includeSources
+    ? xmlAttr('path', `internal://${srcGuid}.${ext}`)
+    : xmlAttr('path', `relative://${filePath}`);
+
+  const renderCell = (
+    m: SegmentMarker | RowMarker,
+    isSegment: boolean,
+  ): string => {
+    if (m.codes.length === 0) return '';
+    const selGuid = ensureGuid(m.id, guidMap);
+    const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+    let noteRef = '';
+    if (m.memo) {
+      const noteGuid = `note_${selGuid}`;
+      notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, getMemoContent(m.memo)));
+      noteRef = `\n${buildNoteRefXml(noteGuid)}`;
+    }
+    const rangeAttrs = isSegment
+      ? ` ${xmlAttr('qualia:from', (m as SegmentMarker).from)} ${xmlAttr('qualia:to', (m as SegmentMarker).to)}`
+      : '';
+    return `<qualia:CellSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('qualia:sourceRowId', m.sourceRowId)} ${xmlAttr('qualia:column', m.column)}${rangeAttrs} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</qualia:CellSelection>`;
+  };
+
+  const segXml = segmentMarkers.map(m => renderCell(m, true)).filter(Boolean);
+  const rowXml = rowMarkers.map(m => renderCell(m, false)).filter(Boolean);
+  const selections = [...segXml, ...rowXml].join('\n');
+  if (!selections) return '';
+
+  return `<qualia:TabularSource ${xmlAttr('guid', srcGuid)} ${xmlAttr('name', fileName(filePath))} ${pathAttr}>\n${selections}\n</qualia:TabularSource>`;
 }
 
 // ── Image ──
@@ -432,7 +484,13 @@ export function buildProjectXml(
 
   const sections = [codebook, sourcesSection, notesSection, linksSection, casesSection].filter(Boolean).join('\n');
 
-  return `${xmlDeclaration()}\n<Project ${xmlAttr('name', vaultName)} ${xmlAttr('origin', `Qualia Coding ${pluginVersion}`)} ${xmlAttr('creationDateTime', new Date().toISOString())} ${xmlAttr('xmlns', PROJECT_NS)}>\n${sections}\n</Project>`;
+  // Declare the qualia: namespace at Project root whenever any section uses it
+  // (today: `<qualia:TabularSource>` for CSV/parquet, `<qualia:Set>` for code
+  // groups inside the codebook). Other QDA tools ignore unknown namespaces.
+  const usesQualiaNs = sections.includes('qualia:');
+  const qualiaNsAttr = usesQualiaNs ? ' xmlns:qualia="urn:qualia-coding:extensions:1.0"' : '';
+
+  return `${xmlDeclaration()}\n<Project ${xmlAttr('name', vaultName)} ${xmlAttr('origin', `Qualia Coding ${pluginVersion}`)} ${xmlAttr('creationDateTime', new Date().toISOString())} ${xmlAttr('xmlns', PROJECT_NS)}${qualiaNsAttr}>\n${sections}\n</Project>`;
 }
 
 /** Create a QDPX ZIP archive containing project.qde and optional source files. */
@@ -460,7 +518,9 @@ export function createQdpxZip(
  */
 function injectVariablesIntoSource(sourceXml: string, variablesXml: string): string {
   if (!variablesXml || !sourceXml) return sourceXml;
-  const match = sourceXml.match(/<\/(\w+Source)>\s*$/);
+  // Permit optional `prefix:` so custom-namespace sources (e.g. `qualia:TabularSource`)
+  // also receive Variables injection.
+  const match = sourceXml.match(/<\/(?:\w+:)?(\w+Source)>\s*$/);
   if (!match) return sourceXml;
   const closingTag = match[0];
   return sourceXml.slice(0, -closingTag.length) + variablesXml + '\n' + closingTag;
@@ -618,6 +678,26 @@ export async function exportProject(
     }
   }
 
+  // --- Tabular (CSV / Parquet) ---
+  const csvData = dataManager.section('csv');
+  const csvSegByFile = groupMarkersByFileId(csvData.segmentMarkers);
+  const csvRowByFile = groupMarkersByFileId(csvData.rowMarkers);
+  const csvFileIds = new Set([...csvSegByFile.keys(), ...csvRowByFile.keys()]);
+  for (const fileId of csvFileIds) {
+    const segs = csvSegByFile.get(fileId) ?? [];
+    const rows = csvRowByFile.get(fileId) ?? [];
+    const xml = buildTabularSourceXml(fileId, segs, rows, guidMap, notes, options.includeSources);
+    if (xml) {
+      const variablesXml = renderVariablesForFile(fileId, caseVariablesRegistry);
+      allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
+      const srcGuid = guidMap.get(`source:${fileId}`);
+      if (srcGuid) sourceGuidByFileId.set(fileId, srcGuid);
+    }
+    if (options.includeSources) {
+      await addSourceFile(app.vault, fileId, sourceFiles, guidMap);
+    }
+  }
+
   // Collect all markers for link generation
   const allMarkersForLinks: Array<{ id: string; codes: CodeApplication[] }> = [];
   for (const markers of Object.values(mdData.markers)) allMarkersForLinks.push(...markers);
@@ -625,7 +705,6 @@ export async function exportProject(
   for (const [, markers] of imgByFile) allMarkersForLinks.push(...markers);
   for (const af of audioData.files) allMarkersForLinks.push(...af.markers);
   for (const vf of videoData.files) allMarkersForLinks.push(...vf.markers);
-  const csvData = dataManager.section('csv');
   allMarkersForLinks.push(...csvData.segmentMarkers, ...csvData.rowMarkers);
 
   const sourcesXml = allSourcesXml.join('\n');
