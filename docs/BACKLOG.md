@@ -30,6 +30,20 @@ Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não 
 
 Items pequenos (<2h cada) sem guarda-chuva próprio. Quando atacar, vira commit direto.
 
+### Coding em modo lazy (gap da Fase 4 do parquet-lazy)
+
+Modo lazy hoje é **view-only**: arquivo grande abre via DuckDB+OPFS, sort/filter via SQL funcionam, mas codificar células está suprimido. Sidebar mostra markers existentes em arquivos lazy SEM preview do trecho codificado (`markerText: null`).
+
+Pra reativar coding completo em lazy:
+1. **Cascade async** em `SidebarModelInterface.getAllMarkers / getMarkerById / getMarkersForFile` → `Promise<...>`. Atinge ~12 sites em `core/` (baseCodeDetailView, detailCodeRenderer, detailRelationRenderer, detailMarkerRenderer, baseCodeExplorerView, codebookTreeRenderer, unifiedModelAdapter). UI síncrona afetada: callbacks de drag-drop, hover events, mutations — exigem `await` ou hasMarkerSync helper.
+2. **CsvCodingCellRenderer + popover + segmentEditor** chamam `getMarkerTextAsync` (já existe em CsvCodingModel) em vez de sync.
+
+Estimativa: 1.5-2 sessões dedicadas. Tentativa em Fase 4 foi revertida porque escopo cresceu além do isolável. Atacar como Fase 4d separada do parquet-lazy quando outras prioridades permitirem.
+
+### Pre-compute display_row mapping ao aplicar sort em lazy mode
+
+Spike Premise B (§14.5.2 do design doc) mostrou p99 de 214ms em sorted scroll-to-row de 297MB. `DuckDBRowProvider.buildDisplayMap` já está implementado (Fase 4a) — falta ligar no CsvCodingView quando user muda sort: invalida display map antigo, constrói novo, scroll-to-row vira O(1). ~30 LOC, 30min.
+
 ### Bundle size pós-DuckDB (atacar na Fase 6 do parquet-lazy)
 
 `main.js` cresce de 2.5 MB → ~49 MB em prod com `@duckdb/duckdb-wasm@^1.29.0` embedded. Design doc previa ~9 MB referenciando WASM antigo de 6.4 MB; versão atual tem WASM EH de 34 MB. Não bloqueia funcionalmente (Excalidraw é 8.4 MB, não há limite duro), mas vale comprimir antes de cogitar Community Plugins.
