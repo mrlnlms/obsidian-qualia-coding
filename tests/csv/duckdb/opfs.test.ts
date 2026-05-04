@@ -101,7 +101,7 @@ class MockDirHandle {
 // ── Set up globals before importing the module ─────────────────────────
 let mockRoot: MockDirHandle;
 
-vi.mock('node:fs', () => {
+vi.mock('fs', () => {
 	const filesByPath = new Map<string, Uint8Array>();
 	return {
 		statSync: vi.fn((path: string) => ({
@@ -127,7 +127,7 @@ vi.mock('node:fs', () => {
 	};
 });
 
-import * as fsMod from 'node:fs';
+import * as fsMod from 'fs';
 const setMockFile = (fsMod as unknown as { __setMockFile: (p: string, c: Uint8Array | string) => void }).__setMockFile;
 const clearMockFiles = (fsMod as unknown as { __clearMockFiles: () => void }).__clearMockFiles;
 

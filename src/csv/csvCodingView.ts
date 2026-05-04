@@ -1,4 +1,4 @@
-import { FileView, TFile, Vault, WorkspaceLeaf, setIcon } from 'obsidian';
+import { FileView, FileSystemAdapter, TFile, Vault, WorkspaceLeaf, setIcon } from 'obsidian';
 import { AllCommunityModule, ModuleRegistry, createGrid, GridApi, themeQuartz } from 'ag-grid-community';
 import * as Papa from 'papaparse';
 import { parquetReadObjects } from 'hyparquet';
@@ -10,6 +10,12 @@ import type QualiaCodingPlugin from '../main';
 import type { CsvCodingModel } from './csvCodingModel';
 import { visibilityEventBus } from '../core/visibilityEventBus';
 import type { IRowNode } from 'ag-grid-community';
+import {
+	DuckDBRowProvider,
+	type TabularFileType,
+	copyVaultFileToOPFS,
+	opfsKeyFor,
+} from './duckdb';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -57,6 +63,14 @@ const obsidianTheme = themeQuartz.withParams({
 	fontSize: 14,
 });
 
+// ── Lazy-mode runtime state — populated when a file is opened above the size threshold ──
+interface LazyState {
+	rowProvider: DuckDBRowProvider;
+	fileType: TabularFileType;
+	totalRows: number;
+	displayMap?: { name: string; orderBy: Array<{ column: string; descending: boolean }> };
+}
+
 // ── Main FileView ──
 export class CsvCodingView extends FileView {
 	private plugin: QualiaCodingPlugin;
@@ -69,6 +83,7 @@ export class CsvCodingView extends FileView {
 	private readyResolve: (() => void) | null = null;
 	private readyPromise: Promise<void> = new Promise(r => { this.readyResolve = r; });
 	private unsubscribeVisibility?: () => void;
+	private lazyState: LazyState | null = null;
 
 	get markdownModel() { return this.plugin.markdownModel!; }
 
@@ -85,11 +100,12 @@ export class CsvCodingView extends FileView {
 	canAcceptExtension(extension: string): boolean { return extension === 'csv' || extension === 'parquet'; }
 
 	/**
-	 * Banner inline pedindo confirmação antes de carregar arquivo grande.
-	 * Resolve `true` se user clicou "Load anyway", `false` se cancelou ou navegou.
-	 * Sem lazy loading ainda, decode na main thread pode travar Obsidian.
+	 * Banner offering 3 paths for files above the size threshold:
+	 *  - 'lazy'   → DuckDB-Wasm + OPFS (fast open, SQL-backed sort/filter)
+	 *  - 'eager'  → load everything into memory (current behavior; may freeze)
+	 *  - 'cancel' → user backed out
 	 */
-	private async confirmLoadLargeFile(file: TFile, sizeBytes: number, thresholdBytes: number): Promise<boolean> {
+	private async confirmLoadLargeFile(file: TFile, sizeBytes: number, thresholdBytes: number): Promise<'lazy' | 'eager' | 'cancel'> {
 		const { contentEl } = this;
 		contentEl.empty();
 
@@ -98,19 +114,21 @@ export class CsvCodingView extends FileView {
 		const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
 		const limitMb = (thresholdBytes / (1024 * 1024)).toFixed(0);
 		banner.createEl('p', {
-			text: `${file.name} is ${sizeMb} MB (limit: ${limitMb} MB for ${file.extension}).`,
+			text: `${file.name} is ${sizeMb} MB (threshold: ${limitMb} MB for ${file.extension}).`,
 		});
 		banner.createEl('p', {
-			text: 'Loading large tabular files into memory may freeze Obsidian. Lazy loading is not yet supported.',
+			text: 'Lazy mode opens the file via DuckDB-Wasm + OPFS (no full-memory load). Coding lands in the next phase — for now lazy mode is view-only.',
 			cls: 'qualia-tabular-size-warning-hint',
 		});
 
-		return new Promise<boolean>((resolve) => {
+		return new Promise<'lazy' | 'eager' | 'cancel'>((resolve) => {
 			const actions = banner.createDiv({ cls: 'qualia-tabular-size-warning-actions' });
 			const cancelBtn = actions.createEl('button', { text: 'Cancel' });
-			const proceedBtn = actions.createEl('button', { text: 'Load anyway', cls: 'mod-warning' });
-			cancelBtn.addEventListener('click', () => resolve(false));
-			proceedBtn.addEventListener('click', () => resolve(true));
+			const eagerBtn = actions.createEl('button', { text: 'Load full (eager)' });
+			const lazyBtn = actions.createEl('button', { text: 'Lazy mode', cls: 'mod-cta' });
+			cancelBtn.addEventListener('click', () => resolve('cancel'));
+			eagerBtn.addEventListener('click', () => resolve('eager'));
+			lazyBtn.addEventListener('click', () => resolve('lazy'));
 		});
 	}
 
@@ -118,20 +136,23 @@ export class CsvCodingView extends FileView {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		// Size guard: arquivo grande pode travar Obsidian (sem lazy loading ainda).
+		// Size guard: arquivo grande pode travar Obsidian em modo eager.
 		// Defaults calibrados em bench empírico (2026-04-24): parquet 50 MB / csv 100 MB.
-		// User pode ajustar em Settings → Qualia Coding → Tabular files.
+		// Lazy mode (Fase 4) opens via DuckDB+OPFS — no full-memory materialization.
 		const sizeBytes = file.stat.size;
 		const csvSettings = this.plugin.dataManager.section('csv') as { settings?: { parquetSizeWarningMB?: number; csvSizeWarningMB?: number } } | undefined;
 		const parquetMB = csvSettings?.settings?.parquetSizeWarningMB ?? 50;
 		const csvMB = csvSettings?.settings?.csvSizeWarningMB ?? 100;
 		const thresholdBytes = (file.extension === 'parquet' ? parquetMB : csvMB) * 1024 * 1024;
 		if (sizeBytes > thresholdBytes) {
-			const proceed = await this.confirmLoadLargeFile(file, sizeBytes, thresholdBytes);
-			if (!proceed) {
+			const choice = await this.confirmLoadLargeFile(file, sizeBytes, thresholdBytes);
+			if (choice === 'cancel') {
 				this.readyResolve?.();
 				this.leaf.detach();
 				return;
+			}
+			if (choice === 'lazy') {
+				return this.setupLazyMode(file);
 			}
 			contentEl.empty();
 		}
@@ -226,6 +247,138 @@ export class CsvCodingView extends FileView {
 		}
 	}
 
+	/**
+	 * Lazy-mode bring-up: stream the vault file into OPFS, register it with DuckDB,
+	 * and back the AG Grid with an Infinite Row Model that paginates via SQL.
+	 *
+	 * Coding (chips, popovers, segment editor) is intentionally suppressed in this
+	 * pass — the async cascade in detail/sidebar views needed to surface markers
+	 * lazily lands in the next chunk of Fase 4.
+	 */
+	private async setupLazyMode(file: TFile): Promise<void> {
+		const { contentEl } = this;
+		contentEl.empty();
+
+		const status = contentEl.createDiv({ cls: 'qualia-tabular-lazy-status' });
+		status.style.padding = '8px 12px';
+		status.style.fontSize = '12px';
+		status.style.color = 'var(--text-muted)';
+		status.textContent = 'Preparing lazy mode…';
+
+		const fileType: TabularFileType = file.extension === 'parquet' ? 'parquet' : 'csv';
+
+		const adapter = this.app.vault.adapter;
+		if (!(adapter instanceof FileSystemAdapter)) {
+			status.textContent = '❌ Lazy mode requires desktop FileSystemAdapter.';
+			this.readyResolve?.();
+			return;
+		}
+		const absPath = adapter.getFullPath(file.path);
+		const vaultId = (this.app.vault as unknown as { getName: () => string }).getName?.() ?? 'default';
+		const opfsKey = opfsKeyFor(vaultId, file.path);
+
+		try {
+			status.textContent = 'Copying to lazy cache (0%)…';
+			const handle = await copyVaultFileToOPFS(absPath, opfsKey, file.stat.mtime, (w, t) => {
+				const pct = t > 0 ? ((w / t) * 100).toFixed(0) : '?';
+				const wMb = (w / (1024 * 1024)).toFixed(1);
+				const tMb = (t / (1024 * 1024)).toFixed(1);
+				status.textContent = `Copying to lazy cache (${pct}%) — ${wMb} / ${tMb} MB`;
+			});
+
+			status.textContent = 'Booting DuckDB-Wasm…';
+			const runtime = await this.plugin.getDuckDB();
+
+			status.textContent = 'Registering data source…';
+			const rowProvider = await DuckDBRowProvider.create({
+				runtime,
+				fileHandle: handle,
+				fileType,
+			});
+			const totalRows = await rowProvider.getRowCount();
+			const columns = await rowProvider.getColumns();
+
+			this.lazyState = { rowProvider, fileType, totalRows };
+			this.originalHeaders = columns;
+
+			contentEl.empty();
+
+			// Info bar — same layout as eager mode but with a lazy badge.
+			const infoBar = contentEl.createEl('div');
+			infoBar.style.display = 'flex';
+			infoBar.style.alignItems = 'center';
+			infoBar.style.justifyContent = 'space-between';
+			infoBar.style.gap = '6px';
+			infoBar.style.padding = '4px 12px';
+			infoBar.style.fontSize = '12px';
+			infoBar.style.color = 'var(--text-muted)';
+
+			const badge = infoBar.createEl('span', { text: 'lazy mode · view only' });
+			badge.style.padding = '2px 8px';
+			badge.style.borderRadius = '4px';
+			badge.style.backgroundColor = 'var(--background-modifier-border)';
+			badge.style.fontSize = '10px';
+			badge.style.fontWeight = '600';
+			badge.style.textTransform = 'uppercase';
+
+			infoBar.createEl('span', { text: `${totalRows.toLocaleString()} rows × ${columns.length} columns` });
+
+			// Grid wrapper
+			const wrapper = contentEl.createEl('div');
+			wrapper.style.height = 'calc(100% - 40px)';
+			wrapper.style.width = '100%';
+			this.gridWrapper = wrapper;
+
+			// AG Grid Infinite Row Model — datasource pages via DuckDB.
+			this.gridApi = createGrid(wrapper, {
+				theme: obsidianTheme,
+				columnDefs: columns.map((h) => ({ field: h, headerName: h })),
+				defaultColDef: { sortable: true, filter: false, resizable: true },
+				rowModelType: 'infinite',
+				cacheBlockSize: 100,
+				maxBlocksInCache: 10,
+				rowBuffer: 20,
+				datasource: {
+					getRows: async (params) => {
+						try {
+							if (!this.lazyState) {
+								params.failCallback();
+								return;
+							}
+							const orderBy = (params.sortModel ?? []).map((s) => ({
+								column: s.colId,
+								descending: s.sort === 'desc',
+							}));
+							const rows = await this.lazyState.rowProvider.getRowsByDisplayRange({
+								offset: params.startRow,
+								limit: params.endRow - params.startRow,
+								orderBy,
+							});
+							const lastRow = (params.startRow + rows.length) >= this.lazyState.totalRows
+								? this.lazyState.totalRows
+								: -1;
+							params.successCallback(rows, lastRow);
+						} catch (err) {
+							console.error('[qualia-csv lazy] getRows failed', err);
+							params.failCallback();
+						}
+					},
+				},
+				enableCellTextSelection: true,
+				domLayout: 'normal',
+			});
+
+			this.readyResolve?.();
+		} catch (err) {
+			contentEl.empty();
+			contentEl.createEl('p', {
+				text: `❌ Lazy mode failed: ${(err as Error).message}`,
+			});
+			console.error('[qualia-csv lazy] setup failed', err);
+			this.readyResolve?.();
+		}
+	}
+
 	// ─── Navigation ─────────────────────────────────────────
 
 	waitUntilReady(): Promise<void> {
@@ -305,6 +458,16 @@ export class CsvCodingView extends FileView {
 		if (this.gridApi) {
 			this.gridApi.destroy();
 			this.gridApi = null;
+		}
+		// Lazy mode teardown — drop display map (if cached) + dispose RowProvider.
+		// The DuckDB runtime itself stays alive (other lazy views may share it).
+		if (this.lazyState) {
+			const { rowProvider, displayMap } = this.lazyState;
+			if (displayMap) {
+				try { await rowProvider.dropDisplayMap(displayMap.name); } catch (e) { console.warn(e); }
+			}
+			try { await rowProvider.dispose(); } catch (e) { console.warn(e); }
+			this.lazyState = null;
 		}
 		this.contentEl.empty();
 	}

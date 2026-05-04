@@ -141,6 +141,21 @@ export class DuckDBRowProvider implements RowProvider {
 		return Number(rows[0]?.toJSON().n ?? 0);
 	}
 
+	/** Original column names (excludes the synthetic __source_row). */
+	async getColumns(): Promise<string[]> {
+		this.guard();
+		const result = await this.conn.query(`SELECT * FROM ${this.tableName} LIMIT 1`);
+		const rows = result.toArray();
+		if (rows.length > 0) {
+			return Object.keys(rows[0].toJSON()).filter(k => k !== "__source_row");
+		}
+		// Fallback for empty tables — DESCRIBE returns the schema.
+		const desc = await this.conn.query(`DESCRIBE ${this.tableName}`);
+		return desc.toArray()
+			.map(r => String(r.toJSON().column_name))
+			.filter(n => n !== "__source_row");
+	}
+
 	async dispose(): Promise<void> {
 		if (this.disposed) return;
 		this.disposed = true;

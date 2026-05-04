@@ -15,8 +15,8 @@
  * No consumer in this phase — wired up in Fase 4 (RowProvider real implementation).
  */
 
-import * as fs from "node:fs";
-import { createHash } from "node:crypto";
+import * as fs from "fs";
+import { createHash } from "crypto";
 
 const ROOT_DIR = "qualia-coding";
 const DATA_FILENAME = "data.bin";
