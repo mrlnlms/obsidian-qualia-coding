@@ -249,11 +249,15 @@ export class CsvCodingView extends FileView {
 
 	/**
 	 * Lazy-mode bring-up: stream the vault file into OPFS, register it with DuckDB,
-	 * and back the AG Grid with an Infinite Row Model that paginates via SQL.
+	 * back the AG Grid with an Infinite Row Model that paginates via SQL, and wire
+	 * the same coding affordances eager mode uses (gear button, header injection,
+	 * cell renderer chips). The cell renderer reads `__source_row` straight from
+	 * the row data the datasource returns — see csvCodingCellRenderer's
+	 * sourceRowId fallback chain.
 	 *
-	 * Coding (chips, popovers, segment editor) is intentionally suppressed in this
-	 * pass — the async cascade in detail/sidebar views needed to surface markers
-	 * lazily lands in the next chunk of Fase 4.
+	 * Out of scope here: preview of `marker.markerText` in sidebar/detail views
+	 * for lazy files (would need an async cascade through SidebarModelInterface).
+	 * Tracked in BACKLOG.md.
 	 */
 	private async setupLazyMode(file: TFile): Promise<void> {
 		const { contentEl } = this;
@@ -306,7 +310,7 @@ export class CsvCodingView extends FileView {
 
 			contentEl.empty();
 
-			// Info bar — same layout as eager mode but with a lazy badge.
+			// Info bar — same layout as eager mode + a lazy badge + gear button.
 			const infoBar = contentEl.createEl('div');
 			infoBar.style.display = 'flex';
 			infoBar.style.alignItems = 'center';
@@ -316,7 +320,7 @@ export class CsvCodingView extends FileView {
 			infoBar.style.fontSize = '12px';
 			infoBar.style.color = 'var(--text-muted)';
 
-			const badge = infoBar.createEl('span', { text: 'lazy mode · view only' });
+			const badge = infoBar.createEl('span', { text: 'lazy mode' });
 			badge.style.padding = '2px 8px';
 			badge.style.borderRadius = '4px';
 			badge.style.backgroundColor = 'var(--background-modifier-border)';
@@ -324,7 +328,24 @@ export class CsvCodingView extends FileView {
 			badge.style.fontWeight = '600';
 			badge.style.textTransform = 'uppercase';
 
-			infoBar.createEl('span', { text: `${totalRows.toLocaleString()} rows × ${columns.length} columns` });
+			const rightSide = infoBar.createEl('div');
+			rightSide.style.display = 'flex';
+			rightSide.style.alignItems = 'center';
+			rightSide.style.gap = '8px';
+			rightSide.createEl('span', { text: `${totalRows.toLocaleString()} rows × ${columns.length} columns` });
+
+			const gearBtn = rightSide.createEl('span');
+			gearBtn.style.cursor = 'pointer';
+			gearBtn.style.color = 'var(--text-muted)';
+			gearBtn.style.display = 'flex';
+			setIcon(gearBtn, 'settings');
+			const gearSvg = gearBtn.querySelector('svg');
+			if (gearSvg) { gearSvg.style.width = '16px'; gearSvg.style.height = '16px'; }
+			gearBtn.addEventListener('click', () => {
+				if (this.gridApi) {
+					new ColumnToggleModal(this.app, this.gridApi, this.originalHeaders, this.csvModel, this.file?.path ?? '', this).open();
+				}
+			});
 
 			// Grid wrapper
 			const wrapper = contentEl.createEl('div');
@@ -369,9 +390,28 @@ export class CsvCodingView extends FileView {
 				},
 				enableCellTextSelection: true,
 				domLayout: 'normal',
+				// Sort change → rebuild display_row mapping for responsive scroll-to-row
+				// (spike Premise B addendum §14.5.2). The mapping is a DuckDB temp table
+				// keyed by __source_row → display_row under the current sort.
+				onSortChanged: () => { void this.refreshLazyDisplayMap(); },
 			});
 
 			this.readyResolve?.();
+
+			// Subscribe to visibility changes (same as eager mode).
+			this.unsubscribeVisibility?.();
+			this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
+
+			// Inject custom header buttons via MutationObserver — enables the same
+			// coding affordances (cod-seg/cod-frow column tag buttons) as eager mode.
+			const headerRoot = wrapper.querySelector('.ag-header');
+			if (headerRoot) {
+				const ctx = { gridApi: this.gridApi, csvModel: this.csvModel, filePath: this.file?.path, app: this.app };
+				const inject = () => injectHeaderButtons(wrapper, ctx);
+				inject();
+				this.headerObserver = new MutationObserver(inject);
+				this.headerObserver.observe(headerRoot, { childList: true, subtree: true });
+			}
 		} catch (err) {
 			contentEl.empty();
 			contentEl.createEl('p', {
@@ -388,13 +428,53 @@ export class CsvCodingView extends FileView {
 		return this.readyPromise;
 	}
 
-	navigateToRow(sourceRowId: number, column?: string) {
+	/**
+	 * Rebuilds the lazy-mode display_row mapping when the sort changes. Drops the
+	 * stale map first to free DuckDB memory. No-op if not in lazy mode.
+	 *
+	 * Spike Premise B addendum §14.5.2: scroll-to-row in lazy mode without this
+	 * caching has p99 ~214ms in 297MB; with this it's a single point lookup.
+	 */
+	private async refreshLazyDisplayMap(): Promise<void> {
+		if (!this.lazyState || !this.gridApi) return;
+		// AG Grid 33+ removed gridApi.getSortModel(). Iterate columns instead and
+		// pick the ones with an active sort, ordered by sortIndex (multi-sort).
+		const cols = this.gridApi.getColumns?.() ?? [];
+		const sortedCols = cols
+			.filter(c => c.getSort() != null)
+			.sort((a, b) => (a.getSortIndex() ?? 0) - (b.getSortIndex() ?? 0));
+		const orderBy = sortedCols.map(c => ({
+			column: c.getColId(),
+			descending: c.getSort() === 'desc',
+		}));
+		try {
+			if (this.lazyState.displayMap) {
+				const oldName = this.lazyState.displayMap.name;
+				this.lazyState.displayMap = undefined;
+				await this.lazyState.rowProvider.dropDisplayMap(oldName);
+			}
+			if (orderBy.length === 0) return; // no sort → no map needed
+			const name = await this.lazyState.rowProvider.buildDisplayMap(orderBy);
+			if (this.lazyState) this.lazyState.displayMap = { name, orderBy };
+		} catch (err) {
+			console.warn('[qualia-csv lazy] refreshLazyDisplayMap failed', err);
+		}
+	}
+
+	async navigateToRow(sourceRowId: number, column?: string): Promise<void> {
 		if (!this.gridApi) return;
-		// In eager mode (Fase 0) without sort/filter, sourceRowId == display index.
-		// When sort is active, this navigates to the wrong visual row — same behavior as
-		// pre-Fase-0; the proper resolution lands in Fase 4 (display_row mapping table).
-		this.gridApi.ensureIndexVisible(sourceRowId, 'middle');
-		const rowNode = this.gridApi.getDisplayedRowAtIndex(sourceRowId);
+		// In lazy mode with an active sort, sourceRowId != display index — resolve
+		// via the display_row mapping table built on each sort change.
+		let displayIndex = sourceRowId;
+		if (this.lazyState?.displayMap) {
+			const mapped = await this.lazyState.rowProvider.displayRowFor(
+				this.lazyState.displayMap.name,
+				sourceRowId,
+			);
+			if (mapped != null) displayIndex = mapped;
+		}
+		this.gridApi.ensureIndexVisible(displayIndex, 'middle');
+		const rowNode = this.gridApi.getDisplayedRowAtIndex(displayIndex);
 		if (rowNode) {
 			const flashOpts: { rowNodes: any[]; fadeDuration: number; columns?: string[] } = {
 				rowNodes: [rowNode],

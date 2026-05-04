@@ -12,8 +12,17 @@ export function codingCellRenderer(params: any): HTMLElement {
 	wrapper.className = 'csv-cod-seg-cell';
 
 	const field: string = params.colDef.field;
-	// AG Grid's node.sourceRowIndex is the original data position — maps directly to our persisted sourceRowId.
-	const sourceRowId: number = params.node?.sourceRowIndex ?? params.rowIndex ?? 0;
+	// In lazy mode (AG Grid Infinite Row Model), `node.sourceRowIndex` becomes the
+	// display index after a SQL sort — useless for matching persisted markers. The
+	// lazy datasource injects `__source_row` into every row payload (DuckDB virtual
+	// column), so we read that first. In eager mode `params.data.__source_row` is
+	// undefined and the fallback chain hits `node.sourceRowIndex` (stable in
+	// Client-Side Row Model under sort/filter).
+	const sourceRowId: number =
+		(params.data?.__source_row as number | undefined) ??
+		params.node?.sourceRowIndex ??
+		params.rowIndex ??
+		0;
 	const model: CsvCodingModel | undefined = params.model;
 	const gridApi: GridApi | undefined = params.gridApi;
 	const file: string = params.file ?? '';
@@ -139,7 +148,11 @@ export function sourceTagBtnRenderer(params: any): HTMLElement {
 	btn.addEventListener('click', (e) => {
 		e.stopPropagation();
 		const segField: string = params.codSegField;
-		const sourceRowId = params.node?.sourceRowIndex ?? params.rowIndex ?? 0;
+		const sourceRowId =
+			(params.data?.__source_row as number | undefined) ??
+			params.node?.sourceRowIndex ??
+			params.rowIndex ??
+			0;
 		const file: string = params.file ?? '';
 		const csvView: CsvViewRef | undefined = params.csvView;
 		const cellText: string = params.value != null ? String(params.value) : '';
