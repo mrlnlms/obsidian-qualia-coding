@@ -165,6 +165,52 @@ describe('cutDendrogram', () => {
 		const assignments = cutDendrogram(root, 5);
 		expect(assignments).toHaveLength(4);
 	});
+
+	it('returns compact cluster IDs (0..K-1) regardless of recursion depth', () => {
+		// 6 items, two well-separated groups of 3, recursion will create internal IDs
+		// that would otherwise be sparse (e.g. 2,3,5) — fix should compact them.
+		const dist = [
+			[0, 0.1, 0.1, 10, 10, 10],
+			[0.1, 0, 0.1, 10, 10, 10],
+			[0.1, 0.1, 0, 10, 10, 10],
+			[10, 10, 10, 0, 0.1, 0.1],
+			[10, 10, 10, 0.1, 0, 0.1],
+			[10, 10, 10, 0.1, 0.1, 0],
+		];
+		const names = ['A', 'B', 'C', 'D', 'E', 'F'];
+		const colors = names.map(() => '#000');
+		const root = buildDendrogram(dist, names, colors)!;
+		const assignments = cutDendrogram(root, 0.5);
+		const unique = Array.from(new Set(assignments)).sort((a, b) => a - b);
+		// Compact: IDs must be exactly 0..K-1 with no gaps
+		for (let i = 0; i < unique.length; i++) {
+			expect(unique[i]).toBe(i);
+		}
+	});
+
+	it('aligns cluster IDs with visual leaf order (left-first DFS)', () => {
+		// Same 6-item layout — leaves visually grouped by cluster, IDs ascending top-down
+		const dist = [
+			[0, 0.1, 0.1, 10, 10, 10],
+			[0.1, 0, 0.1, 10, 10, 10],
+			[0.1, 0.1, 0, 10, 10, 10],
+			[10, 10, 10, 0, 0.1, 0.1],
+			[10, 10, 10, 0.1, 0, 0.1],
+			[10, 10, 10, 0.1, 0.1, 0],
+		];
+		const names = ['A', 'B', 'C', 'D', 'E', 'F'];
+		const colors = names.map(() => '#000');
+		const root = buildDendrogram(dist, names, colors)!;
+		const assignments = cutDendrogram(root, 0.5);
+
+		// Items in the same true group should share an ID
+		expect(assignments[0]).toBe(assignments[1]);
+		expect(assignments[1]).toBe(assignments[2]);
+		expect(assignments[3]).toBe(assignments[4]);
+		expect(assignments[4]).toBe(assignments[5]);
+		// And the two groups must have different IDs
+		expect(assignments[0]).not.toBe(assignments[3]);
+	});
 });
 
 // ── calculateSilhouette ──
@@ -233,8 +279,8 @@ describe('calculateSilhouette', () => {
 		];
 		const result = calculateSilhouette(dist, [0, 1], ['A', 'B'], ['#f00', '#0f0']);
 		expect(result.scores).toHaveLength(2);
-		// Single-member clusters: ai=0, bi=5, score = (5-0)/5 = 1
-		for (const s of result.scores) expect(s.score).toBe(1);
+		// Singleton clusters: silhouette is undefined (Rousseeuw 1987) → forced to 0
+		for (const s of result.scores) expect(s.score).toBe(0);
 	});
 
 	it('populates name and color from inputs', () => {

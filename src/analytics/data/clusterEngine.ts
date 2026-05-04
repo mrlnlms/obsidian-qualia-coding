@@ -150,26 +150,28 @@ export function buildDendrogram(
 /**
  * Cut dendrogram at a given distance threshold.
  * Returns cluster assignment for each original index (0-based).
+ *
+ * Cluster IDs are compact (0..K-1) and assigned in left-first DFS order, so
+ * IDs align with the visual top-to-bottom order of leaves in the dendrogram.
  */
 export function cutDendrogram(root: DendrogramNode, cutDistance: number): number[] {
   const n = root.leafIndices.length;
   const assignments = new Array(n).fill(0);
-  let clusterId = 0;
+  let nextClusterId = 0;
 
-  function assignCluster(node: DendrogramNode, cid: number): void {
+  function visit(node: DendrogramNode): void {
     if (node.left === null || node.distance <= cutDistance) {
-      // This node is a leaf or below cut → all leaves get same cluster
+      const id = nextClusterId++;
       for (const idx of node.leafIndices) {
-        assignments[idx] = cid;
+        assignments[idx] = id;
       }
       return;
     }
-    // Above cut → split into children
-    assignCluster(node.left!, clusterId++);
-    assignCluster(node.right!, clusterId++);
+    visit(node.left!);
+    visit(node.right!);
   }
 
-  assignCluster(root, clusterId++);
+  visit(root);
   return assignments;
 }
 
@@ -218,9 +220,23 @@ export function calculateSilhouette(
     const myCluster = assignments[i]!;
     const myMembers = clusterMembers.get(myCluster)!;
 
+    // Rousseeuw 1987: singleton clusters have undefined silhouette → score = 0.
+    // Without this guard, ai=0 makes the formula collapse to (bi-0)/bi = 1,
+    // which falsely suggests a "perfect" cluster.
+    if (myMembers.length === 1) {
+      scores.push({
+        index: i,
+        name: names[i] ?? String(i),
+        color: colors[i] ?? "#6200EE",
+        cluster: myCluster,
+        score: 0,
+      });
+      continue;
+    }
+
     // ai = avg distance to same cluster (excluding self)
     let ai = 0;
-    if (myMembers.length > 1) {
+    {
       let sum = 0;
       for (const j of myMembers) {
         if (j !== i) sum += distMatrix[i]![j]!;
