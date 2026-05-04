@@ -1237,6 +1237,62 @@ Settings tab mostra os 4 inputs (3 disabled). Defaults criam folder hierarchy on
 
 ---
 
+## 16. Parquet/CSV Lazy Mode (DuckDB-Wasm + OPFS + AG Grid Infinite)
+
+> Design doc autoritativo: `docs/parquet-lazy-design.md`. Esta seção registra apenas as decisões arquiteturais consolidadas após a Fase 5 (2026-05-04).
+
+### Por que existe
+
+Carregar parquet de centenas de MB ou milhões de rows na memória do plugin trava o Obsidian. Premissa do projeto: **mesma UX de coding (filter/sort/code/batch) independente de o arquivo caber na RAM**.
+
+Stack: **DuckDB-Wasm** (engine SQL embedded no plugin) + **OPFS** (Origin Private File System pra storage local com partial-read) + **AG Grid Infinite Row Model** (paginated grid).
+
+### Fluxo
+
+1. Arquivo > threshold (default: parquet 50 MB / csv 100 MB) → banner Lazy/Eager/Cancel.
+2. Lazy mode → `copyVaultFileToOPFS` streama o arquivo do vault pra OPFS em chunks de 1 MB (Premise C: heap delta = 0). Idempotente via `mtime`.
+3. `DuckDBRowProvider.create` registra o file handle, materializa tabela `qualia_lazy_<id>` com coluna sintética `__source_row` (= papaparse row index, parity com eager).
+4. AG Grid Infinite paginates via `getRows(params)` → traduz `params.sortModel` + `params.filterModel` pra SQL → `DuckDBRowProvider.getRowsByDisplayRange` retorna a página.
+5. `display_row mapping` (DuckDB temp table) cacheia `__source_row → display_row` sob sort+filter atual pra `navigateToRow` em O(1).
+
+### Filter UI: server-side via SQL WHERE
+
+`defaultColDef.filter: true` habilita o filter UI nativo do AG Grid em colunas reais. Cada `filterChanged`:
+
+1. `gridApi.getFilterModel()` → AG Grid filterModel (text/number/combined).
+2. `buildWhereClause(filterModel)` (em `src/csv/duckdb/filterModelToSql.ts`, helper puro com 19 testes) traduz pra SQL `WHERE` escapado.
+3. `LazyState.currentFilter = { whereClause, filteredCount }` é atualizado **sincronamente** (AG Grid re-fetcha imediato; sem race) + async `getRowCount(whereClause)` pra `lastRow` correto.
+4. `displayMap` é rebuilded com o whereClause (rows filtradas têm display_row reordenado).
+
+Virtual columns (cod-frow/cod-seg/comment) mantêm `filter: !lazy` por-coluna (não estão no DuckDB schema). Filter delas via lazy seria LEFT JOIN com data.json — fora de escopo.
+
+### Batch coding em lazy: bulk SQL + bulk model
+
+Tag button no header de coluna `cod-frow` abre `openBatchCodingPopover`, que é **mode-agnostic**: recebe callback `getFilteredSourceRowIds: () => Promise<number[]>`.
+
+- **Eager**: callback wrapeia `gridApi.forEachNodeAfterFilterAndSort`.
+- **Lazy**: callback chama `rowProvider.getFilteredSourceRowIds(whereClause)` — `SELECT __source_row WHERE ...` via DuckDB. Acessa o Arrow vector direto (10× mais rápido que `r.toJSON()`).
+
+Aplicação em massa: `CsvCodingModel.addCodeToManyRows / removeCodeFromManyRows / removeAllRowMarkersFromMany`. Single-pass index build (O(M)) + iterate sourceRowIds (O(R)) + ÚNICO `notify()` ao final. Reduz batch em 661k rows de minutos pra ~1-3s.
+
+`getCodeIntersectionForRows` calcula codes presentes em todas as rows visíveis em O(M+R) com early-exit. Skipped acima de 5000 rows (interseção é praticamente sempre vazia em datasets enormes; recompute é desperdício).
+
+### Cleanup race entre `onUnloadFile` e queries DuckDB em flight
+
+`onUnloadFile` snapshots `lazyState` e seta `null` ANTES de `gridApi.destroy()` ou da teardown async (`dropDisplayMap`, `dispose`). Concurrent paths (`refreshLazyDisplayMap`, `refreshLazyFilter`, datasource em flight) re-checam `this.lazyState` após cada await e abortam silenciosamente se virou null. Sem isso, sessões com filter rápido + troca de arquivo emitem "DuckDBRowProvider has been disposed" no console.
+
+### Deferred load no restore de workspace
+
+Heurística: `app.workspace.layoutReady === false` durante restoration. Arquivos > threshold mostram placeholder inerte "Click to open this file" em vez de auto-disparar o banner. Resolve "Obsidian travado eternamente" ao reabrir vault com parquet pesado na leaf — auto-load competia com plugin parsing (49MB bundle) por thread.
+
+### Non-blocking `onLoadFile`
+
+**Anti-pattern descoberto**: `await this.confirmLoadLargeFile(...)` dentro de `onLoadFile` prende o `loadFile` interno do Obsidian. Workspace inteiro paralisa (até markdown não abre) até o user clicar em algum botão do banner.
+
+Fix: extraído `loadEagerPath(file)`. `onLoadFile` retorna IMEDIATAMENTE após renderizar o banner; botões disparam o próximo passo via `.then()`. Cada callback faz `if (this.file !== file) return` pra desistir se o user trocou de arquivo enquanto o banner estava aberto.
+
+---
+
 ## Fontes
 
 Este documento consolida decisões de:

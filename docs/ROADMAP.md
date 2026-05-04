@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-03.
+> Última atualização: 2026-05-04.
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
@@ -9,7 +9,7 @@
 
 **Frentes engatilhadas (próximas a atacar, ordem sugerida):**
 
-1. **Parquet/CSV lazy loading** — design doc completo: `docs/parquet-lazy-design.md` (§14 spike findings, §8 ordem de fases atualizada 2026-05-04). **Fase 0 (sourceRowId) ✅ FEITA 2026-05-04**. **Fase 1 (refactor async) DIFERIDA** — absorvida pela Fase 4 quando consumer real (DuckDB lazy) existir, alinha com regra "don't refactor for hypothetical future requirements" do CLAUDE.md. **Próximo passo: Fase 2** (DuckDB bootstrap — Worker via Blob URL com 2 shims já validados, esbuild loader binary, lifecycle, RowProvider esqueleto). Total recalibrado 13-15 → **11-13 sessões**.
+1. **Parquet/CSV lazy loading** — design doc: `docs/parquet-lazy-design.md`. **Fases 0 / 2 / 3 / 4 / 5 ✅ FEITAS** (2026-05-03 → 2026-05-04). Lazy mode operacional: abre parquet > 50MB via DuckDB-Wasm + OPFS, sort/filter via SQL no AG Grid Infinite Row Model, coding individual + batch funcionam idêntico ao eager. **Próximo passo: Fase 6** — `tabularExporter` streaming + UI Manage Cache (clear OPFS) + bundle compress via fflate (alvo: 49MB → ~15MB) + flag default. **Fase 5: caminho seguido difere do design original** (predicate modal foi rejeitado em favor do filter UI nativo do AG Grid + tradução `filterModel → SQL WHERE`); spec rejeitada em `plugin-docs/archive/.../20260504-parquet-lazy-fase-5-design-REJECTED.md`.
 
 2. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão pendente:** qual escola Qualia subscreve? Antes disso, design real não rola — virou guard-rail.
 
@@ -18,9 +18,9 @@
 - Projects + Workspace — provavelmente reinventa Workspaces nativo
 - Margin Panel customization — bloqueado por plugin externo
 
-**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30).
+**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)**.
 
-**Zero bloqueadores no `BACKLOG.md`.**
+**Bloqueadores no `BACKLOG.md`:** zero. Follow-ups novos da Fase 5 registrados (filter de virtual columns em lazy, async cascade pra preview de markerText, validação 2 parquets pesados em paralelo).
 
 ---
 

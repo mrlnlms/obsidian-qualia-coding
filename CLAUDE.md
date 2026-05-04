@@ -100,15 +100,22 @@ src/
     resolveMarkerOffsets.ts  — marker.text → offset absoluto no plainText (export, fallback whitespace-normalize)
     extractAnchorFromPlainText.ts — slice do plainText → {text, page 1-based} (import)
     resolvePendingIndices.ts — text-search no DOM .textLayerNode → indices (import runtime resolve)
-  csv/                       — CSV/Parquet engine (ag-grid, papaparse, hyparquet)
-    csvCodingModel.ts        — model CRUD para markers de segmento e row
+  csv/                       — CSV/Parquet engine (ag-grid, papaparse, hyparquet, duckdb-wasm)
+    csvCodingModel.ts        — model CRUD para markers de segmento e row + bulk row ops (addCodeToManyRows, removeCodeFromManyRows, removeAllRowMarkersFromMany, getCodeIntersectionForRows) + lazyProviders
     csvCodingTypes.ts        — SegmentMarker, RowMarker, CsvMarker
-    csvCodingView.ts         — FileView orquestrador (~210 LOC): grid setup, lifecycle
-    csvCodingMenu.ts         — popovers de codificacao (cell + batch)
+    csvCodingView.ts         — FileView orquestrador: eager + lazy paths. loadEagerPath extraído do onLoadFile (non-blocking banner). LazyState com currentFilter cache. refreshLazyFilter/refreshLazyDisplayMap com sync swap + re-check após await
+    csvCodingMenu.ts         — popovers de codificacao (cell + batch). openBatchCodingPopover é mode-agnostic, recebe callback async pra coletar sourceRowIds
     csvCodingCellRenderer.ts — cell renderer AG Grid: tag chips + action button
     segmentEditor.ts         — CM6 split panel: open/close, marker sync, label alignment
     columnToggleModal.ts     — Modal de settings de colunas + CommentCellEditor + styles
-    csvHeaderInjection.ts    — MutationObserver para injetar botoes nos headers AG Grid
+    csvHeaderInjection.ts    — MutationObserver para injetar botoes nos headers AG Grid. HeaderInjectionContext exige callback getFilteredSourceRowIds (eager: forEachNodeAfterFilterAndSort, lazy: SQL via rowProvider)
+    duckdb/                  — Lazy mode infra: DuckDB-Wasm + OPFS + filter SQL
+      duckdbBootstrap.ts     — createDuckDBRuntime() factory + 2 shims pro Worker em Electron
+      duckdbRowProvider.ts   — DuckDBRowProvider: getRowCount/getRowsByDisplayRange/buildDisplayMap aceitam whereClause; getFilteredSourceRowIds via Arrow vector direct access
+      filterModelToSql.ts    — buildWhereClause(filterModel) → SQL WHERE escapado (text + number + combined AND/OR). Helper puro
+      opfs.ts                — copyVaultFileToOPFS streaming chunks 1MB; idempotente via mtime
+      rowProvider.ts         — interface RowProvider + MockRowProvider (tests)
+      wasmAssets.ts          — WASM bytes embedded via esbuild loader binary
   image/                     — Image coding (fabric.js, zoom/pan per-file)
     imageCodingModel.ts      — model CRUD para ImageMarkers + persistence
     imageCodingTypes.ts      — ImageMarker, RegionShape, NormalizedCoords
@@ -238,7 +245,7 @@ src/
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2490 testes em 145 suites (Vitest + jsdom)
+- `npm run test` — 2557 testes em 150 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 66 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)

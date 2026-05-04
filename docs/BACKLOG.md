@@ -3,7 +3,7 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-04-28.
+> Última atualização: 2026-05-04.
 
 ---
 
@@ -30,15 +30,27 @@ Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não 
 
 Items pequenos (<2h cada) sem guarda-chuva próprio. Quando atacar, vira commit direto.
 
-### Coding em modo lazy (gap da Fase 4 do parquet-lazy)
+### Coding em modo lazy: cell coding ✅ FEITO (Fase 4d). Sidebar markerText preview pendente
 
-Modo lazy hoje é **view-only**: arquivo grande abre via DuckDB+OPFS, sort/filter via SQL funcionam, mas codificar células está suprimido. Sidebar mostra markers existentes em arquivos lazy SEM preview do trecho codificado (`markerText: null`).
+Coding individual + batch funcionam idêntico ao eager em modo lazy desde Fase 4d (2026-05-04). Sort/filter via SQL operacionais (Fase 5, 2026-05-04).
 
-Pra reativar coding completo em lazy:
+**Pendente — preview de `markerText` em sidebar** pra arquivos lazy. Sidebar mostra markers existentes mas sem preview do trecho codificado (`markerText: null`). Pra resolver:
 1. **Cascade async** em `SidebarModelInterface.getAllMarkers / getMarkerById / getMarkersForFile` → `Promise<...>`. Atinge ~12 sites em `core/` (baseCodeDetailView, detailCodeRenderer, detailRelationRenderer, detailMarkerRenderer, baseCodeExplorerView, codebookTreeRenderer, unifiedModelAdapter). UI síncrona afetada: callbacks de drag-drop, hover events, mutations — exigem `await` ou hasMarkerSync helper.
-2. **CsvCodingCellRenderer + popover + segmentEditor** chamam `getMarkerTextAsync` (já existe em CsvCodingModel) em vez de sync.
+2. `getMarkerTextAsync` já existe em `CsvCodingModel` — basta o consumer chamar.
 
-Estimativa: 1.5-2 sessões dedicadas. Tentativa em Fase 4 foi revertida porque escopo cresceu além do isolável. Atacar como Fase 4d separada do parquet-lazy quando outras prioridades permitirem.
+Estimativa: 1.5-2 sessões dedicadas. Atacar quando prioridades permitirem (não bloqueia uso).
+
+### Filter de virtual columns (cod-frow / cod-seg / comment) em lazy mode
+
+Hoje desligado: `columnToggleModal.ts:186/200` força `filter: !lazy` nas virtual columns porque elas não estão no DuckDB schema (usuário codifica em data.json). Pra habilitar filter em lazy seria preciso traduzir filterModel dessas colunas pra LEFT JOIN com dados de markers (não trivial). Custo > benefício até feedback de usuário pedir.
+
+### "Missing DB manager" residual do DuckDB worker em alta concorrência
+
+Mitigado em 2026-05-04 (snapshot de `lazyState` no `onUnloadFile`, re-check após cada await em `refreshLazyFilter`/`refreshLazyDisplayMap`). Mas DuckDB-Wasm pode ainda emitir esse erro do worker se uma query estiver em flight no exato instante de `dispose()`. Não é fatal (try/catch around) mas polui o console. Solução completa: serializar `dispose()` com pending queries via lock interno no provider. Não-urgente.
+
+### Validação de 2 parquets pesados em paralelo (não testado)
+
+Cada view tem seu próprio `lazyState`/`displayMap`/`gridApi`. DuckDB runtime é singleton (queries serializam internamente). Memory headroom pode ser apertado se ambos > 500MB. Não testado — registrar caso de teste ad-hoc se aparecer.
 
 ### Pre-compute display_row mapping ao aplicar sort em lazy mode
 

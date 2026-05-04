@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Filter UI server-side em modo lazy (Parquet-lazy Fase 5)** — funnel icon do AG Grid agora aparece nas colunas reais em modo lazy. Filter UI nativo (Contains/Equals/StartsWith/EndsWith/inRange/Blank/etc) emite `filterModel`, traduzido pra SQL `WHERE` no DuckDB. Filter + sort + scroll mantêm display_row mapping coerente (rebuild em cada mudança). Batch coding em lazy (tag button no header) opera nas linhas filtradas via SQL `SELECT __source_row WHERE ...`. Novo módulo:
+  - `src/csv/duckdb/filterModelToSql.ts` — `buildWhereClause(filterModel)` traduz AG Grid filter (text + number + combined AND/OR) pra SQL fragment escapado. Helper puro.
+  - `DuckDBRowProvider`: extensions em `getRowCount(whereClause?)`, `getRowsByDisplayRange({whereClause})`, `buildDisplayMap(orderBy, whereClause?)`, novo `getFilteredSourceRowIds(whereClause?)`.
+  - `LazyState.currentFilter` cacheia `whereClause` + `filteredCount`. `onFilterChanged` faz update SÍNCRONO de `whereClause` (AG Grid re-fetcha imediatamente, sem race) + async `filteredCount` + rebuild `displayMap`.
+  - Tests: 19 cases em `tests/csv/duckdb/filterModelToSql.test.ts` (escape de aspas, LIKE meta-chars, ident escape, ranges, combined, multi-coluna).
+
+- **Bulk row marker operations (perf)** — `CsvCodingModel.addCodeToManyRows` / `removeCodeFromManyRows` / `removeAllRowMarkersFromMany`. Single-pass index build (O(M)) + iterate sourceRowIds (O(R)) + ÚNICO `notify()` ao final. Reduz batch coding em 661k rows de minutos pra ~1-3s. `getCodeIntersectionForRows` calcula codes presentes em todas as rows visíveis em O(M+R) com early-exit (substitui o O(K×R×M) anterior; skipped acima de 5000 rows porque a interseção é praticamente sempre vazia em datasets enormes).
+
+- **Deferred load placeholder (UX)** — durante restauração de workspace, arquivos > threshold mostram placeholder inerte "Click to open this file" em vez de auto-disparar o banner Lazy/Eager/Cancel. Heurística: `app.workspace.layoutReady === false` indica restore. Resolve "Obsidian travado eternamente" ao reabrir vault com parquet pesado na leaf.
+
 - **DuckDB-Wasm bootstrap (Parquet-lazy Fase 2)** — runtime DuckDB-Wasm carregando dentro do plugin real (Electron Obsidian Worker). Infraestrutura compartilhada, ainda sem consumer (Fase 4 vai plugar `RowProvider` real). Inclui:
   - `src/csv/duckdb/duckdbBootstrap.ts` — `createDuckDBRuntime()` factory com 2 shims obrigatórios (validados no spike): `process` fake (derrota detecção falsa de Node pelo js-sha256 transitivo) + nuke de `WebAssembly.instantiateStreaming` (força fallback XHR; Worker do Electron não tem `Request`/`fetch`).
   - `src/csv/duckdb/rowProvider.ts` — interface `RowProvider` + `MockRowProvider` in-memory (impl real DuckDB-backed entra na Fase 4).
@@ -19,11 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`onLoadFile` da `CsvCodingView` agora é não-bloqueante** — extraí o eager path em `loadEagerPath(file)`. Quando o banner Lazy/Eager/Cancel aparece, `onLoadFile` retorna IMEDIATAMENTE; os botões disparam o próximo passo via `.then()`. Antes, `await this.confirmLoadLargeFile(...)` prendia o `loadFile` interno do Obsidian — workspace inteiro paralisava (até markdown não abria) até o user clicar em algum botão. Cada callback faz `if (this.file !== file) return` pra desistir se o user trocou de arquivo.
+
 - **CSV schema (Parquet-lazy Fase 0)**: `CsvMarker.row` (índice posicional do papaparse) → `CsvMarker.sourceRowId` (identidade estável). Refactor interno preparando o schema pras Fases 1-6 do parquet/CSV lazy loading e pra LLM coding em tabular (anchoring estável após sort/filter). Em modo eager (atual), `sourceRowId === papaparse row index` — comportamento e UX 100% inalterados. Nomes externos preservados (coluna `row` no CSV de export, `meta.row` do consolidator de analytics, payload do evento `qualia-csv:navigate`) pra evitar ripple effect downstream.
 
 ### Migration
 
 - One-shot: `node scripts/migrate-fase-0-source-row-id.mjs` no vault workbench. Backup automático em `data.json.pre-fase-0.bak`. Idempotente. Reverso disponível em `scripts/revert-fase-0-source-row-id.mjs`. Vault workbench migrado em 2026-05-03 (2 segment markers existentes preservados; smoke test com novo marker confirmou persistência no schema novo).
+
+### Fixed
+
+- **Cleanup race entre `onUnloadFile` e queries DuckDB em flight** — `onUnloadFile` agora snapshot do `lazyState` e seta `null` ANTES da teardown async. Concurrent paths (`refreshLazyDisplayMap`, `refreshLazyFilter`, datasource em flight) re-checam após cada await e abortam se `lazyState` virou null. Resolveu o crash "DuckDBRowProvider has been disposed" no `dropDisplayMap` durante teardown.
 
 ### Tech debt
 

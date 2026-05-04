@@ -1918,6 +1918,168 @@ Pôr `console.log` do field no FIM do constructor + INÍCIO do onOpen. Se o segu
 
 ---
 
+## 31. `await` em UI dentro de `onLoadFile` trava o pipeline `loadFile` do Obsidian
+
+### Problema
+
+`FileView.onLoadFile(file)` é awaited internamente pelo `loadFile` do Obsidian. Se a implementação faz `await this.confirmModal(...)` (banner que espera click), o promise nunca resolve até o user agir → `loadFile` fica preso → **workspace inteiro paralisa**: cliques em outros arquivos (incluindo markdown) são ignorados, banner fica visível mas Obsidian não reage a nada.
+
+Sintoma observado (Fase 5, 2026-05-04): user vê banner "Load Lazy/Eager/Cancel" pra parquet pesado. Clica em outro arquivo no file-explorer. Nada acontece. Cliques em markdown também ignorados. Único jeito de destravar é clicar num botão do banner.
+
+### Causa
+
+Obsidian `loadFile`:
+```ts
+async loadFile(file: TFile) {
+    if (this.file !== file) {
+        if (this.file) await this.onUnloadFile();
+        this.file = file;
+        await this.onLoadFile(file);  // ← bloqueado aqui se onLoadFile awaita UI
+    }
+}
+```
+
+Próximas chamadas de `loadFile(newFile)` ficam queued atrás do await pendente.
+
+### Pattern
+
+**Nunca awaitar promessa de UI interaction (modal, banner, dialog) dentro de `onLoadFile`/`onUnloadFile`.** Renderiza o UI, retorna imediatamente, e dispara o próximo passo via `.then()` ou callback nos event handlers.
+
+```ts
+async onLoadFile(file: TFile): Promise<void> {
+    contentEl.empty();
+    
+    if (needsBanner) {
+        // Render banner non-blocking
+        void this.confirmLoadLargeFile(file).then(choice => {
+            // CRITICAL: user may have switched files while banner was up
+            if (this.file !== file) return;
+            if (choice === 'lazy') void this.setupLazyMode(file);
+            else if (choice === 'eager') void this.loadEagerPath(file);
+        });
+        return;  // ← key: onLoadFile resolves immediately
+    }
+    
+    return this.loadEagerPath(file);
+}
+```
+
+### Cuidados
+
+- Cada callback **DEVE** verificar `this.file === file` antes de mutar estado. Se o user trocou de arquivo enquanto o banner estava aberto, o callback antigo precisa desistir silenciosamente.
+- Promises órfãs (banner antigo cujo botão foi clicado depois de file change) viram no-op via essa checagem. Não há leak grave porque o DOM do banner antigo já foi removido por `contentEl.empty()` da nova chamada.
+
+### Quando aplicar
+
+Qualquer FileView que mostra modal/banner condicional no carregamento. Casos típicos: confirmação de load pesado, escolha de modo, prompt de senha.
+
+### Onde está documentado
+
+`src/csv/csvCodingView.ts` — `onLoadFile` + `loadEagerPath` extraído em separate método. Comentário "CRITICAL: do NOT await the banner here" no callsite.
+
+---
+
+## 32. AG Grid Infinite Row Model — sync update de filter/sort state antes do datasource re-fetch
+
+### Problema
+
+AG Grid Infinite emite `filterChanged` (e `sortChanged`) e **automaticamente** purga o cache + re-chama `datasource.getRows`. Se o handler atualiza state assíncronamente (ex: `void this.refreshFilter()` que faz `await getRowCount(...)`), a próxima chamada de `getRows` pode ler state ainda velho e retornar dados sem filter aplicado.
+
+Sintoma: user filtra "abc". Grid mostra todas as linhas (sem filter). 100ms depois, grid corrige. Race entre purge cache + async state update.
+
+### Pattern
+
+Update do `whereClause`/sortModel deve ser **síncrono** dentro do event handler. Async tail (count, displayMap) atualiza depois.
+
+```ts
+private async refreshLazyFilter(): Promise<void> {
+    const filterModel = this.gridApi.getFilterModel();
+    const whereClause = buildWhereClause(filterModel) ?? undefined;
+    
+    // SYNC: getRows on next tick must see this
+    if (whereClause) {
+        this.lazyState.currentFilter = {
+            whereClause,
+            filteredCount: this.lazyState.totalRows,  // placeholder
+        };
+    } else {
+        this.lazyState.currentFilter = undefined;
+    }
+    
+    // ASYNC tail: precise count + displayMap
+    if (whereClause) {
+        const filteredCount = await provider.getRowCount(whereClause);
+        if (this.lazyState?.currentFilter?.whereClause === whereClause) {
+            this.lazyState.currentFilter.filteredCount = filteredCount;
+        }
+    }
+    await this.refreshLazyDisplayMap();
+}
+```
+
+### Cuidados
+
+- Re-check de `lazyState` após cada await — `onUnloadFile` pode rodar concurrent e nullar.
+- Compare `whereClause` antes de aplicar `filteredCount` — duas chamadas rápidas de `refreshLazyFilter` podem chegar fora de ordem.
+- `lastRow` no Infinite Row Model serve só pro scrollbar — durante a janela de async update, fall back pra `totalRows` é aceitável (scrollbar imprecisa por ms).
+
+### Onde está implementado
+
+`src/csv/csvCodingView.ts` — `refreshLazyFilter`. Comentário "Synchronous swap — getRows must see this on the next tick" no callsite.
+
+---
+
+## 33. Cleanup race entre query async em flight e dispose do recurso compartilhado
+
+### Problema
+
+`onUnloadFile` faz cleanup async (`await provider.dispose()`). Se durante o await outro event handler dispara que reusa o provider (ex: `gridApi.destroy()` emite eventos de cleanup que chamam `refreshDisplayMap` → `dropDisplayMap` no provider em transição), explode com "DuckDBRowProvider has been disposed".
+
+### Pattern
+
+Snapshot do recurso e null o reference ANTES da teardown async. Concurrent paths re-checam após cada await e abortam silenciosamente.
+
+```ts
+async onUnloadFile(): Promise<void> {
+    // Snapshot + null reference BEFORE any async teardown
+    const lazyState = this.lazyState;
+    this.lazyState = null;
+    if (lazyState && this.file) this.csvModel.unregisterLazyProvider(this.file.path);
+    
+    if (this.gridApi) { this.gridApi.destroy(); this.gridApi = null; }
+    
+    if (lazyState) {
+        const { rowProvider, displayMap } = lazyState;
+        if (displayMap) {
+            try { await rowProvider.dropDisplayMap(displayMap.name); }
+            catch (e) { console.warn(e); }
+        }
+        try { await rowProvider.dispose(); } catch (e) { console.warn(e); }
+    }
+}
+
+// Concurrent path re-checks after each await:
+private async refreshLazyDisplayMap() {
+    if (!this.lazyState) return;
+    // ...
+    const provider = this.lazyState?.rowProvider;
+    if (!provider) return;
+    await provider.dropDisplayMap(oldName);
+    if (!this.lazyState) return;  // re-check
+    // ...
+}
+```
+
+### Quando aplicar
+
+Qualquer recurso que tem dispose async + é referenciado por handlers que disparam por evento (ex: gridApi events, vault events, custom buses).
+
+### Onde está implementado
+
+`src/csv/csvCodingView.ts` — `onUnloadFile` + re-checks em `refreshLazyDisplayMap` / `refreshLazyFilter`.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
