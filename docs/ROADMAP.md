@@ -9,7 +9,7 @@
 
 **Frentes engatilhadas (próximas a atacar, ordem sugerida):**
 
-1. **Parquet/CSV lazy loading** — design doc completo: `docs/parquet-lazy-design.md` (§14 com spike findings empíricos). **Decisão final cravada** (DuckDB-Wasm + OPFS + AG Grid Infinite). **Fase 0 (sourceRowId) ✅ FEITA 2026-05-04** — schema rename `CsvMarker.row → sourceRowId`, migração one-shot do vault workbench, 2490 testes verdes, smoke test passou. **Próximo passo: Fase 1** (refator `getMarkerText` async + adapter batch resolver) — invocar `superpowers:writing-plans` sobre §7.2 + §6.11 do design doc.
+1. **Parquet/CSV lazy loading** — design doc completo: `docs/parquet-lazy-design.md` (§14 spike findings, §8 ordem de fases atualizada 2026-05-04). **Fase 0 (sourceRowId) ✅ FEITA 2026-05-04**. **Fase 1 (refactor async) DIFERIDA** — absorvida pela Fase 4 quando consumer real (DuckDB lazy) existir, alinha com regra "don't refactor for hypothetical future requirements" do CLAUDE.md. **Próximo passo: Fase 2** (DuckDB bootstrap — Worker via Blob URL com 2 shims já validados, esbuild loader binary, lifecycle, RowProvider esqueleto). Total recalibrado 13-15 → **11-13 sessões**.
 
 2. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão pendente:** qual escola Qualia subscreve? Antes disso, design real não rola — virou guard-rail.
 
