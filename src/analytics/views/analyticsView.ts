@@ -51,6 +51,12 @@ export class AnalyticsView extends ItemView {
   // Dendrogram state
   dendrogramCutDistance = 0.5;
 
+  // Files Dendrogram + File Similarity state (Q-mode)
+  filesDendrogramCutDistance = 0.5;
+  qModeBypassCap = false;
+  fileSimilarityRefFileId: string | null = null;
+  selectedFileCluster: { clusterIdx: number; fileIds: string[] } | null = null;
+
   // Lag Sequential state
   lagValue = 1;
 

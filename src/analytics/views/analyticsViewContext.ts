@@ -8,7 +8,7 @@ import type { Granularity, EventTypeFilter } from "../data/codebookTimelineEngin
 
 // ─── Type aliases (moved from analyticsView.ts) ───
 
-export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap" | "relations-network" | "code-metadata" | "memo-view" | "codebook-timeline";
+export type ViewMode = "dashboard" | "frequency" | "cooccurrence" | "graph" | "doc-matrix" | "evolution" | "text-retrieval" | "word-cloud" | "acm" | "mds" | "temporal" | "text-stats" | "dendrogram" | "files-dendrogram" | "file-similarity" | "lag-sequential" | "polar-coords" | "chi-square" | "decision-tree" | "source-comparison" | "code-overlap" | "relations-network" | "code-metadata" | "memo-view" | "codebook-timeline";
 export type SortMode = "alpha" | "freq-desc" | "freq-asc";
 export type MatrixSortMode = "alpha" | "total";
 export type GroupMode = "none" | "source" | "file";
@@ -60,6 +60,19 @@ export interface AnalyticsViewContext {
 
   // Dendrogram state
   dendrogramCutDistance: number;
+
+  // Files Dendrogram state (Q-mode)
+  filesDendrogramCutDistance: number;
+  /** When true, Q-mode views skip the N>200 confirmation banner for the rest of the session. */
+  qModeBypassCap: boolean;
+  /** Reference file selected in File Similarity Ranking. Null = nothing selected. */
+  fileSimilarityRefFileId: string | null;
+  /**
+   * Active cluster filter (S3 — cluster drill-down). When set, Analytics views
+   * recompute scoped to these fileIds. Reset when filesDendrogramCutDistance
+   * changes (cluster IDs become stale).
+   */
+  selectedFileCluster: { clusterIdx: number; fileIds: string[] } | null;
 
   // Lag Sequential state
   lagValue: number;
