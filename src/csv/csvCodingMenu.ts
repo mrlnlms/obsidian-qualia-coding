@@ -23,7 +23,7 @@ export function openCsvCodingPopover(
 	anchorEl: HTMLElement,
 	model: CsvCodingModel,
 	file: string,
-	row: number,
+	sourceRowId: number,
 	column: string,
 	gridApi: GridApi,
 	app: App,
@@ -32,14 +32,14 @@ export function openCsvCodingPopover(
 	const savedRect = anchorRect ?? anchorEl.getBoundingClientRect();
 	const pos = { x: savedRect.left, y: savedRect.bottom + 4 };
 
-	const getMarker = () => model.findOrCreateRowMarker(file, row, column);
-	const existingMarker = model.getRowMarkersForCell(file, row, column)[0];
+	const getMarker = () => model.findOrCreateRowMarker(file, sourceRowId, column);
+	const existingMarker = model.getRowMarkersForCell(file, sourceRowId, column)[0];
 	const isHoverMode = !!existingMarker;
 
 	const adapter: CodingPopoverAdapter = {
 		registry: model.registry,
 		getActiveCodes: () => {
-			const current = model.getRowMarkersForCell(file, row, column)[0];
+			const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
 			if (!current) return [];
 			return current.codes
 				.map(c => model.registry.getById(c.codeId)?.name)
@@ -62,12 +62,12 @@ export function openCsvCodingPopover(
 		getMemo: () => '',
 		setMemo: () => {},
 		getMagnitudeForCode: (codeId) => {
-			const current = model.getRowMarkersForCell(file, row, column)[0];
+			const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
 			if (!current) return undefined;
 			return findCodeApplication(current.codes, codeId)?.magnitude;
 		},
 		setMagnitudeForCode: (codeId, value) => {
-			const current = model.getRowMarkersForCell(file, row, column)[0];
+			const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
 			if (!current) return;
 			current.codes = setMagnitude(current.codes, codeId, value);
 			current.updatedAt = Date.now();
@@ -75,11 +75,11 @@ export function openCsvCodingPopover(
 			gridApi.refreshCells({ force: true });
 		},
 		getRelationsForCode: (codeId) => {
-			const current = model.getRowMarkersForCell(file, row, column)[0];
+			const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
 			return findCodeApplication(current?.codes ?? [], codeId)?.relations ?? [];
 		},
 		setRelationsForCode: (codeId, relations) => {
-			const current = model.getRowMarkersForCell(file, row, column)[0];
+			const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
 			if (!current) return;
 			const ca = findCodeApplication(current.codes, codeId);
 			if (ca) {
@@ -106,7 +106,7 @@ export function openCsvCodingPopover(
 			gridApi.refreshCells({ force: true });
 		},
 		onRebuild: () => {
-			openCsvCodingPopover(anchorEl, model, file, row, column, gridApi, app, savedRect);
+			openCsvCodingPopover(anchorEl, model, file, sourceRowId, column, gridApi, app, savedRect);
 		},
 		deleteAction: isHoverMode ? {
 			label: 'Remove All Codes',
@@ -141,10 +141,11 @@ export function openBatchCodingPopover(
 	const savedRect = anchorRect ?? anchorEl.getBoundingClientRect();
 	const pos = { x: savedRect.left, y: savedRect.bottom + 4 };
 
-	// Collect stable (data) row indices — sourceRowIndex is unaffected by sort/filter
-	const filteredRows: number[] = [];
+	// Collect stable source row IDs — node.sourceRowIndex is the original data position,
+	// unaffected by sort/filter. Maps directly to our persisted sourceRowId.
+	const filteredSourceRowIds: number[] = [];
 	gridApi.forEachNodeAfterFilterAndSort(node => {
-		filteredRows.push(node.sourceRowIndex);
+		filteredSourceRowIds.push(node.sourceRowIndex);
 	});
 
 	// "Active" = codes present in ALL visible rows
@@ -152,12 +153,12 @@ export function openBatchCodingPopover(
 	const fullyActiveCodes: string[] = [];
 	for (const codeDef of allCodes) {
 		let count = 0;
-		for (const row of filteredRows) {
-			if (model.getRowMarkersForCell(file, row, column).some(m => hasCode(m.codes, codeDef.id))) {
+		for (const sourceRowId of filteredSourceRowIds) {
+			if (model.getRowMarkersForCell(file, sourceRowId, column).some(m => hasCode(m.codes, codeDef.id))) {
 				count++;
 			}
 		}
-		if (count === filteredRows.length && filteredRows.length > 0) {
+		if (count === filteredSourceRowIds.length && filteredSourceRowIds.length > 0) {
 			fullyActiveCodes.push(codeDef.name);
 		}
 	}
@@ -168,8 +169,8 @@ export function openBatchCodingPopover(
 		addCode: (name) => {
 			let def = model.registry.getByName(name);
 			if (!def) def = model.registry.create(name);
-			for (const row of filteredRows) {
-				const m = model.findOrCreateRowMarker(file, row, column);
+			for (const sourceRowId of filteredSourceRowIds) {
+				const m = model.findOrCreateRowMarker(file, sourceRowId, column);
 				model.addCodeToMarker(m.id, def.id);
 			}
 			gridApi.refreshCells({ force: true });
@@ -177,8 +178,8 @@ export function openBatchCodingPopover(
 		removeCode: (name) => {
 			const def = model.registry.getByName(name);
 			if (!def) return;
-			for (const row of filteredRows) {
-				const m = model.findOrCreateRowMarker(file, row, column);
+			for (const sourceRowId of filteredSourceRowIds) {
+				const m = model.findOrCreateRowMarker(file, sourceRowId, column);
 				model.removeCodeFromMarker(m.id, def.id, true);
 			}
 			gridApi.refreshCells({ force: true });
@@ -195,7 +196,7 @@ export function openBatchCodingPopover(
 		pos,
 		app,
 		isHoverMode: false,
-		badge: `Apply to ${filteredRows.length} visible row${filteredRows.length !== 1 ? 's' : ''}`,
+		badge: `Apply to ${filteredSourceRowIds.length} visible row${filteredSourceRowIds.length !== 1 ? 's' : ''}`,
 		className: 'codemarker-popover',
 		onRebuild: () => {
 			openBatchCodingPopover(anchorEl, model, file, column, gridApi, app, savedRect);
@@ -204,8 +205,8 @@ export function openBatchCodingPopover(
 			label: 'Remove All Codes',
 			icon: 'trash',
 			onDelete: () => {
-				for (const row of filteredRows) {
-					const markers = model.getRowMarkersForCell(file, row, column);
+				for (const sourceRowId of filteredSourceRowIds) {
+					const markers = model.getRowMarkersForCell(file, sourceRowId, column);
 					for (const m of markers) {
 						for (const ca of [...m.codes]) {
 							model.removeCodeFromMarker(m.id, ca.codeId);

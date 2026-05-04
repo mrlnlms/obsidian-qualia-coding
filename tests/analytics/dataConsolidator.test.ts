@@ -54,7 +54,7 @@ describe('consolidate', () => {
   it('consolidates a single CSV segment marker', () => {
     const csvData = {
       segmentMarkers: [
-        { id: 'c1', fileId: 'data.csv', codes: [{codeId: 'codeC'}], row: 5, column: 'col1', from: 0, to: 10 },
+        { id: 'c1', fileId: 'data.csv', codes: [{codeId: 'codeC'}], sourceRowId:5, column: 'col1', from: 0, to: 10 },
       ],
     };
     const result = consolidate(null, csvData, null);
@@ -134,7 +134,7 @@ describe('consolidate', () => {
       markers: { 'f.md': [{ id: 'm1', codes: [{codeId: 'dup'}], range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } } }] },
     };
     const csvData = {
-      segmentMarkers: [{ id: 'c1', fileId: 'f.csv', codes: [{codeId: 'dup'}], row: 0, column: 'c' }],
+      segmentMarkers: [{ id: 'c1', fileId: 'f.csv', codes: [{codeId: 'dup'}], sourceRowId:0, column: 'c' }],
     };
     const result = consolidate(mdData, csvData, null);
     const dupCodes = result.codes.filter(c => c.name === 'dup');
@@ -166,7 +166,7 @@ describe('consolidate', () => {
   it('consolidates CSV row markers', () => {
     const csvData = {
       rowMarkers: [
-        { id: 'r1', fileId: 'data.csv', codes: [{codeId: 'rowCode'}], row: 2, column: 'all' },
+        { id: 'r1', fileId: 'data.csv', codes: [{codeId: 'rowCode'}], sourceRowId:2, column: 'all' },
       ],
     };
     const result = consolidate(null, csvData, null);
@@ -413,7 +413,7 @@ describe('consolidate', () => {
   it('handles CSV registry definitions', () => {
     const csvData = {
       segmentMarkers: [
-        { id: 'c1', fileId: 'data.csv', codes: [{codeId: 'csvCode'}], row: 0, column: 'c' },
+        { id: 'c1', fileId: 'data.csv', codes: [{codeId: 'csvCode'}], sourceRowId:0, column: 'c' },
       ],
       registry: { definitions: { d1: { id: 'csvCode', name: 'csvCode', color: '#0F0', description: 'CSV code' } } },
     };

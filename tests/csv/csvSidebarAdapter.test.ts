@@ -37,7 +37,7 @@ function createMockModel() {
 		saveMarkers: vi.fn(),
 		notifyAndSave: vi.fn(),
 
-		getMarkerLabel: vi.fn((m: CsvMarker) => `Row ${m.row}, ${m.column}`),
+		getMarkerLabel: vi.fn((m: CsvMarker) => `Row ${m.sourceRowId}, ${m.column}`),
 		getMarkerText: vi.fn((m: CsvMarker) => 'from' in m ? 'segment text' : null),
 
 		_markers: markers,
@@ -50,7 +50,7 @@ function mkSegment(overrides: Partial<SegmentMarker> = {}): SegmentMarker {
 	return {
 		id: 'seg-1',
 		fileId: 'data.csv',
-		row: 0,
+		sourceRowId: 0,
 		column: 'comment',
 		from: 0,
 		to: 10,
@@ -65,7 +65,7 @@ function mkRowMarker(overrides: Partial<RowMarker> = {}): RowMarker {
 	return {
 		id: 'row-1',
 		fileId: 'data.csv',
-		row: 1,
+		sourceRowId: 1,
 		column: 'category',
 		codes: [{ codeId: 'cat-id' }],
 		createdAt: 2000,

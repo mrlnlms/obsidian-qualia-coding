@@ -96,8 +96,10 @@ export function consolidateCsv(data: CsvEngineData | null): EngineSlice {
           source: "csv-segment",
           fileId: m.fileId ?? "",
           codes,
+          // External meta keys (`row`, `fromLine`, `toLine`) preserved per Fase 0 spec §9 decision #2;
+          // value source switched to m.sourceRowId to match the renamed marker schema.
           meta: {
-            row: m.row, column: m.column, fromLine: m.row, toLine: m.row,
+            row: m.sourceRowId, column: m.column, fromLine: m.sourceRowId, toLine: m.sourceRowId,
             ...(m.from != null ? { fromCh: m.from } : {}),
             ...(m.to != null ? { toCh: m.to } : {}),
             ...(m.createdAt != null ? { createdAt: m.createdAt } : {}),
@@ -115,7 +117,7 @@ export function consolidateCsv(data: CsvEngineData | null): EngineSlice {
           source: "csv-row",
           fileId: m.fileId ?? "",
           codes,
-          meta: { row: m.row, column: m.column, fromLine: m.row, toLine: m.row, ...(m.createdAt != null ? { createdAt: m.createdAt } : {}) },
+          meta: { row: m.sourceRowId, column: m.column, fromLine: m.sourceRowId, toLine: m.sourceRowId, ...(m.createdAt != null ? { createdAt: m.createdAt } : {}) },
         });
       }
     }

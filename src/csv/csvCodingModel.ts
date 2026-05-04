@@ -105,16 +105,16 @@ export class CsvCodingModel {
 
 	// ── Row Markers ──
 
-	getRowMarkersForCell(file: string, row: number, column: string): RowMarker[] {
-		return this.rowMarkers.filter(m => m.fileId === file && m.row === row && m.column === column);
+	getRowMarkersForCell(file: string, sourceRowId: number, column: string): RowMarker[] {
+		return this.rowMarkers.filter(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
 	}
 
-	findOrCreateRowMarker(file: string, row: number, column: string): RowMarker {
-		const existing = this.rowMarkers.find(m => m.fileId === file && m.row === row && m.column === column);
+	findOrCreateRowMarker(file: string, sourceRowId: number, column: string): RowMarker {
+		const existing = this.rowMarkers.find(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
 		if (existing) return existing;
 		const marker: RowMarker = {
 			id: this.generateId(),
-			fileId: file, row, column,
+			fileId: file, sourceRowId, column,
 			codes: [],
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
@@ -125,20 +125,20 @@ export class CsvCodingModel {
 
 	// ── Segment Markers ──
 
-	getSegmentMarkersForCell(file: string, row: number, column: string): SegmentMarker[] {
-		return this.segmentMarkers.filter(m => m.fileId === file && m.row === row && m.column === column);
+	getSegmentMarkersForCell(file: string, sourceRowId: number, column: string): SegmentMarker[] {
+		return this.segmentMarkers.filter(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
 	}
 
 	findOrCreateSegmentMarker(snapshot: CodingSnapshot): SegmentMarker {
 		const existing = this.segmentMarkers.find(m =>
-			m.fileId === snapshot.fileId && m.row === snapshot.row && m.column === snapshot.column &&
+			m.fileId === snapshot.fileId && m.sourceRowId === snapshot.sourceRowId && m.column === snapshot.column &&
 			m.from === snapshot.from && m.to === snapshot.to
 		);
 		if (existing) return existing;
 		const marker: SegmentMarker = {
 			id: this.generateId(),
 			fileId: snapshot.fileId,
-			row: snapshot.row,
+			sourceRowId: snapshot.sourceRowId,
 			column: snapshot.column,
 			from: snapshot.from,
 			to: snapshot.to,
@@ -179,10 +179,10 @@ export class CsvCodingModel {
 		return this.segmentMarkers.find(m => m.id === id) || this.rowMarkers.find(m => m.id === id);
 	}
 
-	getCodesForCell(file: string, row: number, column: string, type: 'segment' | 'row'): string[] {
+	getCodesForCell(file: string, sourceRowId: number, column: string, type: 'segment' | 'row'): string[] {
 		const markers = type === 'segment'
-			? this.getSegmentMarkersForCell(file, row, column)
-			: this.getRowMarkersForCell(file, row, column);
+			? this.getSegmentMarkersForCell(file, sourceRowId, column)
+			: this.getRowMarkersForCell(file, sourceRowId, column);
 		const codeIds = new Set<string>();
 		for (const m of markers) for (const id of getCodeIds(m.codes)) codeIds.add(id);
 		return Array.from(codeIds);
@@ -226,8 +226,8 @@ export class CsvCodingModel {
 
 	getMarkerText(marker: CsvMarker): string | null {
 		const rows = this.rowDataCache.get(marker.fileId);
-		if (!rows || !rows[marker.row]) return null;
-		const rawValue = rows[marker.row]![marker.column];
+		if (!rows || !rows[marker.sourceRowId]) return null;
+		const rawValue = rows[marker.sourceRowId]![marker.column];
 		if (rawValue == null) return null;
 		const cellText = String(rawValue);
 		if ('from' in marker && 'to' in marker) {
@@ -238,7 +238,7 @@ export class CsvCodingModel {
 
 	getMarkerLabel(marker: CsvMarker): string {
 		const isSegment = 'from' in marker;
-		return `Row ${marker.row + 1} · ${marker.column}${isSegment ? ' (seg)' : ''}`;
+		return `Row ${marker.sourceRowId + 1} · ${marker.column}${isSegment ? ' (seg)' : ''}`;
 	}
 
 	clearAllMarkers(): void {
@@ -247,9 +247,9 @@ export class CsvCodingModel {
 		this.notify();
 	}
 
-	deleteSegmentMarkersForCell(file: string, row: number, column: string): void {
+	deleteSegmentMarkersForCell(file: string, sourceRowId: number, column: string): void {
 		this.segmentMarkers = this.segmentMarkers.filter(
-			m => !(m.fileId === file && m.row === row && m.column === column)
+			m => !(m.fileId === file && m.sourceRowId === sourceRowId && m.column === column)
 		);
 	}
 

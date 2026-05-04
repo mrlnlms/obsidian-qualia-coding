@@ -25,7 +25,7 @@ function markerToBase(m: CsvMarker, model: CsvCodingModel): CsvBaseMarker {
 		colorOverride: m.colorOverride,
 		createdAt: m.createdAt,
 		updatedAt: m.updatedAt,
-		rowIndex: m.row,
+		rowIndex: m.sourceRowId,
 		columnId: m.column,
 		isSegment: 'from' in m,
 		markerLabel: model.getMarkerLabel(m),

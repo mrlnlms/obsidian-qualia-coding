@@ -105,14 +105,15 @@ async function resolveCsvTexts(app: App, dm: DataManager, warnings: string[]): P
 			warnings.push(`CSV ${fileId}: parse failed (${parsed.errors[0]!.message}) — skipping text resolution`);
 			continue;
 		}
+		// In eager mode (Fase 0) m.sourceRowId == papaparse row index; lookup by it.
 		for (const m of csv.segmentMarkers) {
 			if (m.fileId !== fileId) continue;
-			const cell = parsed.data[m.row]?.[m.column] ?? '';
+			const cell = parsed.data[m.sourceRowId]?.[m.column] ?? '';
 			result.set(m.id, cell.slice(m.from, m.to));
 		}
 		for (const m of csv.rowMarkers) {
 			if (m.fileId !== fileId) continue;
-			const cell = parsed.data[m.row]?.[m.column] ?? '';
+			const cell = parsed.data[m.sourceRowId]?.[m.column] ?? '';
 			result.set(m.id, cell);
 		}
 	}

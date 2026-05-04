@@ -232,10 +232,13 @@ export class CsvCodingView extends FileView {
 		return this.readyPromise;
 	}
 
-	navigateToRow(row: number, column?: string) {
+	navigateToRow(sourceRowId: number, column?: string) {
 		if (!this.gridApi) return;
-		this.gridApi.ensureIndexVisible(row, 'middle');
-		const rowNode = this.gridApi.getDisplayedRowAtIndex(row);
+		// In eager mode (Fase 0) without sort/filter, sourceRowId == display index.
+		// When sort is active, this navigates to the wrong visual row — same behavior as
+		// pre-Fase-0; the proper resolution lands in Fase 4 (display_row mapping table).
+		this.gridApi.ensureIndexVisible(sourceRowId, 'middle');
+		const rowNode = this.gridApi.getDisplayedRowAtIndex(sourceRowId);
 		if (rowNode) {
 			const flashOpts: { rowNodes: any[]; fadeDuration: number; columns?: string[] } = {
 				rowNodes: [rowNode],
@@ -248,8 +251,8 @@ export class CsvCodingView extends FileView {
 
 	// ─── Segment Editor delegates ────────────────────────────
 
-	openSegmentEditor(file: string, row: number, column: string, cellText: string) {
-		this.segmentEditor.open(file, row, column, cellText);
+	openSegmentEditor(file: string, sourceRowId: number, column: string, cellText: string) {
+		this.segmentEditor.open(file, sourceRowId, column, cellText);
 	}
 
 	closeSegmentEditor() {
@@ -278,7 +281,7 @@ export class CsvCodingView extends FileView {
 		const rowNodes: IRowNode[] = [];
 		const relevant = this.csvModel.getMarkersForFile(fileId)
 			.filter(m => m.codes.some(app => codeIds.has(app.codeId)));
-		const rowIndices = new Set(relevant.map(m => m.row));
+		const rowIndices = new Set(relevant.map(m => m.sourceRowId));
 		rowIndices.forEach(rowIdx => {
 			const node = this.gridApi!.getRowNode(`${rowIdx}`);
 			if (node) rowNodes.push(node);

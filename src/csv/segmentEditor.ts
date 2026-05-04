@@ -16,7 +16,7 @@ import { getCodeIds } from '../core/codeApplicationHelpers';
 
 export interface SegmentEditorContext {
 	file: string;
-	row: number;
+	sourceRowId: number;
 	column: string;
 }
 
@@ -40,11 +40,11 @@ export class SegmentEditor {
 	get context(): SegmentEditorContext | null { return this.editorContext; }
 	get isOpen(): boolean { return this.editorView !== null; }
 
-	open(file: string, row: number, column: string, cellText: string): void {
+	open(file: string, sourceRowId: number, column: string, cellText: string): void {
 		if (
 			this.editorContext &&
 			this.editorContext.file === file &&
-			this.editorContext.row === row &&
+			this.editorContext.sourceRowId === sourceRowId &&
 			this.editorContext.column === column
 		) {
 			this.close();
@@ -52,9 +52,9 @@ export class SegmentEditor {
 		}
 
 		this.close();
-		this.editorContext = { file, row, column };
+		this.editorContext = { file, sourceRowId, column };
 
-		const virtualFileId = `csv:${file}:${row}:${column}`;
+		const virtualFileId = `csv:${file}:${sourceRowId}:${column}`;
 
 		if (this.host.gridWrapper) {
 			this.host.gridWrapper.style.height = 'calc(60% - 40px)';
@@ -78,7 +78,7 @@ export class SegmentEditor {
 		header.style.backgroundColor = 'var(--background-secondary)';
 		header.style.flexShrink = '0';
 
-		header.createSpan({ text: `Row ${row + 1} \u00b7 ${column}` });
+		header.createSpan({ text: `Row ${sourceRowId + 1} \u00b7 ${column}` });
 
 		const closeBtn = header.createSpan();
 		closeBtn.style.cursor = 'pointer';
@@ -101,7 +101,7 @@ export class SegmentEditor {
 			}
 		}
 
-		const segmentMarkers = this.host.csvModel.getSegmentMarkersForCell(file, row, column);
+		const segmentMarkers = this.host.csvModel.getSegmentMarkersForCell(file, sourceRowId, column);
 		this.populateMarkersFromSegments(virtualFileId, segmentMarkers, cellText);
 
 		this.editorView = new EditorView({
@@ -171,10 +171,10 @@ export class SegmentEditor {
 			this.labelObserver = null;
 		}
 		if (this.editorView && this.editorContext) {
-			const { file, row, column } = this.editorContext;
-			const virtualFileId = `csv:${file}:${row}:${column}`;
+			const { file, sourceRowId, column } = this.editorContext;
+			const virtualFileId = `csv:${file}:${sourceRowId}:${column}`;
 
-			this.syncMarkersBackToCsvModel(virtualFileId, file, row, column);
+			this.syncMarkersBackToCsvModel(virtualFileId, file, sourceRowId, column);
 
 			const mdModel = this.host.markdownModel;
 			unregisterStandaloneEditor(this.editorView);
@@ -208,8 +208,8 @@ export class SegmentEditor {
 
 	refresh(): void {
 		if (this.editorView && this.editorContext) {
-			const { file, row, column } = this.editorContext;
-			const virtualFileId = `csv:${file}:${row}:${column}`;
+			const { file, sourceRowId, column } = this.editorContext;
+			const virtualFileId = `csv:${file}:${sourceRowId}:${column}`;
 			this.editorView.dispatch({
 				effects: updateFileMarkersEffect.of({ fileId: virtualFileId }),
 			});
@@ -295,14 +295,14 @@ export class SegmentEditor {
 		}
 	}
 
-	private syncMarkersBackToCsvModel(virtualFileId: string, file: string, row: number, column: string): void {
+	private syncMarkersBackToCsvModel(virtualFileId: string, file: string, sourceRowId: number, column: string): void {
 		const mdModel = this.host.markdownModel;
 		const mdMarkers = mdModel.getMarkersForFile(virtualFileId);
 
 		if (!this.editorView) return;
 		const doc = this.editorView.state.doc;
 
-		this.host.csvModel.deleteSegmentMarkersForCell(file, row, column);
+		this.host.csvModel.deleteSegmentMarkersForCell(file, sourceRowId, column);
 
 		for (const marker of mdMarkers) {
 			if (marker.codes.length === 0) continue;
@@ -310,7 +310,7 @@ export class SegmentEditor {
 				const fromOffset = doc.line(marker.range.from.line + 1).from + marker.range.from.ch;
 				const toOffset = doc.line(marker.range.to.line + 1).from + marker.range.to.ch;
 
-				const snapshot = { fileId: file, row, column, from: fromOffset, to: toOffset, text: '' };
+				const snapshot = { fileId: file, sourceRowId, column, from: fromOffset, to: toOffset, text: '' };
 				const segMarker = this.host.csvModel.findOrCreateSegmentMarker(snapshot);
 				segMarker.codes = [...marker.codes];
 				segMarker.updatedAt = marker.updatedAt;

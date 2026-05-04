@@ -6,7 +6,7 @@ import type { CsvCodingModel } from './csvCodingModel';
 
 // Minimal interface to avoid circular import with csvCodingView
 export interface CsvViewRef {
-	openSegmentEditor(file: string, row: number, column: string, cellText: string): void;
+	openSegmentEditor(file: string, sourceRowId: number, column: string, cellText: string): void;
 }
 
 // ── Column styles (shared with csvCodingView) ──

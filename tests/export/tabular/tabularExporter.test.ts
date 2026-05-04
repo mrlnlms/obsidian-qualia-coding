@@ -73,7 +73,7 @@ describe('exportTabular', () => {
 
 	it('CSV source missing → warning, segments[csv] emitted with empty text', async () => {
 		const csv = dm.section('csv');
-		csv.segmentMarkers.push({ id: 'sg1', fileId: 'missing.csv', row: 0, column: 'a', from: 0, to: 1, codes: [], createdAt: 0, updatedAt: 0 });
+		csv.segmentMarkers.push({ id: 'sg1', fileId: 'missing.csv', sourceRowId:0, column: 'a', from: 0, to: 1, codes: [], createdAt: 0, updatedAt: 0 });
 		dm.setSection('csv', csv);
 
 		const result = await exportTabular(mockApp(), dm, reg, {
@@ -86,7 +86,7 @@ describe('exportTabular', () => {
 
 	it('CSV source readable → text resolved from the cell', async () => {
 		const csv = dm.section('csv');
-		csv.segmentMarkers.push({ id: 'sg1', fileId: 'x.csv', row: 0, column: 'col', from: 0, to: 5, codes: [], createdAt: 0, updatedAt: 0 });
+		csv.segmentMarkers.push({ id: 'sg1', fileId: 'x.csv', sourceRowId:0, column: 'col', from: 0, to: 5, codes: [], createdAt: 0, updatedAt: 0 });
 		dm.setSection('csv', csv);
 		const app = mockApp({ 'x.csv': 'col\nhello world' });
 

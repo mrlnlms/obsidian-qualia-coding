@@ -5,7 +5,7 @@ import type { MemoRecord } from '../core/memoTypes';
 export interface SegmentMarker {
 	id: string;
 	fileId: string;     // CSV file path
-	row: number;        // 0-based row index (excluding header)
+	sourceRowId: number; // Stable row identity. In eager mode == papaparse row index (0-based).
 	column: string;     // source column field name
 	from: number;       // char offset start within cell text
 	to: number;         // char offset end within cell text
@@ -20,7 +20,7 @@ export interface SegmentMarker {
 export interface RowMarker {
 	id: string;
 	fileId: string;
-	row: number;
+	sourceRowId: number;
 	column: string;
 	codes: CodeApplication[];
 	memo?: MemoRecord;
@@ -44,6 +44,6 @@ export interface CodingSnapshot {
 	to: number;
 	text: string;
 	fileId: string;
-	row: number;
+	sourceRowId: number;
 	column: string;
 }

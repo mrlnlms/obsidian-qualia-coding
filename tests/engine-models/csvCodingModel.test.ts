@@ -36,11 +36,11 @@ beforeEach(() => {
 describe('findOrCreateSegmentMarker', () => {
 	it('creates a new segment marker', () => {
 		const marker = model.findOrCreateSegmentMarker({
-			fileId: 'data.csv', row: 0, column: 'text', from: 0, to: 10, text: 'hello',
+			fileId: 'data.csv', sourceRowId:0, column: 'text', from: 0, to: 10, text: 'hello',
 		});
 		expect(marker).toBeDefined();
 		expect(marker.fileId).toBe('data.csv');
-		expect(marker.row).toBe(0);
+		expect(marker.sourceRowId).toBe(0);
 		expect(marker.column).toBe('text');
 		expect(marker.from).toBe(0);
 		expect(marker.to).toBe(10);
@@ -48,7 +48,7 @@ describe('findOrCreateSegmentMarker', () => {
 	});
 
 	it('returns existing segment marker for same snapshot', () => {
-		const snap = { fileId: 'data.csv', row: 0, column: 'text', from: 0, to: 10, text: 'hello' };
+		const snap = { fileId: 'data.csv', sourceRowId:0, column: 'text', from: 0, to: 10, text: 'hello' };
 		const first = model.findOrCreateSegmentMarker(snap);
 		const second = model.findOrCreateSegmentMarker(snap);
 		expect(second.id).toBe(first.id);
@@ -61,7 +61,7 @@ describe('findOrCreateRowMarker', () => {
 	it('creates a new row marker', () => {
 		const marker = model.findOrCreateRowMarker('data.csv', 2, 'name');
 		expect(marker.fileId).toBe('data.csv');
-		expect(marker.row).toBe(2);
+		expect(marker.sourceRowId).toBe(2);
 		expect(marker.column).toBe('name');
 		expect(marker.codes).toEqual([]);
 	});
@@ -78,7 +78,7 @@ describe('findOrCreateRowMarker', () => {
 describe('findMarkerById', () => {
 	it('finds segment marker by id', () => {
 		const seg = model.findOrCreateSegmentMarker({
-			fileId: 'f.csv', row: 0, column: 'c', from: 0, to: 5, text: 'x',
+			fileId: 'f.csv', sourceRowId:0, column: 'c', from: 0, to: 5, text: 'x',
 		});
 		expect(model.findMarkerById(seg.id)).toBe(seg);
 	});
@@ -98,7 +98,7 @@ describe('findMarkerById', () => {
 describe('getAllMarkers', () => {
 	it('returns segments and rows combined', () => {
 		model.findOrCreateSegmentMarker({
-			fileId: 'f.csv', row: 0, column: 'c', from: 0, to: 5, text: 'x',
+			fileId: 'f.csv', sourceRowId:0, column: 'c', from: 0, to: 5, text: 'x',
 		});
 		model.findOrCreateRowMarker('f.csv', 1, 'c');
 		expect(model.getAllMarkers()).toHaveLength(2);
@@ -161,7 +161,7 @@ describe('getMarkersForFile', () => {
 		model.findOrCreateRowMarker('a.csv', 0, 'c');
 		model.findOrCreateRowMarker('b.csv', 0, 'c');
 		model.findOrCreateSegmentMarker({
-			fileId: 'a.csv', row: 1, column: 'c', from: 0, to: 5, text: 'x',
+			fileId: 'a.csv', sourceRowId:1, column: 'c', from: 0, to: 5, text: 'x',
 		});
 		expect(model.getMarkersForFile('a.csv')).toHaveLength(2);
 		expect(model.getMarkersForFile('b.csv')).toHaveLength(1);
@@ -189,7 +189,7 @@ describe('migrateFilePath', () => {
 	it('renames file path for all markers', () => {
 		model.findOrCreateRowMarker('old.csv', 0, 'c');
 		model.findOrCreateSegmentMarker({
-			fileId: 'old.csv', row: 1, column: 'c', from: 0, to: 5, text: 'x',
+			fileId: 'old.csv', sourceRowId:1, column: 'c', from: 0, to: 5, text: 'x',
 		});
 		model.migrateFilePath('old.csv', 'new.csv');
 		expect(model.getMarkersForFile('new.csv')).toHaveLength(2);
@@ -215,7 +215,7 @@ describe('migrateFilePath', () => {
 describe('removeMarker', () => {
 	it('removes segment marker', () => {
 		const seg = model.findOrCreateSegmentMarker({
-			fileId: 'f.csv', row: 0, column: 'c', from: 0, to: 5, text: 'x',
+			fileId: 'f.csv', sourceRowId:0, column: 'c', from: 0, to: 5, text: 'x',
 		});
 		expect(model.removeMarker(seg.id)).toBe(true);
 		expect(model.findMarkerById(seg.id)).toBeUndefined();
@@ -257,7 +257,7 @@ describe('setHoverState / getHoverMarkerIds', () => {
 describe('getMarkerLabel', () => {
 	it('returns label for segment marker', () => {
 		const seg = model.findOrCreateSegmentMarker({
-			fileId: 'f.csv', row: 2, column: 'notes', from: 0, to: 5, text: 'x',
+			fileId: 'f.csv', sourceRowId:2, column: 'notes', from: 0, to: 5, text: 'x',
 		});
 		const label = model.getMarkerLabel(seg);
 		expect(label).toBe('Row 3 · notes (seg)');
@@ -277,7 +277,7 @@ describe('constructor normalization', () => {
 		const def = registry.create('LegacyCode', '#FF0000');
 		const existing = {
 			csv: {
-				segmentMarkers: [{ id: 's-legacy', fileId: 'data.csv', row: 0, column: 'text', from: 0, to: 5, codes: [{ codeId: 'LegacyCode' }], createdAt: 1, updatedAt: 1 }],
+				segmentMarkers: [{ id: 's-legacy', fileId: 'data.csv', sourceRowId:0, column: 'text', from: 0, to: 5, codes: [{ codeId: 'LegacyCode' }], createdAt: 1, updatedAt: 1 }],
 				rowMarkers: [],
 			},
 		};
@@ -298,7 +298,7 @@ describe('constructor normalization', () => {
 		const existing = {
 			csv: {
 				segmentMarkers: [],
-				rowMarkers: [{ id: 'r-canonical', fileId: 'data.csv', row: 0, column: 'name', codes: [{ codeId: def.id }], createdAt: 1, updatedAt: 1 }],
+				rowMarkers: [{ id: 'r-canonical', fileId: 'data.csv', sourceRowId:0, column: 'name', codes: [{ codeId: def.id }], createdAt: 1, updatedAt: 1 }],
 			},
 		};
 		const dmCanonical = createMockDm(existing);

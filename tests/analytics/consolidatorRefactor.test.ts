@@ -24,10 +24,10 @@ function makeFixture(): AllEngineData {
 		},
 		csv: {
 			segmentMarkers: [
-				{ id: 'c1', codes: [{codeId: 'id-a'}], fileId: 'data.csv', row: 0, column: 'col1', from: 0, to: 5, createdAt: 2000 },
+				{ id: 'c1', codes: [{codeId: 'id-a'}], fileId: 'data.csv', sourceRowId:0, column: 'col1', from: 0, to: 5, createdAt: 2000 },
 			],
 			rowMarkers: [
-				{ id: 'c2', codes: [{codeId: 'id-b'}], fileId: 'data.csv', row: 1, column: 'col2', createdAt: 3000 },
+				{ id: 'c2', codes: [{codeId: 'id-b'}], fileId: 'data.csv', sourceRowId:1, column: 'col2', createdAt: 3000 },
 			],
 			registry: { definitions: defs },
 		},

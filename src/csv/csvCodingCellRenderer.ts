@@ -12,7 +12,8 @@ export function codingCellRenderer(params: any): HTMLElement {
 	wrapper.className = 'csv-cod-seg-cell';
 
 	const field: string = params.colDef.field;
-	const row: number = params.node?.sourceRowIndex ?? params.rowIndex ?? 0;
+	// AG Grid's node.sourceRowIndex is the original data position — maps directly to our persisted sourceRowId.
+	const sourceRowId: number = params.node?.sourceRowIndex ?? params.rowIndex ?? 0;
 	const model: CsvCodingModel | undefined = params.model;
 	const gridApi: GridApi | undefined = params.gridApi;
 	const file: string = params.file ?? '';
@@ -32,8 +33,8 @@ export function codingCellRenderer(params: any): HTMLElement {
 
 	if (model) {
 		const allCodeIds = isFrow
-			? model.getCodesForCell(file, row, sourceColumn, 'row')
-			: model.getCodesForCell(file, row, sourceColumn, 'segment');
+			? model.getCodesForCell(file, sourceRowId, sourceColumn, 'row')
+			: model.getCodesForCell(file, sourceRowId, sourceColumn, 'segment');
 		const codeIds = allCodeIds.filter(id => model.registry.isCodeVisibleInFile(id, file));
 
 		for (const codeId of codeIds) {
@@ -57,8 +58,8 @@ export function codingCellRenderer(params: any): HTMLElement {
 				if (!model) return;
 
 				const markers = isFrow
-					? model.getRowMarkersForCell(file, row, sourceColumn)
-					: model.getSegmentMarkersForCell(file, row, sourceColumn);
+					? model.getRowMarkersForCell(file, sourceRowId, sourceColumn)
+					: model.getSegmentMarkersForCell(file, sourceRowId, sourceColumn);
 				const marker = markers.find(m => hasCode(m.codes, codeId));
 				if (marker) {
 					// Dispatch detail event for sidebar
@@ -69,9 +70,11 @@ export function codingCellRenderer(params: any): HTMLElement {
 				}
 
 				if (isSeg && csvView) {
-					const rowNode = gridApi?.getDisplayedRowAtIndex(row);
+					// Same eager-mode caveat as csvCodingView.navigateToRow:
+					// in modes with sort active, sourceRowId != display index.
+					const rowNode = gridApi?.getDisplayedRowAtIndex(sourceRowId);
 					const cellText: string = rowNode?.data?.[sourceColumn] ?? '';
-					csvView.openSegmentEditor(file, row, sourceColumn, cellText);
+					csvView.openSegmentEditor(file, sourceRowId, sourceColumn, cellText);
 				}
 			});
 
@@ -81,7 +84,7 @@ export function codingCellRenderer(params: any): HTMLElement {
 				xBtn.textContent = '\u00d7';
 				xBtn.addEventListener('click', (e) => {
 					e.stopPropagation();
-					const markers = model.getRowMarkersForCell(file, row, sourceColumn);
+					const markers = model.getRowMarkersForCell(file, sourceRowId, sourceColumn);
 					for (const m of markers) {
 						if (hasCode(m.codes, codeId)) {
 							model.removeCodeFromMarker(m.id, codeId);
@@ -108,7 +111,7 @@ export function codingCellRenderer(params: any): HTMLElement {
 		btn.addEventListener('click', (e) => {
 			e.stopPropagation();
 			if (model && gridApi && app) {
-				openCsvCodingPopover(btn, model, file, row, sourceColumn, gridApi, app);
+				openCsvCodingPopover(btn, model, file, sourceRowId, sourceColumn, gridApi, app);
 			}
 		});
 		wrapper.appendChild(btn);
@@ -136,14 +139,14 @@ export function sourceTagBtnRenderer(params: any): HTMLElement {
 	btn.addEventListener('click', (e) => {
 		e.stopPropagation();
 		const segField: string = params.codSegField;
-		const row = params.node?.sourceRowIndex ?? params.rowIndex ?? 0;
+		const sourceRowId = params.node?.sourceRowIndex ?? params.rowIndex ?? 0;
 		const file: string = params.file ?? '';
 		const csvView: CsvViewRef | undefined = params.csvView;
 		const cellText: string = params.value != null ? String(params.value) : '';
 
 		if (csvView) {
 			const sourceColumn = segField.replace(/_cod-seg$/, '');
-			csvView.openSegmentEditor(file, row, sourceColumn, cellText);
+			csvView.openSegmentEditor(file, sourceRowId, sourceColumn, cellText);
 		}
 	});
 

@@ -96,10 +96,12 @@ export function buildSegmentsTable(
 		}
 	}
 
+	// CSV column name `row` preserved per Fase 0 spec §9 decision #1 (compat with R/Python pipelines);
+	// value source switched to m.sourceRowId to match the renamed marker schema.
 	for (const m of dm.section('csv').segmentMarkers) {
 		const row = newRow();
 		setCommon(row, m.id, m.fileId, 'csv', 'csv_segment', csvTexts.get(m.id) ?? '', getMemoContent(m.memo), m.createdAt, m.updatedAt);
-		row[idx('row')] = m.row;
+		row[idx('row')] = m.sourceRowId;
 		row[idx('column')] = m.column;
 		row[idx('cell_from')] = m.from;
 		row[idx('cell_to')] = m.to;
@@ -108,7 +110,7 @@ export function buildSegmentsTable(
 	for (const m of dm.section('csv').rowMarkers) {
 		const row = newRow();
 		setCommon(row, m.id, m.fileId, 'csv', 'csv_row', csvTexts.get(m.id) ?? '', getMemoContent(m.memo), m.createdAt, m.updatedAt);
-		row[idx('row')] = m.row;
+		row[idx('row')] = m.sourceRowId;
 		row[idx('column')] = m.column;
 		rows.push(row);
 	}
