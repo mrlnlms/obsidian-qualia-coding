@@ -431,11 +431,46 @@ export default class QualiaCodingPlugin extends Plugin {
 			},
 		};
 
+		// Smart Codes access — section no list mode da Detail view + reuso do hub modal pra full detail.
+		const smartCodeAccess = {
+			registry: this.smartCodeRegistry,
+			cache: this.smartCodeCache,
+			refreshFromMarkers: () => {
+				this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
+				this.smartCodeCache.invalidateAll();
+			},
+			openHub: (initialDetailId?: string | null) => {
+				this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
+				new SmartCodeListModal({
+					app: this.app,
+					smartCodeRegistry: this.smartCodeRegistry,
+					smartCodeCache: this.smartCodeCache,
+					registry: this.sharedRegistry,
+					caseVarsRegistry: this.caseVariablesRegistry,
+					mdModel: this.markdownModel ?? null,
+					getAuditLog: () => (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [],
+					initialDetailId,
+				}).open();
+			},
+			openBuilder: (mode: 'create' | 'edit', initialDefinition?: import('./core/types').SmartCodeDefinition) => {
+				this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
+				new SmartCodeBuilderModal({
+					app: this.app,
+					mode,
+					initialDefinition,
+					registry: this.sharedRegistry,
+					caseVarsRegistry: this.caseVariablesRegistry,
+					smartCodeRegistry: this.smartCodeRegistry,
+					smartCodeCache: this.smartCodeCache,
+				}).open();
+			},
+		};
+
 		// Register unified sidebar views (single set for ALL engines)
 		this.registerView(CODE_EXPLORER_VIEW_TYPE, (leaf) =>
 			new UnifiedCodeExplorerView(leaf, unifiedModel, mdModel));
 		this.registerView(CODE_DETAIL_VIEW_TYPE, (leaf) =>
-			new UnifiedCodeDetailView(leaf, unifiedModel, mdModel, auditAccess, memoAccess));
+			new UnifiedCodeDetailView(leaf, unifiedModel, mdModel, auditAccess, memoAccess, smartCodeAccess));
 		this.registerView(CASE_VARIABLES_VIEW_TYPE, (leaf) =>
 			new CaseVariablesView(leaf, this));
 

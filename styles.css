@@ -6114,6 +6114,27 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-sc-list-row.is-hidden .qc-sc-list-count { opacity: 0.5; }
 .qc-sc-list-row.is-hidden .qc-sc-list-eye { opacity: 0.85; }
 
+/* Smart Codes section dentro do Code Detail (list mode) — colapsável, mesmo layout das rows do hub. */
+.qc-smart-codes-section { display: flex; flex-direction: column; gap: 2px; padding: 4px 0 8px; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 8px; }
+.qc-smart-codes-section-header { display: flex; align-items: center; padding: 4px 6px; font-size: 0.85em; color: var(--text-muted); user-select: none; }
+.qc-smart-codes-chevron { display: inline-block; width: 12px; }
+.qc-smart-codes-count { color: var(--text-faint); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.qc-smart-code-row { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 4px; }
+.qc-smart-code-row:hover { background: var(--background-modifier-hover); }
+.qc-smart-code-row.is-selected { background: var(--background-modifier-active-hover); }
+.qc-smart-code-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.qc-smart-code-eye,
+.qc-smart-code-menu { display: inline-flex; align-items: center; padding: 2px; opacity: 0.4; cursor: pointer; }
+.qc-smart-code-eye:hover,
+.qc-smart-code-menu:hover { opacity: 1; }
+.qc-smart-code-name { flex: 1; font-size: 0.9em; }
+.qc-smart-code-count { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 0.85em; }
+.qc-smart-code-row.is-hidden .qc-smart-code-name,
+.qc-smart-code-row.is-hidden .qc-smart-code-count { opacity: 0.5; }
+.qc-smart-code-row.is-hidden .qc-smart-code-eye { opacity: 0.85; }
+.qc-smart-codes-new-btn { font-size: 0.85em; padding: 2px 8px; margin: 4px 8px 0; align-self: flex-start; opacity: 0.7; }
+.qc-smart-codes-new-btn:hover { opacity: 1; }
+
 .qc-sc-builder { min-width: 640px; }
 .qc-sc-builder-header { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 8px; }
 .qc-sc-builder-banner { padding: 6px 10px; border-radius: 4px; margin: 4px 0; }

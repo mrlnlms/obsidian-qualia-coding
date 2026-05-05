@@ -4,11 +4,19 @@
  * Uses codebookTreeRenderer for hierarchical virtual-scrolled tree display.
  */
 
-import { SearchComponent, setIcon } from 'obsidian';
+import { App, SearchComponent, setIcon } from 'obsidian';
 import type { BaseMarker, SidebarModelInterface } from './types';
-import type { MemoMaterializerAccess } from './baseCodeDetailView';
+import type { MemoMaterializerAccess, SmartCodesAccess } from './baseCodeDetailView';
 import { renderCodebookTree, type CodebookTreeCallbacks, type CodebookTreeState } from './codebookTreeRenderer';
 import { renderCodeGroupsPanel } from './codeGroupsPanel';
+import { renderSmartCodesSection, type SmartCodesSectionState } from './smartCodes/smartCodesSection';
+
+export interface SmartCodesIntegration {
+	access: SmartCodesAccess;
+	app: App;
+	state: SmartCodesSectionState;
+	onToggleCollapsed(): void;
+}
 
 export interface ListRendererCallbacks extends CodebookTreeCallbacks {
 	onSearchChange(query: string): void;
@@ -23,6 +31,8 @@ export interface ListRendererCallbacks extends CodebookTreeCallbacks {
 	onDropCodeOnGroup?(codeId: string, groupId: string): void;
 	/** Memo materialization access — habilita botão "Convert to note" + card no group memo. Optional. */
 	memoAccess?: MemoMaterializerAccess;
+	/** Smart Codes integration — quando setado, renderiza section "Smart Codes" no list mode. Optional. */
+	smartCodes?: SmartCodesIntegration;
 }
 
 /**
@@ -95,6 +105,7 @@ export function renderListContent(
 
 	// Sub-divs separados — renderCodebookTree chama container.empty() e apagaria o painel.
 	const panelDiv = contentZone.createDiv();
+	const smartCodesDiv = contentZone.createDiv();
 	const treeDiv = contentZone.createDiv();
 
 	renderCodeGroupsPanel(panelDiv, model.registry, {
@@ -107,6 +118,27 @@ export function renderListContent(
 		onDropCodeOnGroup: callbacks.onDropCodeOnGroup,
 		memoAccess: callbacks.memoAccess,
 	});
+
+	if (callbacks.smartCodes) {
+		const sc = callbacks.smartCodes;
+		renderSmartCodesSection(
+			smartCodesDiv,
+			sc.access.registry.getAll(),
+			sc.access.cache,
+			sc.access.registry,
+			sc.app,
+			sc.state,
+			{
+				onToggleCollapsed: sc.onToggleCollapsed,
+				onSmartCodeClick: (id) => sc.access.openHub(id),
+				onNew: () => sc.access.openBuilder('create'),
+				onEditPredicate: (id) => {
+					const def = sc.access.registry.getById(id);
+					if (def) sc.access.openBuilder('edit', def);
+				},
+			},
+		);
+	}
 
 	renderCodebookTree(treeDiv, model, treeState, callbacks);
 }

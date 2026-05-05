@@ -19,6 +19,8 @@ export interface SmartCodeListConfig {
 	caseVarsRegistry: CaseVariablesRegistry;
 	mdModel: CodeMarkerModel | null;
 	getAuditLog: () => AuditEntry[];
+	/** Quando setado, abre direto no detail desse SC em vez da lista. */
+	initialDetailId?: string | null;
 }
 
 /** Hub modal pra Smart Codes — lista + new + click abre detail. */
@@ -29,6 +31,7 @@ export class SmartCodeListModal extends Modal {
 
 	constructor(private cfg: SmartCodeListConfig) {
 		super(cfg.app);
+		this.currentDetailId = cfg.initialDetailId ?? null;
 	}
 
 	onOpen() {
@@ -69,16 +72,15 @@ export class SmartCodeListModal extends Modal {
 
 				const eyeBtn = row.createSpan({ cls: 'qc-sc-list-eye' });
 				setIcon(eyeBtn, sc.hidden ? 'eye-off' : 'eye');
-				eyeBtn.title = sc.hidden ? 'Show smart code' : 'Hide smart code';
+				eyeBtn.title = sc.hidden ? 'Show in markers' : 'Hide from markers';
 				eyeBtn.onclick = (e) => {
 					e.stopPropagation();
 					this.cfg.smartCodeRegistry.update(sc.id, { hidden: !sc.hidden });
 				};
 
 				row.createSpan({ text: sc.name, cls: 'qc-sc-list-name' });
-				const isDirty = this.cfg.smartCodeCache.isDirty(sc.id);
-				const count = isDirty ? '…' : String(this.cfg.smartCodeCache.getCount(sc.id));
-				row.createSpan({ text: count, cls: 'qc-sc-list-count' });
+				// getCount sincrono — dropa pattern "…" que ficava preso sem trigger de compute externo.
+				row.createSpan({ text: String(this.cfg.smartCodeCache.getCount(sc.id)), cls: 'qc-sc-list-count' });
 
 				const menuBtn = row.createSpan({ cls: 'qc-sc-list-menu' });
 				setIcon(menuBtn, 'more-vertical');

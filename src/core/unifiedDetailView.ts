@@ -4,7 +4,7 @@
  */
 
 import { WorkspaceLeaf } from 'obsidian';
-import { BaseCodeDetailView, type AuditAccess, type MemoMaterializerAccess } from './baseCodeDetailView';
+import { BaseCodeDetailView, type AuditAccess, type MemoMaterializerAccess, type SmartCodesAccess } from './baseCodeDetailView';
 import type { BaseMarker, SidebarModelInterface } from './types';
 import type { CodeMarkerModel, Marker } from '../markdown/models/codeMarkerModel';
 import { isPdfMarker, isImageMarker, isCsvMarker, isAudioMarker, isVideoMarker, shortenPath as _shortenPath, getMarkerLabel as _getMarkerLabel } from './markerResolvers';
@@ -21,8 +21,9 @@ export class UnifiedCodeDetailView extends BaseCodeDetailView {
 		mdModel: CodeMarkerModel | null,
 		auditAccess?: AuditAccess,
 		memoAccess?: MemoMaterializerAccess,
+		smartCodeAccess?: SmartCodesAccess,
 	) {
-		super(leaf, model, auditAccess, memoAccess);
+		super(leaf, model, auditAccess, memoAccess, smartCodeAccess);
 		this.mdModel = mdModel;
 	}
 

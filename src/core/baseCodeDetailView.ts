@@ -40,6 +40,22 @@ export interface MemoMaterializerAccess {
 	unmaterializeMemo(ref: import('./memoTypes').EntityRef): void;
 	openMaterializedFile(path: string): void;
 }
+
+/**
+ * Smart Codes accessor — passado pelo plugin pra views renderizarem section
+ * "Smart Codes" no list mode. Opcional: sem ele, list mode mostra só codebook tree.
+ *
+ * Click em SC abre hub modal no detail dessa SC (Fase 1). Phase 2 vai renderizar
+ * SC detail inline na sidebar (substitui modal click).
+ */
+export interface SmartCodesAccess {
+	registry: import('./smartCodes/smartCodeRegistryApi').SmartCodeRegistry;
+	cache: import('./smartCodes/cache').SmartCodeCache;
+	/** Re-indexa markers + invalida todos SC matches. Workaround SC3 — chamado quando model emite onChange. */
+	refreshFromMarkers(): void;
+	openHub(initialDetailId?: string | null): void;
+	openBuilder(mode: 'create' | 'edit', initialDefinition?: import('./types').SmartCodeDefinition): void;
+}
 import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
@@ -88,17 +104,22 @@ export abstract class BaseCodeDetailView extends ItemView {
 
 	protected auditAccess?: AuditAccess;
 	protected memoAccess?: MemoMaterializerAccess;
+	protected smartCodeAccess?: SmartCodesAccess;
+	private smartCodesCollapsed = false;
+	private unsubSmartCodes: (() => void) | null = null;
 
 	constructor(
 		leaf: WorkspaceLeaf,
 		model: SidebarModelInterface,
 		auditAccess?: AuditAccess,
 		memoAccess?: MemoMaterializerAccess,
+		smartCodeAccess?: SmartCodesAccess,
 	) {
 		super(leaf);
 		this.model = model;
 		this.auditAccess = auditAccess;
 		this.memoAccess = memoAccess;
+		this.smartCodeAccess = smartCodeAccess;
 	}
 
 	// ─── Abstract hooks (engine implements) ──────────────────
@@ -132,6 +153,23 @@ export abstract class BaseCodeDetailView extends ItemView {
 		};
 		this.model.registry.addVisibilityListener(onVisibilityChange);
 		this.register(() => this.model.registry.removeVisibilityListener(onVisibilityChange));
+
+		// Smart codes: refresh section quando counts ou definitions mudarem
+		if (this.smartCodeAccess) {
+			const access = this.smartCodeAccess;
+			const refreshSection = () => { if (this.listContentZone) this.refreshListContent(); };
+			const unsubCache = access.cache.subscribe(refreshSection);
+			const unsubRegistry = access.registry.addOnMutate(refreshSection);
+			// Workaround SC3: model.onChange dispara em apply/remove de code em marker, mas engines
+			// nao emitem qualia:markers-changed granular. Hookamos aqui pra reindexar SC cache.
+			const onMarkersMutated = () => access.refreshFromMarkers();
+			this.model.onChange(onMarkersMutated);
+			this.unsubSmartCodes = () => {
+				unsubCache();
+				unsubRegistry();
+				this.model.offChange(onMarkersMutated);
+			};
+		}
 
 		// Keyboard: Esc limpa seleção, Delete/Backspace dispara bulk delete (se há seleção).
 		// Skip quando foco em input/textarea pra não consumir typing no search ou em edits inline.
@@ -169,6 +207,8 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.model.offChange(this.scheduleRefresh);
 		this.model.offHoverChange(this.boundApplyHover);
 		document.removeEventListener('qualia:registry-changed', this.scheduleRefresh);
+		this.unsubSmartCodes?.();
+		this.unsubSmartCodes = null;
 		if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
 		if (this.listShellCleanup) { this.listShellCleanup(); this.listShellCleanup = null; }
 		if (this.dragDropCleanup) { this.dragDropCleanup(); this.dragDropCleanup = null; }
@@ -794,6 +834,15 @@ export abstract class BaseCodeDetailView extends ItemView {
 				this.refreshCurrentMode();
 			},
 			memoAccess: this.memoAccess,
+			smartCodes: this.smartCodeAccess ? {
+				access: this.smartCodeAccess,
+				app: this.app,
+				state: { collapsed: this.smartCodesCollapsed, selectedSmartCodeId: null },
+				onToggleCollapsed: () => {
+					this.smartCodesCollapsed = !this.smartCodesCollapsed;
+					this.refreshListContent();
+				},
+			} : undefined,
 		};
 	}
 
