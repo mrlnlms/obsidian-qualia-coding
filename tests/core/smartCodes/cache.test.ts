@@ -137,6 +137,31 @@ describe('SmartCodeCache', () => {
 			expect(cache.getMarkerByRef(refIdentity)).toBe(updatedMarker);
 		});
 
+		it('cascade: applyMarkerMutation invalida SC_B que depende de SC_A via smartCode leaf', () => {
+			data.smartCodes.definitions['sc_b'] = {
+				id: 'sc_b', name: 'B', color: '#fff', paletteIndex: 0, createdAt: 0,
+				predicate: { kind: 'smartCode', smartCodeId: 'sc_x' },
+			} as any;
+			cache.configure(lookups(data));
+			cache.rebuildIndexes(data);
+			cache.getMatches('sc_x');
+			cache.getMatches('sc_b');
+			expect(cache.isDirty('sc_x')).toBe(false);
+			expect(cache.isDirty('sc_b')).toBe(false);
+
+			// Marker mutation que afeta sc_x (hasCode(c_a)).
+			cache.applyMarkerMutation({
+				engine: 'markdown', fileId: 'f1.md', markerId: 'm1',
+				prevCodeIds: ['c_a'], nextCodeIds: [], codeIds: ['c_a'],
+				marker: undefined,
+			});
+
+			// sc_x direto invalidado.
+			expect(cache.isDirty('sc_x')).toBe(true);
+			// sc_b cascade invalidado (depende de sc_x).
+			expect(cache.isDirty('sc_b')).toBe(true);
+		});
+
 		it('memo edit (codeIds vazio) é no-op de invalidação', () => {
 			cache.getMatches('sc_x');
 			expect(cache.isDirty('sc_x')).toBe(false);

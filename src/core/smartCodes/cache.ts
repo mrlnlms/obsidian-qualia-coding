@@ -147,26 +147,28 @@ export class SmartCodeCache {
 	}
 
 	invalidateForCode(codeId: string): void {
+		// invalidate (não markDirty) cascateia via smartCode leaf — SCs que dependem indiretamente
+		// (sc_b: smartCode(sc_a) onde sc_a tem hasCode(codeId)) também ficam dirty.
 		for (const [scId, deps] of this.deps) {
-			if (deps.codeIds.has(codeId)) this.markDirty(scId);
+			if (deps.codeIds.has(codeId)) this.invalidate(scId);
 		}
 	}
 
 	invalidateForCaseVar(varKey: string): void {
 		for (const [scId, deps] of this.deps) {
-			if (deps.caseVarKeys.has(varKey)) this.markDirty(scId);
+			if (deps.caseVarKeys.has(varKey)) this.invalidate(scId);
 		}
 	}
 
 	invalidateForFolder(folderId: string): void {
 		for (const [scId, deps] of this.deps) {
-			if (deps.folderIds.has(folderId)) this.markDirty(scId);
+			if (deps.folderIds.has(folderId)) this.invalidate(scId);
 		}
 	}
 
 	invalidateForGroup(groupId: string): void {
 		for (const [scId, deps] of this.deps) {
-			if (deps.groupIds.has(groupId)) this.markDirty(scId);
+			if (deps.groupIds.has(groupId)) this.invalidate(scId);
 		}
 	}
 
