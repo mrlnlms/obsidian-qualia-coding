@@ -3,13 +3,13 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-04.
+> Última atualização: 2026-05-05.
 
 ---
 
 ## 🟢 Estado atual
 
-**Nenhum bloqueador aberto.** 4 items ativos (Smart Codes Phase 2, todos não bloqueantes — funcionalidade core 100% utilizável). Single item legado: §11 E3 (limitação de formato, won't-fix documentado).
+**Nenhum bloqueador aberto.** 1 item ativo (SC3 — emit granular, não bloqueante). Single item legado: §11 E3 (limitação de formato, won't-fix documentado).
 
 ### 🔍 Sintomas observados sem repro confiável
 
@@ -34,32 +34,29 @@ Smart Codes Tier 3 fechou em 2026-05-04 (branch `feat/smart-codes`, 19 commits, 
 **Plan original:** `docs/superpowers/plans/2026-05-04-smart-codes.md` (5 chunks)
 **Tags de rollback:** `pre-smart-codes-baseline` (82cb949) ↔ `post-smart-codes-checkpoint` (4022808)
 
-### SC1 — Integração em Analytics modes (frequency / co-occurrence / evolution / sequential / codeMetadata / memoView)
+### ~~SC1 — Integração em Analytics modes~~ ✅ FEITO (2026-05-05)
 
-**O que falta:** smart codes não aparecem em modes do Analytics que iteram códigos. Hoje você cria um smart code e ele só aparece no Code Detail/List modal — não como linha na frequency chart, não como dimension no co-occurrence, etc.
+Helper `getSmartCodeViews` em `smartCodeAnalytics.ts` resolve refs em UnifiedMarkers
+aplicando filters globais. Cada engine augmenta seu result type com SC entries:
+frequency (isSmart flag, drag/board desabilitado), cooccurrence (intersect Sets),
+evolution+temporal (herda meta), codeMetadata (matriz extends), lagSequential+polar
+(SC vira código aumentado em transitions), memoView (sections SC prepended em byCode).
+Filter UI: chips ⚡ no topo da codes section, integrados ao enabledCodes/excludeCodes.
+AnalyticsPluginAPI ganhou smartCodeRegistry + smartCodeCache.
 
-**Por que ficou pendente:** plan original (Tasks 4.1-4.4) prescrevia refator do `dataConsolidator` pra injetar smart codes como "virtual codes" no `ConsolidatedData`. Cada mode itera `data.codes` e conta `m.codes.includes(codeId)`. Pra smart codes, precisaria sintetizar matches via `cache.getMatches(scId)` e injetar em todos modes (6+ arquivos). Risco de regression alto em modes existentes que estão verdes hoje. Decisão pragmática: deferir.
+Commit: `210b7a1`.
 
-**Como atacar:** spec §10 + plan Task 4.1-4.4 (linhas 1928-2060 do plan) cobrem o design completo, incluindo decisões per-mode (cooccurrence intersect-sets, sequential timestamp inheritance, codeMetadata self-ref warning). Caminho:
-1. Adicionar `getCodeDimensions(data, registry, smartCodeCache): CodeDimension[]` em `src/analytics/data/dataReader.ts` retornando union {regular, smart} com `isSmart` flag e `getMatches()` resolved.
-2. Modificar `applyFilters` em `src/analytics/data/statsHelpers.ts` pra dispatch via prefix (`sc_*` resolve via cache, `c_*` mantém pipeline).
-3. Refatorar **6 modes** pra usar `getCodeDimensions` em vez de `Object.values(registry.definitions)`: `frequencyMode.ts`, `evolutionMode.ts`, `cooccurrenceMode.ts`, `sequentialMode.ts`, `codeMetadataMode.ts`, `memoView/*`.
-4. `renderCodesFilter` em `configSections.ts` ganha sub-section "Smart Codes" com chips ⚡.
+### ~~SC2 — Sidebar adapters por engine mostrando smart codes que matcham no file~~ ✅ FEITO (2026-05-05)
 
-**Estimativa:** 1 sessão dedicada se pegar o plan referência. Tests existentes do Analytics são guard rails.
+Plan original referia "6 sidebar adapters concretos pra modificar" — premissa errada:
+esses arquivos são MarkerInterface model adapters, não rendering. UI cross-engine fica
+em UnifiedCodeExplorerView (única view shared). Adicionado grupo "⚡ Smart Codes" como
+top-level no tree do Code Explorer com estrutura SC → file → matches. Click em match
+navega cross-engine via `this.navigateToMarker`. Subscribe a cache + registry.addOnMutate
++ refreshFromMarkers (workaround SC3). Search filter aplica a SC names também.
+Bonus fix: search no Code Detail (list mode) também filtra SCs (paridade).
 
-### SC2 — Sidebar adapters por engine mostrando smart codes que matcham no file
-
-**O que falta:** sidebar de cada engine (markdown/pdf/image/audio/video/csv) lista códigos aplicados ao file. Smart codes não aparecem ali — usuário não vê "esse arquivo dá match em X smart codes".
-
-**Por que ficou pendente:** 6 sidebar adapters concretos pra modificar (`src/markdown/markdownSidebarAdapter.ts`, `src/pdf/views/pdfSidebarAdapter.ts`, etc.). Custo alto pra valor incremental — usuário pode ver matches per-file no Smart Code Detail modal já.
-
-**Como atacar:** plan Task 4.5 (linhas 2110-2180) tem o design. Pattern:
-1. Adicionar `renderSmartCodesGroup(container, fileId)` no `BaseSidebarAdapter` que lista smart codes onde `cache.getMatches(scId).some(r => r.fileId === fileId)`.
-2. Subscribe ao cache no init pra re-render quando muda.
-3. Click navega pro próximo match no file (reusa `navigateToMarker` existente).
-
-**Estimativa:** 1 sessão. Refator iterativo (1 engine por vez se quiser).
+Commits: `158d65b` (SC2), `b7a21f2` (search fix).
 
 ### SC3 — Emit granular `qualia:markers-changed` em models pra invalidação cirúrgica
 
