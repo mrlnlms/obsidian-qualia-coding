@@ -19,6 +19,8 @@ Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não 
 
 - **(2026-05-05) Polígono em image marker reposicionado ao fechar/reabrir** — usuário criou polygon no centro de uma imagem; após close+reopen do file, polygon aparece deslocado no canto inferior. Outras shapes (rect/ellipse) parecem manter posição. Suspeita: serialization/deserialization de coords do polygon usa formato inconsistente entre absolute pixels vs normalized 0-1, ou renderer carrega centroid default em vez do salvo. Repro: criar polygon no meio da Screenshot 2026-05-02 at 11.35.26, fechar arquivo, reabrir. **Não relacionado a SC3** — bug pré-existente do image engine. Atacar quando entrar no image polish.
 
+- **(2026-05-05) Cmd+Z não desfaz coding em PDF** — usuário aplicou `tema-A` em 2 trechos de PDF text marker (count subiu 7→8→9), mas Cmd+Z não removeu o último coding. SC count permaneceu em 9 (sem mudança, comportamento esperado se nenhum mutation aconteceu — ou seja, undo não disparou nada). PdfCodingModel tem undo stack + reconcileCodes, mas Cmd+Z keybinding pode não estar wired no PDF view, ou o command não está chegando ao model. Não validamos o fix SC3 do undo path (commit `df9ecaa`) por causa disso — o emit existe e foi unit-testado, mas integração UI quebrada bloqueia smoke. **Atacar:** verificar wiring do undo no PdfCodingView (provavelmente falta keybinding registration ou conflito com Obsidian default Cmd+Z handler).
+
 Áreas com polish opcional foram migradas pro `ROADMAP.md`:
 - Relations Network (hover-focus ✅, filtro N+ ✅, edge bundling condicional)
 - Multi-tab spreadsheet export

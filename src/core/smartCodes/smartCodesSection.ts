@@ -46,18 +46,9 @@ export function renderSmartCodesSection(
 	for (const sc of smartCodes) {
 		const row = sectionEl.createDiv({ cls: 'qc-smart-code-row' });
 		if (state.selectedSmartCodeId === sc.id) row.addClass('is-selected');
-		if (sc.hidden) row.addClass('is-hidden');
 
 		const swatch = row.createSpan({ cls: 'qc-smart-code-swatch' });
 		swatch.style.backgroundColor = sc.color;
-
-		const eyeBtn = row.createSpan({ cls: 'qc-smart-code-eye' });
-		setIcon(eyeBtn, sc.hidden ? 'eye-off' : 'eye');
-		eyeBtn.title = sc.hidden ? 'Show in markers' : 'Hide from markers';
-		eyeBtn.onclick = (e) => {
-			e.stopPropagation();
-			registry.update(sc.id, { hidden: !sc.hidden });
-		};
 
 		row.createSpan({ text: sc.name, cls: 'qc-smart-code-name' });
 		// getCount é sincrono e rapido — sempre chama, dropa o pattern "…" que ficava preso
@@ -75,7 +66,7 @@ export function renderSmartCodesSection(
 		row.style.cursor = 'pointer';
 		row.onclick = (e) => {
 			const target = e.target as HTMLElement;
-			if (target.closest('.qc-smart-code-eye') || target.closest('.qc-smart-code-menu')) return;
+			if (target.closest('.qc-smart-code-menu')) return;
 			callbacks.onSmartCodeClick(sc.id);
 		};
 		row.oncontextmenu = (e) => {
@@ -109,11 +100,6 @@ function showRowMenu(
 			},
 		}).open();
 	}));
-	menu.addItem((i) => i
-		.setTitle(sc.hidden ? 'Show' : 'Hide')
-		.setIcon(sc.hidden ? 'eye' : 'eye-off')
-		.onClick(() => registry.update(sc.id, { hidden: !sc.hidden }))
-	);
 	menu.addSeparator();
 	menu.addItem((i) => i.setTitle('Delete').setIcon('trash').onClick(() => {
 		new ConfirmModal({
