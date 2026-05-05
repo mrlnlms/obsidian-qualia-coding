@@ -145,9 +145,11 @@ export class AnalyticsView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.data = await this.plugin.loadConsolidatedData();
-    // Enable all codes by default
+    // Enable all codes (regular + smart) by default. SCs entram aqui também pra que ficar
+    // checado por padrão na codes section — desmarcar adiciona em excludeCodes via buildFilterConfig.
     if (this.data) {
-      this.enabledCodes = new Set(this.data.codes.map((c) => c.id));
+      const scIds = this.plugin.smartCodeRegistry.getAll().filter(sc => !sc.hidden).map(sc => sc.id);
+      this.enabledCodes = new Set([...this.data.codes.map((c) => c.id), ...scIds]);
     }
     this.renderView();
 
@@ -190,15 +192,17 @@ export class AnalyticsView extends ItemView {
   onDataRefreshed(): void {
     this.data = this.plugin.data;
     if (this.data) {
+      const scIds = this.plugin.smartCodeRegistry.getAll().filter(sc => !sc.hidden).map(sc => sc.id);
+      const allKnown = [...this.data.codes.map(c => c.id), ...scIds];
       // Only add codes that are genuinely new (not seen before)
       const knownCodes = new Set([...this.enabledCodes, ...this.disabledCodes]);
-      for (const c of this.data.codes) {
-        if (!knownCodes.has(c.id)) {
-          this.enabledCodes.add(c.id);
+      for (const id of allKnown) {
+        if (!knownCodes.has(id)) {
+          this.enabledCodes.add(id);
         }
       }
       // Remove codes that no longer exist from both sets
-      const currentNames = new Set(this.data.codes.map(c => c.id));
+      const currentNames = new Set(allKnown);
       for (const name of this.enabledCodes) {
         if (!currentNames.has(name)) this.enabledCodes.delete(name);
       }
@@ -261,7 +265,8 @@ export class AnalyticsView extends ItemView {
       this.data = await this.plugin.loadConsolidatedData();
       if (this.data) {
         // Reset all filters on empty-state refresh
-        this.enabledCodes = new Set(this.data.codes.map((c) => c.id));
+        const scIds = this.plugin.smartCodeRegistry.getAll().filter(sc => !sc.hidden).map(sc => sc.id);
+        this.enabledCodes = new Set([...this.data.codes.map((c) => c.id), ...scIds]);
         this.disabledCodes.clear();
       }
       this.renderView();
@@ -278,13 +283,15 @@ export class AnalyticsView extends ItemView {
     refreshBtn.addEventListener("click", async () => {
       this.data = await this.plugin.loadConsolidatedData();
       if (this.data) {
-        // Only add genuinely new codes, respect disabled
+        const scIds = this.plugin.smartCodeRegistry.getAll().filter(sc => !sc.hidden).map(sc => sc.id);
+        const allKnown = [...this.data.codes.map(c => c.id), ...scIds];
+        // Only add genuinely new codes/SCs, respect disabled
         const knownCodes = new Set([...this.enabledCodes, ...this.disabledCodes]);
-        for (const c of this.data.codes) {
-          if (!knownCodes.has(c.id)) this.enabledCodes.add(c.id);
+        for (const id of allKnown) {
+          if (!knownCodes.has(id)) this.enabledCodes.add(id);
         }
-        // Remove codes that no longer exist
-        const currentNames = new Set(this.data.codes.map(c => c.id));
+        // Remove ids that no longer exist
+        const currentNames = new Set(allKnown);
         for (const name of this.enabledCodes) {
           if (!currentNames.has(name)) this.enabledCodes.delete(name);
         }
@@ -383,7 +390,11 @@ export class AnalyticsView extends ItemView {
   // ─── Core logic ───
 
   buildFilterConfig(): FilterConfig {
-    const allCodeIds = this.data?.codes.map((c) => c.id) ?? [];
+    // Inclui SC ids no universo conhecido — quando user descheca SC chip, sc.id entra
+    // em excludeCodes e os engines pulam o SC pass via smartCodePassesCodesFilter.
+    const regularIds = this.data?.codes.map((c) => c.id) ?? [];
+    const scIds = this.plugin.smartCodeRegistry.getAll().filter(sc => !sc.hidden).map(sc => sc.id);
+    const allCodeIds = [...regularIds, ...scIds];
     const excludeCodes = allCodeIds.filter((c) => !this.enabledCodes.has(c));
 
     const groupFilter = this.groupFilter

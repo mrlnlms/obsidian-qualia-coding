@@ -72,6 +72,9 @@ export interface FrequencyResult {
   total: number;
   bySource: Record<SourceType, number>;
   byFile: Record<string, number>;
+  /** True quando entry é Smart Code (derived dimension). UI mostra ⚡ icon + desabilita
+   *  drag/Add-to-Board (board cards são pra regular codes; SC card é feature futura). */
+  isSmart?: boolean;
 }
 
 export interface CooccurrenceResult {
@@ -79,6 +82,8 @@ export interface CooccurrenceResult {
   colors: string[];
   matrix: number[][];
   maxValue: number;
+  /** Parallel array com codes — true quando o índice é Smart Code. UI mostra ⚡ no label. */
+  isSmart?: boolean[];
 }
 
 export interface DocCodeMatrixResult {
@@ -133,6 +138,8 @@ export interface LagResult {
   expected: number[][];
   zScores: number[][];
   totalTransitions: number;
+  /** Parallel array com codes — true quando o índice é Smart Code. UI mostra ⚡. */
+  isSmart?: boolean[];
 }
 
 export interface PolarVector {
@@ -280,6 +287,8 @@ export interface CodeMemoSection {
   markerMemos: MemoEntry[]; // kind="marker"
   childIds: string[];
   hasAnyMemoInSubtree: boolean;
+  /** True quando section é Smart Code. Sem hierarquia (depth=0, sem children). UI mostra ⚡. */
+  isSmart?: boolean;
 }
 
 export interface FileMemoSection {
@@ -310,7 +319,7 @@ export interface CodeMetadataStat {
 }
 
 export interface CodeMetadataResult {
-  codes: Array<{ id: string; name: string; color: string }>;
+  codes: Array<{ id: string; name: string; color: string; isSmart?: boolean }>;
   /** Categorias finais (binadas se number/date; "(missing)" no fim opcional). */
   values: string[];
   /** Matrix [code × value] = contagem. */

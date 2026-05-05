@@ -40,7 +40,7 @@ export function renderCodeSection(
 	const header = sec.createDiv({ cls: "memo-view-code-header" });
 	const colorDot = header.createSpan({ cls: "memo-view-color-dot" });
 	colorDot.style.background = section.color;
-	header.createSpan({ cls: "memo-view-code-name", text: section.codeName });
+	header.createSpan({ cls: "memo-view-code-name", text: section.isSmart ? `⚡ ${section.codeName}` : section.codeName });
 
 	if (section.groupIds.length > 0) {
 		const chips = header.createDiv({ cls: "memo-view-group-chips" });

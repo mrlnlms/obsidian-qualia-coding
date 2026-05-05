@@ -94,7 +94,8 @@ export function renderCodesSection(ctx: AnalyticsViewContext): void {
   const deselectAll = actions.createSpan({ cls: "codemarker-config-action", text: "Deselect All" });
 
   selectAll.addEventListener("click", () => {
-    ctx.enabledCodes = new Set((ctx.data?.codes ?? []).map((c) => c.id));
+    const scIds = ctx.plugin.smartCodeRegistry.getAll().filter(sc => !sc.hidden).map(sc => sc.id);
+    ctx.enabledCodes = new Set([...(ctx.data?.codes ?? []).map((c) => c.id), ...scIds]);
     ctx.disabledCodes.clear();
     renderCodesSection(ctx);
     ctx.scheduleUpdate();
@@ -133,6 +134,49 @@ function renderCodesList(ctx: AnalyticsViewContext, container: HTMLElement): voi
         freq.set(c, (freq.get(c) ?? 0) + 1);
       }
     }
+  }
+
+  // Smart Codes: chips no topo (mesma posição que smartCodesSection no Detail list mode).
+  // Count = cache.getCount(sc.id), respeita filter sources via interpretação dos engines.
+  const q = ctx.codeSearch.toLowerCase();
+  const visibleSCs = ctx.plugin.smartCodeRegistry.getAll()
+    .filter(sc => !sc.hidden && (!q || sc.name.toLowerCase().includes(q)));
+  if (visibleSCs.length > 0) {
+    const scHeader = container.createDiv({ cls: "codemarker-config-codes-subheader" });
+    scHeader.setText("⚡ Smart Codes");
+    for (const sc of visibleSCs) {
+      const row = container.createDiv({ cls: "codemarker-config-row is-smart-code" });
+      const cb = row.createEl("input", { type: "checkbox" });
+      cb.checked = ctx.enabledCodes.has(sc.id);
+
+      const swatch = row.createDiv({ cls: "codemarker-config-swatch" });
+      swatch.style.backgroundColor = sc.color;
+
+      row.createSpan({ text: `⚡ ${sc.name}` });
+      row.createSpan({
+        cls: "codemarker-config-count",
+        text: `(${ctx.plugin.smartCodeCache.getCount(sc.id)})`,
+      });
+
+      cb.addEventListener("change", () => {
+        if (cb.checked) {
+          ctx.enabledCodes.add(sc.id);
+          ctx.disabledCodes.delete(sc.id);
+        } else {
+          ctx.enabledCodes.delete(sc.id);
+          ctx.disabledCodes.add(sc.id);
+        }
+        ctx.scheduleUpdate();
+      });
+      row.addEventListener("click", (e) => {
+        if (e.target !== cb) {
+          cb.checked = !cb.checked;
+          cb.dispatchEvent(new Event("change"));
+        }
+      });
+    }
+    // Separator antes dos regulares.
+    container.createDiv({ cls: "codemarker-config-codes-subheader" }).setText("Regular codes");
   }
 
   const filtered = (ctx.data?.codes ?? []).filter(

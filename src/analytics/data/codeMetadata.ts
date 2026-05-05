@@ -4,6 +4,8 @@ import type { VariableValue } from "../../core/caseVariables/caseVariablesTypes"
 import { applyFilters } from "./statsHelpers";
 import { chiSquareFromContingency } from "./inferential";
 import { binNumeric, binDate, explodeMultitext } from "./binning";
+import type { SmartCodeAccess } from "./frequency";
+import { getSmartCodeViews, smartCodePassesCodesFilter } from "./smartCodeAnalytics";
 
 const MISSING_LABEL = "(missing)";
 
@@ -13,6 +15,7 @@ export function calculateCodeMetadata(
   variableName: string,
   registry: CaseVariablesRegistry,
   options: { includeMissing: boolean },
+  smartCodes?: SmartCodeAccess,
 ): CodeMetadataResult {
   const variableType = registry.getType(variableName);
   const isMultitext = variableType === "multitext";
@@ -116,17 +119,16 @@ export function calculateCodeMetadata(
   });
 
   // ─── 5. Construir matriz [code × value] ───
-  const codes = visibleCodeIds.map((id) => {
+  const codes: CodeMetadataResult["codes"] = visibleCodeIds.map((id) => {
     const def = codeById.get(id);
     return { id, name: def?.name ?? id, color: def?.color ?? "#6200EE" };
   });
   const codeIndex = new Map(visibleCodeIds.map((id, i) => [id, i] as const));
 
-  const R = codes.length;
   const C = values.length;
-  const matrix: number[][] = Array.from({ length: R }, () => new Array(C).fill(0));
+  let matrix: number[][] = Array.from({ length: codes.length }, () => new Array(C).fill(0));
 
-  if (R > 0 && C > 0) {
+  if (codes.length > 0 && C > 0) {
     for (const m of allMarkers) {
       const vars = registry.getVariables(m.fileId);
       const raw = vars[variableName];
@@ -146,6 +148,40 @@ export function calculateCodeMetadata(
       }
     }
   }
+
+  // ─── 5b. Smart Codes pass ───
+  // Append rows pra cada SC visível. Cada match (UnifiedMarker) bina por case_var value
+  // do mesmo jeito que regular markers. Se SC predicate referencia a mesma var sendo
+  // visualizada, χ² fica tautológico (todos matches têm o mesmo value) — TODO: warning visual
+  // futuro. Por enquanto computa stats normalmente; user vê cell concentration óbvia.
+  if (smartCodes && C > 0) {
+    const scViews = getSmartCodeViews(data, smartCodes.cache, smartCodes.registry, filters, registry);
+    for (const sc of scViews) {
+      if (!smartCodePassesCodesFilter(sc.id, filters)) continue;
+      if (sc.matches.length < filters.minFrequency) continue;
+      const row = new Array(C).fill(0);
+      for (const m of sc.matches) {
+        const vars = registry.getVariables(m.fileId);
+        const raw = vars[variableName];
+        let cols = assignFn(raw as VariableValue);
+        if (cols.length === 0) {
+          if (!hasMissingColumn) continue;
+          cols = [MISSING_LABEL];
+        }
+        for (const colLabel of cols) {
+          const c = valueIndex.get(colLabel);
+          if (c === undefined) continue;
+          row[c]!++;
+        }
+      }
+      // Skip SC se row vazio (todos matches sem case_var resolvido).
+      if (row.reduce((a: number, b: number) => a + b, 0) === 0) continue;
+      codes.push({ id: sc.id, name: sc.name, color: sc.color, isSmart: true });
+      matrix.push(row);
+    }
+  }
+
+  const R = codes.length;
 
   // ─── 6. Totais ───
   const rowTotals = matrix.map((row) => row.reduce((a, b) => a + b, 0));

@@ -6146,6 +6146,10 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .search-result.is-smart-code .tree-item-inner { font-style: italic; }
 .search-result-file-match.is-stale { color: var(--text-faint); font-style: italic; }
 
+/* Analytics codes filter — sub-header pra separar SC chips de regulares. */
+.codemarker-config-codes-subheader { font-size: 0.8em; color: var(--text-muted); padding: 6px 4px 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.codemarker-config-row.is-smart-code .codemarker-config-swatch { border-radius: 50%; }
+
 .qc-sc-builder { min-width: 640px; }
 .qc-sc-builder-header { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 8px; }
 .qc-sc-builder-banner { padding: 6px 10px; border-radius: 4px; margin: 4px 0; }

@@ -104,6 +104,7 @@ export function reorderCooccurrence(ctx: AnalyticsViewContext, result: Cooccurre
   // Apply reordering
   const newCodes = order.map((i) => result.codes[i]);
   const newColors = order.map((i) => result.colors[i]);
+  const newIsSmart = result.isSmart ? order.map((i) => result.isSmart![i]!) : undefined;
   const newMatrix: number[][] = [];
   for (const i of order) {
     const row: number[] = [];
@@ -116,6 +117,7 @@ export function reorderCooccurrence(ctx: AnalyticsViewContext, result: Cooccurre
   result.codes = newCodes as string[];
   result.colors = newColors as string[];
   result.matrix = newMatrix;
+  if (newIsSmart) result.isSmart = newIsSmart;
   // Recompute maxValue
   let maxValue = 0;
   for (const row of newMatrix) {
@@ -129,7 +131,10 @@ export function reorderCooccurrence(ctx: AnalyticsViewContext, result: Cooccurre
 export function buildCooccurrenceRows(ctx: AnalyticsViewContext): string[][] | null {
   if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
-  const result = calculateCooccurrence(ctx.data, filters);
+  const result = calculateCooccurrence(ctx.data, filters, {
+    cache: ctx.plugin.smartCodeCache,
+    registry: ctx.plugin.smartCodeRegistry,
+  }, ctx.plugin.caseVariablesRegistry);
 
   const rows: string[][] = [["", ...result.codes]];
   for (let i = 0; i < result.codes.length; i++) {
@@ -147,7 +152,10 @@ export function exportCooccurrenceCSV(ctx: AnalyticsViewContext, date: string): 
 export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 
-  const result = calculateCooccurrence(ctx.data, filters);
+  const result = calculateCooccurrence(ctx.data, filters, {
+    cache: ctx.plugin.smartCodeCache,
+    registry: ctx.plugin.smartCodeRegistry,
+  }, ctx.plugin.caseVariablesRegistry);
 
   if (result.codes.length < 2) {
     ctx.chartContainer.createDiv({
@@ -230,6 +238,15 @@ export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: Fil
     }
   }
 
+  // Helper: prefixa \u26a1 pra SC labels antes de truncar (mant\u00e9m \u00edcone vis\u00edvel mesmo quando trunca).
+  const formatLabel = (i: number): string => {
+    const isSC = result.isSmart?.[i] === true;
+    const raw = result.codes[i]!;
+    const prefix = isSC ? "\u26a1 " : "";
+    const maxLen = 15;
+    return prefix + (raw.length > maxLen ? raw.slice(0, maxLen - 1) + "\u2026" : raw);
+  };
+
   // Draw left labels
   c2d.fillStyle = textColor;
   c2d.font = `${Math.min(12, cellSize * 0.3)}px sans-serif`;
@@ -237,10 +254,7 @@ export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: Fil
   c2d.textBaseline = "middle";
   for (let i = 0; i < n; i++) {
     const y = labelSpace + i * cellSize + cellSize / 2;
-    const label = result.codes[i]!.length > 15
-      ? result.codes[i]!.slice(0, 14) + "\u2026"
-      : result.codes[i];
-    c2d.fillText(label!, labelSpace - 6, y);
+    c2d.fillText(formatLabel(i), labelSpace - 6, y);
   }
 
   // Draw top labels (rotated)
@@ -252,10 +266,7 @@ export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: Fil
     c2d.save();
     c2d.translate(x, labelSpace - 6);
     c2d.rotate(-Math.PI / 4);
-    const label = result.codes[j]!.length > 15
-      ? result.codes[j]!.slice(0, 14) + "\u2026"
-      : result.codes[j];
-    c2d.fillText(label!, 0, 0);
+    c2d.fillText(formatLabel(j), 0, 0);
     c2d.restore();
   }
   c2d.restore();
@@ -275,13 +286,15 @@ export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: Fil
       const val = result.matrix[row]![col]!;
       const dispVal = displayMatrix[row]![col]!;
       const suffix = ctx.displayMode === "percentage" && row !== col ? "%" : "";
+      const labelRow = (result.isSmart?.[row] ? "\u26a1 " : "") + result.codes[row]!;
+      const labelCol = (result.isSmart?.[col] ? "\u26a1 " : "") + result.codes[col]!;
       let dispText: string;
       if (row === col) {
-        dispText = `${result.codes[row]}: ${val} total`;
+        dispText = `${labelRow}: ${val} total`;
       } else if (isNormalized) {
-        dispText = `${result.codes[row]} \u00d7 ${result.codes[col]}: ${dispVal!.toFixed(2)}`;
+        dispText = `${labelRow} \u00d7 ${labelCol}: ${dispVal!.toFixed(2)}`;
       } else {
-        dispText = `${result.codes[row]} \u00d7 ${result.codes[col]}: ${dispVal}${suffix}`;
+        dispText = `${labelRow} \u00d7 ${labelCol}: ${dispVal}${suffix}`;
       }
       const text = dispText;
       tooltip.textContent = text;

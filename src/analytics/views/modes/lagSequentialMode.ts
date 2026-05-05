@@ -22,7 +22,7 @@ export function renderLagOptionsSection(ctx: AnalyticsViewContext): void {
 export function renderLagSequential(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 
-  const result = calculateLagSequential(ctx.data, filters, ctx.lagValue);
+  const result = calculateLagSequential(ctx.data, filters, ctx.lagValue, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry }, ctx.plugin.caseVariablesRegistry);
 
   if (result.codes.length < 2 || result.totalTransitions === 0) {
     ctx.chartContainer.createDiv({
@@ -204,7 +204,7 @@ export function renderMiniLag(canvas: HTMLCanvasElement, lag: LagResult): void {
 export function buildLagRows(ctx: AnalyticsViewContext): string[][] | null {
   if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
-  const result = calculateLagSequential(ctx.data, filters, ctx.lagValue);
+  const result = calculateLagSequential(ctx.data, filters, ctx.lagValue, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry }, ctx.plugin.caseVariablesRegistry);
 
   const rows: string[][] = [["source_code", "target_code", "observed", "expected", "z_score", "significant"]];
   for (let i = 0; i < result.codes.length; i++) {

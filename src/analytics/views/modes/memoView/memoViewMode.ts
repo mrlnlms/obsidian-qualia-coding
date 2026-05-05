@@ -18,7 +18,7 @@ export function renderMemoView(ctx: AnalyticsViewContext, filters: FilterConfig)
     groupBy: ctx.mvGroupBy,
     markerLimit: ctx.mvMarkerLimit,
   };
-  const result = aggregateMemos(allData, ctx.plugin.registry, memoFilters, ctx.plugin.caseVariablesRegistry);
+  const result = aggregateMemos(allData, ctx.plugin.registry, memoFilters, ctx.plugin.caseVariablesRegistry, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry });
 
   const wrapper = container.createDiv({ cls: "memo-view-wrapper" });
   renderCoverageBanner(wrapper, result.coverage);

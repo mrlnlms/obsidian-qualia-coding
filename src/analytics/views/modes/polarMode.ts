@@ -49,7 +49,7 @@ export function renderPolarCoordinates(ctx: AnalyticsViewContext, filters: Filte
   const enabledDefs = ctx.data.codes.filter(c => ctx.enabledCodes.has(c.id)).slice().sort((a, b) => a.name.localeCompare(b.name));
   if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = enabledDefs[0]?.id ?? "";
 
-  const result = calculatePolarCoordinates(ctx.data, filters, ctx.polarFocalCode, ctx.polarMaxLag);
+  const result = calculatePolarCoordinates(ctx.data, filters, ctx.polarFocalCode, ctx.polarMaxLag, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry }, ctx.plugin.caseVariablesRegistry);
   if (result.vectors.length === 0) {
     container.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
       text: "Not enough data for polar coordinate analysis. Need at least 2 codes with transitions.",
@@ -205,7 +205,7 @@ export function renderMiniPolar(ctx: AnalyticsViewContext, canvas: HTMLCanvasEle
   const enabledDefs = ctx.data.codes.filter(c => ctx.enabledCodes.has(c.id)).slice().sort((a, b) => a.name.localeCompare(b.name));
   const focalId = enabledDefs[0]?.id ?? "";
   if (!focalId) return;
-  const result = calculatePolarCoordinates(ctx.data, filters, focalId, 5);
+  const result = calculatePolarCoordinates(ctx.data, filters, focalId, 5, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry }, ctx.plugin.caseVariablesRegistry);
 
   const W = canvas.width;
   const H = canvas.height;
@@ -259,7 +259,7 @@ export function buildPolarRows(ctx: AnalyticsViewContext): string[][] | null {
   const filters = ctx.buildFilterConfig();
   const enabledDefs = ctx.data.codes.filter(c => ctx.enabledCodes.has(c.id)).slice().sort((a, b) => a.name.localeCompare(b.name));
   if (!ctx.polarFocalCode || !ctx.enabledCodes.has(ctx.polarFocalCode)) ctx.polarFocalCode = enabledDefs[0]?.id ?? "";
-  const result = calculatePolarCoordinates(ctx.data, filters, ctx.polarFocalCode, ctx.polarMaxLag);
+  const result = calculatePolarCoordinates(ctx.data, filters, ctx.polarFocalCode, ctx.polarMaxLag, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry }, ctx.plugin.caseVariablesRegistry);
 
   const rows: string[][] = [["focal", "conditioned", "z_prospective", "z_retrospective", "radius", "angle", "quadrant", "significant"]];
   for (const v of result.vectors) {

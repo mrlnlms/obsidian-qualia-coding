@@ -66,7 +66,10 @@ export function renderGroupSection(ctx: AnalyticsViewContext): void {
 export function renderFrequencyChart(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 
-  const results = calculateFrequency(ctx.data, filters);
+  const results = calculateFrequency(ctx.data, filters, {
+    cache: ctx.plugin.smartCodeCache,
+    registry: ctx.plugin.smartCodeRegistry,
+  }, ctx.plugin.caseVariablesRegistry);
 
   if (results.length === 0) {
     ctx.chartContainer.createDiv({
@@ -111,7 +114,7 @@ async function renderBarChart(ctx: AnalyticsViewContext, results: FrequencyResul
   const textColor = styles.getPropertyValue("--text-normal").trim() || "#dcddde";
   const borderColor = styles.getPropertyValue("--background-modifier-border").trim() || "#333";
 
-  const labels = results.map((r) => r.code);
+  const labels = results.map((r) => (r.isSmart ? `⚡ ${r.code}` : r.code));
 
   let datasets: any[];
 
@@ -233,12 +236,16 @@ async function renderBarChart(ctx: AnalyticsViewContext, results: FrequencyResul
 export function buildFrequencyRows(ctx: AnalyticsViewContext): string[][] | null {
   if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
-  const results = calculateFrequency(ctx.data, filters);
+  const results = calculateFrequency(ctx.data, filters, {
+    cache: ctx.plugin.smartCodeCache,
+    registry: ctx.plugin.smartCodeRegistry,
+  }, ctx.plugin.caseVariablesRegistry);
 
-  const rows = [["code", "total", "markdown", "csv_segment", "csv_row", "image", "pdf", "audio", "video"]];
+  const rows = [["code", "is_smart", "total", "markdown", "csv_segment", "csv_row", "image", "pdf", "audio", "video"]];
   for (const r of results) {
     rows.push([
       r.code,
+      r.isSmart ? "true" : "false",
       String(r.total),
       String(r.bySource.markdown),
       String(r.bySource["csv-segment"]),
@@ -279,37 +286,43 @@ function renderFrequencyCodeList(ctx: AnalyticsViewContext, results: FrequencyRe
 
   for (const r of results) {
     const row = table.createDiv({ cls: "codemarker-freq-code-list-row" });
+    if (r.isSmart) row.addClass("is-smart-code");
 
-    // Drag & drop to board
-    row.draggable = true;
-    row.addEventListener("dragstart", (e) => {
-      const desc = codeDescMap.get(r.code) ?? "";
-      const sources = codeSourcesMap.get(r.code) ?? [];
-      const payload = JSON.stringify({ type: "codemarker-code-card", codeName: r.code, color: r.color, description: desc, markerCount: r.total, sources });
-      e.dataTransfer!.setData("text/plain", payload);
-      e.dataTransfer!.effectAllowed = "copy";
-      row.addClass("codemarker-freq-row-dragging");
-    });
-    row.addEventListener("dragend", () => {
-      row.removeClass("codemarker-freq-row-dragging");
-    });
+    // Drag & drop to board — só pra regular codes. Board cards são pra regular code workflow;
+    // SC card é uma feature futura distinta, então não dispomos affordance enganosa hoje.
+    if (!r.isSmart) {
+      row.draggable = true;
+      row.addEventListener("dragstart", (e) => {
+        const desc = codeDescMap.get(r.code) ?? "";
+        const sources = codeSourcesMap.get(r.code) ?? [];
+        const payload = JSON.stringify({ type: "codemarker-code-card", codeName: r.code, color: r.color, description: desc, markerCount: r.total, sources });
+        e.dataTransfer!.setData("text/plain", payload);
+        e.dataTransfer!.effectAllowed = "copy";
+        row.addClass("codemarker-freq-row-dragging");
+      });
+      row.addEventListener("dragend", () => {
+        row.removeClass("codemarker-freq-row-dragging");
+      });
+    }
 
     const nameCell = row.createDiv({ cls: "codemarker-freq-code-list-name" });
     const swatch = nameCell.createDiv({ cls: "codemarker-freq-code-list-swatch" });
     swatch.style.backgroundColor = r.color;
-    nameCell.createSpan({ text: r.code });
+    nameCell.createSpan({ text: r.isSmart ? `⚡ ${r.code}` : r.code });
 
     row.createDiv({ cls: "codemarker-freq-code-list-count", text: String(r.total) });
 
     const actionCell = row.createDiv({ cls: "codemarker-freq-code-list-action" });
-    const boardBtn = actionCell.createDiv({ cls: "codemarker-tr-board-btn", attr: { "aria-label": "Add to Research Board" } });
-    setIcon(boardBtn, "layout-dashboard");
-    boardBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const desc = codeDescMap.get(r.code) ?? "";
-      const sources = codeSourcesMap.get(r.code) ?? [];
-      ctx.plugin.addCodeCardToBoard(r.code, r.color, desc, r.total, sources);
-      new Notice(`Added "${r.code}" to Research Board`);
-    });
+    if (!r.isSmart) {
+      const boardBtn = actionCell.createDiv({ cls: "codemarker-tr-board-btn", attr: { "aria-label": "Add to Research Board" } });
+      setIcon(boardBtn, "layout-dashboard");
+      boardBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const desc = codeDescMap.get(r.code) ?? "";
+        const sources = codeSourcesMap.get(r.code) ?? [];
+        ctx.plugin.addCodeCardToBoard(r.code, r.color, desc, r.total, sources);
+        new Notice(`Added "${r.code}" to Research Board`);
+      });
+    }
   }
 }
