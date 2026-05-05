@@ -128,6 +128,22 @@ export class SmartCodeRegistry {
 		return true;
 	}
 
+	/** Bulk delete — emite sc_deleted audit event por SC + 1 emit final pra mutate listeners
+	 *  refrescarem cache em batch. Usado por "Clear All Markers" command pra limpar SCs órfãos
+	 *  (predicates apontando pra códigos deletados ficam quebrados sem sentido). */
+	clear(): void {
+		const ids = [...this.section.order];
+		for (const id of ids) {
+			if (!this.section.definitions[id]) continue;
+			delete this.section.definitions[id];
+			this.emitAudit({ entity: 'smartCode', type: 'sc_deleted', codeId: id });
+		}
+		this.section.order = [];
+		this.section.nextPaletteIndex = 0;
+		// Single mutate emit pra cache refrescar dependencies de uma vez.
+		this.emitMutate('__clear__');
+	}
+
 	/** Setter de conveniência pra updates simples só do conteúdo (preserva materialized se houver). */
 	setMemo(id: string, content: string): void {
 		const sc = this.section.definitions[id];

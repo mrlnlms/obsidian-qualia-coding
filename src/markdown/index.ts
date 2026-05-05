@@ -178,7 +178,7 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 			const modal = new Modal(plugin.app);
 			modal.titleEl.setText('Clear All Markers');
 			modal.contentEl.createEl('p', {
-				text: 'This will permanently delete ALL markers, code definitions, and the Research Board from all sources (markdown, CSV, image, PDF, audio, video).',
+				text: 'This will permanently delete ALL markers, code definitions, smart codes, and the Research Board from all sources (markdown, CSV, image, PDF, audio, video).',
 			});
 			new Setting(modal.contentEl)
 				.addButton(btn => btn.setButtonText('Cancel').onClick(() => modal.close()))
@@ -187,6 +187,9 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 					.setWarning()
 					.onClick(async () => {
 						registry.clear();
+						// SCs ficam órfãos sem regulars pra referenciar — predicates broken.
+						// Clear all = wipe analítico completo, incluindo SC definitions.
+						plugin.smartCodeRegistry?.clear();
 						model.clearAllMarkers();
 						plugin.pdfModel?.clearAll();
 						plugin.csvModel?.clearAllMarkers();
