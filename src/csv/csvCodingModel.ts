@@ -1,5 +1,6 @@
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { MarkerMutationEvent } from '../core/types';
 import type { SegmentMarker, RowMarker, CsvMarker, CodingSnapshot } from './csvCodingTypes';
 import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import type { RowProvider, MarkerRef } from './duckdb';
@@ -13,6 +14,7 @@ export class CsvCodingModel {
 	private segmentMarkers: SegmentMarker[] = [];
 	private rowMarkers: RowMarker[] = [];
 	private listeners: ChangeListener[] = [];
+	private markerMutationListeners = new Set<(event: MarkerMutationEvent) => void>();
 	private hoverListeners: HoverListener[] = [];
 	private _hoveredMarkerId: string | null = null;
 	private _hoveredCodeName: string | null = null;
@@ -97,6 +99,22 @@ export class CsvCodingModel {
 
 	onChange(fn: ChangeListener): void {
 		this.listeners.push(fn);
+	}
+
+	// SC3 granular mutation channel.
+	onMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this.markerMutationListeners.add(fn); }
+	offMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this.markerMutationListeners.delete(fn); }
+	private emitMarkerMutation(args: { fileId: string; markerId: string; prevCodeIds: string[]; nextCodeIds: string[]; codeIds: string[]; marker: CsvMarker | undefined }): void {
+		const event: MarkerMutationEvent = {
+			engine: 'csv',
+			fileId: args.fileId,
+			markerId: args.markerId,
+			prevCodeIds: args.prevCodeIds,
+			nextCodeIds: args.nextCodeIds,
+			codeIds: args.codeIds,
+			marker: args.marker as unknown as MarkerMutationEvent['marker'],
+		};
+		for (const fn of this.markerMutationListeners) fn(event);
 	}
 
 	offChange(fn: ChangeListener): void {
@@ -295,8 +313,14 @@ export class CsvCodingModel {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 		if (!hasCode(marker.codes, codeId)) {
+			const prevCodeIds = marker.codes.map(c => c.codeId);
 			marker.codes = addCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
+			this.emitMarkerMutation({
+				fileId: marker.fileId, markerId,
+				prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+				codeIds: [codeId], marker,
+			});
 			this.notify();
 		}
 	}
@@ -304,12 +328,20 @@ export class CsvCodingModel {
 	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty = false): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
+		const prevCodeIds = marker.codes.map(c => c.codeId);
 		marker.codes = removeCodeApplication(marker.codes, codeId);
 		marker.updatedAt = Date.now();
 		if (marker.codes.length === 0 && !keepIfEmpty) {
+			// removeMarker emite REMOVE event próprio.
 			this.removeMarker(markerId);
+		} else {
+			this.emitMarkerMutation({
+				fileId: marker.fileId, markerId,
+				prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+				codeIds: [codeId], marker,
+			});
+			this.notify();
 		}
-		this.notify();
 	}
 
 	// ── Lookup helpers ──
@@ -551,14 +583,26 @@ export class CsvCodingModel {
 	removeMarker(id: string): boolean {
 		const segIdx = this.segmentMarkers.findIndex(m => m.id === id);
 		if (segIdx >= 0) {
+			const removed = this.segmentMarkers[segIdx]!;
 			this.segmentMarkers.splice(segIdx, 1);
 			this.markerTextCache.delete(id);
+			this.emitMarkerMutation({
+				fileId: removed.fileId, markerId: id,
+				prevCodeIds: removed.codes.map(c => c.codeId), nextCodeIds: [],
+				codeIds: removed.codes.map(c => c.codeId), marker: undefined,
+			});
 			return true;
 		}
 		const rowIdx = this.rowMarkers.findIndex(m => m.id === id);
 		if (rowIdx >= 0) {
+			const removed = this.rowMarkers[rowIdx]!;
 			this.rowMarkers.splice(rowIdx, 1);
 			this.markerTextCache.delete(id);
+			this.emitMarkerMutation({
+				fileId: removed.fileId, markerId: id,
+				prevCodeIds: removed.codes.map(c => c.codeId), nextCodeIds: [],
+				codeIds: removed.codes.map(c => c.codeId), marker: undefined,
+			});
 			return true;
 		}
 		return false;

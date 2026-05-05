@@ -174,20 +174,15 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.caseVariablesRegistry.addOnMutate(() => {
 			this.smartCodeCache.invalidateAll();
 		});
-		// Marker mutations: re-build indexes + invalidate (event emit em saveMarkers de cada engine — SC3 pendente)
-		const onMarkersChanged = () => {
+		// Bulk fallback: registry mutations (codes added/renamed/deleted) ou paths que não
+		// passam por model.onMarkerMutation (clear all, import) — full rebuild + invalidateAll.
+		// Mutations granulares de markers já são cobertas pelo SC3 onMarkerMutation wiring acima.
+		const onBulkRebuild = () => {
 			this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
 			this.smartCodeCache.invalidateAll();
 		};
-		document.addEventListener('qualia:markers-changed', onMarkersChanged);
-		this.cleanups.push(() => document.removeEventListener('qualia:markers-changed', onMarkersChanged));
-
-		// Workaround SC3: enquanto models não emitem qualia:markers-changed, hookamos `qualia:registry-changed`
-		// (que dispara após qualquer mutação no registry de codes, incl. coding novo). Falha em casos onde só
-		// marker muda sem tocar registry (edit de range, magnitude). NÃO incluído pelo SmartCodeRegistry: salvar
-		// um SC não toca markers, então não justifica reindex global.
-		document.addEventListener('qualia:registry-changed', onMarkersChanged);
-		this.cleanups.push(() => document.removeEventListener('qualia:registry-changed', onMarkersChanged));
+		document.addEventListener('qualia:registry-changed', onBulkRebuild);
+		this.cleanups.push(() => document.removeEventListener('qualia:registry-changed', onBulkRebuild));
 
 
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
@@ -350,6 +345,18 @@ export default class QualiaCodingPlugin extends Plugin {
 		csvModel.onChange(() => consolidationCache.invalidateEngine('csv'));
 		audioModel.onChange(() => consolidationCache.invalidateEngine('audio'));
 		videoModel.onChange(() => consolidationCache.invalidateEngine('video'));
+
+		// SC3: wire engine models → smart code cache (granular invalidation per mutation).
+		// Cada model emite MarkerMutationEvent em add/remove/update; cache atualiza markerByRef
+		// incremental + invalida só SCs cujo predicate dependa dos codeIds afetados (via
+		// dependencyExtractor). Substitui o full rebuild + invalidateAll por mutation.
+		const onMarkerMut = (event: import('./core/types').MarkerMutationEvent) => this.smartCodeCache.applyMarkerMutation(event);
+		mdModel.onMarkerMutation(onMarkerMut);
+		pdfModel.onMarkerMutation(onMarkerMut);
+		imageModel.onMarkerMutation(onMarkerMut);
+		csvModel.onMarkerMutation(onMarkerMut);
+		audioModel.onMarkerMutation(onMarkerMut);
+		videoModel.onMarkerMutation(onMarkerMut);
 
 		// Background pre-populate of CSV/parquet caches: lets sidebar/detail labels
 		// resolve from cell content for files the user hasn't opened yet this

@@ -5,6 +5,7 @@ export type {
 	OpNode,
 	EngineType,
 	MarkerRef,
+	MarkerMutationEvent,
 	AnyMarker,
 	QualiaData,
 } from '../types';

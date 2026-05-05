@@ -1,4 +1,4 @@
-import type { QualiaData, MarkerRef, EngineType, AnyMarker, SmartCodeDefinition, PredicateNode } from './types';
+import type { QualiaData, MarkerRef, EngineType, AnyMarker, SmartCodeDefinition, PredicateNode, MarkerMutationEvent } from './types';
 import { extractDependencies, type Dependencies } from './dependencyExtractor';
 import { evaluate, type EvaluatorContext } from './evaluator';
 import { getAllMarkers } from '../getAllMarkers';
@@ -19,24 +19,36 @@ export interface CacheConfig {
 	codeStruct: CodeStructureLookup;
 }
 
+/** Composite key pra refByKey — engine:fileId:markerId. Estável dentro de uma sessão. */
+function refKey(engine: EngineType, fileId: string, markerId: string): string {
+	return `${engine}:${fileId}:${markerId}`;
+}
+
 /**
  * Singleton cache pra Smart Codes — indexes pré-computados, invalidação granular.
  *
  * Lifecycle:
  * 1. configure(opts) — chamada UMA vez no onload. Wires smartCodes ref + lookups + extracts deps iniciais.
- * 2. rebuildIndexes(data) — full rebuild dos indexByCode/indexByFile a partir de markers de todos engines.
- *    Chamada quando markers mudam (event-driven via qualia:markers-changed).
- * 3. onSmartCodeChanged(id) — chamada pela SmartCodeRegistry após cada CRUD. Re-extrai deps daquele
- *    sc, marca dirty + cascateia pra dependentes. Não toca outros sc.
- * 4. invalidateForCode/CaseVar/Folder/Group(id) — chamadas quando entidade externa muda.
- * 5. UI subscribe(fn) recebe lista de smart codes alterados (rAF coalesced).
+ * 2. rebuildIndexes(data) — full rebuild do markerByRef a partir de markers de todos engines.
+ *    Chamada em bulk operations (clear all, import QDPX, file delete, settings change).
+ * 3. applyMarkerMutation(event) — atualização cirúrgica do markerByRef + invalidação granular
+ *    via codeIds afetados. Chamada por cada engine model em add/remove/update marker.
+ * 4. onSmartCodeChanged(id) — chamada pela SmartCodeRegistry após cada CRUD. Re-extrai deps
+ *    daquele sc, marca dirty + cascateia pra dependentes. Não toca outros sc.
+ * 5. invalidateForCode/CaseVar/Folder/Group(id) — chamadas quando entidade externa muda.
+ * 6. UI subscribe(fn) recebe lista de smart codes alterados (rAF coalesced).
+ *
+ * NOTA: indexByCode/indexByFile foram REMOVIDOS em SC3 — eram dead code (compute itera só
+ * markerByRef). Otimização futura: usar indexByCode pra narrow eval em predicates como
+ * hasCode (skip markers sem o código) — mas por ora compute itera tudo.
  */
 export class SmartCodeCache {
 	private matches = new Map<string, MarkerRef[]>();
 	private deps = new Map<string, Dependencies>();
-	private indexByCode = new Map<string, Set<MarkerRef>>();
-	private indexByFile = new Map<string, Set<MarkerRef>>();
 	private markerByRef = new Map<MarkerRef, AnyMarker>();
+	/** Reverse index pra lookup O(1) de ref por composite key (engine:fileId:markerId).
+	 *  Usado em applyMarkerMutation pra encontrar entry existente em add/update/remove. */
+	private refByKey = new Map<string, MarkerRef>();
 	private dirty = new Set<string>();
 	private listeners = new Set<(changed: string[]) => void>();
 	private pendingChanged = new Set<string>();
@@ -79,24 +91,59 @@ export class SmartCodeCache {
 	}
 
 	rebuildIndexes(data: QualiaData): void {
-		this.indexByCode.clear();
-		this.indexByFile.clear();
 		this.markerByRef.clear();
+		this.refByKey.clear();
 		const allMarkers = getAllMarkers(data);
 		for (const { engine, fileId, markerId, marker } of allMarkers) {
 			const ref: MarkerRef = { engine: engine as EngineType, fileId, markerId };
 			this.markerByRef.set(ref, marker);
-			let fset = this.indexByFile.get(fileId);
-			if (!fset) { fset = new Set(); this.indexByFile.set(fileId, fset); }
-			fset.add(ref);
-			for (const app of marker.codes) {
-				let cset = this.indexByCode.get(app.codeId);
-				if (!cset) { cset = new Set(); this.indexByCode.set(app.codeId, cset); }
-				cset.add(ref);
-			}
+			this.refByKey.set(refKey(engine as EngineType, fileId, markerId), ref);
 		}
 		this.matches.clear();
 		this.dirty = new Set(Object.keys(this.smartCodes));
+	}
+
+	/**
+	 * Atualização cirúrgica do markerByRef + invalidação só dos SCs afetados.
+	 *
+	 * Modos (derivados do shape do event):
+	 * - ADD: prevCodeIds vazio + marker definido → cria nova ref, adiciona em markerByRef.
+	 * - REMOVE: marker undefined → encontra ref existente por composite key, remove.
+	 * - UPDATE: marker definido + ref existente → mantém o mesmo MarkerRef object (preserva
+	 *   identidade — evita invalidar refs em uso por consumers/cache.matches), substitui o
+	 *   marker value no Map.
+	 *
+	 * Invalidação: codeIds (união pré+pós) → invalidateForMarker → marca dirty só os SCs
+	 * cujo dependencyExtractor reporta dependência em algum desses códigos.
+	 *
+	 * NOTA: identidade do MarkerRef object é preservada em UPDATE pra que `cache.matches`
+	 * (que armazena MarkerRef[] populado por compute) e callers que guardaram refs continuem
+	 * lookup-able via getMarkerByRef.
+	 */
+	applyMarkerMutation(event: MarkerMutationEvent): void {
+		const key = refKey(event.engine, event.fileId, event.markerId);
+		const existing = this.refByKey.get(key);
+
+		if (event.marker === undefined) {
+			// REMOVE
+			if (existing) {
+				this.markerByRef.delete(existing);
+				this.refByKey.delete(key);
+			}
+		} else if (existing) {
+			// UPDATE — preserva ref identity, troca o marker value.
+			this.markerByRef.set(existing, event.marker);
+		} else {
+			// ADD — nova ref.
+			const ref: MarkerRef = { engine: event.engine, fileId: event.fileId, markerId: event.markerId };
+			this.markerByRef.set(ref, event.marker);
+			this.refByKey.set(key, ref);
+		}
+
+		// Invalidação granular — codeIds vazio = no-op (ex: memo edit puro).
+		if (event.codeIds.length > 0) {
+			this.invalidateForMarker({ engine: event.engine, fileId: event.fileId, codeIds: event.codeIds });
+		}
 	}
 
 	invalidateForCode(codeId: string): void {
@@ -189,8 +236,8 @@ export class SmartCodeCache {
 
 	// ─── Test-only helpers ─────────────────────────────────
 	__flushPendingForTest(): void { this.flush(); }
-	__getIndexByCodeForTest(): Map<string, Set<MarkerRef>> { return this.indexByCode; }
 	__getMarkerByRefForTest(): Map<MarkerRef, AnyMarker> { return this.markerByRef; }
+	__getRefByKeyForTest(): Map<string, MarkerRef> { return this.refByKey; }
 	__getMatchesMapSizeForTest(): number { return this.matches.size; }
 	__getDirtySizeForTest(): number { return this.dirty.size; }
 	__getMatchesMapHasForTest(id: string): boolean { return this.matches.has(id); }

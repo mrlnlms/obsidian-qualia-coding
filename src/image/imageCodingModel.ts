@@ -4,6 +4,7 @@
 
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { MarkerMutationEvent } from '../core/types';
 import type { ImageMarker, RegionShape, NormalizedCoords } from './imageCodingTypes';
 import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 
@@ -13,6 +14,7 @@ export class ImageCodingModel {
 	readonly registry: CodeDefinitionRegistry;
 	readonly dataManager: DataManager;
 	private listeners: ChangeListener[] = [];
+	private markerMutationListeners = new Set<(event: MarkerMutationEvent) => void>();
 
 	// Hover state (bidirectional: sidebar ↔ canvas)
 	private hoveredMarkerId: string | null = null;
@@ -78,6 +80,22 @@ export class ImageCodingModel {
 		for (const fn of this.listeners) fn();
 	}
 
+	// SC3 granular mutation channel.
+	onMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this.markerMutationListeners.add(fn); }
+	offMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this.markerMutationListeners.delete(fn); }
+	private emitMarkerMutation(args: { fileId: string; markerId: string; prevCodeIds: string[]; nextCodeIds: string[]; codeIds: string[]; marker: ImageMarker | undefined }): void {
+		const event: MarkerMutationEvent = {
+			engine: 'image',
+			fileId: args.fileId,
+			markerId: args.markerId,
+			prevCodeIds: args.prevCodeIds,
+			nextCodeIds: args.nextCodeIds,
+			codeIds: args.codeIds,
+			marker: args.marker as unknown as MarkerMutationEvent['marker'],
+		};
+		for (const fn of this.markerMutationListeners) fn(event);
+	}
+
 	// ─── Marker CRUD ───
 
 	getMarkersForFile(fileId: string): ImageMarker[] {
@@ -114,6 +132,11 @@ export class ImageCodingModel {
 			updatedAt: Date.now(),
 		};
 		this.markers.push(marker);
+		this.emitMarkerMutation({
+			fileId, markerId: marker.id,
+			prevCodeIds: [], nextCodeIds: [],
+			codeIds: [], marker,
+		});
 		this.notify();
 		return marker;
 	}
@@ -123,6 +146,13 @@ export class ImageCodingModel {
 		if (!marker) return false;
 		marker.coords = coords;
 		marker.updatedAt = Date.now();
+		// codeIds=[] — coords change não invalida SCs.
+		const codeIds = marker.codes.map(c => c.codeId);
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId: id,
+			prevCodeIds: codeIds, nextCodeIds: codeIds,
+			codeIds: [], marker,
+		});
 		this.notify();
 		return true;
 	}
@@ -130,7 +160,13 @@ export class ImageCodingModel {
 	removeMarker(id: string): boolean {
 		const idx = this.markers.findIndex((m) => m.id === id);
 		if (idx < 0) return false;
+		const removed = this.markers[idx]!;
 		this.markers.splice(idx, 1);
+		this.emitMarkerMutation({
+			fileId: removed.fileId, markerId: id,
+			prevCodeIds: removed.codes.map(c => c.codeId), nextCodeIds: [],
+			codeIds: removed.codes.map(c => c.codeId), marker: undefined,
+		});
 		this.notify();
 		return true;
 	}
@@ -150,8 +186,14 @@ export class ImageCodingModel {
 		if (!marker) return false;
 
 		if (!hasCode(marker.codes, codeId)) {
+			const prevCodeIds = marker.codes.map(c => c.codeId);
 			marker.codes = addCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
+			this.emitMarkerMutation({
+				fileId: marker.fileId, markerId,
+				prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+				codeIds: [codeId], marker,
+			});
 			this.notify();
 		}
 		return true;
@@ -163,12 +205,19 @@ export class ImageCodingModel {
 
 		if (!hasCode(marker.codes, codeId)) return false;
 
+		const prevCodeIds = marker.codes.map(c => c.codeId);
 		marker.codes = removeCodeApplication(marker.codes, codeId);
 		marker.updatedAt = Date.now();
 
 		if (marker.codes.length === 0 && !keepIfEmpty) {
+			// removeMarker emite REMOVE event próprio.
 			this.removeMarker(markerId);
 		} else {
+			this.emitMarkerMutation({
+				fileId: marker.fileId, markerId,
+				prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+				codeIds: [codeId], marker,
+			});
 			this.notify();
 		}
 		return true;
