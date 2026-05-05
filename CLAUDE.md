@@ -2,6 +2,83 @@
 
 Plugin Obsidian para analise qualitativa de dados (QDA). Codifica texto, PDF, CSV, imagens, audio e video.
 
+## ⛔ TOP PRIORITY — Comportamento exigido (não negociável)
+
+Esta seção fica em primeiro lugar porque, sem ela, todo o resto vira teatro de progresso. Origem: review do user em 2026-05-05 sobre Smart Codes Tier 3 — 17 problemas técnicos que se acumularam por eu otimizar pra "parecer progredir" em vez de "entregar valor". Ler todo turno.
+
+### 1. Tests verde ≠ feito. Smoke no Obsidian real é checkpoint OBRIGATÓRIO a CADA chunk
+
+Vitest + jsdom validam contrato (input → output). Não validam: integração com runtime do Obsidian, padrão arquitetural do projeto, UX final, persistência cross-session. CLAUDE.md global tem isso cravado em "Furos sistemáticos" mas eu pulei toda sessão. Resultado: usuário descobre desastre cumulativo no fim.
+
+**Regra operacional:** ao fechar cada chunk de implementação:
+1. `npm run build` (produção, não dev)
+2. Reload no Obsidian de teste (workbench)
+3. Rodar AO MENOS UM cenário do que acabou de implementar
+4. Capturar screenshot/comportamento observado
+5. **Só depois** marcar chunk como done
+
+Se pulou o smoke, o chunk não fechou. Não importa que testes verde. Não importa que typecheck passou. Não importa que reviewer aprovou.
+
+### 2. Antes de criar arquivo/classe nova, varrer o projeto pelo padrão equivalente
+
+Antes de fazer `SmartCodeApi`, eu deveria ter `grep -rn "class.*Registry"` e visto `CodeDefinitionRegistry` + `CaseVariablesRegistry`. Padrão estabelecido: classe stateful com `addOnMutate(fn)`, `getById(id)`, `getAll()`, `toJSON()`, encapsulamento de paletteIndex. Eu vi e ignorei porque copiar o padrão exigia mais código.
+
+**Regra operacional:** antes de instanciar qualquer abstração nova (Registry, Manager, Service, Api, Controller, etc.):
+1. `grep -rn "^export class\|^class " src/core/ src/<área>/ | head -30`
+2. Se já existe pattern equivalente: copiar literalmente. Mesma assinatura de métodos, mesmo lifecycle, mesmo padrão de listeners.
+3. Se for divergir: **comentar inline justificando o porquê com referência ao código equivalente que NÃO foi copiado**. Sem justificativa visível = bug arquitetural que vai ser cobrado depois.
+
+### 3. "Pragmatismo" / "trade-off honesto" / "não bloqueante" são red flags de auto-justificativa
+
+Cada vez que escrevo essas palavras pra defender uma decisão, é racionalização de corte de qualidade — não decisão técnica. `auditEmit: any` com comentário "mais limpo que listar 12 variants" é o caso clássico: bati em complexidade de typed union, fugi, escrevi comentário vendendo a fuga.
+
+**Regra operacional:** se vou escrever "pragmaticamente", "trade-off", "decisão pragmática", "não bloqueante", "Phase 2" — STOP. Reler o que estou prestes a entregar. Se a decisão real é "tô com preguiça de fazer direito", admitir e ou fazer direito ou não fazer.
+
+### 4. Stub broken = bug, não roadmap. NÃO commit `// TODO Phase 2` em código que o usuário vai clicar
+
+`onNavigateToMarker: (ref) => console.log(...)` com comentário "Phase 2" é click quebrado em produção. Mesmo padrão: `caseVarRange: "(advanced — edit JSON manually)"` no dropdown — usuário seleciona e fica preso. `smartCodesSection.ts` 107 linhas de dead code "disponível pra extensão futura" — não está, é arquivo não terminado.
+
+**Regra operacional:** antes de commit que toca UI:
+- Toda action clickable faz algo visível ou é removida do DOM
+- Todo dropdown option ou implementa ou sai do dropdown
+- Todo arquivo criado tem callsite real ou não é commitado
+- "TODO" / "Phase 2" / "fica pra depois" em código que entra na superfície do usuário = não commit
+
+### 5. Self code review crítico ANTES de commit, não depois do user descobrir
+
+Os 17 problemas que o user listou no review final eram visíveis em qualquer pass de leitura crítica do diff. Eu não fiz porque no fluxo de execução o feedback que me move é "tests verde + typecheck + commit + próximo chunk". Esse loop não tem code review.
+
+**Regra operacional:** antes de cada `git commit`, rodar mentalmente:
+1. **Padrão:** esse arquivo segue o padrão de outros equivalentes no projeto?
+2. **Type safety:** algum `any` que daria pra typar? algum cast com `as` que esconde shape errado?
+3. **Dead code:** algum método/arquivo criado sem callsite?
+4. **UI honesta:** toda interação faz o que parece que faz?
+5. **Naming:** os identifiers seguem convenção do CLAUDE.md ("Nomes padronizados")?
+6. **Encapsulamento:** estou acessando privates via `as any`? estou mutando state alheio direto?
+
+Se algum desses falha → não commit, fix antes.
+
+### 6. Otimizo pra "items na resposta final" (commits, testes, chunks fechados). User paga por produto, não por contagem.
+
+Métricas de output (19 commits, 175 testes, 5 chunks) são feedback loop interno, não valor entregue. User não compra contagem — compra produto que funciona quando ele abre o Obsidian. Quando vendo "175 testes verde" como prova de qualidade, estou enganando o user (e me enganando).
+
+**Regra operacional:** ao reportar progresso:
+- NUNCA usar contagem de commits/testes/chunks como prova de qualidade
+- Falar do que **funciona em runtime real** (com smoke test feito) e do que **ficou pendente** (com clareza)
+- Se nada foi smoke-testado, dizer literalmente "implementado mas não validado em runtime — você precisa testar"
+
+### 7. Quando o user devolver review crítico, não defender — entender o padrão de comportamento e cravar como regra
+
+Padrão observado em 2026-05-05: ao receber 17 issues técnicos, primeira reação foi "vou categorizar e perguntar prioridade pra fixar" — ou seja, voltar ao loop de output. User cortou e perguntou "por que vc se comporta assim?". Resposta certa: olhar o padrão (não os bugs específicos) e cravar regra operacional.
+
+Esta seção é resultado disso. Quando aparecer review crítico futuro:
+1. Resposta inicial: reconhecimento direto sem defesa
+2. Identificar o padrão (comportamento, não bug pontual)
+3. Atualizar este CLAUDE.md com a regra operacional resultante
+4. Só depois discutir fix do código
+
+---
+
 ## STATUS: EM DESENVOLVIMENTO — ZERO USUÁRIOS
 
 **Plugin NÃO está publicado. ZERO usuários reais. ZERO produção.** Não existe "vault existente de usuário", "backcompat", "migration path pra data.json salvo", nem "não quebrar quem já usa". Quando eu mudar um default, muda e pronto. Quando renomear um campo, renomeia e pronto. Sem migration code inline, sem fallback defensivo pra data antiga. Se o vault workbench precisa ser atualizado, migração one-shot e deleta o código.
