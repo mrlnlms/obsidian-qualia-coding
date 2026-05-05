@@ -34,6 +34,11 @@ function passesGlobalFilters(
 	groupMemberSet?: Set<string> | null,
 ): boolean {
 	if (!filters.sources.includes(m.source)) return false;
+	// Codes filter — espelha statsHelpers.applyFilters. Marker excluído se TODOS seus codes
+	// estão em excludeCodes (descheckar tema-A → markers com só tema-A saem do pool).
+	// SC ids em excludeCodes não afetam aqui (markers não têm SC ids em codes).
+	if (filters.codes.length > 0 && !m.codes.some((c) => filters.codes.includes(c))) return false;
+	if (filters.excludeCodes.length > 0 && m.codes.every((c) => filters.excludeCodes.includes(c))) return false;
 	if (filters.caseVariableFilter && caseVarsRegistry) {
 		const { name, value } = filters.caseVariableFilter;
 		const vars = caseVarsRegistry.getVariables(m.fileId);
