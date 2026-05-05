@@ -189,6 +189,29 @@ describe('SmartCodeCache', () => {
 			expect(cache.isDirty('sc_b')).toBe(true);
 		});
 
+		it('getMarkerByRef fallback resolve ref stale via composite key (REMOVE+ADD)', () => {
+			const matches = cache.getMatches('sc_x');
+			const oldRef = matches[0]!;
+			expect(cache.getMarkerByRef(oldRef)).toBeDefined();
+
+			// Simula REMOVE+ADD (rename, undo) — gera ref nova.
+			cache.applyMarkerMutation({
+				engine: 'markdown', fileId: 'f1.md', markerId: 'm1',
+				prevCodeIds: ['c_a'], nextCodeIds: [],
+				codeIds: ['c_a'], marker: undefined,
+			});
+			const restoredMarker = { id: 'm1', fileId: 'f1.md', codes: [{ codeId: 'c_a' }], range: {} };
+			cache.applyMarkerMutation({
+				engine: 'markdown', fileId: 'f1.md', markerId: 'm1',
+				prevCodeIds: [], nextCodeIds: ['c_a'],
+				codeIds: ['c_a'], marker: restoredMarker as any,
+			});
+
+			// Caller que guardou oldRef antes do REMOVE+ADD ainda consegue lookup.
+			const recovered = cache.getMarkerByRef(oldRef);
+			expect(recovered).toBe(restoredMarker);
+		});
+
 		it('memo edit (codeIds vazio) é no-op de invalidação', () => {
 			cache.getMatches('sc_x');
 			expect(cache.isDirty('sc_x')).toBe(false);

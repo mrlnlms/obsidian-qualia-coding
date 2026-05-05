@@ -200,9 +200,15 @@ export class SmartCodeCache {
 		return this.getMatches(smartCodeId).length;
 	}
 
-	/** Lookup do marker original via ref obtido em getMatches. Refs são reusados como keys do Map. */
+	/** Lookup do marker original via ref obtido em getMatches. Refs são reusados como keys do Map.
+	 *  Fallback via composite key cobre callers que guardaram ref antes de REMOVE+ADD (ex: rename
+	 *  de arquivo, undo) — o ref antigo não está mais em markerByRef mas o marker ainda existe
+	 *  com o mesmo (engine, fileId, markerId). Defensivo. */
 	getMarkerByRef(ref: MarkerRef): AnyMarker | undefined {
-		return this.markerByRef.get(ref);
+		const direct = this.markerByRef.get(ref);
+		if (direct !== undefined) return direct;
+		const fresh = this.refByKey.get(`${ref.engine}:${ref.fileId}:${ref.markerId}`);
+		return fresh !== undefined ? this.markerByRef.get(fresh) : undefined;
 	}
 
 	isDirty(smartCodeId: string): boolean {

@@ -174,8 +174,8 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.caseVariablesRegistry.addOnMutate(() => {
 			this.smartCodeCache.invalidateAll();
 		});
-		// Bulk fallback: registry mutations (codes added/renamed/deleted) ou paths que não
-		// passam por model.onMarkerMutation (clear all, import) — full rebuild + invalidateAll.
+		// Bulk fallback: registry mutations (codes added/renamed/deleted), clear all, ou paths
+		// que não passam por model.onMarkerMutation (import) — full rebuild + invalidateAll.
 		// Mutations granulares de markers já são cobertas pelo SC3 onMarkerMutation wiring acima.
 		const onBulkRebuild = () => {
 			this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
@@ -183,6 +183,11 @@ export default class QualiaCodingPlugin extends Plugin {
 		};
 		document.addEventListener('qualia:registry-changed', onBulkRebuild);
 		this.cleanups.push(() => document.removeEventListener('qualia:registry-changed', onBulkRebuild));
+		// qualia:clear-all dispara DEPOIS de todos os clears (registry + 5 engines + dataManager).
+		// Necessário pra cache não pegar stale markers do rebuild disparado pelo registry.clear()
+		// inicial, que ocorre ANTES dos markers serem limpos.
+		document.addEventListener('qualia:clear-all', onBulkRebuild);
+		this.cleanups.push(() => document.removeEventListener('qualia:clear-all', onBulkRebuild));
 
 
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {

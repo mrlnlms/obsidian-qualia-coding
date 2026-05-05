@@ -307,8 +307,16 @@ export class PdfCodingModel {
 			case 'addCode': {
 				const marker = this.findMarkerById(entry.markerId);
 				if (marker) {
+					const prevCodeIds = marker.codes.map(c => c.codeId);
 					marker.codes = this.reconcileCodes(entry.data.codes);
 					marker.updatedAt = Date.now();
+					const nextCodeIds = marker.codes.map(c => c.codeId);
+					this.emitMarkerMutation({
+						fileId: marker.fileId, markerId: marker.id,
+						prevCodeIds, nextCodeIds,
+						codeIds: Array.from(new Set([...prevCodeIds, ...nextCodeIds])),
+						marker,
+					});
 				}
 				break;
 			}
@@ -316,13 +324,27 @@ export class PdfCodingModel {
 			case 'removeAllCodes': {
 				const reconciledCodes = this.reconcileCodes(entry.data.codes);
 				if (reconciledCodes.length === 0) break; // All codes were deleted — nothing to restore
+				const reconciledIds = reconciledCodes.map(c => c.codeId);
 				let marker = this.findMarkerById(entry.markerId);
 				if (!marker) {
-					// Marker was deleted — restore it with reconciled codes
-					this.markers.push({ ...entry.data, codes: reconciledCodes });
+					// Marker was deleted — restore it with reconciled codes (ADD).
+					marker = { ...entry.data, codes: reconciledCodes };
+					this.markers.push(marker);
+					this.emitMarkerMutation({
+						fileId: marker.fileId, markerId: marker.id,
+						prevCodeIds: [], nextCodeIds: reconciledIds,
+						codeIds: reconciledIds, marker,
+					});
 				} else {
+					const prevCodeIds = marker.codes.map(c => c.codeId);
 					marker.codes = reconciledCodes;
 					marker.updatedAt = Date.now();
+					this.emitMarkerMutation({
+						fileId: marker.fileId, markerId: marker.id,
+						prevCodeIds, nextCodeIds: reconciledIds,
+						codeIds: Array.from(new Set([...prevCodeIds, ...reconciledIds])),
+						marker,
+					});
 				}
 				break;
 			}
@@ -335,6 +357,13 @@ export class PdfCodingModel {
 					marker.endOffset = entry.data.endOffset;
 					marker.text = entry.data.text;
 					marker.updatedAt = Date.now();
+					// Range change — codeIds=[] (não invalida SCs), só atualiza markerByRef value.
+					const codeIds = marker.codes.map(c => c.codeId);
+					this.emitMarkerMutation({
+						fileId: marker.fileId, markerId: marker.id,
+						prevCodeIds: codeIds, nextCodeIds: codeIds,
+						codeIds: [], marker,
+					});
 				}
 				break;
 			}
