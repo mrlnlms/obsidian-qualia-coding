@@ -13,7 +13,7 @@ export function buildSmartCodesCsv(smartCodes: SmartCodeDefinition[], cache: { g
 			sc.name,
 			sc.color,
 			predicateToJson(sc.predicate),
-			sc.memo ?? '',
+			sc.memo?.content ?? '',
 			cache.getMatches(sc.id).length,
 		]);
 	}

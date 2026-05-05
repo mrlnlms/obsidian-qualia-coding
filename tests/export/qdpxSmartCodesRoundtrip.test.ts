@@ -17,7 +17,7 @@ describe('SmartCodes QDPX round-trip', () => {
 	const mkSc = (over: Partial<SmartCodeDefinition> = {}): SmartCodeDefinition => ({
 		id: 'sc_a', name: 'Frustration jr', color: '#abc', paletteIndex: 0, createdAt: 0,
 		predicate: { kind: 'hasCode', codeId: 'c_x' },
-		memo: 'methodological note',
+		memo: { content: 'methodological note' },
 		...over,
 	});
 
@@ -29,7 +29,7 @@ describe('SmartCodes QDPX round-trip', () => {
 		const reparsed = result.smartCodes[0]!;
 		expect(reparsed.name).toBe(original.name);
 		expect(reparsed.color).toBe(original.color);
-		expect(reparsed.memo).toBe(original.memo);
+		expect(reparsed.memo?.content).toBe(original.memo?.content);
 		expect((reparsed.predicate as any).kind).toBe('hasCode');
 		expect((reparsed.predicate as any).codeId).toBe('c_NEW');
 	});
@@ -76,11 +76,11 @@ describe('SmartCodes QDPX round-trip', () => {
 	});
 
 	it('caracteres especiais em name/memo (& " < >) sobrevivem ida-volta', () => {
-		const original = mkSc({ name: 'A & B "test"', memo: 'foo<bar> & baz' });
+		const original = mkSc({ name: 'A & B "test"', memo: { content: 'foo<bar> & baz' } });
 		const xml = wrapInProject(buildSmartCodesXml([original]));
 		const result = parseSmartCodes(xml, mkResolver({ 'c_x': 'c_NEW' }));
 		expect(result.smartCodes[0]!.name).toBe('A & B "test"');
-		expect(result.smartCodes[0]!.memo).toBe('foo<bar> & baz');
+		expect(result.smartCodes[0]!.memo?.content).toBe('foo<bar> & baz');
 	});
 
 	it('2 smart codes com nesting (sc_2 referencia sc_1) sobrevive round-trip', () => {

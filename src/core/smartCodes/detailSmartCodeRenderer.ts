@@ -8,6 +8,8 @@ import { getEntriesForSmartCode, renderEntryMarkdown } from '../auditLog';
 import type { AuditEntry, BaseMarker } from '../types';
 import { ConfirmModal } from '../dialogs';
 import { renderBackButton } from '../detailCodeRenderer';
+import { getMemoContent } from '../memoHelpers';
+import type { MemoMaterializerAccess } from '../baseCodeDetailView';
 
 export interface SmartCodeDetailCallbacks {
 	smartCode: SmartCodeDefinition;
@@ -27,6 +29,8 @@ export interface SmartCodeDetailCallbacks {
 	/** Suspend/resume auto-refresh enquanto user edita memo (mesmo padrão do code detail). Optional. */
 	suspendRefresh?: () => void;
 	resumeRefresh?: () => void;
+	/** Convert to note pra SC memo. Sem ele, memo fica só inline. */
+	memoAccess?: MemoMaterializerAccess;
 }
 
 export function renderSmartCodeDetail(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
@@ -54,11 +58,28 @@ function renderMemo(container: HTMLElement, opts: SmartCodeDetailCallbacks): voi
 	const header = section.createDiv({ cls: 'codemarker-detail-section-header' });
 	header.createEl('h6', { text: 'Memo' });
 
+	// Materialized: substitui textarea por card com Open / Unmaterialize (mesmo padrão do code memo).
+	if (opts.smartCode.memo?.materialized && opts.memoAccess) {
+		renderMaterializedCard(section, opts);
+		return;
+	}
+
+	if (opts.memoAccess) {
+		const convertBtn = header.createEl('button', {
+			cls: 'qc-memo-convert-btn',
+			text: 'Convert to note',
+			attr: { title: 'Materialize memo as a markdown note in the vault' },
+		});
+		convertBtn.addEventListener('click', async () => {
+			await opts.memoAccess!.convertMemo({ type: 'smartCode', id: opts.smartCode.id });
+		});
+	}
+
 	const textarea = section.createEl('textarea', {
 		cls: 'codemarker-detail-memo',
 		attr: { placeholder: 'Justificativa metodológica desta query…', rows: '3' },
 	});
-	textarea.value = opts.smartCode.memo ?? '';
+	textarea.value = getMemoContent(opts.smartCode.memo);
 	let saveTimer: ReturnType<typeof setTimeout> | null = null;
 	textarea.addEventListener('input', () => {
 		if (saveTimer) clearTimeout(saveTimer);
@@ -70,6 +91,28 @@ function renderMemo(container: HTMLElement, opts: SmartCodeDetailCallbacks): voi
 	// Mesmo pattern do code memo: suspend auto-refresh enquanto focado pra textarea não sumir.
 	textarea.addEventListener('focus', () => opts.suspendRefresh?.());
 	textarea.addEventListener('blur', () => opts.resumeRefresh?.());
+}
+
+function renderMaterializedCard(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
+	const memo = opts.smartCode.memo!;
+	const card = container.createDiv({ cls: 'qc-memo-materialized-card' });
+	const labelRow = card.createDiv({ cls: 'qc-memo-materialized-label-row' });
+	const iconSpan = labelRow.createSpan({ cls: 'qc-memo-materialized-icon' });
+	setIcon(iconSpan, 'file-text');
+	labelRow.createSpan({ text: 'Materialized at', cls: 'qc-memo-materialized-label' });
+
+	card.createEl('div', { text: memo.materialized!.path, cls: 'qc-memo-materialized-path' });
+
+	const actions = card.createDiv({ cls: 'qc-memo-materialized-actions' });
+	const openBtn = actions.createEl('button', { text: 'Open', cls: 'qc-memo-open-btn' });
+	openBtn.addEventListener('click', () => {
+		opts.memoAccess!.openMaterializedFile(memo.materialized!.path);
+	});
+
+	const unBtn = actions.createEl('button', { text: 'Unmaterialize', cls: 'qc-memo-unmaterialize-btn' });
+	unBtn.addEventListener('click', () => {
+		opts.memoAccess!.unmaterializeMemo({ type: 'smartCode', id: opts.smartCode.id });
+	});
 }
 
 function renderQuerySection(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {

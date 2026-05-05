@@ -476,8 +476,9 @@ export function buildSmartCodesXml(smartCodes: SmartCodeDefinition[]): string {
   for (const sc of smartCodes) {
     lines.push(`  <qualia:SmartCode ${xmlAttr('guid', sc.id)} ${xmlAttr('name', sc.name)} ${xmlAttr('color', sc.color)}>`);
     lines.push(`    <qualia:Predicate><![CDATA[${predicateToJson(sc.predicate)}]]></qualia:Predicate>`);
-    if (sc.memo && sc.memo.trim().length > 0) {
-      lines.push(`    <qualia:Memo>${escapeXml(sc.memo)}</qualia:Memo>`);
+    const memoContent = sc.memo?.content ?? '';
+    if (memoContent.trim().length > 0) {
+      lines.push(`    <qualia:Memo>${escapeXml(memoContent)}</qualia:Memo>`);
     }
     lines.push(`  </qualia:SmartCode>`);
   }

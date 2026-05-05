@@ -17,6 +17,7 @@ function readMemo(plugin: QualiaCodingPlugin, ref: EntityRef): MemoRecord | unde
 		const ca = marker?.codes.find(c => c.codeId === ref.codeId);
 		return ca?.relations?.find(r => r.label === ref.label && r.target === ref.target)?.memo;
 	}
+	if (ref.type === 'smartCode') return plugin.smartCodeRegistry.getById(ref.id)?.memo;
 	return undefined;
 }
 
@@ -71,6 +72,10 @@ function writeMemo(plugin: QualiaCodingPlugin, ref: EntityRef, memo: MemoRecord)
 			case 'video': plugin.videoModel?.notify(); break;
 		}
 		document.dispatchEvent(new Event('qualia:registry-changed'));
+		return;
+	}
+	if (ref.type === 'smartCode') {
+		plugin.smartCodeRegistry.update(ref.id, { memo });
 		return;
 	}
 }
@@ -136,6 +141,12 @@ export function rebuildMemoReverseLookup(plugin: QualiaCodingPlugin): void {
 	for (const g of plugin.sharedRegistry.getAllGroups()) {
 		if (g.memo?.materialized) {
 			plugin.memoReverseLookup.set(g.memo.materialized.path, { type: 'group', id: g.id });
+		}
+	}
+	// Smart Codes
+	for (const sc of plugin.smartCodeRegistry.getAll()) {
+		if (sc.memo?.materialized) {
+			plugin.memoReverseLookup.set(sc.memo.materialized.path, { type: 'smartCode', id: sc.id });
 		}
 	}
 

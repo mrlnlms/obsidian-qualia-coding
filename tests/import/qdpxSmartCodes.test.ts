@@ -29,7 +29,7 @@ describe('parseSmartCodes 2-pass', () => {
 		const sc = result.smartCodes[0]!;
 		expect(sc.name).toBe('Frustration jr');
 		expect(sc.color).toBe('#abc');
-		expect(sc.memo).toBe('memo here');
+		expect(sc.memo?.content).toBe('memo here');
 		expect((sc.predicate as any).codeId).toBe('c_NEW1');
 		expect(resolver.smartCodes.get('old-A')).toBe(sc.id);
 	});
@@ -96,6 +96,6 @@ describe('parseSmartCodes 2-pass', () => {
 		const resolver = mkResolver({ 'c': 'c_NEW' });
 		const result = parseSmartCodes(xml, resolver);
 		expect(result.smartCodes[0]!.name).toBe('A & B "test"');
-		expect(result.smartCodes[0]!.memo).toBe('foo<bar>');
+		expect(result.smartCodes[0]!.memo?.content).toBe('foo<bar>');
 	});
 });

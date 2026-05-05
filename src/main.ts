@@ -113,9 +113,8 @@ export default class QualiaCodingPlugin extends Plugin {
 			visibilityEventBus.notify(detail.codeIds);
 		});
 
-		// Memo materialization: reconstrói reverse-lookup + registra vault listeners
-		// (modify/rename/delete espelham mudanças do .md de volta pro data.json).
-		rebuildMemoReverseLookup(this);
+		// Memo materialization vault listeners — reverse-lookup é reconstruído depois (após
+		// smartCodeRegistry estar instanciado pra varrer SCs com materialized).
 		registerMemoListeners(this);
 
 		// Hydrate visibility overrides from persisted data
@@ -148,6 +147,11 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.smartCodeCache = new SmartCodeCache();
 		this.refreshSmartCodeCacheConfig();
 		this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
+
+		// Reverse-lookup pra memos materializados — varre todos registries (codes, groups, markers,
+		// SCs). Tem que rodar APÓS smartCodeRegistry.fromJSON, senão SCs com materialized não entram
+		// no map e modify listener no vault perde o ref.
+		rebuildMemoReverseLookup(this);
 
 		// Persistência da section + cache invalidation granular por id mudado.
 		this.smartCodeRegistry.addOnMutate((changedId) => {
@@ -466,6 +470,7 @@ export default class QualiaCodingPlugin extends Plugin {
 					mdModel: this.markdownModel ?? null,
 					getMarkerLabel: smartCodeAccess.getMarkerLabel,
 					getAuditLog: () => (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [],
+					memoAccess,
 					initialDetailId,
 				}).open();
 			},

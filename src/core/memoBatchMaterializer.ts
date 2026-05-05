@@ -3,7 +3,7 @@ import type { EntityRef, MemoRecord } from './memoTypes';
 import { entityRefToString } from './memoTypes';
 import { convertMemoToNote, refreshMemoNote } from './memoMaterializer';
 
-export type MemoKind = 'code' | 'group' | 'marker' | 'relation-code' | 'relation-app';
+export type MemoKind = 'code' | 'group' | 'marker' | 'relation-code' | 'relation-app' | 'smartCode';
 
 export interface BatchSelection {
 	kinds: Record<MemoKind, boolean>;
@@ -85,6 +85,11 @@ export function collectAllMemoRefs(plugin: QualiaCodingPlugin): { ref: EntityRef
 		for (const m of f.markers) visit('video', m);
 	}
 
+	// Smart Codes
+	for (const sc of plugin.smartCodeRegistry.getAll()) {
+		if (sc.memo) out.push({ ref: { type: 'smartCode', id: sc.id }, memo: sc.memo });
+	}
+
 	return out;
 }
 
@@ -134,6 +139,9 @@ export function describeRef(plugin: QualiaCodingPlugin, ref: EntityRef): string 
 	}
 	if (ref.type === 'marker') {
 		return `${ref.engineType} marker`;
+	}
+	if (ref.type === 'smartCode') {
+		return `⚡ ${plugin.smartCodeRegistry.getById(ref.id)?.name ?? ref.id}`;
 	}
 	if (ref.type === 'relation-code') {
 		const src = plugin.sharedRegistry.getById(ref.codeId)?.name ?? ref.codeId;

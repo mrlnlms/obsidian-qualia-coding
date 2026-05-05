@@ -1,4 +1,5 @@
 import type { SmartCodeDefinition, PredicateNode, LeafNode, SmartCodesSection } from '../types';
+import type { MemoRecord } from '../memoTypes';
 import { isOpNode, isLeafNode } from './types';
 import { DEFAULT_PALETTE } from '../codeDefinitionRegistry';
 
@@ -78,7 +79,7 @@ export class SmartCodeRegistry {
 
 	// ─── Writes ───────────────────────────────────────────────
 
-	create(args: { name: string; color?: string; predicate: PredicateNode; memo?: string }): SmartCodeDefinition {
+	create(args: { name: string; color?: string; predicate: PredicateNode; memo?: string | MemoRecord }): SmartCodeDefinition {
 		const id = makeSmartCodeId();
 		const paletteIndex = args.color ? -1 : this.section.nextPaletteIndex;
 		const color = args.color ?? DEFAULT_PALETTE[paletteIndex % DEFAULT_PALETTE.length]!;
@@ -86,7 +87,7 @@ export class SmartCodeRegistry {
 		const sc: SmartCodeDefinition = {
 			id, name: args.name, color, paletteIndex,
 			predicate: args.predicate,
-			memo: args.memo,
+			memo: normalizeMemo(args.memo),
 			createdAt: Date.now(),
 		};
 		this.section.definitions[id] = sc;
@@ -96,18 +97,23 @@ export class SmartCodeRegistry {
 		return sc;
 	}
 
-	update(id: string, patch: Partial<Pick<SmartCodeDefinition, 'name' | 'color' | 'predicate' | 'memo' | 'hidden'>>): SmartCodeDefinition | undefined {
+	update(id: string, patch: Partial<Pick<SmartCodeDefinition, 'name' | 'color' | 'predicate' | 'hidden'>> & { memo?: string | MemoRecord }): SmartCodeDefinition | undefined {
 		const sc = this.section.definitions[id];
 		if (!sc) return undefined;
 		const oldPredicate = sc.predicate;
-		const oldMemo = sc.memo ?? '';
-		Object.assign(sc, patch);
+		const oldMemoContent = sc.memo?.content ?? '';
+		const { memo: memoPatch, ...rest } = patch;
+		Object.assign(sc, rest);
+		if (memoPatch !== undefined) {
+			sc.memo = normalizeMemo(memoPatch);
+		}
 		if (patch.predicate && patch.predicate !== oldPredicate) {
 			const diff = diffPredicateLeaves(oldPredicate, patch.predicate);
 			this.emitAudit({ entity: 'smartCode', type: 'sc_predicate_edited', codeId: id, ...diff });
 		}
-		if (patch.memo !== undefined && patch.memo !== oldMemo) {
-			this.emitAudit({ entity: 'smartCode', type: 'sc_memo_edited', codeId: id, from: oldMemo, to: patch.memo });
+		const newMemoContent = sc.memo?.content ?? '';
+		if (memoPatch !== undefined && newMemoContent !== oldMemoContent) {
+			this.emitAudit({ entity: 'smartCode', type: 'sc_memo_edited', codeId: id, from: oldMemoContent, to: newMemoContent });
 		}
 		this.emitMutate(id);
 		return sc;
@@ -122,8 +128,14 @@ export class SmartCodeRegistry {
 		return true;
 	}
 
-	setMemo(id: string, memo: string): void {
-		this.update(id, { memo });
+	/** Setter de conveniência pra updates simples só do conteúdo (preserva materialized se houver). */
+	setMemo(id: string, content: string): void {
+		const sc = this.section.definitions[id];
+		if (!sc) return;
+		const next: MemoRecord = sc.memo?.materialized
+			? { content, materialized: sc.memo.materialized }
+			: { content };
+		this.update(id, { memo: next });
 	}
 
 	setColor(id: string, color: string): void {
@@ -151,6 +163,13 @@ export class SmartCodeRegistry {
 		for (const id of rewritten) this.emitMutate(id);
 		return { rewritten };
 	}
+}
+
+/** Aceita string (content) ou MemoRecord completo (com materialized). Vazio → undefined. */
+function normalizeMemo(memo: string | MemoRecord | undefined): MemoRecord | undefined {
+	if (memo === undefined) return undefined;
+	if (typeof memo === 'string') return memo.length > 0 ? { content: memo } : undefined;
+	return memo;
 }
 
 // ─── Helpers puros ─────────────────────────────────────────

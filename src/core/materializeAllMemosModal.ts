@@ -16,9 +16,10 @@ const KIND_LABELS: Record<MemoKind, string> = {
 	'marker': 'Markers (segments)',
 	'relation-code': 'Relations (code-level)',
 	'relation-app': 'Relations (segment-level)',
+	'smartCode': 'Smart Codes',
 };
 
-const ALL_KINDS: MemoKind[] = ['code', 'group', 'marker', 'relation-code', 'relation-app'];
+const ALL_KINDS: MemoKind[] = ['code', 'group', 'marker', 'relation-code', 'relation-app', 'smartCode'];
 
 /**
  * Field name `selection` colide com algo no protótipo de Modal/Component do Obsidian
@@ -40,6 +41,7 @@ export class MaterializeAllMemosModal extends Modal {
 				'marker': true,
 				'relation-code': true,
 				'relation-app': true,
+				'smartCode': true,
 			},
 			includeEmpty: false,
 			overwriteExisting: false,

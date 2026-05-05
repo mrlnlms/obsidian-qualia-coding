@@ -1309,6 +1309,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			// Pause auto-refresh enquanto memo está focado pra textarea não ser destruída no rerender.
 			suspendRefresh: () => this.unsubSmartCodes?.(),
 			resumeRefresh: () => this.attachSmartCodeListeners(),
+			memoAccess: this.memoAccess,
 		});
 	}
 

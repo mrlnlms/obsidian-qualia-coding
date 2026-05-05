@@ -42,7 +42,12 @@ function resolveEntity(plugin: QualiaCodingPlugin, ref: EntityRef): { name: stri
 		if (!rel) throw new Error(`App-level relation not found`);
 		return { name: buildRelationAppFilename(plugin, ref, marker), content: getMemoContent(rel.memo) };
 	}
-	throw new Error(`Phase 2: ref type '${(ref as EntityRef).type}' not yet supported`);
+	if (ref.type === 'smartCode') {
+		const sc = plugin.smartCodeRegistry.getById(ref.id);
+		if (!sc) throw new Error(`Smart code not found: ${ref.id}`);
+		return { name: sc.name, content: getMemoContent(sc.memo) };
+	}
+	throw new Error(`Unsupported ref type: ${(ref as EntityRef).type}`);
 }
 
 function buildRelationCodeFilename(plugin: QualiaCodingPlugin, sourceDef: { name: string }, rel: { label: string; target: string }): string {
@@ -68,7 +73,8 @@ function resolveFolder(plugin: QualiaCodingPlugin, ref: EntityRef): string {
 	if (ref.type === 'group') return folders.group;
 	if (ref.type === 'marker') return folders.marker;
 	if (ref.type === 'relation-code' || ref.type === 'relation-app') return folders.relation;
-	throw new Error(`Phase 2: ref type '${(ref as EntityRef).type}' not yet supported`);
+	if (ref.type === 'smartCode') return folders.smartCode;
+	throw new Error(`Unsupported ref type: ${(ref as EntityRef).type}`);
 }
 
 /** Read current MemoRecord from registry, agnostic to entity type. */
@@ -85,7 +91,8 @@ function readMemoRecord(plugin: QualiaCodingPlugin, ref: EntityRef): MemoRecord 
 		const ca = marker?.codes.find(c => c.codeId === ref.codeId);
 		return ca?.relations?.find(r => r.label === ref.label && r.target === ref.target)?.memo;
 	}
-	throw new Error(`Phase 2: ref type '${(ref as EntityRef).type}' not yet supported`);
+	if (ref.type === 'smartCode') return plugin.smartCodeRegistry.getById(ref.id)?.memo;
+	throw new Error(`Unsupported ref type: ${(ref as EntityRef).type}`);
 }
 
 /** Persiste o memo atualizado (com ou sem materialized) no registry, agnostic to entity type. */
@@ -140,7 +147,12 @@ function writeMemo(plugin: QualiaCodingPlugin, ref: EntityRef, content: string, 
 		document.dispatchEvent(new Event('qualia:registry-changed'));
 		return;
 	}
-	throw new Error(`Phase 2: ref type '${(ref as EntityRef).type}' not yet supported`);
+	if (ref.type === 'smartCode') {
+		// Update via registry (dispara addOnMutate → cache invalida + UI refresh).
+		plugin.smartCodeRegistry.update(ref.id, { memo });
+		return;
+	}
+	throw new Error(`Unsupported ref type: ${(ref as EntityRef).type}`);
 }
 
 /**

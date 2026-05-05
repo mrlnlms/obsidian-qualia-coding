@@ -11,7 +11,7 @@ const mkSc = (over: Partial<SmartCodeDefinition> = {}): SmartCodeDefinition => (
 
 describe('buildSmartCodesCsv', () => {
 	it('header + 1 row com colunas certas', () => {
-		const sc = mkSc({ memo: 'note' });
+		const sc = mkSc({ memo: { content: 'note' } });
 		const cache = { getMatches: () => Array(7).fill({}) };
 		const csv = buildSmartCodesCsv([sc], cache);
 		const parsed = Papa.parse(csv, { header: true, skipEmptyLines: true });
@@ -24,7 +24,7 @@ describe('buildSmartCodesCsv', () => {
 	});
 
 	it('escapes RFC 4180 (commas, quotes, newlines)', () => {
-		const sc = mkSc({ name: 'A, "B"', memo: 'multi\nline' });
+		const sc = mkSc({ name: 'A, "B"', memo: { content: 'multi\nline' } });
 		const csv = buildSmartCodesCsv([sc], { getMatches: () => [] });
 		const parsed = Papa.parse(csv, { header: true, skipEmptyLines: true });
 		expect(parsed.data[0]).toMatchObject({ name: 'A, "B"', memo: 'multi\nline' });

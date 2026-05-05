@@ -6,6 +6,7 @@ import type { CodeDefinitionRegistry } from '../codeDefinitionRegistry';
 import type { CaseVariablesRegistry } from '../caseVariables/caseVariablesRegistry';
 import type { AuditEntry, BaseMarker } from '../types';
 import type { CodeMarkerModel } from '../../markdown/models/codeMarkerModel';
+import type { MemoMaterializerAccess } from '../baseCodeDetailView';
 import { SmartCodeBuilderModal } from './builderModal';
 import { renderSmartCodeDetail } from './detailSmartCodeRenderer';
 import { navigateToMarker } from '../navigateToMarker';
@@ -22,6 +23,8 @@ export interface SmartCodeListConfig {
 	/** Engine-rich label resolver — main.ts injeta usando csvModel/imageModel/etc. */
 	getMarkerLabel: (marker: BaseMarker) => string;
 	getAuditLog: () => AuditEntry[];
+	/** Convert to note pra SC memo. Sem ele, memo fica só inline (não tem botão). */
+	memoAccess?: MemoMaterializerAccess;
 	/** Quando setado, abre direto no detail desse SC em vez da lista. */
 	initialDetailId?: string | null;
 }
@@ -176,6 +179,7 @@ export class SmartCodeListModal extends Modal {
 					this.unsubRegistry = this.cfg.smartCodeRegistry.addOnMutate(() => this.render());
 				}
 			},
+			memoAccess: this.cfg.memoAccess,
 		});
 	}
 

@@ -8,6 +8,7 @@ import type { SmartCodeCache } from './cache';
 import { addChildToGroup, removeNodeAt, changeOperator, replaceLeafAt, type Path } from './builderTreeOps';
 import { validateForSave } from './predicateValidator';
 import type { CodeDefinition, FolderDefinition, GroupDefinition } from '../types';
+import { getMemoContent } from '../memoHelpers';
 
 export interface BuilderConfig {
 	app: App;
@@ -37,7 +38,7 @@ export class SmartCodeBuilderModal extends Modal {
 		super(cfg.app);
 		this.name = cfg.initialDefinition?.name ?? '';
 		this.color = cfg.initialDefinition?.color ?? '#888888';
-		this.memo = cfg.initialDefinition?.memo ?? '';
+		this.memo = getMemoContent(cfg.initialDefinition?.memo);
 		this.predicate = cfg.initialDefinition?.predicate ?? { op: 'AND', children: [] };
 	}
 

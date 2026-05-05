@@ -61,6 +61,29 @@ describe('migrateLegacyMemos', () => {
 		const data: any = { registry: { definitions: {}, groups: {} } };
 		expect(() => migrateLegacyMemos(data)).not.toThrow();
 	});
+
+	it('converts string memo on SmartCodeDefinition', () => {
+		const data: any = {
+			registry: { definitions: {}, groups: {} },
+			smartCodes: { definitions: { sc1: { id: 'sc1', name: 'X', memo: 'sc legacy' } } },
+		};
+		const out = migrateLegacyMemos(data);
+		expect(out.smartCodes.definitions.sc1.memo).toEqual({ content: 'sc legacy' });
+	});
+
+	it('idempotent on SC MemoRecord', () => {
+		const data: any = {
+			registry: { definitions: {}, groups: {} },
+			smartCodes: { definitions: { sc1: { id: 'sc1', memo: { content: 'already', materialized: { path: 'p', mtime: 1 } } } } },
+		};
+		const out = migrateLegacyMemos(data);
+		expect(out.smartCodes.definitions.sc1.memo).toEqual({ content: 'already', materialized: { path: 'p', mtime: 1 } });
+	});
+
+	it('handles missing smartCodes section', () => {
+		const data: any = { registry: { definitions: {}, groups: {} } };
+		expect(() => migrateLegacyMemos(data)).not.toThrow();
+	});
 });
 
 describe('migrateMarkerMemo', () => {

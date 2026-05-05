@@ -32,6 +32,10 @@ export function migrateLegacyMemos(data: QualiaData): QualiaData {
 	for (const group of Object.values(data.registry.groups ?? {})) {
 		(group as any).memo = migrateMemoField((group as any).memo);
 	}
+	// Smart Codes (Tier 3) — memo era string até virar MemoRecord pra suportar Convert to note.
+	for (const sc of Object.values(data.smartCodes?.definitions ?? {})) {
+		(sc as any).memo = migrateMemoField((sc as any).memo);
+	}
 	return data;
 }
 

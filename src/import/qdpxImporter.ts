@@ -1325,7 +1325,7 @@ export function parseSmartCodes(xml: string, resolver: GuidResolver): ParseSmart
     out.push({
       id: a.newId, name: a.name, color: a.color, paletteIndex: -1, createdAt: Date.now(),
       predicate: remappedPredicate,
-      ...(a.memo ? { memo: a.memo } : {}),
+      ...(a.memo ? { memo: { content: a.memo } } : {}),
     });
   }
   return { smartCodes: out, warnings };

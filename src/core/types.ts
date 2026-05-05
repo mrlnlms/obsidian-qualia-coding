@@ -148,7 +148,7 @@ export interface SmartCodeDefinition {
 	color: string;
 	paletteIndex: number;
 	predicate: PredicateNode;
-	memo?: string;
+	memo?: MemoRecord;
 	hidden?: boolean;
 	createdAt: number;
 }
@@ -190,6 +190,7 @@ export interface MemoFolders {
 	group: string;
 	marker: string;
 	relation: string;
+	smartCode: string;
 }
 
 export interface GeneralSettings {
@@ -306,6 +307,7 @@ export function createDefaultData(): QualiaData {
 				group: 'Analytic Memos/Groups',
 				marker: 'Analytic Memos/Markers',
 				relation: 'Analytic Memos/Relations',
+				smartCode: 'Analytic Memos/Smart Codes',
 			},
 		},
 		markdown: { markers: {}, settings: {

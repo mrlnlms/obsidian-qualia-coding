@@ -14,7 +14,7 @@ describe('buildSmartCodesXml', () => {
 	});
 
 	it('export com smart code simples preserva predicate JSON em CDATA', () => {
-		const sc = mkSc({ name: 'Frustration jr', memo: 'My memo' });
+		const sc = mkSc({ name: 'Frustration jr', memo: { content: 'My memo' } });
 		const xml = buildSmartCodesXml([sc]);
 		expect(xml).toContain('<qualia:SmartCodes>');
 		expect(xml).toContain('guid="sc_1"');
@@ -27,12 +27,12 @@ describe('buildSmartCodesXml', () => {
 
 	it('omits qualia:Memo quando memo vazio/ausente', () => {
 		expect(buildSmartCodesXml([mkSc()])).not.toContain('<qualia:Memo>');
-		expect(buildSmartCodesXml([mkSc({ memo: '' })])).not.toContain('<qualia:Memo>');
-		expect(buildSmartCodesXml([mkSc({ memo: '   ' })])).not.toContain('<qualia:Memo>');
+		expect(buildSmartCodesXml([mkSc({ memo: { content: '' } })])).not.toContain('<qualia:Memo>');
+		expect(buildSmartCodesXml([mkSc({ memo: { content: '   ' } })])).not.toContain('<qualia:Memo>');
 	});
 
 	it('escapa name + memo com & " < > corretamente', () => {
-		const sc = mkSc({ name: 'A & B "test"', memo: 'foo<bar>' });
+		const sc = mkSc({ name: 'A & B "test"', memo: { content: 'foo<bar>' } });
 		const xml = buildSmartCodesXml([sc]);
 		expect(xml).toContain('name="A &amp; B &quot;test&quot;"');
 		expect(xml).toContain('foo&lt;bar&gt;');
