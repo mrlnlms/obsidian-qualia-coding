@@ -1,4 +1,4 @@
-import { App, TFile, setIcon } from 'obsidian';
+import { App, setIcon } from 'obsidian';
 import type { SmartCodeDefinition, MarkerRef, PredicateNode, LeafNode } from './types';
 import { isOpNode } from './types';
 import type { SmartCodeRegistry } from './smartCodeRegistryApi';
@@ -17,6 +17,8 @@ export interface SmartCodeDetailCallbacks {
 	app: App;
 	onEditPredicate: () => void;
 	onShowList: () => void;
+	/** Caller fecha o modal e navega pro marker (engine-aware). */
+	onNavigateToMarker: (ref: MarkerRef) => void;
 }
 
 export function renderSmartCodeDetail(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
@@ -143,21 +145,17 @@ function renderMatchesSection(container: HTMLElement, opts: SmartCodeDetailCallb
 		const fileLink = fileHeader.createSpan({ text: fileId, cls: 'qc-sc-matches-file-name' });
 		fileHeader.createSpan({ text: ` (${refs.length})`, cls: 'qc-sc-matches-file-count' });
 		fileLink.style.cursor = 'pointer';
-		fileLink.onclick = () => openFile(opts.app, fileId);
+		// Click no header navega pro primeiro match do file (abre + posiciona no primeiro marker).
+		fileLink.onclick = () => opts.onNavigateToMarker(refs[0]!);
 
 		for (const ref of refs.slice(0, 5)) {
 			const row = fileEl.createDiv({ cls: 'qc-sc-match-row' });
 			row.createSpan({ text: `  › ${ref.markerId}`, cls: 'qc-sc-match-label' });
 			row.style.cursor = 'pointer';
-			row.onclick = () => openFile(opts.app, ref.fileId);
+			row.onclick = () => opts.onNavigateToMarker(ref);
 		}
 		if (refs.length > 5) fileEl.createDiv({ text: `  … +${refs.length - 5} more`, cls: 'qc-sc-matches-more' });
 	}
-}
-
-function openFile(app: App, path: string): void {
-	const file = app.vault.getAbstractFileByPath(path);
-	if (file instanceof TFile) void app.workspace.getLeaf().openFile(file);
 }
 
 function renderHistorySection(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {

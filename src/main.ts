@@ -460,6 +460,7 @@ export default class QualiaCodingPlugin extends Plugin {
 					smartCodeCache: this.smartCodeCache,
 					registry: this.sharedRegistry,
 					caseVarsRegistry: this.caseVariablesRegistry,
+					mdModel: this.markdownModel ?? null,
 					getAuditLog: () => (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [],
 				}).open();
 			},

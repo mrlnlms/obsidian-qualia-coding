@@ -151,6 +151,11 @@ export class SmartCodeCache {
 		return this.getMatches(smartCodeId).length;
 	}
 
+	/** Lookup do marker original via ref obtido em getMatches. Refs são reusados como keys do Map. */
+	getMarkerByRef(ref: MarkerRef): AnyMarker | undefined {
+		return this.markerByRef.get(ref);
+	}
+
 	isDirty(smartCodeId: string): boolean {
 		return this.dirty.has(smartCodeId);
 	}

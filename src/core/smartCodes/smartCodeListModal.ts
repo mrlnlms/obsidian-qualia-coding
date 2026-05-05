@@ -4,9 +4,11 @@ import type { SmartCodeRegistry } from './smartCodeRegistryApi';
 import type { SmartCodeCache } from './cache';
 import type { CodeDefinitionRegistry } from '../codeDefinitionRegistry';
 import type { CaseVariablesRegistry } from '../caseVariables/caseVariablesRegistry';
-import type { AuditEntry } from '../types';
+import type { AuditEntry, BaseMarker } from '../types';
+import type { CodeMarkerModel } from '../../markdown/models/codeMarkerModel';
 import { SmartCodeBuilderModal } from './builderModal';
 import { renderSmartCodeDetail } from './detailSmartCodeRenderer';
+import { navigateToMarker } from '../navigateToMarker';
 
 export interface SmartCodeListConfig {
 	app: App;
@@ -14,6 +16,7 @@ export interface SmartCodeListConfig {
 	smartCodeCache: SmartCodeCache;
 	registry: CodeDefinitionRegistry;
 	caseVarsRegistry: CaseVariablesRegistry;
+	mdModel: CodeMarkerModel | null;
 	getAuditLog: () => AuditEntry[];
 }
 
@@ -78,6 +81,12 @@ export class SmartCodeListModal extends Modal {
 			app: this.cfg.app,
 			onEditPredicate: () => this.openBuilder('edit', sc),
 			onShowList: () => { this.currentDetailId = null; this.render(); },
+			onNavigateToMarker: (ref) => {
+				const marker = this.cfg.smartCodeCache.getMarkerByRef(ref);
+				if (!marker) return;
+				this.close();
+				void navigateToMarker(this.cfg.app, marker as BaseMarker, this.cfg.mdModel);
+			},
 		});
 	}
 
