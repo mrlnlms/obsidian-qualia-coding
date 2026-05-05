@@ -4,10 +4,25 @@ import type {
   DocCodeMatrixResult, SourceType, SourceComparisonResult, SourceComparisonEntry,
 } from "./dataTypes";
 import { applyFilters } from "./statsHelpers";
+import type { CaseVariablesRegistry } from "../../core/caseVariables/caseVariablesRegistry";
+import type { SmartCodeCache } from "../../core/smartCodes/cache";
+import type { SmartCodeRegistry } from "../../core/smartCodes/smartCodeRegistryApi";
+import { getSmartCodeViews, smartCodePassesCodesFilter } from "./smartCodeAnalytics";
+
+export interface SmartCodeAccess {
+  cache: SmartCodeCache;
+  registry: SmartCodeRegistry;
+}
+
+const emptyBySource = (): Record<SourceType, number> => ({
+  markdown: 0, "csv-segment": 0, "csv-row": 0, image: 0, pdf: 0, audio: 0, video: 0,
+});
 
 export function calculateFrequency(
   data: ConsolidatedData,
-  filters: FilterConfig
+  filters: FilterConfig,
+  smartCodes?: SmartCodeAccess,
+  caseVarsRegistry?: CaseVariablesRegistry,
 ): FrequencyResult[] {
   const markers = applyFilters(data, filters);
 
@@ -23,11 +38,7 @@ export function calculateFrequency(
 
       let entry = map.get(code);
       if (!entry) {
-        entry = {
-          total: 0,
-          bySource: { markdown: 0, "csv-segment": 0, "csv-row": 0, image: 0, pdf: 0, audio: 0, video: 0 },
-          byFile: {},
-        };
+        entry = { total: 0, bySource: emptyBySource(), byFile: {} };
         map.set(code, entry);
       }
       entry.total++;
@@ -49,6 +60,31 @@ export function calculateFrequency(
       bySource: entry.bySource,
       byFile: entry.byFile,
     });
+  }
+
+  // Smart Codes pass — augmenta result com SC entries. Cada SC count = matches que
+  // passam global filters (sources/caseVar/group). Codes filter dispatchado via
+  // smartCodePassesCodesFilter (filtra QUAIS SCs entram, não quais matches).
+  if (smartCodes) {
+    const scViews = getSmartCodeViews(data, smartCodes.cache, smartCodes.registry, filters, caseVarsRegistry);
+    for (const sc of scViews) {
+      if (!smartCodePassesCodesFilter(sc.id, filters)) continue;
+      if (sc.matches.length < filters.minFrequency) continue;
+      const bySource = emptyBySource();
+      const byFile: Record<string, number> = {};
+      for (const m of sc.matches) {
+        bySource[m.source]++;
+        byFile[m.fileId] = (byFile[m.fileId] ?? 0) + 1;
+      }
+      results.push({
+        code: sc.name,
+        color: sc.color,
+        total: sc.matches.length,
+        bySource,
+        byFile,
+        isSmart: true,
+      });
+    }
   }
 
   return results;

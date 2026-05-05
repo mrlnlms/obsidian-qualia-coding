@@ -8,7 +8,7 @@ export async function renderTemporalChart(ctx: AnalyticsViewContext, filters: Fi
   if (!ctx.chartContainer || !ctx.data) return;
   const generation = ctx.renderGeneration;
 
-  const result = calculateTemporal(ctx.data, filters);
+  const result = calculateTemporal(ctx.data, filters, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry }, ctx.plugin.caseVariablesRegistry);
 
   if (result.series.length === 0) {
     ctx.chartContainer.createDiv({
@@ -143,7 +143,7 @@ export function renderMiniTemporal(canvas: HTMLCanvasElement, temporal: Temporal
 export function buildTemporalRows(ctx: AnalyticsViewContext): string[][] | null {
   if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
-  const result = calculateTemporal(ctx.data, filters);
+  const result = calculateTemporal(ctx.data, filters, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry }, ctx.plugin.caseVariablesRegistry);
   if (result.series.length === 0) return null;
 
   const rows: string[][] = [["code", "date", "cumulative_count"]];

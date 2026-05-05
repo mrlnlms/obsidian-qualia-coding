@@ -10,7 +10,7 @@ export function renderEvolutionFileSection(ctx: AnalyticsViewContext): void {
   section.createDiv({ cls: "codemarker-config-section-title", text: "File" });
 
   const filters = ctx.buildFilterConfig();
-  const evoResult = calculateEvolution(ctx.data, filters);
+  const evoResult = calculateEvolution(ctx.data, filters, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry }, ctx.plugin.caseVariablesRegistry);
 
   const select = section.createEl("select", { cls: "codemarker-config-select" });
   const allOpt = select.createEl("option", { text: "All files", value: "" });
@@ -31,7 +31,7 @@ export function renderEvolutionFileSection(ctx: AnalyticsViewContext): void {
 export function buildEvolutionRows(ctx: AnalyticsViewContext): string[][] | null {
   if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
-  const result = calculateEvolution(ctx.data, filters);
+  const result = calculateEvolution(ctx.data, filters, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry }, ctx.plugin.caseVariablesRegistry);
 
   const pts = ctx.evolutionFile
     ? result.points.filter((p) => p.fileId === ctx.evolutionFile)
@@ -53,7 +53,7 @@ export function exportEvolutionCSV(ctx: AnalyticsViewContext, date: string): voi
 export function renderEvolutionChart(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 
-  const result = calculateEvolution(ctx.data, filters);
+  const result = calculateEvolution(ctx.data, filters, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry }, ctx.plugin.caseVariablesRegistry);
 
   // Filter by selected file
   const points = ctx.evolutionFile

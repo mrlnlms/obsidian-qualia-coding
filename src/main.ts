@@ -490,7 +490,7 @@ export default class QualiaCodingPlugin extends Plugin {
 
 		// Register unified sidebar views (single set for ALL engines)
 		this.registerView(CODE_EXPLORER_VIEW_TYPE, (leaf) =>
-			new UnifiedCodeExplorerView(leaf, unifiedModel, mdModel));
+			new UnifiedCodeExplorerView(leaf, unifiedModel, mdModel, smartCodeAccess));
 		this.registerView(CODE_DETAIL_VIEW_TYPE, (leaf) =>
 			new UnifiedCodeDetailView(leaf, unifiedModel, mdModel, auditAccess, memoAccess, smartCodeAccess));
 		this.registerView(CASE_VARIABLES_VIEW_TYPE, (leaf) =>

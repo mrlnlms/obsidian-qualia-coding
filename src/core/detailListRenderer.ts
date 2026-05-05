@@ -123,9 +123,14 @@ export function renderListContent(
 
 	if (callbacks.smartCodes) {
 		const sc = callbacks.smartCodes;
+		// Aplica searchQuery do treeState aos SC names — paridade com filtro do codebook tree.
+		// codebookTreeRenderer já filtra regulares por searchQuery; SC ficavam de fora antes.
+		const q = treeState.searchQuery.trim().toLowerCase();
+		const allSC = sc.access.registry.getAll();
+		const filteredSC = q ? allSC.filter(def => def.name.toLowerCase().includes(q)) : allSC;
 		renderSmartCodesSection(
 			smartCodesDiv,
-			sc.access.registry.getAll(),
+			filteredSC,
 			sc.access.cache,
 			sc.access.registry,
 			sc.app,

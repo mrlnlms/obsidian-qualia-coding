@@ -3,6 +3,8 @@ import type { BaseMarker } from "../../core/types";
 import type { CodeApplication } from "../../core/types";
 import type { AllEngineData } from "./dataReader";
 import type { CaseVariablesRegistry } from "../../core/caseVariables/caseVariablesRegistry";
+import type { SmartCodeRegistry } from "../../core/smartCodes/smartCodeRegistryApi";
+import type { SmartCodeCache } from "../../core/smartCodes/cache";
 import { buildFlatTree, type ExpandedState } from "../../core/hierarchyHelpers";
 import { getMemoContent } from "../../core/memoHelpers";
 import type { MemoRecord } from "../../core/memoTypes";
@@ -314,20 +316,119 @@ function buildByFile(
   return sections;
 }
 
+export interface SmartCodeMemoAccess {
+  registry: SmartCodeRegistry;
+  cache: SmartCodeCache;
+}
+
+/** Constrói CodeMemoSection pra cada SC visível. SC seção tem depth=0, sem children/groups,
+ *  codeMemo = sc.memo, markerMemos = memos dos matched markers (mesmos que aparecem em regulars
+ *  abaixo das suas códigos — útil pro user ler o "porquê deste SC matcha esses memos"). */
+function buildSmartCodeSections(
+  flat: FlatMarker[],
+  filters: MemoViewFilters,
+  smartCodes: SmartCodeMemoAccess,
+): CodeMemoSection[] {
+  const allSC = smartCodes.registry.getAll().filter(sc => !sc.hidden);
+  if (allSC.length === 0) return [];
+
+  // Filtra SC pelo codes filter (inclui sc se filters.codes vazio OU contém sc.id).
+  const visibleSC = allSC.filter(sc => {
+    if (filters.excludeCodes.includes(sc.id)) return false;
+    if (filters.codes.length > 0 && !filters.codes.includes(sc.id)) return false;
+    return true;
+  });
+  if (visibleSC.length === 0) return [];
+
+  // Index FlatMarker por (source, fileId, id) — note que cache usa engine 'csv' único pra
+  // segment/row, mas flat tem source 'csv-segment'/'csv-row' separado. Lookup tenta engine
+  // exato primeiro, fallback pros 2 csv variants quando engine === 'csv'.
+  const flatIndex = new Map<string, FlatMarker>();
+  for (const fm of flat) {
+    flatIndex.set(`${fm.source}:${fm.fileId}:${fm.marker.id}`, fm);
+  }
+
+  const out: CodeMemoSection[] = [];
+  for (const sc of visibleSC) {
+    const refs = smartCodes.cache.getMatches(sc.id);
+    const matched: FlatMarker[] = [];
+    for (const ref of refs) {
+      let fm = flatIndex.get(`${ref.engine}:${ref.fileId}:${ref.markerId}`);
+      if (!fm && ref.engine === 'csv') {
+        fm = flatIndex.get(`csv-segment:${ref.fileId}:${ref.markerId}`)
+          ?? flatIndex.get(`csv-row:${ref.fileId}:${ref.markerId}`);
+      }
+      if (!fm) continue;
+      matched.push(fm);
+    }
+
+    const codeMemo = nonEmpty(sc.memo) ? readMemo(sc.memo) : null;
+    const markerMemos: MemoEntry[] = matched
+      .filter(({ marker }) => nonEmpty(marker.memo))
+      .map(({ marker, source, fileId }) => {
+        const ca = marker.codes[0];
+        return {
+          kind: "marker" as const,
+          markerId: marker.id,
+          codeId: sc.id,
+          fileId,
+          sourceType: (source.startsWith("csv") ? "csv" : source) as EngineType,
+          excerpt: extractExcerpt(marker, source),
+          memo: readMemo(marker.memo),
+          magnitude: ca?.magnitude,
+        };
+      });
+
+    const cm = filters.showTypes.code ? codeMemo : null;
+    const mms = filters.showTypes.marker ? markerMemos : [];
+    const hasOwnMemo = !!cm || mms.length > 0;
+    if (!hasOwnMemo) continue;
+
+    out.push({
+      codeId: sc.id,
+      codeName: sc.name,
+      color: sc.color,
+      depth: 0,
+      groupIds: [],
+      codeMemo: cm,
+      groupMemos: [],
+      relationMemos: [],
+      markerMemos: mms,
+      childIds: [],
+      hasAnyMemoInSubtree: hasOwnMemo,
+      isSmart: true,
+    });
+  }
+  return out;
+}
+
 export function aggregateMemos(
   allData: AllEngineData,
   registry: CodeDefinitionRegistry,
   filters: MemoViewFilters,
   caseVariablesRegistry?: CaseVariablesRegistry,
+  smartCodes?: SmartCodeMemoAccess,
 ): MemoViewResult {
   const flat = flattenMarkers(allData);
   const filtered = applyMemoFilters(flat, filters, caseVariablesRegistry);
   const coverage = computeCoverage(registry, filtered);
 
+  let byCode: CodeMemoSection[] | undefined;
+  if (filters.groupBy === "code") {
+    byCode = buildByCode(registry, filtered, filters);
+    // Smart Codes pass — prepend SC sections (top of view, espelha smartCodesSection
+    // do Code Detail list mode). FlatMarkers não-filtrados (`flat`) porque SC matches
+    // resolvem via cache, não via filtro de marker codes.
+    if (smartCodes) {
+      const scSections = buildSmartCodeSections(flat, filters, smartCodes);
+      byCode = [...scSections, ...byCode];
+    }
+  }
+
   return {
     groupBy: filters.groupBy,
     coverage,
-    byCode: filters.groupBy === "code" ? buildByCode(registry, filtered, filters) : undefined,
+    byCode,
     byFile: filters.groupBy === "file" ? buildByFile(filtered, filters) : undefined,
   };
 }

@@ -3,6 +3,9 @@ import type {
   ConsolidatedData, FilterConfig, LagResult, PolarCoordResult, PolarVector, UnifiedMarker,
 } from "./dataTypes";
 import { applyFilters } from "./statsHelpers";
+import type { CaseVariablesRegistry } from "../../core/caseVariables/caseVariablesRegistry";
+import type { SmartCodeAccess } from "./frequency";
+import { getSmartCodeViews, smartCodePassesCodesFilter } from "./smartCodeAnalytics";
 
 function getMarkerPosition(m: UnifiedMarker): number {
   if (m.meta?.audioFrom != null) return m.meta.audioFrom;
@@ -13,10 +16,16 @@ function getMarkerPosition(m: UnifiedMarker): number {
   return 0;
 }
 
+function markerKey(m: UnifiedMarker): string {
+  return `${m.source}:${m.fileId}:${m.id}`;
+}
+
 export function calculateLagSequential(
   data: ConsolidatedData,
   filters: FilterConfig,
   lag: number,
+  smartCodes?: SmartCodeAccess,
+  caseVarsRegistry?: CaseVariablesRegistry,
 ): LagResult {
   const markers = applyFilters(data, filters);
   const codeById = new Map(data.codes.map((c) => [c.id, c]));
@@ -38,6 +47,31 @@ export function calculateLagSequential(
   idsKept.sort((a, b) => (codeById.get(a)?.name ?? a).localeCompare(codeById.get(b)?.name ?? b));
   const codes: string[] = idsKept.map((id) => codeById.get(id)?.name ?? id);
   const sortedColors: string[] = idsKept.map((id) => codeById.get(id)?.color ?? "#6200EE");
+  const isSmart: boolean[] = idsKept.map(() => false);
+
+  // Smart Codes: estende dimensões e cria augmented codes set por marker.
+  // Cada marker M ganha {scId} adicional para cada SC que matcha M. Transitions count
+  // "marker matching SC X precede marker com code Y" naturalmente.
+  const augmentedCodesByMarker = new Map<string, Set<string>>();
+  let scIdsKept: string[] = [];
+  if (smartCodes) {
+    const scViews = getSmartCodeViews(data, smartCodes.cache, smartCodes.registry, filters, caseVarsRegistry);
+    for (const sc of scViews) {
+      if (!smartCodePassesCodesFilter(sc.id, filters)) continue;
+      if (sc.matches.length < filters.minFrequency) continue;
+      scIdsKept.push(sc.id);
+      idsKept.push(sc.id);
+      codes.push(sc.name);
+      sortedColors.push(sc.color);
+      isSmart.push(true);
+      for (const m of sc.matches) {
+        const key = markerKey(m);
+        let set = augmentedCodesByMarker.get(key);
+        if (!set) { set = new Set(m.codes); augmentedCodesByMarker.set(key, set); }
+        set.add(sc.id);
+      }
+    }
+  }
 
   const n = idsKept.length;
   const codeIndex = new Map(idsKept.map((id, i) => [id, i]));
@@ -56,10 +90,12 @@ export function calculateLagSequential(
     for (let i = 0; i + lag < fileMarkers.length; i++) {
       const mA = fileMarkers[i]!;
       const mB = fileMarkers[i + lag]!;
-      for (const cA of mA.codes) {
+      const codesA = augmentedCodesByMarker.get(markerKey(mA)) ?? mA.codes;
+      const codesB = augmentedCodesByMarker.get(markerKey(mB)) ?? mB.codes;
+      for (const cA of codesA) {
         const iA = codeIndex.get(cA);
         if (iA == null) continue;
-        for (const cB of mB.codes) {
+        for (const cB of codesB) {
           const iB = codeIndex.get(cB);
           if (iB == null) continue;
           transitions[iA]![iB]!++;
@@ -100,7 +136,7 @@ export function calculateLagSequential(
     }
   }
 
-  return { codes, colors: sortedColors, lag, transitions, expected, zScores, totalTransitions };
+  return { codes, colors: sortedColors, lag, transitions, expected, zScores, totalTransitions, isSmart };
 }
 
 /**
@@ -111,6 +147,8 @@ export function calculatePolarCoordinates(
   filters: FilterConfig,
   focalCodeId: string,
   maxLag = 5,
+  smartCodes?: SmartCodeAccess,
+  caseVarsRegistry?: CaseVariablesRegistry,
 ): PolarCoordResult {
   const codeById = new Map(data.codes.map((c) => [c.id, c]));
   const focalDef = codeById.get(focalCodeId);
@@ -121,7 +159,7 @@ export function calculatePolarCoordinates(
 
   const lagResults: LagResult[] = [];
   for (let lag = 1; lag <= maxLag; lag++) {
-    lagResults.push(calculateLagSequential(data, filters, lag));
+    lagResults.push(calculateLagSequential(data, filters, lag, smartCodes, caseVarsRegistry));
   }
 
   const refResult = lagResults[0];

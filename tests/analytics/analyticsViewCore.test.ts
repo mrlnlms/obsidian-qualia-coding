@@ -173,6 +173,14 @@ function createMockAPI(data: ConsolidatedData | null = null): AnalyticsPluginAPI
 			getVariables: vi.fn().mockReturnValue({}),
 			getValuesForVariable: vi.fn().mockReturnValue([]),
 		} as any,
+		smartCodeRegistry: {
+			getAll: vi.fn().mockReturnValue([]),
+		} as any,
+		smartCodeCache: {
+			getMatches: vi.fn().mockReturnValue([]),
+			getCount: vi.fn().mockReturnValue(0),
+			subscribe: vi.fn().mockReturnValue(() => {}),
+		} as any,
 	} as any;
 }
 

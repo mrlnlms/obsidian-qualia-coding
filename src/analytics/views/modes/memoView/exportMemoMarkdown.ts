@@ -105,7 +105,7 @@ export async function exportMemoMarkdown(ctx: AnalyticsViewContext, date: string
 		groupBy: ctx.mvGroupBy,
 		markerLimit: "all",
 	};
-	const result = aggregateMemos(allData, ctx.plugin.registry, filters, ctx.plugin.caseVariablesRegistry);
+	const result = aggregateMemos(allData, ctx.plugin.registry, filters, ctx.plugin.caseVariablesRegistry, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry });
 
 	const md = buildMemoMarkdown(result, {
 		date,

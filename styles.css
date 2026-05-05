@@ -6135,6 +6135,21 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-smart-codes-new-btn { font-size: 0.85em; padding: 2px 8px; margin: 4px 8px 0; align-self: flex-start; opacity: 0.7; }
 .qc-smart-codes-new-btn:hover { opacity: 1; }
 
+/* Smart Codes group dentro do Code Explorer (top-level, sibling do tree de regulares).
+   Header colapsável + body com tree-item rows. Reusa .tree-item / .codemarker-explorer-swatch. */
+.qc-explorer-sc-section { padding: 4px 0 8px; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 6px; }
+.qc-explorer-sc-section-header { display: flex; align-items: center; padding: 4px 6px; font-size: 0.85em; color: var(--text-muted); user-select: none; cursor: pointer; }
+.qc-explorer-sc-section-header:hover { color: var(--text-normal); }
+.qc-explorer-sc-chevron { display: inline-block; width: 12px; }
+.qc-explorer-sc-count { color: var(--text-faint); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.qc-explorer-sc-body { display: flex; flex-direction: column; }
+.search-result.is-smart-code .tree-item-inner { font-style: italic; }
+.search-result-file-match.is-stale { color: var(--text-faint); font-style: italic; }
+
+/* Analytics codes filter — sub-header pra separar SC chips de regulares. */
+.codemarker-config-codes-subheader { font-size: 0.8em; color: var(--text-muted); padding: 6px 4px 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.codemarker-config-row.is-smart-code .codemarker-config-swatch { border-radius: 50%; }
+
 .qc-sc-builder { min-width: 640px; }
 .qc-sc-builder-header { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 8px; }
 .qc-sc-builder-banner { padding: 6px 10px; border-radius: 4px; margin: 4px 0; }

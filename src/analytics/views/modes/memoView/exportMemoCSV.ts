@@ -68,7 +68,7 @@ export function buildMemoExportRows(ctx: AnalyticsViewContext): string[][] | nul
 		groupBy: ctx.mvGroupBy,
 		markerLimit: "all",
 	};
-	const result = aggregateMemos(allData, ctx.plugin.registry, filters, ctx.plugin.caseVariablesRegistry);
+	const result = aggregateMemos(allData, ctx.plugin.registry, filters, ctx.plugin.caseVariablesRegistry, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry });
 	const rows = buildMemoRows(result);
 	if (rows.length <= 1) return null; // só header
 	return rows;

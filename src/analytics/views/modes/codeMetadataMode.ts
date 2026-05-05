@@ -38,7 +38,7 @@ export function renderCodeMetadataView(ctx: AnalyticsViewContext, filters: Filte
   if (!ctx.data) return;
   const result = calculateCodeMetadata(ctx.data, filters, variableName, registry, {
     includeMissing: !ctx.cmHideMissing,
-  });
+  }, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry });
 
   if (result.grandTotal === 0) {
     container.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
@@ -148,7 +148,8 @@ function drawHeatmap(
     cctx.fillStyle = code.color;
     cctx.fillRect(padding, y - 6, 12, 12);
     cctx.fillStyle = "var(--text-normal)";
-    cctx.fillText(truncateLabel(code.name, 22), padding + 18, y);
+    const labelText = code.isSmart ? `⚡ ${code.name}` : code.name;
+    cctx.fillText(truncateLabel(labelText, 22), padding + 18, y);
   }
 
   // ─── Cells ───
@@ -233,8 +234,9 @@ function drawHeatmap(
     const pctRow = rowTot > 0 ? ((count / rowTot) * 100).toFixed(1) : "—";
     const pctCol = colTot > 0 ? ((count / colTot) * 100).toFixed(1) : "—";
 
+    const codeLabel = code.isSmart ? `⚡ ${code.name}` : code.name;
     tooltip.innerHTML =
-      `<strong>${escapeHtml(code.name)}</strong> × <em>${escapeHtml(value)}</em><br>` +
+      `<strong>${escapeHtml(codeLabel)}</strong> × <em>${escapeHtml(value)}</em><br>` +
       `Count: ${count}<br>% row: ${pctRow}%<br>% col: ${pctCol}%`;
     tooltip.style.left = `${ev.offsetX + 10}px`;
     tooltip.style.top = `${ev.offsetY + 10}px`;
@@ -411,7 +413,7 @@ export function buildCodeMetadataRows(ctx: AnalyticsViewContext): string[][] | n
   const registry = ctx.plugin.caseVariablesRegistry;
   const result = calculateCodeMetadata(ctx.data, filters, ctx.cmVariable, registry, {
     includeMissing: !ctx.cmHideMissing,
-  });
+  }, { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry });
   if (result.codes.length === 0) return null;
 
   const header = ["code", "total", ...result.values, "chi2", "df", "p", "cramers_v"];

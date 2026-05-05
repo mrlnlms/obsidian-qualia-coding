@@ -4,7 +4,7 @@
  */
 
 import { WorkspaceLeaf } from 'obsidian';
-import { BaseCodeExplorerView } from './baseCodeExplorerView';
+import { BaseCodeExplorerView, type SmartCodesAccess } from './baseCodeExplorerView';
 import type { BaseMarker, SidebarModelInterface } from './types';
 import type { CodeMarkerModel } from '../markdown/models/codeMarkerModel';
 import { shortenPath as _shortenPath, getMarkerLabel as _getMarkerLabel } from './markerResolvers';
@@ -15,8 +15,13 @@ export const CODE_EXPLORER_VIEW_TYPE = 'qualia-code-explorer';
 export class UnifiedCodeExplorerView extends BaseCodeExplorerView {
 	private mdModel: CodeMarkerModel | null;
 
-	constructor(leaf: WorkspaceLeaf, model: SidebarModelInterface, mdModel: CodeMarkerModel | null) {
-		super(leaf, model);
+	constructor(
+		leaf: WorkspaceLeaf,
+		model: SidebarModelInterface,
+		mdModel: CodeMarkerModel | null,
+		smartCodeAccess?: SmartCodesAccess,
+	) {
+		super(leaf, model, smartCodeAccess);
 		this.mdModel = mdModel;
 	}
 
