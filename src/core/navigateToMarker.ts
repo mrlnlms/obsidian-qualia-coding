@@ -23,6 +23,11 @@ export async function navigateToMarker(
 	marker: BaseMarker,
 	mdModel: CodeMarkerModel | null,
 ): Promise<void> {
+	// Type guards narrowem pra adapter view shape (PdfBaseMarker etc) mas em runtime SC cache passa
+	// raw engine markers que não têm os campos view-only (startTime, rowIndex, columnId — esses
+	// só vêm de markerToBase). Fallback pros engine raw fields cobre os 2 caminhos.
+	const raw = marker as { from?: number; sourceRowId?: number; column?: string };
+
 	if (isPdfMarker(marker)) {
 		app.workspace.trigger('qualia-pdf:navigate', {
 			file: marker.fileId,
@@ -40,22 +45,22 @@ export async function navigateToMarker(
 	if (isCsvMarker(marker)) {
 		app.workspace.trigger('qualia-csv:navigate', {
 			file: marker.fileId,
-			row: marker.rowIndex,
-			column: marker.columnId,
+			row: marker.rowIndex ?? raw.sourceRowId ?? 0,
+			column: marker.columnId ?? raw.column,
 		});
 		return;
 	}
 	if (isAudioMarker(marker)) {
 		app.workspace.trigger('qualia-audio:navigate', {
 			file: marker.fileId,
-			seekTo: marker.startTime,
+			seekTo: marker.startTime ?? raw.from ?? 0,
 		});
 		return;
 	}
 	if (isVideoMarker(marker)) {
 		app.workspace.trigger('qualia-video:navigate', {
 			file: marker.fileId,
-			seekTo: marker.startTime,
+			seekTo: marker.startTime ?? raw.from ?? 0,
 		});
 		return;
 	}

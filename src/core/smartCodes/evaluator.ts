@@ -11,7 +11,6 @@ export interface EvaluatorContext {
 	codesInGroup: (groupId: string) => string[];
 	smartCodes: Record<string, SmartCodeDefinition>;
 	evaluating: Set<string>;
-	evaluator: (node: PredicateNode, ref: MarkerRef, marker: AnyMarker, ctx: EvaluatorContext) => boolean;
 }
 
 /** Evaluate predicate against a single marker. Pure, recursive, com short-circuit. */

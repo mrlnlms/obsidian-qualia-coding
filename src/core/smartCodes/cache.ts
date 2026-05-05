@@ -179,7 +179,6 @@ export class SmartCodeCache {
 			codesInGroup: this.codeStruct.codesInGroup,
 			smartCodes: { ...this.smartCodes, [stubId]: stubSc },
 			evaluating: new Set([stubId]),
-			evaluator: evaluate,
 		};
 		const out: MarkerRef[] = [];
 		for (const [ref, marker] of this.markerByRef) {
@@ -202,7 +201,6 @@ export class SmartCodeCache {
 			codesInGroup: this.codeStruct.codesInGroup,
 			smartCodes: this.smartCodes,
 			evaluating: new Set([smartCodeId]),
-			evaluator: evaluate,
 		};
 	}
 
@@ -238,7 +236,6 @@ export class SmartCodeCache {
 			codesInGroup: this.codeStruct.codesInGroup,
 			smartCodes: this.smartCodes,
 			evaluating: new Set([smartCodeId]),
-			evaluator: evaluate,
 		};
 		const out: MarkerRef[] = [];
 		for (const [ref, marker] of this.markerByRef) {
