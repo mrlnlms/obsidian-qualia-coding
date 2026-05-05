@@ -6106,6 +6106,13 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-sc-list-name { flex: 1; }
 .qc-sc-list-count { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .qc-sc-list-empty { color: var(--text-muted); padding: 16px; text-align: center; }
+.qc-sc-list-eye,
+.qc-sc-list-menu { display: inline-flex; align-items: center; padding: 2px; opacity: 0.4; cursor: pointer; }
+.qc-sc-list-eye:hover,
+.qc-sc-list-menu:hover { opacity: 1; }
+.qc-sc-list-row.is-hidden .qc-sc-list-name,
+.qc-sc-list-row.is-hidden .qc-sc-list-count { opacity: 0.5; }
+.qc-sc-list-row.is-hidden .qc-sc-list-eye { opacity: 0.85; }
 
 .qc-sc-builder { min-width: 640px; }
 .qc-sc-builder-header { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 8px; }

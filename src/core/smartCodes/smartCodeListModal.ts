@@ -1,4 +1,4 @@
-import { App, Modal, setIcon } from 'obsidian';
+import { App, Menu, Modal, setIcon } from 'obsidian';
 import type { SmartCodeDefinition } from './types';
 import type { SmartCodeRegistry } from './smartCodeRegistryApi';
 import type { SmartCodeCache } from './cache';
@@ -9,6 +9,7 @@ import type { CodeMarkerModel } from '../../markdown/models/codeMarkerModel';
 import { SmartCodeBuilderModal } from './builderModal';
 import { renderSmartCodeDetail } from './detailSmartCodeRenderer';
 import { navigateToMarker } from '../navigateToMarker';
+import { ConfirmModal, PromptModal } from '../dialogs';
 
 export interface SmartCodeListConfig {
 	app: App;
@@ -23,6 +24,8 @@ export interface SmartCodeListConfig {
 /** Hub modal pra Smart Codes — lista + new + click abre detail. */
 export class SmartCodeListModal extends Modal {
 	private currentDetailId: string | null = null;
+	private unsubCache: (() => void) | null = null;
+	private unsubRegistry: (() => void) | null = null;
 
 	constructor(private cfg: SmartCodeListConfig) {
 		super(cfg.app);
@@ -31,7 +34,17 @@ export class SmartCodeListModal extends Modal {
 	onOpen() {
 		this.modalEl.addClass('qc-sc-list-modal');
 		this.titleEl.setText('⚡ Smart Codes');
+		// Auto-refresh: cache (markers re-evaluados → counts) + registry (CRUD em outro fluxo).
+		this.unsubCache = this.cfg.smartCodeCache.subscribe(() => this.render());
+		this.unsubRegistry = this.cfg.smartCodeRegistry.addOnMutate(() => this.render());
 		this.render();
+	}
+
+	onClose() {
+		this.unsubCache?.();
+		this.unsubRegistry?.();
+		this.unsubCache = null;
+		this.unsubRegistry = null;
 	}
 
 	private render(): void {
@@ -48,25 +61,87 @@ export class SmartCodeListModal extends Modal {
 			const listEl = this.contentEl.createDiv({ cls: 'qc-sc-list' });
 			for (const sc of all) {
 				const row = listEl.createDiv({ cls: 'qc-sc-list-row' });
+				if (sc.hidden) row.addClass('is-hidden');
+
+				// Layout segue codebookTreeRenderer: swatch | eye | name | count | menu
 				const swatch = row.createSpan({ cls: 'qc-sc-list-swatch' });
 				swatch.style.backgroundColor = sc.color;
-				row.createSpan({ text: '⚡ ', cls: 'qc-sc-icon' });
+
+				const eyeBtn = row.createSpan({ cls: 'qc-sc-list-eye' });
+				setIcon(eyeBtn, sc.hidden ? 'eye-off' : 'eye');
+				eyeBtn.title = sc.hidden ? 'Show smart code' : 'Hide smart code';
+				eyeBtn.onclick = (e) => {
+					e.stopPropagation();
+					this.cfg.smartCodeRegistry.update(sc.id, { hidden: !sc.hidden });
+				};
+
 				row.createSpan({ text: sc.name, cls: 'qc-sc-list-name' });
 				const isDirty = this.cfg.smartCodeCache.isDirty(sc.id);
 				const count = isDirty ? '…' : String(this.cfg.smartCodeCache.getCount(sc.id));
 				row.createSpan({ text: count, cls: 'qc-sc-list-count' });
-				if (sc.hidden) {
-					const hiddenBadge = row.createSpan({ cls: 'qc-sc-list-hidden-badge' });
-					setIcon(hiddenBadge, 'eye-off');
-					hiddenBadge.title = 'Hidden';
-				}
+
+				const menuBtn = row.createSpan({ cls: 'qc-sc-list-menu' });
+				setIcon(menuBtn, 'more-vertical');
+				menuBtn.title = 'More actions';
+				menuBtn.onclick = (e) => {
+					e.stopPropagation();
+					this.showRowContextMenu(sc, e);
+				};
+
 				row.style.cursor = 'pointer';
-				row.onclick = () => { this.currentDetailId = sc.id; this.render(); };
+				row.onclick = (e) => {
+					const target = e.target as HTMLElement;
+					if (target.closest('.qc-sc-list-eye') || target.closest('.qc-sc-list-menu')) return;
+					this.currentDetailId = sc.id;
+					this.render();
+				};
+				// Right-click ainda funciona como atalho — mesmo padrão do codebookTreeRenderer.
+				row.oncontextmenu = (e) => {
+					e.preventDefault();
+					this.showRowContextMenu(sc, e);
+				};
 			}
 		}
 
 		const newBtn = this.contentEl.createEl('button', { text: '+ New smart code', cls: 'mod-cta qc-sc-list-new-btn' });
 		newBtn.onclick = () => this.openBuilder('create');
+	}
+
+	private showRowContextMenu(sc: SmartCodeDefinition, event: MouseEvent): void {
+		const menu = new Menu();
+		menu.addItem((i) => i.setTitle('Open').setIcon('arrow-right').onClick(() => {
+			this.currentDetailId = sc.id;
+			this.render();
+		}));
+		menu.addItem((i) => i.setTitle('Edit predicate').setIcon('pencil').onClick(() => this.openBuilder('edit', sc)));
+		menu.addItem((i) => i.setTitle('Rename').setIcon('text-cursor').onClick(() => {
+			new PromptModal({
+				app: this.cfg.app,
+				title: `Rename smart code`,
+				initialValue: sc.name,
+				placeholder: 'New name',
+				onSubmit: (next) => {
+					if (next !== sc.name) this.cfg.smartCodeRegistry.update(sc.id, { name: next });
+				},
+			}).open();
+		}));
+		menu.addItem((i) => i
+			.setTitle(sc.hidden ? 'Unhide' : 'Hide')
+			.setIcon(sc.hidden ? 'eye' : 'eye-off')
+			.onClick(() => this.cfg.smartCodeRegistry.update(sc.id, { hidden: !sc.hidden }))
+		);
+		menu.addSeparator();
+		menu.addItem((i) => i.setTitle('Delete').setIcon('trash').onClick(() => {
+			new ConfirmModal({
+				app: this.cfg.app,
+				title: `Delete smart code "${sc.name}"?`,
+				message: 'Audit log preserves the deletion event. Reversible only via undo (Cmd+Z) within the session.',
+				confirmLabel: 'Delete',
+				destructive: true,
+				onConfirm: () => this.cfg.smartCodeRegistry.delete(sc.id),
+			}).open();
+		}));
+		menu.showAtMouseEvent(event);
 	}
 
 	private renderDetail(id: string): void {
