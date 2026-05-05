@@ -3,6 +3,7 @@ export interface ReadmeOptions {
 	includeRelations: boolean;
 	includeShapeCoords: boolean;
 	warnings: string[];
+	includeSmartCodes?: boolean;
 }
 
 export function buildReadme(opts: ReadmeOptions): string {
@@ -14,10 +15,28 @@ export function buildReadme(opts: ReadmeOptions): string {
 	sections.push(schemaGroups());
 	sections.push(schemaCaseVariables());
 	if (opts.includeRelations) sections.push(schemaRelations());
-	sections.push(exampleR());
-	sections.push(examplePython());
+	if (opts.includeSmartCodes) sections.push(schemaSmartCodes());
+	sections.push(exampleR(opts));
+	sections.push(examplePython(opts));
 	if (opts.warnings.length > 0) sections.push(warningsSection(opts.warnings));
 	return sections.join('\n\n') + '\n';
+}
+
+function schemaSmartCodes(): string {
+	return [
+		'## smart_codes.csv',
+		'',
+		'Saved queries (Tier 3) — virtual codes definidos por predicate sobre markers + case vars.',
+		'',
+		'| Column | Type | Description |',
+		'|---|---|---|',
+		'| id | string | Smart code id (sc_*) |',
+		'| name | string | Display name |',
+		'| color | string | Hex color (#rrggbb) |',
+		'| predicate_json | string | AST do predicate como JSON. Parse via fromJSON/json.loads |',
+		'| memo | string | Justificativa metodológica (opcional) |',
+		'| matches_at_export | number | Snapshot de quantos markers matchavam no momento do export |',
+	].join('\n');
 }
 
 function header(opts: ReadmeOptions): string {
@@ -142,8 +161,8 @@ function schemaRelations(): string {
 	].join('\n');
 }
 
-function exampleR(): string {
-	return [
+function exampleR(opts: ReadmeOptions): string {
+	const lines = [
 		'## Example — R (tidyverse)',
 		'',
 		'```r',
@@ -163,12 +182,22 @@ function exampleR(): string {
 		'  separate_rows(groups, sep = ";") %>%',
 		'  rename(group_name = groups) %>%',
 		'  left_join(groups, by = c("group_name" = "name"))',
-		'```',
-	].join('\n');
+	];
+	if (opts.includeSmartCodes) {
+		lines.push(
+			'',
+			'# Smart codes — predicate como JSON',
+			'library(jsonlite)',
+			'sc <- read_csv("smart_codes.csv")',
+			'sc$predicate <- lapply(sc$predicate_json, fromJSON)',
+		);
+	}
+	lines.push('```');
+	return lines.join('\n');
 }
 
-function examplePython(): string {
-	return [
+function examplePython(opts: ReadmeOptions): string {
+	const lines = [
 		'## Example — Python (pandas)',
 		'',
 		'```python',
@@ -184,8 +213,18 @@ function examplePython(): string {
 		'# Expand groups column (semicolon-separated) and join groups.csv',
 		'codes_exp = codes.assign(groups=codes["groups"].str.split(";")).explode("groups")',
 		'merged = codes_exp.merge(groups, left_on="groups", right_on="name", how="left")',
-		'```',
-	].join('\n');
+	];
+	if (opts.includeSmartCodes) {
+		lines.push(
+			'',
+			'# Smart codes — predicate como JSON',
+			'import json',
+			'sc = pd.read_csv("smart_codes.csv")',
+			'sc["predicate"] = sc["predicate_json"].apply(json.loads)',
+		);
+	}
+	lines.push('```');
+	return lines.join('\n');
 }
 
 function warningsSection(warnings: string[]): string {

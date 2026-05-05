@@ -120,8 +120,13 @@ function renderList(
 		});
 		const time = formatLocalTime(date);
 		row.createSpan({ text: time, cls: 'codebook-timeline-time' });
-		const dot = row.createSpan({ cls: 'codebook-timeline-dot' });
-		dot.style.backgroundColor = ev.codeColor ?? '#888';
+		const isSmartCode = (ev.entry as any).entity === 'smartCode';
+		if (isSmartCode) {
+			row.createSpan({ text: '⚡', cls: 'codebook-timeline-sc-icon' });
+		} else {
+			const dot = row.createSpan({ cls: 'codebook-timeline-dot' });
+			dot.style.backgroundColor = ev.codeColor ?? '#888';
+		}
 		const nameEl = row.createSpan({ text: ev.codeName, cls: 'codebook-timeline-codename' });
 		row.createSpan({ text: entryActionLabel(ev), cls: 'codebook-timeline-action' });
 		if (!ev.isDeleted) {
@@ -156,6 +161,11 @@ function entryActionLabel(ev: TimelineEvent): string {
 		case 'absorbed': return ` absorbed: ${e.absorbedNames.map(n => `"${n}"`).join(', ')}`;
 		case 'merged_into': return ` merged into "${e.intoName}"`;
 		case 'deleted': return ' deleted';
+		case 'sc_created': return ' created (smart code)';
+		case 'sc_predicate_edited': return ' predicate edited';
+		case 'sc_memo_edited': return ' memo edited';
+		case 'sc_auto_rewritten_on_merge': return ` predicate auto-rewritten (${e.sourceCodeId} → ${e.targetCodeId})`;
+		case 'sc_deleted': return ' deleted (smart code)';
 	}
 }
 

@@ -83,6 +83,22 @@ src/
     detailRelationRenderer.ts — Relation Detail view (Phase 2 Relation): header com chips clickable + banner contextual code/app + Memo + Evidence list (só code-level) + Delete
     memoBatchMaterializer.ts — Phase 3: collectAllMemoRefs + categorize (4 buckets) + materializeBatch com onProgress + describeRef
     materializeAllMemosModal.ts — Phase 3: modal command palette com 3 estados (form / progress / results)
+    getAllMarkers.ts         — iterador cross-engine retorna `{ engine, fileId, markerId, marker }[]` pra qualquer derivação que precisa varrer todos markers (usado pelo SmartCodeCache)
+    smartCodes/              — Smart Codes (Tier 3): códigos virtuais por predicate (padrão ATLAS.ti)
+      types.ts               — re-exports (PredicateNode/LeafNode/OpNode/SmartCodeDefinition/MarkerRef) + isOpNode/isLeafNode
+      predicateSerializer.ts — predicateToJson (canonical key order) + predicateFromJson
+      dependencyExtractor.ts — extractDependencies(predicate) → { codeIds, caseVarKeys, folderIds, groupIds, smartCodeIds, needsRelations, needsEngineType } pra invalidação granular
+      predicateNormalizer.ts — leafCost/nodeCost/normalizeOrder (cheap-first reorder pra short-circuit eficiente)
+      predicateValidator.ts  — validateForSave(definition, predicate, registry, caseVarsKeys?) → { errors, warnings, valid }: empty (recursive), name collision case-insensitive, broken refs (warn), magnitude type não-continuous (error), cycle detection
+      evaluator.ts           — evaluate(node, ref, marker, ctx) puro com 2 switches (op vs leaf), short-circuit, magnitude-as-number parsing, cycle guard pra smartCode nesting
+      cache.ts               — SmartCodeCache singleton: indexByCode/indexByFile/markerByRef + dirty set + rAF-coalesced subscribers + invalidateForCode/CaseVar/Folder/Group/Marker + cascata pra smart code nesting + computePreview (não polui internals)
+      matcher.ts             — collectMatchesChunked async com chunks de 1000 + setTimeout(0) yield + onProgress callback
+      smartCodeRegistryApi.ts — SmartCodeApi CRUD (createSmartCode/updateSmartCode/deleteSmartCode/setSmartCodeMemo/setSmartCodeColor) + autoRewriteOnMerge (pós executeMerge) + diffPredicateLeaves (pra audit) + rewriteCodeRef puro
+      builderTreeOps.ts      — helpers puros AST: getNodeAt/addChildToGroup/removeNodeAt/moveNode/changeOperator/replaceLeafAt (immutable, Path = number[])
+      builderModal.ts        — Modal Obsidian 3 zonas (header/body/footer): name+color+memo, tree row-based linear com indent + add condition/group/leaf, preview live debounced 300ms via cache.computePreview, validation banner, save bloqueia em error
+      detailSmartCodeRenderer.ts — render Smart Code Detail (header + memo textarea debounced 500ms + predicate display + matches agrupados por file + history + delete)
+      smartCodeListModal.ts  — hub modal com lista + new + click abre detail (acessível via command palette `Smart Codes: Open hub`)
+      smartCodesSection.ts   — renderSmartCodesSection (Code Explorer integration helper, criado mas NÃO wirado — disponível pra extensão futura)
     ...                      — DataManager, CodeDefinitionRegistry, settings, types
   markdown/                  — CodeMirror 6 engine para markdown
     cm6/
@@ -299,7 +315,7 @@ Se o output bater (working clean + branch alinhada com origin), nada está pende
 - TypeScript strict
 - Conventional commits em portugues (feat:, fix:, chore:, docs:)
 - Cada engine registra via `register*Engine()` e retorna `EngineRegistration<Model>` com `{ cleanup, model }`
-- `npm run test` — 2584 testes em 152 suites (Vitest + jsdom)
+- `npm run test` — 2759 testes em 172 suites (Vitest + jsdom)
 - `bash scripts/smoke-roundtrip.sh` — prepara vault temp em `~/Desktop/temp-roundtrip/` com plugin instalado pra smoke test manual do QDPX round-trip
 - `npm run test:e2e` — 66 testes e2e em 19 specs (wdio + Obsidian real)
 - Sidebar adapters herdam de `BaseSidebarAdapter` (core) ou `MediaSidebarAdapter` (audio/video)

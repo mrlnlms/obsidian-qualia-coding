@@ -65,6 +65,12 @@ export class DataManager {
 		return this.data[key as keyof QualiaData];
 	}
 
+	/** Returns reference ao QualiaData persistido. Usado por componentes que precisam read+write transparente
+	 *  (e.g. SmartCodeApi muta data.registry.smartCodes diretamente + chama setSection('registry', ...) pra persistir). */
+	getDataRef(): QualiaData {
+		return this.data;
+	}
+
 	setSection<K extends keyof QualiaData>(key: K, value: QualiaData[K]): void;
 	setSection(key: string, value: Record<string, any>): void;
 	setSection(key: string, value: any): void {
@@ -158,7 +164,7 @@ export class DataManager {
 
 	/** Clear all markers and code definitions from all engines. Preserves per-engine settings. */
 	async clearAllSections(): Promise<void> {
-		this.data.registry = { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0 };
+		this.data.registry = { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0, smartCodes: {}, smartCodeOrder: [], nextSmartCodePaletteIndex: 0 };
 		this.data.markdown = { markers: {}, settings: this.data.markdown.settings };
 		this.data.csv = { segmentMarkers: [], rowMarkers: [], settings: this.data.csv.settings };
 		this.data.image = { markers: [], settings: this.data.image.settings };

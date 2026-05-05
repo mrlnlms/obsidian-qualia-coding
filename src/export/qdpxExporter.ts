@@ -1,4 +1,6 @@
 import { escapeXml, xmlAttr, xmlDeclaration } from './xmlBuilder';
+import { predicateToJson } from '../core/smartCodes/predicateSerializer';
+import type { SmartCodeDefinition } from '../core/types';
 import { buildCodebookXml } from './qdcExporter';
 import { buildQdcFile } from './qdcExporter';
 import { getMemoContent } from '../core/memoHelpers';
@@ -464,6 +466,25 @@ export function buildLinksXml(
 }
 
 /** Assemble the complete project.qde XML. */
+/**
+ * Smart Codes (Tier 3) — bloco custom em namespace `qualia:`. Outras tools ignoram silenciosamente.
+ * Round-trip Qualia↔Qualia preserva predicate AST + memo bit-idêntico.
+ */
+export function buildSmartCodesXml(smartCodes: SmartCodeDefinition[]): string {
+  if (smartCodes.length === 0) return '';
+  const lines: string[] = ['<qualia:SmartCodes>'];
+  for (const sc of smartCodes) {
+    lines.push(`  <qualia:SmartCode ${xmlAttr('guid', sc.id)} ${xmlAttr('name', sc.name)} ${xmlAttr('color', sc.color)}>`);
+    lines.push(`    <qualia:Predicate><![CDATA[${predicateToJson(sc.predicate)}]]></qualia:Predicate>`);
+    if (sc.memo && sc.memo.trim().length > 0) {
+      lines.push(`    <qualia:Memo>${escapeXml(sc.memo)}</qualia:Memo>`);
+    }
+    lines.push(`  </qualia:SmartCode>`);
+  }
+  lines.push('</qualia:SmartCodes>');
+  return lines.join('\n');
+}
+
 export function buildProjectXml(
   registry: CodeDefinitionRegistry,
   sourcesXml: string,
@@ -473,6 +494,7 @@ export function buildProjectXml(
   vaultName: string,
   pluginVersion: string,
   guidMap?: Map<string, string>,
+  smartCodes?: SmartCodeDefinition[],
 ): string {
   const codebook = guidMap
     ? buildCodebookXml(registry, { ensureCodeGuid: (id) => ensureGuid(id, guidMap) })
@@ -481,8 +503,9 @@ export function buildProjectXml(
   const notesSection = notesXml ? `<Notes>\n${notesXml}\n</Notes>` : '';
   const linksSection = linksXml ? `<Links>\n${linksXml}\n</Links>` : '';
   const casesSection = casesXml ? `<Cases>\n${casesXml}\n</Cases>` : '';
+  const smartCodesSection = smartCodes ? buildSmartCodesXml(smartCodes) : '';
 
-  const sections = [codebook, sourcesSection, notesSection, linksSection, casesSection].filter(Boolean).join('\n');
+  const sections = [codebook, sourcesSection, notesSection, linksSection, casesSection, smartCodesSection].filter(Boolean).join('\n');
 
   // Declare the qualia: namespace at Project root whenever any section uses it
   // (today: `<qualia:TabularSource>` for CSV/parquet, `<qualia:Set>` for code
@@ -712,7 +735,12 @@ export async function exportProject(
   const allDefs = registry.getAll();
   const linksXml = buildLinksXml(allDefs, allMarkersForLinks, guidMap);
   const casesXml = renderCasesXml(caseVariablesRegistry, sourceGuidByFileId);
-  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, casesXml, options.vaultName, options.pluginVersion, guidMap);
+  // Smart Codes (Tier 3) — só aparece se houver pelo menos 1 smart code
+  const smartCodesData = dataManager.section('registry').smartCodes;
+  const smartCodesList: SmartCodeDefinition[] = smartCodesData
+    ? Object.values(smartCodesData) as SmartCodeDefinition[]
+    : [];
+  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, casesXml, options.vaultName, options.pluginVersion, guidMap, smartCodesList);
   const zipData = createQdpxZip(projectXml, sourceFiles);
 
   return { data: zipData, fileName: options.fileName, warnings };

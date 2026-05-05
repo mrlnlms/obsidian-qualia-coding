@@ -20,9 +20,9 @@
 
 1. ~~**Q-mode gaps que sobraram**~~ ✅ **FEITO 2026-05-04** — Files Dendrogram + File Similarity Ranking + cluster drill-down cross-view (S0+S1+S2+S3, branch `feat/q-mode-gaps`). 4 commits + 2 fixes (papercut cluster IDs/silhouette + banner display). Ground truth do mock (corpus-teste-ia, 8 entrevistas × 16 codes × 6 groups) bate: 3 clusters separam Junior controle / Senior controle / Tratamento. 56 testes Q-mode passando (clusterEngine + distanceMatrix + qModeData). Frente analítica Q-mode 100% coberta — sem gaps abertos.
 
-2. **Smart Codes (Tier 3 Coding Management)** — códigos virtuais por predicate, padrão ATLAS.ti. Reclassificado 2026-05-04 como autônomo (era listado como "bloqueado por LLM" — framing errado, ver §"Tier 3 — Smart Codes" abaixo). Auto-contido, escopo de produto fechado, diferencial direto. **Esforço: 4-5 sessões. Sem dependência.** **Próxima frente.**
+2. ~~**Smart Codes (Tier 3 Coding Management)**~~ ✅ **FEITO 2026-05-04** — branch `feat/smart-codes`, 19 commits. Schema completo (PredicateNode AST com 10 leaves + nesting), evaluator puro com short-circuit + cycle detection, SmartCodeCache com invalidação granular + computePreview, SmartCodeApi CRUD + autoRewriteOnMerge + diff helper, builder modal row-based + Smart Code Detail + List hub, command palette (`Smart Codes: Open hub` + `Smart Codes: New`), audit log entity discriminator + 5 sc_* event types, ⚡ icon na Codebook Timeline, export/import QDPX (`qualia:SmartCodes` namespace + 2-pass parse), CSV tabular `smart_codes.csv` + README R/Python snippets. **107 testes novos** (2584 → 2759). Stress: 10k markers + 100 smart codes em <1s. **Pendente Phase 2 (não bloqueante):** integração em Analytics modes + sidebar adapters por engine + emit granular `qualia:markers-changed` em modelos.
 
-3. **Submissão Community Plugins PR** — pode rolar em paralelo a #2 quando quiser. Release 0.2.0 já tem o artefato; falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas é grande pra padrão da Community — pode receber pushback no review.
+3. **Submissão Community Plugins PR** — Release 0.2.0 já tem o artefato; falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas é grande pra padrão da Community — pode receber pushback no review.
 
 4. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão de produto pendente:** qual escola Qualia subscreve, qual use case primário, qual provider strategy, onde no fluxo entra, qual granularidade de revisão humana. Antes dessas 5 decisões cravadas (1 sessão de brainstorm dedicado), design não rola. Pós-decisão: ~10-15 sessões pra MVP S+M.
 
@@ -32,7 +32,7 @@
 - **Projects + Workspace** — provavelmente reinventa Workspaces nativo. User cravou "reavaliar antes de implementar" — provavelmente passar.
 - **Margin Panel customization** — bloqueado por decisão em plugin externo.
 
-**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slices A/B/C/D/E ✅ (2026-05-04)** · **Q-mode gaps S0+S1+S2+S3 ✅ (2026-05-04 — Files Dendrogram + File Similarity + cluster drill-down)**. **Frente Q-mode #1 fechada.**
+**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slices A/B/C/D/E ✅ (2026-05-04)** · **Q-mode gaps S0+S1+S2+S3 ✅ (2026-05-04 — Files Dendrogram + File Similarity + cluster drill-down)** · **Smart Codes Tier 3 ✅ (2026-05-04 — branch `feat/smart-codes`, 19 commits, 107 testes novos, schema + evaluator + cache + UI hub + QDPX round-trip + CSV tabular)**. **Coding Management 100% fechado.**
 
 **Bloqueadores no `BACKLOG.md`:** zero. Carla label vazia (whitespace-only) é minor não bloqueante.
 
@@ -44,7 +44,7 @@ Sem ordem imposta — agrupamento temático pra varredura. Decisões de execuç�
 
 | Área | O que tem aberto |
 |------|------------------|
-| **[Coding Management](#2-coding-management)** | Tier 1 ✅ FEITO 2026-04-28 · Tier 2 ✅ FEITO 2026-04-28 · Tier 3 — **Smart Codes (autônomo, 4-5 sessões)** |
+| **[Coding Management](#2-coding-management)** | Tier 1 ✅ FEITO 2026-04-28 · Tier 2 ✅ FEITO 2026-04-28 · Tier 3 ✅ FEITO 2026-05-04 |
 | **[Analytics](#3-analytics--melhorias)** | — |
 | **[Margin Panel](#4-margin-panel--melhorias)** | Customization · Resize Handle. **Bloqueado** por decisão em plugin externo |
 
@@ -87,24 +87,15 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 | ~~**Code stability tracking** (audit log)~~ | ~~Log central de operações por código com timeline + export markdown + soft delete por entry~~ | ✅ FEITO 2026-04-28 — ver registro #29. Storage central (Opção B), coalescing 60s pra description/memo, soft-delete reversível, export inclui hidden (curadoria visual ≠ documento exportado) |
 | ~~**Code merging avançado**~~ | ~~Merge interativo: preview rico, escolher nome+cor mantido, política explícita pra memos/descriptions~~ | ✅ FEITO 2026-04-28 — ver registro #30. MergeModal expandido com 4 seções reativas (Name, Color, Description, Memo) + preview rico + pre-flight collision check; helpers puros em `mergePolicies.ts`. Tier 2 fechado. |
 
-**Tier 3 — Smart Codes (autônomo, NÃO bloqueado por LLM):**
+**Tier 3 — Smart Codes** ✅ **FEITO 2026-05-04** (branch `feat/smart-codes`):
 
-| Feature | O que faz | Estado |
-|---|---|---|
-| **Smart Codes (saved queries)** | Código "virtual" definido por predicate (ex: `frustacao` E `senioridade=junior` E magnitude≥3). Re-avaliado a cada query, não persiste markers. Padrão ATLAS.ti. | Pronto pra atacar — escopo abaixo |
+| Feature | Estado |
+|---|---|
+| ~~**Smart Codes (saved queries)**~~ | ✅ FEITO 2026-05-04 — branch `feat/smart-codes`, 19 commits, 107 testes novos. Spec em `docs/superpowers/specs/2026-05-04-smart-codes-design.md`, plan em `docs/superpowers/plans/2026-05-04-smart-codes.md`. |
 
-**Reclassificação 2026-05-04:** anteriormente listado como "bloqueado por LLM" — era framing errado. Tecnicamente Smart Codes opera em memória sobre `data.json` (predicate evaluator puro sobre markers + registry + caseVarsRegistry); não toca DuckDB nem SQL nem o predicate builder tabular da Fase 5. ATLAS.ti tem 3 features independentes: Smart Codes (saved queries, sem AI), AI Coding (LLM aplica códigos a segmentos), AI Smart Coding (NL→query, layer em cima de Smart Codes). LLM agrega NL input depois como add-on, mas Smart Codes funciona sozinho.
+**Implementação:** schema completo (PredicateNode AST com 10 leaves: hasCode, caseVarEquals, caseVarRange, magnitudeGte/Lte, inFolder, inGroup, engineType, relationExists, smartCode nesting), evaluator puro com short-circuit + cycle detection (`src/core/smartCodes/evaluator.ts`), SmartCodeCache singleton com invalidação granular + computePreview + chunked compute (`cache.ts` + `matcher.ts`), SmartCodeApi CRUD + autoRewriteOnMerge + diffPredicateLeaves + rewriteCodeRef (`smartCodeRegistryApi.ts`), builder modal row-based linear com preview live <300ms + Smart Code Detail + List hub modal acessível via command palette (`Smart Codes: Open hub` + `Smart Codes: New`), audit log estendido com `entity?: 'code' | 'smartCode'` discriminator + 5 sc_* event types com coalescing (60s text edits + Set union pra predicate edits), ⚡ icon na Codebook Timeline, export QDPX bloco `<qualia:SmartCodes>` namespace custom + import 2-pass (alocar IDs → resolver refs incl. nesting), CSV tabular `smart_codes.csv` com `predicate_json` + README R/Python snippets condicionais. **Stress:** 10k markers + 100 smart codes em <1s.
 
-**Escopo (4-5 sessões):**
-
-| Slice | Esforço | Entrega |
-|---|---|---|
-| Schema + AST predicate | 1 sessão | `SmartCodeDefinition` no registry (paralelo a `CodeDefinition`), AST com refs a códigos/case vars/magnitude/groups, persistência em data.json |
-| Avaliador puro + testes | 1 sessão | `evaluate(predicate, marker, registry, caseVarsRegistry) → boolean`. Helper testável isoladamente |
-| UI builder | 1-2 sessões | Modal de criação/edição: chips + dropdowns + preview de matches em tempo real. Acessível via Code Explorer (botão "+" ao lado de "New Code") |
-| Render em Analytics + sidebar | 1 sessão | Smart codes aparecem em Analytics modes que filtram por código (frequency, co-occurrence) com badge distintivo. Em sidebar/detail mostra "Matches: N" em vez de count fixo |
-
-**Diferencial competitivo:** ATLAS.ti tem desde 2018; NVivo tem via "saved queries" mais primitivo; MAXQDA não tem direto (só via "code retrieval queries"). Smart Codes resolve o caso "quero analisar interseção sem criar 50 códigos manualmente". Escopo de produto fechado, sem decisão de produto pendente.
+**Pendente (Phase 2, não bloqueante):** integração em Analytics modes (frequency/cooccurrence/etc) + sidebar adapters por engine + emit granular `qualia:markers-changed` em modelos pra invalidação cirúrgica do cache. Funcionalidade core está acessível via SmartCodeListModal sem essas integrações.
 
 ### 3. Analytics — melhorias
 
