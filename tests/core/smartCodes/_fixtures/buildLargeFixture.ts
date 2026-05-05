@@ -54,10 +54,10 @@ export function buildLargeFixture(size: FixtureSize): QualiaData {
 				{ kind: 'hasCode', codeId: `c_${i % size.codes}` },
 				{ kind: 'magnitudeGte', codeId: `c_${(i + 1) % size.codes}`, n: 3 },
 			]};
-		(data.registry.smartCodes as any)[id] = {
+		(data.smartCodes.definitions as any)[id] = {
 			id, name: `Smart ${i}`, color: '#aaaaaa', paletteIndex: i, createdAt: 0, predicate,
 		};
-		data.registry.smartCodeOrder.push(id);
+		data.smartCodes.order.push(id);
 	}
 	return data;
 }

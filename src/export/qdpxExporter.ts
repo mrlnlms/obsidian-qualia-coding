@@ -736,9 +736,9 @@ export async function exportProject(
   const linksXml = buildLinksXml(allDefs, allMarkersForLinks, guidMap);
   const casesXml = renderCasesXml(caseVariablesRegistry, sourceGuidByFileId);
   // Smart Codes (Tier 3) — só aparece se houver pelo menos 1 smart code
-  const smartCodesData = dataManager.section('registry').smartCodes;
-  const smartCodesList: SmartCodeDefinition[] = smartCodesData
-    ? Object.values(smartCodesData) as SmartCodeDefinition[]
+  const smartCodesSection = dataManager.section('smartCodes');
+  const smartCodesList: SmartCodeDefinition[] = smartCodesSection?.definitions
+    ? Object.values(smartCodesSection.definitions) as SmartCodeDefinition[]
     : [];
   const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, casesXml, options.vaultName, options.pluginVersion, guidMap, smartCodesList);
   const zipData = createQdpxZip(projectXml, sourceFiles);

@@ -1,90 +1,105 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SmartCodeApi, rewriteCodeRef, diffPredicateLeaves } from '../../../src/core/smartCodes/smartCodeRegistryApi';
+import { SmartCodeRegistry, rewriteCodeRef, diffPredicateLeaves, type SmartCodeAuditEvent } from '../../../src/core/smartCodes/smartCodeRegistryApi';
 import { createDefaultData } from '../../../src/core/types';
-import type { AuditEntry, PredicateNode, QualiaData } from '../../../src/core/types';
+import type { PredicateNode, QualiaData } from '../../../src/core/types';
 
-describe('SmartCodeApi CRUD', () => {
+describe('SmartCodeRegistry CRUD', () => {
 	let data: QualiaData;
-	let auditLog: AuditEntry[];
-	let api: SmartCodeApi;
+	let auditEvents: SmartCodeAuditEvent[];
+	let mutateCalls: string[];
+	let registry: SmartCodeRegistry;
 
 	beforeEach(() => {
 		data = createDefaultData();
-		auditLog = [];
-		api = new SmartCodeApi({
-			data,
-			auditEmit: (e) => { auditLog.push({ ...e, id: `a${auditLog.length}` } as AuditEntry); },
-		});
+		auditEvents = [];
+		mutateCalls = [];
+		registry = SmartCodeRegistry.fromJSON(data.smartCodes);
+		registry.setAuditListener((e) => auditEvents.push(e));
+		registry.addOnMutate((id) => mutateCalls.push(id));
 	});
 
-	it('createSmartCode adiciona ao registry + audit sc_created', () => {
-		const sc = api.createSmartCode({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
-		expect(data.registry.smartCodes[sc.id]).toBeDefined();
-		expect(data.registry.smartCodeOrder).toContain(sc.id);
+	it('create adiciona ao section + audit sc_created + mutate emit com id', () => {
+		const sc = registry.create({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
+		expect(data.smartCodes.definitions[sc.id]).toBeDefined();
+		expect(data.smartCodes.order).toContain(sc.id);
 		expect(sc.id.startsWith('sc_')).toBe(true);
 		expect(sc.color).toBeTruthy();
-		expect(auditLog).toHaveLength(1);
-		expect(auditLog[0].type).toBe('sc_created');
+		expect(auditEvents).toHaveLength(1);
+		expect(auditEvents[0].type).toBe('sc_created');
+		expect(auditEvents[0].codeId).toBe(sc.id);
+		expect(mutateCalls).toEqual([sc.id]);
 	});
 
-	it('createSmartCode com color custom usa paletteIndex -1', () => {
-		const sc = api.createSmartCode({ name: 'X', color: '#abc', predicate: { kind: 'hasCode', codeId: 'c_a' }});
+	it('create com color custom usa paletteIndex -1', () => {
+		const sc = registry.create({ name: 'X', color: '#abc', predicate: { kind: 'hasCode', codeId: 'c_a' }});
 		expect(sc.color).toBe('#abc');
 		expect(sc.paletteIndex).toBe(-1);
 	});
 
-	it('updateSmartCode com predicate change emite sc_predicate_edited', () => {
-		const sc = api.createSmartCode({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
-		auditLog.length = 0;
-		api.updateSmartCode(sc.id, { predicate: { kind: 'hasCode', codeId: 'c_b' }});
-		expect(auditLog).toHaveLength(1);
-		expect(auditLog[0].type).toBe('sc_predicate_edited');
+	it('update com predicate change emite sc_predicate_edited', () => {
+		const sc = registry.create({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
+		auditEvents.length = 0;
+		registry.update(sc.id, { predicate: { kind: 'hasCode', codeId: 'c_b' }});
+		expect(auditEvents).toHaveLength(1);
+		expect(auditEvents[0].type).toBe('sc_predicate_edited');
 	});
 
-	it('updateSmartCode com memo change emite sc_memo_edited', () => {
-		const sc = api.createSmartCode({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }, memo: '' });
-		auditLog.length = 0;
-		api.updateSmartCode(sc.id, { memo: 'note' });
-		expect(auditLog.find(e => e.type === 'sc_memo_edited')).toBeDefined();
+	it('update com memo change emite sc_memo_edited', () => {
+		const sc = registry.create({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }, memo: '' });
+		auditEvents.length = 0;
+		registry.update(sc.id, { memo: 'note' });
+		expect(auditEvents.find(e => e.type === 'sc_memo_edited')).toBeDefined();
 	});
 
-	it('setSmartCodeColor não emite audit', () => {
-		const sc = api.createSmartCode({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
-		auditLog.length = 0;
-		api.setSmartCodeColor(sc.id, '#abc');
-		expect(auditLog).toHaveLength(0);
-		expect(data.registry.smartCodes[sc.id].color).toBe('#abc');
+	it('setColor não emite audit mas emite mutate', () => {
+		const sc = registry.create({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
+		auditEvents.length = 0;
+		mutateCalls.length = 0;
+		registry.setColor(sc.id, '#abc');
+		expect(auditEvents).toHaveLength(0);
+		expect(mutateCalls).toEqual([sc.id]);
+		expect(data.smartCodes.definitions[sc.id]!.color).toBe('#abc');
 	});
 
-	it('deleteSmartCode remove + emite sc_deleted', () => {
-		const sc = api.createSmartCode({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
-		auditLog.length = 0;
-		expect(api.deleteSmartCode(sc.id)).toBe(true);
-		expect(data.registry.smartCodes[sc.id]).toBeUndefined();
-		expect(data.registry.smartCodeOrder).not.toContain(sc.id);
-		expect(auditLog[0].type).toBe('sc_deleted');
+	it('delete remove + emite sc_deleted', () => {
+		const sc = registry.create({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
+		auditEvents.length = 0;
+		expect(registry.delete(sc.id)).toBe(true);
+		expect(data.smartCodes.definitions[sc.id]).toBeUndefined();
+		expect(data.smartCodes.order).not.toContain(sc.id);
+		expect(auditEvents[0].type).toBe('sc_deleted');
 	});
 
 	it('autoRewriteOnMerge re-escreve hasCode + emite sc_auto_rewritten_on_merge', () => {
-		const sc = api.createSmartCode({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_source' }});
-		auditLog.length = 0;
-		const result = api.autoRewriteOnMerge('c_source', 'c_target');
+		const sc = registry.create({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_source' }});
+		auditEvents.length = 0;
+		const result = registry.autoRewriteOnMerge('c_source', 'c_target');
 		expect(result.rewritten).toEqual([sc.id]);
-		expect((data.registry.smartCodes[sc.id].predicate as any).codeId).toBe('c_target');
-		expect(auditLog[0].type).toBe('sc_auto_rewritten_on_merge');
+		expect((data.smartCodes.definitions[sc.id]!.predicate as any).codeId).toBe('c_target');
+		expect(auditEvents[0].type).toBe('sc_auto_rewritten_on_merge');
 	});
 
 	it('autoRewriteOnMerge não toca smart code que não referencia source', () => {
-		const sc = api.createSmartCode({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_other' }});
-		const result = api.autoRewriteOnMerge('c_source', 'c_target');
+		const sc = registry.create({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_other' }});
+		const result = registry.autoRewriteOnMerge('c_source', 'c_target');
 		expect(result.rewritten).toEqual([]);
-		expect((data.registry.smartCodes[sc.id].predicate as any).codeId).toBe('c_other');
+		expect((data.smartCodes.definitions[sc.id]!.predicate as any).codeId).toBe('c_other');
 	});
 
-	it('listSmartCodes respeita smartCodeOrder', () => {
-		const a = api.createSmartCode({ name: 'A', predicate: { kind: 'hasCode', codeId: 'c_a' }});
-		const b = api.createSmartCode({ name: 'B', predicate: { kind: 'hasCode', codeId: 'c_b' }});
-		expect(api.listSmartCodes().map(s => s.id)).toEqual([a.id, b.id]);
+	it('getAll respeita order', () => {
+		const a = registry.create({ name: 'A', predicate: { kind: 'hasCode', codeId: 'c_a' }});
+		const b = registry.create({ name: 'B', predicate: { kind: 'hasCode', codeId: 'c_b' }});
+		expect(registry.getAll().map(s => s.id)).toEqual([a.id, b.id]);
+	});
+
+	it('getDefinitionsRef retorna mesma reference do section.definitions', () => {
+		registry.create({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
+		expect(registry.getDefinitionsRef()).toBe(data.smartCodes.definitions);
+	});
+
+	it('toJSON retorna o section persistido', () => {
+		registry.create({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
+		expect(registry.toJSON()).toBe(data.smartCodes);
 	});
 });
 
@@ -139,5 +154,20 @@ describe('diffPredicateLeaves', () => {
 		const next: PredicateNode = { kind: 'hasCode', codeId: 'c_b' };
 		const diff = diffPredicateLeaves(old, next);
 		expect(diff.changedLeafCount).toBe(1);
+	});
+});
+
+describe('SmartCodeRegistry incremental cache hookup', () => {
+	it('addOnMutate listener recebe id mudado em cada CRUD', () => {
+		const data = createDefaultData();
+		const registry = SmartCodeRegistry.fromJSON(data.smartCodes);
+		const calls: string[] = [];
+		registry.addOnMutate((id) => calls.push(id));
+
+		const sc = registry.create({ name: 'X', predicate: { kind: 'hasCode', codeId: 'c_a' }});
+		registry.update(sc.id, { name: 'Y' });
+		registry.delete(sc.id);
+
+		expect(calls).toEqual([sc.id, sc.id, sc.id]);
 	});
 });

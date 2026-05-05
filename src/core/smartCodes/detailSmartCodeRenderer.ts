@@ -1,7 +1,7 @@
-import { setIcon } from 'obsidian';
+import { App, TFile, setIcon } from 'obsidian';
 import type { SmartCodeDefinition, MarkerRef, PredicateNode, LeafNode } from './types';
 import { isOpNode } from './types';
-import type { SmartCodeApi } from './smartCodeRegistryApi';
+import type { SmartCodeRegistry } from './smartCodeRegistryApi';
 import type { SmartCodeCache } from './cache';
 import type { CodeDefinitionRegistry } from '../codeDefinitionRegistry';
 import { getEntriesForSmartCode, renderEntryMarkdown } from '../auditLog';
@@ -11,12 +11,11 @@ import { ConfirmModal } from '../dialogs';
 export interface SmartCodeDetailCallbacks {
 	smartCode: SmartCodeDefinition;
 	cache: SmartCodeCache;
-	smartCodeApi: SmartCodeApi;
+	smartCodeRegistry: SmartCodeRegistry;
 	registry: CodeDefinitionRegistry;
 	auditLog: AuditEntry[];
-	app: any;
+	app: App;
 	onEditPredicate: () => void;
-	onNavigateToMarker: (ref: MarkerRef) => void;
 	onShowList: () => void;
 }
 
@@ -53,7 +52,7 @@ function renderMemo(container: HTMLElement, opts: SmartCodeDetailCallbacks): voi
 	let debounce: number | undefined;
 	textarea.addEventListener('input', () => {
 		if (debounce) window.clearTimeout(debounce);
-		debounce = window.setTimeout(() => opts.smartCodeApi.setSmartCodeMemo(opts.smartCode.id, textarea.value), 500);
+		debounce = window.setTimeout(() => opts.smartCodeRegistry.setMemo(opts.smartCode.id, textarea.value), 500);
 	});
 }
 
@@ -75,11 +74,11 @@ function renderPredicateLine(parent: HTMLElement, node: PredicateNode, opts: Sma
 		else for (const c of node.children) renderPredicateLine(parent, c, opts, depth + 1);
 	} else {
 		line.createSpan({ text: '• ' });
-		line.createSpan({ text: formatLeaf(node, opts.registry, opts.cache, opts.smartCodeApi) });
+		line.createSpan({ text: formatLeaf(node, opts.registry, opts.smartCodeRegistry) });
 	}
 }
 
-function formatLeaf(leaf: LeafNode, registry: CodeDefinitionRegistry, cache: SmartCodeCache, smartCodeApi: SmartCodeApi): string {
+function formatLeaf(leaf: LeafNode, registry: CodeDefinitionRegistry, smartCodeRegistry: SmartCodeRegistry): string {
 	switch (leaf.kind) {
 		case 'hasCode': {
 			const c = registry.getById(leaf.codeId);
@@ -111,7 +110,7 @@ function formatLeaf(leaf: LeafNode, registry: CodeDefinitionRegistry, cache: Sma
 			return `Relation: "${c?.name ?? leaf.codeId}" ${leaf.label ? `[${leaf.label}]` : ''} → ${t ?? '(any)'}`;
 		}
 		case 'smartCode': {
-			const sc = smartCodeApi.getSmartCode(leaf.smartCodeId);
+			const sc = smartCodeRegistry.getById(leaf.smartCodeId);
 			return `⚡ Smart code "${sc?.name ?? leaf.smartCodeId + ' (deleted)'}"`;
 		}
 	}
@@ -120,9 +119,9 @@ function formatLeaf(leaf: LeafNode, registry: CodeDefinitionRegistry, cache: Sma
 function renderMatchesSection(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
 	const sectionEl = container.createDiv({ cls: 'qc-sc-matches-section' });
 	const headerEl = sectionEl.createEl('h4');
-	const isDirty = opts.cache.isDirty(opts.smartCode.id);
+	// getMatches() interna: computa se dirty + retorna. Ler isDirty ANTES seria sempre stale-true.
 	const matches = opts.cache.getMatches(opts.smartCode.id);
-	headerEl.setText(isDirty ? 'MATCHES (calculating…)' : `MATCHES (${matches.length})`);
+	headerEl.setText(`MATCHES (${matches.length})`);
 
 	if (matches.length === 0) {
 		sectionEl.createDiv({ text: 'No matches.', cls: 'qc-sc-matches-empty' });
@@ -141,17 +140,24 @@ function renderMatchesSection(container: HTMLElement, opts: SmartCodeDetailCallb
 		const fileEl = listEl.createDiv({ cls: 'qc-sc-matches-file' });
 		const fileHeader = fileEl.createDiv({ cls: 'qc-sc-matches-file-header' });
 		fileHeader.createSpan({ text: '📄 ' });
-		fileHeader.createSpan({ text: fileId, cls: 'qc-sc-matches-file-name' });
+		const fileLink = fileHeader.createSpan({ text: fileId, cls: 'qc-sc-matches-file-name' });
 		fileHeader.createSpan({ text: ` (${refs.length})`, cls: 'qc-sc-matches-file-count' });
+		fileLink.style.cursor = 'pointer';
+		fileLink.onclick = () => openFile(opts.app, fileId);
 
 		for (const ref of refs.slice(0, 5)) {
 			const row = fileEl.createDiv({ cls: 'qc-sc-match-row' });
 			row.createSpan({ text: `  › ${ref.markerId}`, cls: 'qc-sc-match-label' });
 			row.style.cursor = 'pointer';
-			row.onclick = () => opts.onNavigateToMarker(ref);
+			row.onclick = () => openFile(opts.app, ref.fileId);
 		}
 		if (refs.length > 5) fileEl.createDiv({ text: `  … +${refs.length - 5} more`, cls: 'qc-sc-matches-more' });
 	}
+}
+
+function openFile(app: App, path: string): void {
+	const file = app.vault.getAbstractFileByPath(path);
+	if (file instanceof TFile) void app.workspace.getLeaf().openFile(file);
 }
 
 function renderHistorySection(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
@@ -164,7 +170,9 @@ function renderHistorySection(container: HTMLElement, opts: SmartCodeDetailCallb
 	}
 	for (const entry of entries) {
 		const line = sectionEl.createDiv({ cls: 'qc-sc-history-entry' });
-		line.setText(renderEntryMarkdown(entry).replace(/^- /, ''));
+		// renderEntryMarkdown emite "- mensagem" (markdown bullet). Strip o prefixo pra render plain em <div>.
+		const md = renderEntryMarkdown(entry);
+		line.setText(md.startsWith('- ') ? md.slice(2) : md);
 	}
 }
 
@@ -178,7 +186,7 @@ function renderDeleteAction(container: HTMLElement, opts: SmartCodeDetailCallbac
 			confirmLabel: 'Delete',
 			destructive: true,
 			onConfirm: () => {
-				opts.smartCodeApi.deleteSmartCode(opts.smartCode.id);
+				opts.smartCodeRegistry.delete(opts.smartCode.id);
 				opts.onShowList();
 			},
 		}).open();

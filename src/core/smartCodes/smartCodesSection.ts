@@ -1,7 +1,7 @@
 import { Menu, setIcon } from 'obsidian';
 import type { SmartCodeDefinition } from './types';
 import type { SmartCodeCache } from './cache';
-import type { SmartCodeApi } from './smartCodeRegistryApi';
+import type { SmartCodeRegistry } from './smartCodeRegistryApi';
 
 export interface SmartCodesSectionState {
 	collapsed: boolean;
@@ -75,30 +75,31 @@ export function renderSmartCodesSection(
 
 /** Helper pra construir o context menu de uma smart code row. */
 export function showSmartCodeContextMenu(
-	app: any,
 	sc: SmartCodeDefinition,
 	event: MouseEvent,
-	smartCodeApi: SmartCodeApi,
+	smartCodeRegistry: SmartCodeRegistry,
 	onEdit: () => void,
 	onAfterMutation: () => void,
 ): void {
 	const menu = new Menu();
 	menu.addItem((i) => i.setTitle('Edit predicate').setIcon('pencil').onClick(() => onEdit()));
 	menu.addItem((i) => i.setTitle('Rename').setIcon('text-cursor').onClick(() => {
+		// TODO: trocar window.prompt por PromptModal (dialogs.ts) quando wirar a section.
 		const next = window.prompt('New name:', sc.name);
 		if (next && next.trim() !== sc.name) {
-			smartCodeApi.updateSmartCode(sc.id, { name: next.trim() });
+			smartCodeRegistry.update(sc.id, { name: next.trim() });
 			onAfterMutation();
 		}
 	}));
 	menu.addItem((i) => i.setTitle(sc.hidden ? 'Unhide' : 'Hide').setIcon(sc.hidden ? 'eye' : 'eye-off').onClick(() => {
-		smartCodeApi.updateSmartCode(sc.id, { hidden: !sc.hidden });
+		smartCodeRegistry.update(sc.id, { hidden: !sc.hidden });
 		onAfterMutation();
 	}));
 	menu.addSeparator();
 	menu.addItem((i) => i.setTitle('Delete').setIcon('trash').onClick(() => {
+		// TODO: trocar window.confirm por ConfirmModal (dialogs.ts) quando wirar a section.
 		if (window.confirm(`Delete smart code "${sc.name}"?`)) {
-			smartCodeApi.deleteSmartCode(sc.id);
+			smartCodeRegistry.delete(sc.id);
 			onAfterMutation();
 		}
 	}));

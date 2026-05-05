@@ -29,11 +29,6 @@ export class DataManager {
 			raw.video.settings = deepMerge(defaults.video.settings, raw.video.settings);
 			raw.pdf.settings = deepMerge(defaults.pdf.settings, raw.pdf.settings);
 			raw.general = deepMerge(defaults.general, raw.general);
-			// Hidrata campos novos do registry que podem não existir em data.json antigo
-			// (Smart Codes Tier 3 adicionados 2026-05-04). Mesmo pattern simétrico ao deepMerge de settings.
-			raw.registry.smartCodes ??= {};
-			raw.registry.smartCodeOrder ??= [];
-			raw.registry.nextSmartCodePaletteIndex ??= 0;
 			this.data = raw as QualiaData;
 			// Migrate legacy `memo: string` → MemoRecord (registry + groups + relations)
 			migrateLegacyMemos(this.data);
@@ -70,8 +65,7 @@ export class DataManager {
 		return this.data[key as keyof QualiaData];
 	}
 
-	/** Returns reference ao QualiaData persistido. Usado por componentes que precisam read+write transparente
-	 *  (e.g. SmartCodeApi muta data.registry.smartCodes diretamente + chama setSection('registry', ...) pra persistir). */
+	/** Returns reference ao QualiaData persistido. Usado por componentes que precisam read+write transparente. */
 	getDataRef(): QualiaData {
 		return this.data;
 	}
@@ -169,7 +163,8 @@ export class DataManager {
 
 	/** Clear all markers and code definitions from all engines. Preserves per-engine settings. */
 	async clearAllSections(): Promise<void> {
-		this.data.registry = { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0, smartCodes: {}, smartCodeOrder: [], nextSmartCodePaletteIndex: 0 };
+		this.data.registry = { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0 };
+		this.data.smartCodes = { definitions: {}, order: [], nextPaletteIndex: 0 };
 		this.data.markdown = { markers: {}, settings: this.data.markdown.settings };
 		this.data.csv = { segmentMarkers: [], rowMarkers: [], settings: this.data.csv.settings };
 		this.data.image = { markers: [], settings: this.data.image.settings };

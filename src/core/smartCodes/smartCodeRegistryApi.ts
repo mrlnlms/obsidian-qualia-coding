@@ -1,4 +1,4 @@
-import type { SmartCodeDefinition, PredicateNode, LeafNode, AuditEntry, QualiaData } from '../types';
+import type { SmartCodeDefinition, PredicateNode, LeafNode, SmartCodesSection } from '../types';
 import { isOpNode, isLeafNode } from './types';
 import { DEFAULT_PALETTE } from '../codeDefinitionRegistry';
 
@@ -7,118 +7,149 @@ function makeSmartCodeId(): string {
 	return `sc_${Date.now().toString(36)}_${(_idCounter++).toString(36)}`;
 }
 
-/** Tipo permissivo pra emit — aceita qualquer variant do union AuditEntry sem 'id' obrigatório.
- *  Usar `any` aqui é mais limpo que listar 12+ variants; o caller (appendEntry) já tipa estrito. */
-export type SmartCodeAuditEmit = (entry: any) => void;
+/**
+ * Domain event emitido pela SmartCodeRegistry. Mesmo shape de `BaseAuditEntry` (entity + codeId)
+ * pra spread direto em `appendEntry(log, { ...event, at })` no main.ts — segue o pattern do
+ * `CodeDefinitionRegistry.AuditMutationEvent`. Caller mints AuditEntry final com `at`/`id`.
+ */
+export type SmartCodeAuditEvent =
+	| { entity: 'smartCode'; type: 'sc_created'; codeId: string }
+	| { entity: 'smartCode'; type: 'sc_predicate_edited'; codeId: string; addedLeafKinds: string[]; removedLeafKinds: string[]; changedLeafCount: number }
+	| { entity: 'smartCode'; type: 'sc_memo_edited'; codeId: string; from: string; to: string }
+	| { entity: 'smartCode'; type: 'sc_auto_rewritten_on_merge'; codeId: string; sourceCodeId: string; targetCodeId: string }
+	| { entity: 'smartCode'; type: 'sc_deleted'; codeId: string };
 
-export interface SmartCodeApiDeps {
-	data: QualiaData;
-	auditEmit: SmartCodeAuditEmit;
-	onMutate?: () => void;
-	persist?: () => void;
-}
+/**
+ * Registry de Smart Codes (Tier 3). Segue o mesmo pattern de `CodeDefinitionRegistry`:
+ * state interno, listeners via `addOnMutate` (multi) e `setAuditListener` (single),
+ * persistência via `toJSON()` + `fromJSON()`.
+ *
+ * O store interno (`section`) é o mesmo objeto persistido em `data.smartCodes` — mutado
+ * in-place. Cache holda referência a `section.definitions` pra leituras O(1) sem cópia,
+ * e é notificado granularmente via `addOnMutate` com o id mudado.
+ */
+export class SmartCodeRegistry {
+	private mutateListeners = new Set<(changedId: string) => void>();
+	private auditListener: ((event: SmartCodeAuditEvent) => void) | null = null;
 
-export class SmartCodeApi {
-	constructor(private deps: SmartCodeApiDeps) {}
+	constructor(private section: SmartCodesSection) {}
 
-	createSmartCode(args: { name: string; color?: string; predicate: PredicateNode; memo?: string }): SmartCodeDefinition {
-		const reg = this.deps.data.registry;
+	static fromJSON(section: SmartCodesSection | undefined): SmartCodeRegistry {
+		return new SmartCodeRegistry(section ?? { definitions: {}, order: [], nextPaletteIndex: 0 });
+	}
+
+	toJSON(): SmartCodesSection {
+		return this.section;
+	}
+
+	addOnMutate(fn: (changedId: string) => void): () => void {
+		this.mutateListeners.add(fn);
+		return () => { this.mutateListeners.delete(fn); };
+	}
+
+	setAuditListener(fn: ((event: SmartCodeAuditEvent) => void) | null): void {
+		this.auditListener = fn;
+	}
+
+	private emitMutate(changedId: string): void {
+		for (const fn of this.mutateListeners) fn(changedId);
+	}
+
+	private emitAudit(event: SmartCodeAuditEvent): void {
+		this.auditListener?.(event);
+	}
+
+	// ─── Reads ────────────────────────────────────────────────
+
+	getById(id: string): SmartCodeDefinition | undefined {
+		return this.section.definitions[id];
+	}
+
+	getAll(): SmartCodeDefinition[] {
+		return this.section.order
+			.map(id => this.section.definitions[id])
+			.filter((sc): sc is SmartCodeDefinition => sc !== undefined);
+	}
+
+	/** Reference para o store de definitions. Usado pelo cache pra leituras O(1) sem cópia. */
+	getDefinitionsRef(): Record<string, SmartCodeDefinition> {
+		return this.section.definitions;
+	}
+
+	// ─── Writes ───────────────────────────────────────────────
+
+	create(args: { name: string; color?: string; predicate: PredicateNode; memo?: string }): SmartCodeDefinition {
 		const id = makeSmartCodeId();
-		const paletteIndex = args.color ? -1 : reg.nextSmartCodePaletteIndex;
+		const paletteIndex = args.color ? -1 : this.section.nextPaletteIndex;
 		const color = args.color ?? DEFAULT_PALETTE[paletteIndex % DEFAULT_PALETTE.length]!;
-		if (!args.color) reg.nextSmartCodePaletteIndex++;
+		if (!args.color) this.section.nextPaletteIndex++;
 		const sc: SmartCodeDefinition = {
 			id, name: args.name, color, paletteIndex,
 			predicate: args.predicate,
 			memo: args.memo,
 			createdAt: Date.now(),
 		};
-		reg.smartCodes[id] = sc;
-		reg.smartCodeOrder.push(id);
-		this.deps.auditEmit({ codeId: id, at: Date.now(), entity: 'smartCode', type: 'sc_created' });
-		this.deps.onMutate?.();
-		this.deps.persist?.();
+		this.section.definitions[id] = sc;
+		this.section.order.push(id);
+		this.emitAudit({ entity: 'smartCode', type: 'sc_created', codeId: id });
+		this.emitMutate(id);
 		return sc;
 	}
 
-	updateSmartCode(id: string, patch: Partial<Pick<SmartCodeDefinition, 'name' | 'color' | 'predicate' | 'memo' | 'hidden'>>): SmartCodeDefinition | undefined {
-		const reg = this.deps.data.registry;
-		const sc = reg.smartCodes[id];
+	update(id: string, patch: Partial<Pick<SmartCodeDefinition, 'name' | 'color' | 'predicate' | 'memo' | 'hidden'>>): SmartCodeDefinition | undefined {
+		const sc = this.section.definitions[id];
 		if (!sc) return undefined;
 		const oldPredicate = sc.predicate;
 		const oldMemo = sc.memo ?? '';
 		Object.assign(sc, patch);
-		// Audit: predicate change
 		if (patch.predicate && patch.predicate !== oldPredicate) {
 			const diff = diffPredicateLeaves(oldPredicate, patch.predicate);
-			this.deps.auditEmit({ codeId: id, at: Date.now(), entity: 'smartCode', type: 'sc_predicate_edited',
-				addedLeafKinds: diff.addedLeafKinds, removedLeafKinds: diff.removedLeafKinds, changedLeafCount: diff.changedLeafCount });
+			this.emitAudit({ entity: 'smartCode', type: 'sc_predicate_edited', codeId: id, ...diff });
 		}
-		// Audit: memo change
 		if (patch.memo !== undefined && patch.memo !== oldMemo) {
-			this.deps.auditEmit({ codeId: id, at: Date.now(), entity: 'smartCode', type: 'sc_memo_edited', from: oldMemo, to: patch.memo });
+			this.emitAudit({ entity: 'smartCode', type: 'sc_memo_edited', codeId: id, from: oldMemo, to: patch.memo });
 		}
-		this.deps.onMutate?.();
-		this.deps.persist?.();
+		this.emitMutate(id);
 		return sc;
 	}
 
-	deleteSmartCode(id: string): boolean {
-		const reg = this.deps.data.registry;
-		if (!reg.smartCodes[id]) return false;
-		delete reg.smartCodes[id];
-		reg.smartCodeOrder = reg.smartCodeOrder.filter(x => x !== id);
-		this.deps.auditEmit({ codeId: id, at: Date.now(), entity: 'smartCode', type: 'sc_deleted' });
-		this.deps.onMutate?.();
-		this.deps.persist?.();
+	delete(id: string): boolean {
+		if (!this.section.definitions[id]) return false;
+		delete this.section.definitions[id];
+		this.section.order = this.section.order.filter(x => x !== id);
+		this.emitAudit({ entity: 'smartCode', type: 'sc_deleted', codeId: id });
+		this.emitMutate(id);
 		return true;
 	}
 
-	setSmartCodeMemo(id: string, memo: string): void {
-		this.updateSmartCode(id, { memo });
+	setMemo(id: string, memo: string): void {
+		this.update(id, { memo });
 	}
 
-	setSmartCodeColor(id: string, color: string): void {
-		// Color change não auditado (cosmético, conforme spec §13)
-		const reg = this.deps.data.registry;
-		const sc = reg.smartCodes[id];
+	setColor(id: string, color: string): void {
+		const sc = this.section.definitions[id];
 		if (!sc) return;
 		sc.color = color;
 		sc.paletteIndex = -1;
-		this.deps.onMutate?.();
-		this.deps.persist?.();
+		this.emitMutate(id);
 	}
 
 	/**
-	 * Auto-rewrite predicates de smart codes que referenciam `sourceCodeId`. Usado após executeMerge
-	 * pra preservar intenção: smart code "frustração ∩ junior" continua funcionando se "frustração" foi mergeado.
-	 * Retorna IDs dos smart codes afetados.
+	 * Após executeMerge: re-escreve predicates que referenciam `sourceCodeId` → `targetCodeId`.
+	 * Preserva intenção: smart code "frustração ∩ junior" continua funcionando se "frustração" foi mergeado.
 	 */
 	autoRewriteOnMerge(sourceCodeId: string, targetCodeId: string): { rewritten: string[] } {
-		const reg = this.deps.data.registry;
 		const rewritten: string[] = [];
-		for (const sc of Object.values(reg.smartCodes)) {
+		for (const sc of Object.values(this.section.definitions)) {
 			const newPredicate = rewriteCodeRef(sc.predicate, sourceCodeId, targetCodeId);
 			if (newPredicate !== sc.predicate) {
 				sc.predicate = newPredicate;
 				rewritten.push(sc.id);
-				this.deps.auditEmit({ codeId: sc.id, at: Date.now(), entity: 'smartCode', type: 'sc_auto_rewritten_on_merge', sourceCodeId, targetCodeId });
+				this.emitAudit({ entity: 'smartCode', type: 'sc_auto_rewritten_on_merge', codeId: sc.id, sourceCodeId, targetCodeId });
 			}
 		}
-		if (rewritten.length > 0) {
-			this.deps.onMutate?.();
-			this.deps.persist?.();
-		}
+		for (const id of rewritten) this.emitMutate(id);
 		return { rewritten };
-	}
-
-	getSmartCode(id: string): SmartCodeDefinition | undefined {
-		return this.deps.data.registry.smartCodes[id];
-	}
-
-	listSmartCodes(): SmartCodeDefinition[] {
-		const reg = this.deps.data.registry;
-		return reg.smartCodeOrder.map(id => reg.smartCodes[id]).filter((sc): sc is SmartCodeDefinition => sc !== undefined);
 	}
 }
 

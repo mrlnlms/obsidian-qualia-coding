@@ -1,6 +1,6 @@
 import { App, Modal, setIcon } from 'obsidian';
 import type { SmartCodeDefinition } from './types';
-import type { SmartCodeApi } from './smartCodeRegistryApi';
+import type { SmartCodeRegistry } from './smartCodeRegistryApi';
 import type { SmartCodeCache } from './cache';
 import type { CodeDefinitionRegistry } from '../codeDefinitionRegistry';
 import type { CaseVariablesRegistry } from '../caseVariables/caseVariablesRegistry';
@@ -10,7 +10,7 @@ import { renderSmartCodeDetail } from './detailSmartCodeRenderer';
 
 export interface SmartCodeListConfig {
 	app: App;
-	smartCodeApi: SmartCodeApi;
+	smartCodeRegistry: SmartCodeRegistry;
 	smartCodeCache: SmartCodeCache;
 	registry: CodeDefinitionRegistry;
 	caseVarsRegistry: CaseVariablesRegistry;
@@ -38,7 +38,7 @@ export class SmartCodeListModal extends Modal {
 	}
 
 	private renderList(): void {
-		const all = this.cfg.smartCodeApi.listSmartCodes();
+		const all = this.cfg.smartCodeRegistry.getAll();
 		if (all.length === 0) {
 			this.contentEl.createDiv({ text: 'No smart codes yet.', cls: 'qc-sc-list-empty' });
 		} else {
@@ -67,20 +67,16 @@ export class SmartCodeListModal extends Modal {
 	}
 
 	private renderDetail(id: string): void {
-		const sc = this.cfg.smartCodeApi.getSmartCode(id);
+		const sc = this.cfg.smartCodeRegistry.getById(id);
 		if (!sc) { this.currentDetailId = null; this.render(); return; }
 		renderSmartCodeDetail(this.contentEl, {
 			smartCode: sc,
 			cache: this.cfg.smartCodeCache,
-			smartCodeApi: this.cfg.smartCodeApi,
+			smartCodeRegistry: this.cfg.smartCodeRegistry,
 			registry: this.cfg.registry,
 			auditLog: this.cfg.getAuditLog(),
 			app: this.cfg.app,
 			onEditPredicate: () => this.openBuilder('edit', sc),
-			onNavigateToMarker: (ref) => {
-				// TODO Phase 2: jump pro marker no engine
-				console.log('[smart-codes] navigate to', ref);
-			},
 			onShowList: () => { this.currentDetailId = null; this.render(); },
 		});
 	}
@@ -92,7 +88,7 @@ export class SmartCodeListModal extends Modal {
 			initialDefinition: initial,
 			registry: this.cfg.registry,
 			caseVarsRegistry: this.cfg.caseVarsRegistry,
-			smartCodeApi: this.cfg.smartCodeApi,
+			smartCodeRegistry: this.cfg.smartCodeRegistry,
 			smartCodeCache: this.cfg.smartCodeCache,
 			onSaved: (saved) => {
 				this.currentDetailId = saved.id;

@@ -39,7 +39,7 @@ import { registerMemoListeners, rebuildMemoReverseLookup } from './core/memoMate
 import { convertMemoToNote, unmaterialize as unmaterializeMemo } from './core/memoMaterializer';
 import { MaterializeAllMemosModal } from './core/materializeAllMemosModal';
 import { SmartCodeCache } from './core/smartCodes/cache';
-import { SmartCodeApi } from './core/smartCodes/smartCodeRegistryApi';
+import { SmartCodeRegistry } from './core/smartCodes/smartCodeRegistryApi';
 import { SmartCodeListModal } from './core/smartCodes/smartCodeListModal';
 import { SmartCodeBuilderModal } from './core/smartCodes/builderModal';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
@@ -83,7 +83,7 @@ export default class QualiaCodingPlugin extends Plugin {
 
 	// Smart Codes (Tier 3)
 	smartCodeCache!: SmartCodeCache;
-	smartCodeApi!: SmartCodeApi;
+	smartCodeRegistry!: SmartCodeRegistry;
 
 	async onload() {
 		this.dataManager = new DataManager(this);
@@ -143,40 +143,46 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.cleanups.push(() => this.caseVariablesRegistry.unload());
 
 		// ─── Smart Codes (Tier 3) ───────────────────────────────
+		this.smartCodeRegistry = SmartCodeRegistry.fromJSON(this.dataManager.getDataRef().smartCodes);
 		this.smartCodeCache = new SmartCodeCache();
-		this.smartCodeApi = new SmartCodeApi({
-			data: this.dataManager.getDataRef(),
-			auditEmit: (entry) => {
-				const log = (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
-				appendEntry(log, { ...entry, at: entry.at ?? Date.now() });
-				this.dataManager.setSection('auditLog', log);
-			},
-			onMutate: () => {
-				// Re-configure cache (smart codes podem ter sido added/removed) + persist registry
-				this.refreshSmartCodeCacheConfig();
-				this.dataManager.setSection('registry', this.sharedRegistry.toJSON());
-				document.dispatchEvent(new Event('qualia:registry-changed'));
-			},
-		});
 		this.refreshSmartCodeCacheConfig();
 		this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
 
+		// Persistência da section + cache invalidation granular por id mudado.
+		this.smartCodeRegistry.addOnMutate((changedId) => {
+			this.dataManager.setSection('smartCodes', this.smartCodeRegistry.toJSON());
+			this.smartCodeCache.onSmartCodeChanged(changedId);
+		});
+
+		// Audit: spread direto em appendEntry (mesmo pattern do sharedRegistry).
+		this.smartCodeRegistry.setAuditListener((event) => {
+			const log = (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+			appendEntry(log, { ...event, at: Date.now() });
+			this.dataManager.setSection('auditLog', log);
+		});
+
 		// Code mutation → invalida smart codes que dependem do code afetado
 		this.sharedRegistry.addOnMutate(() => {
-			this.refreshSmartCodeCacheConfig();
 			this.smartCodeCache.invalidateAll();
 		});
 		// Case var mutation → invalida smart codes que dependem
 		this.caseVariablesRegistry.addOnMutate(() => {
 			this.smartCodeCache.invalidateAll();
 		});
-		// Marker mutations: re-build indexes + invalidate (event emit em saveMarkers de cada engine)
+		// Marker mutations: re-build indexes + invalidate (event emit em saveMarkers de cada engine — SC3 pendente)
 		const onMarkersChanged = () => {
 			this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
 			this.smartCodeCache.invalidateAll();
 		};
 		document.addEventListener('qualia:markers-changed', onMarkersChanged);
 		this.cleanups.push(() => document.removeEventListener('qualia:markers-changed', onMarkersChanged));
+
+		// Workaround SC3: enquanto models não emitem qualia:markers-changed, hookamos `qualia:registry-changed`
+		// (que dispara após qualquer mutação no registry de codes, incl. coding novo). Falha em casos onde só
+		// marker muda sem tocar registry (edit de range, magnitude). NÃO incluído pelo SmartCodeRegistry: salvar
+		// um SC não toca markers, então não justifica reindex global.
+		document.addEventListener('qualia:registry-changed', onMarkersChanged);
+		this.cleanups.push(() => document.removeEventListener('qualia:registry-changed', onMarkersChanged));
 
 
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
@@ -446,9 +452,11 @@ export default class QualiaCodingPlugin extends Plugin {
 			id: 'smart-codes-open',
 			name: 'Smart Codes: Open hub',
 			callback: () => {
+				// Rebuild indexes pra capturar markers criados após onload (engines não emitem qualia:markers-changed ainda — pendente SC3)
+				this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
 				new SmartCodeListModal({
 					app: this.app,
-					smartCodeApi: this.smartCodeApi,
+					smartCodeRegistry: this.smartCodeRegistry,
 					smartCodeCache: this.smartCodeCache,
 					registry: this.sharedRegistry,
 					caseVarsRegistry: this.caseVariablesRegistry,
@@ -460,12 +468,14 @@ export default class QualiaCodingPlugin extends Plugin {
 			id: 'smart-codes-new',
 			name: 'Smart Codes: New',
 			callback: () => {
+				// Rebuild indexes idem
+				this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
 				new SmartCodeBuilderModal({
 					app: this.app,
 					mode: 'create',
 					registry: this.sharedRegistry,
 					caseVarsRegistry: this.caseVariablesRegistry,
-					smartCodeApi: this.smartCodeApi,
+					smartCodeRegistry: this.smartCodeRegistry,
 					smartCodeCache: this.smartCodeCache,
 				}).open();
 			},
@@ -633,11 +643,11 @@ export default class QualiaCodingPlugin extends Plugin {
 		});
 	}
 
-	/** Re-aplica config do smart code cache: smart codes mais recentes do data + lookups frescos. */
+	/** Wires cache com a section de smartCodes (mesma reference do registry) + lookups. Chamada UMA vez no onload. */
 	private refreshSmartCodeCacheConfig(): void {
 		const data = this.dataManager.getDataRef();
 		this.smartCodeCache.configure({
-			smartCodes: data.registry.smartCodes,
+			smartCodes: this.smartCodeRegistry.getDefinitionsRef(),
 			caseVars: {
 				get: (fileId, variable) => {
 					const v = this.caseVariablesRegistry.getVariables(fileId)[variable];

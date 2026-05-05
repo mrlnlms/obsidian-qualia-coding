@@ -23,12 +23,13 @@ export interface CacheConfig {
  * Singleton cache pra Smart Codes — indexes pré-computados, invalidação granular.
  *
  * Lifecycle:
- * 1. configure(opts) — DEVE ser chamada antes de rebuildIndexes(). Wires smartCodes + lookups + extracts deps.
- *    Re-chamar sempre que data.registry.smartCodes muda (create/update/delete) pra atualizar dep graph.
+ * 1. configure(opts) — chamada UMA vez no onload. Wires smartCodes ref + lookups + extracts deps iniciais.
  * 2. rebuildIndexes(data) — full rebuild dos indexByCode/indexByFile a partir de markers de todos engines.
- *    Não atualiza smartCodes — só os indexes de markers.
- * 3. Listeners em main.ts chamam invalidateForCode/invalidateForCaseVar/invalidateForMarker quando algo muda.
- * 4. UI subscribe(fn) recebe lista de smart codes alterados (rAF coalesced).
+ *    Chamada quando markers mudam (event-driven via qualia:markers-changed).
+ * 3. onSmartCodeChanged(id) — chamada pela SmartCodeRegistry após cada CRUD. Re-extrai deps daquele
+ *    sc, marca dirty + cascateia pra dependentes. Não toca outros sc.
+ * 4. invalidateForCode/CaseVar/Folder/Group(id) — chamadas quando entidade externa muda.
+ * 5. UI subscribe(fn) recebe lista de smart codes alterados (rAF coalesced).
  */
 export class SmartCodeCache {
 	private matches = new Map<string, MarkerRef[]>();
@@ -50,9 +51,31 @@ export class SmartCodeCache {
 		this.codeStruct = opts.codeStruct;
 		this.deps.clear();
 		for (const [id, sc] of Object.entries(this.smartCodes)) this.deps.set(id, extractDependencies(sc.predicate));
-		// Reset matches: smart codes podem ter sido added/removed
 		this.matches.clear();
 		this.dirty = new Set(Object.keys(this.smartCodes));
+	}
+
+	/**
+	 * Notificação incremental: smart code `id` foi adicionado, atualizado ou removido.
+	 * Re-extrai deps (ou dropa, se removido) + marca dirty + cascateia pra dependentes.
+	 * Chamada pela SmartCodeRegistry via addOnMutate listener.
+	 */
+	onSmartCodeChanged(id: string): void {
+		const sc = this.smartCodes[id];
+		if (!sc) {
+			this.deps.delete(id);
+			this.matches.delete(id);
+			this.dirty.delete(id);
+			for (const [otherId, deps] of this.deps) {
+				if (deps.smartCodeIds.has(id)) this.markDirty(otherId);
+			}
+			return;
+		}
+		this.deps.set(id, extractDependencies(sc.predicate));
+		this.markDirty(id);
+		for (const [otherId, deps] of this.deps) {
+			if (otherId !== id && deps.smartCodeIds.has(id)) this.markDirty(otherId);
+		}
 	}
 
 	rebuildIndexes(data: QualiaData): void {

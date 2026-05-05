@@ -6,7 +6,7 @@ const SMALL = { codes: 100, markers: 1000, smartCodes: 10 };
 const LARGE = { codes: 1000, markers: 10000, smartCodes: 100 };
 
 const lookups = (data: any) => ({
-	smartCodes: data.registry.smartCodes,
+	smartCodes: data.smartCodes.definitions,
 	caseVars: { get: () => undefined, allKeys: () => new Set<string>() },
 	codeStruct: { codesInFolder: () => [], codesInGroup: () => [] },
 });
@@ -74,7 +74,7 @@ describe('SmartCodeCache stress (CI 2x headroom)', () => {
 		cache.configure(lookups(data));
 		cache.rebuildIndexes(data);
 		// Computar todos
-		for (const id of Object.keys(data.registry.smartCodes)) cache.getMatches(id);
+		for (const id of Object.keys(data.smartCodes.definitions)) cache.getMatches(id);
 		// Invalida c_0 — só smart codes cujo predicate referencia c_0 devem ficar dirty
 		cache.invalidateForCode('c_0');
 		const dirtyCount = Array.from({ length: SMALL.smartCodes }, (_, i) => cache.isDirty(`sc_${i}`)).filter(Boolean).length;

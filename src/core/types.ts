@@ -153,6 +153,12 @@ export interface SmartCodeDefinition {
 	createdAt: number;
 }
 
+export interface SmartCodesSection {
+	definitions: Record<string, SmartCodeDefinition>;
+	order: string[];
+	nextPaletteIndex: number;
+}
+
 export type OpNode =
 	| { op: 'AND'; children: PredicateNode[] }
 	| { op: 'OR';  children: PredicateNode[] }
@@ -204,11 +210,9 @@ export interface QualiaData {
 		groups: Record<string, GroupDefinition>;
 		groupOrder: string[];
 		nextGroupPaletteIndex: number;
-		// Smart Codes (Tier 3)
-		smartCodes: Record<string, SmartCodeDefinition>;
-		smartCodeOrder: string[];
-		nextSmartCodePaletteIndex: number;
 	};
+	// Smart Codes (Tier 3) — top-level porque são gerenciados pela SmartCodeRegistry (independente do CodeDefinitionRegistry).
+	smartCodes: SmartCodesSection;
 	general: GeneralSettings;
 	markdown: { markers: Record<string, Marker[]>; settings: CodeMarkerSettings };
 	csv: {
@@ -291,7 +295,8 @@ export type AuditEntry =
 
 export function createDefaultData(): QualiaData {
 	return {
-		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0, smartCodes: {}, smartCodeOrder: [], nextSmartCodePaletteIndex: 0 },
+		registry: { definitions: {}, nextPaletteIndex: 0, folders: {}, folderOrder: [], rootOrder: [], groups: {}, groupOrder: [], nextGroupPaletteIndex: 0 },
+		smartCodes: { definitions: {}, order: [], nextPaletteIndex: 0 },
 		general: {
 			showMagnitudeInPopover: true,
 			showRelationsInPopover: true,

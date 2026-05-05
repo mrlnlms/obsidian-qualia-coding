@@ -68,9 +68,9 @@ export async function exportTabular(
 	}
 
 	// Smart Codes (Tier 3) — só inclui se houver pelo menos 1
-	const smartCodesData = dm.section('registry').smartCodes;
-	const smartCodesList: SmartCodeDefinition[] = smartCodesData
-		? Object.values(smartCodesData) as SmartCodeDefinition[]
+	const smartCodesSection = dm.section('smartCodes');
+	const smartCodesList: SmartCodeDefinition[] = smartCodesSection?.definitions
+		? Object.values(smartCodesSection.definitions) as SmartCodeDefinition[]
 		: [];
 	const includeSmartCodes = smartCodesList.length > 0;
 	if (includeSmartCodes) {

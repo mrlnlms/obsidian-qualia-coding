@@ -2,7 +2,7 @@ import type { PredicateNode, SmartCodeDefinition, CodeDefinition, FolderDefiniti
 import { isOpNode } from './types';
 
 export interface ValidationIssue {
-	code: 'empty' | 'cycle' | 'name-collision' | 'broken-ref' | 'magnitude-not-continuous';
+	code: 'empty' | 'cycle' | 'name-collision' | 'broken-ref' | 'magnitude-not-continuous' | 'incomplete-leaf';
 	message: string;
 	leaf?: { kind: string; ref?: string };
 }
@@ -31,7 +31,7 @@ export function validateForSave(
 
 	// 1. Empty (recursive — qualquer AND/OR no AST com 0 children é error)
 	if (hasEmptyGroup(predicate)) {
-		errors.push({ code: 'empty', message: 'Predicate must have at least one condition (no empty AND/OR groups)' });
+		errors.push({ code: 'empty', message: 'Add at least one condition to save' });
 	}
 
 	// 2. Name collision (case-insensitive, exclude self)
@@ -80,6 +80,10 @@ function walk(
 		case 'magnitudeGte':
 		case 'magnitudeLte':
 		case 'relationExists': {
+			if (!node.codeId) {
+				errors.push({ code: 'incomplete-leaf', message: 'Pick a code', leaf: { kind: node.kind }});
+				break;
+			}
 			const code = registry.definitions[node.codeId];
 			if (!code) {
 				warnings.push({ code: 'broken-ref', message: `Code ${node.codeId} was deleted`, leaf: { kind: node.kind, ref: node.codeId }});
@@ -96,17 +100,33 @@ function walk(
 		}
 		case 'caseVarEquals':
 		case 'caseVarRange':
+			if (!node.variable) {
+				errors.push({ code: 'incomplete-leaf', message: 'Pick a case variable', leaf: { kind: node.kind }});
+				break;
+			}
 			if (caseVarsKeys && !caseVarsKeys.has(node.variable)) {
 				warnings.push({ code: 'broken-ref', message: `Case variable "${node.variable}" not found`, leaf: { kind: node.kind, ref: node.variable }});
 			}
 			break;
 		case 'inFolder':
+			if (!node.folderId) {
+				errors.push({ code: 'incomplete-leaf', message: 'Pick a folder', leaf: { kind: node.kind }});
+				break;
+			}
 			if (!registry.folders[node.folderId]) warnings.push({ code: 'broken-ref', message: `Folder ${node.folderId} was deleted`, leaf: { kind: node.kind, ref: node.folderId }});
 			break;
 		case 'inGroup':
+			if (!node.groupId) {
+				errors.push({ code: 'incomplete-leaf', message: 'Pick a group', leaf: { kind: node.kind }});
+				break;
+			}
 			if (!registry.groups[node.groupId]) warnings.push({ code: 'broken-ref', message: `Group ${node.groupId} was deleted`, leaf: { kind: node.kind, ref: node.groupId }});
 			break;
 		case 'smartCode': {
+			if (!node.smartCodeId) {
+				errors.push({ code: 'incomplete-leaf', message: 'Pick a smart code', leaf: { kind: node.kind }});
+				break;
+			}
 			// Cycle check ANTES do registry lookup — sc sendo validado pode não estar no registry ainda
 			if (visiting.has(node.smartCodeId)) {
 				errors.push({ code: 'cycle', message: `Circular reference: ${[...visiting, node.smartCodeId].join(' → ')}`, leaf: { kind: node.kind, ref: node.smartCodeId }});

@@ -7,7 +7,7 @@ describe('SmartCodeCache', () => {
 	let data: any;
 
 	const lookups = (data: any): CacheConfig => ({
-		smartCodes: data.registry.smartCodes,
+		smartCodes: data.smartCodes.definitions,
 		caseVars: { get: () => undefined, allKeys: () => new Set<string>() },
 		codeStruct: { codesInFolder: () => [], codesInGroup: () => [] },
 	});
@@ -17,7 +17,7 @@ describe('SmartCodeCache', () => {
 		data.markdown.markers = {
 			'f1.md': [{ id: 'm1', fileId: 'f1.md', codes: [{ codeId: 'c_a' }], range: {} }],
 		};
-		data.registry.smartCodes = {
+		data.smartCodes.definitions = {
 			'sc_x': { id: 'sc_x', name: 'X', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_a' }},
 		};
 		cache = new SmartCodeCache();
@@ -42,7 +42,7 @@ describe('SmartCodeCache', () => {
 	});
 
 	it('invalidateForCode invalida só smart codes que dependem', () => {
-		data.registry.smartCodes['sc_y'] = { id: 'sc_y', name: 'Y', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_b' }};
+		data.smartCodes.definitions['sc_y'] = { id: 'sc_y', name: 'Y', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_b' }};
 		cache.configure(lookups(data));
 		cache.rebuildIndexes(data);
 		cache.getMatches('sc_x');
@@ -57,7 +57,7 @@ describe('SmartCodeCache', () => {
 	});
 
 	it('cascata: invalidate sc_x propaga pra sc_z que referencia sc_x', () => {
-		data.registry.smartCodes['sc_z'] = { id: 'sc_z', name: 'Z', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'smartCode', smartCodeId: 'sc_x' }};
+		data.smartCodes.definitions['sc_z'] = { id: 'sc_z', name: 'Z', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'smartCode', smartCodeId: 'sc_x' }};
 		cache.configure(lookups(data));
 		cache.rebuildIndexes(data);
 		cache.getMatches('sc_x');
@@ -116,5 +116,39 @@ describe('SmartCodeCache', () => {
 		cache.invalidateForCode('c_a');
 		cache.__flushPendingForTest();
 		expect(count).toBe(1);  // não chamou de novo
+	});
+
+	describe('onSmartCodeChanged (incremental update)', () => {
+		it('add: extrai deps do sc novo + marca dirty', () => {
+			data.smartCodes.definitions['sc_new'] = { id: 'sc_new', name: 'N', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_a' }};
+			cache.onSmartCodeChanged('sc_new');
+			expect(cache.isDirty('sc_new')).toBe(true);
+			expect(cache.getMatches('sc_new')).toHaveLength(1);
+		});
+
+		it('update: re-extrai deps do sc + marca dirty + cascateia pra dependentes', () => {
+			data.smartCodes.definitions['sc_z'] = { id: 'sc_z', name: 'Z', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'smartCode', smartCodeId: 'sc_x' }};
+			cache.onSmartCodeChanged('sc_z');
+			cache.getMatches('sc_z');  // computa
+			expect(cache.isDirty('sc_z')).toBe(false);
+
+			// Edita sc_x — sc_z (dependente) deve ficar dirty
+			data.smartCodes.definitions['sc_x']!.predicate = { kind: 'hasCode', codeId: 'c_b' };
+			cache.onSmartCodeChanged('sc_x');
+			expect(cache.isDirty('sc_x')).toBe(true);
+			expect(cache.isDirty('sc_z')).toBe(true);
+		});
+
+		it('remove: dropa deps + matches + cascateia pra dependentes', () => {
+			data.smartCodes.definitions['sc_z'] = { id: 'sc_z', name: 'Z', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'smartCode', smartCodeId: 'sc_x' }};
+			cache.onSmartCodeChanged('sc_z');
+			cache.getMatches('sc_z');
+
+			delete data.smartCodes.definitions['sc_x'];
+			cache.onSmartCodeChanged('sc_x');
+			expect(cache.isDirty('sc_x')).toBe(false);
+			expect(cache.__getMatchesMapHasForTest('sc_x')).toBe(false);
+			expect(cache.isDirty('sc_z')).toBe(true);  // cascade
+		});
 	});
 });

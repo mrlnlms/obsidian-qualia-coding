@@ -10,7 +10,7 @@ function buildFixture(numMarkers: number) {
 		markers.push({ id: `m${i}`, fileId: 'f.md', codes: [{ codeId: i % 2 === 0 ? 'c_a' : 'c_b' }], range: {} } as any);
 	}
 	(data.markdown.markers as any)['f.md'] = markers;
-	data.registry.smartCodes['sc_x'] = { id: 'sc_x', name: 'X', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_a' }};
+	data.smartCodes.definitions['sc_x'] = { id: 'sc_x', name: 'X', color: '#fff', paletteIndex: 0, createdAt: 0, predicate: { kind: 'hasCode', codeId: 'c_a' }};
 	return data;
 }
 
@@ -18,7 +18,7 @@ describe('collectMatchesChunked', () => {
 	it('progresso reportado em chunks', async () => {
 		const data = buildFixture(2500);
 		const cache = new SmartCodeCache();
-		cache.configure({ smartCodes: data.registry.smartCodes, caseVars: { get: () => undefined, allKeys: () => new Set() }, codeStruct: { codesInFolder: () => [], codesInGroup: () => [] }});
+		cache.configure({ smartCodes: data.smartCodes.definitions, caseVars: { get: () => undefined, allKeys: () => new Set() }, codeStruct: { codesInFolder: () => [], codesInGroup: () => [] }});
 		cache.rebuildIndexes(data);
 
 		const progressCalls: Array<[number, number]> = [];
@@ -31,7 +31,7 @@ describe('collectMatchesChunked', () => {
 	it('result idêntico ao sync compute', async () => {
 		const data = buildFixture(200);
 		const cache = new SmartCodeCache();
-		cache.configure({ smartCodes: data.registry.smartCodes, caseVars: { get: () => undefined, allKeys: () => new Set() }, codeStruct: { codesInFolder: () => [], codesInGroup: () => [] }});
+		cache.configure({ smartCodes: data.smartCodes.definitions, caseVars: { get: () => undefined, allKeys: () => new Set() }, codeStruct: { codesInFolder: () => [], codesInGroup: () => [] }});
 		cache.rebuildIndexes(data);
 
 		const sync = cache.getMatches('sc_x');
@@ -44,7 +44,7 @@ describe('collectMatchesChunked', () => {
 	it('returns empty quando smart code não existe', async () => {
 		const data = buildFixture(10);
 		const cache = new SmartCodeCache();
-		cache.configure({ smartCodes: data.registry.smartCodes, caseVars: { get: () => undefined, allKeys: () => new Set() }, codeStruct: { codesInFolder: () => [], codesInGroup: () => [] }});
+		cache.configure({ smartCodes: data.smartCodes.definitions, caseVars: { get: () => undefined, allKeys: () => new Set() }, codeStruct: { codesInFolder: () => [], codesInGroup: () => [] }});
 		cache.rebuildIndexes(data);
 
 		const result = await collectMatchesChunked('sc_missing', cache);

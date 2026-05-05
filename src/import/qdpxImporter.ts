@@ -492,12 +492,14 @@ export async function importQdpx(
 
   // 8b. Import Smart Codes (Tier 3) — após sets/cases pra resolver refs corretamente
   const scResult = parseSmartCodes(xml, resolver);
-  for (const sc of scResult.smartCodes) {
-    const data = (dataManager as any).getDataRef ? (dataManager as any).getDataRef() : dataManager.section('registry');
-    const reg = data.registry ?? data;
-    reg.smartCodes[sc.id] = sc;
-    if (!reg.smartCodeOrder) reg.smartCodeOrder = [];
-    reg.smartCodeOrder.push(sc.id);
+  if (scResult.smartCodes.length > 0) {
+    const data = (dataManager as any).getDataRef();
+    if (!data.smartCodes) data.smartCodes = { definitions: {}, order: [], nextPaletteIndex: 0 };
+    for (const sc of scResult.smartCodes) {
+      data.smartCodes.definitions[sc.id] = sc;
+      data.smartCodes.order.push(sc.id);
+    }
+    dataManager.setSection('smartCodes', data.smartCodes);
   }
   if (scResult.smartCodes.length > 0) {
     result.warnings.push(`Imported ${scResult.smartCodes.length} smart codes`);

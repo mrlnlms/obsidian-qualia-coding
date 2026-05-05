@@ -3,7 +3,7 @@ import type { SmartCodeDefinition, PredicateNode, LeafNode, OpNode, EngineType }
 import { isOpNode, isLeafNode } from './types';
 import type { CodeDefinitionRegistry } from '../codeDefinitionRegistry';
 import type { CaseVariablesRegistry } from '../caseVariables/caseVariablesRegistry';
-import type { SmartCodeApi } from './smartCodeRegistryApi';
+import type { SmartCodeRegistry } from './smartCodeRegistryApi';
 import type { SmartCodeCache } from './cache';
 import { addChildToGroup, removeNodeAt, changeOperator, replaceLeafAt, type Path } from './builderTreeOps';
 import { validateForSave } from './predicateValidator';
@@ -15,7 +15,7 @@ export interface BuilderConfig {
 	initialDefinition?: SmartCodeDefinition;
 	registry: CodeDefinitionRegistry;
 	caseVarsRegistry: CaseVariablesRegistry;
-	smartCodeApi: SmartCodeApi;
+	smartCodeRegistry: SmartCodeRegistry;
 	smartCodeCache: SmartCodeCache;
 	onSaved?: (saved: SmartCodeDefinition) => void;
 }
@@ -236,7 +236,7 @@ export class SmartCodeBuilderModal extends Modal {
 			}
 			case 'smartCode': {
 				const scBtn = rowEl.createEl('button', { cls: 'qc-sc-picker-btn' });
-				const sc = this.cfg.smartCodeApi.getSmartCode(leaf.smartCodeId);
+				const sc = this.cfg.smartCodeRegistry.getById(leaf.smartCodeId);
 				scBtn.setText(sc?.name ?? 'Pick smart code…');
 				scBtn.onclick = () => this.openSmartCodePicker((smartCodeId) => {
 					this.predicate = replaceLeafAt(this.predicate, path, { kind: 'smartCode', smartCodeId });
@@ -286,25 +286,26 @@ export class SmartCodeBuilderModal extends Modal {
 		const validation = validateForSave(
 			{ id: this.cfg.initialDefinition?.id ?? '__new__', name: this.name },
 			this.predicate,
-			{
-				definitions: (this.cfg.registry as any).definitions instanceof Map
-					? Object.fromEntries((this.cfg.registry as any).definitions)
-					: (this.cfg.registry as any).getAll().reduce((acc: Record<string, CodeDefinition>, c: CodeDefinition) => { acc[c.id] = c; return acc; }, {}),
-				smartCodes: this.cfg.smartCodeApi.listSmartCodes().reduce((acc, sc) => { acc[sc.id] = sc; return acc; }, {} as Record<string, SmartCodeDefinition>),
-				folders: {},
-				groups: {},
-			},
-			this.cfg.caseVarsRegistry ? new Set(this.collectCaseVarsKeys()) : undefined,
+			this.buildValidatorRegistrySnapshot(),
+			new Set(this.collectCaseVarsKeys()),
 		);
 		this.saveBtn.disabled = !validation.valid || this.name.trim().length === 0;
 		if (this.bannerEl) {
-			if (validation.errors.length > 0) {
+			// Estado inicial (predicate ainda vazio + sem nome) é "rascunho fresh", não erro.
+			// Suprime banner enquanto user ainda não começou — só mostra quando há rascunho parcial inválido.
+			const isPristine = this.predicate && 'op' in this.predicate
+				&& this.predicate.op !== 'NOT'
+				&& (this.predicate as any).children?.length === 0
+				&& this.name.trim().length === 0;
+			if (isPristine) {
+				this.bannerEl.style.display = 'none';
+			} else if (validation.errors.length > 0) {
 				this.bannerEl.style.display = 'block';
-				this.bannerEl.setText('⚠ ' + validation.errors[0]!.message);
+				this.bannerEl.setText(validation.errors[0]!.message);
 				this.bannerEl.className = 'qc-sc-builder-banner qc-banner-error';
 			} else if (validation.warnings.length > 0) {
 				this.bannerEl.style.display = 'block';
-				this.bannerEl.setText('⚠ ' + validation.warnings[0]!.message);
+				this.bannerEl.setText(validation.warnings[0]!.message);
 				this.bannerEl.className = 'qc-sc-builder-banner qc-banner-warning';
 			} else {
 				this.bannerEl.style.display = 'none';
@@ -313,10 +314,27 @@ export class SmartCodeBuilderModal extends Modal {
 	}
 
 	private collectCaseVarsKeys(): string[] {
-		const out = new Set<string>();
-		// O caseVariablesRegistry tem método getValuesForVariable mas não listAllKeys.
-		// Por enquanto retorna vazio — broken-ref warning pra case var fica off.
-		return [...out];
+		// CaseVariablesRegistry não expõe listAllKeys. Por isso warning de broken-ref pra case var fica off
+		// até o registry expor a API. Retornar Set vazio significa: validator não checa case var refs.
+		return [];
+	}
+
+	/** Snapshot do registry no shape que validateForSave espera. Reusada por updateSaveState e save. */
+	private buildValidatorRegistrySnapshot() {
+		const codeDefs = this.cfg.registry.getAll().reduce(
+			(acc, c) => { acc[c.id] = c; return acc; },
+			{} as Record<string, CodeDefinition>,
+		);
+		const scDefs = this.cfg.smartCodeRegistry.getAll().reduce(
+			(acc, sc) => { acc[sc.id] = sc; return acc; },
+			{} as Record<string, SmartCodeDefinition>,
+		);
+		return {
+			definitions: codeDefs,
+			smartCodes: scDefs,
+			folders: {},
+			groups: {},
+		};
 	}
 
 	private rerender(): void {
@@ -328,20 +346,16 @@ export class SmartCodeBuilderModal extends Modal {
 		const validation = validateForSave(
 			{ id: this.cfg.initialDefinition?.id ?? '__new__', name: this.name },
 			this.predicate,
-			{
-				definitions: (this.cfg.registry as any).getAll().reduce((acc: Record<string, CodeDefinition>, c: CodeDefinition) => { acc[c.id] = c; return acc; }, {}),
-				smartCodes: this.cfg.smartCodeApi.listSmartCodes().reduce((acc, sc) => { acc[sc.id] = sc; return acc; }, {} as Record<string, SmartCodeDefinition>),
-				folders: {},
-				groups: {},
-			},
+			this.buildValidatorRegistrySnapshot(),
+			new Set(this.collectCaseVarsKeys()),
 		);
 		if (!validation.valid) {
 			new Notice('Cannot save: ' + validation.errors[0]!.message);
 			return;
 		}
 		const saved = this.cfg.mode === 'create'
-			? this.cfg.smartCodeApi.createSmartCode({ name: this.name, color: this.color, predicate: this.predicate, memo: this.memo })
-			: this.cfg.smartCodeApi.updateSmartCode(this.cfg.initialDefinition!.id, { name: this.name, color: this.color, predicate: this.predicate, memo: this.memo })!;
+			? this.cfg.smartCodeRegistry.create({ name: this.name, color: this.color, predicate: this.predicate, memo: this.memo })
+			: this.cfg.smartCodeRegistry.update(this.cfg.initialDefinition!.id, { name: this.name, color: this.color, predicate: this.predicate, memo: this.memo })!;
 		this.cfg.onSaved?.(saved);
 		this.close();
 	}
@@ -361,12 +375,11 @@ export class SmartCodeBuilderModal extends Modal {
 	}
 
 	private openCodePicker(onPick: (codeId: string) => void): void {
-		const codes = (this.cfg.registry as any).getAll() as CodeDefinition[];
-		new CodePickerModal(this.cfg.app, codes, onPick).open();
+		new CodePickerModal(this.cfg.app, this.cfg.registry.getAll(), onPick).open();
 	}
 
 	private openSmartCodePicker(onPick: (smartCodeId: string) => void): void {
-		const all = this.cfg.smartCodeApi.listSmartCodes().filter(sc => sc.id !== this.cfg.initialDefinition?.id);
+		const all = this.cfg.smartCodeRegistry.getAll().filter(sc => sc.id !== this.cfg.initialDefinition?.id);
 		new SmartCodePickerModal(this.cfg.app, all, onPick).open();
 	}
 }
