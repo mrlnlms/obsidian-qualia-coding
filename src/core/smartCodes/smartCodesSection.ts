@@ -97,7 +97,7 @@ function showRowMenu(
 	onEditPredicate: () => void,
 ): void {
 	const menu = new Menu();
-	menu.addItem((i) => i.setTitle('Edit predicate').setIcon('pencil').onClick(onEditPredicate));
+	menu.addItem((i) => i.setTitle('Edit query').setIcon('pencil').onClick(onEditPredicate));
 	menu.addItem((i) => i.setTitle('Rename').setIcon('text-cursor').onClick(() => {
 		new PromptModal({
 			app,

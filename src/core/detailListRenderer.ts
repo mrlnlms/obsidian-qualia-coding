@@ -16,6 +16,8 @@ export interface SmartCodesIntegration {
 	app: App;
 	state: SmartCodesSectionState;
 	onToggleCollapsed(): void;
+	/** Click no nome da row — caller decide pra onde ir (sidebar SC detail mode ou modal hub). */
+	onSmartCodeClick(smartCodeId: string): void;
 }
 
 export interface ListRendererCallbacks extends CodebookTreeCallbacks {
@@ -130,7 +132,7 @@ export function renderListContent(
 			sc.state,
 			{
 				onToggleCollapsed: sc.onToggleCollapsed,
-				onSmartCodeClick: (id) => sc.access.openHub(id),
+				onSmartCodeClick: sc.onSmartCodeClick,
 				onNew: () => sc.access.openBuilder('create'),
 				onEditPredicate: (id) => {
 					const def = sc.access.registry.getById(id);

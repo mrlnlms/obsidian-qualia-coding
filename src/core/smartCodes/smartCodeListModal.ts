@@ -10,6 +10,7 @@ import { SmartCodeBuilderModal } from './builderModal';
 import { renderSmartCodeDetail } from './detailSmartCodeRenderer';
 import { navigateToMarker } from '../navigateToMarker';
 import { ConfirmModal, PromptModal } from '../dialogs';
+import { getMarkerLabel as _getMarkerLabel, shortenPath as _shortenPath } from '../markerResolvers';
 
 export interface SmartCodeListConfig {
 	app: App;
@@ -115,7 +116,7 @@ export class SmartCodeListModal extends Modal {
 			this.currentDetailId = sc.id;
 			this.render();
 		}));
-		menu.addItem((i) => i.setTitle('Edit predicate').setIcon('pencil').onClick(() => this.openBuilder('edit', sc)));
+		menu.addItem((i) => i.setTitle('Edit query').setIcon('pencil').onClick(() => this.openBuilder('edit', sc)));
 		menu.addItem((i) => i.setTitle('Rename').setIcon('text-cursor').onClick(() => {
 			new PromptModal({
 				app: this.cfg.app,
@@ -163,6 +164,15 @@ export class SmartCodeListModal extends Modal {
 				if (!marker) return;
 				this.close();
 				void navigateToMarker(this.cfg.app, marker as BaseMarker, this.cfg.mdModel);
+			},
+			getMarkerLabel: (m) => _getMarkerLabel(m, this.cfg.mdModel),
+			shortenPath: (f) => _shortenPath(f),
+			// Suspend auto-refresh enquanto memo focado — re-render destruiria a textarea.
+			suspendRefresh: () => { this.unsubRegistry?.(); this.unsubRegistry = null; },
+			resumeRefresh: () => {
+				if (!this.unsubRegistry) {
+					this.unsubRegistry = this.cfg.smartCodeRegistry.addOnMutate(() => this.render());
+				}
 			},
 		});
 	}

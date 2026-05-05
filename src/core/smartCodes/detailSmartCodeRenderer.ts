@@ -5,8 +5,9 @@ import type { SmartCodeRegistry } from './smartCodeRegistryApi';
 import type { SmartCodeCache } from './cache';
 import type { CodeDefinitionRegistry } from '../codeDefinitionRegistry';
 import { getEntriesForSmartCode, renderEntryMarkdown } from '../auditLog';
-import type { AuditEntry } from '../types';
+import type { AuditEntry, BaseMarker } from '../types';
 import { ConfirmModal } from '../dialogs';
+import { renderBackButton } from '../detailCodeRenderer';
 
 export interface SmartCodeDetailCallbacks {
 	smartCode: SmartCodeDefinition;
@@ -19,52 +20,67 @@ export interface SmartCodeDetailCallbacks {
 	onShowList: () => void;
 	/** Caller fecha o modal e navega pro marker (engine-aware). */
 	onNavigateToMarker: (ref: MarkerRef) => void;
+	/** Engine-aware label do marker (excerpt/timecode/page). Mesmo helper do code detail. */
+	getMarkerLabel(marker: BaseMarker): string;
+	/** Strip extensão / encurta file path pra display. Mesmo helper do code detail. */
+	shortenPath(fileId: string): string;
+	/** Suspend/resume auto-refresh enquanto user edita memo (mesmo padrão do code detail). Optional. */
+	suspendRefresh?: () => void;
+	resumeRefresh?: () => void;
 }
 
 export function renderSmartCodeDetail(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
 	container.empty();
-	container.addClass('qc-sc-detail');
 
+	renderBackButton(container, 'All Codes', () => opts.onShowList());
 	renderHeader(container, opts);
 	renderMemo(container, opts);
-	renderPredicateSection(container, opts);
+	renderQuerySection(container, opts);
 	renderMatchesSection(container, opts);
 	renderHistorySection(container, opts);
 	renderDeleteAction(container, opts);
 }
 
 function renderHeader(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
-	const headerEl = container.createDiv({ cls: 'qc-sc-detail-header' });
-	const back = headerEl.createEl('button', { cls: 'qc-sc-back-btn' });
-	setIcon(back, 'arrow-left');
-	back.title = 'Back to list';
-	back.onclick = () => opts.onShowList();
-	headerEl.createSpan({ text: '⚡ ', cls: 'qc-sc-icon' });
-	headerEl.createSpan({ text: opts.smartCode.name, cls: 'qc-sc-name' });
-	const swatch = headerEl.createSpan({ cls: 'qc-sc-color-swatch' });
+	const header = container.createDiv({ cls: 'codemarker-detail-header' });
+	const swatch = header.createSpan({ cls: 'codemarker-detail-swatch' });
 	swatch.style.backgroundColor = opts.smartCode.color;
+	header.createSpan({ text: '⚡ ', cls: 'qc-sc-detail-bolt' });
+	header.createSpan({ text: opts.smartCode.name, cls: 'codemarker-detail-title' });
 }
 
 function renderMemo(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
-	const sectionEl = container.createDiv({ cls: 'qc-sc-memo-section' });
-	sectionEl.createEl('h4', { text: 'Memo' });
-	const textarea = sectionEl.createEl('textarea', { cls: 'qc-sc-memo-textarea' });
-	textarea.value = opts.smartCode.memo ?? '';
-	textarea.placeholder = 'Justificativa metodológica desta query…';
-	let debounce: number | undefined;
-	textarea.addEventListener('input', () => {
-		if (debounce) window.clearTimeout(debounce);
-		debounce = window.setTimeout(() => opts.smartCodeRegistry.setMemo(opts.smartCode.id, textarea.value), 500);
+	const section = container.createDiv({ cls: 'codemarker-detail-section' });
+	const header = section.createDiv({ cls: 'codemarker-detail-section-header' });
+	header.createEl('h6', { text: 'Memo' });
+
+	const textarea = section.createEl('textarea', {
+		cls: 'codemarker-detail-memo',
+		attr: { placeholder: 'Justificativa metodológica desta query…', rows: '3' },
 	});
+	textarea.value = opts.smartCode.memo ?? '';
+	let saveTimer: ReturnType<typeof setTimeout> | null = null;
+	textarea.addEventListener('input', () => {
+		if (saveTimer) clearTimeout(saveTimer);
+		saveTimer = setTimeout(() => {
+			saveTimer = null;
+			opts.smartCodeRegistry.setMemo(opts.smartCode.id, textarea.value);
+		}, 500);
+	});
+	// Mesmo pattern do code memo: suspend auto-refresh enquanto focado pra textarea não sumir.
+	textarea.addEventListener('focus', () => opts.suspendRefresh?.());
+	textarea.addEventListener('blur', () => opts.resumeRefresh?.());
 }
 
-function renderPredicateSection(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
-	const sectionEl = container.createDiv({ cls: 'qc-sc-predicate-section' });
-	sectionEl.createEl('h4', { text: 'Predicate' });
-	const treeEl = sectionEl.createDiv({ cls: 'qc-sc-predicate-tree' });
-	renderPredicateLine(treeEl, opts.smartCode.predicate, opts, 0);
-	const editBtn = sectionEl.createEl('button', { text: 'Edit predicate', cls: 'qc-sc-edit-btn' });
+function renderQuerySection(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
+	const section = container.createDiv({ cls: 'codemarker-detail-section' });
+	const header = section.createDiv({ cls: 'codemarker-detail-section-header' });
+	header.createEl('h6', { text: 'Query' });
+	const editBtn = header.createEl('button', { text: 'Edit query', cls: 'qc-sc-edit-btn' });
 	editBtn.onclick = opts.onEditPredicate;
+
+	const treeEl = section.createDiv({ cls: 'qc-sc-predicate-tree' });
+	renderPredicateLine(treeEl, opts.smartCode.predicate, opts, 0);
 }
 
 function renderPredicateLine(parent: HTMLElement, node: PredicateNode, opts: SmartCodeDetailCallbacks, depth: number): void {
@@ -103,8 +119,14 @@ function formatLeaf(leaf: LeafNode, registry: CodeDefinitionRegistry, smartCodeR
 			const c = registry.getById(leaf.codeId);
 			return `Magnitude of "${c?.name ?? leaf.codeId}" ≤ ${leaf.n}`;
 		}
-		case 'inFolder': return `In folder ${leaf.folderId}`;
-		case 'inGroup': return `In group ${leaf.groupId}`;
+		case 'inFolder': {
+			const f = registry.getFolderById(leaf.folderId);
+			return `In folder "${f?.name ?? leaf.folderId + ' (deleted)'}"`;
+		}
+		case 'inGroup': {
+			const g = registry.getAllGroups().find(x => x.id === leaf.groupId);
+			return `In group "${g?.name ?? leaf.groupId + ' (deleted)'}"`;
+		}
 		case 'engineType': return `Engine = ${leaf.engine}`;
 		case 'relationExists': {
 			const c = registry.getById(leaf.codeId);
@@ -119,14 +141,13 @@ function formatLeaf(leaf: LeafNode, registry: CodeDefinitionRegistry, smartCodeR
 }
 
 function renderMatchesSection(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
-	const sectionEl = container.createDiv({ cls: 'qc-sc-matches-section' });
-	const headerEl = sectionEl.createEl('h4');
-	// getMatches() interna: computa se dirty + retorna. Ler isDirty ANTES seria sempre stale-true.
+	const section = container.createDiv({ cls: 'codemarker-detail-section' });
+	const header = section.createDiv({ cls: 'codemarker-detail-section-header' });
 	const matches = opts.cache.getMatches(opts.smartCode.id);
-	headerEl.setText(`MATCHES (${matches.length})`);
+	header.createEl('h6', { text: `Matches (${matches.length})` });
 
 	if (matches.length === 0) {
-		sectionEl.createDiv({ text: 'No matches.', cls: 'qc-sc-matches-empty' });
+		section.createDiv({ text: 'No matches.', cls: 'codemarker-detail-empty' });
 		return;
 	}
 
@@ -137,20 +158,21 @@ function renderMatchesSection(container: HTMLElement, opts: SmartCodeDetailCallb
 		groupedByFile.set(ref.fileId, list);
 	}
 
-	const listEl = sectionEl.createDiv({ cls: 'qc-sc-matches-list' });
+	const listEl = section.createDiv({ cls: 'qc-sc-matches-list' });
 	for (const [fileId, refs] of groupedByFile) {
 		const fileEl = listEl.createDiv({ cls: 'qc-sc-matches-file' });
 		const fileHeader = fileEl.createDiv({ cls: 'qc-sc-matches-file-header' });
 		fileHeader.createSpan({ text: '📄 ' });
-		const fileLink = fileHeader.createSpan({ text: fileId, cls: 'qc-sc-matches-file-name' });
+		const fileLink = fileHeader.createSpan({ text: opts.shortenPath(fileId), cls: 'qc-sc-matches-file-name' });
 		fileHeader.createSpan({ text: ` (${refs.length})`, cls: 'qc-sc-matches-file-count' });
 		fileLink.style.cursor = 'pointer';
-		// Click no header navega pro primeiro match do file (abre + posiciona no primeiro marker).
 		fileLink.onclick = () => opts.onNavigateToMarker(refs[0]!);
 
 		for (const ref of refs.slice(0, 5)) {
 			const row = fileEl.createDiv({ cls: 'qc-sc-match-row' });
-			row.createSpan({ text: `  › ${ref.markerId}`, cls: 'qc-sc-match-label' });
+			const marker = opts.cache.getMarkerByRef(ref);
+			const label = marker ? opts.getMarkerLabel(marker as BaseMarker) : ref.markerId;
+			row.createSpan({ text: `  › ${label}`, cls: 'qc-sc-match-label' });
 			row.style.cursor = 'pointer';
 			row.onclick = () => opts.onNavigateToMarker(ref);
 		}
@@ -159,28 +181,33 @@ function renderMatchesSection(container: HTMLElement, opts: SmartCodeDetailCallb
 }
 
 function renderHistorySection(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
-	const sectionEl = container.createDiv({ cls: 'qc-sc-history-section' });
-	sectionEl.createEl('h4', { text: 'History' });
+	const section = container.createDiv({ cls: 'codemarker-detail-section codemarker-history-section' });
+	const header = section.createDiv({ cls: 'codemarker-detail-section-header' });
+	header.createEl('h6', { text: 'History' });
+
 	const entries = getEntriesForSmartCode(opts.auditLog, opts.smartCode.id);
 	if (entries.length === 0) {
-		sectionEl.createDiv({ text: 'No history yet.', cls: 'qc-sc-history-empty' });
+		section.createDiv({ text: 'No history yet.', cls: 'codemarker-detail-empty' });
 		return;
 	}
 	for (const entry of entries) {
-		const line = sectionEl.createDiv({ cls: 'qc-sc-history-entry' });
-		// renderEntryMarkdown emite "- mensagem" (markdown bullet). Strip o prefixo pra render plain em <div>.
+		const line = section.createDiv({ cls: 'codemarker-history-entry' });
 		const md = renderEntryMarkdown(entry);
 		line.setText(md.startsWith('- ') ? md.slice(2) : md);
 	}
 }
 
 function renderDeleteAction(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
-	const btn = container.createEl('button', { text: 'Delete smart code', cls: 'qc-sc-delete-btn mod-warning' });
-	btn.onclick = () => {
+	const section = container.createDiv({ cls: 'codemarker-detail-danger-zone' });
+	const btn = section.createEl('button', { cls: 'codemarker-detail-delete-btn' });
+	const iconSpan = btn.createSpan({ cls: 'codemarker-detail-delete-icon' });
+	setIcon(iconSpan, 'trash-2');
+	btn.createSpan({ text: `Delete "${opts.smartCode.name}"` });
+	btn.addEventListener('click', () => {
 		new ConfirmModal({
 			app: opts.app,
 			title: `Delete smart code "${opts.smartCode.name}"?`,
-			message: 'This is reversible only via undo (Cmd+Z) within the session. Audit log preserves the deletion event.',
+			message: 'Audit log preserves the deletion event. Reversible only via undo (Cmd+Z) within the session.',
 			confirmLabel: 'Delete',
 			destructive: true,
 			onConfirm: () => {
@@ -188,5 +215,5 @@ function renderDeleteAction(container: HTMLElement, opts: SmartCodeDetailCallbac
 				opts.onShowList();
 			},
 		}).open();
-	};
+	});
 }

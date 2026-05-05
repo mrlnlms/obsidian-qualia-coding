@@ -15,7 +15,7 @@ describe('auditLog smart code entries', () => {
 			type: 'sc_predicate_edited',
 			addedLeafKinds: ['hasCode'], removedLeafKinds: ['inFolder'], changedLeafCount: 1,
 		};
-		expect(renderEntryMarkdown(entry)).toMatch(/predicate.*edited/i);
+		expect(renderEntryMarkdown(entry)).toMatch(/query.*edited/i);
 	});
 
 	it('coalesces sc_predicate_edited dentro de 60s (Set union dos kinds)', () => {

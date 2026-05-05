@@ -60,6 +60,8 @@ import { renderListShell, renderListContent } from './detailListRenderer';
 import { renderCodeDetail } from './detailCodeRenderer';
 import { renderMarkerDetail } from './detailMarkerRenderer';
 import { renderRelationDetail, type RelationContext } from './detailRelationRenderer';
+import { renderSmartCodeDetail } from './smartCodes/detailSmartCodeRenderer';
+import type { MarkerRef } from './smartCodes/types';
 import type { CodebookTreeState } from './codebookTreeRenderer';
 import { createExpandedState, collectAllCodesUnderFolder, buildFlatTree, type ExpandedState } from './hierarchyHelpers';
 import { showCodeContextMenu, showFolderContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
@@ -74,6 +76,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 	protected markerId: string | null = null;
 	protected codeId: string | null = null;
 	protected relationContext: RelationContext | null = null;
+	protected smartCodeId: string | null = null;
 
 	// Tree state for codebook panel
 	protected expanded: ExpandedState = createExpandedState();
@@ -107,6 +110,25 @@ export abstract class BaseCodeDetailView extends ItemView {
 	protected smartCodeAccess?: SmartCodesAccess;
 	private smartCodesCollapsed = false;
 	private unsubSmartCodes: (() => void) | null = null;
+
+	/** Attach cache.subscribe + registry.addOnMutate + model.onChange listeners for smart codes.
+	 *  Idempotent: detach first if already attached. Used by suspend/resumeRefresh em memo focus. */
+	private attachSmartCodeListeners(): void {
+		this.unsubSmartCodes?.();
+		if (!this.smartCodeAccess) { this.unsubSmartCodes = null; return; }
+		const access = this.smartCodeAccess;
+		const unsubCache = access.cache.subscribe(this.scheduleRefresh);
+		const unsubRegistry = access.registry.addOnMutate(this.scheduleRefresh);
+		// Workaround SC3: model.onChange dispara em apply/remove de code em marker, mas engines
+		// nao emitem qualia:markers-changed granular. Hookamos aqui pra reindexar SC cache.
+		const onMarkersMutated = () => access.refreshFromMarkers();
+		this.model.onChange(onMarkersMutated);
+		this.unsubSmartCodes = () => {
+			unsubCache();
+			unsubRegistry();
+			this.model.offChange(onMarkersMutated);
+		};
+	}
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -154,22 +176,9 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.model.registry.addVisibilityListener(onVisibilityChange);
 		this.register(() => this.model.registry.removeVisibilityListener(onVisibilityChange));
 
-		// Smart codes: refresh section quando counts ou definitions mudarem
-		if (this.smartCodeAccess) {
-			const access = this.smartCodeAccess;
-			const refreshSection = () => { if (this.listContentZone) this.refreshListContent(); };
-			const unsubCache = access.cache.subscribe(refreshSection);
-			const unsubRegistry = access.registry.addOnMutate(refreshSection);
-			// Workaround SC3: model.onChange dispara em apply/remove de code em marker, mas engines
-			// nao emitem qualia:markers-changed granular. Hookamos aqui pra reindexar SC cache.
-			const onMarkersMutated = () => access.refreshFromMarkers();
-			this.model.onChange(onMarkersMutated);
-			this.unsubSmartCodes = () => {
-				unsubCache();
-				unsubRegistry();
-				this.model.offChange(onMarkersMutated);
-			};
-		}
+		// Smart codes: refresh seja qual for o mode atual (list / SC detail) quando counts ou
+		// definitions mudarem. scheduleRefresh debounce + refreshCurrentMode rotea pelo modo.
+		if (this.smartCodeAccess) this.attachSmartCodeListeners();
 
 		// Keyboard: Esc limpa seleção, Delete/Backspace dispara bulk delete (se há seleção).
 		// Skip quando foco em input/textarea pra não consumir typing no search ou em edits inline.
@@ -222,6 +231,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.markerId = null;
 		this.codeId = null;
 		this.relationContext = null;
+		this.smartCodeId = null;
 		this.leaf.updateHeader?.();
 		this.renderList();
 	}
@@ -231,6 +241,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.markerId = null;
 		this.codeId = codeId;
 		this.relationContext = null;
+		this.smartCodeId = null;
 		this.leaf.updateHeader?.();
 		this.doRenderCodeDetail();
 	}
@@ -240,6 +251,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.markerId = markerId;
 		this.codeId = codeId;
 		this.relationContext = null;
+		this.smartCodeId = null;
 		this.leaf.updateHeader?.();
 		this.doRenderMarkerDetail();
 	}
@@ -249,11 +261,25 @@ export abstract class BaseCodeDetailView extends ItemView {
 		this.markerId = null;
 		this.codeId = ctx.sourceCodeId; // breadcrumb context: back goes to source code
 		this.relationContext = ctx;
+		this.smartCodeId = null;
 		this.leaf.updateHeader?.();
 		this.doRenderRelationDetail();
 	}
 
+	/** Navigate to smart-code-focused detail (matches list, history, edit predicate). */
+	showSmartCodeDetail(smartCodeId: string) {
+		this.markerId = null;
+		this.codeId = null;
+		this.relationContext = null;
+		this.smartCodeId = smartCodeId;
+		this.leaf.updateHeader?.();
+		this.doRenderSmartCodeDetail();
+	}
+
 	getDisplayText(): string {
+		if (this.smartCodeId) {
+			return this.smartCodeAccess?.registry.getById(this.smartCodeId)?.name ?? 'Smart Code Detail';
+		}
 		if (this.codeId) {
 			return this.model.registry.getById(this.codeId)?.name ?? 'Code Detail';
 		}
@@ -263,7 +289,9 @@ export abstract class BaseCodeDetailView extends ItemView {
 	// ─── Refresh routing ────────────────────────────────────
 
 	protected refreshCurrentMode() {
-		if (this.relationContext) {
+		if (this.smartCodeId) {
+			this.doRenderSmartCodeDetail();
+		} else if (this.relationContext) {
 			this.doRenderRelationDetail();
 		} else if (this.markerId && this.codeId) {
 			this.doRenderMarkerDetail();
@@ -837,11 +865,12 @@ export abstract class BaseCodeDetailView extends ItemView {
 			smartCodes: this.smartCodeAccess ? {
 				access: this.smartCodeAccess,
 				app: this.app,
-				state: { collapsed: this.smartCodesCollapsed, selectedSmartCodeId: null },
+				state: { collapsed: this.smartCodesCollapsed, selectedSmartCodeId: this.smartCodeId },
 				onToggleCollapsed: () => {
 					this.smartCodesCollapsed = !this.smartCodesCollapsed;
 					this.refreshListContent();
 				},
+				onSmartCodeClick: (id: string) => this.showSmartCodeDetail(id),
 			} : undefined,
 		};
 	}
@@ -1241,6 +1270,42 @@ export abstract class BaseCodeDetailView extends ItemView {
 			getMarkerLabel: (m) => this.getMarkerLabel(m),
 			onSaveMemo: (ref, content) => this.saveRelationMemoFromInline(ref, content),
 		}, this.app);
+	}
+
+	private doRenderSmartCodeDetail() {
+		const container = this.contentEl;
+		container.empty();
+		this.listMode = false;
+		this.listSearchWrap = null;
+		this.listContentZone = null;
+		if (this.listShellCleanup) { this.listShellCleanup(); this.listShellCleanup = null; }
+
+		if (!this.smartCodeId || !this.smartCodeAccess) return;
+		const access = this.smartCodeAccess;
+		const sc = access.registry.getById(this.smartCodeId);
+		// SC deletada externamente enquanto user estava no detail → volta pra list.
+		if (!sc) { this.showList(); return; }
+
+		renderSmartCodeDetail(container, {
+			smartCode: sc,
+			cache: access.cache,
+			smartCodeRegistry: access.registry,
+			registry: this.model.registry,
+			auditLog: this.auditAccess?.getLog() ?? [],
+			app: this.app,
+			onEditPredicate: () => access.openBuilder('edit', sc),
+			onShowList: () => this.showList(),
+			onNavigateToMarker: (ref: MarkerRef) => {
+				const marker = access.cache.getMarkerByRef(ref);
+				if (!marker) return;
+				this.navigateToMarker(marker as BaseMarker);
+			},
+			getMarkerLabel: (m) => this.getMarkerLabel(m),
+			shortenPath: (f) => this.shortenPath(f),
+			// Pause auto-refresh enquanto memo está focado pra textarea não ser destruída no rerender.
+			suspendRefresh: () => this.unsubSmartCodes?.(),
+			resumeRefresh: () => this.attachSmartCodeListeners(),
+		});
 	}
 
 	private saveRelationMemoFromInline(ref: import('./memoTypes').EntityRef, content: string): void {
