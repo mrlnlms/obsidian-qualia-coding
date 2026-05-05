@@ -120,8 +120,13 @@ function renderList(
 		});
 		const time = formatLocalTime(date);
 		row.createSpan({ text: time, cls: 'codebook-timeline-time' });
-		const dot = row.createSpan({ cls: 'codebook-timeline-dot' });
-		dot.style.backgroundColor = ev.codeColor ?? '#888';
+		const isSmartCode = (ev.entry as any).entity === 'smartCode';
+		if (isSmartCode) {
+			row.createSpan({ text: '⚡', cls: 'codebook-timeline-sc-icon' });
+		} else {
+			const dot = row.createSpan({ cls: 'codebook-timeline-dot' });
+			dot.style.backgroundColor = ev.codeColor ?? '#888';
+		}
 		const nameEl = row.createSpan({ text: ev.codeName, cls: 'codebook-timeline-codename' });
 		row.createSpan({ text: entryActionLabel(ev), cls: 'codebook-timeline-action' });
 		if (!ev.isDeleted) {

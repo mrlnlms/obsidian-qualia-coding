@@ -6149,3 +6149,11 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-sc-matches-more { color: var(--text-muted); padding-left: 16px; }
 .qc-sc-history-entry { padding: 2px 0; color: var(--text-muted); font-size: 0.9em; }
 .qc-sc-delete-btn { margin-top: 16px; }
+
+.codebook-timeline-sc-icon {
+	display: inline-block;
+	width: 14px;
+	text-align: center;
+	color: var(--text-accent);
+	font-size: 0.95em;
+}
