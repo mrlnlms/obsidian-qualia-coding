@@ -29,6 +29,11 @@ export class DataManager {
 			raw.video.settings = deepMerge(defaults.video.settings, raw.video.settings);
 			raw.pdf.settings = deepMerge(defaults.pdf.settings, raw.pdf.settings);
 			raw.general = deepMerge(defaults.general, raw.general);
+			// Hidrata campos novos do registry que podem não existir em data.json antigo
+			// (Smart Codes Tier 3 adicionados 2026-05-04). Mesmo pattern simétrico ao deepMerge de settings.
+			raw.registry.smartCodes ??= {};
+			raw.registry.smartCodeOrder ??= [];
+			raw.registry.nextSmartCodePaletteIndex ??= 0;
 			this.data = raw as QualiaData;
 			// Migrate legacy `memo: string` → MemoRecord (registry + groups + relations)
 			migrateLegacyMemos(this.data);
