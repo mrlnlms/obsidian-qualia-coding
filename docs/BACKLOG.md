@@ -9,7 +9,7 @@
 
 ## 🟢 Estado atual
 
-**Nenhum bloqueador aberto.** 1 item ativo (SC3 — emit granular, não bloqueante). Single item legado: §11 E3 (limitação de formato, won't-fix documentado).
+**Nenhum bloqueador aberto.** Smart Codes Tier 3 + Phase 2 (SC1, SC2, SC3) **100% fechado**. Single item legado: §11 E3 (limitação de formato, won't-fix documentado).
 
 ### 🔍 Sintomas observados sem repro confiável
 
@@ -62,24 +62,44 @@ Bonus fix: search no Code Detail (list mode) também filtra SCs (paridade).
 
 Commits: `158d65b` (SC2), `b7a21f2` (search fix).
 
-### SC3 — Emit granular `qualia:markers-changed` em models pra invalidação cirúrgica
+### ~~SC3 — Emit granular MarkerMutation pra invalidação cirúrgica~~ ✅ FEITO (2026-05-05)
 
-**O que tem hoje:** Quando markers mudam (add/remove/edit), cache faz **rebuild full** dos `indexByCode`/`indexByFile`. Pra ≤10k markers leva <500ms (per stress test), mas escala linear com volume.
+Cache invalidation cirúrgica em add/remove/update marker — SCs cujo predicate
+não depende dos codeIds afetados ficam intactos (matches cached). Vault com
+100 SCs e 1 marker editado: só os SCs dependentes recomputam.
 
-**O que seria ideal:** emit granular `(engine, fileId, codeIds)` em cada mutation → `cache.invalidateForMarker(args)` invalida só smart codes que dependem dos `codeIds` afetados (via `dependencyExtractor`). Já existe a infra: `cache.invalidateForMarker({engine, fileId, codeIds})` está implementado e testado, só falta os models emitirem.
+**Implementação:** `MarkerMutationEvent` type + canal `onMarkerMutation` paralelo a
+`onChange` em todos 5 engine models (markdown/pdf/image/csv/media). Cada mutation
+site (addCode, removeCode, removeMarker, updateMarker, updateMarkerFields,
+createShape, deleteShape, addCodeToShape, removeCodeFromShape, addCodeToManyRows,
+removeCodeFromManyRows, removeAllRowMarkersFromMany, migrateFilePath, undo)
+emite com codeIds afetados. Cache `applyMarkerMutation(event)` atualiza
+markerByRef incremental + invalida só SCs dependentes via dependencyExtractor.
 
-**Por que ficou pendente:** Task 2.4a do plan auditou que `markdownModel._notifyChange()` já existe mas é genérico (sem args). Padronizar emit nos 6 engines (markdown/pdf/image/csv/audio+video shared) seria refator de event signature. Decisão: aceitar full rebuild até virar gargalo.
+**Cleanups associados:**
+- Removido `indexByCode`/`indexByFile` (dead code — só rebuildIndexes preenchia,
+  compute itera markerByRef direto). 50 LOC eliminados.
+- Cascade fix: invalidateForCode/CaseVar/Folder/Group agora usam `invalidate()`
+  (recursa via smartCode leaf) em vez de `markDirty()` (que não cascateava).
+- Removido eye icon hide/show das SC rows (Code Detail + Hub modal) — UX
+  redundante com filter chip do Analytics; SC não tem visibility per-doc.
+- Clear All Markers agora limpa SC definitions também (SCs órfãos sem regulars
+  pra referenciar ficam quebrados).
+- getMarkerByRef fallback via composite key — caller que guardou ref antes de
+  REMOVE+ADD (rename, undo) ainda resolve o marker atual.
+- SC entries no Frequency mode ganham drag + Add to Board (decisão original
+  de gap deliberado revisada).
 
-**Como atacar:** plan Task 2.4a (linhas 1430-1530) + sites concretos:
-- `src/markdown/models/codeMarkerModel.ts:322` — `_notifyChange()` → adicionar emit
-- `src/pdf/pdfCodingModel.ts` — saveMarkers
-- `src/image/imageCodingModel.ts:240`
-- `src/csv/csvCodingModel.ts:80`
-- `src/media/mediaCodingModel.ts` (audio + video shared)
+**Smoke test cross-engine:** 14 fases validadas em vault real (markdown + PDF +
+image + CSV row/segment + audio + video). Granular invalidation confirmada via
+subscribe console capture: tema-A → ['SC_A', 'SC_combo'] (juntos, não separados),
+tema-C → silêncio (nada loga).
 
-Cada um adiciona helper privado `private emitMarkerChange(fileId, codeIds)` chamado nas mutations + listener pattern público `onMarkerChange(fn)`. Wire em `main.ts` (já tem o listener pronto, é só substituir `qualia:markers-changed` global por per-engine subscriptions).
-
-**Estimativa:** 1 sessão. Tem regression risk médio (eventos novos podem romper sequence assumptions em consumers existentes).
+Commits: `f8e786c` (base) → `82c3cd8` (cascade) → `0c47529` (CSV bulk + rename)
+→ `df9ecaa` (PDF undo + clearAll race + identity fallback) → `c035327`
+(showList instanceof) → `b4a84bc` (SC drag/board) → `bfa6164` (filter B)
+→ `638ae6e` (Memo View total fix) → `958de30` (eye removed) → `6386cee`
+(clear all SCs).
 
 ### ~~SC4 — Code Explorer integration~~ ✅ FEITO (2026-05-05)
 
