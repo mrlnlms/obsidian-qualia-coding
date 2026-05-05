@@ -9,7 +9,7 @@
 
 ## 🟢 Estado atual
 
-**Nenhum bloqueador aberto.** Single item ativo: §11 E3 (limitação de formato, won't-fix documentado). Tudo o que era débito técnico foi resolvido entre 2026-03 e 2026-04.
+**Nenhum bloqueador aberto.** 4 items ativos (Smart Codes Phase 2, todos não bloqueantes — funcionalidade core 100% utilizável). Single item legado: §11 E3 (limitação de formato, won't-fix documentado).
 
 ### 🔍 Sintomas observados sem repro confiável
 
@@ -23,6 +23,75 @@ Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não 
 - Code × Metadata ✅
 - Pastas nested ✅
 - Margin Panel customization (bloqueado por plugin externo)
+
+---
+
+## 🟡 Smart Codes Tier 3 — Phase 2 (não bloqueante)
+
+Smart Codes Tier 3 fechou em 2026-05-04 (branch `feat/smart-codes`, 19 commits, 175 testes novos, mergida em `main`). Funcionalidade core — criar/editar/deletar/visualizar/contar/export/import — está **100% acessível via command palette** (`Smart Codes: Open hub` + `Smart Codes: New`) e usa modal próprio. Round-trip QDPX e CSV tabular funcionam. Stress passou em <1s pra 10k markers + 100 smart codes.
+
+**Spec autoritativa:** `docs/superpowers/specs/2026-05-04-smart-codes-design.md`
+**Plan original:** `docs/superpowers/plans/2026-05-04-smart-codes.md` (5 chunks)
+**Tags de rollback:** `pre-smart-codes-baseline` (82cb949) ↔ `post-smart-codes-checkpoint` (4022808)
+
+### SC1 — Integração em Analytics modes (frequency / co-occurrence / evolution / sequential / codeMetadata / memoView)
+
+**O que falta:** smart codes não aparecem em modes do Analytics que iteram códigos. Hoje você cria um smart code e ele só aparece no Code Detail/List modal — não como linha na frequency chart, não como dimension no co-occurrence, etc.
+
+**Por que ficou pendente:** plan original (Tasks 4.1-4.4) prescrevia refator do `dataConsolidator` pra injetar smart codes como "virtual codes" no `ConsolidatedData`. Cada mode itera `data.codes` e conta `m.codes.includes(codeId)`. Pra smart codes, precisaria sintetizar matches via `cache.getMatches(scId)` e injetar em todos modes (6+ arquivos). Risco de regression alto em modes existentes que estão verdes hoje. Decisão pragmática: deferir.
+
+**Como atacar:** spec §10 + plan Task 4.1-4.4 (linhas 1928-2060 do plan) cobrem o design completo, incluindo decisões per-mode (cooccurrence intersect-sets, sequential timestamp inheritance, codeMetadata self-ref warning). Caminho:
+1. Adicionar `getCodeDimensions(data, registry, smartCodeCache): CodeDimension[]` em `src/analytics/data/dataReader.ts` retornando union {regular, smart} com `isSmart` flag e `getMatches()` resolved.
+2. Modificar `applyFilters` em `src/analytics/data/statsHelpers.ts` pra dispatch via prefix (`sc_*` resolve via cache, `c_*` mantém pipeline).
+3. Refatorar **6 modes** pra usar `getCodeDimensions` em vez de `Object.values(registry.definitions)`: `frequencyMode.ts`, `evolutionMode.ts`, `cooccurrenceMode.ts`, `sequentialMode.ts`, `codeMetadataMode.ts`, `memoView/*`.
+4. `renderCodesFilter` em `configSections.ts` ganha sub-section "Smart Codes" com chips ⚡.
+
+**Estimativa:** 1 sessão dedicada se pegar o plan referência. Tests existentes do Analytics são guard rails.
+
+### SC2 — Sidebar adapters por engine mostrando smart codes que matcham no file
+
+**O que falta:** sidebar de cada engine (markdown/pdf/image/audio/video/csv) lista códigos aplicados ao file. Smart codes não aparecem ali — usuário não vê "esse arquivo dá match em X smart codes".
+
+**Por que ficou pendente:** 6 sidebar adapters concretos pra modificar (`src/markdown/markdownSidebarAdapter.ts`, `src/pdf/views/pdfSidebarAdapter.ts`, etc.). Custo alto pra valor incremental — usuário pode ver matches per-file no Smart Code Detail modal já.
+
+**Como atacar:** plan Task 4.5 (linhas 2110-2180) tem o design. Pattern:
+1. Adicionar `renderSmartCodesGroup(container, fileId)` no `BaseSidebarAdapter` que lista smart codes onde `cache.getMatches(scId).some(r => r.fileId === fileId)`.
+2. Subscribe ao cache no init pra re-render quando muda.
+3. Click navega pro próximo match no file (reusa `navigateToMarker` existente).
+
+**Estimativa:** 1 sessão. Refator iterativo (1 engine por vez se quiser).
+
+### SC3 — Emit granular `qualia:markers-changed` em models pra invalidação cirúrgica
+
+**O que tem hoje:** Quando markers mudam (add/remove/edit), cache faz **rebuild full** dos `indexByCode`/`indexByFile`. Pra ≤10k markers leva <500ms (per stress test), mas escala linear com volume.
+
+**O que seria ideal:** emit granular `(engine, fileId, codeIds)` em cada mutation → `cache.invalidateForMarker(args)` invalida só smart codes que dependem dos `codeIds` afetados (via `dependencyExtractor`). Já existe a infra: `cache.invalidateForMarker({engine, fileId, codeIds})` está implementado e testado, só falta os models emitirem.
+
+**Por que ficou pendente:** Task 2.4a do plan auditou que `markdownModel._notifyChange()` já existe mas é genérico (sem args). Padronizar emit nos 6 engines (markdown/pdf/image/csv/audio+video shared) seria refator de event signature. Decisão: aceitar full rebuild até virar gargalo.
+
+**Como atacar:** plan Task 2.4a (linhas 1430-1530) + sites concretos:
+- `src/markdown/models/codeMarkerModel.ts:322` — `_notifyChange()` → adicionar emit
+- `src/pdf/pdfCodingModel.ts` — saveMarkers
+- `src/image/imageCodingModel.ts:240`
+- `src/csv/csvCodingModel.ts:80`
+- `src/media/mediaCodingModel.ts` (audio + video shared)
+
+Cada um adiciona helper privado `private emitMarkerChange(fileId, codeIds)` chamado nas mutations + listener pattern público `onMarkerChange(fn)`. Wire em `main.ts` (já tem o listener pronto, é só substituir `qualia:markers-changed` global por per-engine subscriptions).
+
+**Estimativa:** 1 sessão. Tem regression risk médio (eventos novos podem romper sequence assumptions em consumers existentes).
+
+### SC4 — Code Explorer integration (Smart Codes section no topo da árvore)
+
+**O que falta:** plan original Task 3.5 era pra adicionar seção "Smart Codes" colapsável no topo do `UnifiedCodeExplorerView`. Decidi pular durante implementação porque `unifiedCodeExplorerView` é específico (virtual scroll, layouts próprios) e refator seria complexo. Em vez disso, criei `SmartCodeListModal` standalone via command palette.
+
+**Trade-off atual:** discoverability fraca — usuário precisa abrir command palette pra ver smart codes. Não tem visual presence no codebook.
+
+**Como atacar:** Já existe o helper `src/core/smartCodes/smartCodesSection.ts` com `renderSmartCodesSection(container, smartCodes, cache, state, callbacks)` pronto e não wirado. Caminho:
+1. Estender `BaseCodeExplorerView` ou `UnifiedCodeExplorerView` pra chamar `renderSmartCodesSection` antes de `renderTree()`.
+2. Wire callbacks pra dispatch ao Smart Code Detail modal ou nova view dedicada.
+3. State `smartCodesSectionCollapsed: boolean` persistido em settings ou per-view.
+
+**Estimativa:** 1 sessão. Risco baixo (helper isolado, só adiciona).
 
 ---
 
