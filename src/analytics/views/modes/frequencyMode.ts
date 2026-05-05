@@ -284,26 +284,44 @@ function renderFrequencyCodeList(ctx: AnalyticsViewContext, results: FrequencyRe
     }
   }
 
+  // Helper compartilhado: deriva sources do bySource (ambos regulars e SC têm).
+  const derivedSources = (r: FrequencyResult): string[] => {
+    const out: string[] = [];
+    for (const [src, count] of Object.entries(r.bySource)) {
+      if (count > 0) out.push(src);
+    }
+    return out;
+  };
+  // SC description vazia (não tem campo equivalente — memo é semântica diferente). Regular
+  // codes usam codeDescMap. UI de board card lida com description vazia normalmente.
+  const descriptionFor = (r: FrequencyResult): string =>
+    r.isSmart ? "" : (codeDescMap.get(r.code) ?? "");
+  const sourcesFor = (r: FrequencyResult): string[] =>
+    r.isSmart ? derivedSources(r) : (codeSourcesMap.get(r.code) ?? derivedSources(r));
+
   for (const r of results) {
     const row = table.createDiv({ cls: "codemarker-freq-code-list-row" });
     if (r.isSmart) row.addClass("is-smart-code");
 
-    // Drag & drop to board — só pra regular codes. Board cards são pra regular code workflow;
-    // SC card é uma feature futura distinta, então não dispomos affordance enganosa hoje.
-    if (!r.isSmart) {
-      row.draggable = true;
-      row.addEventListener("dragstart", (e) => {
-        const desc = codeDescMap.get(r.code) ?? "";
-        const sources = codeSourcesMap.get(r.code) ?? [];
-        const payload = JSON.stringify({ type: "codemarker-code-card", codeName: r.code, color: r.color, description: desc, markerCount: r.total, sources });
-        e.dataTransfer!.setData("text/plain", payload);
-        e.dataTransfer!.effectAllowed = "copy";
-        row.addClass("codemarker-freq-row-dragging");
+    // Drag & drop to board — habilitado pra ambos. Card schema {name, color, desc, count, sources}
+    // funciona pra SC: description vazia, count = sc.matches.length, sources derivados de bySource.
+    row.draggable = true;
+    row.addEventListener("dragstart", (e) => {
+      const payload = JSON.stringify({
+        type: "codemarker-code-card",
+        codeName: r.code,
+        color: r.color,
+        description: descriptionFor(r),
+        markerCount: r.total,
+        sources: sourcesFor(r),
       });
-      row.addEventListener("dragend", () => {
-        row.removeClass("codemarker-freq-row-dragging");
-      });
-    }
+      e.dataTransfer!.setData("text/plain", payload);
+      e.dataTransfer!.effectAllowed = "copy";
+      row.addClass("codemarker-freq-row-dragging");
+    });
+    row.addEventListener("dragend", () => {
+      row.removeClass("codemarker-freq-row-dragging");
+    });
 
     const nameCell = row.createDiv({ cls: "codemarker-freq-code-list-name" });
     const swatch = nameCell.createDiv({ cls: "codemarker-freq-code-list-swatch" });
@@ -313,16 +331,12 @@ function renderFrequencyCodeList(ctx: AnalyticsViewContext, results: FrequencyRe
     row.createDiv({ cls: "codemarker-freq-code-list-count", text: String(r.total) });
 
     const actionCell = row.createDiv({ cls: "codemarker-freq-code-list-action" });
-    if (!r.isSmart) {
-      const boardBtn = actionCell.createDiv({ cls: "codemarker-tr-board-btn", attr: { "aria-label": "Add to Research Board" } });
-      setIcon(boardBtn, "layout-dashboard");
-      boardBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const desc = codeDescMap.get(r.code) ?? "";
-        const sources = codeSourcesMap.get(r.code) ?? [];
-        ctx.plugin.addCodeCardToBoard(r.code, r.color, desc, r.total, sources);
-        new Notice(`Added "${r.code}" to Research Board`);
-      });
-    }
+    const boardBtn = actionCell.createDiv({ cls: "codemarker-tr-board-btn", attr: { "aria-label": "Add to Research Board" } });
+    setIcon(boardBtn, "layout-dashboard");
+    boardBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      ctx.plugin.addCodeCardToBoard(r.code, r.color, descriptionFor(r), r.total, sourcesFor(r));
+      new Notice(`Added "${r.code}" to Research Board`);
+    });
   }
 }
