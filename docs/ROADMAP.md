@@ -139,7 +139,7 @@ Dois sub-itens com dívida técnica compartilhada (`scrollDOM stacking context` 
 
 > **📄 Doc autoritativo: `docs/parquet-lazy-design.md`** (539 linhas, revisado por Codex + Gemini + cross-review com `qualia-fit.md`). **Esta seção é resumo — sempre consultar o design doc antes de virar spec.**
 
-**Status atual (2026-05-01):** decisão técnica **cravada**. Pré-requisito (Convert-to-note) ✅ mergeado em 0.1.2. **Falta fechar 9 decisões pendentes** (§9 do design doc) e virar spec.
+**Status atual (2026-05-04):** ✅ **100% FECHADO — todas as 7 fases entregues 2026-05-03/04.** As 9 decisões §9 foram cravadas em 2026-05-03 (ver changelog do design doc). Doc preservado como referência arquitetural / post-mortem. Não é mais decisão pendente nem trabalho aberto.
 
 **Mudança vs versão anterior do ROADMAP:** parquet lazy **não é mais contingente a LLM coding**. Decisão invertida — atacar antes pra Fase 0 (`sourceRowId` estável) entregar dual-purpose: destrava parquet grande **e** destrava LLM em tabular (batch review, diff entre runs, anchoring estável após sort/filter).
 
@@ -176,17 +176,17 @@ Dois sub-itens com dívida técnica compartilhada (`scrollDOM stacking context` 
 
 Mitigação atual (size guard #28, 2026-04-28) já cobre crash via banner "Load anyway". Lazy loading fecha o gap "abrir arquivo grande funcionando + sort/filter/search/aggregate via SQL".
 
-**9 decisões pendentes antes de virar spec** (§9 do design doc):
+**9 decisões §9 — todas cravadas em 2026-05-03 e implementadas:**
 
-1. Threshold (50MB parquet/100MB CSV fixo vs setting)
-2. OPFS namespace (hash vs path)
-3. Sort/filter header em lazy (recomendação: SQL ativo)
-4. Search global (recomendação: SQL `LIKE`)
-5. QDPX export streaming (recomendação: streaming)
-6. Feature flag (recomendação: setting + default true na Fase 6)
-7. `sourceRowId` strategy (`ROW_NUMBER()` vs hash vs PK natural — recomendação: ROW_NUMBER)
-8. `textExtractor` lazy (recomendação: out-of-scope com mensagem)
-9. Mocks DuckDB-Wasm em jsdom (recomendação: interface mockável + suite integração separada)
+1. ✅ Threshold hardcoded (sem setting — detalhe técnico não vira preferência)
+2. ✅ OPFS namespace via path
+3. ✅ Sort/filter header via SQL ativo (§2.2)
+4. ✅ Search global via SQL `LIKE`
+5. ✅ QDPX export streaming completo
+6. ✅ Feature flag = constante de dev (não setting — descartado como hedge)
+7. ✅ `sourceRowId` via `ROW_NUMBER()` (validado em spike empírico)
+8. ✅ `textExtractor` lazy via SQL DuckDB (UNNEST + GROUP BY) — invertida 2026-05-03
+9. ✅ Mocks via interface `RowProvider` + suite integração separada
 
 **Pontos cegos validados:** Web Worker em plugin Obsidian ✅ · CSP `wasm-unsafe-eval` ✅ · OPFS cleanup em camadas ✅ · cross-platform ✅ · hot-reload + WASM gerenciável ✅ · 2GB ceiling do WASM 32-bit (documentar como limitação) · sem precedente público de DuckDB-Wasm em plugin Obsidian (risco de integração, não componente).
 
