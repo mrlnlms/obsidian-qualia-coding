@@ -23,8 +23,12 @@ export function renderMemoView(ctx: AnalyticsViewContext, filters: FilterConfig)
   const wrapper = container.createDiv({ cls: "memo-view-wrapper" });
   renderCoverageBanner(wrapper, result.coverage);
 
+  // SC memos não são contados em coverage (CoverageStats só tracking regulars). Sem incluir,
+  // user com só SC memo cai no "No memos yet" early-return e SC sections não renderizam.
+  const scMemoCount = result.byCode?.filter(s => s.isSmart && (!!s.codeMemo || s.markerMemos.length > 0)).length ?? 0;
   const total = result.coverage.codesWithMemo + result.coverage.groupsWithMemo +
-                result.coverage.relationsWithMemo + result.coverage.markersWithMemo;
+                result.coverage.relationsWithMemo + result.coverage.markersWithMemo +
+                scMemoCount;
   if (total === 0) {
     wrapper.createDiv({ cls: "codemarker-analytics-empty" }).createEl("p", {
       text: "No memos yet. Add memos in Code Detail, Group panel, or marker context to see them here.",
