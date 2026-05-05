@@ -35,6 +35,30 @@ export interface MarkerRef {
 	markerId: string;
 }
 
+/**
+ * Event emitido pelos engine models quando um marker é adicionado, removido ou modificado.
+ * Cache de Smart Codes consome via `applyMarkerMutation` pra invalidação granular —
+ * só os SCs que dependem dos `codeIds` afetados são marcados dirty (via dependencyExtractor).
+ *
+ * Convenção:
+ * - `marker` definido + `prevCodeIds` vazio  → ADD (novo marker)
+ * - `marker` undefined + `prevCodeIds` populado → REMOVE
+ * - `marker` definido + `prevCodeIds` populado  → UPDATE (mudou codes/magnitude/relations/etc)
+ *
+ * `codeIds` (campo derivado) = união pré+pós da mutação. É essa lista que dispara o
+ * invalidateForMarker no cache. Mutations que não tocam codes (ex: memo edit puro) podem
+ * passar `codeIds: []` — invalidate vira no-op.
+ */
+export interface MarkerMutationEvent {
+	engine: EngineType;
+	fileId: string;
+	markerId: string;
+	prevCodeIds: string[];
+	nextCodeIds: string[];
+	codeIds: string[];
+	marker: AnyMarker | undefined;
+}
+
 export interface CodeRelation {
 	label: string;
 	target: string;

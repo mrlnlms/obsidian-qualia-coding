@@ -66,22 +66,18 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		this.smartCodeAccess = smartCodeAccess;
 	}
 
-	/** Mirror do attachSmartCodeListeners do BaseCodeDetailView (linha 120-135). Cache subscribe pra
-	 *  invalidação granular, registry addOnMutate pra create/rename/delete, model.onChange pra
-	 *  workaround SC3 (re-index cache quando markers mudam — qualia:markers-changed ainda não
-	 *  emite granular). */
+	/** Cache subscribe + registry.addOnMutate pra UI refresh. Cache updates automatically via
+	 *  main.ts SC3 wiring (cada model emite onMarkerMutation → cache.applyMarkerMutation),
+	 *  então não precisa hookar refreshFromMarkers aqui. */
 	private attachSmartCodeListeners(): void {
 		this.unsubSmartCodes?.();
 		if (!this.smartCodeAccess) { this.unsubSmartCodes = null; return; }
 		const access = this.smartCodeAccess;
 		const unsubCache = access.cache.subscribe(this.scheduleRefresh);
 		const unsubRegistry = access.registry.addOnMutate(this.scheduleRefresh);
-		const onMarkersMutated = () => access.refreshFromMarkers();
-		this.model.onChange(onMarkersMutated);
 		this.unsubSmartCodes = () => {
 			unsubCache();
 			unsubRegistry();
-			this.model.offChange(onMarkersMutated);
 		};
 	}
 

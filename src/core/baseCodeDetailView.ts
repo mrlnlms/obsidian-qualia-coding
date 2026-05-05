@@ -115,22 +115,18 @@ export abstract class BaseCodeDetailView extends ItemView {
 	private smartCodesCollapsed = false;
 	private unsubSmartCodes: (() => void) | null = null;
 
-	/** Attach cache.subscribe + registry.addOnMutate + model.onChange listeners for smart codes.
-	 *  Idempotent: detach first if already attached. Used by suspend/resumeRefresh em memo focus. */
+	/** Attach cache.subscribe + registry.addOnMutate listeners for smart codes UI refresh.
+	 *  Cache updates automatically via main.ts onMarkerMutation wiring (SC3) — no need pra
+	 *  refreshFromMarkers fallback aqui. Idempotent: detach first if already attached. */
 	private attachSmartCodeListeners(): void {
 		this.unsubSmartCodes?.();
 		if (!this.smartCodeAccess) { this.unsubSmartCodes = null; return; }
 		const access = this.smartCodeAccess;
 		const unsubCache = access.cache.subscribe(this.scheduleRefresh);
 		const unsubRegistry = access.registry.addOnMutate(this.scheduleRefresh);
-		// Workaround SC3: model.onChange dispara em apply/remove de code em marker, mas engines
-		// nao emitem qualia:markers-changed granular. Hookamos aqui pra reindexar SC cache.
-		const onMarkersMutated = () => access.refreshFromMarkers();
-		this.model.onChange(onMarkersMutated);
 		this.unsubSmartCodes = () => {
 			unsubCache();
 			unsubRegistry();
-			this.model.offChange(onMarkersMutated);
 		};
 	}
 

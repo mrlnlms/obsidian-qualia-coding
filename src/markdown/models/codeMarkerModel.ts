@@ -5,7 +5,7 @@ import { CodeMarkerSettings, DEFAULT_SETTINGS } from './settings';
 import { CodeItem, SelectionSnapshot } from '../menu/menuTypes';
 import { getViewForFile as getViewForFileLookup } from '../cm6/utils/viewLookupUtils';
 import { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
-import type { CodeApplication, SidebarModelInterface } from '../../core/types';
+import type { CodeApplication, MarkerMutationEvent, SidebarModelInterface } from '../../core/types';
 import type { MemoRecord } from '../../core/memoTypes';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../../core/codeApplicationHelpers';
 import { setFileIdEffect } from '../cm6/markerStateField';
@@ -34,6 +34,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 	private _saveDirty = false;
 	private _saveTimer: ReturnType<typeof setTimeout> | null = null;
 	private _changeListeners: Set<() => void> = new Set();
+	private _markerMutationListeners: Set<(event: MarkerMutationEvent) => void> = new Set();
 	private _hoverListeners: Set<() => void> = new Set();
 	private _hoveredMarkerId: string | null = null;
 	private _hoveredMarkerIds: string[] = [];
@@ -179,9 +180,15 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		if (!marker) return false;
 
 		if (!hasCode(marker.codes, codeId)) {
+			const prevCodeIds = marker.codes.map(c => c.codeId);
 			marker.codes = addCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
 			if (color) marker.color = color;
+			this.emitMarkerMutation({
+				fileId: marker.fileId, markerId,
+				prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+				codeIds: [codeId], marker,
+			});
 			this.saveMarkers();
 			this.updateMarkersForFile(marker.fileId);
 			return true;
@@ -194,12 +201,19 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		if (!marker) return false;
 
 		if (hasCode(marker.codes, codeId)) {
+			const prevCodeIds = marker.codes.map(c => c.codeId);
 			marker.codes = removeCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
 
 			if (marker.codes.length === 0 && !keepIfEmpty) {
+				// removeMarker emite REMOVE event próprio — não duplicar.
 				this.removeMarker(markerId);
 			} else {
+				this.emitMarkerMutation({
+					fileId: marker.fileId, markerId,
+					prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+					codeIds: [codeId], marker,
+				});
 				this.saveMarkers();
 				this.updateMarkersForFile(marker.fileId);
 			}
@@ -290,8 +304,26 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		const markers = this.markers.get(oldPath);
 		if (!markers) return;
 		this.markers.delete(oldPath);
+		// Snapshot pré-rename pra emit (cache.refByKey usa fileId — precisa REMOVE old + ADD new
+		// pra que SC matches resolvam o newPath corretamente; senão refs ficam stale apontando
+		// pra path inexistente).
+		const snapshots = markers.map(m => ({ id: m.id, codes: m.codes.map(c => c.codeId), marker: m }));
 		for (const m of markers) m.fileId = newPath;
 		this.markers.set(newPath, markers);
+		// Per-marker REMOVE(oldPath) + ADD(newPath). codeIds populated → SCs com matches em
+		// markers afetados re-evaluate (mesmas matches, refs novos com newPath).
+		for (const snap of snapshots) {
+			this.emitMarkerMutation({
+				fileId: oldPath, markerId: snap.id,
+				prevCodeIds: snap.codes, nextCodeIds: [],
+				codeIds: snap.codes, marker: undefined,
+			});
+			this.emitMarkerMutation({
+				fileId: newPath, markerId: snap.id,
+				prevCodeIds: [], nextCodeIds: snap.codes,
+				codeIds: snap.codes, marker: snap.marker,
+			});
+		}
 		this.markDirtyForSave();
 		this._notifyChange();
 
@@ -320,6 +352,25 @@ export class CodeMarkerModel implements SidebarModelInterface {
 	offChange(fn: () => void): void { this._changeListeners.delete(fn); }
 	notifyChange(): void { this._notifyChange(); }
 	private _notifyChange(): void { for (const fn of this._changeListeners) fn(); }
+
+	// ─── Marker mutation listeners (SC3 — granular cache invalidation) ──
+	// Canal paralelo a onChange. Emitido por sites de mutação que conhecem codeIds afetados;
+	// SmartCodeCache subscribe pra atualizar markerByRef incremental + invalidate só SCs
+	// dependentes. UI continua via onChange (UI refresh) — independente.
+	onMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this._markerMutationListeners.add(fn); }
+	offMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this._markerMutationListeners.delete(fn); }
+	private emitMarkerMutation(args: { fileId: string; markerId: string; prevCodeIds: string[]; nextCodeIds: string[]; codeIds: string[]; marker: Marker | undefined }): void {
+		const event: MarkerMutationEvent = {
+			engine: 'markdown',
+			fileId: args.fileId,
+			markerId: args.markerId,
+			prevCodeIds: args.prevCodeIds,
+			nextCodeIds: args.nextCodeIds,
+			codeIds: args.codeIds,
+			marker: args.marker as unknown as MarkerMutationEvent['marker'],
+		};
+		for (const fn of this._markerMutationListeners) fn(event);
+	}
 
 	// ─── Hover state (bidirectional: sidebar ↔ editor) ──────
 
@@ -423,6 +474,14 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		if ('memo' in fields) marker.memo = fields.memo;
 		if ('colorOverride' in fields) marker.colorOverride = fields.colorOverride;
 		marker.updatedAt = Date.now();
+		// codeIds=[] — memo/color edits não afetam predicate eval (SC leaves não leem essas).
+		// Mas marker value mudou — emitMarkerMutation atualiza markerByRef pro novo valor.
+		const codeIds = marker.codes.map(c => c.codeId);
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId,
+			prevCodeIds: codeIds, nextCodeIds: codeIds,
+			codeIds: [], marker,
+		});
 		this.saveMarkers();
 		this.updateMarkersForFile(marker.fileId);
 	}
@@ -435,7 +494,17 @@ export class CodeMarkerModel implements SidebarModelInterface {
 
 		const index = fileMarkers.findIndex(m => m.id === marker.id);
 		if (index >= 0) {
+			const prev = fileMarkers[index]!;
+			const prevCodeIds = prev.codes.map(c => c.codeId);
+			const nextCodeIds = marker.codes.map(c => c.codeId);
 			fileMarkers[index] = marker;
+			// Union pré+pós cobre adds/removes. Se codes são iguais, só atualiza markerByRef.
+			const codeIds = prevCodeIds.length === nextCodeIds.length && prevCodeIds.every(c => nextCodeIds.includes(c))
+				? [] : Array.from(new Set([...prevCodeIds, ...nextCodeIds]));
+			this.emitMarkerMutation({
+				fileId: marker.fileId, markerId: marker.id,
+				prevCodeIds, nextCodeIds, codeIds, marker,
+			});
 			this.saveMarkers();
 		}
 	}
@@ -444,8 +513,15 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		for (const [fileId, markers] of this.markers.entries()) {
 			const index = markers.findIndex(m => m.id === markerId);
 			if (index >= 0) {
+				const removed = markers[index]!;
+				const prevCodeIds = removed.codes.map(c => c.codeId);
 				markers.splice(index, 1);
 				if (markers.length === 0) this.markers.delete(fileId);
+				this.emitMarkerMutation({
+					fileId, markerId,
+					prevCodeIds, nextCodeIds: [],
+					codeIds: prevCodeIds, marker: undefined,
+				});
 				this.saveMarkers();
 				this.updateMarkersForFile(fileId);
 				return true;

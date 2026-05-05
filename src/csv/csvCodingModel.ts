@@ -1,5 +1,6 @@
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { MarkerMutationEvent } from '../core/types';
 import type { SegmentMarker, RowMarker, CsvMarker, CodingSnapshot } from './csvCodingTypes';
 import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import type { RowProvider, MarkerRef } from './duckdb';
@@ -13,6 +14,7 @@ export class CsvCodingModel {
 	private segmentMarkers: SegmentMarker[] = [];
 	private rowMarkers: RowMarker[] = [];
 	private listeners: ChangeListener[] = [];
+	private markerMutationListeners = new Set<(event: MarkerMutationEvent) => void>();
 	private hoverListeners: HoverListener[] = [];
 	private _hoveredMarkerId: string | null = null;
 	private _hoveredCodeName: string | null = null;
@@ -99,6 +101,22 @@ export class CsvCodingModel {
 		this.listeners.push(fn);
 	}
 
+	// SC3 granular mutation channel.
+	onMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this.markerMutationListeners.add(fn); }
+	offMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this.markerMutationListeners.delete(fn); }
+	private emitMarkerMutation(args: { fileId: string; markerId: string; prevCodeIds: string[]; nextCodeIds: string[]; codeIds: string[]; marker: CsvMarker | undefined }): void {
+		const event: MarkerMutationEvent = {
+			engine: 'csv',
+			fileId: args.fileId,
+			markerId: args.markerId,
+			prevCodeIds: args.prevCodeIds,
+			nextCodeIds: args.nextCodeIds,
+			codeIds: args.codeIds,
+			marker: args.marker as unknown as MarkerMutationEvent['marker'],
+		};
+		for (const fn of this.markerMutationListeners) fn(event);
+	}
+
 	offChange(fn: ChangeListener): void {
 		this.listeners = this.listeners.filter(l => l !== fn);
 	}
@@ -172,6 +190,8 @@ export class CsvCodingModel {
 		let mutated = false;
 		for (const rowId of sourceRowIds) {
 			let marker = idx.get(rowId);
+			let prevCodeIds: string[];
+			let rowMutated = false;
 			if (!marker) {
 				marker = {
 					markerType: 'csv',
@@ -183,12 +203,23 @@ export class CsvCodingModel {
 				};
 				this.rowMarkers.push(marker);
 				idx.set(rowId, marker);
-				mutated = true;
+				prevCodeIds = [];
+				rowMutated = true;
+			} else {
+				prevCodeIds = marker.codes.map(c => c.codeId);
 			}
 			if (!hasCode(marker.codes, codeId)) {
 				marker.codes = addCodeApplication(marker.codes, codeId);
 				marker.updatedAt = now;
+				rowMutated = true;
+			}
+			if (rowMutated) {
 				mutated = true;
+				this.emitMarkerMutation({
+					fileId: file, markerId: marker.id,
+					prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+					codeIds: [codeId], marker,
+				});
 			}
 		}
 		if (mutated) this.notify();
@@ -203,10 +234,17 @@ export class CsvCodingModel {
 		for (const rowId of sourceRowIds) {
 			const marker = idx.get(rowId);
 			if (!marker || !hasCode(marker.codes, codeId)) continue;
+			const prevCodeIds = marker.codes.map(c => c.codeId);
 			marker.codes = removeCodeApplication(marker.codes, codeId);
 			marker.updatedAt = now;
 			mutated = true;
-			if (marker.codes.length === 0) toDeleteIds.add(marker.id);
+			const willDelete = marker.codes.length === 0;
+			if (willDelete) toDeleteIds.add(marker.id);
+			this.emitMarkerMutation({
+				fileId: file, markerId: marker.id,
+				prevCodeIds, nextCodeIds: willDelete ? [] : marker.codes.map(c => c.codeId),
+				codeIds: [codeId], marker: willDelete ? undefined : marker,
+			});
 		}
 		if (toDeleteIds.size > 0) {
 			for (const id of toDeleteIds) this.markerTextCache.delete(id);
@@ -223,7 +261,15 @@ export class CsvCodingModel {
 		const removed = this.rowMarkers.filter(m =>
 			m.fileId === file && m.column === column && rowSet.has(m.sourceRowId)
 		);
-		for (const m of removed) this.markerTextCache.delete(m.id);
+		for (const m of removed) {
+			this.markerTextCache.delete(m.id);
+			const codes = m.codes.map(c => c.codeId);
+			this.emitMarkerMutation({
+				fileId: m.fileId, markerId: m.id,
+				prevCodeIds: codes, nextCodeIds: [],
+				codeIds: codes, marker: undefined,
+			});
+		}
 		this.rowMarkers = this.rowMarkers.filter(m =>
 			!(m.fileId === file && m.column === column && rowSet.has(m.sourceRowId))
 		);
@@ -295,8 +341,14 @@ export class CsvCodingModel {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 		if (!hasCode(marker.codes, codeId)) {
+			const prevCodeIds = marker.codes.map(c => c.codeId);
 			marker.codes = addCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
+			this.emitMarkerMutation({
+				fileId: marker.fileId, markerId,
+				prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+				codeIds: [codeId], marker,
+			});
 			this.notify();
 		}
 	}
@@ -304,12 +356,20 @@ export class CsvCodingModel {
 	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty = false): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
+		const prevCodeIds = marker.codes.map(c => c.codeId);
 		marker.codes = removeCodeApplication(marker.codes, codeId);
 		marker.updatedAt = Date.now();
 		if (marker.codes.length === 0 && !keepIfEmpty) {
+			// removeMarker emite REMOVE event próprio.
 			this.removeMarker(markerId);
+		} else {
+			this.emitMarkerMutation({
+				fileId: marker.fileId, markerId,
+				prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+				codeIds: [codeId], marker,
+			});
+			this.notify();
 		}
-		this.notify();
 	}
 
 	// ── Lookup helpers ──
@@ -336,12 +396,18 @@ export class CsvCodingModel {
 	}
 
 	migrateFilePath(oldPath: string, newPath: string): void {
-		let changed = false;
+		const renamed: Array<{ id: string; codes: string[]; marker: CsvMarker }> = [];
 		for (const m of this.segmentMarkers) {
-			if (m.fileId === oldPath) { m.fileId = newPath; changed = true; }
+			if (m.fileId === oldPath) {
+				renamed.push({ id: m.id, codes: m.codes.map(c => c.codeId), marker: m });
+				m.fileId = newPath;
+			}
 		}
 		for (const m of this.rowMarkers) {
-			if (m.fileId === oldPath) { m.fileId = newPath; changed = true; }
+			if (m.fileId === oldPath) {
+				renamed.push({ id: m.id, codes: m.codes.map(c => c.codeId), marker: m });
+				m.fileId = newPath;
+			}
 		}
 		// Migrate rowDataCache key to avoid orphaned entries
 		const cachedRows = this.rowDataCache.get(oldPath);
@@ -349,7 +415,20 @@ export class CsvCodingModel {
 			this.rowDataCache.delete(oldPath);
 			this.rowDataCache.set(newPath, cachedRows);
 		}
-		if (changed) this.notify();
+		if (renamed.length === 0) return;
+		for (const r of renamed) {
+			this.emitMarkerMutation({
+				fileId: oldPath, markerId: r.id,
+				prevCodeIds: r.codes, nextCodeIds: [],
+				codeIds: r.codes, marker: undefined,
+			});
+			this.emitMarkerMutation({
+				fileId: newPath, markerId: r.id,
+				prevCodeIds: [], nextCodeIds: r.codes,
+				codeIds: r.codes, marker: r.marker,
+			});
+		}
+		this.notify();
 	}
 
 	getAllFileIds(): string[] {
@@ -551,14 +630,26 @@ export class CsvCodingModel {
 	removeMarker(id: string): boolean {
 		const segIdx = this.segmentMarkers.findIndex(m => m.id === id);
 		if (segIdx >= 0) {
+			const removed = this.segmentMarkers[segIdx]!;
 			this.segmentMarkers.splice(segIdx, 1);
 			this.markerTextCache.delete(id);
+			this.emitMarkerMutation({
+				fileId: removed.fileId, markerId: id,
+				prevCodeIds: removed.codes.map(c => c.codeId), nextCodeIds: [],
+				codeIds: removed.codes.map(c => c.codeId), marker: undefined,
+			});
 			return true;
 		}
 		const rowIdx = this.rowMarkers.findIndex(m => m.id === id);
 		if (rowIdx >= 0) {
+			const removed = this.rowMarkers[rowIdx]!;
 			this.rowMarkers.splice(rowIdx, 1);
 			this.markerTextCache.delete(id);
+			this.emitMarkerMutation({
+				fileId: removed.fileId, markerId: id,
+				prevCodeIds: removed.codes.map(c => c.codeId), nextCodeIds: [],
+				codeIds: removed.codes.map(c => c.codeId), marker: undefined,
+			});
 			return true;
 		}
 		return false;

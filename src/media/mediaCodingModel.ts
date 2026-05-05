@@ -6,7 +6,7 @@
 import type { DataManager } from '../core/dataManager';
 import type { MediaMarker, MediaFile, BaseMediaSettings } from './mediaTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
-import type { CodeApplication, CodeDefinition, QualiaData } from '../core/types';
+import type { CodeApplication, CodeDefinition, EngineType, MarkerMutationEvent, QualiaData } from '../core/types';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import { formatTime } from './formatTime';
 
@@ -23,6 +23,7 @@ export class MediaCodingModel<
 	files: F[] = [];
 
 	private changeListeners: Set<() => void> = new Set();
+	private markerMutationListeners: Set<(event: MarkerMutationEvent) => void> = new Set();
 	private hoverListeners: Set<() => void> = new Set();
 
 	private hoveredMarkerId: string | null = null;
@@ -104,6 +105,22 @@ export class MediaCodingModel<
 
 	offChange(fn: () => void): void {
 		this.changeListeners.delete(fn);
+	}
+
+	// SC3 granular mutation channel — engine determinado pelo sectionName ('audio' | 'video').
+	onMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this.markerMutationListeners.add(fn); }
+	offMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this.markerMutationListeners.delete(fn); }
+	private emitMarkerMutation(args: { fileId: string; markerId: string; prevCodeIds: string[]; nextCodeIds: string[]; codeIds: string[]; marker: M | undefined }): void {
+		const event: MarkerMutationEvent = {
+			engine: this.sectionName as EngineType,
+			fileId: args.fileId,
+			markerId: args.markerId,
+			prevCodeIds: args.prevCodeIds,
+			nextCodeIds: args.nextCodeIds,
+			codeIds: args.codeIds,
+			marker: args.marker as unknown as MarkerMutationEvent['marker'],
+		};
+		for (const fn of this.markerMutationListeners) fn(event);
 	}
 
 	// ── Hover state ──
@@ -200,6 +217,13 @@ export class MediaCodingModel<
 		marker.from = from;
 		marker.to = to;
 		marker.updatedAt = Date.now();
+		// from/to change doesn't affect SC predicate eval — codeIds=[].
+		const codeIds = marker.codes.map(c => c.codeId);
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId,
+			prevCodeIds: codeIds, nextCodeIds: codeIds,
+			codeIds: [], marker,
+		});
 		this.notify();
 	}
 
@@ -208,8 +232,14 @@ export class MediaCodingModel<
 			const f = this.files[i]!;
 			const idx = f.markers.findIndex((m) => m.id === markerId);
 			if (idx >= 0) {
+				const removed = f.markers[idx]!;
 				f.markers.splice(idx, 1);
 				if (f.markers.length === 0) this.files.splice(i, 1);
+				this.emitMarkerMutation({
+					fileId: removed.fileId, markerId,
+					prevCodeIds: removed.codes.map(c => c.codeId), nextCodeIds: [],
+					codeIds: removed.codes.map(c => c.codeId), marker: undefined,
+				});
 				this.notify();
 				return true;
 			}
@@ -233,8 +263,14 @@ export class MediaCodingModel<
 		if (!marker) return;
 		if (hasCode(marker.codes, codeId)) return;
 
+		const prevCodeIds = marker.codes.map(c => c.codeId);
 		marker.codes = addCodeApplication(marker.codes, codeId);
 		marker.updatedAt = Date.now();
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId,
+			prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+			codeIds: [codeId], marker,
+		});
 		this.notify();
 	}
 
@@ -243,14 +279,21 @@ export class MediaCodingModel<
 		if (!marker) return;
 
 		if (!hasCode(marker.codes, codeId)) return;
+		const prevCodeIds = marker.codes.map(c => c.codeId);
 		marker.codes = removeCodeApplication(marker.codes, codeId);
 
 		if (!keepIfEmpty && marker.codes.length === 0) {
+			// removeMarker emite REMOVE event próprio.
 			this.removeMarker(markerId);
 			return;
 		}
 
 		marker.updatedAt = Date.now();
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId,
+			prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+			codeIds: [codeId], marker,
+		});
 		this.notify();
 	}
 
@@ -291,6 +334,7 @@ export class MediaCodingModel<
 	migrateFilePath(oldPath: string, newPath: string): void {
 		const file = this.files.find((f) => f.path === oldPath);
 		if (file) {
+			const snapshots = file.markers.map(m => ({ id: m.id, codes: m.codes.map(c => c.codeId), marker: m }));
 			file.path = newPath;
 			for (const m of file.markers) {
 				m.fileId = newPath;
@@ -300,6 +344,18 @@ export class MediaCodingModel<
 			if (states[oldPath]) {
 				states[newPath] = states[oldPath];
 				delete states[oldPath];
+			}
+			for (const snap of snapshots) {
+				this.emitMarkerMutation({
+					fileId: oldPath, markerId: snap.id,
+					prevCodeIds: snap.codes, nextCodeIds: [],
+					codeIds: snap.codes, marker: undefined,
+				});
+				this.emitMarkerMutation({
+					fileId: newPath, markerId: snap.id,
+					prevCodeIds: [], nextCodeIds: snap.codes,
+					codeIds: snap.codes, marker: snap.marker as M,
+				});
 			}
 			this.notify();
 		}

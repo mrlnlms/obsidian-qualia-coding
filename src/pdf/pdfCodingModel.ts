@@ -1,7 +1,7 @@
 import type { PdfMarker, PdfShapeMarker, PercentShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
-import type { CodeDefinition, CodeApplication } from '../core/types';
+import type { CodeDefinition, CodeApplication, MarkerMutationEvent } from '../core/types';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 
 // ── Undo types ──
@@ -25,6 +25,7 @@ export class PdfCodingModel {
 	private undoStack: UndoEntry[] = [];
 	private suppressUndo = false;
 	private listeners = new Set<ChangeListener>();
+	private markerMutationListeners = new Set<(event: MarkerMutationEvent) => void>();
 	private hoverListeners = new Set<HoverListener>();
 	private hoverMarkerId: string | null = null;
 	private hoverCodeName: string | null = null;
@@ -95,6 +96,22 @@ export class PdfCodingModel {
 		this.listeners.delete(fn);
 	}
 
+	// SC3 granular mutation channel — emit em add/remove/update markers + shapes.
+	onMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this.markerMutationListeners.add(fn); }
+	offMarkerMutation(fn: (event: MarkerMutationEvent) => void): void { this.markerMutationListeners.delete(fn); }
+	private emitMarkerMutation(args: { fileId: string; markerId: string; prevCodeIds: string[]; nextCodeIds: string[]; codeIds: string[]; marker: PdfMarker | PdfShapeMarker | undefined }): void {
+		const event: MarkerMutationEvent = {
+			engine: 'pdf',
+			fileId: args.fileId,
+			markerId: args.markerId,
+			prevCodeIds: args.prevCodeIds,
+			nextCodeIds: args.nextCodeIds,
+			codeIds: args.codeIds,
+			marker: args.marker as unknown as MarkerMutationEvent['marker'],
+		};
+		for (const fn of this.markerMutationListeners) fn(event);
+	}
+
 	// ── Hover state (bidirectional highlight ↔ sidebar) ──
 
 	setHoverState(markerId: string | null, codeName: string | null, hoveredIds?: string[]): void {
@@ -121,23 +138,36 @@ export class PdfCodingModel {
 	// ── File rename tracking ──
 
 	migrateFilePath(oldPath: string, newPath: string): void {
-		let changed = false;
+		// Snapshot pré-rename pra emit REMOVE(old)+ADD(new) por marker/shape — cache atualiza
+		// refByKey pra newPath; senão SC matches retornam fileId obsoleto.
+		const renamed: Array<{ id: string; codes: string[]; marker: PdfMarker | PdfShapeMarker }> = [];
 		for (const marker of this.markers) {
 			if (marker.fileId === oldPath) {
+				renamed.push({ id: marker.id, codes: marker.codes.map(c => c.codeId), marker });
 				marker.fileId = newPath;
-				changed = true;
 			}
 		}
 		for (const shape of this.shapes) {
 			if (shape.fileId === oldPath) {
+				renamed.push({ id: shape.id, codes: shape.codes.map(c => c.codeId), marker: shape });
 				shape.fileId = newPath;
-				changed = true;
 			}
 		}
-		if (changed) {
-			this.save();
-			for (const fn of this.listeners) fn();
+		if (renamed.length === 0) return;
+		for (const r of renamed) {
+			this.emitMarkerMutation({
+				fileId: oldPath, markerId: r.id,
+				prevCodeIds: r.codes, nextCodeIds: [],
+				codeIds: r.codes, marker: undefined,
+			});
+			this.emitMarkerMutation({
+				fileId: newPath, markerId: r.id,
+				prevCodeIds: [], nextCodeIds: r.codes,
+				codeIds: r.codes, marker: r.marker,
+			});
 		}
+		this.save();
+		for (const fn of this.listeners) fn();
 	}
 
 	// ── Marker operations ──
@@ -185,8 +215,14 @@ export class PdfCodingModel {
 		if (!marker) return;
 		if (!hasCode(marker.codes, codeId)) {
 			this.pushUndo({ type: 'addCode', markerId, data: { ...marker, codes: [...marker.codes] } });
+			const prevCodeIds = marker.codes.map(c => c.codeId);
 			marker.codes = addCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
+			this.emitMarkerMutation({
+				fileId: marker.fileId, markerId,
+				prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+				codeIds: [codeId], marker,
+			});
 			this.notify();
 		}
 	}
@@ -197,10 +233,18 @@ export class PdfCodingModel {
 
 		this.pushUndo({ type: 'removeCode', markerId, data: { ...marker, codes: [...marker.codes] } });
 
+		const prevCodeIds = marker.codes.map(c => c.codeId);
 		marker.codes = removeCodeApplication(marker.codes, codeId);
 		marker.updatedAt = Date.now();
 
-		if (marker.codes.length === 0 && !keepIfEmpty) {
+		const willRemove = marker.codes.length === 0 && !keepIfEmpty;
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId,
+			prevCodeIds, nextCodeIds: willRemove ? [] : marker.codes.map(c => c.codeId),
+			codeIds: [codeId],
+			marker: willRemove ? undefined : marker,
+		});
+		if (willRemove) {
 			this.removeMarker(markerId, true);
 		}
 		this.notify();
@@ -213,6 +257,12 @@ export class PdfCodingModel {
 
 		this.pushUndo({ type: 'removeAllCodes', markerId, data: { ...marker, codes: [...marker.codes] } });
 
+		const prevCodeIds = marker.codes.map(c => c.codeId);
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId,
+			prevCodeIds, nextCodeIds: [],
+			codeIds: prevCodeIds, marker: undefined,
+		});
 		// Direct removal — single notify instead of N
 		this.removeMarker(markerId, true);
 		this.notify();
@@ -257,8 +307,16 @@ export class PdfCodingModel {
 			case 'addCode': {
 				const marker = this.findMarkerById(entry.markerId);
 				if (marker) {
+					const prevCodeIds = marker.codes.map(c => c.codeId);
 					marker.codes = this.reconcileCodes(entry.data.codes);
 					marker.updatedAt = Date.now();
+					const nextCodeIds = marker.codes.map(c => c.codeId);
+					this.emitMarkerMutation({
+						fileId: marker.fileId, markerId: marker.id,
+						prevCodeIds, nextCodeIds,
+						codeIds: Array.from(new Set([...prevCodeIds, ...nextCodeIds])),
+						marker,
+					});
 				}
 				break;
 			}
@@ -266,13 +324,27 @@ export class PdfCodingModel {
 			case 'removeAllCodes': {
 				const reconciledCodes = this.reconcileCodes(entry.data.codes);
 				if (reconciledCodes.length === 0) break; // All codes were deleted — nothing to restore
+				const reconciledIds = reconciledCodes.map(c => c.codeId);
 				let marker = this.findMarkerById(entry.markerId);
 				if (!marker) {
-					// Marker was deleted — restore it with reconciled codes
-					this.markers.push({ ...entry.data, codes: reconciledCodes });
+					// Marker was deleted — restore it with reconciled codes (ADD).
+					marker = { ...entry.data, codes: reconciledCodes };
+					this.markers.push(marker);
+					this.emitMarkerMutation({
+						fileId: marker.fileId, markerId: marker.id,
+						prevCodeIds: [], nextCodeIds: reconciledIds,
+						codeIds: reconciledIds, marker,
+					});
 				} else {
+					const prevCodeIds = marker.codes.map(c => c.codeId);
 					marker.codes = reconciledCodes;
 					marker.updatedAt = Date.now();
+					this.emitMarkerMutation({
+						fileId: marker.fileId, markerId: marker.id,
+						prevCodeIds, nextCodeIds: reconciledIds,
+						codeIds: Array.from(new Set([...prevCodeIds, ...reconciledIds])),
+						marker,
+					});
 				}
 				break;
 			}
@@ -285,6 +357,13 @@ export class PdfCodingModel {
 					marker.endOffset = entry.data.endOffset;
 					marker.text = entry.data.text;
 					marker.updatedAt = Date.now();
+					// Range change — codeIds=[] (não invalida SCs), só atualiza markerByRef value.
+					const codeIds = marker.codes.map(c => c.codeId);
+					this.emitMarkerMutation({
+						fileId: marker.fileId, markerId: marker.id,
+						prevCodeIds: codeIds, nextCodeIds: codeIds,
+						codeIds: [], marker,
+					});
 				}
 				break;
 			}
@@ -339,6 +418,11 @@ export class PdfCodingModel {
 			updatedAt: Date.now(),
 		};
 		this.shapes.push(shape);
+		this.emitMarkerMutation({
+			fileId: file, markerId: shape.id,
+			prevCodeIds: [], nextCodeIds: [],
+			codeIds: [], marker: shape,
+		});
 		this.notify();
 		return shape;
 	}
@@ -353,7 +437,15 @@ export class PdfCodingModel {
 	}
 
 	deleteShape(shapeId: string): void {
+		const target = this.findShapeById(shapeId);
 		this.shapes = this.shapes.filter(s => s.id !== shapeId);
+		if (target) {
+			this.emitMarkerMutation({
+				fileId: target.fileId, markerId: shapeId,
+				prevCodeIds: target.codes.map(c => c.codeId), nextCodeIds: [],
+				codeIds: target.codes.map(c => c.codeId), marker: undefined,
+			});
+		}
 		this.notify();
 	}
 
@@ -377,8 +469,14 @@ export class PdfCodingModel {
 		const shape = this.findShapeById(shapeId);
 		if (!shape) return;
 		if (!hasCode(shape.codes, codeId)) {
+			const prevCodeIds = shape.codes.map(c => c.codeId);
 			shape.codes = addCodeApplication(shape.codes, codeId);
 			shape.updatedAt = Date.now();
+			this.emitMarkerMutation({
+				fileId: shape.fileId, markerId: shapeId,
+				prevCodeIds, nextCodeIds: shape.codes.map(c => c.codeId),
+				codeIds: [codeId], marker: shape,
+			});
 			this.notify();
 		}
 	}
@@ -386,12 +484,19 @@ export class PdfCodingModel {
 	removeCodeFromShape(shapeId: string, codeId: string, keepIfEmpty = false): void {
 		const shape = this.findShapeById(shapeId);
 		if (!shape) return;
+		const prevCodeIds = shape.codes.map(c => c.codeId);
 		shape.codes = removeCodeApplication(shape.codes, codeId);
 		shape.updatedAt = Date.now();
 		if (shape.codes.length === 0 && !keepIfEmpty) {
+			// deleteShape emite REMOVE event próprio.
 			this.deleteShape(shapeId);
 			return;
 		}
+		this.emitMarkerMutation({
+			fileId: shape.fileId, markerId: shapeId,
+			prevCodeIds, nextCodeIds: shape.codes.map(c => c.codeId),
+			codeIds: [codeId], marker: shape,
+		});
 		this.notify();
 	}
 
@@ -400,6 +505,7 @@ export class PdfCodingModel {
 		if (!shape || shape.codes.length === 0) return;
 		shape.codes = [];
 		shape.updatedAt = Date.now();
+		// deleteShape emite REMOVE event próprio.
 		this.deleteShape(shapeId);
 	}
 
@@ -409,10 +515,19 @@ export class PdfCodingModel {
 	}
 
 	removeMarker(id: string, silent = false): boolean {
-		const before = this.markers.length;
+		const target = this.markers.find(m => m.id === id);
 		this.markers = this.markers.filter(m => m.id !== id);
-		const removed = this.markers.length < before;
-		if (removed && !silent) this.notify();
+		const removed = target !== undefined;
+		if (removed && !silent) {
+			this.emitMarkerMutation({
+				fileId: target!.fileId, markerId: id,
+				prevCodeIds: target!.codes.map(c => c.codeId),
+				nextCodeIds: [],
+				codeIds: target!.codes.map(c => c.codeId),
+				marker: undefined,
+			});
+			this.notify();
+		}
 		return removed;
 	}
 

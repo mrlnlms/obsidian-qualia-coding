@@ -70,19 +70,10 @@ export class SmartCodeListModal extends Modal {
 			const listEl = this.contentEl.createDiv({ cls: 'qc-sc-list' });
 			for (const sc of all) {
 				const row = listEl.createDiv({ cls: 'qc-sc-list-row' });
-				if (sc.hidden) row.addClass('is-hidden');
 
-				// Layout segue codebookTreeRenderer: swatch | eye | name | count | menu
+				// Layout: swatch | name | count | menu (sem eye — SC não tem visibility per-doc)
 				const swatch = row.createSpan({ cls: 'qc-sc-list-swatch' });
 				swatch.style.backgroundColor = sc.color;
-
-				const eyeBtn = row.createSpan({ cls: 'qc-sc-list-eye' });
-				setIcon(eyeBtn, sc.hidden ? 'eye-off' : 'eye');
-				eyeBtn.title = sc.hidden ? 'Show in markers' : 'Hide from markers';
-				eyeBtn.onclick = (e) => {
-					e.stopPropagation();
-					this.cfg.smartCodeRegistry.update(sc.id, { hidden: !sc.hidden });
-				};
 
 				row.createSpan({ text: sc.name, cls: 'qc-sc-list-name' });
 				// getCount sincrono — dropa pattern "…" que ficava preso sem trigger de compute externo.
@@ -99,7 +90,7 @@ export class SmartCodeListModal extends Modal {
 				row.style.cursor = 'pointer';
 				row.onclick = (e) => {
 					const target = e.target as HTMLElement;
-					if (target.closest('.qc-sc-list-eye') || target.closest('.qc-sc-list-menu')) return;
+					if (target.closest('.qc-sc-list-menu')) return;
 					this.currentDetailId = sc.id;
 					this.render();
 				};
@@ -133,11 +124,6 @@ export class SmartCodeListModal extends Modal {
 				},
 			}).open();
 		}));
-		menu.addItem((i) => i
-			.setTitle(sc.hidden ? 'Unhide' : 'Hide')
-			.setIcon(sc.hidden ? 'eye' : 'eye-off')
-			.onClick(() => this.cfg.smartCodeRegistry.update(sc.id, { hidden: !sc.hidden }))
-		);
 		menu.addSeparator();
 		menu.addItem((i) => i.setTitle('Delete').setIcon('trash').onClick(() => {
 			new ConfirmModal({

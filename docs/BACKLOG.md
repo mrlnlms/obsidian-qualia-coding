@@ -9,13 +9,17 @@
 
 ## 🟢 Estado atual
 
-**Nenhum bloqueador aberto.** 1 item ativo (SC3 — emit granular, não bloqueante). Single item legado: §11 E3 (limitação de formato, won't-fix documentado).
+**Nenhum bloqueador aberto.** Smart Codes Tier 3 + Phase 2 (SC1, SC2, SC3) **100% fechado**. Single item legado: §11 E3 (limitação de formato, won't-fix documentado).
 
 ### 🔍 Sintomas observados sem repro confiável
 
 Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não viram tarefa porque sem repro o debug é especulação. Investigar quando aparecer caso reproduzível.
 
 - **(2026-04-28→04-29) Suspeita de código duplicado no codebook** — investigação completa em `plugin-docs/archive/claude_sources/sessions/20260429-duplicate-code-bug-investigation.md`. Resumo: stress test com 1000 codes + 30 dup pairs deliberados (`scripts/seed-stress-codebook.mjs`) **não reproduziu**. H2 (registry tolera dups) descartada. H1 (virtual scroll) e H3 (race em mutações) sem repro mas não eliminadas. **Quando voltar a aparecer**, capturar `data.json` + screenshot + steps na hora — diagnóstico fica trivial com forensic data.
+
+- **(2026-05-05) Polígono em image marker reposicionado ao fechar/reabrir** — usuário criou polygon no centro de uma imagem; após close+reopen do file, polygon aparece deslocado no canto inferior. Outras shapes (rect/ellipse) parecem manter posição. Suspeita: serialization/deserialization de coords do polygon usa formato inconsistente entre absolute pixels vs normalized 0-1, ou renderer carrega centroid default em vez do salvo. Repro: criar polygon no meio da Screenshot 2026-05-02 at 11.35.26, fechar arquivo, reabrir. **Não relacionado a SC3** — bug pré-existente do image engine. Atacar quando entrar no image polish.
+
+- **(2026-05-05) Cmd+Z não desfaz coding em PDF** — usuário aplicou `tema-A` em 2 trechos de PDF text marker (count subiu 7→8→9), mas Cmd+Z não removeu o último coding. SC count permaneceu em 9 (sem mudança, comportamento esperado se nenhum mutation aconteceu — ou seja, undo não disparou nada). PdfCodingModel tem undo stack + reconcileCodes, mas Cmd+Z keybinding pode não estar wired no PDF view, ou o command não está chegando ao model. Não validamos o fix SC3 do undo path (commit `df9ecaa`) por causa disso — o emit existe e foi unit-testado, mas integração UI quebrada bloqueia smoke. **Atacar:** verificar wiring do undo no PdfCodingView (provavelmente falta keybinding registration ou conflito com Obsidian default Cmd+Z handler).
 
 Áreas com polish opcional foram migradas pro `ROADMAP.md`:
 - Relations Network (hover-focus ✅, filtro N+ ✅, edge bundling condicional)
@@ -58,24 +62,44 @@ Bonus fix: search no Code Detail (list mode) também filtra SCs (paridade).
 
 Commits: `158d65b` (SC2), `b7a21f2` (search fix).
 
-### SC3 — Emit granular `qualia:markers-changed` em models pra invalidação cirúrgica
+### ~~SC3 — Emit granular MarkerMutation pra invalidação cirúrgica~~ ✅ FEITO (2026-05-05)
 
-**O que tem hoje:** Quando markers mudam (add/remove/edit), cache faz **rebuild full** dos `indexByCode`/`indexByFile`. Pra ≤10k markers leva <500ms (per stress test), mas escala linear com volume.
+Cache invalidation cirúrgica em add/remove/update marker — SCs cujo predicate
+não depende dos codeIds afetados ficam intactos (matches cached). Vault com
+100 SCs e 1 marker editado: só os SCs dependentes recomputam.
 
-**O que seria ideal:** emit granular `(engine, fileId, codeIds)` em cada mutation → `cache.invalidateForMarker(args)` invalida só smart codes que dependem dos `codeIds` afetados (via `dependencyExtractor`). Já existe a infra: `cache.invalidateForMarker({engine, fileId, codeIds})` está implementado e testado, só falta os models emitirem.
+**Implementação:** `MarkerMutationEvent` type + canal `onMarkerMutation` paralelo a
+`onChange` em todos 5 engine models (markdown/pdf/image/csv/media). Cada mutation
+site (addCode, removeCode, removeMarker, updateMarker, updateMarkerFields,
+createShape, deleteShape, addCodeToShape, removeCodeFromShape, addCodeToManyRows,
+removeCodeFromManyRows, removeAllRowMarkersFromMany, migrateFilePath, undo)
+emite com codeIds afetados. Cache `applyMarkerMutation(event)` atualiza
+markerByRef incremental + invalida só SCs dependentes via dependencyExtractor.
 
-**Por que ficou pendente:** Task 2.4a do plan auditou que `markdownModel._notifyChange()` já existe mas é genérico (sem args). Padronizar emit nos 6 engines (markdown/pdf/image/csv/audio+video shared) seria refator de event signature. Decisão: aceitar full rebuild até virar gargalo.
+**Cleanups associados:**
+- Removido `indexByCode`/`indexByFile` (dead code — só rebuildIndexes preenchia,
+  compute itera markerByRef direto). 50 LOC eliminados.
+- Cascade fix: invalidateForCode/CaseVar/Folder/Group agora usam `invalidate()`
+  (recursa via smartCode leaf) em vez de `markDirty()` (que não cascateava).
+- Removido eye icon hide/show das SC rows (Code Detail + Hub modal) — UX
+  redundante com filter chip do Analytics; SC não tem visibility per-doc.
+- Clear All Markers agora limpa SC definitions também (SCs órfãos sem regulars
+  pra referenciar ficam quebrados).
+- getMarkerByRef fallback via composite key — caller que guardou ref antes de
+  REMOVE+ADD (rename, undo) ainda resolve o marker atual.
+- SC entries no Frequency mode ganham drag + Add to Board (decisão original
+  de gap deliberado revisada).
 
-**Como atacar:** plan Task 2.4a (linhas 1430-1530) + sites concretos:
-- `src/markdown/models/codeMarkerModel.ts:322` — `_notifyChange()` → adicionar emit
-- `src/pdf/pdfCodingModel.ts` — saveMarkers
-- `src/image/imageCodingModel.ts:240`
-- `src/csv/csvCodingModel.ts:80`
-- `src/media/mediaCodingModel.ts` (audio + video shared)
+**Smoke test cross-engine:** 14 fases validadas em vault real (markdown + PDF +
+image + CSV row/segment + audio + video). Granular invalidation confirmada via
+subscribe console capture: tema-A → ['SC_A', 'SC_combo'] (juntos, não separados),
+tema-C → silêncio (nada loga).
 
-Cada um adiciona helper privado `private emitMarkerChange(fileId, codeIds)` chamado nas mutations + listener pattern público `onMarkerChange(fn)`. Wire em `main.ts` (já tem o listener pronto, é só substituir `qualia:markers-changed` global por per-engine subscriptions).
-
-**Estimativa:** 1 sessão. Tem regression risk médio (eventos novos podem romper sequence assumptions em consumers existentes).
+Commits: `f8e786c` (base) → `82c3cd8` (cascade) → `0c47529` (CSV bulk + rename)
+→ `df9ecaa` (PDF undo + clearAll race + identity fallback) → `c035327`
+(showList instanceof) → `b4a84bc` (SC drag/board) → `bfa6164` (filter B)
+→ `638ae6e` (Memo View total fix) → `958de30` (eye removed) → `6386cee`
+(clear all SCs).
 
 ### ~~SC4 — Code Explorer integration~~ ✅ FEITO (2026-05-05)
 

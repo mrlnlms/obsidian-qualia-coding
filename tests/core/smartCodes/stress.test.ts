@@ -45,21 +45,17 @@ describe('SmartCodeCache stress (CI 2x headroom)', () => {
 		expect(dt).toBeLessThan(10);
 	});
 
-	it('referential identity: indexByCode aponta pros mesmos marker objects', () => {
+	it('referential identity: markerByRef aponta pros mesmos marker objects', () => {
 		const data = buildLargeFixture(SMALL);
 		const cache = new SmartCodeCache();
 		cache.configure(lookups(data));
 		cache.rebuildIndexes(data);
-		const idx = cache.__getIndexByCodeForTest();
-		const refs = idx.get('c_0');
-		expect(refs).toBeDefined();
-		expect(refs!.size).toBeGreaterThan(0);
 
 		const markerByRef = cache.__getMarkerByRefForTest();
-		// Pega o primeiro ref e valida que o marker no markerByRef é o mesmo objeto que está em data
-		const firstRef = [...refs!][0]!;
-		const cachedMarker = markerByRef.get(firstRef);
-		// Search no data por engine + fileId + markerId
+		expect(markerByRef.size).toBeGreaterThan(0);
+
+		// Pega 1 ref qualquer e valida identity contra o objeto em data.
+		const [firstRef, cachedMarker] = [...markerByRef][0]!;
 		let originalMarker: any;
 		if (firstRef.engine === 'markdown') originalMarker = (data.markdown.markers as any)[firstRef.fileId]?.find((m: any) => m.id === firstRef.markerId);
 		else if (firstRef.engine === 'pdf') originalMarker = (data.pdf.markers as any).find((m: any) => m.id === firstRef.markerId);
