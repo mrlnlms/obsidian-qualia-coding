@@ -7,7 +7,7 @@ import type { SmartCodeRegistry } from './smartCodeRegistryApi';
 import type { SmartCodeCache } from './cache';
 import { addChildToGroup, removeNodeAt, changeOperator, replaceLeafAt, type Path } from './builderTreeOps';
 import { validateForSave } from './predicateValidator';
-import type { CodeDefinition } from '../types';
+import type { CodeDefinition, FolderDefinition, GroupDefinition } from '../types';
 
 export interface BuilderConfig {
 	app: App;
@@ -84,8 +84,18 @@ export class SmartCodeBuilderModal extends Modal {
 	private renderNode(parent: HTMLElement, node: PredicateNode, path: Path): void {
 		const rowEl = parent.createDiv({ cls: 'qc-sc-builder-row' });
 		rowEl.style.paddingLeft = `${path.length * 16}px`;
-		if (isOpNode(node)) this.renderGroupRow(rowEl, node, path);
-		else this.renderLeafRow(rowEl, node, path);
+		if (isOpNode(node)) {
+			this.renderGroupRow(rowEl, node, path);
+		} else {
+			this.renderLeafRow(rowEl, node, path);
+			// Inline field-level error: aparece abaixo do row do leaf, estilo hint de form. Save fica
+			// disabled como signal global; banner topo só pra erros não-leaf (collision/cycle/etc).
+			const err = getLeafCompletionError(node);
+			if (err) {
+				const errEl = parent.createDiv({ cls: 'qc-sc-leaf-error', text: err });
+				errEl.style.paddingLeft = `${path.length * 16 + 16}px`;
+			}
+		}
 
 		// Render children inline (recursive)
 		if (isOpNode(node)) {
@@ -133,7 +143,8 @@ export class SmartCodeBuilderModal extends Modal {
 	}
 
 	private renderLeafRow(rowEl: HTMLElement, leaf: LeafNode, path: Path): void {
-		// Kind dropdown
+		// Kind dropdown — só kinds com UI funcional. caseVarRange e relationExists ficam fora
+		// até virarem feature completa (CLAUDE.md regra 4: dropdown option sem UI = bug).
 		const kindSelect = rowEl.createEl('select', { cls: 'qc-sc-kind-select' });
 		const kinds: Array<{ kind: LeafNode['kind']; label: string }> = [
 			{ kind: 'hasCode', label: 'Code is' },
@@ -178,7 +189,7 @@ export class SmartCodeBuilderModal extends Modal {
 				const c = this.cfg.registry.getById(leaf.codeId);
 				codeBtn.setText(c?.name ?? 'Pick code…');
 				codeBtn.onclick = () => this.openCodePicker((codeId) => {
-					this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, codeId } as any);
+					this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, codeId });
 					this.rerender();
 				});
 				if (leaf.kind !== 'hasCode') {
@@ -186,7 +197,7 @@ export class SmartCodeBuilderModal extends Modal {
 					nInput.addEventListener('input', () => {
 						const n = Number(nInput.value);
 						if (!Number.isNaN(n)) {
-							this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, n } as any);
+							this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, n });
 							this.schedulePreview();
 						}
 					});
@@ -194,10 +205,11 @@ export class SmartCodeBuilderModal extends Modal {
 				return;
 			}
 			case 'caseVarEquals': {
-				const varInput = rowEl.createEl('input', { type: 'text', value: leaf.variable, placeholder: 'variable name', cls: 'qc-sc-text-input' });
-				varInput.addEventListener('input', () => {
-					this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, variable: varInput.value });
-					this.schedulePreview();
+				const varBtn = rowEl.createEl('button', { cls: 'qc-sc-picker-btn' });
+				varBtn.setText(leaf.variable || 'Pick variable…');
+				varBtn.onclick = () => this.openCaseVarPicker((variable) => {
+					this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, variable });
+					this.rerender();
 				});
 				const valInput = rowEl.createEl('input', { type: 'text', value: String(leaf.value ?? ''), placeholder: 'value', cls: 'qc-sc-text-input' });
 				valInput.addEventListener('input', () => {
@@ -207,18 +219,22 @@ export class SmartCodeBuilderModal extends Modal {
 				return;
 			}
 			case 'inFolder': {
-				const folderInput = rowEl.createEl('input', { type: 'text', value: leaf.folderId, placeholder: 'folder id', cls: 'qc-sc-text-input' });
-				folderInput.addEventListener('input', () => {
-					this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, folderId: folderInput.value });
-					this.schedulePreview();
+				const folderBtn = rowEl.createEl('button', { cls: 'qc-sc-picker-btn' });
+				const f = leaf.folderId ? this.cfg.registry.getFolderById(leaf.folderId) : undefined;
+				folderBtn.setText(f?.name ?? 'Pick folder…');
+				folderBtn.onclick = () => this.openFolderPicker((folderId) => {
+					this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, folderId });
+					this.rerender();
 				});
 				return;
 			}
 			case 'inGroup': {
-				const groupInput = rowEl.createEl('input', { type: 'text', value: leaf.groupId, placeholder: 'group id', cls: 'qc-sc-text-input' });
-				groupInput.addEventListener('input', () => {
-					this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, groupId: groupInput.value });
-					this.schedulePreview();
+				const groupBtn = rowEl.createEl('button', { cls: 'qc-sc-picker-btn' });
+				const g = leaf.groupId ? this.cfg.registry.getAllGroups().find(x => x.id === leaf.groupId) : undefined;
+				groupBtn.setText(g?.name ?? 'Pick group…');
+				groupBtn.onclick = () => this.openGroupPicker((groupId) => {
+					this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, groupId });
+					this.rerender();
 				});
 				return;
 			}
@@ -271,6 +287,13 @@ export class SmartCodeBuilderModal extends Modal {
 
 	private runPreview(): void {
 		if (!this.previewEl) return;
+		// Predicate vazio = "vacuous truth" no evaluator (AND de [] é true). Matcharia todos markers,
+		// o que confunde — preview fica neutro até user adicionar a primeira condição.
+		if (isEmptyPredicate(this.predicate)) {
+			this.previewEl.setText('⚡ —');
+			this.updateSaveState();
+			return;
+		}
 		try {
 			const matches = this.cfg.smartCodeCache.computePreview(this.predicate);
 			const fileCount = new Set(matches.map(r => r.fileId)).size;
@@ -291,32 +314,26 @@ export class SmartCodeBuilderModal extends Modal {
 		);
 		this.saveBtn.disabled = !validation.valid || this.name.trim().length === 0;
 		if (this.bannerEl) {
-			// Estado inicial (predicate ainda vazio + sem nome) é "rascunho fresh", não erro.
-			// Suprime banner enquanto user ainda não começou — só mostra quando há rascunho parcial inválido.
-			const isPristine = this.predicate && 'op' in this.predicate
-				&& this.predicate.op !== 'NOT'
-				&& (this.predicate as any).children?.length === 0
-				&& this.name.trim().length === 0;
-			if (isPristine) {
+			// Banner global só pra erros que não são por-leaf (renderizados inline em renderNode).
+			// Predicate vazio também não vira banner — save desabilitado é signal suficiente.
+			const isPristine = isEmptyPredicate(this.predicate);
+			const nonInlineErrors = validation.errors.filter(e => e.code !== 'incomplete-leaf');
+			if (isPristine || (nonInlineErrors.length === 0 && validation.warnings.length === 0)) {
 				this.bannerEl.style.display = 'none';
-			} else if (validation.errors.length > 0) {
+			} else if (nonInlineErrors.length > 0) {
 				this.bannerEl.style.display = 'block';
-				this.bannerEl.setText(validation.errors[0]!.message);
+				this.bannerEl.setText(nonInlineErrors[0]!.message);
 				this.bannerEl.className = 'qc-sc-builder-banner qc-banner-error';
-			} else if (validation.warnings.length > 0) {
+			} else {
 				this.bannerEl.style.display = 'block';
 				this.bannerEl.setText(validation.warnings[0]!.message);
 				this.bannerEl.className = 'qc-sc-builder-banner qc-banner-warning';
-			} else {
-				this.bannerEl.style.display = 'none';
 			}
 		}
 	}
 
 	private collectCaseVarsKeys(): string[] {
-		// CaseVariablesRegistry não expõe listAllKeys. Por isso warning de broken-ref pra case var fica off
-		// até o registry expor a API. Retornar Set vazio significa: validator não checa case var refs.
-		return [];
+		return this.cfg.caseVarsRegistry.getAllVariableNames();
 	}
 
 	/** Snapshot do registry no shape que validateForSave espera. Reusada por updateSaveState e save. */
@@ -329,11 +346,19 @@ export class SmartCodeBuilderModal extends Modal {
 			(acc, sc) => { acc[sc.id] = sc; return acc; },
 			{} as Record<string, SmartCodeDefinition>,
 		);
+		const folderDefs = this.cfg.registry.getAllFolders().reduce(
+			(acc, f) => { acc[f.id] = f; return acc; },
+			{} as Record<string, FolderDefinition>,
+		);
+		const groupDefs = this.cfg.registry.getAllGroups().reduce(
+			(acc, g) => { acc[g.id] = g; return acc; },
+			{} as Record<string, GroupDefinition>,
+		);
 		return {
 			definitions: codeDefs,
 			smartCodes: scDefs,
-			folders: {},
-			groups: {},
+			folders: folderDefs,
+			groups: groupDefs,
 		};
 	}
 
@@ -382,6 +407,24 @@ export class SmartCodeBuilderModal extends Modal {
 		const all = this.cfg.smartCodeRegistry.getAll().filter(sc => sc.id !== this.cfg.initialDefinition?.id);
 		new SmartCodePickerModal(this.cfg.app, all, onPick).open();
 	}
+
+	private openFolderPicker(onPick: (folderId: string) => void): void {
+		const folders = this.cfg.registry.getAllFolders();
+		if (folders.length === 0) { new Notice('No folders defined yet.'); return; }
+		new FolderPickerModal(this.cfg.app, folders, onPick).open();
+	}
+
+	private openGroupPicker(onPick: (groupId: string) => void): void {
+		const groups = this.cfg.registry.getAllGroups();
+		if (groups.length === 0) { new Notice('No groups defined yet.'); return; }
+		new GroupPickerModal(this.cfg.app, groups, onPick).open();
+	}
+
+	private openCaseVarPicker(onPick: (variable: string) => void): void {
+		const keys = this.cfg.caseVarsRegistry.getAllVariableNames();
+		if (keys.length === 0) { new Notice('No case variables defined yet.'); return; }
+		new CaseVarPickerModal(this.cfg.app, keys, onPick).open();
+	}
 }
 
 class CodePickerModal extends FuzzySuggestModal<CodeDefinition> {
@@ -402,6 +445,64 @@ class SmartCodePickerModal extends FuzzySuggestModal<SmartCodeDefinition> {
 	getItems(): SmartCodeDefinition[] { return this.items; }
 	getItemText(item: SmartCodeDefinition): string { return item.name; }
 	onChooseItem(item: SmartCodeDefinition): void { this.onPick(item.id); }
+}
+
+class FolderPickerModal extends FuzzySuggestModal<FolderDefinition> {
+	constructor(app: App, private items: FolderDefinition[], private onPick: (folderId: string) => void) {
+		super(app);
+		this.setPlaceholder('Pick a folder…');
+	}
+	getItems(): FolderDefinition[] { return this.items; }
+	getItemText(item: FolderDefinition): string { return item.name; }
+	onChooseItem(item: FolderDefinition): void { this.onPick(item.id); }
+}
+
+class GroupPickerModal extends FuzzySuggestModal<GroupDefinition> {
+	constructor(app: App, private items: GroupDefinition[], private onPick: (groupId: string) => void) {
+		super(app);
+		this.setPlaceholder('Pick a group…');
+	}
+	getItems(): GroupDefinition[] { return this.items; }
+	getItemText(item: GroupDefinition): string { return item.name; }
+	onChooseItem(item: GroupDefinition): void { this.onPick(item.id); }
+}
+
+class CaseVarPickerModal extends FuzzySuggestModal<string> {
+	constructor(app: App, private items: string[], private onPick: (variable: string) => void) {
+		super(app);
+		this.setPlaceholder('Pick a case variable…');
+	}
+	getItems(): string[] { return this.items; }
+	getItemText(item: string): string { return item; }
+	onChooseItem(item: string): void { this.onPick(item); }
+}
+
+/** Predicate sem condição alguma — root é AND/OR com children=[]. Evaluator trata como "vacuous truth"
+ *  (matcha tudo), o que é confuso na UI. Caller checa antes de mostrar preview/banner. */
+function isEmptyPredicate(p: PredicateNode): boolean {
+	return isOpNode(p) && p.op !== 'NOT' && p.children.length === 0;
+}
+
+/** Mensagem de hint inline pra leaf incompleta (ref vazio). Null = leaf preenchida. */
+function getLeafCompletionError(leaf: LeafNode): string | null {
+	switch (leaf.kind) {
+		case 'hasCode':
+		case 'magnitudeGte':
+		case 'magnitudeLte':
+		case 'relationExists':
+			return leaf.codeId ? null : 'Pick a code';
+		case 'caseVarEquals':
+		case 'caseVarRange':
+			return leaf.variable ? null : 'Pick a case variable';
+		case 'inFolder':
+			return leaf.folderId ? null : 'Pick a folder';
+		case 'inGroup':
+			return leaf.groupId ? null : 'Pick a group';
+		case 'smartCode':
+			return leaf.smartCodeId ? null : 'Pick a smart code';
+		case 'engineType':
+			return null;  // tem default ('markdown'), nunca incompleto
+	}
 }
 
 function makeDefaultLeaf(kind: LeafNode['kind']): LeafNode {

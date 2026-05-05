@@ -6123,6 +6123,7 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-sc-num-input { width: 60px; }
 .qc-sc-text-input { width: 140px; }
 .qc-sc-todo { color: var(--text-muted); font-style: italic; font-size: 0.85em; }
+.qc-sc-leaf-error { color: var(--text-error); font-size: 0.8em; padding: 0 8px 4px; margin-top: -2px; }
 .qc-sc-builder-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--background-modifier-border); margin-top: 8px; }
 .qc-sc-preview { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .qc-sc-builder-actions { display: flex; gap: 8px; }
