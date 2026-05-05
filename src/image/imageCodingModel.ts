@@ -104,6 +104,7 @@ export class ImageCodingModel {
 		coords: NormalizedCoords,
 	): ImageMarker {
 		const marker: ImageMarker = {
+			markerType: 'image',
 			id: this.generateId(),
 			fileId,
 			shape,

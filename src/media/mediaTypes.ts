@@ -8,6 +8,7 @@ import type { MemoRecord } from '../core/memoTypes';
 
 /** A coded region on a timeline (used by both Audio and Video). */
 export interface MediaMarker {
+	markerType: 'audio' | 'video';
 	id: string;
 	fileId: string;
 	from: number;

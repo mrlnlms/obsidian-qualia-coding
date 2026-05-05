@@ -11,6 +11,7 @@ import type { CsvBaseMarker } from '../csv/views/csvSidebarAdapter';
 import type { AudioBaseMarker } from '../audio/views/audioSidebarAdapter';
 import type { VideoBaseMarker } from '../video/views/videoSidebarAdapter';
 import type { MediaBaseMarker } from '../media/mediaSidebarAdapter';
+import { formatTime } from '../media/formatTime';
 
 // ── Type guards ──────────────────────────────────────────────
 
@@ -44,19 +45,27 @@ export function getMarkerLabel(marker: BaseMarker, mdModel: CodeMarkerModel | nu
 		return `Page ${marker.page}`;
 	}
 	if (isImageMarker(marker)) {
-		return marker.shapeLabel;
+		// Adapter view fornece shapeLabel computado; engine raw (SC cache) tem só `shape`. Fallback inline.
+		if (marker.shapeLabel) return marker.shapeLabel;
+		const shape = (marker as { shape?: string }).shape;
+		return shape ? `${shape.charAt(0).toUpperCase()}${shape.slice(1)} region` : 'Image region';
 	}
 	if (isCsvMarker(marker)) {
 		if (marker.markerText) {
 			return marker.markerText.length > maxLength ? marker.markerText.substring(0, maxLength) + '...' : marker.markerText;
 		}
-		return marker.markerLabel;
+		if (marker.markerLabel) return marker.markerLabel;
+		// Engine raw tem sourceRowId+column; markerLabel é computado pelo adapter.
+		const raw = marker as { sourceRowId?: number; column?: string };
+		return `Row ${raw.sourceRowId ?? '?'} · ${raw.column ?? ''}`;
 	}
-	if (isAudioMarker(marker)) {
-		return marker.markerLabel;
-	}
-	if (isVideoMarker(marker)) {
-		return marker.markerLabel;
+	if (isAudioMarker(marker) || isVideoMarker(marker)) {
+		if (marker.markerLabel) return marker.markerLabel;
+		// Engine raw MediaMarker tem from/to (segundos); adapter view tem startTime/endTime.
+		const raw = marker as { startTime?: number; endTime?: number; from?: number; to?: number };
+		const start = raw.startTime ?? raw.from ?? 0;
+		const end = raw.endTime ?? raw.to ?? 0;
+		return `${formatTime(start)} → ${formatTime(end)}`;
 	}
 	// Markdown
 	const md = marker as Marker;

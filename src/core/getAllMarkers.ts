@@ -1,11 +1,10 @@
-import type { QualiaData, MarkerRef, EngineType } from './types';
+import type { QualiaData, MarkerRef, EngineType, AnyMarker } from './types';
 
 export interface MarkerWithRef {
 	engine: EngineType;
 	fileId: string;
 	markerId: string;
-	/** Marker object — shape depende do engine. Acesso a `codes` é garantido em todos. */
-	marker: { id: string; fileId: string; codes: unknown[] };
+	marker: AnyMarker;
 }
 
 /**
@@ -14,30 +13,28 @@ export interface MarkerWithRef {
  */
 export function getAllMarkers(data: QualiaData): MarkerWithRef[] {
 	const out: MarkerWithRef[] = [];
+	// Cast `as unknown as AnyMarker` consistente: engine markers têm shape de BaseMarker em runtime
+	// mas não declaram markerType na interface (legacy cross-cutting; ver NOTA types.ts).
+	const cast = (m: unknown): AnyMarker => m as AnyMarker;
 
-	// markdown: data.markdown.markers[fileId][]
 	for (const [fileId, markers] of Object.entries(data.markdown?.markers ?? {})) {
-		for (const m of markers) out.push({ engine: 'markdown', fileId, markerId: m.id, marker: m as any });
+		for (const m of markers) out.push({ engine: 'markdown', fileId, markerId: m.id, marker: cast(m) });
 	}
 
-	// pdf: text markers + shape markers (ambos flat com fileId field)
-	for (const m of data.pdf?.markers ?? []) out.push({ engine: 'pdf', fileId: m.fileId, markerId: m.id, marker: m as any });
-	for (const m of data.pdf?.shapes ?? []) out.push({ engine: 'pdf', fileId: m.fileId, markerId: m.id, marker: m as any });
+	for (const m of data.pdf?.markers ?? []) out.push({ engine: 'pdf', fileId: m.fileId, markerId: m.id, marker: cast(m) });
+	for (const m of data.pdf?.shapes ?? []) out.push({ engine: 'pdf', fileId: m.fileId, markerId: m.id, marker: cast(m) });
 
-	// image: flat com fileId
-	for (const m of data.image?.markers ?? []) out.push({ engine: 'image', fileId: m.fileId, markerId: m.id, marker: m as any });
+	for (const m of data.image?.markers ?? []) out.push({ engine: 'image', fileId: m.fileId, markerId: m.id, marker: cast(m) });
 
-	// audio/video: nested em files. file.path é o fileId.
 	for (const f of data.audio?.files ?? []) {
-		for (const m of f.markers ?? []) out.push({ engine: 'audio', fileId: f.path, markerId: m.id, marker: m as any });
+		for (const m of f.markers ?? []) out.push({ engine: 'audio', fileId: f.path, markerId: m.id, marker: cast(m) });
 	}
 	for (const f of data.video?.files ?? []) {
-		for (const m of f.markers ?? []) out.push({ engine: 'video', fileId: f.path, markerId: m.id, marker: m as any });
+		for (const m of f.markers ?? []) out.push({ engine: 'video', fileId: f.path, markerId: m.id, marker: cast(m) });
 	}
 
-	// csv: segment + row markers, ambos flat com fileId
-	for (const m of data.csv?.segmentMarkers ?? []) out.push({ engine: 'csv', fileId: m.fileId, markerId: m.id, marker: m as any });
-	for (const m of data.csv?.rowMarkers ?? []) out.push({ engine: 'csv', fileId: m.fileId, markerId: m.id, marker: m as any });
+	for (const m of data.csv?.segmentMarkers ?? []) out.push({ engine: 'csv', fileId: m.fileId, markerId: m.id, marker: cast(m) });
+	for (const m of data.csv?.rowMarkers ?? []) out.push({ engine: 'csv', fileId: m.fileId, markerId: m.id, marker: cast(m) });
 
 	return out;
 }

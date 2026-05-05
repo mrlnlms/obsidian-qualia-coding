@@ -10,7 +10,7 @@ import { SmartCodeBuilderModal } from './builderModal';
 import { renderSmartCodeDetail } from './detailSmartCodeRenderer';
 import { navigateToMarker } from '../navigateToMarker';
 import { ConfirmModal, PromptModal } from '../dialogs';
-import { getMarkerLabel as _getMarkerLabel, shortenPath as _shortenPath } from '../markerResolvers';
+import { shortenPath as _shortenPath } from '../markerResolvers';
 
 export interface SmartCodeListConfig {
 	app: App;
@@ -19,6 +19,8 @@ export interface SmartCodeListConfig {
 	registry: CodeDefinitionRegistry;
 	caseVarsRegistry: CaseVariablesRegistry;
 	mdModel: CodeMarkerModel | null;
+	/** Engine-rich label resolver — main.ts injeta usando csvModel/imageModel/etc. */
+	getMarkerLabel: (marker: BaseMarker) => string;
 	getAuditLog: () => AuditEntry[];
 	/** Quando setado, abre direto no detail desse SC em vez da lista. */
 	initialDetailId?: string | null;
@@ -165,7 +167,7 @@ export class SmartCodeListModal extends Modal {
 				this.close();
 				void navigateToMarker(this.cfg.app, marker as BaseMarker, this.cfg.mdModel);
 			},
-			getMarkerLabel: (m) => _getMarkerLabel(m, this.cfg.mdModel),
+			getMarkerLabel: (m) => this.cfg.getMarkerLabel(m),
 			shortenPath: (f) => _shortenPath(f),
 			// Suspend auto-refresh enquanto memo focado — re-render destruiria a textarea.
 			suspendRefresh: () => { this.unsubRegistry?.(); this.unsubRegistry = null; },

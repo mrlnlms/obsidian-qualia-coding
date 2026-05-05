@@ -3,6 +3,12 @@ import type { QualiaData, BaseMarker, MarkerType } from './types';
 import { createDefaultData } from './types';
 import { migrateLegacyMemos, migrateMarkerMemo } from './memoMigration';
 
+/** Lazy migration: engine markers do data.json antigo não declaravam markerType (decisão original
+ *  do commit 6d2e66a só passava por adapters). SmartCodes pula adapters e precisa do discriminator. */
+function ensureMarkerType(m: { markerType?: string }, type: MarkerType): void {
+	if (!m.markerType) m.markerType = type;
+}
+
 export class DataManager {
 	private data: QualiaData;
 	private plugin: Plugin;
@@ -41,18 +47,18 @@ export class DataManager {
 
 	private migrateMarkerMemos(): void {
 		for (const fileMarkers of Object.values(this.data.markdown.markers ?? {})) {
-			for (const m of fileMarkers) migrateMarkerMemo(m);
+			for (const m of fileMarkers) { migrateMarkerMemo(m); ensureMarkerType(m, 'markdown'); }
 		}
-		for (const m of this.data.pdf.markers ?? []) migrateMarkerMemo(m);
-		for (const s of this.data.pdf.shapes ?? []) migrateMarkerMemo(s);
-		for (const m of this.data.image.markers ?? []) migrateMarkerMemo(m);
-		for (const m of this.data.csv.segmentMarkers ?? []) migrateMarkerMemo(m);
-		for (const m of this.data.csv.rowMarkers ?? []) migrateMarkerMemo(m);
+		for (const m of this.data.pdf.markers ?? []) { migrateMarkerMemo(m); ensureMarkerType(m, 'pdf'); }
+		for (const s of this.data.pdf.shapes ?? []) { migrateMarkerMemo(s); ensureMarkerType(s, 'pdf'); }
+		for (const m of this.data.image.markers ?? []) { migrateMarkerMemo(m); ensureMarkerType(m, 'image'); }
+		for (const m of this.data.csv.segmentMarkers ?? []) { migrateMarkerMemo(m); ensureMarkerType(m, 'csv'); }
+		for (const m of this.data.csv.rowMarkers ?? []) { migrateMarkerMemo(m); ensureMarkerType(m, 'csv'); }
 		for (const f of this.data.audio.files ?? []) {
-			for (const m of f.markers) migrateMarkerMemo(m);
+			for (const m of f.markers) { migrateMarkerMemo(m); ensureMarkerType(m, 'audio'); }
 		}
 		for (const f of this.data.video.files ?? []) {
-			for (const m of f.markers) migrateMarkerMemo(m);
+			for (const m of f.markers) { migrateMarkerMemo(m); ensureMarkerType(m, 'video'); }
 		}
 	}
 

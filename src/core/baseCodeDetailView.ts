@@ -53,6 +53,10 @@ export interface SmartCodesAccess {
 	cache: import('./smartCodes/cache').SmartCodeCache;
 	/** Re-indexa markers + invalida todos SC matches. Workaround SC3 — chamado quando model emite onChange. */
 	refreshFromMarkers(): void;
+	/** Engine-rich label do marker. SC cache armazena raw engine markers (não passam por markerToBase
+	 *  do adapter), então delega aos models por engine pra computar labels que não estão no engine type
+	 *  (cell text de CSV, shapeLabel de Image, etc). */
+	getMarkerLabel(marker: BaseMarker): string;
 	openHub(initialDetailId?: string | null): void;
 	openBuilder(mode: 'create' | 'edit', initialDefinition?: import('./types').SmartCodeDefinition): void;
 }
@@ -1300,7 +1304,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 				if (!marker) return;
 				this.navigateToMarker(marker as BaseMarker);
 			},
-			getMarkerLabel: (m) => this.getMarkerLabel(m),
+			getMarkerLabel: (m) => access.getMarkerLabel(m),
 			shortenPath: (f) => this.shortenPath(f),
 			// Pause auto-refresh enquanto memo está focado pra textarea não ser destruída no rerender.
 			suspendRefresh: () => this.unsubSmartCodes?.(),

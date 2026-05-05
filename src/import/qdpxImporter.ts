@@ -714,6 +714,7 @@ export function createPdfMarker(
     // placeholders — the marker won't render highlights but the code/memo are
     // attached and visible in the sidebar.
     const marker: PdfMarker = {
+      markerType: 'pdf',
       id: `import_${sel.guid}`,
       fileId: filePath,
       page: extracted.page,
@@ -744,6 +745,7 @@ export function createPdfMarker(
     const pageHeight = pageDim?.height ?? 792;
     const coords = pdfRectToNormalized(sel.firstX, sel.firstY, sel.secondX, sel.secondY, pageWidth, pageHeight);
     const marker: PdfShapeMarker = {
+      markerType: 'pdf',
       id: `import_${sel.guid}`,
       fileId: filePath,
       codes,
@@ -798,6 +800,7 @@ async function createImageMarker(
   const coords = pixelsToNormalized(sel.firstX, sel.firstY, sel.secondX, sel.secondY, imgWidth, imgHeight);
   const imgData = dataManager.section('image');
   const marker: ImageMarker = {
+    markerType: 'image',
     id: `import_${sel.guid}`,
     fileId: filePath,
     codes,
@@ -832,6 +835,7 @@ function createMediaMarker(
   }
 
   const marker: MediaMarker = {
+    markerType: engine,
     id: `import_${sel.guid}`,
     fileId: filePath,
     codes,
@@ -873,6 +877,7 @@ function createTabularMarker(
 
   if (isSegment) {
     const marker: SegmentMarker = {
+      markerType: 'csv',
       id,
       fileId: filePath,
       sourceRowId: sel.sourceRowId,
@@ -887,6 +892,7 @@ function createTabularMarker(
     csvData.segmentMarkers.push(marker);
   } else {
     const marker: RowMarker = {
+      markerType: 'csv',
       id,
       fileId: filePath,
       sourceRowId: sel.sourceRowId,

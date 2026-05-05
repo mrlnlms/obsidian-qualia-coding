@@ -156,6 +156,7 @@ export class PdfCodingModel {
 		if (existing) return existing;
 
 		const marker: PdfMarker = {
+			markerType: 'pdf',
 			id: this.generateId(),
 			fileId: file, page,
 			beginIndex, beginOffset,
@@ -327,6 +328,7 @@ export class PdfCodingModel {
 
 	createShape(file: string, page: number, coords: PercentShapeCoords): PdfShapeMarker {
 		const shape: PdfShapeMarker = {
+			markerType: 'pdf',
 			id: this.generateId(),
 			fileId: file,
 			page,

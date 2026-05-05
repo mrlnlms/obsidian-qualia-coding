@@ -1,9 +1,12 @@
 import type { PredicateNode, OpNode, LeafNode, MarkerRef, AnyMarker, SmartCodeDefinition } from './types';
 import { isOpNode } from './types';
+import type { CodeApplication } from '../types';
 import { hasCode, getMagnitude } from '../codeApplicationHelpers';
 
+type CaseVarValue = string | number | boolean | undefined;
+
 export interface EvaluatorContext {
-	caseVars: { get: (fileId: string, variable: string) => string | number | boolean | undefined };
+	caseVars: { get: (fileId: string, variable: string) => CaseVarValue };
 	codesInFolder: (folderId: string) => string[];
 	codesInGroup: (groupId: string) => string[];
 	smartCodes: Record<string, SmartCodeDefinition>;
@@ -26,7 +29,7 @@ function evaluateOp(node: OpNode, ref: MarkerRef, marker: AnyMarker, ctx: Evalua
 }
 
 function evaluateLeaf(node: LeafNode, ref: MarkerRef, marker: AnyMarker, ctx: EvaluatorContext): boolean {
-	const codes = (marker as any).codes ?? [];
+	const codes = marker.codes;
 	switch (node.kind) {
 		case 'hasCode':         return hasCode(codes, node.codeId);
 		case 'caseVarEquals':   return ctx.caseVars.get(ref.fileId, node.variable) === node.value;
@@ -41,7 +44,7 @@ function evaluateLeaf(node: LeafNode, ref: MarkerRef, marker: AnyMarker, ctx: Ev
 	}
 }
 
-function magnitudeAsNumber(codes: any[], codeId: string, fallback: number): number {
+function magnitudeAsNumber(codes: CodeApplication[], codeId: string, fallback: number): number {
 	const raw = getMagnitude(codes, codeId);
 	if (raw === undefined || raw === null || raw === '') return fallback;
 	const n = Number(raw);
@@ -56,7 +59,7 @@ function evaluateNested(smartCodeId: string, ref: MarkerRef, marker: AnyMarker, 
 	return evaluate(target.predicate, ref, marker, newCtx);
 }
 
-function inRange(val: any, node: LeafNode & { kind: 'caseVarRange' }): boolean {
+function inRange(val: CaseVarValue, node: LeafNode & { kind: 'caseVarRange' }): boolean {
 	if (val === undefined || val === null) return false;
 	if (node.min !== undefined && Number(val) < node.min) return false;
 	if (node.max !== undefined && Number(val) > node.max) return false;
@@ -65,7 +68,7 @@ function inRange(val: any, node: LeafNode & { kind: 'caseVarRange' }): boolean {
 	return true;
 }
 
-function checkRelation(codes: any[], node: LeafNode & { kind: 'relationExists' }): boolean {
+function checkRelation(codes: CodeApplication[], node: LeafNode & { kind: 'relationExists' }): boolean {
 	for (const app of codes) {
 		if (app.codeId !== node.codeId) continue;
 		for (const rel of app.relations ?? []) {

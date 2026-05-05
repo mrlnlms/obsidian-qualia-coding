@@ -3,6 +3,7 @@ import type { MemoRecord } from '../core/memoTypes';
 
 /** Coding of a specific text segment within a cell */
 export interface SegmentMarker {
+	markerType: 'csv';
 	id: string;
 	fileId: string;     // CSV file path
 	sourceRowId: number; // Stable row identity. In eager mode == papaparse row index (0-based).
@@ -18,6 +19,7 @@ export interface SegmentMarker {
 
 /** Coding of an entire row for a column */
 export interface RowMarker {
+	markerType: 'csv';
 	id: string;
 	fileId: string;
 	sourceRowId: number;

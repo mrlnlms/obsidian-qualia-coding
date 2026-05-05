@@ -137,6 +137,7 @@ export class CsvCodingModel {
 		const existing = this.rowMarkers.find(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
 		if (existing) return existing;
 		const marker: RowMarker = {
+			markerType: 'csv',
 			id: this.generateId(),
 			fileId: file, sourceRowId, column,
 			codes: [],
@@ -173,6 +174,7 @@ export class CsvCodingModel {
 			let marker = idx.get(rowId);
 			if (!marker) {
 				marker = {
+					markerType: 'csv',
 					id: this.generateId(),
 					fileId: file, sourceRowId: rowId, column,
 					codes: [],
@@ -272,6 +274,7 @@ export class CsvCodingModel {
 		);
 		if (existing) return existing;
 		const marker: SegmentMarker = {
+			markerType: 'csv',
 			id: this.generateId(),
 			fileId: snapshot.fileId,
 			sourceRowId: snapshot.sourceRowId,

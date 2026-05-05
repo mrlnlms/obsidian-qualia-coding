@@ -11,6 +11,7 @@ import type { MemoRecord } from '../core/memoTypes';
 export type RegionShape = 'rect' | 'ellipse' | 'polygon';
 
 export interface ImageMarker {
+	markerType: 'image';
 	id: string;
 	fileId: string;          // image file path in vault
 	shape: RegionShape;

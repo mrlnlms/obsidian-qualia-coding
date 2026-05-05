@@ -154,6 +154,7 @@ export class MediaCodingModel<
 
 		const now = Date.now();
 		const marker = {
+			markerType: this.sectionName as 'audio' | 'video',
 			id: this.generateId(),
 			fileId: filePath,
 			from,

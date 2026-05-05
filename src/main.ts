@@ -42,6 +42,7 @@ import { SmartCodeCache } from './core/smartCodes/cache';
 import { SmartCodeRegistry } from './core/smartCodes/smartCodeRegistryApi';
 import { SmartCodeListModal } from './core/smartCodes/smartCodeListModal';
 import { SmartCodeBuilderModal } from './core/smartCodes/builderModal';
+import { getMarkerLabel } from './core/markerResolvers';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -439,6 +440,21 @@ export default class QualiaCodingPlugin extends Plugin {
 				this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
 				this.smartCodeCache.invalidateAll();
 			},
+			getMarkerLabel: (marker: import('./core/types').BaseMarker): string => {
+				const TRUNC = 60;
+				// CSV: cell text via model (markerText cache + DuckDB lookup pra lazy mode)
+				if (marker.markerType === 'csv' && this.csvModel) {
+					const text = this.csvModel.getMarkerText(marker as import('./csv/csvCodingTypes').CsvMarker);
+					if (text) return text.length > TRUNC ? text.slice(0, TRUNC) + '...' : text;
+					return this.csvModel.getMarkerLabel(marker as import('./csv/csvCodingTypes').CsvMarker);
+				}
+				// Image: shapeLabel rico (área/dimensões) via model
+				if (marker.markerType === 'image' && this.imageModel) {
+					return this.imageModel.getMarkerLabel(marker as import('./image/imageCodingTypes').ImageMarker);
+				}
+				// Markdown/PDF: helper já lê text do engine type direto. Audio/Video: timecode via fallback.
+				return getMarkerLabel(marker, this.markdownModel ?? null);
+			},
 			openHub: (initialDetailId?: string | null) => {
 				this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
 				new SmartCodeListModal({
@@ -448,6 +464,7 @@ export default class QualiaCodingPlugin extends Plugin {
 					registry: this.sharedRegistry,
 					caseVarsRegistry: this.caseVariablesRegistry,
 					mdModel: this.markdownModel ?? null,
+					getMarkerLabel: smartCodeAccess.getMarkerLabel,
 					getAuditLog: () => (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [],
 					initialDetailId,
 				}).open();
@@ -486,35 +503,12 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.addCommand({
 			id: 'smart-codes-open',
 			name: 'Smart Codes: Open hub',
-			callback: () => {
-				// Rebuild indexes pra capturar markers criados após onload (engines não emitem qualia:markers-changed ainda — pendente SC3)
-				this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
-				new SmartCodeListModal({
-					app: this.app,
-					smartCodeRegistry: this.smartCodeRegistry,
-					smartCodeCache: this.smartCodeCache,
-					registry: this.sharedRegistry,
-					caseVarsRegistry: this.caseVariablesRegistry,
-					mdModel: this.markdownModel ?? null,
-					getAuditLog: () => (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [],
-				}).open();
-			},
+			callback: () => smartCodeAccess.openHub(),
 		});
 		this.addCommand({
 			id: 'smart-codes-new',
 			name: 'Smart Codes: New',
-			callback: () => {
-				// Rebuild indexes idem
-				this.smartCodeCache.rebuildIndexes(this.dataManager.getDataRef());
-				new SmartCodeBuilderModal({
-					app: this.app,
-					mode: 'create',
-					registry: this.sharedRegistry,
-					caseVarsRegistry: this.caseVariablesRegistry,
-					smartCodeRegistry: this.smartCodeRegistry,
-					smartCodeCache: this.smartCodeCache,
-				}).open();
-			},
+			callback: () => smartCodeAccess.openBuilder('create'),
 		});
 
 		// Dev smoke: confirms the DuckDB-Wasm runtime boots inside the real plugin

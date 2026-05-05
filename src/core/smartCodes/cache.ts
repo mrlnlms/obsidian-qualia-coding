@@ -85,11 +85,11 @@ export class SmartCodeCache {
 		const allMarkers = getAllMarkers(data);
 		for (const { engine, fileId, markerId, marker } of allMarkers) {
 			const ref: MarkerRef = { engine: engine as EngineType, fileId, markerId };
-			this.markerByRef.set(ref, marker as AnyMarker);
+			this.markerByRef.set(ref, marker);
 			let fset = this.indexByFile.get(fileId);
 			if (!fset) { fset = new Set(); this.indexByFile.set(fileId, fset); }
 			fset.add(ref);
-			for (const app of (marker as any).codes ?? []) {
+			for (const app of marker.codes) {
 				let cset = this.indexByCode.get(app.codeId);
 				if (!cset) { cset = new Set(); this.indexByCode.set(app.codeId, cset); }
 				cset.add(ref);
@@ -195,13 +195,7 @@ export class SmartCodeCache {
 	__getMatchesMapSizeForTest(): number { return this.matches.size; }
 	__getDirtySizeForTest(): number { return this.dirty.size; }
 	__getMatchesMapHasForTest(id: string): boolean { return this.matches.has(id); }
-	__getAllRefsForMatcher(): { ref: MarkerRef; marker: AnyMarker }[] {
-		const out: { ref: MarkerRef; marker: AnyMarker }[] = [];
-		for (const [ref, marker] of this.markerByRef) out.push({ ref, marker });
-		return out;
-	}
-	__getSmartCodeForMatcher(id: string): SmartCodeDefinition | undefined { return this.smartCodes[id]; }
-	__buildEvaluatorContextForMatcher(smartCodeId: string): EvaluatorContext {
+	__buildEvaluatorContextForTest(smartCodeId: string): EvaluatorContext {
 		return {
 			caseVars: this.caseVars,
 			codesInFolder: this.codeStruct.codesInFolder,
@@ -219,7 +213,10 @@ export class SmartCodeCache {
 		this.pendingChanged.add(smartCodeId);
 		if (!this.rafScheduled) {
 			this.rafScheduled = true;
-			const schedule = (typeof requestAnimationFrame !== 'undefined') ? requestAnimationFrame : (cb: any) => setTimeout(cb, 0);
+			// jsdom (testes) não tem requestAnimationFrame — fallback pra setTimeout(0).
+			const schedule = (typeof requestAnimationFrame !== 'undefined')
+				? requestAnimationFrame
+				: (cb: FrameRequestCallback) => setTimeout(() => cb(performance.now()), 0);
 			schedule(() => this.flush());
 		}
 	}

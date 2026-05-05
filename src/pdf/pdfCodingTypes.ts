@@ -16,6 +16,7 @@ export interface PdfAnchor {
 }
 
 export interface PdfMarker {
+	markerType: 'pdf';
 	id: string;
 	fileId: string;
 	page: number;
@@ -32,6 +33,7 @@ export interface PdfMarker {
 }
 
 export interface PdfShapeMarker {
+	markerType: 'pdf';
 	id: string;
 	fileId: string;
 	page: number;

@@ -15,8 +15,7 @@ function canonicalize(node: PredicateNode): unknown {
 		if (node.op === 'NOT') return { child: canonicalize(node.child), op: 'NOT' };
 		return { children: node.children.map(canonicalize), op: node.op };
 	}
-	const sortedKeys = Object.keys(node).sort();
-	const obj: Record<string, unknown> = {};
-	for (const k of sortedKeys) obj[k] = (node as any)[k];
-	return obj;
+	// Leaf: copia campos com ordem alfabética pra JSON estável (diff + CDATA reproducível).
+	const entries = Object.entries(node as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+	return Object.fromEntries(entries);
 }
