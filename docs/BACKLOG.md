@@ -80,18 +80,15 @@ Cada um adiciona helper privado `private emitMarkerChange(fileId, codeIds)` cham
 
 **Estimativa:** 1 sessão. Tem regression risk médio (eventos novos podem romper sequence assumptions em consumers existentes).
 
-### SC4 — Code Explorer integration (Smart Codes section no topo da árvore)
+### ~~SC4 — Code Explorer integration~~ ✅ FEITO (2026-05-05)
 
-**O que falta:** plan original Task 3.5 era pra adicionar seção "Smart Codes" colapsável no topo do `UnifiedCodeExplorerView`. Decidi pular durante implementação porque `unifiedCodeExplorerView` é específico (virtual scroll, layouts próprios) e refator seria complexo. Em vez disso, criei `SmartCodeListModal` standalone via command palette.
+`smartCodesSection` foi wirado no Code Detail (modo "All Codes") em vez do Code Explorer.
+Click numa SC abre detail INLINE no sidebar (Phase 2). Modal hub via Cmd+P continua
+como atalho. Visual consistente com code detail (`codemarker-detail-*` classes,
+back button compartilhado). Auto-refresh via `cache.subscribe` + `registry.addOnMutate`
++ `model.onChange` (workaround SC3). Convert to note pra SC memo também landed.
 
-**Trade-off atual:** discoverability fraca — usuário precisa abrir command palette pra ver smart codes. Não tem visual presence no codebook.
-
-**Como atacar:** Já existe o helper `src/core/smartCodes/smartCodesSection.ts` com `renderSmartCodesSection(container, smartCodes, cache, state, callbacks)` pronto e não wirado. Caminho:
-1. Estender `BaseCodeExplorerView` ou `UnifiedCodeExplorerView` pra chamar `renderSmartCodesSection` antes de `renderTree()`.
-2. Wire callbacks pra dispatch ao Smart Code Detail modal ou nova view dedicada.
-3. State `smartCodesSectionCollapsed: boolean` persistido em settings ou per-view.
-
-**Estimativa:** 1 sessão. Risco baixo (helper isolado, só adiciona).
+Commits: `dc951b0` → `e7b6620` (10 commits da sessão de Smart Codes Phase 2).
 
 ---
 

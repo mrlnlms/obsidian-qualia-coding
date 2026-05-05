@@ -1337,6 +1337,184 @@ list.cleanup();               // remove scroll listener (idempotente)
 
 ---
 
+## 18. File-Level Reference (estrutura do `src/`)
+
+Antes vivia no CLAUDE.md, movido pra cá em 2026-05-05 pra reduzir CLAUDE.md inflado.
+Listagem por módulo + responsabilidade. Não é exaustiva — arquivos triviais (1-2 funções
+auto-explicativas) podem ser omitidos. Pontos de entrada e arquivos com responsabilidade
+não-óbvia entram aqui.
+
+```
+src/
+  main.ts                    — entry point (QualiaCodingPlugin)
+  obsidian-internals.d.ts    — ambient types (Editor.cm, posToOffset, workspace events)
+  core/
+    baseSidebarAdapter.ts    — base class para TODOS os sidebar adapters (listeners, hover, deleteCode, updateMarkerFields)
+    markerResolvers.ts       — type guards (isPdfMarker etc.) + getMarkerLabel + shortenPath
+    codeApplicationHelpers.ts — hasCode, getCodeIds, addCodeApplication, removeCodeApplication, getMagnitude, setMagnitude, getRelations, addRelation, removeRelation
+    baseCodingMenu.ts        — helpers compartilhados de menu (createActionItem, applyThemeColors, renderMagnitudeSection, renderRelationsSection)
+    relationUI.ts            — renderAddRelationRow compartilhado (popover, detail, marker detail)
+    relationHelpers.ts       — collectAllLabels, buildRelationEdges (funcoes puras)
+    hierarchyHelpers.ts      — buildFlatTree, buildCountIndex, getDirectCount, getAggregateCount
+    codebookTreeRenderer.ts  — virtual scrolling tree com hierarquia e pastas
+    virtualList.ts           — helper genérico de virtual scroll pra listas planas (rowPool diff)
+    codebookContextMenu.ts   — context menu codigos + pastas (Rename, Delete, Move to folder)
+    codebookDragDrop.ts      — drag-drop lifecycle: reparent, merge, move to folder
+    detailListRenderer.ts    — "All Codes" list mode + toolbar + opcionalmente Smart Codes section integration
+    detailCodeRenderer.ts    — code-focused detail (name, color, description, hierarchy, markers)
+    detailMarkerRenderer.ts  — marker-focused detail (excerpt, codes, memo, color override)
+    detailRelationRenderer.ts — Relation Detail: header com chips + banner code/app + Memo + Evidence + Delete
+    baseCodeDetailView.ts    — abstract base: 4-mode navigation (list / code / marker / smartCode) + relation
+    baseCodeExplorerView.ts  — abstract base: Code Explorer tree (Code → File → Segment)
+    navigateToMarker.ts      — engine-aware navigation helper (md inline, others via workspace events)
+    mergeModal.ts            — MergeModal expandido (4 seções reativas + executeMerge reordenado)
+    mergePolicies.ts         — helpers puros pro merge: resolveName/resolveColor/applyTextPolicy
+    dialogs.ts               — PromptModal / ConfirmModal genéricos (substituem prompt/confirm nativos)
+    imageDimensions.ts       — getImageDimensions com fallback createImageBitmap → <img>
+    magnitudeRange.ts        — generateContinuousRange puro (decimais inferidos do step, safety cap)
+    drawToolbarFactory.ts    — factory compartilhada de toolbar drawing (PDF + Image)
+    codeGroupsPanel.ts       — painel "Groups" no topo do codebook (chips + filter contextual)
+    codeGroupsAddPicker.ts   — getAddToGroupCandidates puro (popula FuzzySuggestModal)
+    mediaViewTypes.ts        — constantes isoladas de view type
+    viewToggleHelpers.ts     — lógica pura: resolveToggleTarget, isMediaViewType
+    mediaToggleButton.ts     — injeção do botão `replace-all` no header + performToggleCommand
+    fileInterceptor.ts       — intercept unificado + pinnedFileByLeaf pra respeitar swap manual
+    codeVisibility.ts        — helpers puros: isCodeVisibleInFile, shouldStoreOverride, cleanOverridesAfterGlobalChange
+    codeVisibilityPopover.ts — popover compartilhado (body render + open floating)
+    visibilityEventBus.ts    — rAF coalescing bus (singleton) pra notificar views em rajadas
+    caseVariables/           — Case Variables: propriedades tipadas por arquivo (mixed-methods)
+    memoTypes.ts             — MemoRecord, MaterializedRef, EntityRef (6-way union: code/group/marker/relation-code/relation-app/smartCode) + serializers
+    memoHelpers.ts           — getMemoContent / setMemoContent / hasContent
+    memoNoteFormat.ts        — parse/serialize de memo notes (frontmatter `qualiaMemoOf`)
+    memoPathResolver.ts      — sanitizeFilename + resolveConflictPath
+    memoMigration.ts         — migra `memo: string` legacy → MemoRecord (idempotente, cobre code/group/marker/relation/smartCode)
+    memoMaterializer.ts      — convertMemoToNote / unmaterialize / syncFromFile / refreshMemoNote (cobre 6 entity types)
+    memoMaterializerListeners.ts — vault.on(modify/rename/delete) + reverse-lookup Map + self-write Set
+    memoMarkerNaming.ts      — buildMarkerFilename híbrido por engine (excerpt / shape / timecode)
+    memoBatchMaterializer.ts — collectAllMemoRefs + categorize + materializeBatch com onProgress + describeRef (cobre 6 kinds)
+    materializeAllMemosModal.ts — modal command palette com 3 estados (form / progress / results)
+    getAllMarkers.ts         — iterador cross-engine pra qualquer derivação que precisa varrer todos markers
+    smartCodes/              — Smart Codes (Tier 3): códigos virtuais por predicate (padrão ATLAS.ti)
+      types.ts               — re-exports + isOpNode/isLeafNode
+      predicateSerializer.ts — predicateToJson canonical key order + predicateFromJson
+      dependencyExtractor.ts — extractDependencies pra invalidação granular
+      predicateValidator.ts  — validateForSave: empty/cycle/name-collision/broken-ref/magnitude/incomplete-leaf
+      evaluator.ts           — evaluate puro com 2 switches, short-circuit, magnitude parse, cycle guard
+      cache.ts               — SmartCodeCache: indexes + dirty set + rAF subscribers + onSmartCodeChanged incremental + computePreview
+      smartCodeRegistryApi.ts — SmartCodeRegistry classe (Pattern A): state interno + addOnMutate + setAuditListener + toJSON. SmartCodeAuditEvent typed (sem any)
+      builderTreeOps.ts      — helpers puros AST: getNodeAt/addChildToGroup/removeNodeAt/moveNode/changeOperator/replaceLeafAt
+      builderModal.ts        — Modal Obsidian 3 zonas: name+color+memo, tree row-based linear, preview live debounced 300ms, FuzzySuggest pra code/folder/group/casevar/smartcode pickers, inline errors
+      detailSmartCodeRenderer.ts — render Smart Code Detail (header + memo com Convert to note + Materialized card + query + matches engine-rich + history + delete). Visual reusa codemarker-detail-* classes
+      smartCodeListModal.ts  — hub modal (Cmd+P): lista + new + click abre detail INLINE no sidebar OR modal detail
+      smartCodesSection.ts   — renderSmartCodesSection wirado no Code Detail "All Codes" mode (section colapsável + eye toggle + 3-dot menu + new btn). PromptModal/ConfirmModal (sem window.prompt/confirm)
+    ...                      — DataManager, CodeDefinitionRegistry, settings, types
+  markdown/                  — CodeMirror 6 engine para markdown
+    cm6/
+      markerViewPlugin.ts    — ViewPlugin orquestrador
+      handleOverlayRenderer.ts — SVG drag handles
+      dragManager.ts         — ciclo de vida do drag
+      marginPanelLayout.ts   — layout algorithm puro
+  pdf/                       — PDF viewer + coding (fabric.js)
+    pdfCodingTypes.ts        — PdfMarker, PdfShapeMarker (markerType: 'pdf')
+    pdfCodingModel.ts        — model CRUD (indices DOM-alinhados)
+    selectionCapture.ts      — captura seleção → indices via hitTestTextLayer
+    highlightRenderer.ts     — pinta rects via textDivs
+    dragHandles.ts           — handle drag → updateMarkerRange
+    pageObserver.ts          — lifecycle: textlayerrendered → renderPage
+    pdfPlainText.ts          — buildPlainText (export)
+    pdfExportData.ts         — loadPdfExportData (export)
+    resolveMarkerOffsets.ts  — marker.text → offset absoluto
+    extractAnchorFromPlainText.ts — slice → text/page (import)
+    resolvePendingIndices.ts — text-search → indices (import runtime)
+  csv/                       — CSV/Parquet engine (ag-grid, papaparse, hyparquet, duckdb-wasm)
+    csvCodingTypes.ts        — SegmentMarker, RowMarker, CsvMarker (markerType: 'csv')
+    csvCodingModel.ts        — model CRUD + bulk row ops + lazy providers + markerTextCache
+    csvCodingView.ts         — FileView orquestrador (eager + lazy paths)
+    parseTabular.ts          — parseTabularFile compartilhado (papaparse + hyparquet)
+    prepopulateMarkerCaches.ts — pre-populate de markerTextCache no startup
+    resolveExportTexts.ts    — resolve cellText pra export (6 cases: eager/lazy × aberto/fechado)
+    lazyProgressFormat.ts    — formatLazyProgress puro
+    csvCodingMenu.ts         — popovers de codificacao
+    csvCodingCellRenderer.ts — cell renderer AG Grid
+    segmentEditor.ts         — CM6 split panel
+    columnToggleModal.ts     — Modal de settings de colunas + CommentCellEditor
+    csvHeaderInjection.ts    — MutationObserver pros headers AG Grid
+    duckdb/                  — Lazy mode infra: DuckDB-Wasm + OPFS + filter SQL
+      duckdbBootstrap.ts     — createDuckDBRuntime() factory + 2 shims pro Worker em Electron
+      duckdbRowProvider.ts   — DuckDBRowProvider pra eager + lazy modes
+      filterModelToSql.ts    — buildWhereClause(filterModel) → SQL escapado
+      opfs.ts                — copyVaultFileToOPFS streaming + isOpfsCached + removeOPFSFile
+      rowProvider.ts         — interface RowProvider + MockRowProvider
+      wasmAssets.ts          — WASM bytes embedded gzipados (32.7MB → 7.6MB)
+  image/                     — Image coding (fabric.js, zoom/pan per-file)
+    imageCodingTypes.ts      — ImageMarker (markerType: 'image'), RegionShape, NormalizedCoords
+    imageCodingModel.ts      — model CRUD + persistence
+    imageCodingMenu.ts       — lifecycle wrapper
+    imageToolbar.ts          — toolbar de drawing
+    regionHighlight.ts       — hover glow effect
+    regionLabels.ts          — labels de codigo sobre regioes
+    canvas/                  — Fabric.js canvas, drawing, zoom/pan
+  audio/                     — Audio engine — thin wrapper via MediaViewCore
+  video/                     — Video engine — thin wrapper via MediaViewCore
+  export/                    — REFI-QDA export (QDC codebook + QDPX) + CSV tabular
+    qdcExporter.ts           — gera XML do codebook
+    qdpxExporter.ts          — orquestra export completo (incl. <qualia:SmartCodes> namespace)
+    xmlBuilder.ts            — helpers XML
+    coordConverters.ts       — conversao de coords por engine
+    exportModal.ts           — modal pre-export
+    exportCommands.ts        — commands na palette
+    caseVariablesXml.ts      — QDPX helpers pra cases/variables
+    tabular/                 — CSV zip export pra R/Python/BI
+      csvWriter.ts           — primitivo CSV (RFC 4180 + UTF-8 BOM)
+      readmeBuilder.ts       — gera README.md embutido
+      buildSegmentsTable.ts  — consolida 8 sourceTypes
+      buildCodeApplicationsTable.ts — 1 linha per (segment, code)
+      buildCodesTable.ts     — codebook denormalizado
+      buildCaseVariablesTable.ts — long format
+      buildRelationsTable.ts — unifica code-level + application-level
+      buildGroupsTable.ts    — groups.csv standalone
+      buildSmartCodesTable.ts — smart_codes.csv (incluindo memo.content + matches_at_export)
+      tabularExporter.ts     — orchestrator (incl. csvModel access pra cell text)
+  import/                    — REFI-QDA import (QDC + QDPX)
+    qdcImporter.ts           — parse XML codebook
+    qdpxImporter.ts          — orquestra import completo (incl. parseSmartCodes 2-pass + remap codeId)
+    xmlParser.ts             — helpers parse XML
+    importModal.ts           — modal de import
+    importCommands.ts        — commands na palette
+  analytics/                 — Charts e word clouds (chart.js)
+    data/
+      consolidationCache.ts  — cache incremental por engine
+      dataConsolidator.ts    — 6 funcoes puras por engine + consolidate()
+      dataReader.ts          — readAllData(DataManager)
+      relationsEngine.ts     — extractRelationEdges/Nodes (Network View)
+      statsEngine.ts         — barrel re-export (frequency, cooccurrence, evolution, sequential, inferential, textAnalysis, codeMetadata)
+      statsHelpers.ts        — applyFilters compartilhado
+      inferential.ts         — calculateChiSquare puro
+      binning.ts             — binNumeric/binDate/explodeMultitext puros
+      codeMetadata.ts        — calculateCodeMetadata + chi²
+      memoView.ts            — aggregateMemos pura
+      codebookTimelineEngine.ts — Codebook Timeline helpers
+    board/                   — Research Board (Fabric.js)
+    views/
+      analyticsView.ts       — classe AnalyticsView
+      analyticsViewContext.ts — interface + type aliases
+      configSections.ts      — config panel sections compartilhadas
+      shared/chartHelpers.ts — heatmapColor, computeDisplayMatrix, etc
+      modes/                 — 23 mode modules (1 por visualizacao)
+  media/
+    mediaTypes.ts            — MediaMarker (markerType: 'audio' | 'video'), MediaFile, BaseMediaSettings
+    mediaViewCore.ts         — logica compartilhada audio/video via composicao
+    mediaViewConfig.ts       — interface de configuracao
+    mediaCodingModel.ts      — base class generica
+    mediaCodingMenu.ts       — popover compartilhado
+    mediaSidebarAdapter.ts   — sidebar adapter compartilhado
+    regionRenderer.ts        — renderizacao de regioes (wavesurfer)
+    waveformRenderer.ts      — wrapper WaveSurfer.js
+    formatTime.ts            — helper de formatacao de tempo
+```
+
+---
+
 ## Fontes
 
 Este documento consolida decisões de:
