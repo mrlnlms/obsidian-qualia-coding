@@ -11,6 +11,8 @@ import { buildGroupsTable } from './buildGroupsTable';
 import { buildCaseVariablesTable } from './buildCaseVariablesTable';
 import { buildRelationsTable } from './buildRelationsTable';
 import { buildReadme } from './readmeBuilder';
+import { buildSmartCodesCsv } from './buildSmartCodesTable';
+import type { SmartCodeDefinition } from '../../core/types';
 
 export interface TabularExportOptions {
 	fileName: string;
@@ -65,11 +67,22 @@ export async function exportTabular(
 		files['relations.csv'] = toU8(strToU8(toCsv(rel.rows)));
 	}
 
+	// Smart Codes (Tier 3) — só inclui se houver pelo menos 1
+	const smartCodesData = dm.section('registry').smartCodes;
+	const smartCodesList: SmartCodeDefinition[] = smartCodesData
+		? Object.values(smartCodesData) as SmartCodeDefinition[]
+		: [];
+	const includeSmartCodes = smartCodesList.length > 0;
+	if (includeSmartCodes) {
+		files['smart_codes.csv'] = toU8(strToU8(buildSmartCodesCsv(smartCodesList, plugin.smartCodeCache)));
+	}
+
 	files['README.md'] = toU8(strToU8(buildReadme({
 		pluginVersion: opts.pluginVersion,
 		includeRelations: opts.includeRelations,
 		includeShapeCoords: opts.includeShapeCoords,
 		warnings,
+		includeSmartCodes,
 	})));
 
 	return {

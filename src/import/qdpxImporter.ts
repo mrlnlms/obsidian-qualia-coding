@@ -109,6 +109,8 @@ export interface GuidResolver {
   sources: Map<string, string>;
   /** QDPX selection guid → Qualia marker id */
   selections: Map<string, string>;
+  /** QDPX smart code guid → Qualia SmartCodeDefinition.id (Tier 3 custom namespace) */
+  smartCodes: Map<string, string>;
 }
 
 // ─── Parsing ───
@@ -403,6 +405,7 @@ export async function importQdpx(
     codes: cbResult.codeGuidMap,
     sources: new Map(),
     selections: new Map(),
+    smartCodes: new Map(),
   };
 
   // 3b. Parse <Sets> (Code Groups) — pure regex over the raw XML
@@ -486,6 +489,20 @@ export async function importQdpx(
 
   // 8. Import relations (Links)
   result.relationsImported = applyLinks(links, resolver, registry, dataManager);
+
+  // 8b. Import Smart Codes (Tier 3) — após sets/cases pra resolver refs corretamente
+  const scResult = parseSmartCodes(xml, resolver);
+  for (const sc of scResult.smartCodes) {
+    const data = (dataManager as any).getDataRef ? (dataManager as any).getDataRef() : dataManager.section('registry');
+    const reg = data.registry ?? data;
+    reg.smartCodes[sc.id] = sc;
+    if (!reg.smartCodeOrder) reg.smartCodeOrder = [];
+    reg.smartCodeOrder.push(sc.id);
+  }
+  if (scResult.smartCodes.length > 0) {
+    result.warnings.push(`Imported ${scResult.smartCodes.length} smart codes`);
+  }
+  result.warnings.push(...scResult.warnings);
 
   // 9. Flush
   dataManager.markDirty();
@@ -1239,3 +1256,111 @@ function decodeXmlEntities(s: string): string {
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, '&');
 }
+
+// ─── Smart Codes (Tier 3) ───
+
+import type { PredicateNode, SmartCodeDefinition, LeafNode } from '../core/types';
+import { isOpNode, isLeafNode } from '../core/smartCodes/types';
+
+export interface ParseSmartCodesResult {
+  smartCodes: SmartCodeDefinition[];
+  warnings: string[];
+}
+
+/** Parse `<qualia:SmartCodes>` block via regex (mesma estratégia do parseSetsFromXml).
+ *  Pass 1: aloca todos placeholders + popula resolver.smartCodes.
+ *  Pass 2: deserializa predicates + remap refs (incl. smartCode nesting).
+ */
+export function parseSmartCodes(xml: string, resolver: GuidResolver): ParseSmartCodesResult {
+  const warnings: string[] = [];
+  const blockMatch = xml.match(/<qualia:SmartCodes[^>]*>([\s\S]*?)<\/qualia:SmartCodes>/);
+  if (!blockMatch) return { smartCodes: [], warnings };
+  const inner = blockMatch[1]!;
+  const scTagRe = /<qualia:SmartCode\s+([^>]+)>([\s\S]*?)<\/qualia:SmartCode>/g;
+
+  // Pass 1: extract attrs + alloc IDs
+  interface Allocated {
+    oldGuid: string; newId: string; name: string; color: string; predicateRaw: string; memo?: string;
+  }
+  const allocated: Allocated[] = [];
+  for (const m of inner.matchAll(scTagRe)) {
+    const attrsStr = m[1]!;
+    const body = m[2]!;
+    const guidMatch = attrsStr.match(/guid="([^"]+)"/);
+    const nameAttr = attrsStr.match(/name="([^"]*)"/);
+    const colorMatch = attrsStr.match(/color="([^"]+)"/);
+    if (!guidMatch || !nameAttr || !colorMatch) {
+      warnings.push('Smart code tag missing required attribute (guid, name, ou color)');
+      continue;
+    }
+    const oldGuid = guidMatch[1]!;
+    const name = decodeXmlEntities(nameAttr[1]!);
+    const color = colorMatch[1]!;
+    const newId = `sc_${generateId()}`;
+    resolver.smartCodes.set(oldGuid, newId);
+    const predicateRaw = (body.match(/<qualia:Predicate><!\[CDATA\[([\s\S]*?)\]\]><\/qualia:Predicate>/)?.[1] ?? '').trim();
+    const memoMatch = body.match(/<qualia:Memo>([\s\S]*?)<\/qualia:Memo>/);
+    const memo = memoMatch ? decodeXmlEntities(memoMatch[1]!) : undefined;
+    allocated.push({ oldGuid, newId, name, color, predicateRaw, memo });
+  }
+
+  // Pass 2: deserialize + remap
+  const out: SmartCodeDefinition[] = [];
+  for (const a of allocated) {
+    let predicate: PredicateNode;
+    try { predicate = JSON.parse(a.predicateRaw) as PredicateNode; }
+    catch (err) {
+      warnings.push(`Failed to parse predicate for smart code "${a.name}"`);
+      predicate = { op: 'AND', children: [] };
+    }
+    const remappedPredicate = remapPredicateRefs(predicate, resolver, warnings, a.name);
+    out.push({
+      id: a.newId, name: a.name, color: a.color, paletteIndex: -1, createdAt: Date.now(),
+      predicate: remappedPredicate,
+      ...(a.memo ? { memo: a.memo } : {}),
+    });
+  }
+  return { smartCodes: out, warnings };
+}
+
+function remapPredicateRefs(node: PredicateNode, resolver: GuidResolver, warnings: string[], scName: string): PredicateNode {
+  if (isOpNode(node)) {
+    if (node.op === 'NOT') return { op: 'NOT', child: remapPredicateRefs(node.child, resolver, warnings, scName) };
+    return { op: node.op, children: node.children.map(c => remapPredicateRefs(c, resolver, warnings, scName)) };
+  }
+  if (!isLeafNode(node)) return node;
+  switch (node.kind) {
+    case 'hasCode':
+    case 'magnitudeGte':
+    case 'magnitudeLte': {
+      const newId = resolver.codes.get(node.codeId);
+      if (!newId) {
+        warnings.push(`Smart code "${scName}" references deleted code ${node.codeId}`);
+        return node;
+      }
+      return { ...node, codeId: newId } as LeafNode;
+    }
+    case 'relationExists': {
+      let next: any = { ...node };
+      const newCodeId = resolver.codes.get(node.codeId);
+      if (newCodeId) next.codeId = newCodeId;
+      else warnings.push(`Smart code "${scName}" references deleted code ${node.codeId}`);
+      if (node.targetCodeId) {
+        const newTarget = resolver.codes.get(node.targetCodeId);
+        if (newTarget) next.targetCodeId = newTarget;
+      }
+      return next as LeafNode;
+    }
+    case 'smartCode': {
+      const newId = resolver.smartCodes.get(node.smartCodeId);
+      if (!newId) {
+        warnings.push(`Smart code "${scName}" references deleted smart code ${node.smartCodeId}`);
+        return node;
+      }
+      return { ...node, smartCodeId: newId };
+    }
+    default:
+      return node;
+  }
+}
+
