@@ -13,6 +13,11 @@
 import { ItemView, WorkspaceLeaf, setIcon, SearchComponent, ExtraButtonComponent } from 'obsidian';
 import { BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
 import { createVirtualList } from './virtualList';
+import type { SmartCodesAccess } from './baseCodeDetailView';
+import type { SmartCodeDefinition } from './smartCodes/types';
+import type { MarkerRef } from './smartCodes/types';
+
+export type { SmartCodesAccess } from './baseCodeDetailView';
 
 const EXPLORER_ROW_HEIGHT = 26;
 const EXPLORER_LIST_MAX_VH = 50;
@@ -25,8 +30,13 @@ interface CollapsibleNode {
 
 export abstract class BaseCodeExplorerView extends ItemView {
 	protected model: SidebarModelInterface;
+	protected smartCodeAccess?: SmartCodesAccess;
 	private codeNodes: CollapsibleNode[] = [];
 	private fileNodes: CollapsibleNode[] = [];
+	private smartCodeNodes: CollapsibleNode[] = [];
+	private smartCodeFileNodes: CollapsibleNode[] = [];
+	private smartCodesGroupCollapsed = false;
+	private unsubSmartCodes: (() => void) | null = null;
 	private collapseAllBtn: HTMLElement | null = null;
 	private collapseFilesBtn: HTMLElement | null = null;
 	private searchQuery = '';
@@ -46,9 +56,33 @@ export abstract class BaseCodeExplorerView extends ItemView {
 	private treeZone: HTMLElement | null = null;
 	private footerEl: HTMLElement | null = null;
 
-	constructor(leaf: WorkspaceLeaf, model: SidebarModelInterface) {
+	constructor(
+		leaf: WorkspaceLeaf,
+		model: SidebarModelInterface,
+		smartCodeAccess?: SmartCodesAccess,
+	) {
 		super(leaf);
 		this.model = model;
+		this.smartCodeAccess = smartCodeAccess;
+	}
+
+	/** Mirror do attachSmartCodeListeners do BaseCodeDetailView (linha 120-135). Cache subscribe pra
+	 *  invalidação granular, registry addOnMutate pra create/rename/delete, model.onChange pra
+	 *  workaround SC3 (re-index cache quando markers mudam — qualia:markers-changed ainda não
+	 *  emite granular). */
+	private attachSmartCodeListeners(): void {
+		this.unsubSmartCodes?.();
+		if (!this.smartCodeAccess) { this.unsubSmartCodes = null; return; }
+		const access = this.smartCodeAccess;
+		const unsubCache = access.cache.subscribe(this.scheduleRefresh);
+		const unsubRegistry = access.registry.addOnMutate(this.scheduleRefresh);
+		const onMarkersMutated = () => access.refreshFromMarkers();
+		this.model.onChange(onMarkersMutated);
+		this.unsubSmartCodes = () => {
+			unsubCache();
+			unsubRegistry();
+			this.model.offChange(onMarkersMutated);
+		};
 	}
 
 	// ─── Abstract hooks (engine implements) ──────────────────
@@ -68,6 +102,7 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		this.model.onChange(this.scheduleRefresh);
 		this.model.onHoverChange(this.boundApplyHover);
 		document.addEventListener('qualia:registry-changed', this.scheduleRefresh);
+		if (this.smartCodeAccess) this.attachSmartCodeListeners();
 		this.renderShell();
 		this.renderTree();
 	}
@@ -76,6 +111,8 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		this.model.offChange(this.scheduleRefresh);
 		this.model.offHoverChange(this.boundApplyHover);
 		document.removeEventListener('qualia:registry-changed', this.scheduleRefresh);
+		this.unsubSmartCodes?.();
+		this.unsubSmartCodes = null;
 		if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
 		if (this.searchTimeout) { clearTimeout(this.searchTimeout); this.searchTimeout = null; }
 		this.contentEl.empty();
@@ -90,11 +127,13 @@ export abstract class BaseCodeExplorerView extends ItemView {
 	}
 
 	private isAllCollapsed(): boolean {
-		return this.codeNodes.length > 0 && this.codeNodes.every(n => n.collapsed);
+		const all = [...this.codeNodes, ...this.smartCodeNodes];
+		return all.length > 0 && all.every(n => n.collapsed);
 	}
 
 	private isFilesCollapsed(): boolean {
-		return this.fileNodes.length > 0 && this.fileNodes.every(n => n.collapsed);
+		const all = [...this.fileNodes, ...this.smartCodeFileNodes];
+		return all.length > 0 && all.every(n => n.collapsed);
 	}
 
 	private updateToolbarIcons() {
@@ -107,25 +146,25 @@ export abstract class BaseCodeExplorerView extends ItemView {
 	}
 
 	private expandAll() {
-		for (const node of this.codeNodes) {
+		for (const node of [...this.codeNodes, ...this.smartCodeNodes]) {
 			if (node.collapsed) this.toggleNode(node);
 		}
 	}
 
 	private collapseAll() {
-		for (const node of this.codeNodes) {
+		for (const node of [...this.codeNodes, ...this.smartCodeNodes]) {
 			if (!node.collapsed) this.toggleNode(node);
 		}
 	}
 
 	private expandFiles() {
-		for (const node of this.fileNodes) {
+		for (const node of [...this.fileNodes, ...this.smartCodeFileNodes]) {
 			if (node.collapsed) this.toggleNode(node);
 		}
 	}
 
 	private collapseFiles() {
-		for (const node of this.fileNodes) {
+		for (const node of [...this.fileNodes, ...this.smartCodeFileNodes]) {
 			if (!node.collapsed) this.toggleNode(node);
 		}
 	}
@@ -265,10 +304,15 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		this.footerEl.empty();
 		this.codeNodes = [];
 		this.fileNodes = [];
+		this.smartCodeNodes = [];
+		this.smartCodeFileNodes = [];
 
 		const fullIndex = this.buildCodeIndex();
+		const allSmartCodes = this.smartCodeAccess?.registry.getAll() ?? [];
+		const visibleSmartCodes = this.filterSmartCodes(allSmartCodes);
 
-		if (fullIndex.size === 0) {
+		// Empty state: zero regular codes + zero smart codes (independente de search).
+		if (fullIndex.size === 0 && allSmartCodes.length === 0) {
 			this.treeZone.createEl('p', {
 				text: 'No codes yet. Select text and add codes to get started.',
 				cls: 'pane-empty',
@@ -282,6 +326,11 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		);
 
 		const resultsEl = this.treeZone.createDiv({ cls: 'search-results-container' });
+
+		// Smart Codes section: top placement espelha smartCodesSection no Detail list mode.
+		if (visibleSmartCodes.length > 0) {
+			this.renderSmartCodesGroup(resultsEl, visibleSmartCodes);
+		}
 
 		for (const [codeName, fileMap] of codeIndex) {
 			const def = this.model.registry.getByName(codeName);
@@ -365,10 +414,140 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		}
 
 		// Footer
-		this.footerEl.textContent = `${codeIndex.size} codes \u00b7 ${totalSegments} segments`;
+		const scSuffix = visibleSmartCodes.length > 0 ? ` \u00b7 ${visibleSmartCodes.length} smart codes` : '';
+		this.footerEl.textContent = `${codeIndex.size} codes \u00b7 ${totalSegments} segments${scSuffix}`;
 
 		// Apply current hover state to newly created items
 		this.applyHoverToItems();
+	}
+
+	// \u2500\u2500\u2500 Smart Codes group \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+	/** Filtra hidden + search query. Aplicado tanto no render do group quanto no footer counter. */
+	private filterSmartCodes(all: SmartCodeDefinition[]): SmartCodeDefinition[] {
+		const q = this.searchQuery.toLowerCase();
+		return all.filter(sc => {
+			if (sc.hidden) return false;
+			if (q && !sc.name.toLowerCase().includes(q)) return false;
+			return true;
+		});
+	}
+
+	/** Render section "\u26a1 Smart Codes" como grupo top-level no tree. Estrutura espelha o tree
+	 *  de regulares: smartCode \u2192 file \u2192 marker. Click em marker navega via this.navigateToMarker
+	 *  (subclass dispara workspace event cross-engine). Hover sync usa data-marker-id (mesmo
+	 *  applyHoverToItems pega regulares e SC matches). */
+	private renderSmartCodesGroup(container: HTMLElement, smartCodes: SmartCodeDefinition[]): void {
+		if (!this.smartCodeAccess) return;
+		const access = this.smartCodeAccess;
+
+		const sectionEl = container.createDiv({ cls: 'qc-explorer-sc-section' });
+
+		// Section header \u2014 toggle do grupo inteiro (collapse separado dos smart code nodes individuais).
+		const headerEl = sectionEl.createDiv({ cls: 'qc-explorer-sc-section-header is-clickable' });
+		headerEl.createSpan({ cls: 'qc-explorer-sc-chevron', text: this.smartCodesGroupCollapsed ? '\u25b8' : '\u25be' });
+		headerEl.createSpan({ text: ' \u26a1 Smart Codes ' });
+		headerEl.createSpan({ text: `(${smartCodes.length})`, cls: 'qc-explorer-sc-count' });
+		headerEl.addEventListener('click', () => {
+			this.smartCodesGroupCollapsed = !this.smartCodesGroupCollapsed;
+			this.scheduleRefresh();
+		});
+
+		if (this.smartCodesGroupCollapsed) return;
+
+		const bodyEl = sectionEl.createDiv({ cls: 'qc-explorer-sc-body' });
+
+		for (const sc of smartCodes) {
+			const matches = access.cache.getMatches(sc.id);
+
+			// Smart code row (level 1) \u2014 mirror estrutura de tree-item code regular.
+			const scTreeItem = bodyEl.createDiv({ cls: 'tree-item search-result is-smart-code' });
+			const scSelf = scTreeItem.createDiv({ cls: 'tree-item-self search-result-file-title is-clickable' });
+			scSelf.style.paddingLeft = '4px';
+
+			scSelf.createDiv({ cls: 'tree-item-icon collapse-icon' }, (el) => setIcon(el, 'right-triangle'));
+
+			const swatch = scSelf.createSpan({ cls: 'codemarker-explorer-swatch' });
+			swatch.style.backgroundColor = sc.color;
+
+			scSelf.createSpan({ cls: 'tree-item-inner', text: `\u26a1 ${sc.name}` });
+			scSelf.createSpan({ cls: 'tree-item-flair', text: String(matches.length) });
+
+			const scChildren = scTreeItem.createDiv({ cls: 'tree-item-children' });
+
+			const scNode: CollapsibleNode = { treeItem: scTreeItem, children: scChildren, collapsed: false };
+			this.smartCodeNodes.push(scNode);
+			scSelf.addEventListener('click', () => {
+				this.toggleNode(scNode);
+				this.updateToolbarIcons();
+			});
+
+			// Bucket matches por fileId mantendo ordem de inser\u00e7\u00e3o (cache retorna refs em ordem
+			// de itera\u00e7\u00e3o de markerByRef \u2014 est\u00e1vel dentro de uma sess\u00e3o).
+			const byFile = new Map<string, MarkerRef[]>();
+			for (const ref of matches) {
+				let bucket = byFile.get(ref.fileId);
+				if (!bucket) { bucket = []; byFile.set(ref.fileId, bucket); }
+				bucket.push(ref);
+			}
+
+			for (const [fileId, fileRefs] of byFile) {
+				const fileName = this.shortenPath(fileId);
+
+				const fileTreeItem = scChildren.createDiv({ cls: 'tree-item search-result' });
+				const fileSelf = fileTreeItem.createDiv({ cls: 'tree-item-self search-result-file-title is-clickable' });
+
+				fileSelf.createDiv({ cls: 'tree-item-icon collapse-icon' }, (el) => setIcon(el, 'right-triangle'));
+				fileSelf.createSpan({ cls: 'tree-item-inner', text: fileName });
+				fileSelf.createSpan({ cls: 'tree-item-flair', text: String(fileRefs.length) });
+
+				const fileChildren = fileTreeItem.createDiv({ cls: 'search-result-file-matches' });
+				// Virtual scroll id\u00eantico ao caminho regular \u2014 files com 100s de matches em parquet
+				// n\u00e3o montam DOM linear.
+				const naturalHeight = fileRefs.length * EXPLORER_ROW_HEIGHT;
+				const maxByVh = Math.floor(window.innerHeight * (EXPLORER_LIST_MAX_VH / 100));
+				fileChildren.style.height = `${Math.min(naturalHeight, maxByVh)}px`;
+				if (naturalHeight > maxByVh) fileChildren.style.overflowY = 'auto';
+				fileChildren.style.position = 'relative';
+
+				const list = createVirtualList<MarkerRef>({
+					container: fileChildren,
+					rowHeight: EXPLORER_ROW_HEIGHT,
+					renderRow: (ref) => {
+						const matchEl = document.createElement('div');
+						matchEl.className = 'search-result-file-match';
+						const marker = access.cache.getMarkerByRef(ref);
+						if (!marker) {
+							// Marker foi deletado entre cache rebuild e render. Pr\u00f3ximo refresh pega.
+							matchEl.textContent = '(removed)';
+							matchEl.classList.add('is-stale');
+							return matchEl;
+						}
+						matchEl.dataset.markerId = marker.id;
+						matchEl.textContent = access.getMarkerLabel(marker);
+						matchEl.addEventListener('click', () => this.navigateToMarker(marker));
+						matchEl.addEventListener('mouseenter', () => {
+							const firstCodeName = marker.codes[0]
+								? (this.model.registry.getById(marker.codes[0].codeId)?.name ?? null)
+								: null;
+							this.model.setHoverState(marker.id, firstCodeName);
+						});
+						matchEl.addEventListener('mouseleave', () => {
+							this.model.setHoverState(null, null);
+						});
+						return matchEl;
+					},
+				});
+				list.setItems(fileRefs);
+
+				const fileNode: CollapsibleNode = { treeItem: fileTreeItem, children: fileChildren, collapsed: false };
+				this.smartCodeFileNodes.push(fileNode);
+				fileSelf.addEventListener('click', () => {
+					this.toggleNode(fileNode);
+					this.updateToolbarIcons();
+				});
+			}
+		}
 	}
 
 	// ─── Hover sync (model → sidebar) ───────────────────────
