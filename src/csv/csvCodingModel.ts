@@ -190,6 +190,8 @@ export class CsvCodingModel {
 		let mutated = false;
 		for (const rowId of sourceRowIds) {
 			let marker = idx.get(rowId);
+			let prevCodeIds: string[];
+			let rowMutated = false;
 			if (!marker) {
 				marker = {
 					markerType: 'csv',
@@ -201,12 +203,23 @@ export class CsvCodingModel {
 				};
 				this.rowMarkers.push(marker);
 				idx.set(rowId, marker);
-				mutated = true;
+				prevCodeIds = [];
+				rowMutated = true;
+			} else {
+				prevCodeIds = marker.codes.map(c => c.codeId);
 			}
 			if (!hasCode(marker.codes, codeId)) {
 				marker.codes = addCodeApplication(marker.codes, codeId);
 				marker.updatedAt = now;
+				rowMutated = true;
+			}
+			if (rowMutated) {
 				mutated = true;
+				this.emitMarkerMutation({
+					fileId: file, markerId: marker.id,
+					prevCodeIds, nextCodeIds: marker.codes.map(c => c.codeId),
+					codeIds: [codeId], marker,
+				});
 			}
 		}
 		if (mutated) this.notify();
@@ -221,10 +234,17 @@ export class CsvCodingModel {
 		for (const rowId of sourceRowIds) {
 			const marker = idx.get(rowId);
 			if (!marker || !hasCode(marker.codes, codeId)) continue;
+			const prevCodeIds = marker.codes.map(c => c.codeId);
 			marker.codes = removeCodeApplication(marker.codes, codeId);
 			marker.updatedAt = now;
 			mutated = true;
-			if (marker.codes.length === 0) toDeleteIds.add(marker.id);
+			const willDelete = marker.codes.length === 0;
+			if (willDelete) toDeleteIds.add(marker.id);
+			this.emitMarkerMutation({
+				fileId: file, markerId: marker.id,
+				prevCodeIds, nextCodeIds: willDelete ? [] : marker.codes.map(c => c.codeId),
+				codeIds: [codeId], marker: willDelete ? undefined : marker,
+			});
 		}
 		if (toDeleteIds.size > 0) {
 			for (const id of toDeleteIds) this.markerTextCache.delete(id);
@@ -241,7 +261,15 @@ export class CsvCodingModel {
 		const removed = this.rowMarkers.filter(m =>
 			m.fileId === file && m.column === column && rowSet.has(m.sourceRowId)
 		);
-		for (const m of removed) this.markerTextCache.delete(m.id);
+		for (const m of removed) {
+			this.markerTextCache.delete(m.id);
+			const codes = m.codes.map(c => c.codeId);
+			this.emitMarkerMutation({
+				fileId: m.fileId, markerId: m.id,
+				prevCodeIds: codes, nextCodeIds: [],
+				codeIds: codes, marker: undefined,
+			});
+		}
 		this.rowMarkers = this.rowMarkers.filter(m =>
 			!(m.fileId === file && m.column === column && rowSet.has(m.sourceRowId))
 		);
@@ -368,12 +396,18 @@ export class CsvCodingModel {
 	}
 
 	migrateFilePath(oldPath: string, newPath: string): void {
-		let changed = false;
+		const renamed: Array<{ id: string; codes: string[]; marker: CsvMarker }> = [];
 		for (const m of this.segmentMarkers) {
-			if (m.fileId === oldPath) { m.fileId = newPath; changed = true; }
+			if (m.fileId === oldPath) {
+				renamed.push({ id: m.id, codes: m.codes.map(c => c.codeId), marker: m });
+				m.fileId = newPath;
+			}
 		}
 		for (const m of this.rowMarkers) {
-			if (m.fileId === oldPath) { m.fileId = newPath; changed = true; }
+			if (m.fileId === oldPath) {
+				renamed.push({ id: m.id, codes: m.codes.map(c => c.codeId), marker: m });
+				m.fileId = newPath;
+			}
 		}
 		// Migrate rowDataCache key to avoid orphaned entries
 		const cachedRows = this.rowDataCache.get(oldPath);
@@ -381,7 +415,20 @@ export class CsvCodingModel {
 			this.rowDataCache.delete(oldPath);
 			this.rowDataCache.set(newPath, cachedRows);
 		}
-		if (changed) this.notify();
+		if (renamed.length === 0) return;
+		for (const r of renamed) {
+			this.emitMarkerMutation({
+				fileId: oldPath, markerId: r.id,
+				prevCodeIds: r.codes, nextCodeIds: [],
+				codeIds: r.codes, marker: undefined,
+			});
+			this.emitMarkerMutation({
+				fileId: newPath, markerId: r.id,
+				prevCodeIds: [], nextCodeIds: r.codes,
+				codeIds: r.codes, marker: r.marker,
+			});
+		}
+		this.notify();
 	}
 
 	getAllFileIds(): string[] {

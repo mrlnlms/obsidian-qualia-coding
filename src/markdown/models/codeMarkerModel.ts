@@ -304,8 +304,26 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		const markers = this.markers.get(oldPath);
 		if (!markers) return;
 		this.markers.delete(oldPath);
+		// Snapshot pré-rename pra emit (cache.refByKey usa fileId — precisa REMOVE old + ADD new
+		// pra que SC matches resolvam o newPath corretamente; senão refs ficam stale apontando
+		// pra path inexistente).
+		const snapshots = markers.map(m => ({ id: m.id, codes: m.codes.map(c => c.codeId), marker: m }));
 		for (const m of markers) m.fileId = newPath;
 		this.markers.set(newPath, markers);
+		// Per-marker REMOVE(oldPath) + ADD(newPath). codeIds populated → SCs com matches em
+		// markers afetados re-evaluate (mesmas matches, refs novos com newPath).
+		for (const snap of snapshots) {
+			this.emitMarkerMutation({
+				fileId: oldPath, markerId: snap.id,
+				prevCodeIds: snap.codes, nextCodeIds: [],
+				codeIds: snap.codes, marker: undefined,
+			});
+			this.emitMarkerMutation({
+				fileId: newPath, markerId: snap.id,
+				prevCodeIds: [], nextCodeIds: snap.codes,
+				codeIds: snap.codes, marker: snap.marker,
+			});
+		}
 		this.markDirtyForSave();
 		this._notifyChange();
 

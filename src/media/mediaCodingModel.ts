@@ -334,6 +334,7 @@ export class MediaCodingModel<
 	migrateFilePath(oldPath: string, newPath: string): void {
 		const file = this.files.find((f) => f.path === oldPath);
 		if (file) {
+			const snapshots = file.markers.map(m => ({ id: m.id, codes: m.codes.map(c => c.codeId), marker: m }));
 			file.path = newPath;
 			for (const m of file.markers) {
 				m.fileId = newPath;
@@ -343,6 +344,18 @@ export class MediaCodingModel<
 			if (states[oldPath]) {
 				states[newPath] = states[oldPath];
 				delete states[oldPath];
+			}
+			for (const snap of snapshots) {
+				this.emitMarkerMutation({
+					fileId: oldPath, markerId: snap.id,
+					prevCodeIds: snap.codes, nextCodeIds: [],
+					codeIds: snap.codes, marker: undefined,
+				});
+				this.emitMarkerMutation({
+					fileId: newPath, markerId: snap.id,
+					prevCodeIds: [], nextCodeIds: snap.codes,
+					codeIds: snap.codes, marker: snap.marker as M,
+				});
 			}
 			this.notify();
 		}

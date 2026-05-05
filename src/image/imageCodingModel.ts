@@ -259,21 +259,34 @@ export class ImageCodingModel {
 	// ─── File rename ───
 
 	migrateFilePath(oldPath: string, newPath: string): void {
-		let changed = false;
+		const renamed: Array<{ id: string; codes: string[]; marker: ImageMarker }> = [];
 		for (const m of this.markers) {
 			if (m.fileId === oldPath) {
+				renamed.push({ id: m.id, codes: m.codes.map(c => c.codeId), marker: m });
 				m.fileId = newPath;
-				changed = true;
 			}
 		}
 		// Migrate per-file view state (zoom/pan)
 		const states = this.settings.fileStates;
-		if (states && states[oldPath]) {
-			states[newPath] = states[oldPath];
-			delete states[oldPath];
-			changed = true;
+		const stateRenamed = !!(states && states[oldPath]);
+		if (stateRenamed) {
+			states![newPath] = states![oldPath]!;
+			delete states![oldPath];
 		}
-		if (changed) this.notify();
+		if (renamed.length === 0 && !stateRenamed) return;
+		for (const r of renamed) {
+			this.emitMarkerMutation({
+				fileId: oldPath, markerId: r.id,
+				prevCodeIds: r.codes, nextCodeIds: [],
+				codeIds: r.codes, marker: undefined,
+			});
+			this.emitMarkerMutation({
+				fileId: newPath, markerId: r.id,
+				prevCodeIds: [], nextCodeIds: r.codes,
+				codeIds: r.codes, marker: r.marker,
+			});
+		}
+		this.notify();
 	}
 
 	// ─── Helpers ───

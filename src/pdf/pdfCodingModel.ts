@@ -138,23 +138,36 @@ export class PdfCodingModel {
 	// ── File rename tracking ──
 
 	migrateFilePath(oldPath: string, newPath: string): void {
-		let changed = false;
+		// Snapshot pré-rename pra emit REMOVE(old)+ADD(new) por marker/shape — cache atualiza
+		// refByKey pra newPath; senão SC matches retornam fileId obsoleto.
+		const renamed: Array<{ id: string; codes: string[]; marker: PdfMarker | PdfShapeMarker }> = [];
 		for (const marker of this.markers) {
 			if (marker.fileId === oldPath) {
+				renamed.push({ id: marker.id, codes: marker.codes.map(c => c.codeId), marker });
 				marker.fileId = newPath;
-				changed = true;
 			}
 		}
 		for (const shape of this.shapes) {
 			if (shape.fileId === oldPath) {
+				renamed.push({ id: shape.id, codes: shape.codes.map(c => c.codeId), marker: shape });
 				shape.fileId = newPath;
-				changed = true;
 			}
 		}
-		if (changed) {
-			this.save();
-			for (const fn of this.listeners) fn();
+		if (renamed.length === 0) return;
+		for (const r of renamed) {
+			this.emitMarkerMutation({
+				fileId: oldPath, markerId: r.id,
+				prevCodeIds: r.codes, nextCodeIds: [],
+				codeIds: r.codes, marker: undefined,
+			});
+			this.emitMarkerMutation({
+				fileId: newPath, markerId: r.id,
+				prevCodeIds: [], nextCodeIds: r.codes,
+				codeIds: r.codes, marker: r.marker,
+			});
 		}
+		this.save();
+		for (const fn of this.listeners) fn();
 	}
 
 	// ── Marker operations ──

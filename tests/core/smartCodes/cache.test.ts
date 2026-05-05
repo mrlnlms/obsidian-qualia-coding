@@ -137,6 +137,33 @@ describe('SmartCodeCache', () => {
 			expect(cache.getMarkerByRef(refIdentity)).toBe(updatedMarker);
 		});
 
+		it('rename simulado: REMOVE(oldPath) + ADD(newPath) atualiza refByKey', () => {
+			cache.getMatches('sc_x');
+			expect(cache.getCount('sc_x')).toBe(1);
+			const refsOld = cache.getMatches('sc_x');
+			expect(refsOld[0]!.fileId).toBe('f1.md');
+
+			// Simula rename pattern emitido por migrateFilePath.
+			cache.applyMarkerMutation({
+				engine: 'markdown', fileId: 'f1.md', markerId: 'm1',
+				prevCodeIds: ['c_a'], nextCodeIds: [],
+				codeIds: ['c_a'], marker: undefined,
+			});
+			const renamedMarker = { id: 'm1', fileId: 'renamed.md', codes: [{ codeId: 'c_a' }], range: {} };
+			cache.applyMarkerMutation({
+				engine: 'markdown', fileId: 'renamed.md', markerId: 'm1',
+				prevCodeIds: [], nextCodeIds: ['c_a'],
+				codeIds: ['c_a'], marker: renamedMarker as any,
+			});
+
+			expect(cache.getCount('sc_x')).toBe(1);
+			const refsNew = cache.getMatches('sc_x');
+			expect(refsNew[0]!.fileId).toBe('renamed.md'); // ref atualizado
+			// Ref antiga ficou orfã — não está no markerByRef nem nas matches.
+			expect(cache.__getRefByKeyForTest().has('markdown:f1.md:m1')).toBe(false);
+			expect(cache.__getRefByKeyForTest().has('markdown:renamed.md:m1')).toBe(true);
+		});
+
 		it('cascade: applyMarkerMutation invalida SC_B que depende de SC_A via smartCode leaf', () => {
 			data.smartCodes.definitions['sc_b'] = {
 				id: 'sc_b', name: 'B', color: '#fff', paletteIndex: 0, createdAt: 0,
