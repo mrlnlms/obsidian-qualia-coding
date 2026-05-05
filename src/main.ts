@@ -585,16 +585,16 @@ export default class QualiaCodingPlugin extends Plugin {
 	async revealCodeDetailPanel(markerId: string, codeId: string) {
 		const leaves = this.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
 		const existing = leaves[0];
-		if (existing) {
-			const view = existing.view as BaseCodeDetailView;
-			view.setContext(markerId, codeId);
+		if (existing && existing.view instanceof BaseCodeDetailView) {
+			existing.view.setContext(markerId, codeId);
 			this.app.workspace.revealLeaf(existing);
 		} else {
 			const leaf = this.app.workspace.getRightLeaf(false);
 			if (leaf) {
 				await leaf.setViewState({ type: CODE_DETAIL_VIEW_TYPE, active: true });
-				const view = leaf.view as BaseCodeDetailView;
-				view.setContext(markerId, codeId);
+				if (leaf.view instanceof BaseCodeDetailView) {
+					leaf.view.setContext(markerId, codeId);
+				}
 				this.app.workspace.revealLeaf(leaf);
 			}
 		}
@@ -603,16 +603,16 @@ export default class QualiaCodingPlugin extends Plugin {
 	async revealCodeDetailForCode(codeId: string) {
 		const leaves = this.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
 		const existing = leaves[0];
-		if (existing) {
-			const view = existing.view as BaseCodeDetailView;
-			view.showCodeDetail(codeId);
+		if (existing && existing.view instanceof BaseCodeDetailView) {
+			existing.view.showCodeDetail(codeId);
 			this.app.workspace.revealLeaf(existing);
 		} else {
 			const leaf = this.app.workspace.getRightLeaf(false);
 			if (leaf) {
 				await leaf.setViewState({ type: CODE_DETAIL_VIEW_TYPE, active: true });
-				const view = leaf.view as BaseCodeDetailView;
-				view.showCodeDetail(codeId);
+				if (leaf.view instanceof BaseCodeDetailView) {
+					leaf.view.showCodeDetail(codeId);
+				}
 				this.app.workspace.revealLeaf(leaf);
 			}
 		}

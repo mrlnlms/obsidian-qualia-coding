@@ -71,9 +71,11 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 	async function revealCodeExplorer() {
 		const leaves = plugin.app.workspace.getLeavesOfType(CODE_DETAIL_VIEW_TYPE);
 		const existing = leaves[0];
-		if (existing) {
-			const view = existing.view as BaseCodeDetailView;
-			view.showList();
+		// Runtime check: leaf pode existir com view stale (workspace restore, plugin reload race)
+		// onde view não é a instância esperada. Sem check, view.showList() throw em runtime
+		// porque o cast `as BaseCodeDetailView` é só hint TS.
+		if (existing && existing.view instanceof BaseCodeDetailView) {
+			existing.view.showList();
 			plugin.app.workspace.revealLeaf(existing);
 		} else {
 			const leaf = plugin.app.workspace.getRightLeaf(false);

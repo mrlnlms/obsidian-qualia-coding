@@ -17,6 +17,8 @@ Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não 
 
 - **(2026-04-28→04-29) Suspeita de código duplicado no codebook** — investigação completa em `plugin-docs/archive/claude_sources/sessions/20260429-duplicate-code-bug-investigation.md`. Resumo: stress test com 1000 codes + 30 dup pairs deliberados (`scripts/seed-stress-codebook.mjs`) **não reproduziu**. H2 (registry tolera dups) descartada. H1 (virtual scroll) e H3 (race em mutações) sem repro mas não eliminadas. **Quando voltar a aparecer**, capturar `data.json` + screenshot + steps na hora — diagnóstico fica trivial com forensic data.
 
+- **(2026-05-05) Polígono em image marker reposicionado ao fechar/reabrir** — usuário criou polygon no centro de uma imagem; após close+reopen do file, polygon aparece deslocado no canto inferior. Outras shapes (rect/ellipse) parecem manter posição. Suspeita: serialization/deserialization de coords do polygon usa formato inconsistente entre absolute pixels vs normalized 0-1, ou renderer carrega centroid default em vez do salvo. Repro: criar polygon no meio da Screenshot 2026-05-02 at 11.35.26, fechar arquivo, reabrir. **Não relacionado a SC3** — bug pré-existente do image engine. Atacar quando entrar no image polish.
+
 Áreas com polish opcional foram migradas pro `ROADMAP.md`:
 - Relations Network (hover-focus ✅, filtro N+ ✅, edge bundling condicional)
 - Multi-tab spreadsheet export
