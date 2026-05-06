@@ -80,11 +80,15 @@ export async function prepopulateMarkerCaches(
 			} catch (err) {
 				console.warn('[qualia-csv prepopulate] eager parse failed', fileId, err);
 			}
+			// Eager file: cache populated (ou no-op se já tava). Marca seen pro hydrator
+			// não disparar batch redundante.
+			plugin.markerPreviewHydrator?.markSeen(fileId);
 			continue;
 		}
 
 		// Lazy path: only populate if OPFS already has a fresh copy. Forcing a
 		// download here would defeat the "background, no surprise IO" promise.
+		// Cold path (OPFS frio) NÃO marca seen — hydrator pega quando consumer renderizar.
 		if (!(adapter instanceof FileSystemAdapter)) continue;
 		const opfsKey = opfsKeyFor(vaultId, fileId);
 		const cached = await isOpfsCached(opfsKey, af.stat.mtime).catch(() => false);
@@ -98,8 +102,11 @@ export async function prepopulateMarkerCaches(
 			provider = await DuckDBRowProvider.create({ runtime, fileHandle: handle, fileType });
 			const added = await csvModel.populateMissingMarkerTextsForFile(fileId, provider);
 			if (added > 0) touched = true;
+			// Cache populated (added) ou já estava (added=0): marca seen — hydrator não retenta.
+			plugin.markerPreviewHydrator?.markSeen(fileId);
 		} catch (err) {
 			console.warn('[qualia-csv prepopulate] lazy populate failed', fileId, err);
+			// Erro: NÃO marca seen — hydrator pode tentar novamente quando consumer renderizar.
 		} finally {
 			if (provider) {
 				await provider.dispose().catch(() => undefined);
