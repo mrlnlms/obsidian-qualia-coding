@@ -96,8 +96,7 @@ export class MarkerPreviewHydrator {
 	}
 
 	requestHydration(fileId: string): Promise<HydrationOutcome> {
-		console.log('[hyd] requestHydration', fileId, { disposed: this.disposed, seen: this.seen.has(fileId), inflight: this.inflight.has(fileId) });
-		if (this.disposed) {
+if (this.disposed) {
 			return Promise.resolve({ fileId, status: 'skipped', reason: 'disposed' });
 		}
 		if (this.seen.has(fileId)) {
@@ -119,8 +118,7 @@ export class MarkerPreviewHydrator {
 				this.inflight.delete(fileId);
 				this.emitStatus();
 			}
-			console.log('[hyd] requestHydration outcome', fileId, outcome.status, outcome.reason, outcome.addedCount);
-			if (outcome.status === 'success' && (outcome.addedCount ?? 0) > 0) {
+if (outcome.status === 'success' && (outcome.addedCount ?? 0) > 0) {
 				this.scheduleNotify();
 			}
 			return outcome;
@@ -133,14 +131,11 @@ export class MarkerPreviewHydrator {
 	private async runBatch(fileId: string): Promise<HydrationOutcome> {
 		try {
 			if (!this.isLazyFile(fileId)) {
-				console.log('[hyd] runBatch eager-skip', fileId);
 				return { fileId, status: 'skipped', reason: 'eager mode' };
 			}
-			console.log('[hyd] runBatch lazy-start', fileId);
 			return await this.runLazyBatch(fileId);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
-			console.warn('[hyd] runBatch THREW', fileId, msg);
 			this.errors.set(fileId, msg);
 			return { fileId, status: 'error', reason: msg };
 		}
@@ -148,10 +143,8 @@ export class MarkerPreviewHydrator {
 
 	private async runLazyBatch(fileId: string): Promise<HydrationOutcome> {
 		const existing = this.csvModel.getLazyProvider(fileId);
-		console.log('[hyd] runLazyBatch provider-check', fileId, { existingProvider: !!existing });
 		if (existing) {
 			const added = await this.csvModel.populateMissingMarkerTextsForFile(fileId, existing);
-			console.log('[hyd] runLazyBatch reused-provider populated', fileId, { added });
 			return {
 				fileId,
 				status: added > 0 ? 'success' : 'skipped',
@@ -163,7 +156,6 @@ export class MarkerPreviewHydrator {
 		// Hydrator-owned provider path.
 		const af = this.plugin.app.vault.getAbstractFileByPath(fileId);
 		if (!(af instanceof TFile)) {
-			console.log('[hyd] runLazyBatch file-missing', fileId);
 			return { fileId, status: 'skipped', reason: 'file missing' };
 		}
 		const ext = af.extension;
@@ -179,25 +171,15 @@ export class MarkerPreviewHydrator {
 		const opfsKey = opfsKeyFor(vaultId, fileId);
 
 		const cached = await isOpfsCached(opfsKey, af.stat.mtime).catch(() => false);
-		console.log('[hyd] runLazyBatch opfs-check', fileId, { cached, sizeBytes: af.stat.size });
-		const t0 = performance.now();
 		const handle = cached
 			? await openOPFSFile(opfsKey)
 			: await copyVaultFileToOPFS(absPath, opfsKey, af.stat.mtime);
-		console.log('[hyd] runLazyBatch opfs-handle-ready', fileId, { ms: (performance.now() - t0).toFixed(0) });
 
-		const t1 = performance.now();
 		const runtime = await this.plugin.getDuckDB();
-		console.log('[hyd] runLazyBatch duckdb-ready', fileId, { ms: (performance.now() - t1).toFixed(0) });
-
 		const fileType: TabularFileType = ext === 'parquet' ? 'parquet' : 'csv';
-		const t2 = performance.now();
 		const provider = await DuckDBRowProvider.create({ runtime, fileHandle: handle, fileType });
-		console.log('[hyd] runLazyBatch provider-created', fileId, { ms: (performance.now() - t2).toFixed(0) });
 		try {
-			const t3 = performance.now();
 			const added = await this.csvModel.populateMissingMarkerTextsForFile(fileId, provider);
-			console.log('[hyd] runLazyBatch populated', fileId, { added, ms: (performance.now() - t3).toFixed(0) });
 			return {
 				fileId,
 				status: added > 0 ? 'success' : 'skipped',
