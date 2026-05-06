@@ -1,14 +1,7 @@
-import { FileSystemAdapter, TFile } from 'obsidian';
+import { TFile } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { CsvCodingModel } from './csvCodingModel';
 import { parseTabularFile } from './parseTabular';
-import {
-	DuckDBRowProvider,
-	isOpfsCached,
-	openOPFSFile,
-	opfsKeyFor,
-	type TabularFileType,
-} from './duckdb';
 
 /**
  * Background pre-populate of CSV/parquet marker caches on plugin startup.
@@ -42,9 +35,6 @@ export async function prepopulateMarkerCaches(
 		| undefined;
 	const parquetMB = csvSection?.settings?.parquetSizeWarningMB ?? 50;
 	const csvMB = csvSection?.settings?.csvSizeWarningMB ?? 100;
-
-	const adapter = plugin.app.vault.adapter;
-	const vaultId = (plugin.app.vault as unknown as { getName: () => string }).getName?.() ?? 'default';
 
 	let touched = false;
 
@@ -80,38 +70,15 @@ export async function prepopulateMarkerCaches(
 			} catch (err) {
 				console.warn('[qualia-csv prepopulate] eager parse failed', fileId, err);
 			}
-			// Eager file: cache populated (ou no-op se já tava). Marca seen pro hydrator
-			// não disparar batch redundante.
+			// Eager file: cache populated. Marca seen pro hydrator não revisitar
+			// (hydrator faria isLazyFile=false → skipped, mas markSeen short-circuita o lookup).
 			plugin.markerPreviewHydrator?.markSeen(fileId);
-			continue;
 		}
-
-		// Lazy path: only populate if OPFS already has a fresh copy. Forcing a
-		// download here would defeat the "background, no surprise IO" promise.
-		// Cold path (OPFS frio) NÃO marca seen — hydrator pega quando consumer renderizar.
-		if (!(adapter instanceof FileSystemAdapter)) continue;
-		const opfsKey = opfsKeyFor(vaultId, fileId);
-		const cached = await isOpfsCached(opfsKey, af.stat.mtime).catch(() => false);
-		if (!cached) continue;
-
-		let provider: DuckDBRowProvider | null = null;
-		try {
-			const handle = await openOPFSFile(opfsKey);
-			const runtime = await plugin.getDuckDB();
-			const fileType: TabularFileType = ext === 'parquet' ? 'parquet' : 'csv';
-			provider = await DuckDBRowProvider.create({ runtime, fileHandle: handle, fileType });
-			const added = await csvModel.populateMissingMarkerTextsForFile(fileId, provider);
-			if (added > 0) touched = true;
-			// Cache populated (added) ou já estava (added=0): marca seen — hydrator não retenta.
-			plugin.markerPreviewHydrator?.markSeen(fileId);
-		} catch (err) {
-			console.warn('[qualia-csv prepopulate] lazy populate failed', fileId, err);
-			// Erro: NÃO marca seen — hydrator pode tentar novamente quando consumer renderizar.
-		} finally {
-			if (provider) {
-				await provider.dispose().catch(() => undefined);
-			}
-		}
+		// Lazy path REMOVIDO: hydrator é a única autoridade sobre OPFS lazy. Sem isso,
+		// prepopulate e hydrator podiam criar 2 DuckDBRowProvider concorrentes pro mesmo
+		// fileId, causando "Access Handles cannot be created" do OPFS (2026-05-06).
+		// Hydrator dispara batch quando Code Explorer/Detail/Smart Code/Memo View renderiza —
+		// cobertura equivalente, sem race condition.
 	}
 
 	if (touched) csvModel.notifyListenersOnly();
