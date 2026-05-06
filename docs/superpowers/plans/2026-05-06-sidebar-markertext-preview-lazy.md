@@ -388,8 +388,6 @@ export class MarkerPreviewHydrator {
 }
 ```
 
-⚠️ **Importante:** verificar `openOPFSFile(opfsKey)` semantic — se não existe download path automático, ler `src/csv/duckdb/` pra entender API correta de "abrir handle baixando se preciso". Spec assume cold path baixa quando hydrator dispara; ajustar o código acima conforme API real.
-
 - [ ] **Step 4: Run test — verify PASS**
 
 ```bash
