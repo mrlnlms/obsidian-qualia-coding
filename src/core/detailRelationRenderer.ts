@@ -34,6 +34,8 @@ export interface RelationRendererCallbacks {
 	getMarkerLabel(marker: BaseMarker): string;
 	/** Save memo content (string). Renderer não conhece registry/dataManager — caller faz routing. */
 	onSaveMemo(ref: EntityRef, content: string): void;
+	/** Hydrator dispatch — chamado uma vez por fileId único na evidence list. Idempotente. */
+	onFileRendered?: (fileId: string) => void;
 }
 
 export function renderRelationDetail(
@@ -264,6 +266,17 @@ function renderEvidenceList(
 	scrollEl.style.maxHeight = `${EVIDENCE_LIST_MAX_VH}vh`;
 	scrollEl.style.overflowY = 'auto';
 	scrollEl.style.position = 'relative';
+
+	// Dispatcha hidratação uma vez por fileId único — independente do virtual list mounter,
+	// pra ativar batch antes mesmo dos rows serem renderizados.
+	if (callbacks.onFileRendered) {
+		const seen = new Set<string>();
+		for (const m of matchingMarkers) {
+			if (seen.has(m.fileId)) continue;
+			seen.add(m.fileId);
+			callbacks.onFileRendered(m.fileId);
+		}
+	}
 
 	const list = createVirtualList<BaseMarker>({
 		container: scrollEl,

@@ -27,6 +27,8 @@ export interface SmartCodeListConfig {
 	memoAccess?: MemoMaterializerAccess;
 	/** Quando setado, abre direto no detail desse SC em vez da lista. */
 	initialDetailId?: string | null;
+	/** Hydrator pra preview de markers em parquet/CSV lazy. Null em testes. */
+	markerPreviewHydrator?: import('../../csv/markerPreviewHydrator').MarkerPreviewHydrator;
 }
 
 /** Hub modal pra Smart Codes — lista + new + click abre detail. */
@@ -166,6 +168,7 @@ export class SmartCodeListModal extends Modal {
 				}
 			},
 			memoAccess: this.cfg.memoAccess,
+			onFileRendered: (fileId) => this.cfg.markerPreviewHydrator?.requestHydration(fileId),
 		});
 	}
 

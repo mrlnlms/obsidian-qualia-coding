@@ -44,6 +44,22 @@ export function renderMemoView(ctx: AnalyticsViewContext, filters: FilterConfig)
     return;
   }
 
+  // Dispatcha hidratação de previews por fileId único — markers em parquet/CSV lazy
+  // viram texto inline conforme cache popula. Idempotente no hydrator.
+  const hydrator = ctx.plugin.markerPreviewHydrator;
+  if (hydrator) {
+    const seenFiles = new Set<string>();
+    const collect = (memos: { kind: string; fileId?: string }[]) => {
+      for (const mm of memos) {
+        if (mm.kind !== 'marker' || !mm.fileId || seenFiles.has(mm.fileId)) continue;
+        seenFiles.add(mm.fileId);
+        hydrator.requestHydration(mm.fileId);
+      }
+    };
+    if (result.byCode) for (const sec of result.byCode) collect(sec.markerMemos);
+    if (result.byFile) for (const sec of result.byFile) collect(sec.markerMemos);
+  }
+
   if (ctx.mvGroupBy === "file" && result.byFile) {
     for (const sec of result.byFile) {
       renderFileSection(wrapper, sec, {

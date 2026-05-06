@@ -1225,6 +1225,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			},
 			// Memo materialization — degrada gracioso se memoAccess não foi injetado
 			memoAccess: this.memoAccess,
+			onFileRendered: (fileId) => this.plugin.markerPreviewHydrator?.requestHydration(fileId),
 		}, this.app);
 	}
 
@@ -1274,6 +1275,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			shortenPath: (f) => this.shortenPath(f),
 			getMarkerLabel: (m) => this.getMarkerLabel(m),
 			onSaveMemo: (ref, content) => this.saveRelationMemoFromInline(ref, content),
+			onFileRendered: (fileId) => this.plugin.markerPreviewHydrator?.requestHydration(fileId),
 		}, this.app);
 	}
 
@@ -1311,6 +1313,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 			suspendRefresh: () => this.unsubSmartCodes?.(),
 			resumeRefresh: () => this.attachSmartCodeListeners(),
 			memoAccess: this.memoAccess,
+			onFileRendered: (fileId) => this.plugin.markerPreviewHydrator?.requestHydration(fileId),
 		});
 	}
 

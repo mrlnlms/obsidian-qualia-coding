@@ -26,6 +26,8 @@ export interface AnalyticsPluginAPI {
   /** SC infra — exposto pra modes que iteram smart codes (frequency, cooccurrence, etc). */
   smartCodeRegistry: SmartCodeRegistry;
   smartCodeCache: SmartCodeCache;
+  /** Hydrator de markerText preview pra parquet/CSV lazy. Null em testes/contextos sem plugin completo. */
+  markerPreviewHydrator: import('../csv/markerPreviewHydrator').MarkerPreviewHydrator | undefined;
   data: ConsolidatedData | null;
   loadConsolidatedData(): Promise<ConsolidatedData>;
   addChartToBoard(title: string, dataUrl: string, viewMode: string): Promise<void>;
@@ -66,6 +68,7 @@ export function registerAnalyticsEngine(plugin: QualiaCodingPlugin, cache?: Cons
     caseVariablesRegistry: plugin.caseVariablesRegistry,
     smartCodeRegistry: plugin.smartCodeRegistry,
     smartCodeCache: plugin.smartCodeCache,
+    markerPreviewHydrator: plugin.markerPreviewHydrator,
     data: null,
 
     async loadConsolidatedData(): Promise<ConsolidatedData> {

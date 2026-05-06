@@ -31,6 +31,8 @@ export interface SmartCodeDetailCallbacks {
 	resumeRefresh?: () => void;
 	/** Convert to note pra SC memo. Sem ele, memo fica só inline. */
 	memoAccess?: MemoMaterializerAccess;
+	/** Hydrator dispatch — chamado uma vez por fileId único nos matches. Idempotente. */
+	onFileRendered?: (fileId: string) => void;
 }
 
 export function renderSmartCodeDetail(container: HTMLElement, opts: SmartCodeDetailCallbacks): void {
@@ -203,6 +205,7 @@ function renderMatchesSection(container: HTMLElement, opts: SmartCodeDetailCallb
 
 	const listEl = section.createDiv({ cls: 'qc-sc-matches-list' });
 	for (const [fileId, refs] of groupedByFile) {
+		opts.onFileRendered?.(fileId);
 		const fileEl = listEl.createDiv({ cls: 'qc-sc-matches-file' });
 		const fileHeader = fileEl.createDiv({ cls: 'qc-sc-matches-file-header' });
 		fileHeader.createSpan({ text: '📄 ' });

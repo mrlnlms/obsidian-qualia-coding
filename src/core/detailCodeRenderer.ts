@@ -44,6 +44,9 @@ export interface CodeRendererCallbacks {
 	onExportCodeHistory(codeId: string): void;
 	// Memo materialization (Convert to note) — opcional, undefined desativa o botão
 	memoAccess?: MemoMaterializerAccess;
+	// Hydrator dispatch — chamado uma vez por fileId único enquanto a árvore é renderizada.
+	// Idempotente no hydrator (dedup via seen + inflight). Opcional pra não obrigar callsites antigos.
+	onFileRendered?: (fileId: string) => void;
 }
 
 export interface GroupsSectionCallbacks {
@@ -314,6 +317,7 @@ function renderSegmentsByFile(
 	const treeRoot = section.createDiv({ cls: 'search-results-container' });
 
 	for (const [fileId, markers] of byFile) {
+		callbacks.onFileRendered?.(fileId);
 		const fileName = callbacks.shortenPath(fileId);
 
 		// File group

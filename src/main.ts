@@ -492,6 +492,7 @@ export default class QualiaCodingPlugin extends Plugin {
 					getAuditLog: () => (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [],
 					memoAccess,
 					initialDetailId,
+					markerPreviewHydrator: this.markerPreviewHydrator,
 				}).open();
 			},
 			openBuilder: (mode: 'create' | 'edit', initialDefinition?: import('./core/types').SmartCodeDefinition) => {
