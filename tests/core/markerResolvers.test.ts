@@ -6,6 +6,7 @@ import {
   isAudioMarker,
   isVideoMarker,
   getMarkerLabel,
+  previewText,
   shortenPath,
 } from '../../src/core/markerResolvers';
 import type { BaseMarker } from '../../src/core/types';
@@ -167,6 +168,28 @@ describe('getMarkerLabel', () => {
     expect(getMarkerLabel(marker, null)).toBe('R0:c1');
   });
 
+  it('falls back to markerLabel when CSV markerText is whitespace-only', () => {
+    // Repro do bug "Carla label vazia" — papaparse devolve '   ' pra cell whitespace,
+    // o branch CSV truthy-checa string (non-empty=true) e renderia 3 espaços visíveis.
+    const marker = makeBase({ markerType: 'csv', rowIndex: 0, columnId: 'comment', markerText: '   ', markerLabel: 'R0:comment', isSegment: false });
+    expect(getMarkerLabel(marker, null)).toBe('R0:comment');
+  });
+
+  it('falls back to "Page N" when PDF text is whitespace-only', () => {
+    const marker = makeBase({ markerType: 'pdf', page: 5, isShape: false, text: '   \t\n  ' });
+    expect(getMarkerLabel(marker, null)).toBe('Page 5');
+  });
+
+  it('falls back to "Line N" when markdown text is whitespace-only', () => {
+    const marker = makeBase({ text: '   ', range: { from: { line: 4, ch: 0 }, to: { line: 4, ch: 3 } } });
+    expect(getMarkerLabel(marker, null)).toBe('Line 5');
+  });
+
+  it('trims surrounding whitespace from markerText preview', () => {
+    const marker = makeBase({ markerType: 'csv', rowIndex: 0, columnId: 'c1', markerText: '  hello  ', markerLabel: 'R0:c1' });
+    expect(getMarkerLabel(marker, null)).toBe('hello');
+  });
+
   it('returns markerLabel for audio marker', () => {
     const marker = makeBase({ markerType: 'audio', mediaType: 'audio', markerLabel: '0:05 - 0:10', startTime: 5, endTime: 10, markerText: null });
     expect(getMarkerLabel(marker, null)).toBe('0:05 - 0:10');
@@ -297,5 +320,48 @@ describe('getMarkerLabel', () => {
       getViewForFile: (_fileId: string) => null,
     };
     expect(getMarkerLabel(marker, mockMdModel as any)).toBe('text fallback');
+  });
+
+  it('falls back when editor.getRange returns whitespace-only text', () => {
+    const marker = makeBase({
+      text: 'snapshot fallback',
+      range: { from: { line: 2, ch: 0 }, to: { line: 2, ch: 5 } },
+    });
+    const mockMdModel = {
+      getViewForFile: () => ({
+        editor: { getRange: () => '   \n   ' },
+      }),
+    };
+    // Editor live retornou só whitespace → cai no snapshot text → cai no Line N se snapshot também vazio.
+    expect(getMarkerLabel(marker, mockMdModel as any)).toBe('snapshot fallback');
+  });
+});
+
+describe('previewText', () => {
+  it('returns null for null/undefined input', () => {
+    expect(previewText(null, 60)).toBeNull();
+    expect(previewText(undefined, 60)).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(previewText('', 60)).toBeNull();
+  });
+
+  it('returns null for whitespace-only string', () => {
+    expect(previewText('   ', 60)).toBeNull();
+    expect(previewText('\t\n  \r', 60)).toBeNull();
+  });
+
+  it('trims surrounding whitespace from non-empty string', () => {
+    expect(previewText('  hello  ', 60)).toBe('hello');
+  });
+
+  it('truncates with ellipsis when over maxLength (post-trim)', () => {
+    expect(previewText('  ' + 'a'.repeat(100) + '  ', 5)).toBe('aaaaa...');
+  });
+
+  it('does not truncate at exactly maxLength', () => {
+    const text = 'a'.repeat(60);
+    expect(previewText(text, 60)).toBe(text);
   });
 });

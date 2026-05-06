@@ -42,7 +42,7 @@ import { SmartCodeCache } from './core/smartCodes/cache';
 import { SmartCodeRegistry } from './core/smartCodes/smartCodeRegistryApi';
 import { SmartCodeListModal } from './core/smartCodes/smartCodeListModal';
 import { SmartCodeBuilderModal } from './core/smartCodes/builderModal';
-import { getMarkerLabel } from './core/markerResolvers';
+import { getMarkerLabel, previewText } from './core/markerResolvers';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -461,7 +461,8 @@ export default class QualiaCodingPlugin extends Plugin {
 				// CSV: cell text via model (markerText cache + DuckDB lookup pra lazy mode)
 				if (marker.markerType === 'csv' && this.csvModel) {
 					const text = this.csvModel.getMarkerText(marker as import('./csv/csvCodingTypes').CsvMarker);
-					if (text) return text.length > TRUNC ? text.slice(0, TRUNC) + '...' : text;
+					const preview = previewText(text, TRUNC);
+					if (preview) return preview;
 					return this.csvModel.getMarkerLabel(marker as import('./csv/csvCodingTypes').CsvMarker);
 				}
 				// Image: shapeLabel rico (área/dimensões) via model

@@ -37,11 +37,22 @@ export function isVideoMarker(marker: BaseMarker): marker is VideoBaseMarker {
 
 // ── Label resolver ───────────────────────────────────────────
 
+/**
+ * Trim + check empty + truncate. Centraliza a regra "se o text é só whitespace,
+ * caia no fallback de coordenada". `null` retorno = caller deve usar fallback.
+ */
+export function previewText(s: string | null | undefined, maxLength: number): string | null {
+	if (s == null) return null;
+	const trimmed = s.trim();
+	if (trimmed.length === 0) return null;
+	return trimmed.length > maxLength ? trimmed.substring(0, maxLength) + '...' : trimmed;
+}
+
 export function getMarkerLabel(marker: BaseMarker, mdModel: CodeMarkerModel | null, maxLength = 60): string {
 	if (isPdfMarker(marker)) {
 		if (marker.isShape && marker.shapeLabel) return marker.shapeLabel;
-		const text = marker.text;
-		if (text) return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+		const preview = previewText(marker.text, maxLength);
+		if (preview) return preview;
 		return `Page ${marker.page}`;
 	}
 	if (isImageMarker(marker)) {
@@ -51,9 +62,8 @@ export function getMarkerLabel(marker: BaseMarker, mdModel: CodeMarkerModel | nu
 		return shape ? `${shape.charAt(0).toUpperCase()}${shape.slice(1)} region` : 'Image region';
 	}
 	if (isCsvMarker(marker)) {
-		if (marker.markerText) {
-			return marker.markerText.length > maxLength ? marker.markerText.substring(0, maxLength) + '...' : marker.markerText;
-		}
+		const preview = previewText(marker.markerText, maxLength);
+		if (preview) return preview;
 		if (marker.markerLabel) return marker.markerLabel;
 		// Engine raw tem sourceRowId+column; markerLabel é computado pelo adapter.
 		const raw = marker as { sourceRowId?: number; column?: string };
@@ -69,18 +79,15 @@ export function getMarkerLabel(marker: BaseMarker, mdModel: CodeMarkerModel | nu
 	}
 	// Markdown
 	const md = marker as Marker;
-	if (!mdModel) return md.text ? (md.text.length > maxLength ? md.text.substring(0, maxLength) + '...' : md.text) : `Line ${md.range.from.line + 1}`;
+	const fallback = `Line ${md.range.from.line + 1}`;
+	if (!mdModel) return previewText(md.text, maxLength) ?? fallback;
 	const view = mdModel.getViewForFile(md.fileId);
-	if (!view?.editor) {
-		if (md.text) return md.text.length > maxLength ? md.text.substring(0, maxLength) + '...' : md.text;
-		return `Line ${md.range.from.line + 1}`;
-	}
+	if (!view?.editor) return previewText(md.text, maxLength) ?? fallback;
 	try {
 		const text = view.editor.getRange(md.range.from, md.range.to);
-		return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+		return previewText(text, maxLength) ?? previewText(md.text, maxLength) ?? fallback;
 	} catch {
-		if (md.text) return md.text.length > maxLength ? md.text.substring(0, maxLength) + '...' : md.text;
-		return `Line ${md.range.from.line + 1}`;
+		return previewText(md.text, maxLength) ?? fallback;
 	}
 }
 

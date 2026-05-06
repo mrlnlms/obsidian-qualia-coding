@@ -153,9 +153,9 @@ Resolvido. `src/csv/prepopulateMarkerCaches.ts` roda após `app.workspace.onLayo
 
 `CsvCodingModel.getMarkerLabel` agora prefere `getMarkerText(marker)` truncado a 60 chars, com fallback pra `Row X · Column` quando text não disponível. Em eager via `rowDataCache`, em lazy via `markerTextCache`. **Limitação atual:** ambos populam só on file open — pre-populate no startup ficou registrado acima como follow-up da Fase 6.
 
-### Carla label vazia (whitespace-only cell) — minor
+### ~~Carla label vazia (whitespace-only cell)~~ ✅ (2026-05-06)
 
-Smoke 2026-05-04: row marker em célula `"   "` (whitespace) deveria cair no fallback `Row 3 · comment`, mas no DOM o entry aparece com label visualmente vazio. Lógica em `getMarkerLabel` está correta (`trimmed.length === 0` cai no fallback) — provável causa: papaparse parsing whitespace-only quoted cell como string vazia ou similar. Investigar quando virar bloqueante. Não-urgente.
+Resolvido. Causa-raiz: 4 callsites usavam `if (text)` truthy-check, deixando string `"   "` (whitespace-only) passar como label visível. Não era papaparse — era o fallback chain. `previewText(s, maxLength)` em `markerResolvers.ts` centraliza a regra (trim + check empty + truncate), aplicado nos 4 branches do `getMarkerLabel` (PDF/CSV/markdown/markdown-via-editor) + no callback `smartCodeAccess.getMarkerLabel` em `main.ts`. Tests cobrindo whitespace-only em CSV/PDF/markdown.
 
 ### ~~Bundle size pós-DuckDB~~ ✅ (2026-05-04, Fase 6 Slice D)
 
