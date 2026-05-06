@@ -63,11 +63,15 @@ let rowCount = 0;
 
 while (bytesWritten < TARGET_BYTES) {
 	const day = (rowCount % 28) + 1;
+	// Prefix `[r:N]` força preview único por row — assim "duplicação" visual
+	// observada na sidebar é bug real, não artefato do COMMENTS cíclico.
+	const baseComment = COMMENTS[rowCount % COMMENTS.length].replace(/"/g, '""');
+	const uniqueComment = `[r:${rowCount}] ${baseComment}`;
 	const row = [
 		rowCount,
 		NAMES[rowCount % NAMES.length],
 		`2026-01-${day.toString().padStart(2, '0')}`,
-		`"${COMMENTS[rowCount % COMMENTS.length].replace(/"/g, '""')}"`,
+		`"${uniqueComment}"`,
 	].join(',') + '\n';
 	stream.write(row);
 	bytesWritten += Buffer.byteLength(row, 'utf8');
