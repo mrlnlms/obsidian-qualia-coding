@@ -34,8 +34,8 @@ Coisas que apareceram em smoke test mas não conseguiram ser reproduzidas. Não 
 
 Smart Codes Tier 3 fechou em 2026-05-04 (branch `feat/smart-codes`, 19 commits, 175 testes novos, mergida em `main`). Funcionalidade core — criar/editar/deletar/visualizar/contar/export/import — está **100% acessível via command palette** (`Smart Codes: Open hub` + `Smart Codes: New`) e usa modal próprio. Round-trip QDPX e CSV tabular funcionam. Stress passou em <1s pra 10k markers + 100 smart codes.
 
-**Spec autoritativa:** `docs/superpowers/specs/2026-05-04-smart-codes-design.md`
-**Plan original:** `docs/superpowers/plans/2026-05-04-smart-codes.md` (5 chunks)
+**Spec autoritativa:** `plugin-docs/archive/claude_sources/specs/20260504-smart-codes-design.md` (workspace externo)
+**Plan original:** `plugin-docs/archive/claude_sources/plans/20260504-smart-codes.md` (5 chunks, workspace externo)
 **Tags de rollback:** `pre-smart-codes-baseline` (82cb949) ↔ `post-smart-codes-checkpoint` (4022808)
 
 ### ~~SC1 — Integração em Analytics modes~~ ✅ FEITO (2026-05-05)

@@ -11,7 +11,7 @@
 - Pre-populate startup: `src/csv/prepopulateMarkerCaches.ts`
 - Export resolver: `src/csv/resolveExportTexts.ts`
 - QDPX `<qualia:TabularSource>`: `src/export/qdpxExporter.ts:buildTabularSourceXml` + `src/import/qdpxImporter.ts:createTabularMarker` (round-trip)
-- Manage cache UI + checklist de testes manuais: `src/core/settingTab.ts` + `docs/MANUAL-TESTS-FASE-6.md`
+- Manage cache UI + checklist de testes manuais: `src/core/settingTab.ts` + `plugin-docs/archive/claude_sources/plans/20260504-manual-tests-fase-6.md` (workspace externo)
 
 **Audiência atual:** quem for atacar feature derivada (LLM provider, Whisper transcription) — pra reusar a infra DuckDB+Worker+OPFS sem redescobrir as armadilhas (§14 spike findings, §6 pontos cegos validados).
 

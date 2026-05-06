@@ -127,7 +127,7 @@ Fechamento da Fase 6 do parquet/CSV lazy loading: capability shift de "abre arqu
 ### Technical
 
 - Spike findings (2026-05-03) validaram empiricamente as 3 premissas críticas do design (`ROW_NUMBER()` stability em parquet patológico MERGED de 297MB, sourceRowId latency p95 ≤ 125ms em 2.4M rows, OPFS streaming com heap Δ = 0 MB). 2 shims obrigatórios pro Worker em Electron Obsidian descobertos (process fake + nuke `WebAssembly.instantiateStreaming`) — entram na Fase 2 (DuckDB bootstrap) sem precedente público.
-- Spec: `docs/superpowers/specs/20260503-parquet-lazy-fase-0-design.md`. Design doc completo em `docs/parquet-lazy-design.md` (versionado a partir desta release como referência arquitetural pra LLM/Whisper futuros).
+- Spec: `plugin-docs/archive/claude_sources/specs/20260503-parquet-lazy-fase-0-design.md` (workspace externo). Design doc completo em `docs/parquet-lazy-design.md` (versionado a partir desta release como referência arquitetural pra LLM/Whisper futuros).
 - 6 commits de Slices da Fase 6 (`5617773` A, `4260591` B, `8017027` B-test, `1aa39fa` C, `9ddb71a` D, `c292700` E) + ajustes finais (`1327d70` clearWasmBytes, `e2fa9e3` auto-cleanup OPFS).
 - Tags `pre-fase6-baseline` (4885d3e) / `post-fase6-checkpoint` pra rollback granular se necessário.
 - Vitest plugin `stubDuckDBAssets` em `vitest.config.ts` intercepta `.wasm`/`.worker.js` imports — qualquer test que toque transitivamente o stack DuckDB funciona sem mock manual por arquivo.

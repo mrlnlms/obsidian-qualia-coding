@@ -5,7 +5,7 @@
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
-**Versão:** 0.2.0 (2026-05-04, tag pushed, GitHub Release automático via `.github/workflows/release.yml`). Fase 6 do parquet/CSV lazy loading fechada. Checklist de testes manuais em `docs/MANUAL-TESTS-FASE-6.md`.
+**Versão:** 0.3.0 (2026-05-05, tag pushed, GitHub Release automático via `.github/workflows/release.yml`). Smart Codes Tier 3 + Phase 2 fechado. Checklist de testes manuais da Fase 6 em `plugin-docs/archive/claude_sources/plans/20260504-manual-tests-fase-6.md` (workspace externo).
 
 **Infra que a Fase 6 estabeleceu (não é só "abrir parquet grande"):**
 - DuckDB-Wasm + Worker + Blob URLs → reusável pra LLM provider (Ollama/OpenAI/Anthropic) e Whisper transcription
@@ -91,7 +91,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 
 | Feature | Estado |
 |---|---|
-| ~~**Smart Codes (saved queries)**~~ | ✅ FEITO 2026-05-04 — branch `feat/smart-codes`, 19 commits, 107 testes novos. Spec em `docs/superpowers/specs/2026-05-04-smart-codes-design.md`, plan em `docs/superpowers/plans/2026-05-04-smart-codes.md`. |
+| ~~**Smart Codes (saved queries)**~~ | ✅ FEITO 2026-05-04 — branch `feat/smart-codes`, 19 commits, 107 testes novos. Spec em `plugin-docs/archive/claude_sources/specs/20260504-smart-codes-design.md`, plan em `plugin-docs/archive/claude_sources/plans/20260504-smart-codes.md` (workspace externo). |
 
 **Implementação:** schema completo (PredicateNode AST com 10 leaves: hasCode, caseVarEquals, caseVarRange, magnitudeGte/Lte, inFolder, inGroup, engineType, relationExists, smartCode nesting), evaluator puro com short-circuit + cycle detection (`src/core/smartCodes/evaluator.ts`), SmartCodeCache singleton com invalidação granular + computePreview + chunked compute (`cache.ts` + `matcher.ts`), SmartCodeApi CRUD + autoRewriteOnMerge + diffPredicateLeaves + rewriteCodeRef (`smartCodeRegistryApi.ts`), builder modal row-based linear com preview live <300ms + Smart Code Detail + List hub modal acessível via command palette (`Smart Codes: Open hub` + `Smart Codes: New`), audit log estendido com `entity?: 'code' | 'smartCode'` discriminator + 5 sc_* event types com coalescing (60s text edits + Set union pra predicate edits), ⚡ icon na Codebook Timeline, export QDPX bloco `<qualia:SmartCodes>` namespace custom + import 2-pass (alocar IDs → resolver refs incl. nesting), CSV tabular `smart_codes.csv` com `predicate_json` + README R/Python snippets condicionais. **Stress:** 10k markers + 100 smart codes em <1s.
 
