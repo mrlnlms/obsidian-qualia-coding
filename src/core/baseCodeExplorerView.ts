@@ -187,6 +187,12 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		}
 
 		for (const fileId of this.model.getAllFileIds()) {
+			// Dispatch hidratação per-file (idempotente — hydrator dedupe via seen + inflight).
+			// Em modo lazy + cold (parquet/CSV nunca aberto nessa máquina), o batch popula
+			// markerTextCache em background e chama notifyListenersOnly ao terminar — re-render
+			// pega o texto sync via getMarkerText.
+			this.plugin.markerPreviewHydrator?.requestHydration(fileId);
+
 			const markers = this.model.getMarkersForFile(fileId);
 			for (const marker of markers) {
 				for (const ca of marker.codes) {
