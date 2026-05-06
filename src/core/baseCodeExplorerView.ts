@@ -15,6 +15,7 @@ import { BaseMarker, CodeDefinition, SidebarModelInterface } from './types';
 import { createVirtualList } from './virtualList';
 import type { SmartCodesAccess } from './baseCodeDetailView';
 import type { SmartCodeDefinition } from './smartCodes/types';
+import type QualiaCodingPlugin from '../main';
 import type { MarkerRef } from './smartCodes/types';
 
 export type { SmartCodesAccess } from './baseCodeDetailView';
@@ -56,12 +57,16 @@ export abstract class BaseCodeExplorerView extends ItemView {
 	private treeZone: HTMLElement | null = null;
 	private footerEl: HTMLElement | null = null;
 
+	protected readonly plugin: QualiaCodingPlugin;
+
 	constructor(
 		leaf: WorkspaceLeaf,
+		plugin: QualiaCodingPlugin,
 		model: SidebarModelInterface,
 		smartCodeAccess?: SmartCodesAccess,
 	) {
 		super(leaf);
+		this.plugin = plugin;
 		this.model = model;
 		this.smartCodeAccess = smartCodeAccess;
 	}

@@ -17,13 +17,14 @@ export class UnifiedCodeDetailView extends BaseCodeDetailView {
 
 	constructor(
 		leaf: WorkspaceLeaf,
+		plugin: import('../main').default,
 		model: SidebarModelInterface,
 		mdModel: CodeMarkerModel | null,
 		auditAccess?: AuditAccess,
 		memoAccess?: MemoMaterializerAccess,
 		smartCodeAccess?: SmartCodesAccess,
 	) {
-		super(leaf, model, auditAccess, memoAccess, smartCodeAccess);
+		super(leaf, plugin, model, auditAccess, memoAccess, smartCodeAccess);
 		this.mdModel = mdModel;
 	}
 

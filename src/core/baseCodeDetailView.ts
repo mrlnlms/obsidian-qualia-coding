@@ -13,6 +13,7 @@
  */
 
 import { FuzzySuggestModal, ItemView, Menu, Notice, WorkspaceLeaf } from 'obsidian';
+import type QualiaCodingPlugin from '../main';
 import { BaseMarker, GroupDefinition, SidebarModelInterface, AuditEntry } from './types';
 import { getMemoContent } from './memoHelpers';
 
@@ -130,14 +131,18 @@ export abstract class BaseCodeDetailView extends ItemView {
 		};
 	}
 
+	protected readonly plugin: QualiaCodingPlugin;
+
 	constructor(
 		leaf: WorkspaceLeaf,
+		plugin: QualiaCodingPlugin,
 		model: SidebarModelInterface,
 		auditAccess?: AuditAccess,
 		memoAccess?: MemoMaterializerAccess,
 		smartCodeAccess?: SmartCodesAccess,
 	) {
 		super(leaf);
+		this.plugin = plugin;
 		this.model = model;
 		this.auditAccess = auditAccess;
 		this.memoAccess = memoAccess;

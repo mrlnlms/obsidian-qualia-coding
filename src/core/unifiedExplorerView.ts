@@ -17,11 +17,12 @@ export class UnifiedCodeExplorerView extends BaseCodeExplorerView {
 
 	constructor(
 		leaf: WorkspaceLeaf,
+		plugin: import('../main').default,
 		model: SidebarModelInterface,
 		mdModel: CodeMarkerModel | null,
 		smartCodeAccess?: SmartCodesAccess,
 	) {
-		super(leaf, model, smartCodeAccess);
+		super(leaf, plugin, model, smartCodeAccess);
 		this.mdModel = mdModel;
 	}
 
