@@ -96,6 +96,7 @@ export class MarkerPreviewHydrator {
 	}
 
 	requestHydration(fileId: string): Promise<HydrationOutcome> {
+		console.debug('[hyd] requestHydration', fileId, { disposed: this.disposed, seen: this.seen.has(fileId), inflight: this.inflight.has(fileId) });
 		if (this.disposed) {
 			return Promise.resolve({ fileId, status: 'skipped', reason: 'disposed' });
 		}
@@ -115,20 +116,24 @@ export class MarkerPreviewHydrator {
 		let outcome: HydrationOutcome;
 		try {
 			if (!this.isLazyFile(fileId)) {
+				console.debug('[hyd] runBatch eager-skip', fileId);
 				outcome = { fileId, status: 'skipped', reason: 'eager mode' };
 				this.seen.add(fileId);
 			} else {
+				console.debug('[hyd] runBatch lazy-start', fileId);
 				outcome = await this.runLazyBatch(fileId);
 				if (outcome.status !== 'error') this.seen.add(fileId);
 			}
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
+			console.warn('[hyd] runBatch THREW', fileId, msg);
 			this.errors.set(fileId, msg);
 			outcome = { fileId, status: 'error', reason: msg };
 		} finally {
 			this.inflight.delete(fileId);
 			this.emitStatus();
 		}
+		console.debug('[hyd] runBatch outcome', fileId, outcome.status, outcome.reason, outcome.addedCount);
 		if (outcome.status === 'success' && (outcome.addedCount ?? 0) > 0) {
 			this.scheduleNotify();
 		}
@@ -136,16 +141,11 @@ export class MarkerPreviewHydrator {
 	}
 
 	private async runLazyBatch(fileId: string): Promise<HydrationOutcome> {
-		// Provider reuse — encurtar janela entre getLazyProvider e populate.
-		// Invariant: csvCodingView.onClose unregistra provider do Map ANTES de await dispose()
-		// (csvCodingView.ts:772 → unregisterLazyProvider sync precede await rowProvider.dispose()).
-		// Logo, getLazyProvider nunca retorna provider já-disposed. Race possível:
-		// hydrator obtém ref → user fecha tab → csvCodingView dispose → provider.disposed=true
-		// → trackedQuery.guard() throw. Tratado no catch genérico de runBatch como error path
-		// (NÃO marca seen, retry próxima).
 		const existing = this.csvModel.getLazyProvider(fileId);
+		console.debug('[hyd] runLazyBatch provider-check', fileId, { existingProvider: !!existing });
 		if (existing) {
 			const added = await this.csvModel.populateMissingMarkerTextsForFile(fileId, existing);
+			console.debug('[hyd] runLazyBatch reused-provider populated', fileId, { added });
 			return {
 				fileId,
 				status: added > 0 ? 'success' : 'skipped',
@@ -157,6 +157,7 @@ export class MarkerPreviewHydrator {
 		// Hydrator-owned provider path.
 		const af = this.plugin.app.vault.getAbstractFileByPath(fileId);
 		if (!(af instanceof TFile)) {
+			console.debug('[hyd] runLazyBatch file-missing', fileId);
 			return { fileId, status: 'skipped', reason: 'file missing' };
 		}
 		const ext = af.extension;
@@ -171,19 +172,26 @@ export class MarkerPreviewHydrator {
 		const vaultId = (this.plugin.app.vault as unknown as { getName: () => string }).getName?.() ?? 'default';
 		const opfsKey = opfsKeyFor(vaultId, fileId);
 
-		// Mesmo pattern de csvCodingView.setupLazyMode (linha 287-303): se OPFS já tem cópia
-		// fresca, openOPFSFile retorna handle direto; senão copyVaultFileToOPFS baixa em
-		// chunks de 1MB e retorna handle. Cold path (cenário primário) cai aqui.
 		const cached = await isOpfsCached(opfsKey, af.stat.mtime).catch(() => false);
+		console.debug('[hyd] runLazyBatch opfs-check', fileId, { cached, sizeBytes: af.stat.size });
+		const t0 = performance.now();
 		const handle = cached
 			? await openOPFSFile(opfsKey)
 			: await copyVaultFileToOPFS(absPath, opfsKey, af.stat.mtime);
+		console.debug('[hyd] runLazyBatch opfs-handle-ready', fileId, { ms: (performance.now() - t0).toFixed(0) });
 
+		const t1 = performance.now();
 		const runtime = await this.plugin.getDuckDB();
+		console.debug('[hyd] runLazyBatch duckdb-ready', fileId, { ms: (performance.now() - t1).toFixed(0) });
+
 		const fileType: TabularFileType = ext === 'parquet' ? 'parquet' : 'csv';
+		const t2 = performance.now();
 		const provider = await DuckDBRowProvider.create({ runtime, fileHandle: handle, fileType });
+		console.debug('[hyd] runLazyBatch provider-created', fileId, { ms: (performance.now() - t2).toFixed(0) });
 		try {
+			const t3 = performance.now();
 			const added = await this.csvModel.populateMissingMarkerTextsForFile(fileId, provider);
+			console.debug('[hyd] runLazyBatch populated', fileId, { added, ms: (performance.now() - t3).toFixed(0) });
 			return {
 				fileId,
 				status: added > 0 ? 'success' : 'skipped',
