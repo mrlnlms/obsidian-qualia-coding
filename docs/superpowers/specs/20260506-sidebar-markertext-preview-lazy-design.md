@@ -1,6 +1,6 @@
 # Sidebar markerText preview pra arquivos lazy — Design
 
-**Data:** 2026-05-06 (rev. 2 pós-review)
+**Data:** 2026-05-06 (rev 3 — aprovada após 3 iterações de review)
 **Status:** spec aprovada, aguarda implementation plan
 **Owner:** Marlon Lemes
 
