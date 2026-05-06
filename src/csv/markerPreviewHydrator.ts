@@ -106,38 +106,44 @@ export class MarkerPreviewHydrator {
 		const existing = this.inflight.get(fileId);
 		if (existing) return existing;
 
-		const promise = this.runBatch(fileId);
+		// Wrapper IIFE garante que `inflight.set` ocorre ANTES de qualquer execução de
+		// runBatch, e `inflight.delete` SÓ no finally do wrapper. Sem isso, eager path
+		// (síncrono, sem await) deletava do inflight antes do set acontecer — fileId
+		// ficava preso permanente no Map (causa do bug do indicador travado em "2/3").
+		const promise = (async () => {
+			let outcome: HydrationOutcome;
+			try {
+				outcome = await this.runBatch(fileId);
+				if (outcome.status !== 'error') this.seen.add(fileId);
+			} finally {
+				this.inflight.delete(fileId);
+				this.emitStatus();
+			}
+			console.log('[hyd] requestHydration outcome', fileId, outcome.status, outcome.reason, outcome.addedCount);
+			if (outcome.status === 'success' && (outcome.addedCount ?? 0) > 0) {
+				this.scheduleNotify();
+			}
+			return outcome;
+		})();
 		this.inflight.set(fileId, promise);
 		this.emitStatus();
 		return promise;
 	}
 
 	private async runBatch(fileId: string): Promise<HydrationOutcome> {
-		let outcome: HydrationOutcome;
 		try {
 			if (!this.isLazyFile(fileId)) {
 				console.log('[hyd] runBatch eager-skip', fileId);
-				outcome = { fileId, status: 'skipped', reason: 'eager mode' };
-				this.seen.add(fileId);
-			} else {
-				console.log('[hyd] runBatch lazy-start', fileId);
-				outcome = await this.runLazyBatch(fileId);
-				if (outcome.status !== 'error') this.seen.add(fileId);
+				return { fileId, status: 'skipped', reason: 'eager mode' };
 			}
+			console.log('[hyd] runBatch lazy-start', fileId);
+			return await this.runLazyBatch(fileId);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			console.warn('[hyd] runBatch THREW', fileId, msg);
 			this.errors.set(fileId, msg);
-			outcome = { fileId, status: 'error', reason: msg };
-		} finally {
-			this.inflight.delete(fileId);
-			this.emitStatus();
+			return { fileId, status: 'error', reason: msg };
 		}
-		console.log('[hyd] runBatch outcome', fileId, outcome.status, outcome.reason, outcome.addedCount);
-		if (outcome.status === 'success' && (outcome.addedCount ?? 0) > 0) {
-			this.scheduleNotify();
-		}
-		return outcome;
 	}
 
 	private async runLazyBatch(fileId: string): Promise<HydrationOutcome> {
