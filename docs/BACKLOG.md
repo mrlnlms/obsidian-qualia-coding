@@ -125,9 +125,9 @@ Estimativa: 1.5-2 sessões dedicadas. Atacar quando prioridades permitirem (não
 
 Hoje desligado: `columnToggleModal.ts:186/200` força `filter: !lazy` nas virtual columns porque elas não estão no DuckDB schema (usuário codifica em data.json). Pra habilitar filter em lazy seria preciso traduzir filterModel dessas colunas pra LEFT JOIN com dados de markers (não trivial). Custo > benefício até feedback de usuário pedir.
 
-### Validação de 2 parquets pesados em paralelo (não testado)
+### ~~Validação de 2 parquets pesados em paralelo~~ ✅ (2026-05-06, smoke manual)
 
-Cada view tem seu próprio `lazyState`/`displayMap`/`gridApi`. DuckDB runtime é singleton (queries serializam internamente). Memory headroom pode ser apertado se ambos > 500MB. Não testado — registrar caso de teste ad-hoc se aparecer.
+Smoke validado pelo user: 2 parquets abertos lado a lado, scroll fluido, coding funciona em ambos. Memory/OPFS sem aperto perceptível em uso normal. Não documentamos número exato (não medimos worker memory) — registrar se aparecer regressão futura.
 
 ### ~~Pre-compute display_row mapping ao aplicar sort em lazy mode~~ ✅ (já estava ligado em Fase 4a/5)
 
