@@ -379,4 +379,71 @@ describe('dispose', () => {
 		await expect(p.getRowCount()).rejects.toThrow(/disposed/);
 		await expect(p.batchGetMarkerText([{ sourceRowId: 0, column: 'a' }])).rejects.toThrow(/disposed/);
 	});
+
+	it('drains in-flight queries before DROP TABLE', async () => {
+		// Repro do "Missing DB manager" — query lançada antes do dispose terminava
+		// concorrente com DROP TABLE, derrubando uma das duas. Após o lock interno,
+		// dispose() aguarda inflight=0 antes de DROP TABLE.
+		const alias = 'a.csv';
+		seedRows(alias, [{ name: 'Alice' }]);
+		const p = await DuckDBRowProvider.create({ runtime, fileHandle: fakeHandle, fileType: 'csv', alias });
+
+		// Intercepta a próxima query (getMarkerText) e segura ela manualmente.
+		let resolveHeldQuery!: (v: MockQueryResult) => void;
+		const realQuery = conn.query.bind(conn);
+		conn.query = async (sql: string) => {
+			if (sql.startsWith('SELECT "name"')) {
+				return new Promise<MockQueryResult>((resolve) => { resolveHeldQuery = resolve; });
+			}
+			return realQuery(sql);
+		};
+
+		// Lança getMarkerText sem awaitar — fica pending
+		const queryPromise = p.getMarkerText({ sourceRowId: 0, column: 'name' });
+
+		// dispose começa em paralelo — deve esperar a query terminar antes de DROP TABLE
+		const disposePromise = p.dispose();
+
+		// Yield pra ambas microtasks pegarem o agendamento
+		await new Promise(r => setTimeout(r, 0));
+
+		// dispose AINDA não deveria ter rodado DROP TABLE (query pending)
+		expect(conn.queryLog.some(q => q.startsWith('DROP TABLE IF EXISTS qualia_lazy_'))).toBe(false);
+
+		// Resolve a query pending
+		resolveHeldQuery(new MockQueryResult([{ val: 'Alice' }]));
+		await queryPromise;
+		await disposePromise;
+
+		// Agora sim DROP TABLE rodou
+		expect(conn.queryLog.some(q => q.startsWith('DROP TABLE IF EXISTS qualia_lazy_'))).toBe(true);
+		expect(db.dropped).toContain(alias);
+	});
+
+	it('rejects new queries the moment dispose starts (even before drain completes)', async () => {
+		const alias = 'a.csv';
+		seedRows(alias, [{ name: 'Alice' }]);
+		const p = await DuckDBRowProvider.create({ runtime, fileHandle: fakeHandle, fileType: 'csv', alias });
+
+		let resolveHeldQuery!: (v: MockQueryResult) => void;
+		const realQuery = conn.query.bind(conn);
+		conn.query = async (sql: string) => {
+			if (sql.startsWith('SELECT "name"')) {
+				return new Promise<MockQueryResult>((resolve) => { resolveHeldQuery = resolve; });
+			}
+			return realQuery(sql);
+		};
+
+		const inflight = p.getMarkerText({ sourceRowId: 0, column: 'name' });
+		const disposing = p.dispose();
+		await new Promise(r => setTimeout(r, 0));
+
+		// Query LANÇADA depois do dispose começar deve rejeitar imediatamente.
+		await expect(p.getRowCount()).rejects.toThrow(/disposed/);
+
+		// Query lançada ANTES do dispose ainda é honrada.
+		resolveHeldQuery(new MockQueryResult([{ val: 'Alice' }]));
+		await expect(inflight).resolves.toBe('Alice');
+		await disposing;
+	});
 });

@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Label whitespace-only** (`previewText` helper) — 4 callsites de `getMarkerLabel` (PDF/CSV/markdown/markdown-via-editor) faziam `if (text)` truthy-check, deixando string `"   "` passar como label visível em vez de cair no fallback (`Page N` / `Row X · column` / `Line N`). Idem em `smartCodeAccess.getMarkerLabel` (`main.ts`). Centralizado em `previewText(s, maxLength): string | null` em `markerResolvers.ts` — trim + check empty + truncate. Repro registrado como "Carla label vazia" no `BACKLOG.md`.
 
+- **DuckDBRowProvider drain on dispose** — `dispose()` agora aguarda queries em flight terminarem antes de `DROP TABLE` / `dropFile`. Counter `inflight` incrementado por `trackedQuery()` privada (todas as 9 queries do provider passam por ela); `disposed=true` bloqueia novas via `guard()` no momento que dispose começa. Resolve "Missing DB manager" residual no console quando teardown corria concorrente com query pending.
+
 ### Removed
 
 - **PDF undo stack** — feature `Undo last PDF coding action` (Cmd+Z, command `undo-pdf-coding`) removida. Era a única engine com undo (markdown/image/csv/media nunca tiveram), mantinha inconsistência cross-engine e o keybinding nunca foi wired no `PdfCodingView`. Saiu: `PdfCodingModel.undo()`, `pushUndo()`, `reconcileCodes()`, `undoStack`, `suppressUndo` (dead code), interface `UndoEntry`, const `MAX_UNDO`, command `undo-pdf-coding`, 13 testes, seção `TECHNICAL-PATTERNS.md §4.8`.

@@ -129,10 +129,6 @@ Estimativa: 1.5-2 sessões dedicadas. Atacar quando prioridades permitirem (não
 
 Hoje desligado: `columnToggleModal.ts:186/200` força `filter: !lazy` nas virtual columns porque elas não estão no DuckDB schema (usuário codifica em data.json). Pra habilitar filter em lazy seria preciso traduzir filterModel dessas colunas pra LEFT JOIN com dados de markers (não trivial). Custo > benefício até feedback de usuário pedir.
 
-### "Missing DB manager" residual do DuckDB worker em alta concorrência
-
-Mitigado em 2026-05-04 (snapshot de `lazyState` no `onUnloadFile`, re-check após cada await em `refreshLazyFilter`/`refreshLazyDisplayMap`). Mas DuckDB-Wasm pode ainda emitir esse erro do worker se uma query estiver em flight no exato instante de `dispose()`. Não é fatal (try/catch around) mas polui o console. Solução completa: serializar `dispose()` com pending queries via lock interno no provider. Não-urgente.
-
 ### Validação de 2 parquets pesados em paralelo (não testado)
 
 Cada view tem seu próprio `lazyState`/`displayMap`/`gridApi`. DuckDB runtime é singleton (queries serializam internamente). Memory headroom pode ser apertado se ambos > 500MB. Não testado — registrar caso de teste ad-hoc se aparecer.
@@ -156,6 +152,10 @@ Resolvido. `src/csv/prepopulateMarkerCaches.ts` roda após `app.workspace.onLayo
 ### ~~Carla label vazia (whitespace-only cell)~~ ✅ (2026-05-06)
 
 Resolvido. Causa-raiz: 4 callsites usavam `if (text)` truthy-check, deixando string `"   "` (whitespace-only) passar como label visível. Não era papaparse — era o fallback chain. `previewText(s, maxLength)` em `markerResolvers.ts` centraliza a regra (trim + check empty + truncate), aplicado nos 4 branches do `getMarkerLabel` (PDF/CSV/markdown/markdown-via-editor) + no callback `smartCodeAccess.getMarkerLabel` em `main.ts`. Tests cobrindo whitespace-only em CSV/PDF/markdown.
+
+### ~~"Missing DB manager" residual do DuckDB worker em alta concorrência~~ ✅ (2026-05-06)
+
+Resolvido. `DuckDBRowProvider` ganhou lock interno: counter `inflight` incrementado a cada query via `trackedQuery()` privada; `dispose()` aguarda `inflight === 0` antes de DROP TABLE / dropFile. `disposed=true` bloqueia novas queries no momento que dispose começa, mas queries já em flight terminam normalmente. Test cobre o cenário: query pending + dispose concorrente → DROP TABLE só roda depois da query resolver.
 
 ### ~~Bundle size pós-DuckDB~~ ✅ (2026-05-04, Fase 6 Slice D)
 

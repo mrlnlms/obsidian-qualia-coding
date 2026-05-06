@@ -42,6 +42,13 @@ function uniqueSuffix(): string {
 
 export class DuckDBRowProvider implements RowProvider {
 	private disposed = false;
+	// In-flight query tracking — `dispose()` aguarda essas drenarem antes de
+	// DROP TABLE, evitando "Missing DB manager" do worker quando teardown corre
+	// em paralelo com query pendente. Toda query do provider passa por
+	// `trackedQuery()`; `disposed=true` bloqueia novas via `guard()`.
+	private inflight = 0;
+	private resolveDrained: (() => void) | null = null;
+	private drainPromise: Promise<void> | null = null;
 
 	private constructor(
 		private readonly conn: duckdb.AsyncDuckDBConnection,
@@ -98,9 +105,29 @@ export class DuckDBRowProvider implements RowProvider {
 		if (this.disposed) throw new Error("DuckDBRowProvider has been disposed");
 	}
 
-	async getMarkerText(ref: MarkerRef): Promise<string | null> {
+	/**
+	 * Roda query rastreando count de in-flight pra `dispose()` poder drenar antes
+	 * de DROP TABLE. Bloqueia via `guard()` se já disposed (queries lançadas ANTES
+	 * de dispose terminam normalmente — só novas são rejeitadas).
+	 */
+	private async trackedQuery(sql: string) {
 		this.guard();
-		const result = await this.conn.query(
+		this.inflight++;
+		try {
+			return await this.conn.query(sql);
+		} finally {
+			this.inflight--;
+			if (this.inflight === 0 && this.resolveDrained) {
+				const resolve = this.resolveDrained;
+				this.resolveDrained = null;
+				this.drainPromise = null;
+				resolve();
+			}
+		}
+	}
+
+	async getMarkerText(ref: MarkerRef): Promise<string | null> {
+		const result = await this.trackedQuery(
 			`SELECT ${quoteIdent(ref.column)} AS val ` +
 			`FROM ${this.tableName} ` +
 			`WHERE __source_row = ${ref.sourceRowId} LIMIT 1`,
@@ -112,7 +139,6 @@ export class DuckDBRowProvider implements RowProvider {
 	}
 
 	async batchGetMarkerText(refs: MarkerRef[]): Promise<Map<string, string | null>> {
-		this.guard();
 		const out = new Map<string, string | null>();
 		if (refs.length === 0) return out;
 
@@ -128,7 +154,7 @@ export class DuckDBRowProvider implements RowProvider {
 
 		for (const [col, ids] of byColumn) {
 			const inList = ids.join(",");
-			const result = await this.conn.query(
+			const result = await this.trackedQuery(
 				`SELECT __source_row, ${quoteIdent(col)} AS val ` +
 				`FROM ${this.tableName} ` +
 				`WHERE __source_row IN (${inList})`,
@@ -153,9 +179,8 @@ export class DuckDBRowProvider implements RowProvider {
 	 * `filterModelToSql.buildWhereClause`), returns the count post-filter.
 	 */
 	async getRowCount(whereClause?: string): Promise<number> {
-		this.guard();
 		const where = whereClause ? `WHERE ${whereClause}` : "";
-		const result = await this.conn.query(`SELECT COUNT(*) AS n FROM ${this.tableName} ${where}`);
+		const result = await this.trackedQuery(`SELECT COUNT(*) AS n FROM ${this.tableName} ${where}`);
 		const rows = result.toArray();
 		return Number(rows[0]?.toJSON().n ?? 0);
 	}
@@ -166,9 +191,8 @@ export class DuckDBRowProvider implements RowProvider {
 	 * `forEachNodeAfterFilterAndSort` is unreliable). No `whereClause` → all rows.
 	 */
 	async getFilteredSourceRowIds(whereClause?: string): Promise<number[]> {
-		this.guard();
 		const where = whereClause ? `WHERE ${whereClause}` : "";
-		const result = await this.conn.query(
+		const result = await this.trackedQuery(
 			`SELECT __source_row FROM ${this.tableName} ${where} ORDER BY __source_row`,
 		);
 		// Pull from the Arrow vector directly — `result.toArray().map(r => r.toJSON())`
@@ -182,14 +206,13 @@ export class DuckDBRowProvider implements RowProvider {
 
 	/** Original column names (excludes the synthetic __source_row). */
 	async getColumns(): Promise<string[]> {
-		this.guard();
-		const result = await this.conn.query(`SELECT * FROM ${this.tableName} LIMIT 1`);
+		const result = await this.trackedQuery(`SELECT * FROM ${this.tableName} LIMIT 1`);
 		const rows = result.toArray();
 		if (rows.length > 0) {
 			return Object.keys(rows[0].toJSON()).filter(k => k !== "__source_row");
 		}
 		// Fallback for empty tables — DESCRIBE returns the schema.
-		const desc = await this.conn.query(`DESCRIBE ${this.tableName}`);
+		const desc = await this.trackedQuery(`DESCRIBE ${this.tableName}`);
 		return desc.toArray()
 			.map(r => String(r.toJSON().column_name))
 			.filter(n => n !== "__source_row");
@@ -197,7 +220,13 @@ export class DuckDBRowProvider implements RowProvider {
 
 	async dispose(): Promise<void> {
 		if (this.disposed) return;
-		this.disposed = true;
+		this.disposed = true;  // bloqueia novas queries via guard()
+		// Drena queries em flight antes de DROP TABLE — evita "Missing DB manager"
+		// quando teardown corre concorrente com query pendente.
+		if (this.inflight > 0) {
+			this.drainPromise = new Promise<void>(resolve => { this.resolveDrained = resolve; });
+			await this.drainPromise;
+		}
 		try { await this.conn.query(`DROP TABLE IF EXISTS ${this.tableName}`); }
 		catch (e) { console.warn("[duckdb-row-provider] DROP TABLE failed", e); }
 		try { await this.db.dropFile(this.alias); }
@@ -216,7 +245,6 @@ export class DuckDBRowProvider implements RowProvider {
 		/** Pre-built SQL WHERE fragment (already escaped — see `filterModelToSql.buildWhereClause`). */
 		whereClause?: string;
 	}): Promise<Array<Record<string, unknown>>> {
-		this.guard();
 		const where = opts.whereClause ? `WHERE ${opts.whereClause}` : "";
 		const orderClause = opts.orderBy && opts.orderBy.length > 0
 			? `ORDER BY ${opts.orderBy.map(o => `${quoteIdent(o.column)} ${o.descending ? "DESC" : "ASC"}`).join(", ")}`
@@ -224,7 +252,7 @@ export class DuckDBRowProvider implements RowProvider {
 		const select = opts.columns && opts.columns.length > 0
 			? opts.columns.map(quoteIdent).concat("__source_row").join(", ")
 			: "*";
-		const result = await this.conn.query(
+		const result = await this.trackedQuery(
 			`SELECT ${select} FROM ${this.tableName} ${where} ${orderClause} LIMIT ${opts.limit} OFFSET ${opts.offset}`,
 		);
 		return result.toArray().map(r => r.toJSON() as Record<string, unknown>);
@@ -241,13 +269,12 @@ export class DuckDBRowProvider implements RowProvider {
 		orderBy: Array<{ column: string; descending: boolean }>,
 		whereClause?: string,
 	): Promise<string> {
-		this.guard();
 		const mapName = `qualia_display_map_${uniqueSuffix()}`;
 		const orderClause = orderBy.length > 0
 			? `ORDER BY ${orderBy.map(o => `${quoteIdent(o.column)} ${o.descending ? "DESC" : "ASC"}`).join(", ")}`
 			: "";
 		const where = whereClause ? `WHERE ${whereClause}` : "";
-		await this.conn.query(
+		await this.trackedQuery(
 			`CREATE OR REPLACE TABLE ${mapName} AS ` +
 			`SELECT __source_row, row_number() OVER (${orderClause}) - 1 AS display_row FROM ${this.tableName} ${where}`,
 		);
@@ -255,8 +282,7 @@ export class DuckDBRowProvider implements RowProvider {
 	}
 
 	async displayRowFor(mapName: string, sourceRowId: number): Promise<number | null> {
-		this.guard();
-		const result = await this.conn.query(
+		const result = await this.trackedQuery(
 			`SELECT display_row FROM ${mapName} WHERE __source_row = ${sourceRowId} LIMIT 1`,
 		);
 		const rows = result.toArray();
@@ -265,8 +291,7 @@ export class DuckDBRowProvider implements RowProvider {
 	}
 
 	async dropDisplayMap(mapName: string): Promise<void> {
-		this.guard();
-		try { await this.conn.query(`DROP TABLE IF EXISTS ${mapName}`); }
+		try { await this.trackedQuery(`DROP TABLE IF EXISTS ${mapName}`); }
 		catch (e) { console.warn("[duckdb-row-provider] dropDisplayMap failed", e); }
 	}
 }
