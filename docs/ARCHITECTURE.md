@@ -520,6 +520,64 @@ Módulos em `src/export/tabular/` (8 arquivos) — complementa QDPX. Exporta dad
 
 ---
 
+### 5.11 Smart Codes (saved queries)
+
+Tier 3 do Coding Management. Smart Code = "código virtual" definido por **predicate** (filtro reutilizável) em vez de application manual marker-a-marker. Pattern equivalente ao "Smart Codes" do Atlas.ti / "Code Sets" parametrizados do MAXQDA.
+
+**Schema (PredicateNode AST)** em `src/core/types.ts`:
+
+```ts
+type PredicateNode = OpNode | LeafNode;
+
+interface OpNode {
+    op: 'AND' | 'OR' | 'NOT';
+    children: PredicateNode[];
+}
+
+interface LeafNode {
+    leaf: 'hasCode' | 'caseVarEquals' | 'caseVarRange' | 'magnitudeGte'
+        | 'magnitudeLte' | 'inFolder' | 'inGroup' | 'engineType'
+        | 'relationExists' | 'smartCode';
+    // ... params específicos do leaf
+}
+```
+
+10 leaves cobrem dimensões ortogonais: estrutura (`hasCode`, `inFolder`, `inGroup`), metadata (`caseVarEquals`, `caseVarRange`), magnitude (`magnitudeGte/Lte`), engine (`engineType`), relations (`relationExists`), e auto-referência (`smartCode` — nesting). Combinados via OpNode (AND/OR/NOT).
+
+**SmartCodeDefinition** no registry:
+```ts
+{ id: 'sc_*', name, color, predicate: PredicateNode, memo?: MemoRecord, paletteIndex, createdAt }
+```
+
+**Pipeline (módulos puros isolados em `src/core/smartCodes/`):**
+
+| Módulo | Responsabilidade |
+|---|---|
+| `evaluator.ts` | `evaluate(predicate, marker, ctx)` — runtime hot path, short-circuit AND/OR, cycle-safe via `ctx.visiting: Set<scId>` |
+| `validator.ts` | `validate(predicate, registry)` — pré-save, detecta cycles + name collision + broken refs + magnitude type mismatch |
+| `dependencyExtractor.ts` | Extrai `{codeIds, caseVarKeys, folderIds, groupIds, smartCodeIds, engineTypes}` do predicate (índices reversos pra cache) |
+| `serializer.ts` | JSON ↔ AST + normalizer (canoniza ordem de children pra diff estável) |
+| `builderTreeOps.ts` | `add/remove/move/changeOp/replaceLeaf` puros do builder UI (modal row-based) |
+| `cache.ts` | `SmartCodeCache` singleton — `markerByRef` + invalidação granular + chunked compute (100 markers/chunk pra cache miss grande) |
+| `matcher.ts` | `computePreview(predicate, allMarkers)` — preview live <300ms no builder |
+| `smartCodeRegistry.ts` | Classe stateful com `addOnMutate(fn)` (mesmo pattern de `CodeDefinitionRegistry`), CRUD + `autoRewriteOnMerge` (re-aponta predicates após code merge) + `diffPredicateLeaves` (audit log) |
+
+**Integração cross-engine via `MarkerMutationEvent`** (canal paralelo a `onChange` — ver `TECHNICAL-PATTERNS.md §37`): cada mutação de marker emite `{engine, fileId, markerId, prevCodeIds, nextCodeIds, codeIds, marker}`. Cache `applyMarkerMutation(event)` atualiza `markerByRef` incremental + invalida só SCs cujo predicate referencia algum codeId em `event.codeIds`. Vault de 10k markers + 100 SCs: edit de 1 marker re-computa 1-3 SCs típico.
+
+**Audit log entity discriminator** (`AuditEntry.entity?: 'code' | 'smartCode'`): 5 event types `sc_*` (`sc_created`, `sc_renamed`, `sc_predicate_edited`, `sc_text_edited`, `sc_deleted`). Coalescing 60s pra text edits + Set union pra predicate edits (múltiplas iterações de builder viram 1 entry). ⚡ icon na Codebook Timeline distingue eventos SC.
+
+**Integração em Analytics** (helper `getSmartCodeViews` em `smartCodeAnalytics.ts`): SC entries aparecem alongside códigos regulares em 6 modes (frequency, cooccurrence, evolution+temporal, codeMetadata, lagSequential+polar, memoView). Filter UI tem chips ⚡ no topo da codes section. SC entries no Frequency mode aceitam drag + Add to Board (paridade com codes).
+
+**Integração no Code Explorer**: grupo "⚡ Smart Codes" top-level no tree com estrutura SC → file → matches. Click em match navega cross-engine via `navigateToMarker`. Subscribe a cache + registry mutations + model.onChange (workaround pra eventos que SC3 não cobre, raros).
+
+**QDPX export/import**: bloco `<qualia:SmartCodes>` em namespace custom `xmlns:qualia="urn:qualia-coding:extensions:1.0"`. Import 2-pass: (1) alocar IDs novos pra todos os SCs, (2) resolver refs (incl. nesting `smartCode` leaves apontando pra outros SCs). Round-trip preservado.
+
+**CSV tabular**: `smart_codes.csv` com coluna `predicate_json`. README do zip ganhou snippets R/Python pra reconstruir SCs em external analysis.
+
+**Comando palette**: `Smart Codes: Open hub` (lista) + `Smart Codes: New` (builder direto). Smart Code Detail wirado inline na sidebar (Code Detail, modo "All Codes" — section ⚡ acima dos códigos regulares, click abre detail no mesmo painel).
+
+---
+
 ## 6. Case Variables
 
 Sistema de propriedades tipadas por arquivo (mixed-methods: cruzar códigos × metadata demográfica). Funciona para todos os 7 formatos — md, pdf, image, audio, video.

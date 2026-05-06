@@ -585,6 +585,55 @@ Command palette: **`Materialize all memos`**. Modal com 3 estados:
 
 ---
 
+## 5f. Smart Codes — Tier 3 Coding Management (#feat/smart-codes)
+
+### Palette commands
+
+| Comando | Ação |
+|---|---|
+| `Smart Codes: Open hub` | Lista modal com todos os SCs (preview count, color, predicate summary) |
+| `Smart Codes: New` | Builder modal direto (skip lista) |
+
+### Builder (modal row-based)
+
+Linhas representam leaves do predicate; nesting de OpNodes via indent + group ops. Preview live <300ms (chunked compute, 100 markers/batch). Inline errors do `validator` antes do save.
+
+### Fluxo manual de teste
+
+**Criar SC simples**: Cmd+P → `Smart Codes: New` → name "Frustration severa" → leaf `hasCode = Frustration` AND leaf `magnitudeGte = 3` → preview mostra N matches → Save → SC aparece no Code Explorer (grupo ⚡) e no Code Detail "All Codes" mode.
+
+**Nesting**: SC `A` → leaf `smartCode = B` → SC A herda matches de B + outras condições. Validator detecta ciclo se A → B → A.
+
+**Merge propagation**: Cmd+P → `Merge codes` → escolher source X que aparece em SC predicate → merge target Y → SC predicate auto-rewrite (X → Y) preservando semântica. Audit log registra `sc_predicate_edited`.
+
+**Round-trip QDPX**: `Export project (QDPX)` → vault novo → `Import project (QDPX)` → SCs aparecem com refs resolvidas (incl. nesting). Verificar IDs realocados.
+
+**Round-trip Tabular**: `Export codes as tabular data` → unzip → `smart_codes.csv` tem coluna `predicate_json` parseável.
+
+**Granular invalidation (smoke)**: vault com 100 SCs → editar 1 marker (+1 codeId) → console mostra só SCs dependentes recomputando (não os 100). Validar via `cache.subscribe` ou `data.json` audit log.
+
+### Armadilhas
+
+- **MarkerMutationEvent emit obrigatório** em todo mutation site novo (addCode, removeCode, etc). Sem isso, cache fica stale silenciosamente. Pattern documentado em `TECHNICAL-PATTERNS.md §37`.
+- **Cycle detection runtime + pré-save**: evaluator faz `ctx.visiting.has(scId)` antes de descer em smartCode leaf. Validator detecta o ciclo no save. Os dois são complementares — não confiar só num. Pattern em `TECHNICAL-PATTERNS.md §38`.
+- **Cascade `invalidate()` (não `markDirty`)**: SC A depende de SC B. Mutação em B precisa cascatear pra A. `invalidate()` recursa via smartCodeId index; `markDirty` não. Bug fechado em `82c3cd8` (SC3 cascade).
+- **`getMarkerByRef` fallback via composite key**: caller que guardou ref antes de REMOVE+ADD (rename, undo) ainda resolve marker atual. Sem isso, undo no PDF deixava SC desreferenciada.
+- **Auto-refresh do Smart Code detail na sidebar**: subscribe a `cache` + `registry.addOnMutate` + `model.onChange` (workaround pra eventos raros que SC3 não cobre). Refresh manual obsoleto.
+- **EntityRef expansion pra Convert to note**: SC memo materializa via mesmo pipeline de Code/Group/Marker/Relation. EntityRef union ganhou case `'smart-code'` em `resolveEntity`/`resolveFolder`/`readMemoRecord`/`writeMemo`.
+
+### Phase 2 — integração ponta-a-ponta (SC1+SC2+SC3+SC4)
+
+- **SC1**: SC entries em 6 Analytics modes via helper `getSmartCodeViews`
+- **SC2**: grupo "⚡ Smart Codes" top-level no Code Explorer (SC → file → matches)
+- **SC3**: granular MarkerMutation cross-engine (5 models, 13+ mutation sites)
+- **SC4**: Smart Code detail inline na sidebar (Code Detail, modo "All Codes")
+
+### Pendências (known issues)
+
+- **Cmd+Z não desfaz coding em PDF** — keybinding não wired no `PdfCodingView` (bug pré-existente, não regressão SC3). Fix de undo SC3 (`df9ecaa`) está unit-testado mas integração UI bloqueada por isso. BACKLOG `§Sintomas`.
+
+---
+
 ## 6. Obsidian Native Components — Quick Reference
 
 ### Inputs

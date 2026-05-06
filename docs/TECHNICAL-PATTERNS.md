@@ -2174,6 +2174,133 @@ Tests: `tests/engine-models/csvCodingModel.markerTextCache.test.ts` (16 specs).
 
 ---
 
+## 37. `MarkerMutationEvent` — canal granular paralelo a `onChange`
+
+### Problema
+
+Caches que dependem de mutações de markers (Smart Codes, analytics consolidation, sidebar adapters) precisam saber **quais codeIds foram afetados** pra invalidar só o que importa. `model.onChange()` é coarse — dispara sem payload, força rebuild full do cache. Cache singleton com 100+ entries (Smart Codes) re-computando tudo a cada mutation é inviável.
+
+### Solução
+
+Canal `onMarkerMutation(fn)` paralelo a `onChange()` em todos 5 engine models (markdown/pdf/image/csv/media). Emite `MarkerMutationEvent` com payload completo:
+
+```ts
+interface MarkerMutationEvent {
+    engine: EngineType;
+    fileId: string;
+    markerId: string;
+    prevCodeIds: string[];
+    nextCodeIds: string[];
+    codeIds: string[];      // união de prev + next (todos os SCs dependentes)
+    marker: BaseMarker | undefined;  // undefined em REMOVE
+}
+```
+
+Cada mutation site emite com codeIds afetados. Sites cobertos: `addCode`, `removeCode`, `removeMarker`, `updateMarker`, `updateMarkerFields`, `createShape`, `deleteShape`, `addCodeToShape`, `removeCodeFromShape`, `addCodeToManyRows`, `removeCodeFromManyRows`, `removeAllRowMarkersFromMany`, `migrateFilePath`, `undo`, `clearAllMarkers`.
+
+Cache consumer faz `applyMarkerMutation(event)` — atualiza `markerByRef` incremental + invalida só SCs que dependem dos codeIds em `event.codeIds`.
+
+### Quando aplicar
+
+Qualquer cache derivado **cross-engine** que precisa invalidação cirúrgica. Distingue de `onChange()` (re-render coarse OK pra UI) — `onMarkerMutation` é pra cache reativo.
+
+### Onde está implementado
+
+- `src/core/types.ts` — type `MarkerMutationEvent` + `EngineType`
+- 5 engine models: `markdownCodingModel.ts`, `pdfCodingModel.ts`, `imageCodingModel.ts`, `csvCodingModel.ts`, `mediaCodingModel.ts`
+- `src/core/smartCodes/cache.ts` — `applyMarkerMutation` consumer
+
+### Anti-pattern relacionado
+
+Usar só `onChange` pra cache derivado. Funciona em vault pequeno; em 10k+ markers + 100 SCs vira cascade rebuild a cada keystroke.
+
+### Trade-off
+
+Boilerplate em N call-sites (cada mutation explicita codeIds afetados). Ganho: cache cirúrgico — em vault de 10k markers + 100 SCs, edit de 1 marker re-computa 1-3 SCs em vez de 100.
+
+---
+
+## 38. Predicate AST com cycle detection — evaluator + validator separados
+
+### Problema
+
+Smart Codes permitem nesting: SC `A` referencia SC `B` (leaf `smartCode`). User pode acidentalmente criar ciclo (A → B → A). Eval recursivo entra em loop infinito; save sem validação persiste o ciclo.
+
+### Solução
+
+Dois módulos puros, separados:
+
+1. **`evaluator.ts`** — `evaluate(predicate, marker, ctx)` recursivo com `Set<string>` de visiting (passado via ctx). Antes de descer em smartCode leaf: `if (ctx.visiting.has(scId)) return false;`. Short-circuit em AND/OR (early exit).
+2. **`validator.ts`** — `validate(predicate, registry)` ANTES do save. Detecta cycles, name collision, broken refs (códigos/groups/folders deletados), magnitude type mismatch. Retorna `{ ok: boolean; errors: ValidationError[] }`. Builder UI bloqueia save se errors.
+
+Separação:
+- evaluator é runtime hot path — prioriza speed (short-circuit, sem validation overhead)
+- validator é one-shot ao save — prioriza completude (todos os erros listados)
+
+### Quando aplicar
+
+Qualquer AST com auto-referência via leaf node (smart code, recursive code, derived rule). Cycle protection runtime + validator pré-save é o par necessário pra UX honesta.
+
+### Onde está implementado
+
+- `src/core/smartCodes/evaluator.ts` (cycle detection runtime)
+- `src/core/smartCodes/validator.ts` (validação pré-save)
+
+Tests: `tests/core/smartCodes/evaluator.test.ts` (cycle prevention), `tests/core/smartCodes/validator.test.ts` (cycles, collision, broken refs, magnitude type).
+
+### Anti-pattern relacionado
+
+Validator inline dentro do evaluator: poluí runtime, custo desnecessário em hot path. Mantém separados.
+
+---
+
+## 39. `dependencyExtractor` — invalidação cirúrgica de cache via análise de leaves
+
+### Problema
+
+Cache singleton com N Smart Codes. Mutation em 1 codeId tem que invalidar só os SCs cujos predicates **referenciam** esse codeId. Iterar todos os predicates a cada mutation pra checar dependência é O(N) per mutation.
+
+### Solução
+
+`dependencyExtractor(predicate)` percorre AST e retorna o set de identifiers usados:
+
+```ts
+interface PredicateDeps {
+    codeIds: Set<string>;
+    caseVarKeys: Set<string>;
+    folderIds: Set<string>;
+    groupIds: Set<string>;
+    smartCodeIds: Set<string>;
+    engineTypes: Set<EngineType>;
+}
+```
+
+Cache mantém **índices reversos** pré-computados:
+- `codeIdToSmartCodes: Map<codeId, Set<smartCodeId>>`
+- `caseVarKeyToSmartCodes: Map<caseVarKey, Set<smartCodeId>>`
+- ... (1 índice por dimensão de dependency)
+
+Mutation com codeId X dispara `invalidateForCode(X)` → consulta `codeIdToSmartCodes.get(X)` → invalida só esses SCs. O(1) lookup, O(k) invalidations onde k = SCs dependentes (típico ~1-5 dos N total).
+
+**Cascade**: smartCode A referencia smartCode B. Mutação em B invalida A (recursa via `smartCodeId` index).
+
+### Quando aplicar
+
+Cache derivado de **declarações** (AST, regra, query) onde mutation pode afetar só um subset. Extrair deps da declaração + manter índice reverso converte O(N) per mutation em O(k).
+
+### Onde está implementado
+
+- `src/core/smartCodes/dependencyExtractor.ts` — extração pura
+- `src/core/smartCodes/cache.ts` — `invalidateForCode/CaseVar/Folder/Group/SmartCode/Engine` + índices reversos
+
+Tests: `tests/core/smartCodes/dependencyExtractor.test.ts` (10 leaves, nesting, todas as dimensões).
+
+### Anti-pattern relacionado
+
+`markDirty(scId)` sem cascade: SC A depende de SC B. Mutação em B marca B dirty, mas A continua "clean" com count obsoleto. Fix: `invalidate()` recursa via smartCode leaf index. Pattern documentado no commit `82c3cd8` (SC3 cascade fix).
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

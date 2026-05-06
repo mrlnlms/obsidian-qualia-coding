@@ -234,6 +234,20 @@ Se o output bater (working clean + branch alinhada com origin), nada está pende
 - `setParent(id, parentId)` — metodo de reparentar com deteccao de ciclo
 - `executeMerge()` — funcao de merge em `mergeModal.ts` (reassigna markers, reparenta filhos, deleta sources)
 - Hierarchy helpers puros em `hierarchyHelpers.ts`: `buildFlatTree`, `buildCountIndex`, `getDirectCount`, `getAggregateCount`
+- `smartCodes` — array de `SmartCodeDefinition` no registry (camada de "saved queries" sobre o codebook). Schema: `{ id: 'sc_*', name, color, predicate: PredicateNode, memo?, paletteIndex, createdAt }`
+- `PredicateNode` — AST union `OpNode | LeafNode`. OpNode = AND/OR/NOT com `children`. LeafNode = 1 dos 10 leaves (`hasCode`, `caseVarEquals`, `caseVarRange`, `magnitudeGte/Lte`, `inFolder`, `inGroup`, `engineType`, `relationExists`, `smartCode` nesting)
+- `SmartCodeRegistry` — classe stateful em `src/core/smartCodes/smartCodeRegistry.ts` com `addOnMutate(fn)` + cache incremental. Mesmo pattern de `CodeDefinitionRegistry`
+- `SmartCodeCache` — singleton em `src/core/smartCodes/cache.ts` com invalidação granular + chunked compute (100 markers/chunk). Recebe `applyMarkerMutation(event)` pra invalidação cirúrgica
+- `MarkerMutationEvent` — `{ engine, fileId, markerId, prevCodeIds, nextCodeIds, codeIds, marker }` em `src/core/types.ts`
+- `onMarkerMutation(fn)` — canal paralelo a `onChange` em todos 5 engine models. Emite em mutation sites (addCode, removeMarker, undo, clearAllMarkers, etc). Pattern documentado em TECHNICAL-PATTERNS §37
+- `dependencyExtractor(predicate)` — retorna `{ codeIds, caseVarKeys, folderIds, groupIds, smartCodeIds, engineTypes }` pra índices reversos do cache
+- `evaluator(predicate, marker, ctx)` / `validator(predicate, registry)` — puros, separados (runtime vs save-time). Cycle detection em ambos
+- `getSmartCodeViews(...)` — helper em `smartCodeAnalytics.ts` resolve refs em UnifiedMarkers aplicando filters globais (Analytics integration)
+- `autoRewriteOnMerge` — re-aponta predicates após code merge (preserva semântica)
+- Audit log entity discriminator: `AuditEntry.entity?: 'code' | 'smartCode'` + 5 `sc_*` event types (coalescing 60s pra text + Set union pra predicate)
+- QDPX namespace `<qualia:SmartCodes>` em `xmlns:qualia="urn:qualia-coding:extensions:1.0"`. Import 2-pass (alocar IDs → resolver refs incl. `smartCode` nesting)
+- Tabular CSV: `smart_codes.csv` com `predicate_json` column
+- Commands palette: `Smart Codes: Open hub` + `Smart Codes: New`
 
 ## Skills Obsidian
 
