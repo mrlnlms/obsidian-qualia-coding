@@ -36,6 +36,7 @@ Hierarchical when you want structure, flat tags when you don't.
 - **Virtual folders** — purely cosmetic organization, no analytical effect
 - **Visibility toggles** — hide a code globally, or only inside a specific file (without deleting)
 - **Merge codes** — combine N codes with audit trail
+- **Smart Codes** — saved queries that match markers dynamically. Predicates combine codes, case variables, magnitude, folders, groups, engine type, relations, and nested Smart Codes via AND/OR/NOT. First-class in Code Explorer, Analytics, and QDPX export
 - **Virtual scrolling** — scales to thousands of codes
 
 ## Mixed methods
@@ -58,6 +59,8 @@ Hierarchical when you want structure, flat tags when you don't.
 | Retrieval | Full-text search · Text statistics |
 
 All views accept the same filters: sources, codes, minimum frequency, **groups**, **case variables**. Export any view as CSV.
+
+**Smart Codes** appear alongside regular codes in Frequency, Co-occurrence, Evolution, Lag Sequential, Polar, Code × Metadata, and the Memo View — saved queries become first-class analytic objects.
 
 The **Relations network** view shows code-level relations (solid edges) and segment-level relations (dashed edges) with thickness proportional to frequency.
 
@@ -85,13 +88,13 @@ A few technical choices worth knowing about:
 - **CodeMirror 6 native.** Markdown highlights are real CodeMirror decorations, not DOM overlays. The margin panel is a custom `ViewPlugin` with column-resolved label layout — same UX as MAXQDA's
 - **Per-engine viewers, no shared state.** PDF (pdf.js), Image (Fabric.js), Audio/Video (WaveSurfer.js), CSV/Parquet (AG Grid Community + hyparquet WASM). Each engine is self-contained — adding a format doesn't touch the others
 - **Incremental analytics cache.** Dirty flags per engine; analytics modes recompute only the affected slice. Stays fast on large projects
-- **2,400+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, and analytics consolidators
+- **2,700+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, Smart Codes evaluator/cache, and analytics consolidators
 - **TypeScript strict** end-to-end, with ambient types for Obsidian internals where needed
 - **No build-time secrets, no runtime servers.** The entire plugin is the three files in your `.obsidian/plugins/qualia-coding/` folder
 
 ## Installation
 
-> Qualia Coding is **pre-alpha (0.1.x)** — distributed via BRAT for testing with selected researchers. Submission to the Obsidian Community Plugins directory is planned for the 0.2.x line.
+> Qualia Coding is **pre-alpha (0.x)** — distributed via BRAT for testing with selected researchers. Submission to the Obsidian Community Plugins directory is planned.
 
 ### Via BRAT (recommended while pre-alpha)
 

@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-05 — Pre-alpha
+
+Smart Codes Tier 3: capability nova de "saved queries" sobre o codebook. Schema próprio (PredicateNode AST com 10 leaves + nesting AND/OR/NOT), evaluator puro com short-circuit + cycle detection, cache com invalidação granular, modal hub + builder com preview live, command palette, integração ponta-a-ponta com 6 modes do Analytics, Code Explorer, audit log com entity discriminator, QDPX/CSV round-trip e granular MarkerMutation cross-engine. Stress: 10k markers + 100 smart codes em <1s.
+
+### Added
+
+- **Smart Codes Tier 3 — saved queries (Phase 1)** — predicate AST com 10 leaves (`hasCode`, `caseVarEquals`, `caseVarRange`, `magnitudeGte/Lte`, `inFolder`, `inGroup`, `engineType`, `relationExists`, `smartCode` nesting) combinados via AND/OR/NOT. Evaluator puro em `src/core/smartCodes/evaluator.ts` (short-circuit + cycle detection). Builder modal row-based com preview live <300ms. Smart Code Detail + List hub. Command palette (`Smart Codes: Open hub` + `Smart Codes: New`). Stress validado: 10k markers + 100 SCs em <1s.
+
+- **Smart Codes em Analytics (Phase 2 — SC1)** — frequency / cooccurrence / evolution+temporal / codeMetadata / lagSequential+polar / memoView ganham SC entries via helper `getSmartCodeViews`. Filter UI tem chips ⚡ no topo da codes section, integrados ao `enabledCodes`/`excludeCodes`. SC entries no Frequency mode aceitam drag + Add to Board (paridade com codes regulares).
+
+- **Smart Codes no Code Explorer (Phase 2 — SC2)** — grupo "⚡ Smart Codes" top-level no tree do Code Explorer com estrutura SC → file → matches. Click em match navega cross-engine via `navigateToMarker`. Subscribe a cache + registry mutations. Search filter aplica a SC names também.
+
+- **Granular MarkerMutation event (Phase 2 — SC3)** — canal `onMarkerMutation` paralelo a `onChange` em todos 5 engine models (markdown/pdf/image/csv/media). Cada mutation site (addCode, removeCode, removeMarker, updateMarker, createShape, deleteShape, addCodeToShape, removeCodeFromShape, addCodeToManyRows, removeCodeFromManyRows, removeAllRowMarkersFromMany, migrateFilePath, undo) emite `MarkerMutationEvent` com codeIds afetados. Cache `applyMarkerMutation(event)` atualiza `markerByRef` incremental + invalida só SCs dependentes via `dependencyExtractor`. Dead code removed (`indexByCode`/`indexByFile`, ~50 LOC).
+
+- **Smart Code detail inline na sidebar (Phase 2 — SC4)** — `smartCodesSection` wirado no Code Detail (modo "All Codes") em vez do Code Explorer. Click numa SC abre detail INLINE no sidebar. Modal hub via Cmd+P continua como atalho. Visual consistente com code detail (`codemarker-detail-*` classes, back button compartilhado). Auto-refresh via `cache.subscribe` + `registry.addOnMutate` + `model.onChange`.
+
+- **Convert to note pra SC memo** — `EntityRef` expansão completa cobrindo Smart Code memo materialization (mesmo pattern do Code/Group/Marker/Relation).
+
+- **QDPX export/import** — bloco `<qualia:SmartCodes>` em namespace custom `xmlns:qualia="urn:qualia-coding:extensions:1.0"`. Import 2-pass (alocar IDs → resolver refs incluindo `smartCode` nesting). Round-trip preservado.
+
+- **CSV tabular `smart_codes.csv`** — coluna `predicate_json` no zip do tabular export. README ganhou snippets R/Python pra reconstruir SCs em external analysis.
+
+- **Audit log Smart Codes** — entity discriminator `entity?: 'code' | 'smartCode'` + 5 `sc_*` event types (`sc_created`, `sc_renamed`, `sc_predicate_edited`, `sc_text_edited`, `sc_deleted`). Coalescing 60s pra text edits + Set union pra predicate edits. ⚡ icon na Codebook Timeline pra eventos de Smart Code.
+
+### Changed
+
+- **Clear All Markers limpa SC definitions** — SCs órfãos sem regulars pra referenciar ficam quebrados; limpeza agora é completa.
+
+- **Eye icon hide/show removido das SC rows** (Code Detail + Hub modal) — UX redundante com filter chip do Analytics; SC não tem visibility per-doc.
+
+- **`SmartCodeApi` virou `SmartCodeRegistry` classe** com cache incremental + `addOnMutate(fn)` — mesmo pattern de `CodeDefinitionRegistry`.
+
+- **`autoRewriteOnMerge` + `diffPredicateLeaves`** — predicates apontando pra códigos consolidados após merge são re-escritos automaticamente.
+
+### Fixed
+
+- **PDF undo + clearAll race + ref identity fallback (`df9ecaa`)** — undo no PDF model emite `MarkerMutation`; `getMarkerByRef` ganha fallback via composite key (caller que guardou ref antes de REMOVE+ADD em rename/undo ainda resolve marker atual).
+
+- **CSV bulk + vault rename (`0c47529`)** — bulk row coding (`addCodeToManyRows` etc) e vault rename emitem `MarkerMutation` correto pra invalidação cirúrgica.
+
+- **Cascade invalidation (`82c3cd8`)** — `invalidateForCode/CaseVar/Folder/Group` agora usam `invalidate()` (recursa via smartCode leaf) em vez de `markDirty()` (que não cascateava).
+
+- **SC pass respeita filter (`bfa6164`)** — `codes`/`excludeCodes` filter aplica corretamente em SC views (interpretation B: filter exclui SC se algum code dependente foi excluído).
+
+- **Memo View renderiza SC sections (`638ae6e`)** quando só SC tem memo — sections SC prepended em `byCode`.
+
+- **`instanceof` check (`c035327`)** antes de `showList`/`showCodeDetail`/`setContext` em `leaf.view` — proteção em workspace restore quando view ainda não montou.
+
+- **Search filter no Code Detail (list mode) (`b7a21f2`)** também filtra SCs (paridade com codebook search).
+
+- **Hidratação de data.json antigo (`6df0c77`)** — `registry.smartCodes` / `smartCodeOrder` / `nextSmartCodePaletteIndex` populados em vault que não tem essas keys.
+
+### Technical
+
+- 7 módulos novos em `src/core/smartCodes/`: `index` (entry), `serializer`, `dependencyExtractor`, `normalizer`, `evaluator`, `validator`, `builderTreeOps`. Mais `cache.ts`, `matcher.ts`, `smartCodeRegistry.ts` no nível core.
+- `SmartCodeCache` singleton com chunked compute pra cache miss grande (100+ markers por chunk).
+- Stress fixture + perf gates em CI (2x headroom, referential identity, granular invalidation).
+- 63 commits desde 0.2.0 (Phase 1 branch `feat/smart-codes` + Phase 2 inline em main).
+- Tags `pre-smart-codes-baseline` (82cb949) ↔ `post-smart-codes-checkpoint` (4022808) pra rollback granular.
+- Tests: 2603 → 2759 verde (+156 cobrindo predicate evaluator + cache + audit + UI helpers + QDPX round-trip).
+
+### Known issues
+
+- **Cmd+Z não desfaz coding em PDF** — keybinding não wired no `PdfCodingView` (bug pré-existente, não regressão SC3). Fix de undo SC3 (`df9ecaa`) está unit-testado mas integração UI bloqueada por isso. Issue documentado no `BACKLOG.md`.
+
 ## [0.2.0] — 2026-05-04 — Pre-alpha
 
 Fechamento da Fase 6 do parquet/CSV lazy loading: capability shift de "abre arquivos pequenos" pra "abre parquet de 297MB sem travar". Bundle 49MB → 14.2MB destrava distribuição via Community Plugins. QDPX export+import round-trip pra CSV/parquet via custom namespace (Decisão 5 do design doc).
