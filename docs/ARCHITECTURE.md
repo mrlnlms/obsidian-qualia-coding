@@ -1366,7 +1366,21 @@ Lazy mode lê cellText de DuckDB+OPFS. Sidebar (`SidebarModelInterface.getMarker
 
 `CsvCodingModel.notify()` chama `saveMarkers()` antes de disparar listeners. Pra cache populates (rowDataCache eager + markerTextCache lazy), persistir o data.json é desnecessário — o cache é derivado do file no disco. `notifyListenersOnly()` foi adicionado pra triggerar re-render da sidebar sem write.
 
-Usos: `csvCodingView` chama após `rowDataCache.set` no eager path e após `populateMarkerTextCacheForFile` / `populateMissingMarkerTextsForFile` no lazy path.
+Usos: `csvCodingView` chama após `rowDataCache.set` no eager path e após `populateMarkerTextCacheForFile` / `populateMissingMarkerTextsForFile` no lazy path. Também: `MarkerPreviewHydrator.scheduleNotify` (debounced via RAF) chama após batch popular `markerTextCache` — re-render dos consumers cobre cross-engine sem duplicar canal.
+
+### `MarkerPreviewHydrator` — populate sob demanda pra arquivos lazy não abertos (2026-05-06)
+
+`prepopulateMarkerCaches.ts` (Fase 6 Slice A) só popula lazy se OPFS já tem cópia fresca — vault migrado (QDPX import) não tem OPFS. Sem hydrator, sidebar mostrava `Row N · column` (coordenada placeholder via `getMarkerLabel`) ad eternum até user abrir manualmente cada parquet.
+
+**Solução:** orchestrator stateful em `src/csv/markerPreviewHydrator.ts` que ataca on-demand quando consumers renderizam:
+- State: `seen: Set<fileId>` (sucesso ou skipped permanente), `inflight: Map<fileId, Promise>` (dedup), `errors: Map<fileId, string>` (retry next time).
+- API: `requestHydration(fileId)` idempotente. Wrapper IIFE garante `inflight.set` antes do batch (eager path síncrono não pode deletar entry antes do set acontecer — bug 2026-05-06). `onStatusChange(listener)` pro indicator visual. `markSeen(fileId)` chamado por `prepopulateMarkerCaches` no eager path pra evitar revisita. `dispose()` aguarda inflight com timeout 5s + cancela RAF pending.
+- Provider reuse: `csvModel.getLazyProvider(fileId)` — se file aberto pelo user, reusa provider; senão cria próprio (`copyVaultFileToOPFS` se OPFS frio + `DuckDBRowProvider.create`) e dispose ao fim. Race com `csvCodingView.onClose` é catch-handled (provider mid-dispose → throw → outcome error → retry next).
+- Single source of truth pra OPFS lazy: `prepopulateMarkerCaches` lazy path foi removido (race com hydrator criava `createSyncAccessHandle` conflict).
+
+**Consumers** (todos chamam `requestHydration(fileId)` per-file durante render): `BaseCodeExplorerView.buildCodeIndex`, `detailCodeRenderer` (`Segments by file`), `detailRelationRenderer` (evidence list, dedup local de fileIds), `detailSmartCodeRenderer` (`groupedByFile`), `smartCodeListModal` (via callback do detail), `memoViewMode` (by-code/by-file mode, filtra `kind === 'marker'`).
+
+**Re-render**: ao completar batch com `addedCount > 0`, hydrator chama `csvModel.notifyListenersOnly()` debounced via RAF (coalesce múltiplos batches concorrentes em 1 notify). Consumers re-renderizam coalescidos via mecanismo existente — `markerToBase` retorna texto sync via cache hit.
 
 ---
 
@@ -1488,6 +1502,7 @@ src/
     csvCodingTypes.ts        — SegmentMarker, RowMarker, CsvMarker (markerType: 'csv')
     csvCodingModel.ts        — model CRUD + bulk row ops + lazy providers + markerTextCache
     csvCodingView.ts         — FileView orquestrador (eager + lazy paths)
+    markerPreviewHydrator.ts — orchestrator stateful pra hidratação on-demand (lazy)
     parseTabular.ts          — parseTabularFile compartilhado (papaparse + hyparquet)
     prepopulateMarkerCaches.ts — pre-populate de markerTextCache no startup
     resolveExportTexts.ts    — resolve cellText pra export (6 cases: eager/lazy × aberto/fechado)

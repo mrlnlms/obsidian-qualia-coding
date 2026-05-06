@@ -111,15 +111,13 @@ Commits: `dc951b0` → `e7b6620` (10 commits da sessão de Smart Codes Phase 2).
 
 Items pequenos (<2h cada) sem guarda-chuva próprio. Quando atacar, vira commit direto.
 
-### Coding em modo lazy: cell coding ✅ FEITO (Fase 4d). Sidebar markerText preview pendente
+### ~~Coding em modo lazy: Sidebar markerText preview~~ ✅ FEITO (2026-05-06)
 
-Coding individual + batch funcionam idêntico ao eager em modo lazy desde Fase 4d (2026-05-04). Sort/filter via SQL operacionais (Fase 5, 2026-05-04).
+Resolvido. `MarkerPreviewHydrator` (`src/csv/markerPreviewHydrator.ts`) — orchestrator stateful que popula `markerTextCache` em background quando consumers (Code Explorer, Code Detail, Smart Code list/detail, Memo View by-code) renderizam markers em parquet/CSV lazy não hidratados. Trigger per-file via `requestHydration(fileId)` idempotente (dedup `seen + inflight`). Re-render via `csvModel.notifyListenersOnly()` debounced (RAF). Status indicator `Hidratando previews… X/Y` no toolbar do Code Explorer. Cobertura: cold start de vault migrado (QDPX import), provider reuse com file aberto, single-source-of-truth pra OPFS lazy.
 
-**Pendente — preview de `markerText` em sidebar** pra arquivos lazy. Sidebar mostra markers existentes mas sem preview do trecho codificado (`markerText: null`). Pra resolver:
-1. **Cascade async** em `SidebarModelInterface.getAllMarkers / getMarkerById / getMarkersForFile` → `Promise<...>`. Atinge ~12 sites em `core/` (baseCodeDetailView, detailCodeRenderer, detailRelationRenderer, detailMarkerRenderer, baseCodeExplorerView, codebookTreeRenderer, unifiedModelAdapter). UI síncrona afetada: callbacks de drag-drop, hover events, mutations — exigem `await` ou hasMarkerSync helper.
-2. `getMarkerTextAsync` já existe em `CsvCodingModel` — basta o consumer chamar.
-
-Estimativa: 1.5-2 sessões dedicadas. Atacar quando prioridades permitirem (não bloqueia uso).
+Spec: `docs/superpowers/specs/20260506-sidebar-markertext-preview-lazy-design.md`
+Plan: `docs/superpowers/plans/2026-05-06-sidebar-markertext-preview-lazy.md`
+Bugs encontrados na execução (todos fixados): inflight bookkeeping (eager path síncrono → orfão), OPFS race com prepopulate (createSyncAccessHandle conflict), virtualList timing (clientHeight=0 limitava mounted ao buffer default).
 
 ### Filter de virtual columns (cod-frow / cod-seg / comment) em lazy mode
 

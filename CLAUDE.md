@@ -240,6 +240,7 @@ Se o output bater (working clean + branch alinhada com origin), nada está pende
 - `SmartCodeCache` — singleton em `src/core/smartCodes/cache.ts` com invalidação granular + chunked compute (100 markers/chunk). Recebe `applyMarkerMutation(event)` pra invalidação cirúrgica
 - `MarkerMutationEvent` — `{ engine, fileId, markerId, prevCodeIds, nextCodeIds, codeIds, marker }` em `src/core/types.ts`
 - `onMarkerMutation(fn)` — canal paralelo a `onChange` em todos 5 engine models. Emite em mutation sites (addCode, removeMarker, clearAllMarkers, etc). Pattern documentado em TECHNICAL-PATTERNS §37
+- `markerPreviewHydrator` — orchestrator stateful em `src/csv/markerPreviewHydrator.ts` que popula `markerTextCache` em background pra arquivos lazy não hidratados. Trigger per-file via `requestHydration(fileId)` idempotente (dedup `seen + inflight`). Consumers: `BaseCodeExplorerView.buildCodeIndex`, `detailCodeRenderer`, `detailRelationRenderer`, `detailSmartCodeRenderer`, `smartCodeListModal`, `memoViewMode`. Spec em `docs/superpowers/specs/20260506-sidebar-markertext-preview-lazy-design.md`
 - `dependencyExtractor(predicate)` — retorna `{ codeIds, caseVarKeys, folderIds, groupIds, smartCodeIds, engineTypes }` pra índices reversos do cache
 - `evaluator(predicate, marker, ctx)` / `validator(predicate, registry)` — puros, separados (runtime vs save-time). Cycle detection em ambos
 - `getSmartCodeViews(...)` — helper em `smartCodeAnalytics.ts` resolve refs em UnifiedMarkers aplicando filters globais (Analytics integration)

@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Sidebar markerText preview pra arquivos lazy** — `MarkerPreviewHydrator` (`src/csv/markerPreviewHydrator.ts`), orchestrator stateful que popula `markerTextCache` em background quando consumers (Code Explorer, Code Detail, Smart Code list/detail, Memo View by-code) renderizam markers em parquet/CSV lazy não hidratados. Trigger per-file via `requestHydration(fileId)` idempotente (dedup `seen + inflight`). Re-render via `csvModel.notifyListenersOnly()` debounced via RAF. Status indicator `Hidratando previews… X/Y` no toolbar do Code Explorer. Cobre cold start de vault migrado (QDPX import). Provider reuse com file aberto (sem download/CREATE TABLE duplicados). Spec: `docs/superpowers/specs/20260506-sidebar-markertext-preview-lazy-design.md`.
+
 ### Fixed
+
+- **VirtualList timing** (`virtualList.ts`) — `setItems` chamado síncrono pós-criação retornava `clientHeight=0` (browser ainda não recalculou layout), limitando rows mounted ao buffer default. Fix: `requestAnimationFrame` defer adicional pra renderVisibleRows após paint cycle. Bug latente exposto após `prepopulateMarkerCaches` deixar de ser caminho de re-render (race fix lazy/hydrator).
+- **OPFS race prepopulate vs hydrator** — `prepopulateMarkerCaches` lazy path criava `DuckDBRowProvider` paralelo ao hydrator → erro `createSyncAccessHandle` ("Access Handles cannot be created if there is another open Access Handle"). Lazy path removido do prepopulate; hydrator é única autoridade pra OPFS lazy.
+- **Hydrator inflight bookkeeping** — wrapper IIFE garante `inflight.set` antes de runBatch + `inflight.delete` no finally do wrapper. Eager path (síncrono, sem await) deletava do inflight antes do set acontecer → fileId ficava órfão (causa do "Hidratando 2/3" travado).
+
 
 - **Label whitespace-only** (`previewText` helper) — 4 callsites de `getMarkerLabel` (PDF/CSV/markdown/markdown-via-editor) faziam `if (text)` truthy-check, deixando string `"   "` passar como label visível em vez de cair no fallback (`Page N` / `Row X · column` / `Line N`). Idem em `smartCodeAccess.getMarkerLabel` (`main.ts`). Centralizado em `previewText(s, maxLength): string | null` em `markerResolvers.ts` — trim + check empty + truncate. Repro registrado como "Carla label vazia" no `BACKLOG.md`.
 
