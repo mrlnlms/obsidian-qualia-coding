@@ -158,6 +158,52 @@ describe('createVirtualList', () => {
 		expect(() => list.cleanup()).not.toThrow();
 	});
 
+	it('re-renders via RAF after setItems for layout-not-yet-settled containers (regression 2026-05-06)', () => {
+		// Repro: Code Explorer cria virtualList no onOpen + setItems imediato. Container.clientHeight
+		// retorna 0 porque browser não recalculou layout — virtualList montava só buffer default
+		// (5 rows) em vez de todas as visíveis. Fix: RAF re-render no setItems.
+		// Bug exposto após race fix `dc32ee2` remover caminho de re-render via prepopulate.
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		// clientHeight inicial = 0; muda pra 300 antes do RAF callback executar.
+		let clientHeight = 0;
+		Object.defineProperty(container, 'clientHeight', { configurable: true, get: () => clientHeight });
+		Object.defineProperty(container, 'scrollTop', { configurable: true, get: () => 0 });
+
+		// Mock RAF pra capturar callback e flush manualmente
+		let rafCb: FrameRequestCallback | null = null;
+		const origRaf = global.requestAnimationFrame;
+		global.requestAnimationFrame = ((cb: FrameRequestCallback) => { rafCb = cb; return 1; }) as any;
+
+		try {
+			const list = createVirtualList<{ id: number }>({
+				container,
+				rowHeight: 30,
+				buffer: 5,
+				renderRow: (item) => {
+					const el = document.createElement('div');
+					el.dataset.id = String(item.id);
+					return el;
+				},
+			});
+			const items = Array.from({ length: 10 }, (_, i) => ({ id: i }));
+			list.setItems(items);
+
+			// Render síncrono inicial: clientHeight=0 → só buffer (5) rows mounted.
+			expect(container.querySelectorAll('[data-id]').length).toBe(5);
+
+			// Layout settles (clientHeight muda) antes do RAF callback rodar
+			clientHeight = 300;
+			expect(rafCb).not.toBeNull();
+			rafCb!(0);
+
+			// Após RAF, todos os 10 rows mounted.
+			expect(container.querySelectorAll('[data-id]').length).toBe(10);
+		} finally {
+			global.requestAnimationFrame = origRaf;
+		}
+	});
+
 	it('handles empty item list cleanly', () => {
 		const container = makeContainer(300);
 		const list = createVirtualList<{ id: number }>({
