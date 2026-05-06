@@ -232,6 +232,35 @@ describe('MarkerPreviewHydrator status + notify coalescing', () => {
 	});
 });
 
+describe('MarkerPreviewHydrator inflight bookkeeping (regression)', () => {
+	it('eager + lazy mistos terminam com inflight=0 (bug do "2/3 travado" 2026-05-06)', async () => {
+		// Repro: png eager-skip rodava síncrono; inflight.delete acontecia ANTES de inflight.set,
+		// deixando o png órfão no inflight permanentemente. Total seen+inflight nunca convergia.
+		const plugin = createMockPlugin({ fileSize: 200 * 1024 * 1024 });
+		const csvModel = createMockCsvModel();
+		csvModel.populateMissingMarkerTextsForFile.mockResolvedValue(2);
+		csvModel.getLazyProvider.mockReturnValue({} as any);
+		const hydrator = new MarkerPreviewHydrator(plugin, csvModel);
+
+		// Force eager pra primeiro fileId (small size)
+		(plugin.app.vault.getAbstractFileByPath as any).mockImplementationOnce(() => {
+			const af: any = Object.assign(new (TFile as any)(), { extension: 'png', stat: { size: 100, mtime: 1 } });
+			return af;
+		});
+		const eagerPromise = hydrator.requestHydration('img.png');
+
+		// Lazy pra segundo
+		const lazyPromise = hydrator.requestHydration('big.parquet');
+
+		await Promise.all([eagerPromise, lazyPromise]);
+
+		const status = hydrator.getStatus();
+		expect(status.inflightCount).toBe(0);
+		expect(status.completedCount).toBe(2);
+		expect(status.totalSeen).toBe(2);  // sem orfão
+	});
+});
+
 describe('MarkerPreviewHydrator dispose', () => {
 	it('cancela RAF pending', async () => {
 		const plugin = createMockPlugin({ fileSize: 200 * 1024 * 1024 });
