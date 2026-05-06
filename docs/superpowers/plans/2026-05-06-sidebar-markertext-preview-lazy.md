@@ -108,7 +108,7 @@ Expected: PASS.
 ```bash
 npx vitest run
 ```
-Expected: 2793+ passed (current baseline + 1 novo).
+Expected: 2759+ passed (CLAUDE.md baseline + 1 novo).
 
 - [ ] **Step 6: Commit**
 
@@ -203,10 +203,10 @@ Criar `src/csv/markerPreviewHydrator.ts`:
  * Spec: docs/superpowers/specs/20260506-sidebar-markertext-preview-lazy-design.md
  */
 
-import { TFile } from 'obsidian';
+import { TFile, FileSystemAdapter } from 'obsidian';
 import type QualiaCodingPlugin from '../main';
 import type { CsvCodingModel } from './csvCodingModel';
-import { DuckDBRowProvider, isOpfsCached, openOPFSFile, opfsKeyFor, type TabularFileType } from './duckdb';
+import { DuckDBRowProvider, isOpfsCached, openOPFSFile, opfsKeyFor, copyVaultFileToOPFS, type TabularFileType } from './duckdb';
 
 export interface HydrationOutcome {
   fileId: string;
@@ -334,18 +334,22 @@ export class MarkerPreviewHydrator {
     if (ext !== 'csv' && ext !== 'parquet') {
       return { fileId, status: 'skipped', reason: 'not tabular' };
     }
+    const adapter = this.plugin.app.vault.adapter;
+    if (!(adapter instanceof FileSystemAdapter)) {
+      return { fileId, status: 'skipped', reason: 'no FileSystemAdapter (mobile or virtual vault)' };
+    }
+    const absPath = adapter.getFullPath(fileId);
     const vaultId = (this.plugin.app.vault as unknown as { getName: () => string }).getName?.() ?? 'default';
     const opfsKey = opfsKeyFor(vaultId, fileId);
+
+    // Mesmo pattern de csvCodingView.setupLazyMode (linha 287-303): se OPFS já tem cópia
+    // fresca, openOPFSFile retorna handle direto; senão copyVaultFileToOPFS baixa em
+    // chunks de 1MB e retorna handle. Cold path (cenário primário) cai aqui.
     const cached = await isOpfsCached(opfsKey, af.stat.mtime).catch(() => false);
-    let handle: FileSystemFileHandle;
-    if (cached) {
-      handle = await openOPFSFile(opfsKey);
-    } else {
-      // Fora do prepopulate semantic: download forçado quando hydrator é triggered
-      // por consumer real (não startup). Aceitável — user já está vendo placeholder
-      // de coordenada, espera preview chegar.
-      handle = await openOPFSFile(opfsKey); // openOPFSFile lida com download se não cached — verificar se isso bate com a impl atual; senão, ajustar
-    }
+    const handle = cached
+      ? await openOPFSFile(opfsKey)
+      : await copyVaultFileToOPFS(absPath, opfsKey, af.stat.mtime);
+
     const runtime = await this.plugin.getDuckDB();
     const fileType: TabularFileType = ext === 'parquet' ? 'parquet' : 'csv';
     const provider = await DuckDBRowProvider.create({ runtime, fileHandle: handle, fileType });
@@ -733,7 +737,7 @@ Expected: todos passam.
 ```bash
 npx vitest run
 ```
-Expected: 2793+ passed (baseline + novos).
+Expected: 2759+ passed (baseline + novos).
 
 - [ ] **Step 4: Typecheck final**
 
@@ -836,21 +840,110 @@ git add src/main.ts
 
 ---
 
+### Task 2.1.5: Propagar `plugin` field via constructor pros base views
+
+**Files:**
+- Modify: `src/core/baseCodeExplorerView.ts`
+- Modify: `src/core/baseCodeDetailView.ts`
+- Modify: `src/core/unifiedExplorerView.ts`
+- Modify: `src/core/unifiedDetailView.ts`
+- Modify: `src/main.ts`
+
+Constructors atuais recebem `(leaf, model, ...)` sem referência ao plugin. Pra dispatchear `plugin.markerPreviewHydrator.requestHydration()` precisamos propagar o plugin field. Mudança mecânica + atualização de 2 callsites.
+
+- [ ] **Step 1: Add `plugin` field + param em `BaseCodeExplorerView`**
+
+Em `src/core/baseCodeExplorerView.ts:59-67` (constructor):
+
+```typescript
+import type QualiaCodingPlugin from '../main';
+
+export abstract class BaseCodeExplorerView extends ItemView {
+  protected readonly plugin: QualiaCodingPlugin;
+  // ... fields existentes
+
+  constructor(
+    leaf: WorkspaceLeaf,
+    plugin: QualiaCodingPlugin,
+    model: SidebarModelInterface,
+    smartCodeAccess?: SmartCodesAccess,
+  ) {
+    super(leaf);
+    this.plugin = plugin;
+    this.model = model;
+    // ... resto
+  }
+}
+```
+
+- [ ] **Step 2: Idem em `BaseCodeDetailView`**
+
+Em `src/core/baseCodeDetailView.ts:133+` (constructor): adicionar `plugin: QualiaCodingPlugin` como segundo param + field. Mesmo pattern.
+
+- [ ] **Step 3: Atualizar `UnifiedCodeExplorerView.constructor`**
+
+Em `src/core/unifiedExplorerView.ts:18-26`:
+
+```typescript
+constructor(
+  leaf: WorkspaceLeaf,
+  plugin: QualiaCodingPlugin,
+  model: SidebarModelInterface,
+  mdModel: CodeMarkerModel | null,
+  smartCodeAccess?: SmartCodesAccess,
+) {
+  super(leaf, plugin, model, smartCodeAccess);
+  this.mdModel = mdModel;
+}
+```
+
+- [ ] **Step 4: Atualizar `UnifiedCodeDetailView.constructor`**
+
+Em `src/core/unifiedDetailView.ts:18+`: adicionar `plugin` como segundo param, passar pro super.
+
+- [ ] **Step 5: Atualizar callsites em `src/main.ts`**
+
+Linhas 506-508:
+```typescript
+this.registerView(CODE_EXPLORER_VIEW_TYPE, leaf =>
+  new UnifiedCodeExplorerView(leaf, this, unifiedModel, mdModel, smartCodeAccess));
+this.registerView(CODE_DETAIL_VIEW_TYPE, leaf =>
+  new UnifiedCodeDetailView(leaf, this, unifiedModel, mdModel, auditAccess, memoAccess, smartCodeAccess));
+```
+
+- [ ] **Step 6: Typecheck**
+
+```bash
+npx tsc --noEmit
+```
+Expected: zero errors. Se aparecer "X arguments expected, got Y" em outro callsite, atualizar.
+
+- [ ] **Step 7: Run full suite**
+
+```bash
+npx vitest run
+```
+Expected: 2759+ passed (baseline + N novos do Chunk 1).
+
+- [ ] **Step 8: Smoke smoke (sem feature, só sanity)**
+
+Build + reload Obsidian. Abrir Code Explorer, Code Detail. Validar que ambos abrem sem erro no console. Sem mudança funcional ainda — só garantia de que o constructor change não quebrou nada.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/core/baseCodeExplorerView.ts src/core/baseCodeDetailView.ts src/core/unifiedExplorerView.ts src/core/unifiedDetailView.ts src/main.ts
+~/.claude/scripts/commit.sh "refactor(core): propaga plugin field via constructor pros base views (preparação hydrator)"
+```
+
+---
+
 ### Task 2.2: Dispatch `requestHydration` no `BaseCodeExplorerView.buildCodeIndex`
 
 **Files:**
 - Modify: `src/core/baseCodeExplorerView.ts`
 
-- [ ] **Step 1: Identificar plugin reference no view**
-
-Verificar como `BaseCodeExplorerView` acessa o plugin. Provavelmente via `this.plugin` ou via `this.app` + cast. Olhar:
-```bash
-grep -n "this.plugin\|plugin:\|Plugin" src/core/baseCodeExplorerView.ts | head -5
-```
-
-Se já existe `this.plugin: QualiaCodingPlugin`, OK. Se não, precisa receber via constructor (mudança maior — abordar com cuidado, conferir que callsites todos passam).
-
-- [ ] **Step 2: Adicionar dispatch dentro de `buildCodeIndex`**
+- [ ] **Step 1: Adicionar dispatch dentro de `buildCodeIndex`**
 
 Em `src/core/baseCodeExplorerView.ts:184` (dentro do for loop), antes de iterar markers:
 
@@ -860,13 +953,11 @@ for (const fileId of this.model.getAllFileIds()) {
   this.plugin.markerPreviewHydrator?.requestHydration(fileId);
 
   const markers = this.model.getMarkersForFile(fileId);
-  // ... resto
+  // ... resto existente
 }
 ```
 
-(`?.` pra defensive em caso de shutdown — pode tirar se o field for `!:`.)
-
-⚠️ Confirmar com grep se `this.plugin` está disponível ou se precisa pegar via `this.model.dataManager.plugin` (cast). Se o último, ajustar.
+`?.` defensive — field é instanciado em `Plugin.onload` mas pode ser undefined em edge case de hot-reload mid-init.
 
 - [ ] **Step 3: Smoke test no Obsidian — cold start**
 
@@ -1154,31 +1245,20 @@ git add src/core/smartCodes/smartCodeListModal.ts src/main.ts
 **Files:**
 - Modify: `src/analytics/views/modes/memoView/memoViewMode.ts` (ou `renderMarkerCard.ts`)
 
-- [ ] **Step 1: Identificar onde markers são renderizados em by-code mode**
+- [ ] **Step 1: Implementar dispatch agregado**
 
-```bash
-grep -n "byCode\|markerMemos\|fileId" src/analytics/views/modes/memoView/memoViewMode.ts | head -10
-```
+`ctx.plugin` já é exposto via `AnalyticsViewContext` (confirmado em `memoViewMode.ts:14,21,50`). Adicionar antes do loop de render em `memoViewMode.ts`:
 
-`memoViewMode.ts:60` itera `byCode` sections com markers. `renderMarkerCard.ts:19` cada marker tem `entry.fileId`.
-
-Estratégia: agregar fileIds únicos das sections num Set, despachar 1x cada.
-
-- [ ] **Step 2: Implementar dispatch agregado**
-
-Adicionar no `memoViewMode.ts` (provável local de orchestration):
 ```typescript
 const fileIdsSeen = new Set<string>();
 for (const sec of result.byCode ?? []) {
   for (const mm of sec.markerMemos) {
     if (fileIdsSeen.has(mm.fileId)) continue;
     fileIdsSeen.add(mm.fileId);
-    plugin.markerPreviewHydrator?.requestHydration(mm.fileId);
+    ctx.plugin.markerPreviewHydrator?.requestHydration(mm.fileId);
   }
 }
 ```
-
-⚠️ Confirmar que plugin é acessível nesse mode. Se não, propagar via context (`AnalyticsViewContext`).
 
 - [ ] **Step 3: Smoke**
 
@@ -1224,7 +1304,7 @@ Slice 4 do spec. Decidir após Chunk 3 smoke se vale. Se nenhum smoke revelar ca
 **Files:**
 - Modify: `src/main.ts`
 
-- [ ] **Step 1: Adicionar command no `addCommands` (ou similar)**
+- [ ] **Step 1: Adicionar `this.addCommand` no método de registro de commands existente**
 
 ```typescript
 this.addCommand({
