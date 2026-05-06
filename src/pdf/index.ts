@@ -285,16 +285,6 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	// Nav arrow events (codemarker:label-click, codemarker:code-click) are handled
 	// by the unified listeners in markdown/index.ts — no duplicate handlers needed.
 
-	plugin.addCommand({
-		id: 'undo-pdf-coding',
-		name: 'Undo last PDF coding action',
-		callback: () => {
-			if (!model.undo()) {
-				new Notice('Nothing to undo.');
-			}
-		},
-	});
-
 	const collectPdfViews = (): FileView[] => {
 		const out: FileView[] = [];
 		plugin.app.workspace.iterateAllLeaves((leaf) => {

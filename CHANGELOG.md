@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **PDF undo stack** — feature `Undo last PDF coding action` (Cmd+Z, command `undo-pdf-coding`) removida. Era a única engine com undo (markdown/image/csv/media nunca tiveram), mantinha inconsistência cross-engine e o keybinding nunca foi wired no `PdfCodingView`. Saiu: `PdfCodingModel.undo()`, `pushUndo()`, `reconcileCodes()`, `undoStack`, `suppressUndo` (dead code), interface `UndoEntry`, const `MAX_UNDO`, command `undo-pdf-coding`, 13 testes, seção `TECHNICAL-PATTERNS.md §4.8`.
+
 ## [0.3.0] — 2026-05-05 — Pre-alpha
 
 Smart Codes Tier 3: capability nova de "saved queries" sobre o codebook. Schema próprio (PredicateNode AST com 10 leaves + nesting AND/OR/NOT), evaluator puro com short-circuit + cycle detection, cache com invalidação granular, modal hub + builder com preview live, command palette, integração ponta-a-ponta com 6 modes do Analytics, Code Explorer, audit log com entity discriminator, QDPX/CSV round-trip e granular MarkerMutation cross-engine. Stress: 10k markers + 100 smart codes em <1s.

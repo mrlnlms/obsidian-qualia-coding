@@ -239,7 +239,7 @@ Se o output bater (working clean + branch alinhada com origin), nada está pende
 - `SmartCodeRegistry` — classe stateful em `src/core/smartCodes/smartCodeRegistry.ts` com `addOnMutate(fn)` + cache incremental. Mesmo pattern de `CodeDefinitionRegistry`
 - `SmartCodeCache` — singleton em `src/core/smartCodes/cache.ts` com invalidação granular + chunked compute (100 markers/chunk). Recebe `applyMarkerMutation(event)` pra invalidação cirúrgica
 - `MarkerMutationEvent` — `{ engine, fileId, markerId, prevCodeIds, nextCodeIds, codeIds, marker }` em `src/core/types.ts`
-- `onMarkerMutation(fn)` — canal paralelo a `onChange` em todos 5 engine models. Emite em mutation sites (addCode, removeMarker, undo, clearAllMarkers, etc). Pattern documentado em TECHNICAL-PATTERNS §37
+- `onMarkerMutation(fn)` — canal paralelo a `onChange` em todos 5 engine models. Emite em mutation sites (addCode, removeMarker, clearAllMarkers, etc). Pattern documentado em TECHNICAL-PATTERNS §37
 - `dependencyExtractor(predicate)` — retorna `{ codeIds, caseVarKeys, folderIds, groupIds, smartCodeIds, engineTypes }` pra índices reversos do cache
 - `evaluator(predicate, marker, ctx)` / `validator(predicate, registry)` — puros, separados (runtime vs save-time). Cycle detection em ambos
 - `getSmartCodeViews(...)` — helper em `smartCodeAnalytics.ts` resolve refs em UnifiedMarkers aplicando filters globais (Analytics integration)

@@ -317,135 +317,9 @@ describe('updateMarkerRangeSilent', () => {
 		expect(listener).not.toHaveBeenCalled();
 	});
 
-	it('does not push undo entry', () => {
-		const m = createMarkerVia(model);
-		model.updateMarkerRangeSilent(m.id, { beginIndex: 5 });
-		expect(model.undo()).toBe(false);
-	});
-
 	it('does nothing for unknown marker', () => {
 		model.updateMarkerRangeSilent('nonexistent', { beginIndex: 5 });
 		// Should not throw
-	});
-});
-
-// ══════════════════════════════════════════════════════════════
-// Undo system
-// ══════════════════════════════════════════════════════════════
-
-describe('undo', () => {
-	it('undoes addCode — restores previous codes', () => {
-		const m = createMarkerVia(model);
-		const idA = cid('A');
-		const idB = cid('B');
-		model.addCodeToMarker(m.id, idA);
-		model.addCodeToMarker(m.id, idB);
-		model.undo();
-		expect(m.codes).toEqual(ca(idA));
-	});
-
-	it('undoes removeCode — restores codes on existing marker', () => {
-		const m = createMarkerVia(model);
-		const idA = cid('A');
-		const idB = cid('B');
-		model.addCodeToMarker(m.id, idA);
-		model.addCodeToMarker(m.id, idB);
-		model.removeCodeFromMarker(m.id, idA, true);
-		model.undo();
-		expect(hasCode(m.codes, idA)).toBe(true);
-		expect(hasCode(m.codes, idB)).toBe(true);
-	});
-
-	it('undoes removeCode — re-creates deleted marker', () => {
-		const m = createMarkerVia(model);
-		const id = m.id;
-		const idA = cid('A');
-		model.addCodeToMarker(id, idA);
-		model.removeCodeFromMarker(id, idA); // deletes marker
-		expect(model.findMarkerById(id)).toBeUndefined();
-		model.undo();
-		const restored = model.findMarkerById(id);
-		expect(restored).toBeDefined();
-		expect(hasCode(restored!.codes, idA)).toBe(true);
-	});
-
-	it('undoes removeAllCodes — restores all codes and re-creates marker', () => {
-		const m = createMarkerVia(model);
-		const id = m.id;
-		const idA = cid('A');
-		const idB = cid('B');
-		model.addCodeToMarker(id, idA);
-		model.addCodeToMarker(id, idB);
-		model.removeAllCodesFromMarker(id);
-		expect(model.findMarkerById(id)).toBeUndefined();
-		model.undo();
-		const restored = model.findMarkerById(id);
-		expect(restored).toBeDefined();
-		expect(restored!.codes).toEqual(ca(idA, idB));
-	});
-
-	it('undoes resizeMarker — restores original range', () => {
-		const m = createMarkerVia(model);
-		const origBegin = m.beginIndex;
-		const origEnd = m.endIndex;
-		const origText = m.text;
-		model.updateMarkerRange(m.id, { beginIndex: 99, endIndex: 200, text: 'changed' });
-		model.undo();
-		expect(m.beginIndex).toBe(origBegin);
-		expect(m.endIndex).toBe(origEnd);
-		expect(m.text).toBe(origText);
-	});
-
-	it('returns false when undo stack is empty', () => {
-		expect(model.undo()).toBe(false);
-	});
-
-	it('returns true on successful undo', () => {
-		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, cid('A'));
-		expect(model.undo()).toBe(true);
-	});
-
-	it('caps undo stack at MAX_UNDO (50)', () => {
-		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, cid('base'));
-		// Push 55 undo entries via resize
-		for (let i = 0; i < 55; i++) {
-			model.updateMarkerRange(m.id, { beginIndex: i });
-		}
-		// Should be able to undo exactly 50 times (MAX_UNDO), then one more for addCode = 51 total
-		// Actually: 55 resize + 1 addCode = 56, capped at 50
-		let count = 0;
-		while (model.undo()) count++;
-		expect(count).toBe(50);
-	});
-
-	it('removeAllCodesFromMarker does not push per-code undo entries (suppressUndo)', () => {
-		const m = createMarkerVia(model);
-		const id = m.id;
-		const idA = cid('A');
-		const idB = cid('B');
-		const idC = cid('C');
-		model.addCodeToMarker(id, idA);
-		model.addCodeToMarker(id, idB);
-		model.addCodeToMarker(id, idC);
-		// 3 addCode entries on stack now
-		model.removeAllCodesFromMarker(id);
-		// Should push exactly 1 removeAllCodes entry (not 3 removeCode entries)
-		// Stack: 3 addCode + 1 removeAllCodes = 4
-		model.undo(); // undo removeAllCodes — restores A, B, C
-		const restored = model.findMarkerById(id);
-		expect(restored).toBeDefined();
-		expect(restored!.codes).toEqual(ca(idA, idB, idC));
-	});
-
-	it('calls notify after undo', () => {
-		const m = createMarkerVia(model);
-		model.addCodeToMarker(m.id, cid('A'));
-		const listener = vi.fn();
-		model.onChange(listener);
-		model.undo();
-		expect(listener).toHaveBeenCalled();
 	});
 });
 
@@ -964,22 +838,6 @@ describe('removeAllCodesFromMarker', () => {
 
 		expect(listener).toHaveBeenCalledTimes(1);
 		expect(model.findMarkerById(m.id)).toBeUndefined();
-	});
-
-	it('is undoable as single operation', () => {
-		const m = createMarkerVia(model);
-		const idA = cid('CodeA');
-		const idB = cid('CodeB');
-		model.addCodeToMarker(m.id, idA);
-		model.addCodeToMarker(m.id, idB);
-
-		model.removeAllCodesFromMarker(m.id);
-		expect(model.findMarkerById(m.id)).toBeUndefined();
-
-		model.undo();
-		const restored = model.findMarkerById(m.id);
-		expect(restored).toBeDefined();
-		expect(restored!.codes).toEqual(ca(idA, idB));
 	});
 
 	it('no-ops on nonexistent marker', () => {

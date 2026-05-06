@@ -617,7 +617,7 @@ Linhas representam leaves do predicate; nesting de OpNodes via indent + group op
 - **MarkerMutationEvent emit obrigatório** em todo mutation site novo (addCode, removeCode, etc). Sem isso, cache fica stale silenciosamente. Pattern documentado em `TECHNICAL-PATTERNS.md §37`.
 - **Cycle detection runtime + pré-save**: evaluator faz `ctx.visiting.has(scId)` antes de descer em smartCode leaf. Validator detecta o ciclo no save. Os dois são complementares — não confiar só num. Pattern em `TECHNICAL-PATTERNS.md §38`.
 - **Cascade `invalidate()` (não `markDirty`)**: SC A depende de SC B. Mutação em B precisa cascatear pra A. `invalidate()` recursa via smartCodeId index; `markDirty` não. Bug fechado em `82c3cd8` (SC3 cascade).
-- **`getMarkerByRef` fallback via composite key**: caller que guardou ref antes de REMOVE+ADD (rename, undo) ainda resolve marker atual. Sem isso, undo no PDF deixava SC desreferenciada.
+- **`getMarkerByRef` fallback via composite key**: caller que guardou ref antes de REMOVE+ADD (rename) ainda resolve marker atual.
 - **Auto-refresh do Smart Code detail na sidebar**: subscribe a `cache` + `registry.addOnMutate` + `model.onChange` (workaround pra eventos raros que SC3 não cobre). Refresh manual obsoleto.
 - **EntityRef expansion pra Convert to note**: SC memo materializa via mesmo pipeline de Code/Group/Marker/Relation. EntityRef union ganhou case `'smart-code'` em `resolveEntity`/`resolveFolder`/`readMemoRecord`/`writeMemo`.
 
@@ -627,10 +627,6 @@ Linhas representam leaves do predicate; nesting de OpNodes via indent + group op
 - **SC2**: grupo "⚡ Smart Codes" top-level no Code Explorer (SC → file → matches)
 - **SC3**: granular MarkerMutation cross-engine (5 models, 13+ mutation sites)
 - **SC4**: Smart Code detail inline na sidebar (Code Detail, modo "All Codes")
-
-### Pendências (known issues)
-
-- **Cmd+Z não desfaz coding em PDF** — keybinding não wired no `PdfCodingView` (bug pré-existente, não regressão SC3). Fix de undo SC3 (`df9ecaa`) está unit-testado mas integração UI bloqueada por isso. BACKLOG `§Sintomas`.
 
 ---
 

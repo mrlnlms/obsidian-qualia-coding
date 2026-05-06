@@ -1,17 +1,8 @@
 import type { PdfMarker, PdfShapeMarker, PercentShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
-import type { CodeDefinition, CodeApplication, MarkerMutationEvent } from '../core/types';
+import type { CodeDefinition, MarkerMutationEvent } from '../core/types';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
-
-// ── Undo types ──
-interface UndoEntry {
-	type: 'addCode' | 'removeCode' | 'removeAllCodes' | 'resizeMarker';
-	markerId: string;
-	data: PdfMarker;
-}
-
-const MAX_UNDO = 50;
 
 // ── PdfCodingModel ──
 type ChangeListener = () => void;
@@ -22,8 +13,6 @@ export class PdfCodingModel {
 	readonly dataManager: DataManager;
 	private markers: PdfMarker[] = [];
 	private shapes: PdfShapeMarker[] = [];
-	private undoStack: UndoEntry[] = [];
-	private suppressUndo = false;
 	private listeners = new Set<ChangeListener>();
 	private markerMutationListeners = new Set<(event: MarkerMutationEvent) => void>();
 	private hoverListeners = new Set<HoverListener>();
@@ -79,7 +68,6 @@ export class PdfCodingModel {
 	clearAll(): void {
 		this.markers = [];
 		this.shapes = [];
-		this.undoStack = [];
 		this.notify();
 	}
 
@@ -214,7 +202,6 @@ export class PdfCodingModel {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 		if (!hasCode(marker.codes, codeId)) {
-			this.pushUndo({ type: 'addCode', markerId, data: { ...marker, codes: [...marker.codes] } });
 			const prevCodeIds = marker.codes.map(c => c.codeId);
 			marker.codes = addCodeApplication(marker.codes, codeId);
 			marker.updatedAt = Date.now();
@@ -230,8 +217,6 @@ export class PdfCodingModel {
 	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty = false): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
-
-		this.pushUndo({ type: 'removeCode', markerId, data: { ...marker, codes: [...marker.codes] } });
 
 		const prevCodeIds = marker.codes.map(c => c.codeId);
 		marker.codes = removeCodeApplication(marker.codes, codeId);
@@ -250,12 +235,10 @@ export class PdfCodingModel {
 		this.notify();
 	}
 
-	/** Remove all codes from a marker as a single undoable operation. */
+	/** Remove all codes from a marker. */
 	removeAllCodesFromMarker(markerId: string): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker || marker.codes.length === 0) return;
-
-		this.pushUndo({ type: 'removeAllCodes', markerId, data: { ...marker, codes: [...marker.codes] } });
 
 		const prevCodeIds = marker.codes.map(c => c.codeId);
 		this.emitMarkerMutation({
@@ -274,7 +257,6 @@ export class PdfCodingModel {
 		'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
-		this.pushUndo({ type: 'resizeMarker', markerId, data: { ...marker, codes: [...marker.codes] } });
 		Object.assign(marker, changes);
 		marker.updatedAt = Date.now();
 		this.notify();
@@ -290,95 +272,6 @@ export class PdfCodingModel {
 		if (!marker) return;
 		Object.assign(marker, changes);
 		marker.updatedAt = Date.now();
-	}
-
-	// ── Undo ──
-
-	/** Filter codes against current registry — removes codeIds that were deleted since snapshot. */
-	private reconcileCodes(codes: CodeApplication[]): CodeApplication[] {
-		return codes.filter(c => this.registry.getById(c.codeId) !== undefined);
-	}
-
-	undo(): boolean {
-		const entry = this.undoStack.pop();
-		if (!entry) return false;
-
-		switch (entry.type) {
-			case 'addCode': {
-				const marker = this.findMarkerById(entry.markerId);
-				if (marker) {
-					const prevCodeIds = marker.codes.map(c => c.codeId);
-					marker.codes = this.reconcileCodes(entry.data.codes);
-					marker.updatedAt = Date.now();
-					const nextCodeIds = marker.codes.map(c => c.codeId);
-					this.emitMarkerMutation({
-						fileId: marker.fileId, markerId: marker.id,
-						prevCodeIds, nextCodeIds,
-						codeIds: Array.from(new Set([...prevCodeIds, ...nextCodeIds])),
-						marker,
-					});
-				}
-				break;
-			}
-			case 'removeCode':
-			case 'removeAllCodes': {
-				const reconciledCodes = this.reconcileCodes(entry.data.codes);
-				if (reconciledCodes.length === 0) break; // All codes were deleted — nothing to restore
-				const reconciledIds = reconciledCodes.map(c => c.codeId);
-				let marker = this.findMarkerById(entry.markerId);
-				if (!marker) {
-					// Marker was deleted — restore it with reconciled codes (ADD).
-					marker = { ...entry.data, codes: reconciledCodes };
-					this.markers.push(marker);
-					this.emitMarkerMutation({
-						fileId: marker.fileId, markerId: marker.id,
-						prevCodeIds: [], nextCodeIds: reconciledIds,
-						codeIds: reconciledIds, marker,
-					});
-				} else {
-					const prevCodeIds = marker.codes.map(c => c.codeId);
-					marker.codes = reconciledCodes;
-					marker.updatedAt = Date.now();
-					this.emitMarkerMutation({
-						fileId: marker.fileId, markerId: marker.id,
-						prevCodeIds, nextCodeIds: reconciledIds,
-						codeIds: Array.from(new Set([...prevCodeIds, ...reconciledIds])),
-						marker,
-					});
-				}
-				break;
-			}
-			case 'resizeMarker': {
-				const marker = this.findMarkerById(entry.markerId);
-				if (marker) {
-					marker.beginIndex = entry.data.beginIndex;
-					marker.beginOffset = entry.data.beginOffset;
-					marker.endIndex = entry.data.endIndex;
-					marker.endOffset = entry.data.endOffset;
-					marker.text = entry.data.text;
-					marker.updatedAt = Date.now();
-					// Range change — codeIds=[] (não invalida SCs), só atualiza markerByRef value.
-					const codeIds = marker.codes.map(c => c.codeId);
-					this.emitMarkerMutation({
-						fileId: marker.fileId, markerId: marker.id,
-						prevCodeIds: codeIds, nextCodeIds: codeIds,
-						codeIds: [], marker,
-					});
-				}
-				break;
-			}
-		}
-
-		this.notify();
-		return true;
-	}
-
-	private pushUndo(entry: UndoEntry): void {
-		if (this.suppressUndo) return;
-		this.undoStack.push(entry);
-		if (this.undoStack.length > MAX_UNDO) {
-			this.undoStack.shift();
-		}
 	}
 
 	// ── Lookup helpers ──

@@ -368,17 +368,7 @@ Same-line merging: `areRectanglesMergeable()` (horizontal adjacency + vertical o
 - `pagerendered` event → re-render after zoom (100ms delay for text layer rebuild)
 - `refreshAll()` only iterates pages with `data-loaded` attribute
 
-### 4.8 PDF Undo Stack
-
-O `PdfCodingModel` tem um **undo stack** limitado a 50 entries com 4 tipos de operação:
-- `addCode` — código adicionado a marker
-- `removeCode` — código removido de marker
-- `resizeMarker` — bounds de marker ajustados
-- `addShape` / `removeShape` — shape drawing
-
-Flag `suppressUndo` previne registro durante operações programáticas (e.g., redo). Sem saber desse stack, modificar o PDF model pode causar memory leaks (stack unbounded) ou perda de undo.
-
-### 4.9 PDF Page Navigation
+### 4.8 PDF Page Navigation
 
 ```typescript
 // Navigate to specific page:
@@ -387,7 +377,7 @@ app.workspace.openLinkText('', file.path, false, { eState: { subpath: '#page=3' 
 leaf.openFile(file, { eState: { subpath: '#page=N' } });
 ```
 
-### 4.10 PDF Data Schema
+### 4.9 PDF Data Schema
 ```typescript
 PdfMarker { id, fileId, page, beginIndex, beginOffset, endIndex, endOffset, text, codes[], memo?, createdAt, updatedAt }
 PdfShapeMarker { id, fileId, page, shape: 'rect'|'ellipse'|'polygon', coords: PercentShapeCoords, codes[], memo?, createdAt, updatedAt }
@@ -2196,7 +2186,7 @@ interface MarkerMutationEvent {
 }
 ```
 
-Cada mutation site emite com codeIds afetados. Sites cobertos: `addCode`, `removeCode`, `removeMarker`, `updateMarker`, `updateMarkerFields`, `createShape`, `deleteShape`, `addCodeToShape`, `removeCodeFromShape`, `addCodeToManyRows`, `removeCodeFromManyRows`, `removeAllRowMarkersFromMany`, `migrateFilePath`, `undo`, `clearAllMarkers`.
+Cada mutation site emite com codeIds afetados. Sites cobertos: `addCode`, `removeCode`, `removeMarker`, `updateMarker`, `updateMarkerFields`, `createShape`, `deleteShape`, `addCodeToShape`, `removeCodeFromShape`, `addCodeToManyRows`, `removeCodeFromManyRows`, `removeAllRowMarkersFromMany`, `migrateFilePath`, `clearAllMarkers`.
 
 Cache consumer faz `applyMarkerMutation(event)` — atualiza `markerByRef` incremental + invalida só SCs que dependem dos codeIds em `event.codeIds`.
 
