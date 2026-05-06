@@ -20,12 +20,7 @@ import type { MarkerRef } from './smartCodes/types';
 
 export type { SmartCodesAccess } from './baseCodeDetailView';
 
-// Cada `.search-result-file-match` herda padding default do Obsidian (~6px vertical),
-// somando ~32px de altura visual. Hard-set abaixo desse valor faz rows "vazarem" do
-// slot absolute-positioned (top: i*ROW_HEIGHT) — visualmente os primeiros 5 markers
-// cobrem os outros 5, criando "espaço em branco" abaixo. 32px é o mínimo que respeita
-// o CSS default sem clipping.
-const EXPLORER_ROW_HEIGHT = 32;
+const EXPLORER_ROW_HEIGHT = 26;
 const EXPLORER_LIST_MAX_VH = 50;
 
 interface CollapsibleNode {

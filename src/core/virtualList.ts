@@ -106,7 +106,13 @@ export function createVirtualList<T>(config: VirtualListConfig<T>): VirtualListH
 		rowPool.clear();
 		lastStart = -1;
 		lastEnd = -1;
+		// Render síncrono (caso layout já esteja settled) + defer via RAF como fallback:
+		// se a virtual list é criada e setItems chamado dentro do mesmo tick (ex: renderTree
+		// no onOpen do Code Explorer), `container.clientHeight` ainda é 0 porque o browser
+		// não recalculou layout. Resultado: só 5 rows mounted (buffer default) em vez de
+		// todas as visíveis. RAF garante que recheck após paint cycle, com layout settled.
 		renderVisibleRows();
+		requestAnimationFrame(renderVisibleRows);
 	};
 
 	const refresh = () => {
