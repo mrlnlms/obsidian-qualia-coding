@@ -349,3 +349,14 @@ describe('constructor normalization', () => {
 		expect(setSection).not.toHaveBeenCalled();
 	});
 });
+
+describe('getLazyProvider', () => {
+	it('returns registered provider; undefined when not registered', () => {
+		const fakeProvider = {} as any;
+		expect(model.getLazyProvider('fake.parquet')).toBeUndefined();
+		model.registerLazyProvider('fake.parquet', fakeProvider);
+		expect(model.getLazyProvider('fake.parquet')).toBe(fakeProvider);
+		model.unregisterLazyProvider('fake.parquet');
+		expect(model.getLazyProvider('fake.parquet')).toBeUndefined();
+	});
+});

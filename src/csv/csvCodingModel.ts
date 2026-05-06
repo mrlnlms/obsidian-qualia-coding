@@ -488,6 +488,18 @@ export class CsvCodingModel {
 	}
 
 	/**
+	 * Returns the live RowProvider for a file open in lazy mode, if any. The provider
+	 * is "borrow, not own" — caller must NOT dispose it. Invariant: csvCodingView.onClose
+	 * removes the entry from the Map BEFORE awaiting dispose (csvCodingView.ts:772),
+	 * so this getter never returns a disposed provider. Note: provider may transition to
+	 * disposed mid-batch if the user closes the tab — caller should treat thrown errors
+	 * from operations on returned provider as a normal error path (retry next time).
+	 */
+	getLazyProvider(fileId: string): RowProvider | undefined {
+		return this.lazyProviders.get(fileId);
+	}
+
+	/**
 	 * Pre-populate the markerText cache for all markers in a file via batched
 	 * DuckDB queries. Called on lazy file load — UI stays sync for previews.
 	 *
