@@ -10,7 +10,7 @@
  * 4. REMOVE + ADD restaura counts (round-trip).
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { SmartCodeCache } from '../../src/core/smartCodes/cache';
@@ -20,7 +20,10 @@ const dataPath = join(process.cwd(), 'data.json');
 const dataExists = existsSync(dataPath);
 
 describe.runIf(dataExists)('SC3 smoke contra data.json real', () => {
-	const data: any = JSON.parse(readFileSync(dataPath, 'utf8'));
+	let data: any;
+	beforeAll(() => {
+		data = JSON.parse(readFileSync(dataPath, 'utf8'));
+	});
 
 	const buildCache = () => {
 		const cache = new SmartCodeCache();
