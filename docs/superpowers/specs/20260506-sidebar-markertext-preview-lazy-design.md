@@ -102,40 +102,58 @@ export class MarkerPreviewHydrator {
 
   getStatus(): HydrationStatus;
 
+  /**
+   * Marca fileId como seen sem rodar batch. Chamado por `prepopulateMarkerCaches`
+   * pra cada file que populou no startup, evitando batch redundante depois.
+   */
+  markSeen(fileId: string): void;
+
   /** Pra command "Rebuild marker preview cache" (Slice 4 opcional). Limpa `seen` + `errors`. */
   reset(): void;
 
-  /** Cleanup no Plugin.onunload. Aguarda inflight com timeout 5s; após, log warn e abandona providers (worker morre com runtime.dispose). */
+  /**
+   * Cleanup no Plugin.onunload. Cancela RAF pending (`cancelAnimationFrame(notifyScheduled)`),
+   * aguarda inflight com timeout 5s; após, log warn e abandona providers (worker morre
+   * com runtime.dispose).
+   */
   dispose(): Promise<void>;
 }
 ```
 
 **Detecção de modo lazy:**
 
-Hydrator usa novo helper `csvModel.isLazyFile(fileId): boolean` (a ser adicionado em `csvCodingModel`):
+Hydrator faz a detecção internamente (não vira responsabilidade do model — ele não precisa conhecer `app.vault`). Recebe `plugin.app` via construtor; chama `app.vault.getAbstractFileByPath(fileId)` + `dataManager.section('csv').settings` pra resolver threshold. Eager → outcome `skipped: 'eager mode'`, `seen.add(fileId)` (não retenta).
 
 ```ts
-// csvCodingModel.ts (extensão)
-isLazyFile(fileId: string): boolean {
-  const af = this.dm.app.vault.getAbstractFileByPath(fileId);
+// dentro de markerPreviewHydrator.ts (privado)
+private isLazyFile(fileId: string): boolean {
+  const af = this.plugin.app.vault.getAbstractFileByPath(fileId);
   if (!(af instanceof TFile)) return false;
   const ext = af.extension;
   if (ext !== 'csv' && ext !== 'parquet') return false;
-  const csvSettings = this.dm.section('csv').settings ?? {};
+  const settings = this.plugin.dataManager.section('csv').settings ?? {};
   const thresholdMB = ext === 'parquet'
-    ? (csvSettings.parquetSizeWarningMB ?? 50)
-    : (csvSettings.csvSizeWarningMB ?? 100);
+    ? (settings.parquetSizeWarningMB ?? 50)
+    : (settings.csvSizeWarningMB ?? 100);
   return af.stat.size > thresholdMB * 1024 * 1024;
 }
 ```
 
-Hydrator chama `csvModel.isLazyFile(fileId)` no início de `requestHydration`. Eager → outcome `skipped: 'eager mode'`, `seen.add(fileId)` (não retenta).
+Single-call (chamado só dentro do `requestHydration`) — mas encapsula 4 lookups e fica mais legível inline. Mantém isolado pra teste unitário do hydrator.
 
 **Provider reuse:**
 
 ```ts
 // dentro do batch async do hydrator
-const existingProvider = this.csvModel.getLazyProvider(fileId);  // novo getter público
+// Invariant: csvCodingView.onClose unregistra provider do Map ANTES de await dispose()
+// (csvCodingView.ts:772 → unregisterLazyProvider sync precede await rowProvider.dispose()).
+// Logo, getLazyProvider nunca retorna provider já-disposed. Race possível:
+// hydrator obtém ref → user fecha tab → csvCodingView dispose → hydrator chama populate
+// → provider.disposed=true → trackedQuery.guard() throw. Tratado no catch genérico
+// como error path (NÃO marca seen, retry próxima). Pra encurtar a janela: hydrator
+// chama populateMissingMarkerTextsForFile imediatamente após getLazyProvider, sem
+// await intermediário entre os dois.
+const existingProvider = this.csvModel.getLazyProvider(fileId);
 if (existingProvider) {
   // file está aberto pelo user — reusa, NÃO faz dispose ao final (o csvCodingView é dono)
   await this.csvModel.populateMissingMarkerTextsForFile(fileId, existingProvider);
@@ -152,6 +170,13 @@ if (existingProvider) {
 
 `csvCodingModel` precisa de getter público:
 ```ts
+/**
+ * Returns the live RowProvider for a file open in lazy mode, if any. The provider
+ * is "borrow, not own" — caller must NOT dispose it. Invariant: csvCodingView.onClose
+ * removes the entry from the Map before awaiting dispose, so this getter never
+ * returns a disposed provider (but the provider may transition to disposed mid-batch
+ * if the user closes the tab — see provider reuse code above for race handling).
+ */
 getLazyProvider(fileId: string): RowProvider | undefined {
   return this.lazyProviders.get(fileId);
 }
@@ -304,23 +329,22 @@ Mocks: `csvModel.populateMissingMarkerTextsForFile`, `csvModel.isLazyFile`, `csv
 
 | Arquivo | Mudança |
 |---|---|
-| `src/csv/markerPreviewHydrator.ts` | Novo módulo (orchestrator + types) |
-| `src/csv/csvCodingModel.ts` | Add `isLazyFile(fileId)` + `getLazyProvider(fileId)` getters públicos |
-| `src/main.ts` | Instancia `MarkerPreviewHydrator` no `onload`; expõe via field; `await hydrator.dispose()` no `onunload` |
-| `src/core/baseCodeExplorerView.ts` | Após agrupar markers por file, itera fileIds únicos e chama `plugin.markerPreviewHydrator.requestHydration(fileId)`. Renderiza header indicator subscribe via `onStatusChange` |
+| `src/csv/markerPreviewHydrator.ts` | Novo módulo (orchestrator + types). Detecção de lazy mode é privada do hydrator (recebe `plugin.app` no construtor). |
+| `src/csv/csvCodingModel.ts` | Add `getLazyProvider(fileId): RowProvider \| undefined` getter público (com docstring de invariant) |
+| `src/csv/prepopulateMarkerCaches.ts` | Após popular cada file, chama `hydrator.markSeen(fileId)` pra evitar re-batch |
+| `src/main.ts` | Instancia `MarkerPreviewHydrator` no `onload` (depois de `csvModel` + `dataManager`); expõe via field; `await hydrator.dispose()` no `onunload` (antes do duckdb dispose) |
+| `src/core/baseCodeExplorerView.ts` | No método de render que itera markers por file (entry point exato a confirmar no plan — provavelmente `renderCodeMarkers` ou similar), itera fileIds únicos e chama `plugin.markerPreviewHydrator.requestHydration(fileId)`. Renderiza header indicator subscribe via `onStatusChange` |
 | `src/core/baseCodeDetailView.ts` | Idem (evidence list group by file) |
 | `src/core/smartCodes/smartCodeListModal.ts` | Idem |
 | `src/core/smartCodes/detailSmartCodeRenderer.ts` | Idem |
-| `src/core/memoView.ts` (ou equivalente) | Idem (by-code mode) |
+| `src/analytics/views/modes/memoView/` (renderers) | Idem (by-code mode itera fileIds dos markers de cada code section) |
 | `tests/csv/markerPreviewHydrator.test.ts` | Novo (unit tests) |
 
 `UnifiedCodeExplorerView` e `UnifiedCodeDetailView` herdam de `Base*` — sem mudança direta. Implementação no base cobre.
 
 ### Compatibilidade com `prepopulateMarkerCaches.ts`
 
-`prepopulateMarkerCaches` continua rodando no `onLayoutReady` com mesma semântica (só popula se OPFS fresco). Quando preenche `markerTextCache`, hydrator pode receber notificação dos fileIds populados pra adicionar diretamente em `seen` (skipping the batch). Detalhe pequeno: `prepopulateMarkerCaches` chama `hydrator.markSeen(fileId)` ao final de cada file populado.
-
-Alternativa: hydrator não recebe notificação. `requestHydration` no consumer detecta cache hit via `populateMissingMarkerTextsForFile` retornando `addedCount === 0` → marca seen via fluxo normal. Implementação mais simples, mas dispara batch desnecessário. **Decisão pro plan:** se prepopulate completou, marcar seen direto.
+`prepopulateMarkerCaches` continua rodando no `onLayoutReady` com mesma semântica (só popula se OPFS fresco). Após popular cada fileId com sucesso, chama `hydrator.markSeen(fileId)` pra adicionar direto a `seen`. Sem isso, primeira renderização do Code Explorer dispararia batch redundante (que retornaria `addedCount === 0` pq cache já cheio, mas paga o custo de boot DuckDB pra nada).
 
 ### Status indicator placement (decisão pro plan)
 
