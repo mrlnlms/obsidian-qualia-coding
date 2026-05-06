@@ -1,5 +1,6 @@
 import { Plugin, FileView, Notice, TFile, type View, type WorkspaceLeaf } from 'obsidian';
 import { createDuckDBRuntime, type DuckDBRuntime } from './csv/duckdb';
+import { MarkerPreviewHydrator } from './csv/markerPreviewHydrator';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
@@ -76,6 +77,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	pdfModel?: PdfCodingModel;
 	imageModel?: ImageCodingModel;
 	csvModel?: CsvCodingModel;
+	markerPreviewHydrator?: MarkerPreviewHydrator;
 	audioModel?: AudioCodingModel;
 	videoModel?: VideoCodingModel;
 	togglePdfInstrumentation?: (view: unknown, force?: 'on' | 'off') => void;
@@ -342,6 +344,11 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.csvModel = csvModel;
 		this.audioModel = audioModel;
 		this.videoModel = videoModel;
+
+		// Hydrator de markerText preview pra arquivos lazy (parquet/CSV grandes não abertos
+		// nessa máquina). Trigger é per-file na renderização dos consumers (Code Explorer
+		// etc). Spec: docs/superpowers/specs/20260506-sidebar-markertext-preview-lazy-design.md
+		this.markerPreviewHydrator = new MarkerPreviewHydrator(this, csvModel);
 
 		// Wire engine models → consolidation cache invalidation
 		mdModel.onChange(() => consolidationCache.invalidateEngine('markdown'));
@@ -822,6 +829,15 @@ export default class QualiaCodingPlugin extends Plugin {
 	}
 
 	async onunload() {
+		// Hydrator dispose ANTES do duckdb — drena queries inflight via DuckDBRowProvider.dispose
+		// internal lock. Sem isso, hidratação pendente bate em "Missing DB manager".
+		try {
+			await this.markerPreviewHydrator?.dispose();
+		} catch (e) {
+			console.warn("[qualia-coding] markerPreviewHydrator dispose failed", e);
+		}
+		this.markerPreviewHydrator = undefined;
+
 		// DuckDB lifecycle: dispose worker + revoke Blob URLs. Avoids hot-reload leak.
 		try {
 			await this.duckdb?.dispose();
