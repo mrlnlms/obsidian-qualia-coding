@@ -56,6 +56,8 @@ export abstract class BaseCodeExplorerView extends ItemView {
 	private toolbarEl: HTMLElement | null = null;
 	private treeZone: HTMLElement | null = null;
 	private footerEl: HTMLElement | null = null;
+	private hydratorStatusEl: HTMLElement | null = null;
+	private hydratorUnsubscribe: (() => void) | null = null;
 
 	protected readonly plugin: QualiaCodingPlugin;
 
@@ -105,6 +107,7 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		document.addEventListener('qualia:registry-changed', this.scheduleRefresh);
 		if (this.smartCodeAccess) this.attachSmartCodeListeners();
 		this.renderShell();
+		this.subscribeHydratorStatus();
 		this.renderTree();
 	}
 
@@ -114,9 +117,27 @@ export abstract class BaseCodeExplorerView extends ItemView {
 		document.removeEventListener('qualia:registry-changed', this.scheduleRefresh);
 		this.unsubSmartCodes?.();
 		this.unsubSmartCodes = null;
+		this.hydratorUnsubscribe?.();
+		this.hydratorUnsubscribe = null;
 		if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
 		if (this.searchTimeout) { clearTimeout(this.searchTimeout); this.searchTimeout = null; }
 		this.contentEl.empty();
+	}
+
+	private subscribeHydratorStatus(): void {
+		const hydrator = this.plugin.markerPreviewHydrator;
+		if (!hydrator || !this.toolbarEl) return;
+		this.hydratorStatusEl = this.toolbarEl.createDiv({ cls: 'qc-hydration-status' });
+		this.hydratorStatusEl.style.display = 'none';
+		this.hydratorUnsubscribe = hydrator.onStatusChange((s) => {
+			if (!this.hydratorStatusEl) return;
+			if (s.inflightCount === 0) {
+				this.hydratorStatusEl.style.display = 'none';
+				return;
+			}
+			this.hydratorStatusEl.style.display = '';
+			this.hydratorStatusEl.setText(`Hidratando previews… ${s.completedCount}/${s.totalSeen}`);
+		});
 	}
 
 	// ─── Collapse logic ─────────────────────────────────────

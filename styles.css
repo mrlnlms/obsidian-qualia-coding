@@ -2614,6 +2614,14 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   flex: 1;
 }
 
+.qc-hydration-status {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
 .codemarker-explorer-swatch {
   display: inline-block;
   width: 10px;
