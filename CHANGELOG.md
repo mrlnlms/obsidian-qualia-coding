@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-07 — Pre-alpha
+
+Tabular virtual cols viram cidadãs de primeira em parquet/CSV lazy: persistem visibility, ganham filter UI server-side via DuckDB e exportam como Parquet enriquecido (cols originais + `<col>__codes_frow`/`__codes_seg`/`__comment` joined single-pass). Sidebar passa a previewar markerText pra arquivos lazy não hidratados via background hydrator (cobre cold start de vault migrado). Misc fixes em race conditions OPFS/inflight, virtual list timing e label whitespace-only. PDF undo stack removido pra eliminar inconsistência cross-engine.
+
 ### Added
 
 - **Tabular virtual cols — persist + filter + export** — feature integrada cobrindo 3 defeitos correlacionados em parquet/CSV lazy mode:

@@ -11,7 +11,7 @@ For researchers, UX professionals, students, and anyone who'd rather not pay $60
 - **Mixed methods, first-class.** Case Variables (typed properties per file), magnitude coding (nominal / ordinal / continuous), and code groups (flat N:N tags) are designed in, not bolted on.
 - **Vault = your data.** Markers live in the same Obsidian vault as your sources. No proprietary container. Sync with iCloud, Git, Syncthing, whatever. Switch tools without "exporting your project."
 - **REFI-QDA round-trip.** Export QDPX to NVivo / ATLAS.ti / MAXQDA / Dedoose, *and import their projects back into Qualia.* Round-trip is verified, not just one-way export.
-- **Parquet support.** The only CAQDAS that opens columnar data files. Useful for survey exports (Qualtrics) and research databases.
+- **Parquet support, lazy mode.** The only CAQDAS that opens columnar data files — and opens them at scale. 297 MB Parquet loads instantly via DuckDB-Wasm + OPFS streaming; filter, sort, and batch-code via SQL without loading the file into RAM. Export "enriched Parquet" with your codes joined as columns for downstream pipelines.
 - **Free and open source.** MIT licensed. No subscription, no seat license, no AI paywall.
 
 ## Annotation engines
@@ -76,7 +76,8 @@ A freeform canvas for synthesis:
 - **Export QDPX** — full project: sources + segments + memos + case variables + groups. Compatible with ATLAS.ti, NVivo, MAXQDA, Dedoose, and any REFI-QDA tool
 - **Export QDC** — codebook only (hierarchy, colors, descriptions)
 - **Import QDPX / QDC** — bring projects from other QDA tools. Source files extracted to the vault, codes and segments mapped to Qualia engines
-- **Tabular CSV zip** — relational flat files (segments, code_applications, codes, case_variables, relations, groups) with an embedded README and R/tidyverse + Python/pandas snippets. For when you want to run stats outside the plugin
+- **Tabular CSV zip** — relational flat files (segments, code_applications, codes, case_variables, relations, groups, smart_codes) with an embedded README and R/tidyverse + Python/pandas snippets. For when you want to run stats outside the plugin
+- **Enriched Parquet** — export the active Parquet (or CSV) with your codes and comments joined as `<col>__codes_frow` / `<col>__codes_seg` / `<col>__comment` columns. Single-file output, ready for pandas / Polars / DuckDB pipelines
 - **Per-view CSV** — every Analytics view exports its own table
 
 ## Under the hood
@@ -86,9 +87,9 @@ A few technical choices worth knowing about:
 - **100% local.** No telemetry, no cloud calls, no API keys required. Works fully offline. Your data never leaves the vault
 - **REFI-QDA 1.0 spec compliant.** QDPX export uses an `xmlns:qualia` extension namespace to preserve Qualia-specific metadata (custom colors, group descriptions) without breaking other tools' parsers
 - **CodeMirror 6 native.** Markdown highlights are real CodeMirror decorations, not DOM overlays. The margin panel is a custom `ViewPlugin` with column-resolved label layout — same UX as MAXQDA's
-- **Per-engine viewers, no shared state.** PDF (pdf.js), Image (Fabric.js), Audio/Video (WaveSurfer.js), CSV/Parquet (AG Grid Community + hyparquet WASM). Each engine is self-contained — adding a format doesn't touch the others
+- **Per-engine viewers, no shared state.** PDF (pdf.js), Image (Fabric.js), Audio/Video (WaveSurfer.js), CSV/Parquet (AG Grid Community + hyparquet WASM eager / DuckDB-Wasm + OPFS lazy above 50 MB). Each engine is self-contained — adding a format doesn't touch the others
 - **Incremental analytics cache.** Dirty flags per engine; analytics modes recompute only the affected slice. Stays fast on large projects
-- **2,700+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, Smart Codes evaluator/cache, and analytics consolidators
+- **2,750+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, Smart Codes evaluator/cache, lazy Parquet pipeline, and analytics consolidators
 - **TypeScript strict** end-to-end, with ambient types for Obsidian internals where needed
 - **No build-time secrets, no runtime servers.** The entire plugin is the three files in your `.obsidian/plugins/qualia-coding/` folder
 
@@ -154,6 +155,7 @@ Once approved, **Settings → Community plugins → Browse → Qualia Coding →
 ## In development
 
 - **Intercoder reliability** — Cohen's kappa and Krippendorff's alpha to measure agreement between multiple coders on the same dataset. Required by peer reviewers in academic publishing, and a prerequisite for collaborative coding workflows in Qualia.
+- **LLM-assisted coding** — under product design. 40 tools and 5 patterns surveyed (`docs/_study/llm-coding/`); local-first stance and review granularity decisions pending before implementation begins.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full feature roadmap.
 
