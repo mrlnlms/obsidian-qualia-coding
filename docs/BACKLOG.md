@@ -111,6 +111,65 @@ Commits: `dc951b0` → `e7b6620` (10 commits da sessão de Smart Codes Phase 2).
 
 Items pequenos (<2h cada) sem guarda-chuva próprio. Quando atacar, vira commit direto.
 
+### Layout shift no filter de virtual cols (lazy mode)
+
+**Sintoma:** quando user aplica filter (cod-frow/cod-seg/comment) num parquet lazy, durante a janela entre `onFilterChanged` (cache purge) e a resposta do `getRows` (DuckDB query), AG Grid renderiza placeholder rows pelo viewport. Visualmente: as rows que estavam visíveis somem, viewport mostra ~10-20 placeholder rows com cells vazios, e quando DuckDB responde, encolhe pra apenas as rows que matcham. User descreveu como "todas as linhas reaparecem e depois encolhem".
+
+**Mitigações já aplicadas (2026-05-07, parciais):**
+- `defaultColDef.filterParams.debounceMs: 250` em lazy createGrid → coalesce keystrokes (1 refresh por pausa, não 1 por char)
+- CSS class `csv-coding-filtering` toggled pelo `csvCodingView.refreshLazyFilter` (sync início + RAF-deferred remove no finally) → `.ag-row-loading` + `.ag-stub-cell` viram `visibility: hidden` durante a janela
+- `getRows` short-page detection: `rows.length < requestedCount` → `lastRow = startRow + rows.length` (definitivo, independente de `filteredCount` async settle) → AG Grid não fica esperando lastRow desconhecido
+
+**O que ainda falha:** entre purge e DuckDB respond (~50-150ms), viewport mostra blank space (placeholders escondidos via CSS, mas o espaço vazio segue lá). Sintoma cosmético — não bug funcional. User confirmou: "ta funcionando, tem só esse comportamento estranho".
+
+**Caminhos pra investigar (em ordem de plausibilidade):**
+
+1. **Loading overlay scoped:** `gridApi.showLoadingOverlay()` no início do refreshLazyFilter (sync) + `hideOverlay()` no finally (RAF-deferred). Cobre o viewport inteiro com mensagem clara "Filtering…" em vez de blank. Trade: overlay flash em filter rápido (<100ms) pode ser pior que blank. Mitigation: throttle — só mostra overlay se async passar de threshold (ex: setTimeout 100ms; se completar antes, cancela).
+
+2. **Pre-compute filteredCount sync:** quando filter é puramente virtual (sem real cols), o count é exatamente `SELECT COUNT(DISTINCT source_row) FROM qualia_markers_<id> WHERE ...`. Em vault típico (markers small), isso é sub-ms. Pode ser awaitado SYNC antes de retornar do `refreshLazyFilter` (bloquear o caller até filteredCount conhecido). Mas o caller é AG Grid event handler, awaitar pode quebrar o flow.
+
+3. **Setar rowCount sync via API:** AG Grid v33 tem `gridApi.setRowCount(N, false)`. Se chamar com 0 antes de DuckDB responder, AG Grid não renderizaria placeholders. Mas isso flicka entre 0 → real count.
+
+4. **Custom loadingCellRenderer:** colDef pode definir `loadingCellRenderer: () => null`. Cell-level. Pode esconder mais granularmente.
+
+**Caminho mais provável de funcionar:** combinação de (1) com threshold + (3) opcional. Spec curta antes de implementar.
+
+**Não-blocker.** Funcionalidade tá certa, é só polish visual. User explicitamente disse pra resolver depois.
+
+### Export Parquet enriquecido — pipeline pra parquets muito grandes
+
+**Sintoma esperado (não reproduzido):** parquet de 661k × 270 cols com 5 virtual cols enabled exportou em ~75s, ~79MB output, near do cap de memória DuckDB-Wasm wasm32 (3.1 GiB). Pra parquets >1M rows × >500 cols, COPY pode estourar OOM.
+
+**Mitigações já aplicadas (2026-05-07):**
+- CTE per virtual col + LEFT JOIN single-pass (vs correlated subquery por row, que materializa CROSS JOIN intermediário)
+- `SET preserve_insertion_order=false` (DuckDB pipeline o COPY sem buffer ordenado, ganho 2-5x em parquets wide)
+- SNAPPY compression (vs ZSTD: ~10-20% pior compression mas usa muito menos memória durante write)
+- `ROW_GROUP_SIZE 50000` (vs default 122880: força flush incremental, buffer peak menor)
+- `SELECT p.* EXCLUDE (__source_row)` evita leakage da coluna interna do DuckDBRowProvider
+
+**O que pode ainda estourar:**
+- Parquet >2M rows com cols TEXT longas → buffer de 50k row group ainda pesado
+- 50+ virtual cols enabled → CTE inflation no plano de query
+
+**Estratégia se aparecer caso real:**
+1. **Chunked export:** export em janelas de N source_rows (ex: 100k rows por chunk), cada chunk vira um parquet separado, concat ao final via `parquet_writer.concat` ou similar. JS chunking, não DuckDB-side.
+2. **Streaming via Arrow:** ler rowProvider em pages, juntar com markers em JS, escrever Arrow stream → parquet via apache-arrow JS. Bypassa DuckDB COPY entirely.
+3. **Memory limit configurável:** expor setting "Export memory budget" — user que sabe da máquina dele ajusta.
+
+**Não-blocker.** Sem repro real ainda. Trabalho fica pra quando aparecer ticket. Estratégia (1) é o caminho menos invasivo se precisar.
+
+**Localização do código:** `src/csv/exportParquetEnriched.ts` `buildEnrichedSelect` + `exportParquetEnriched` (run COPY). Pra chunking, modular o COPY em loop com WHERE `__source_row BETWEEN X AND Y` e accumular outputs.
+
+### Spec rev1 da feature tabular-virtual-cols
+
+**Estado:** spec em `docs/superpowers/specs/20260506-tabular-virtual-cols-design.md` ficou rev0. Auto-review identificou gaps (`comment` dead UI, naming wrong, marker collections separadas) que foram resolvidos inline durante implementação. Spec não foi atualizada.
+
+**Decisão pendente:**
+- Atualizar pra rev1 refletindo estado real implementado (boa pra referência futura, ~30min de doc work), OU
+- Arquivar como histórico (move pra `plugin-docs/archive/claude_sources/specs/` no workspace externo) e considerar a CHANGELOG entry + commits como source of truth
+
+**Não-blocker.** Spec atual é internamente consistente, só não 100% bate com o código final. Atualizar agrega valor pra alguém estudando a arquitetura, mas não pro dev futuro que vai ler o código direto.
+
 ### ~~Coding em modo lazy: Sidebar markerText preview~~ ✅ FEITO (2026-05-06)
 
 Resolvido. `MarkerPreviewHydrator` (`src/csv/markerPreviewHydrator.ts`) — orchestrator stateful que popula `markerTextCache` em background quando consumers (Code Explorer, Code Detail, Smart Code list/detail, Memo View by-code) renderizam markers em parquet/CSV lazy não hidratados. Trigger per-file via `requestHydration(fileId)` idempotente (dedup `seen + inflight`). Re-render via `csvModel.notifyListenersOnly()` debounced (RAF). Status indicator `Hidratando previews… X/Y` no toolbar do Code Explorer. Cobertura: cold start de vault migrado (QDPX import), provider reuse com file aberto, single-source-of-truth pra OPFS lazy.
