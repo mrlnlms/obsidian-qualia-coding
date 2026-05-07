@@ -81,6 +81,16 @@ export class CsvCodingView extends FileView {
 
 	get markdownModel() { return this.plugin.markdownModel!; }
 
+	/** Nome SQL da temp table de markers (lazy mode). null em eager. Pra callers de export. */
+	get qualiaMarkersTableName(): string | null {
+		return this.qualiaMarkersTable?.tableName ?? null;
+	}
+
+	/** Nome SQL da tabela do parquet/CSV registrada no DuckDB (lazy mode). null em eager. */
+	get lazyOriginalTableName(): string | null {
+		return this.lazyState?.rowProvider.tableName ?? null;
+	}
+
 	constructor(leaf: WorkspaceLeaf, plugin: QualiaCodingPlugin, csvModel: CsvCodingModel) {
 		super(leaf);
 		this.plugin = plugin;

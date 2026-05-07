@@ -53,9 +53,13 @@ export class DuckDBRowProvider implements RowProvider {
 	private constructor(
 		private readonly conn: duckdb.AsyncDuckDBConnection,
 		private readonly db: duckdb.AsyncDuckDB,
-		private readonly tableName: string,
+		private readonly _tableName: string,
 		private readonly alias: string,
 	) {}
+
+	/** Identifier SQL escapado da tabela registrada. Pra callers que precisam fazer JOIN
+	 *  cross-table (ex: export parquet enriquecido reusando temp markers table). */
+	get tableName(): string { return this._tableName; }
 
 	static async create(opts: DuckDBRowProviderOptions): Promise<DuckDBRowProvider> {
 		const suffix = uniqueSuffix();

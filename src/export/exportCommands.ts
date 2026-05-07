@@ -46,10 +46,25 @@ export function registerExportCommands(plugin: QualiaCodingPlugin): void {
       ).open();
     },
   });
+
+  plugin.addCommand({
+    id: 'export-parquet-enriched',
+    name: 'Export active parquet with codes (enriched parquet)',
+    callback: () => {
+      new ExportModal(
+        plugin,
+        plugin.dataManager,
+        plugin.sharedRegistry,
+        'parquet',
+        plugin.manifest.version,
+        plugin.caseVariablesRegistry,
+      ).open();
+    },
+  });
 }
 
 /** Factory for analytics toolbar — avoids importing ExportModal in analytics view. */
-export function openExportModal(plugin: QualiaCodingPlugin, defaultFormat: 'qdc' | 'qdpx' | 'tabular' = 'qdpx'): void {
+export function openExportModal(plugin: QualiaCodingPlugin, defaultFormat: 'qdc' | 'qdpx' | 'tabular' | 'parquet' = 'qdpx'): void {
   new ExportModal(
     plugin,
     plugin.dataManager,

@@ -5,10 +5,12 @@ import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesR
 import type QualiaCodingPlugin from '../main';
 import { exportProject } from './qdpxExporter';
 import { exportTabular } from './tabular/tabularExporter';
+// `exportParquetEnriched` é dynamic-imported em doExport pra evitar carregar
+// `CsvCodingView` (extends FileView) em contextos de teste onde obsidian é mockado.
 
 export class ExportModal extends Modal {
   private plugin: QualiaCodingPlugin;
-  private format: 'qdc' | 'qdpx' | 'tabular';
+  private format: 'qdc' | 'qdpx' | 'tabular' | 'parquet';
   private includeSources = true;
   private includeRelations = true;
   private includeShapeCoords = true;
@@ -23,7 +25,7 @@ export class ExportModal extends Modal {
     plugin: QualiaCodingPlugin,
     dataManager: DataManager,
     registry: CodeDefinitionRegistry,
-    defaultFormat: 'qdc' | 'qdpx' | 'tabular',
+    defaultFormat: 'qdc' | 'qdpx' | 'tabular' | 'parquet',
     pluginVersion: string,
     caseVariablesRegistry: CaseVariablesRegistry,
   ) {
@@ -37,8 +39,10 @@ export class ExportModal extends Modal {
     this.fileName = `qualia-project.${this.extensionFor(defaultFormat)}`;
   }
 
-  private extensionFor(format: 'qdc' | 'qdpx' | 'tabular'): string {
-    return format === 'tabular' ? 'zip' : format;
+  private extensionFor(format: 'qdc' | 'qdpx' | 'tabular' | 'parquet'): string {
+    if (format === 'tabular') return 'zip';
+    if (format === 'parquet') return 'parquet';
+    return format;
   }
 
   onOpen(): void {
@@ -52,9 +56,10 @@ export class ExportModal extends Modal {
         dd.addOption('qdpx', 'QDPX (full project)');
         dd.addOption('qdc', 'QDC (codebook only)');
         dd.addOption('tabular', 'Tabular (CSV zip, for R/Python)');
+        dd.addOption('parquet', 'Parquet enriquecido (active file + virtual cols)');
         dd.setValue(this.format);
         dd.onChange(v => {
-          this.format = v as 'qdc' | 'qdpx' | 'tabular';
+          this.format = v as 'qdc' | 'qdpx' | 'tabular' | 'parquet';
           this.fileName = this.fileName.replace(/\.\w+$/, `.${this.extensionFor(this.format)}`);
           this.renderDynamicSections();
         });
@@ -77,6 +82,13 @@ export class ExportModal extends Modal {
 
   private renderDynamicSections(): void {
     this.dynamicEl.empty();
+
+    if (this.format === 'parquet') {
+      const info = this.dynamicEl.createDiv({ cls: 'qualia-export-csv-warning' });
+      info.createSpan({ text: 'Exports the active parquet/CSV file with virtual columns (codes + comments) materialized as parquet. Source file must be open in lazy mode. Output saved adjacent to original as <name>.qualia-enriched.parquet.' });
+      // File name não é editável aqui — output path é derivado do file ativo
+      return;
+    }
 
     if (this.format === 'tabular') {
       new Setting(this.dynamicEl)
@@ -121,6 +133,13 @@ export class ExportModal extends Modal {
 
   private async doExport(): Promise<void> {
     try {
+      if (this.format === 'parquet') {
+        const { exportParquetEnrichedFromActiveView } = await import('../csv/exportParquetEnriched');
+        await exportParquetEnrichedFromActiveView(this.app, this.plugin);
+        this.close();
+        return;
+      }
+
       if (this.format === 'tabular') {
         const result = await exportTabular(this.plugin, this.dataManager, this.registry, {
           fileName: this.fileName,
