@@ -55,6 +55,20 @@ export class MarkdownView {
   getViewType() { return 'markdown'; }
 }
 
+export class FileView {
+  app: any = null;
+  leaf: any = null;
+  containerEl: any = null;
+  file: TFile | null = null;
+  constructor(leaf?: any) {
+    this.leaf = leaf ?? null;
+  }
+  onLoadFile(_file: TFile): Promise<void> { return Promise.resolve(); }
+  onUnloadFile(_file: TFile): Promise<void> { return Promise.resolve(); }
+  getViewType() { return 'file-view'; }
+  getDisplayText() { return ''; }
+}
+
 export class TFile {
   path = '';
   name = '';

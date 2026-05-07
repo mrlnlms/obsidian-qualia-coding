@@ -24,6 +24,19 @@ import type QualiaCodingPlugin from "../main";
 import { CsvCodingView, CSV_CODING_VIEW_TYPE } from "./csvCodingView";
 import type { CodeDefinitionRegistry } from "../core/codeDefinitionRegistry";
 
+/**
+ * Heurística pra detectar erro de OOM do DuckDB-Wasm worker. Match em mensagens
+ * conhecidas: "Out of Memory" / "Allocation failure" / "memory access out of bounds".
+ * Usado pelo wrapper de export pra ativar fallback multi-file automaticamente.
+ *
+ * Não é um classifier completo de erros — outros tipos de erro do DuckDB
+ * (SQL inválido, file not found etc.) NÃO devem matchar e propagam normalmente.
+ */
+export function isOOMError(err: unknown): boolean {
+	if (!(err instanceof Error)) return false;
+	return /Out of Memory|Allocation failure|memory access out of bounds/i.test(err.message);
+}
+
 function quoteString(v: string): string {
 	return `'${v.replace(/'/g, "''")}'`;
 }
@@ -379,7 +392,12 @@ export async function exportParquetEnrichedMultiFile(
 	};
 }
 
-/** Helper pro modal handler — consolida UX de Notice + error. */
+/**
+ * Helper pro modal handler. Tenta single-file primeiro; se cair com erro tipo OOM
+ * (DuckDB-Wasm worker estourando cap 4GB do wasm32), ativa multi-file
+ * automaticamente. Decisão dinâmica via runtime — máquina-agnóstico, sem
+ * hardcode de teto por classe de hardware.
+ */
 export async function exportParquetEnrichedFromActiveView(
 	app: App,
 	plugin: QualiaCodingPlugin,
@@ -389,8 +407,10 @@ export async function exportParquetEnrichedFromActiveView(
 		new Notice("Open a parquet/CSV file first, then run the export.", 8000);
 		return;
 	}
+
+	const t0 = performance.now();
+
 	try {
-		const t0 = performance.now();
 		const result = await exportParquetEnriched(app, plugin, view.file);
 		const elapsed = performance.now() - t0;
 		const sizeMB = (result.byteSize / (1024 * 1024)).toFixed(1);
@@ -398,9 +418,43 @@ export async function exportParquetEnrichedFromActiveView(
 			`✅ Exported ${result.outputPath} · ${sizeMB}MB · ${result.enrichedColumns.length} cols · ${elapsed.toFixed(0)}ms`,
 			12000,
 		);
+		return;
+	} catch (err) {
+		if (!isOOMError(err)) {
+			const msg = err instanceof Error ? err.message : String(err);
+			console.error("[qualia-export] parquet enriched failed", err);
+			new Notice(`❌ Export failed: ${msg}`, 12000);
+			return;
+		}
+		console.warn("[qualia-export] single-file OOM — falling back to multi-file", err);
+		new Notice(
+			`⚠ Single-file export hit memory limit. Retrying as multi-file dataset…`,
+			8000,
+		);
+	}
+
+	// Fallback path
+	try {
+		const result = await exportParquetEnrichedMultiFile(
+			app,
+			plugin,
+			view.file,
+			(chunkIdx, totalChunks) => {
+				new Notice(`Exporting part ${chunkIdx + 1}/${totalChunks}…`, 4000);
+			},
+		);
+		const elapsed = performance.now() - t0;
+		const sizeMB = (result.byteSize / (1024 * 1024)).toFixed(1);
+		new Notice(
+			`✅ Exported as dataset (${result.numParts} parts) · ${result.outputPath}/ · ${sizeMB}MB total · ${result.enrichedColumns.length} cols · ${elapsed.toFixed(0)}ms\n\n` +
+				`Read with:\n` +
+				`• DuckDB: read_parquet('${result.outputPath}/*.parquet')\n` +
+				`• pandas/polars: read_parquet('${result.outputPath}/')`,
+			20000,
+		);
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
-		console.error("[qualia-export] parquet enriched failed", err);
-		new Notice(`❌ Export failed: ${msg}`, 12000);
+		console.error("[qualia-export] multi-file fallback also failed", err);
+		new Notice(`❌ Multi-file export also failed: ${msg}`, 12000);
 	}
 }
