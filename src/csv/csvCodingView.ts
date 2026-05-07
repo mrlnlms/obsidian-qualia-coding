@@ -1,6 +1,8 @@
 import { FileView, FileSystemAdapter, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import { AllCommunityModule, ModuleRegistry, createGrid, GridApi, themeQuartz } from 'ag-grid-community';
 import { ColumnToggleModal, restoreEnabledVirtualColumns } from './columnToggleModal';
+import { QualiaMarkersTable } from './duckdb/qualiaMarkersTable';
+import { BatchedMutationApplier } from './duckdb/batchedMutationApplier';
 import { injectHeaderButtons } from './csvHeaderInjection';
 import { SegmentEditor } from './segmentEditor';
 import type QualiaCodingPlugin from '../main';
@@ -71,6 +73,10 @@ export class CsvCodingView extends FileView {
 	/** Debounce timer for lazyChangeListener — burst writes (e.g. batch coding)
 	 *  collapse into a single populateMissing pass. */
 	private populateMissingTimer: number | null = null;
+	/** Markers temp table DuckDB + applier (lazy mode only). Used pra filter
+	 *  virtual cols (cod-frow, cod-seg, comment) + export parquet enriquecido. */
+	private qualiaMarkersTable: QualiaMarkersTable | null = null;
+	private batchedMutationApplier: BatchedMutationApplier | null = null;
 
 	get markdownModel() { return this.plugin.markdownModel!; }
 
@@ -349,6 +355,25 @@ export class CsvCodingView extends FileView {
 			// coding). Debounced so bursts collapse to a single fetch.
 			this.lazyChangeListener = () => this.scheduleLazyPopulateMissing();
 			this.csvModel.onChange(this.lazyChangeListener);
+
+			// Build markers temp table pra filter de virtual cols + export.
+			// Single insertArrowTable call — spike validou ~25ms warmup + 200μs/row,
+			// irrelevante pra escalas típicas. Falha do build não bloqueia a view —
+			// log + null leaves the table off, filter virtual cai pra `1=0` graciosamente.
+			try {
+				this.qualiaMarkersTable = new QualiaMarkersTable(runtime.conn, file.path, this.csvModel);
+				await this.qualiaMarkersTable.build();
+				this.batchedMutationApplier = new BatchedMutationApplier(
+					this.qualiaMarkersTable,
+					this.csvModel,
+					file.path,
+					() => { this.gridApi?.purgeInfiniteCache(); },
+				);
+			} catch (err) {
+				console.error('[qualia-markers-tmp] build failed; virtual filter will be unavailable', err);
+				this.qualiaMarkersTable = null;
+				this.batchedMutationApplier = null;
+			}
 
 			contentEl.empty();
 
@@ -793,6 +818,16 @@ export class CsvCodingView extends FileView {
 		const lazyState = this.lazyState;
 		this.lazyState = null;
 		if (lazyState && filePathSnapshot) this.csvModel.unregisterLazyProvider(filePathSnapshot);
+
+		// Dispose mutation applier ANTES da temp table — pra interromper enqueue durante
+		// drop. Applier dispose é sync (cancela RAF + offMarkerMutation); table dispose
+		// é async (aguarda DROP TABLE).
+		this.batchedMutationApplier?.dispose();
+		this.batchedMutationApplier = null;
+		if (this.qualiaMarkersTable) {
+			try { await this.qualiaMarkersTable.dispose(); } catch (e) { console.warn('[qualia-markers-tmp] dispose failed', e); }
+			this.qualiaMarkersTable = null;
+		}
 
 		if (this.gridApi) {
 			this.gridApi.destroy();

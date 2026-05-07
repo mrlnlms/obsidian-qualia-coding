@@ -26,6 +26,7 @@ import { registerMarkdownEngine } from './markdown';
 import { registerPdfEngine } from './pdf';
 import { registerImageEngine } from './image';
 import { registerCsvEngine } from './csv';
+import { CsvCodingView } from './csv/csvCodingView';
 import { prepopulateMarkerCaches } from './csv/prepopulateMarkerCaches';
 import { registerAudioEngine } from './audio';
 import { registerVideoEngine } from './video';
@@ -553,6 +554,12 @@ export default class QualiaCodingPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'qualia-markers-tmp-inspect',
+			name: 'Inspect markers temp table (active file, dev)',
+			callback: () => this.inspectMarkersTempTable(),
+		});
+
+		this.addCommand({
 			id: 'open-case-variables-panel',
 			name: 'Open Case Variables panel',
 			callback: async () => {
@@ -832,6 +839,37 @@ export default class QualiaCodingPlugin extends Plugin {
 			const msg = `❌ DuckDB smoke failed: ${err instanceof Error ? err.message : String(err)}`;
 			console.error("[qualia-coding] duckdb smoke", err);
 			new Notice(msg, 12000);
+		}
+	}
+
+	private async inspectMarkersTempTable(): Promise<void> {
+		try {
+			const view = this.app.workspace.getActiveViewOfType(CsvCodingView);
+			if (!view) {
+				new Notice('Open a CSV/parquet file first');
+				return;
+			}
+			const filePath = view.file?.path;
+			if (!filePath) {
+				new Notice('Active view has no file');
+				return;
+			}
+			// Use the same naming convention as QualiaMarkersTable.sanitizeId
+			const safe = filePath.replace(/[^a-zA-Z0-9_]/g, '_');
+			const tableName = `qualia_markers_${safe}`;
+			const rt = await this.getDuckDB();
+			const total = await rt.conn.query(`SELECT COUNT(*) AS n FROM ${tableName}`);
+			const totalN = Number(total.toArray()[0]?.toJSON().n ?? 0);
+			const byKind = await rt.conn.query(
+				`SELECT kind, COUNT(*) AS n FROM ${tableName} GROUP BY kind ORDER BY kind`,
+			);
+			const byKindArr = byKind.toArray().map((r) => r.toJSON());
+			console.log(`[qualia-markers-tmp] ${tableName}`, { total: totalN, byKind: byKindArr });
+			new Notice(`✅ ${tableName}: ${totalN} rows · ${byKindArr.map((r: any) => `${r.kind}=${r.n}`).join(', ')}`, 12000);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			console.error('[qualia-markers-tmp] inspect failed', err);
+			new Notice(`❌ Inspect failed: ${msg}`, 12000);
 		}
 	}
 
