@@ -85,8 +85,47 @@ export class ExportModal extends Modal {
 
     if (this.format === 'parquet') {
       const info = this.dynamicEl.createDiv({ cls: 'qualia-export-csv-warning' });
-      info.createSpan({ text: 'Exports the active parquet/CSV file with virtual columns (codes + comments) materialized as parquet. Source file must be open in lazy mode. Output saved adjacent to original as <name>.qualia-enriched.parquet.' });
+      info.createSpan({ text: 'Exports the active parquet/CSV file with virtual columns (codes + comments) materialized as parquet. Source file must be open in lazy mode.' });
       // File name não é editável aqui — output path é derivado do file ativo
+
+      // Estimated load: descritivo, não preditivo. Mostra os números do que será
+      // exportado pra dar visibilidade do peso. NÃO muda comportamento — sistema
+      // tenta single-file e cai no fallback automático se OOM (decisão runtime).
+      // Duck typing pra evitar puxar CsvCodingView (extends FileView) na carga
+      // inicial do modal — view via getLeavesOfType('qualia-csv') + cast.
+      const activeFile = this.app.workspace.getActiveFile();
+      const csvLeaves = this.app.workspace.getLeavesOfType('qualia-csv');
+      const matchingLeaf = csvLeaves.find(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        l => (l.view as any)?.file?.path === activeFile?.path,
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const view = matchingLeaf?.view as any;
+
+      if (view?.file && view?.csvModel) {
+        const filePath = view.file.path as string;
+        const markers = view.csvModel.getMarkersForFile(filePath) as Array<{ comment?: string }>;
+        const enabledVcols = view.csvModel.getEnabledVirtualColumns(filePath) as string[];
+        let totalCommentBytes = 0;
+        for (const m of markers) {
+          if (m.comment) totalCommentBytes += m.comment.length;
+        }
+        const commentMB = (totalCommentBytes / (1024 * 1024)).toFixed(1);
+
+        const stats = this.dynamicEl.createDiv({ cls: 'qualia-export-csv-warning' });
+        stats.createEl('strong', { text: 'Estimated load: ' });
+        stats.createSpan({
+          text: `${markers.length.toLocaleString()} markers, ${commentMB} MB of comment text, ${enabledVcols.length} virtual columns enabled.`,
+        });
+
+        const behavior = this.dynamicEl.createDiv({ cls: 'qualia-export-csv-warning' });
+        behavior.createSpan({
+          text: 'Output: <name>.qualia-enriched.parquet (single file). Auto-fallback to <name>.qualia-enriched/ folder with parts if memory limit hit on this machine.',
+        });
+      } else {
+        const warn = this.dynamicEl.createDiv({ cls: 'qualia-export-csv-warning' });
+        warn.createSpan({ text: '⚠ Open a parquet/CSV file first to see estimated load.' });
+      }
       return;
     }
 
