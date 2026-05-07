@@ -136,39 +136,94 @@ Items pequenos (<2h cada) sem guarda-chuva próprio. Quando atacar, vira commit 
 
 **Não-blocker.** Funcionalidade tá certa, é só polish visual. User explicitamente disse pra resolver depois.
 
-### Export Parquet enriquecido — pipeline pra parquets muito grandes
+### ~~Export Parquet enriquecido — pipeline pra parquets muito grandes~~ ✅ FEITO (2026-05-07)
 
-**Sintoma esperado (não reproduzido):** parquet de 661k × 270 cols com 5 virtual cols enabled exportou em ~75s, ~79MB output, near do cap de memória DuckDB-Wasm wasm32 (3.1 GiB). Pra parquets >1M rows × >500 cols, COPY pode estourar OOM.
+Multi-file fallback automático implementado: single-file (UX padrão) → catch OOM via regex → multi-file dataset (`<base>.qualia-enriched/part-NNN.parquet`). Decisão dinâmica em runtime, máquina-agnóstico — sem hardcode de teto por classe de hardware. Validado em stress test em parquet de 2.376M rows × 21 cols, ranging de 50k a 200k markers.
 
-**Mitigações já aplicadas (2026-05-07):**
-- CTE per virtual col + LEFT JOIN single-pass (vs correlated subquery por row, que materializa CROSS JOIN intermediário)
-- `SET preserve_insertion_order=false` (DuckDB pipeline o COPY sem buffer ordenado, ganho 2-5x em parquets wide)
-- SNAPPY compression (vs ZSTD: ~10-20% pior compression mas usa muito menos memória durante write)
-- `ROW_GROUP_SIZE 50000` (vs default 122880: força flush incremental, buffer peak menor)
+**Hardware da validação:**
+- MacBook Pro M1, 8 GB RAM, SSD 256 GB (~20 GB livre)
+- macOS 25.4.0
+- DuckDB-Wasm bundle do plugin: wasm32, **sem pthread support** (single-threaded). Cap endereçável do worker: 4 GB (~3.1 GiB úteis após overhead).
+
+**Stress test final (2026-05-07):**
+
+Gerador: `scripts/seed-stress-export.mjs` — 6 cenários sintéticos via patch direto no `data.json` (mocka markers + codes synth, sem passar pelo UI). Target: `safe-mode-test/Distribution_history_MERGED_*.parquet` (2.376M rows × 21 cols, 297 MB).
+
+| Cenário | Markers | Codes | Comments | VCols | Single-file | Fallback multi-file |
+|---|---|---|---|---|---|---|
+| C1 baseline | 100k | 50 | 0.86 MB | 9 | ✅ ~22s, 303.6 MB | n/a |
+| C2 long-comments | 100k | 20 | 16.77 MB | 9 | ✅ 16.3s, 308.7 MB | n/a |
+| C3 many-codes | 50k (3-5 codes) | 500 | 0 | 15 | ✅ 17.2s, 303.2 MB | n/a |
+| **between-1** | **150k** | **53.57 MB** | **12** | ✅ **21.3s, 322.7 MB** | n/a |
+| **between-2** | **175k** | **134.56 MB** | **15** | ❌ OOM | ✅ **42.3s, 350.6 MB (5 parts)** |
+| C4 pathological | 200k | 228.71 MB | 15 | ❌ OOM | ✅ 42.0s, 383.3 MB (5 parts) |
+
+**Teto empírico na M1 8GB:** entre 150k markers + 54 MB comments + 12 vcols (passa single-file) e 175k markers + 135 MB comments + 15 vcols (estoura). Não-isolado (3 fatores subiram juntos), mas o teto prático fica claro. **Em máquinas com mais RAM/cap maior, o teto do single-file será mais alto** — não medido. O fallback automático cobre o limite seja qual for.
+
+**Achados:**
+- Single-file: tempo ~16-22 s nos cenários que passam, dominado por I/O do scan + write do source 297 MB. Snappy comprime bem; vcols vazias colapsam pra ~zero.
+- Multi-file fallback: ~42 s consistentes, independente do tamanho (5 chunks de 500k source rows × COPY individual). Inclui o tempo da tentativa de single-file que estourou.
+- OOM signature: `Out of Memory: Allocation failure` do allocator WASM dentro do `BufferedFileWriter::OpenFile` durante COPY do output parquet. Captura via regex `/Out of Memory|Allocation failure|memory access out of bounds/i` em `isOOMError()`.
+- Hidratação inicial do plugin com data.json grande (320 MB no C4): **~30 s** ao montar Code Explorer. Tópico separado — ver item "Code Explorer build latency em vault com muitos markers" abaixo.
+
+**Mitigações aplicadas no caminho single-file:**
+- CTE per virtual col + LEFT JOIN single-pass (vs correlated subquery por row)
+- `SET preserve_insertion_order=false` (pipeline COPY sem buffer ordenado)
+- `COMPRESSION SNAPPY` (vs ZSTD: -10% compression, muito menos memória durante write)
+- `ROW_GROUP_SIZE 50000` (vs default 122880)
 - `SELECT p.* EXCLUDE (__source_row)` evita leakage da coluna interna do DuckDBRowProvider
 
-**O que pode ainda estourar:**
-- Parquet >2M rows com cols TEXT longas → buffer de 50k row group ainda pesado
-- 50+ virtual cols enabled → CTE inflation no plano de query
+(`SET threads=N` não aplica — bundle do plugin é compiled sem pthread.)
 
-**Estratégia se aparecer caso real:**
-1. **Chunked export:** export em janelas de N source_rows (ex: 100k rows por chunk), cada chunk vira um parquet separado, concat ao final via `parquet_writer.concat` ou similar. JS chunking, não DuckDB-side.
-2. **Streaming via Arrow:** ler rowProvider em pages, juntar com markers em JS, escrever Arrow stream → parquet via apache-arrow JS. Bypassa DuckDB COPY entirely.
-3. **Memory limit configurável:** expor setting "Export memory budget" — user que sabe da máquina dele ajusta.
+**Caminho multi-file (`exportParquetEnrichedMultiFile`):**
 
-**Não-blocker.** Sem repro real ainda. Trabalho fica pra quando aparecer ticket. Estratégia (1) é o caminho menos invasivo se precisar.
+- `MULTI_FILE_CHUNK_SIZE = 500_000` source rows. 5 chunks num parquet de 2.4M rows.
+- Cada chunk: WHERE `source_row BETWEEN ...` injetado em CADA CTE (reduz GROUP BY scan da markers table pra 1/N) + WHERE no SELECT externo.
+- Cada part: COPY → virtual fs → `copyFileToBuffer` → `writeBinary` no vault como `<base>.qualia-enriched/part-NNN.parquet` → `dropFile` imediato (libera worker antes do próximo chunk).
+- Worker peak ~1.5 GB stable durante todo o export (vs ~3.5-4.7 GB do single-file que estoura).
+- Output: pasta no vault. Leitor externo usa glob: `read_parquet('dir/*.parquet')` (DuckDB) ou `pd.read_parquet('dir/')` (pandas/polars). Padrão "parquet dataset" da indústria.
 
-**Localização do código:** `src/csv/exportParquetEnriched.ts` `buildEnrichedSelect` + `exportParquetEnriched` (run COPY). Pra chunking, modular o COPY em loop com WHERE `__source_row BETWEEN X AND Y` e accumular outputs.
+**Histórico de tentativas (arquivado):**
 
-### Spec rev1 da feature tabular-virtual-cols
+Antes de chegar no design final, foi implementado e descartado **chunked export single-file via concat** (commit revertido nesta sessão antes do design definitivo). 5 chunks gerados OK, mas o `COPY (SELECT * FROM read_parquet([part0..part4])) TO final` estourou OOM no concat — fragmentação progressiva do allocator WASM (dlmalloc não compacta heap linear). Substituído por multi-file sem concat porque concat tinha risco residual probabilístico mesmo com chunks menores ou binary-fold.
 
-**Estado:** spec em `docs/superpowers/specs/20260506-tabular-virtual-cols-design.md` ficou rev0. Auto-review identificou gaps (`comment` dead UI, naming wrong, marker collections separadas) que foram resolvidos inline durante implementação. Spec não foi atualizada.
+**Localização do código:**
 
-**Decisão pendente:**
-- Atualizar pra rev1 refletindo estado real implementado (boa pra referência futura, ~30min de doc work), OU
-- Arquivar como histórico (move pra `plugin-docs/archive/claude_sources/specs/` no workspace externo) e considerar a CHANGELOG entry + commits como source of truth
+- `src/csv/exportParquetEnriched.ts:8-19` — `isOOMError()` helper (regex match)
+- `src/csv/exportParquetEnriched.ts:62-130` — `buildEnrichedSelect()` com parâmetro `range?: SourceRowRange` opcional (usado só pelo multi-file)
+- `src/csv/exportParquetEnriched.ts:140-260` — `exportParquetEnriched()` single-file path (inalterado)
+- `src/csv/exportParquetEnriched.ts:262-380` — `exportParquetEnrichedMultiFile()` novo
+- `src/csv/exportParquetEnriched.ts:382-450` — `exportParquetEnrichedFromActiveView()` wrapper try-fallback
+- `tests/csv/exportParquetEnriched.test.ts` — 5 testes pra `isOOMError`
+- `scripts/seed-stress-export.mjs` — 6 cenários (`baseline`, `long-comments`, `many-codes`, `between-1`, `between-2`, `pathological`)
 
-**Não-blocker.** Spec atual é internamente consistente, só não 100% bate com o código final. Atualizar agrega valor pra alguém estudando a arquitetura, mas não pro dev futuro que vai ler o código direto.
+### Code Explorer build latency em vault com muitos markers
+
+**Sintoma observado (2026-05-07, MacBook Pro M1 8 GB):** com `data.json` de 320 MB (200k markers + 200 codes + 228 MB comments synth do cenário pathological do stress test de export enriched):
+- Vault load do Obsidian + plugin `onload` + `JSON.parse` do data.json = **rápido, sem latência perceptível**.
+- Disparar comando `Code Explorer: open` via command palette → **~30 s** pra montar a UI (lista hierárquica de codes + counts).
+- RAM Renderer estabiliza em ~3.95 GB pós-load do Code Explorer; abrir Code Detail dispara pico transitório a ~5 GB.
+
+Ou seja: **o gargalo não é parsing — é processamento síncrono no build da view**.
+
+**Hipóteses do gargalo (não diagnosticado em profundidade ainda):**
+- Scan dos 200k markers pra construir `countIndex` em `hierarchyHelpers.ts` (markers per code, agregação direta + transitiva pelos parents) — O(N markers × profundidade tree)
+- `buildFlatTree` montando estrutura linear pra render virtual list
+- `markerPreviewHydrator.requestHydration` disparado em batch pra todos os files com markers (mesmo que assíncrono em background, contende main thread)
+- Re-renders do React/DOM em cascata conforme registry/cache emitem onChange durante a montagem inicial
+
+**Impacto real:** se um vault chegar a ~200k markers + comments longos, abrir Code Explorer vira 30+ s travados (UI bloqueada). Numa máquina 8 GB com Memory Pressure verde é viável; em pressure já amarelo pode triturar swap.
+
+**Não atacado neste slice.** Item separado do export enriched. Investigação primeiro (perfilar o que de fato consome 30 s — `performance.mark`/`measure` em torno do `buildFlatTree` + countIndex + hydrator dispatch); estratégias possíveis depois:
+- countIndex incremental (atualizado por `onMarkerMutation` cirurgicamente, não rebuild full)
+- markerPreviewHydrator dispatch com debounce/yield pra liberar main thread
+- Code Explorer com lista virtualizada que computa counts on-demand por viewport visível
+
+Sem repro em vault de user real ainda. Decisão de quando atacar fica pendente — provavelmente quando aparecer um vault cliente que de fato chegue nesse tamanho, OU quando alguém reclamar de UX lenta em vault menor (limite onde isso começa a doer).
+
+### ~~Spec rev1 da feature tabular-virtual-cols~~ ✅ ARQUIVADA (2026-05-07)
+
+Decisão: arquivar como histórico em vez de atualizar pra rev1. Spec moved pra `plugin-docs/archive/claude_sources/specs/20260506-tabular-virtual-cols-design.md` (workspace externo). CHANGELOG entry + commits + ARCHITECTURE.md viram source of truth pra referência arquitetural; spec preservada como snapshot do raciocínio pré-implementação.
 
 ### ~~Coding em modo lazy: Sidebar markerText preview~~ ✅ FEITO (2026-05-06)
 
