@@ -47,6 +47,17 @@ function buildCodeNameCase(registry: CodeDefinitionRegistry, idCol: string): str
 }
 
 /**
+ * Range opcional `[start, endExclusive)` em `__source_row`. Quando passado
+ * (caminho multi-file), o WHERE inline nas CTEs reduz GROUP BY scan pra 1/N
+ * da markers table, e o WHERE no SELECT externo limita as rows do source TABLE.
+ * No caminho single-file (sem range), o COPY escaneia source inteiro.
+ */
+interface SourceRowRange {
+	start: number;
+	endExclusive: number;
+}
+
+/**
  * Constrói SELECT enriched a partir do parquet base + temp markers table.
  *
  * Strategy: CTE per virtual col com GROUP BY source_row → LEFT JOIN no SELECT
@@ -58,17 +69,26 @@ function buildCodeNameCase(registry: CodeDefinitionRegistry, idCol: string): str
  * Pra cada virtual col enabled:
  *   - cod-frow/cod-seg: STRING_AGG(code_name, ';') por source_row
  *   - comment: MAX(comment_text) por source_row (comment é per-cell, single value)
+ *
+ * Quando `range` é passado (caminho multi-file), o filtro `source_row BETWEEN ...`
+ * é replicado em CADA CTE — sem isso, o GROUP BY scaneia a markers table
+ * inteira em todo chunk, mesmo que só 1/N seja relevante.
  */
 function buildEnrichedSelect(
 	originalTable: string,
 	markersTable: string,
 	enabledFields: ReadonlyArray<string>,
 	registry: CodeDefinitionRegistry,
+	range?: SourceRowRange,
 ): string {
 	const codeNameExpr = buildCodeNameCase(registry, "m.code_id");
 	const ctes: string[] = [];
 	const joins: string[] = [];
 	const projections: string[] = [];
+
+	const cteRangeFilter = range
+		? ` AND m.source_row >= ${range.start} AND m.source_row < ${range.endExclusive}`
+		: "";
 
 	let cteIdx = 0;
 	for (const field of enabledFields) {
@@ -83,9 +103,9 @@ function buildEnrichedSelect(
 			const outCol = quoteIdent(`${sourceCol}__comment`);
 			ctes.push(
 				`${cteName} AS (` +
-					`SELECT source_row, MAX(comment_text) AS val FROM ${markersTable} ` +
-					`WHERE kind = 'comment' AND column_name = ${colCol} AND status = 'accepted' ` +
-					`GROUP BY source_row)`,
+					`SELECT m.source_row, MAX(m.comment_text) AS val FROM ${markersTable} m ` +
+					`WHERE m.kind = 'comment' AND m.column_name = ${colCol} AND m.status = 'accepted'${cteRangeFilter} ` +
+					`GROUP BY m.source_row)`,
 			);
 			joins.push(`LEFT JOIN ${cteName} ON p.__source_row = ${cteName}.source_row`);
 			projections.push(`${cteName}.val AS ${outCol}`);
@@ -95,7 +115,7 @@ function buildEnrichedSelect(
 			ctes.push(
 				`${cteName} AS (` +
 					`SELECT m.source_row, STRING_AGG(${codeNameExpr}, ';') AS val FROM ${markersTable} m ` +
-					`WHERE m.kind = '${kind}' AND m.column_name = ${colCol} AND m.status = 'accepted' ` +
+					`WHERE m.kind = '${kind}' AND m.column_name = ${colCol} AND m.status = 'accepted'${cteRangeFilter} ` +
 					`GROUP BY m.source_row)`,
 			);
 			joins.push(`LEFT JOIN ${cteName} ON p.__source_row = ${cteName}.source_row`);
@@ -106,17 +126,33 @@ function buildEnrichedSelect(
 	const cteSql = ctes.length > 0 ? `WITH ${ctes.join(", ")} ` : "";
 	const projectionSql = projections.length > 0 ? `, ${projections.join(", ")}` : "";
 	const joinSql = joins.length > 0 ? ` ${joins.join(" ")}` : "";
+	const outerWhere = range
+		? ` WHERE p.__source_row >= ${range.start} AND p.__source_row < ${range.endExclusive}`
+		: "";
 	// EXCLUDE __source_row: coluna interna injetada pelo DuckDBRowProvider via
 	// `row_number() OVER () - 1` no CTAS. Não faz parte do dataset real do user;
 	// vazaria pro output como tech detail confuso. Output reflete só schema do
 	// parquet original + cols enriched.
-	return `${cteSql}SELECT p.* EXCLUDE (__source_row)${projectionSql} FROM ${originalTable} p${joinSql}`;
+	return `${cteSql}SELECT p.* EXCLUDE (__source_row)${projectionSql} FROM ${originalTable} p${joinSql}${outerWhere}`;
 }
+
+/**
+ * Chunk size pro caminho multi-file. 500k source rows mantém worker peak baixo
+ * (~1.5GB stable na M1 8GB com base na densidade observada no stress test
+ * 2026-05-07 — C1 com 100k markers em 2.376M rows = ~21k markers por chunk
+ * de 500k, abaixo de qualquer cenário que single-file já demonstrou estável).
+ *
+ * Caminho multi-file só ativa via try-fallback do wrapper quando single-file
+ * estoura OOM — não há decisão hardcoded por máquina.
+ */
+const MULTI_FILE_CHUNK_SIZE = 500_000;
 
 export interface ExportParquetEnrichedResult {
 	outputPath: string;
 	byteSize: number;
 	enrichedColumns: string[];
+	/** Definido só no caminho multi-file (fallback após OOM no single-file). */
+	numParts?: number;
 }
 
 /**
@@ -219,6 +255,127 @@ export async function exportParquetEnriched(
 		outputPath,
 		byteSize: bytes.byteLength,
 		enrichedColumns: enabledFields,
+	};
+}
+
+/**
+ * Caminho multi-file: exporta o parquet em chunks de range de `__source_row`,
+ * cada chunk virando um arquivo separado em `<base>.qualia-enriched/part-NNN.parquet`.
+ * Sem concat — leitor externo usa glob (`read_parquet('dir/*.parquet')`).
+ *
+ * Worker peak ~1.5GB stable: cada part é escrito no vault e dropado do virtual fs
+ * antes do próximo chunk começar.
+ *
+ * Ativado via fallback automático no `exportParquetEnrichedFromActiveView` quando
+ * single-file estoura OOM. Não tem decisão hardcoded por máquina — reage ao runtime.
+ */
+export async function exportParquetEnrichedMultiFile(
+	app: App,
+	plugin: QualiaCodingPlugin,
+	file: TFile,
+	onProgress?: (chunkIdx: number, totalChunks: number) => void,
+): Promise<ExportParquetEnrichedResult> {
+	// 1-2: mesma resolução de view + view state que single-file
+	const views = app.workspace
+		.getLeavesOfType(CSV_CODING_VIEW_TYPE)
+		.map((l) => l.view)
+		.filter((v): v is CsvCodingView => v instanceof CsvCodingView);
+	const view = views.find((v) => v.file?.path === file.path);
+
+	if (!view) {
+		throw new Error(
+			`File "${file.path}" not open. Open it in lazy mode first, then run the export.`,
+		);
+	}
+
+	const tempTableName = view.qualiaMarkersTableName;
+	const originalTableName = view.lazyOriginalTableName;
+	if (!tempTableName || !originalTableName) {
+		throw new Error(
+			"Lazy mode markers table not available — file may be in eager mode (small CSV/parquet) or markers table failed to build.",
+		);
+	}
+
+	const enabledFields = view.csvModel.getEnabledVirtualColumns(file.path);
+	if (enabledFields.length === 0) {
+		throw new Error(
+			"No virtual columns enabled. Toggle cod-frow/cod-seg/comment in the column settings before exporting.",
+		);
+	}
+
+	// 3: detectar total rows do source TABLE pra calcular chunks
+	const runtime = await plugin.getDuckDB();
+	const countResult = await runtime.conn.query(
+		`SELECT COUNT(*) AS n FROM ${originalTableName}`,
+	);
+	const countRows = countResult.toArray();
+	const totalRows = Number(countRows[0]?.toJSON().n ?? 0);
+	const numChunks = Math.max(1, Math.ceil(totalRows / MULTI_FILE_CHUNK_SIZE));
+
+	// 4: preparar dir de output. Recriar zero se já existir (re-export sobrescreve)
+	const stem = file.path.replace(/\.[^.]+$/, "");
+	const outputDir = `${stem}.qualia-enriched`;
+	const adapter = app.vault.adapter;
+	if (await adapter.exists(outputDir)) {
+		const listing = await adapter.list(outputDir);
+		for (const f of listing.files) {
+			await adapter.remove(f);
+		}
+		// listing.folders ignorado — output dir só tem files diretos, sem sub-dirs
+	} else {
+		await adapter.mkdir(outputDir);
+	}
+
+	// 5: loop de chunks. Cada part: COPY → virtual fs → vault → dropFile (libera worker)
+	const ts = Date.now();
+	let totalBytes = 0;
+
+	await runtime.conn.query(`SET preserve_insertion_order=false`);
+	try {
+		for (let i = 0; i < numChunks; i++) {
+			onProgress?.(i, numChunks);
+
+			const start = i * MULTI_FILE_CHUNK_SIZE;
+			const endExclusive = Math.min(start + MULTI_FILE_CHUNK_SIZE, totalRows);
+			const partName = `qualia_export_part_${ts}_${i}.parquet`;
+			const partPath = `${outputDir}/part-${String(i + 1).padStart(3, "0")}.parquet`;
+
+			const sql = buildEnrichedSelect(
+				originalTableName,
+				tempTableName,
+				enabledFields,
+				view.csvModel.registry,
+				{ start, endExclusive },
+			);
+
+			let partBytes: Uint8Array;
+			try {
+				await runtime.db.registerEmptyFileBuffer(partName);
+				await runtime.conn.query(
+					`COPY (${sql}) TO '${partName}' ` +
+						`(FORMAT PARQUET, COMPRESSION SNAPPY, ROW_GROUP_SIZE 50000)`,
+				);
+				partBytes = await runtime.db.copyFileToBuffer(partName);
+			} finally {
+				try {
+					await runtime.db.dropFile(partName);
+				} catch (e) {
+					console.warn("[qualia-export-multifile] dropFile cleanup failed", partName, e);
+				}
+			}
+
+			await adapter.writeBinary(partPath, partBytes.buffer as ArrayBuffer);
+			totalBytes += partBytes.byteLength;
+		}
+	} finally {
+		try { await runtime.conn.query(`SET preserve_insertion_order=true`); } catch { /* ignore */ }
+	}
+
+	return {
+		outputPath: outputDir,
+		byteSize: totalBytes,
+		enrichedColumns: enabledFields,
+		numParts: numChunks,
 	};
 }
 
