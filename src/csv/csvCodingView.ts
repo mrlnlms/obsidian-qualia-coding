@@ -19,6 +19,7 @@ import {
 	removeOPFSFile,
 } from './duckdb';
 import { buildWhereClause, type AgFilterModel } from './duckdb/filterModelToSql';
+import { buildVirtualFilterClause, splitFilterModel, combineClauses } from './duckdb/virtualFilterResolver';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -431,7 +432,12 @@ export class CsvCodingView extends FileView {
 				// page cache is materialized). Virtual cod-seg/cod-frow/comment columns
 				// override this to `false` in `columnToggleModal` because they don't
 				// exist in the DuckDB schema.
-				defaultColDef: { sortable: true, filter: true, resizable: true },
+				// `debounceMs: 250` reduz jank visual em filter contra Infinite Row Model:
+				// AG Grid não conhece o novo rowCount até `getRows` retornar com lastRow,
+				// então durante a latência DuckDB renderiza placeholder rows pelo viewport
+				// (sintoma "todas as linhas reaparecem e encolhem"). Debounce coalesce
+				// keystrokes — único refresh por pausa em vez de um por char.
+				defaultColDef: { sortable: true, filter: true, resizable: true, filterParams: { debounceMs: 250 } },
 				rowModelType: 'infinite',
 				cacheBlockSize: 100,
 				maxBlocksInCache: 10,
@@ -464,15 +470,29 @@ export class CsvCodingView extends FileView {
 								}));
 							const whereClause = this.lazyState.currentFilter?.whereClause;
 							const effectiveTotal = this.lazyState.currentFilter?.filteredCount ?? this.lazyState.totalRows;
+							const requestedCount = params.endRow - params.startRow;
 							const rows = await this.lazyState.rowProvider.getRowsByDisplayRange({
 								offset: params.startRow,
-								limit: params.endRow - params.startRow,
+								limit: requestedCount,
 								orderBy,
 								whereClause,
 							});
-							const lastRow = (params.startRow + rows.length) >= effectiveTotal
-								? effectiveTotal
-								: -1;
+							// Two paths to detect "no more rows":
+							//   a) DuckDB returned a short page → definitive end (mais robusto:
+							//      independente de filteredCount estar atualizado, que computa
+							//      async em refreshLazyFilter — a brief stale window onde
+							//      filteredCount=totalRows fazia AG Grid renderizar placeholder
+							//      rows fantasma após o último match).
+							//   b) Hit known effectiveTotal → end por contagem (preserva comportamento
+							//      sem-filter onde page cheia coincide com total).
+							let lastRow: number;
+							if (rows.length < requestedCount) {
+								lastRow = params.startRow + rows.length;
+							} else if (params.startRow + rows.length >= effectiveTotal) {
+								lastRow = effectiveTotal;
+							} else {
+								lastRow = -1;
+							}
 							params.successCallback(rows, lastRow);
 						} catch (err) {
 							console.error('[qualia-csv lazy] getRows failed', err);
@@ -608,8 +628,24 @@ export class CsvCodingView extends FileView {
 	 */
 	private async refreshLazyFilter(): Promise<void> {
 		if (!this.lazyState || !this.gridApi) return;
-		const filterModel = this.gridApi.getFilterModel() as AgFilterModel | null;
-		const whereClause = buildWhereClause(filterModel) ?? undefined;
+		// Marca o wrapper como "filtering" — CSS scoped esconde placeholder rows do
+		// AG Grid Infinite Row Model durante a janela entre cache purge e
+		// resposta do DuckDB. Sem isso, viewport flasheia placeholder rows enquanto
+		// espera. Removido no async tail.
+		this.gridWrapper?.classList.add('csv-coding-filtering');
+		const fullModel = this.gridApi.getFilterModel() as AgFilterModel | null;
+		const { real, virtual } = splitFilterModel(fullModel, this.originalHeaders);
+
+		const realClause = buildWhereClause(real);
+		// Virtual clause requer temp table viva — se build falhou (qualiaMarkersTable null),
+		// virtual filters são descartados graciosamente (filtro real continua funcionando).
+		const virtualClause = this.qualiaMarkersTable
+			? buildVirtualFilterClause(virtual, {
+				tableName: this.qualiaMarkersTable.tableName,
+				codeRegistry: this.csvModel.registry,
+			})
+			: null;
+		const whereClause = combineClauses([realClause, virtualClause]) ?? undefined;
 
 		// Synchronous swap — getRows must see this on the next tick.
 		if (whereClause) {
@@ -635,6 +671,13 @@ export class CsvCodingView extends FileView {
 			await this.refreshLazyDisplayMap();
 		} catch (err) {
 			console.warn('[qualia-csv lazy] refreshLazyFilter failed', err);
+		} finally {
+			// Remove flag de filtering — placeholder rows voltam a ser visíveis em
+			// scroll-triggered fetches normais. Wait 1 RAF pra garantir que AG Grid
+			// já pintou as novas rows antes de descobrir o display change.
+			requestAnimationFrame(() => {
+				this.gridWrapper?.classList.remove('csv-coding-filtering');
+			});
 		}
 	}
 

@@ -1329,6 +1329,18 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   background-color: var(--ag-row-hover-color, rgba(0, 0, 0, 0.08));
 }
 
+/* Filter transition mask. Lazy mode (Infinite Row Model): AG Grid limpa o cache
+ * no filter change e renderiza placeholder rows pelo viewport até DuckDB
+ * responder. Class `.csv-coding-filtering` é toggled pelo `refreshLazyFilter` —
+ * visibility:hidden esconde os placeholders durante a janela. Resultado:
+ * ao filtrar, viewport fica brevemente vazio em vez de flashar rows fantasma.
+ * Classes targets confirmadas em ag-grid-community v33 (.ag-row-loading +
+ * .ag-stub-cell). */
+.csv-coding-filtering .ag-row-loading,
+.csv-coding-filtering .ag-stub-cell {
+  visibility: hidden;
+}
+
 /* Tag chips area — takes remaining space, flows horizontally */
 .csv-tag-area {
   flex: 1 1 0;
