@@ -548,12 +548,6 @@ export default class QualiaCodingPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: 'duckdb-arrow-ingest-spike',
-			name: 'DuckDB Arrow IPC ingest spike (dev)',
-			callback: () => this.runArrowIngestSpike(),
-		});
-
-		this.addCommand({
 			id: 'qualia-markers-tmp-inspect',
 			name: 'Inspect markers temp table (active file, dev)',
 			callback: () => this.inspectMarkersTempTable(),
@@ -870,38 +864,6 @@ export default class QualiaCodingPlugin extends Plugin {
 			const msg = err instanceof Error ? err.message : String(err);
 			console.error('[qualia-markers-tmp] inspect failed', err);
 			new Notice(`❌ Inspect failed: ${msg}`, 12000);
-		}
-	}
-
-	private async runArrowIngestSpike(): Promise<void> {
-		try {
-			const { runArrowIngestSpike } = await import('./csv/duckdb/_spike_arrowIngest');
-			const rt = await this.getDuckDB();
-
-			// Run scaling sweep: 100 → 1k → 10k → 50k. Mede scaling real (linear vs constant).
-			const sizes = [100, 1000, 10000, 50000];
-			const results: Array<{ n: number; ok: boolean; build: number; ingest: number; query: number; rps: number }> = [];
-
-			for (const n of sizes) {
-				const r = await runArrowIngestSpike(rt.conn, n);
-				const rps = r.tIngestMs > 0 ? Math.round((n / r.tIngestMs) * 1000) : 0;
-				results.push({ n, ok: r.ok, build: r.tBuildMs, ingest: r.tIngestMs, query: r.tQueryMs, rps });
-				console.log(`[qualia-coding] arrow-spike N=${n}`, r);
-			}
-
-			const allOk = results.every(r => r.ok);
-			const summary = results.map(r => `N=${r.n}: ${r.ingest.toFixed(0)}ms (${r.rps} rps)`).join(' · ');
-			console.table(results);
-
-			if (allOk) {
-				new Notice(`✅ Scaling OK · ${summary}`, 20000);
-			} else {
-				new Notice(`❌ Algum N falhou. Console pra detalhes.`, 15000);
-			}
-		} catch (err) {
-			const msg = `❌ Arrow IPC spike crashed: ${err instanceof Error ? err.message : String(err)}`;
-			console.error('[qualia-coding] arrow-ingest-spike crash', err);
-			new Notice(msg, 15000);
 		}
 	}
 

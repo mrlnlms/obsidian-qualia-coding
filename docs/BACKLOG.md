@@ -119,9 +119,11 @@ Spec: `docs/superpowers/specs/20260506-sidebar-markertext-preview-lazy-design.md
 Plan: `docs/superpowers/plans/2026-05-06-sidebar-markertext-preview-lazy.md`
 Bugs encontrados na execução (todos fixados): inflight bookkeeping (eager path síncrono → orfão), OPFS race com prepopulate (createSyncAccessHandle conflict), virtualList timing (clientHeight=0 limitava mounted ao buffer default).
 
-### Filter de virtual columns (cod-frow / cod-seg / comment) em lazy mode
+### ~~Filter de virtual columns (cod-frow / cod-seg / comment) em lazy mode~~ ✅ FEITO (2026-05-07)
 
-Hoje desligado: `columnToggleModal.ts:186/200` força `filter: !lazy` nas virtual columns porque elas não estão no DuckDB schema (usuário codifica em data.json). Pra habilitar filter em lazy seria preciso traduzir filterModel dessas colunas pra LEFT JOIN com dados de markers (não trivial). Custo > benefício até feedback de usuário pedir.
+Resolvido como parte da feature integrada **Tabular virtual cols — persist + filter + export**. `QualiaMarkersTable` per-file projeta markers em long format DuckDB temp table; `virtualFilterResolver` traduz `filterModel` AG Grid pra `__source_row IN (SELECT source_row FROM qualia_markers_<id> WHERE ...)`; `splitFilterModel` separa real cols de virtual cols antes do `combineClauses` em AND. Pré-resolve nome → code_id JS-side contra registry (mantém registry JS-only — rename/recolor não invalida temp). Sync via `BatchedMutationApplier` rAF-batched no canal `onMarkerMutation` SC3. Schema preparada pra LLM (status, created_by) sem features implementadas. Bonus que veio junto: persistência de visibility (toggle não suma cross-session) + storage layer pra comments (era dead UI) + export "Parquet enriquecido" reusando a mesma temp table. Spec: `docs/superpowers/specs/20260506-tabular-virtual-cols-design.md`.
+
+Commits: `c9df6b5` (spec + spike) → `2e81735` (persist + comment storage) → `1ae883c` (temp table + sync) → `8ca70dc` (filter pipeline) → `33a91f3` (export parquet enriquecido).
 
 ### ~~Validação de 2 parquets pesados em paralelo~~ ✅ (2026-05-06, smoke manual)
 
