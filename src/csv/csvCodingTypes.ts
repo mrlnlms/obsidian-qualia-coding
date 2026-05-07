@@ -27,6 +27,11 @@ export interface RowMarker {
 	codes: CodeApplication[];
 	memo?: MemoRecord;
 	colorOverride?: string;
+	/** User-typed comment for this cell. Distinct from `memo` (analytical reflection on
+	 *  the marker itself). Cell-level annotation surface, granularity (file, row, column).
+	 *  Empty/undefined means no comment. RowMarker pode existir só por causa do comment
+	 *  (codes vazio + comment populado é estado válido). */
+	comment?: string;
 	createdAt: number;
 	updatedAt: number;
 }

@@ -80,10 +80,98 @@ export class CsvCodingModel {
 	}
 
 	saveMarkers(): void {
+		const current = this.dm.section('csv');
 		this.dm.setSection('csv', {
+			...current,
 			segmentMarkers: this.segmentMarkers,
 			rowMarkers: this.rowMarkers,
 		});
+	}
+
+	// ── Cell comments (per-cell user annotation, distinto de memo) ──
+
+	getCellComment(file: string, sourceRowId: number, column: string): string {
+		const m = this.rowMarkers.find(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
+		return m?.comment ?? '';
+	}
+
+	setCellComment(file: string, sourceRowId: number, column: string, value: string): void {
+		const trimmed = value;  // não trim — preserva intent do user
+		const idx = this.rowMarkers.findIndex(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
+
+		if (idx === -1) {
+			// Sem RowMarker pra essa célula — só cria se há comment de fato.
+			if (trimmed === '') return;
+			const marker: RowMarker = {
+				markerType: 'csv',
+				id: `csv-row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+				fileId: file,
+				sourceRowId,
+				column,
+				codes: [],
+				comment: trimmed,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+			};
+			this.rowMarkers.push(marker);
+			this.notify();
+			this.emitMarkerMutation({
+				fileId: file, markerId: marker.id, prevCodeIds: [], nextCodeIds: [], codeIds: [], marker,
+			});
+			return;
+		}
+
+		const marker = this.rowMarkers[idx]!;
+		const prev = marker.comment ?? '';
+		if (prev === trimmed) return;
+		marker.comment = trimmed === '' ? undefined : trimmed;
+		marker.updatedAt = Date.now();
+
+		// RowMarker sem codes E sem comment vira lixo — limpa.
+		if (marker.codes.length === 0 && !marker.comment) {
+			this.rowMarkers.splice(idx, 1);
+			this.notify();
+			this.emitMarkerMutation({
+				fileId: file, markerId: marker.id, prevCodeIds: [], nextCodeIds: [], codeIds: [], marker: undefined,
+			});
+			return;
+		}
+
+		this.notify();
+		const ids = getCodeIds(marker.codes);
+		this.emitMarkerMutation({
+			fileId: file, markerId: marker.id, prevCodeIds: ids, nextCodeIds: ids, codeIds: ids, marker,
+		});
+	}
+
+	// ── Virtual columns visibility persistence ──
+
+	getEnabledVirtualColumns(file: string): string[] {
+		const section = this.dm.section('csv');
+		return section.fileMeta?.[file]?.enabledVirtualColumns ?? [];
+	}
+
+	setEnabledVirtualColumns(file: string, fields: string[]): void {
+		const current = this.dm.section('csv');
+		const fileMeta = { ...(current.fileMeta ?? {}) };
+		if (fields.length === 0) {
+			delete fileMeta[file];
+		} else {
+			fileMeta[file] = { ...(fileMeta[file] ?? {}), enabledVirtualColumns: fields };
+		}
+		this.dm.setSection('csv', { ...current, fileMeta });
+	}
+
+	addEnabledVirtualColumn(file: string, field: string): void {
+		const list = this.getEnabledVirtualColumns(file);
+		if (list.includes(field)) return;
+		this.setEnabledVirtualColumns(file, [...list, field]);
+	}
+
+	removeEnabledVirtualColumn(file: string, field: string): void {
+		const list = this.getEnabledVirtualColumns(file);
+		if (!list.includes(field)) return;
+		this.setEnabledVirtualColumns(file, list.filter(f => f !== field));
 	}
 
 	notify(): void {

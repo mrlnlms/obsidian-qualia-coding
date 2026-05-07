@@ -2,6 +2,15 @@ import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import type { CodeMarkerSettings } from '../markdown/models/settings';
 import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
+
+/** Per-file UI state pra tabular engine. Persiste em data.json csv.fileMeta. */
+export interface CsvFileMeta {
+	/** Field names completos das virtual columns ligadas pelo user via ColumnToggleModal.
+	 *  Ex: ['Texto_cod-frow', 'Texto_comment', 'Resposta_cod-seg'].
+	 *  Aplica no file open via toggleCodingColumn(...) pra cada entry; entries cuja
+	 *  source col não exista mais são ignoradas (GC lazy). */
+	enabledVirtualColumns?: string[];
+}
 import type { ImageMarker } from '../image/imageCodingTypes';
 import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
 import type { AudioFile } from '../audio/audioCodingTypes';
@@ -243,6 +252,9 @@ export interface QualiaData {
 	csv: {
 		segmentMarkers: SegmentMarker[];
 		rowMarkers: RowMarker[];
+		/** Per-file UI state. Keyed by fileId (path). Persists virtual column visibility
+		 *  cross-session — sem isso, toggle de cod-frow/cod-seg/comment sumia entre reabrir o file. */
+		fileMeta?: Record<string, CsvFileMeta>;
 		settings: {
 			/** Limite em MB pra mostrar banner de "Large file" antes de carregar parquet. Default 50. */
 			parquetSizeWarningMB: number;

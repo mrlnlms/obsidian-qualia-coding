@@ -1,6 +1,6 @@
 import { FileView, FileSystemAdapter, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import { AllCommunityModule, ModuleRegistry, createGrid, GridApi, themeQuartz } from 'ag-grid-community';
-import { ColumnToggleModal } from './columnToggleModal';
+import { ColumnToggleModal, restoreEnabledVirtualColumns } from './columnToggleModal';
 import { injectHeaderButtons } from './csvHeaderInjection';
 import { SegmentEditor } from './segmentEditor';
 import type QualiaCodingPlugin from '../main';
@@ -226,6 +226,17 @@ export class CsvCodingView extends FileView {
 			rowData: rows,
 			enableCellTextSelection: true,
 			domLayout: 'normal',
+		});
+
+		// Restaura virtual cols persistidas em data.json (cod-frow/cod-seg/comment).
+		// GC interno: entries cuja source col não existe nos headers atuais são removidas.
+		restoreEnabledVirtualColumns({
+			gridApi: this.gridApi,
+			model: this.csvModel,
+			filePath: this.file?.path ?? '',
+			csvView: this,
+			app: this.app,
+			originalHeaders: headers,
 		});
 
 		// Signal readiness for callers awaiting waitUntilReady()
@@ -455,6 +466,18 @@ export class CsvCodingView extends FileView {
 				// given source row depends on which rows survive the filter). The grid
 				// purges its row cache automatically on filter change.
 				onFilterChanged: () => { void this.refreshLazyFilter(); },
+			});
+
+			// Restaura virtual cols persistidas em data.json (mesma logica do eager).
+			// Em lazy, virtual cols não vão pro DuckDB schema; comment usa
+			// valueGetter/Setter via model.getCellComment / setCellComment.
+			restoreEnabledVirtualColumns({
+				gridApi: this.gridApi,
+				model: this.csvModel,
+				filePath: this.file?.path ?? '',
+				csvView: this,
+				app: this.app,
+				originalHeaders: this.originalHeaders,
 			});
 
 			this.readyResolve?.();
