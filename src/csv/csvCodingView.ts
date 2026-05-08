@@ -20,6 +20,7 @@ import {
 } from './duckdb';
 import { buildWhereClause, type AgFilterModel } from './duckdb/filterModelToSql';
 import { buildVirtualFilterClause, splitFilterModel, combineClauses } from './duckdb/virtualFilterResolver';
+import { LazyTextFilter, type LazyTextFilterContext } from './duckdb/lazyTextFilter';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -431,10 +432,22 @@ export class CsvCodingView extends FileView {
 			wrapper.style.width = '100%';
 			this.gridWrapper = wrapper;
 
+			// LazyTextFilter custom em todas colunas (real + virtual): faz pre-fetch
+			// da query DuckDB + chama `gridApi.refreshInfiniteCache()` (em vez do
+			// `purgeInfiniteCache` que o filter padrão dispara via filterChangedCallback).
+			// Resultado: rows antigas ficam visíveis durante re-fetch, sem flash branco.
+			// Ver `src/csv/duckdb/lazyTextFilter.ts`.
+			const lazyTextContext = this.buildLazyTextFilterContext();
+
 			// AG Grid Infinite Row Model — datasource pages via DuckDB.
 			this.gridApi = createGrid(wrapper, {
 				theme: obsidianTheme,
-				columnDefs: columns.map((h) => ({ field: h, headerName: h })),
+				columnDefs: columns.map((h) => ({
+					field: h,
+					headerName: h,
+					filter: LazyTextFilter,
+					filterParams: { context: lazyTextContext },
+				})),
 				// `filter: true` enables AG Grid's built-in filter UI per column. The
 				// datasource translates `params.filterModel` into a SQL WHERE fragment
 				// via `buildWhereClause` so DuckDB does the actual filtering server-side
@@ -636,6 +649,35 @@ export class CsvCodingView extends FileView {
 	 * and rebuilds the display_row map. During the brief window where filteredCount is
 	 * stale, `lastRow` falls back to `totalRows` — slightly imprecise scrollbar, fine.
 	 */
+	private buildLazyTextFilterContext(): LazyTextFilterContext {
+		return {
+			getProvider: () => this.lazyState?.rowProvider ?? null,
+			getMarkersTable: () => this.qualiaMarkersTable,
+			getOriginalHeaders: () => this.originalHeaders,
+			getRegistry: () => this.csvModel.registry,
+			getCurrentFilterModel: () => (this.gridApi?.getFilterModel() ?? null) as AgFilterModel | null,
+			getTotalRows: () => this.lazyState?.totalRows ?? 0,
+			getGridApi: () => this.gridApi,
+			applyPrefetched: (whereClause, filteredCount) => {
+				if (!this.lazyState) return;
+				this.lazyState.currentFilter = whereClause
+					? { whereClause, filteredCount }
+					: undefined;
+			},
+			scheduleDisplayMapRebuild: () => { void this.refreshLazyDisplayMap(); },
+		};
+	}
+
+	/** Implementa CsvViewRef.getLazyFilterColDef — chamado pelo columnToggleModal
+	 * pra aplicar o LazyTextFilter em virtual cols quando em lazy mode. */
+	getLazyFilterColDef(): { filter: unknown; filterParams: unknown } | null {
+		if (!this.lazyState) return null;
+		return {
+			filter: LazyTextFilter,
+			filterParams: { context: this.buildLazyTextFilterContext() },
+		};
+	}
+
 	private async refreshLazyFilter(): Promise<void> {
 		if (!this.lazyState || !this.gridApi) return;
 		// Marca o wrapper como "filtering" — CSS scoped esconde placeholder rows do

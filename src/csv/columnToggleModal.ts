@@ -9,6 +9,10 @@ export interface CsvViewRef {
 	openSegmentEditor(file: string, sourceRowId: number, column: string, cellText: string): void;
 	/** True when the underlying grid uses Infinite Row Model — `autoHeight` is unsupported. */
 	isLazyMode?(): boolean;
+	/** Retorna `{ filter, filterParams }` pro LazyTextFilter custom, ou null se
+	 * não lazy. Aplicado em real cols + virtual cols pra eliminar flash branco
+	 * (refreshInfiniteCache em vez de purgeInfiniteCache). */
+	getLazyFilterColDef?(): { filter: unknown; filterParams: unknown } | null;
 }
 
 // ── Column styles (shared with csvCodingView) ──
@@ -213,6 +217,9 @@ export function applyVirtualColumnToggle(p: ApplyVirtualColumnToggleParams): voi
 		const lazy = p.csvView.isLazyMode?.() ?? false;
 		const wrap = !lazy;
 		const sortable = !lazy;
+		// Em lazy, virtual cols recebem LazyTextFilter custom (refreshInfiniteCache,
+		// sem flash branco). Em eager, mantém filter padrão.
+		const lazyFilterDef = lazy ? p.csvView.getLazyFilterColDef?.() ?? null : null;
 
 		if (isComment) {
 			// valueGetter lê do CsvCodingModel (RowMarker.comment), não do row data
@@ -227,7 +234,8 @@ export function applyVirtualColumnToggle(p: ApplyVirtualColumnToggleParams): voi
 				headerClass: 'csv-coding-header-comment',
 				cellClass: wrap ? 'csv-comment-cell' : 'csv-comment-cell-nowrap',
 				sortable,
-				filter: true,
+				filter: lazyFilterDef?.filter ?? true,
+				...(lazyFilterDef ? { filterParams: lazyFilterDef.filterParams } : {}),
 				resizable: true,
 				autoHeight: wrap,
 				wrapText: wrap,
@@ -257,8 +265,14 @@ export function applyVirtualColumnToggle(p: ApplyVirtualColumnToggleParams): voi
 				cellStyle: isFrow ? COD_FROW_STYLE : COD_SEG_STYLE,
 				headerClass: isFrow ? 'csv-coding-header-frow' : 'csv-coding-header-seg',
 				sortable,
-				filter: true,
+				filter: lazyFilterDef?.filter ?? true,
+				...(lazyFilterDef ? { filterParams: lazyFilterDef.filterParams } : {}),
 				resizable: true,
+				// valueGetter retorna __source_row pra que AG Grid detecte mudança
+				// quando o block refresca em lazy mode. Sem isso, AG Grid acha que
+				// value continua undefined (field "X_cod-seg" não existe no parquet)
+				// e pula re-render — cells mostram dado da row anterior até next paint.
+				valueGetter: (params) => params.data?.__source_row ?? null,
 				cellRenderer: codingCellRenderer,
 				cellRendererParams: { model: p.model, gridApi: p.gridApi, file: p.filePath, csvView: p.csvView, app: p.app },
 				autoHeight: wrap,

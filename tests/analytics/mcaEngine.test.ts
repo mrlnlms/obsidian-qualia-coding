@@ -8,25 +8,25 @@ function mkMarker(id: string, codes: string[], fileId = 'f.md'): UnifiedMarker {
 
 describe('calculateMCA', () => {
 	it('returns null for empty markers', async () => {
-		const result = await calculateMCA([], ['A', 'B'], ['#f00', '#0f0']);
+		const result = await calculateMCA([], ['A', 'B'], ['A', 'B'], ['#f00', '#0f0']);
 		expect(result).toBeNull();
 	});
 
 	it('returns null for fewer than 2 codes', async () => {
 		const markers = [mkMarker('1', ['A']), mkMarker('2', ['A'])];
-		const result = await calculateMCA(markers, ['A'], ['#f00']);
+		const result = await calculateMCA(markers, ['A'], ['A'], ['#f00']);
 		expect(result).toBeNull();
 	});
 
 	it('returns null for fewer than 2 valid markers', async () => {
 		const markers = [mkMarker('1', ['A', 'B'])];
-		const result = await calculateMCA(markers, ['A', 'B'], ['#f00', '#0f0']);
+		const result = await calculateMCA(markers, ['A', 'B'], ['A', 'B'], ['#f00', '#0f0']);
 		expect(result).toBeNull();
 	});
 
 	it('returns null when no markers have any of the target codes', async () => {
 		const markers = [mkMarker('1', ['X']), mkMarker('2', ['Y'])];
-		const result = await calculateMCA(markers, ['A', 'B'], ['#f00', '#0f0']);
+		const result = await calculateMCA(markers, ['A', 'B'], ['A', 'B'], ['#f00', '#0f0']);
 		expect(result).toBeNull();
 	});
 
@@ -36,7 +36,7 @@ describe('calculateMCA', () => {
 			mkMarker('2', ['A']),
 			mkMarker('3', ['B']),
 		];
-		const result = await calculateMCA(markers, ['A', 'B'], ['#f00', '#0f0']);
+		const result = await calculateMCA(markers, ['A', 'B'], ['A', 'B'], ['#f00', '#0f0']);
 		// May return null if SVD finds insufficient dimensions, but if not:
 		if (result) {
 			expect(result.codePoints.length).toBeGreaterThanOrEqual(1);
@@ -54,7 +54,7 @@ describe('calculateMCA', () => {
 			mkMarker('4', ['A']),
 			mkMarker('5', ['B']),
 		];
-		const result = await calculateMCA(markers, ['A', 'B', 'C'], ['#f00', '#0f0', '#00f']);
+		const result = await calculateMCA(markers, ['A', 'B', 'C'], ['A', 'B', 'C'], ['#f00', '#0f0', '#00f']);
 		if (result) {
 			expect(result.codePoints).toBeDefined();
 			expect(result.markerPoints).toBeDefined();
@@ -78,7 +78,7 @@ describe('calculateMCA', () => {
 			mkMarker('3', ['B', 'C']),
 			mkMarker('4', ['A', 'B', 'C']),
 		];
-		const result = await calculateMCA(markers, ['A', 'B', 'C'], ['#f00', '#0f0', '#00f']);
+		const result = await calculateMCA(markers, ['A', 'B', 'C'], ['A', 'B', 'C'], ['#f00', '#0f0', '#00f']);
 		if (result) {
 			for (const ev of result.eigenvalues) {
 				expect(ev).toBeGreaterThanOrEqual(0);
@@ -94,7 +94,7 @@ describe('calculateMCA', () => {
 			mkMarker('4', ['A']),
 			mkMarker('5', ['C']),
 		];
-		const result = await calculateMCA(markers, ['A', 'B', 'C'], ['#f00', '#0f0', '#00f']);
+		const result = await calculateMCA(markers, ['A', 'B', 'C'], ['A', 'B', 'C'], ['#f00', '#0f0', '#00f']);
 		if (result) {
 			expect(result.inertiaExplained[0]).toBeGreaterThanOrEqual(0);
 			expect(result.inertiaExplained[0]).toBeLessThanOrEqual(100);

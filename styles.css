@@ -1341,6 +1341,112 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   visibility: hidden;
 }
 
+/* LazyTextFilter — popover de filter custom pro Infinite Row Model lazy.
+ * Pre-fetch da query DuckDB + refreshInfiniteCache (em vez de
+ * filterChangedCallback que dispara purgeInfiniteCache) → rows antigas ficam
+ * visíveis durante re-fetch, sem flash branco.
+ * Paridade UI com agTextColumnFilter: 8 ops + AND/OR + 2 conditions. */
+.lazy-text-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  min-width: 220px;
+}
+
+.lazy-text-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lazy-text-filter-spinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--background-modifier-border);
+  border-top-color: var(--text-accent);
+  border-radius: 50%;
+  animation: lazy-text-filter-spin 0.7s linear infinite;
+}
+
+@keyframes lazy-text-filter-spin {
+  to { transform: rotate(360deg); }
+}
+
+.lazy-text-filter-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lazy-text-filter-select,
+.lazy-text-filter-input {
+  padding: 6px 8px;
+  font-size: 13px;
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lazy-text-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  cursor: pointer;
+}
+
+/* Caret renderizado via pseudo-element no wrapper — `<select>` não suporta
+ * `::after` diretamente, e Obsidian sobrescreve `background-image` em select
+ * com specificity maior. */
+.lazy-text-filter-select-wrapper {
+  position: relative;
+}
+
+.lazy-text-filter-select-wrapper::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 10px;
+  height: 6px;
+  margin-top: -3px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23888888' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+.lazy-text-filter-select:focus,
+.lazy-text-filter-input:focus {
+  border-color: var(--interactive-accent);
+}
+
+.lazy-text-filter-join {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.lazy-text-filter-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.lazy-text-filter-radio input[type="radio"] {
+  margin: 0;
+}
+
 /* Tag chips area — takes remaining space, flows horizontally */
 .csv-tag-area {
   flex: 1 1 0;

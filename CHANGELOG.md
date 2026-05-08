@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-05-08 — Pre-alpha
+
+Filter de parquet/CSV lazy mode reescrito pra eliminar o flash branco entre keystroke e resultado. Bug latente do MCA Biplot identificado e corrigido no caminho.
+
+### Added
+
+- **LazyTextFilter custom** (`src/csv/duckdb/lazyTextFilter.ts`) — substitui `agTextColumnFilter` padrão em todas colunas reais + virtuais (cod-frow/cod-seg/comment) em parquet/CSV lazy mode. Pre-fetch da query DuckDB (count) antes de notificar AG Grid + chama `gridApi.refreshInfiniteCache()` em vez de `params.filterChangedCallback()` (que dispara `purgeInfiniteCache` sync e causava o flash branco). UI replica `agTextColumnFilter`: 8 operadores (contains/notContains/equals/notEqual/startsWith/endsWith/blank/notBlank) + AND/OR + 2 conditions, caret SVG via pseudo-element no wrapper (Obsidian sobrescreve `background-image` em `<select>` com specificity maior), spinner discreto durante pre-fetch. Schema do model compatível com `buildWhereClause`/`buildVirtualFilterClause` existentes — split real vs virtual via `splitFilterModel`.
+
+### Fixed
+
+- **MCA Biplot mostrando "Insufficient data" mesmo com dados suficientes** — `calculateMCA` recebia `enabledCodeNames` (nomes humanos) mas comparava com `marker.codes` que contém IDs (`c_XX`) pós Phase C de migração. Match nunca acontecia → matriz Z toda zero → return null. Funcionava por coincidência apenas quando codes eram "órfãos" (sem definição no registry — `consolidateCodes` faz fallback `name = codeId`). Fix: assinatura `calculateMCA(markers, codeIds, codeNames, colors)` separa matching (IDs contra `marker.codes`) de display (`codePoints[].name` via codeNames paralelo). 2 callers atualizados (`renderACMBiplot`, `buildACMRows`). Testes existentes (8/8) atualizados pra nova assinatura.
+
+### Changed
+
+- `setRowCount(filteredCount, true)` + `ensureIndexVisible(0)` + `refreshInfiniteCache()` + listener one-shot `modelUpdated` → `refreshCells({ force: true })` no fluxo de filter pra forçar re-render das virtual cells (que têm `field` apontando pra coluna inexistente no parquet — AG Grid não detecta change automaticamente).
+- `valueGetter` retornando `__source_row` adicionado nas virtual cols cod-seg/cod-frow pra ajudar AG Grid a detectar mudança natural quando bloco refresca.
+- BACKLOG: §🪶 "Layout shift no filter de virtual cols" removido (resolvido). Registro adicionado ao 2026-05.
+
+### Trade-off conhecido
+
+Cells virtuais (cod-seg/cod-frow/comment) têm delay ms-pequeno no swap visual após filter — efeito do mecanismo `refreshInfiniteCache` que intencionalmente mantém DOM visível durante re-fetch (é exatamente o que elimina o flash branco). Cells reais atualizam imediato porque o value muda (parquet entrega dado novo). Trade aceito sobre voltar a `purgeInfiniteCache` (que tinha o flash).
+
 ## [0.4.1] — 2026-05-08 — Pre-alpha
 
 Patch focado em performance e robustez do export enriquecido. Code Explorer build em vault com muitos markers caiu de ~30 s pra ~13 s (2.3× mais rápido) via yield UI + chunks 10× maiores + paralelização de queries por column + migração de inline styles dinâmicos pra CSS classes/vars. Export Parquet enriquecido ganha multi-file fallback automático quando single-file estoura OOM no DuckDB-Wasm worker — máquina-agnóstico, runtime-detect via regex. Modal info dinâmica de carga estimada (markers count + MB comments + vcols enabled) pra dar visibilidade do peso antes do export.

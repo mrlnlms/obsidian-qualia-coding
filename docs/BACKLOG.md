@@ -9,42 +9,11 @@
 
 ## 🟢 Estado atual
 
-**Nenhum bloqueador aberto.** Único item aberto: layout shift no filter de virtual cols (lazy mode) — polish visual, não-blocker. Single item legado: §11 E3 (limitação de formato, won't-fix documentado).
+**Nenhum bloqueador aberto.** Single item legado: §11 E3 (limitação de formato, won't-fix documentado).
 
 ### 🔍 Sintomas observados sem repro confiável
 
 Quando aparecer, capturar `data.json` + screenshot + steps na hora — diagnóstico fica trivial com forensic data. Sem nenhum sintoma aberto no momento.
-
----
-
-## 🪶 Polish curto (UX/qualidade de vida)
-
-Items pequenos (<2h cada) sem guarda-chuva próprio. Quando atacar, vira commit direto.
-
-### Layout shift no filter de virtual cols (lazy mode)
-
-**Sintoma:** quando user aplica filter (cod-frow/cod-seg/comment) num parquet lazy, durante a janela entre `onFilterChanged` (cache purge) e a resposta do `getRows` (DuckDB query), AG Grid renderiza placeholder rows pelo viewport. Visualmente: as rows que estavam visíveis somem, viewport mostra ~10-20 placeholder rows com cells vazios, e quando DuckDB responde, encolhe pra apenas as rows que matcham. User descreveu como "todas as linhas reaparecem e depois encolhem".
-
-**Mitigações já aplicadas (2026-05-07, parciais):**
-- `defaultColDef.filterParams.debounceMs: 250` em lazy createGrid → coalesce keystrokes (1 refresh por pausa, não 1 por char)
-- CSS class `csv-coding-filtering` toggled pelo `csvCodingView.refreshLazyFilter` (sync início + RAF-deferred remove no finally) → `.ag-row-loading` + `.ag-stub-cell` viram `visibility: hidden` durante a janela
-- `getRows` short-page detection: `rows.length < requestedCount` → `lastRow = startRow + rows.length` (definitivo, independente de `filteredCount` async settle) → AG Grid não fica esperando lastRow desconhecido
-
-**O que ainda falha:** entre purge e DuckDB respond (~50-150ms), viewport mostra blank space (placeholders escondidos via CSS, mas o espaço vazio segue lá). Sintoma cosmético — não bug funcional. User confirmou: "ta funcionando, tem só esse comportamento estranho".
-
-**Caminhos pra investigar (em ordem de plausibilidade):**
-
-1. **Loading overlay scoped:** `gridApi.showLoadingOverlay()` no início do refreshLazyFilter (sync) + `hideOverlay()` no finally (RAF-deferred). Cobre o viewport inteiro com mensagem clara "Filtering…" em vez de blank. Trade: overlay flash em filter rápido (<100ms) pode ser pior que blank. Mitigation: throttle — só mostra overlay se async passar de threshold (ex: setTimeout 100ms; se completar antes, cancela).
-
-2. **Pre-compute filteredCount sync:** quando filter é puramente virtual (sem real cols), o count é exatamente `SELECT COUNT(DISTINCT source_row) FROM qualia_markers_<id> WHERE ...`. Em vault típico (markers small), isso é sub-ms. Pode ser awaitado SYNC antes de retornar do `refreshLazyFilter` (bloquear o caller até filteredCount conhecido). Mas o caller é AG Grid event handler, awaitar pode quebrar o flow.
-
-3. **Setar rowCount sync via API:** AG Grid v33 tem `gridApi.setRowCount(N, false)`. Se chamar com 0 antes de DuckDB responder, AG Grid não renderizaria placeholders. Mas isso flicka entre 0 → real count.
-
-4. **Custom loadingCellRenderer:** colDef pode definir `loadingCellRenderer: () => null`. Cell-level. Pode esconder mais granularmente.
-
-**Caminho mais provável de funcionar:** combinação de (1) com threshold + (3) opcional. Spec curta antes de implementar.
-
-**Não-blocker.** Funcionalidade tá certa, é só polish visual. User explicitamente disse pra resolver depois.
 
 ---
 
@@ -99,6 +68,7 @@ Resumo cronológico das dívidas técnicas eliminadas. Detalhes longos foram con
 
 ### 2026-05 (parquet-lazy + smart codes + tabular virtual cols)
 
+- **Filter sem flash branco em parquet/CSV lazy** (2026-05-08) — `LazyTextFilter` custom (`src/csv/duckdb/lazyTextFilter.ts`) substitui `agTextColumnFilter` padrão em todas colunas (real + virtual cod-frow/cod-seg/comment). Pre-fetch da query DuckDB (count) + chama `gridApi.refreshInfiniteCache()` em vez de `params.filterChangedCallback()`. Diferença chave: `refreshInfiniteCache` mantém rows visíveis durante re-fetch (vs `purgeInfiniteCache` que limpa viewport sync e causava o flash). UI replica agTextColumnFilter — 8 ops (contains/notContains/equals/notEqual/startsWith/endsWith/blank/notBlank) + AND/OR + 2 conditions + caret SVG via pseudo-element. Schema do model compatível com `buildWhereClause`/`buildVirtualFilterClause` existentes. Bug do MCA Biplot encontrado/corrigido no caminho: `calculateMCA` recebia `enabledCodeNames` mas comparava com `marker.codes` (IDs pós Phase C) → matching falhava → "Insufficient data for MCA". Fix: assinatura `calculateMCA(markers, codeIds, codeNames, colors)` separando matching de display. Trade-off residual: cells virtuais (cellRenderer custom + field não-existente no parquet) têm delay ms-pequeno no swap visual após refresh — efeito do mecanismo `refreshInfiniteCache` que mantém DOM visível durante re-fetch
 - **Code Explorer build latency em vault com muitos markers** (2026-05-08, commits `611a99b` + `c3e6a10` + `f7f98d0`) — `~30s → ~13s` (2.3× mais rápido) no pathological 200k markers × 5 cols / M1 8GB. Mitigações: yield UI entre chunks (`setTimeout(0)`) + `chunkSize=1000→10_000` + `Promise.all` paralelizando queries por column dentro do `batchGetMarkerText` + inline `style.paddingLeft/height/position` → CSS classes/vars (`.qc-explorer-code-self`, `.qc-explorer-list`, `.qc-vlist-row`). Diagnóstico via DevTools profile (gargalo era 1000 round-trips DuckDB-Wasm sequenciais saturando microtask queue, não CPU work do main thread). Mitigações C (rebuild parcial) e D (lazy viewport hydration) explicitamente descartadas — conflitam com decisões arquiteturais já tomadas
 - **Export Parquet enriquecido — multi-file fallback automático** (2026-05-07/08, commits `fdbaa55` + `bc71ceb` + `fd945e5` + `3f38eda`) — single-file (UX padrão) → catch OOM via regex → multi-file dataset (`<base>.qualia-enriched/part-NNN.parquet`). Decisão dinâmica em runtime, máquina-agnóstico. Stress test 6 cenários sintéticos (50k a 200k markers + 0-228 MB comments + 9-15 vcols) em parquet 2.376M rows × 21 cols. Teto empírico M1 8GB: single-file aguenta até ~150k markers + ~54 MB comments + 12 vcols; fallback multi-file aguenta tudo. Modal info dinâmica de carga estimada (markers count + MB comments + vcols enabled) sem prever — só descreve. Tags `pre-stress-export-baseline` ↔ `post-stress-export-checkpoint`
 - **Tabular virtual cols (persist + filter + comment + export)** (2026-05-07, release 0.4.0) — `data.json csv.fileMeta[fileId].enabledVirtualColumns` armazena toggles (cod-frow/cod-seg/comment); `RowMarker.comment?: string` per-cell com setter/getter no model; AG Grid filter unificado server-side via `QualiaMarkersTable` (DuckDB temp table long format) + `virtualFilterResolver`; `BatchedMutationApplier` coalesce events do canal SC3 em rAF batches; export "Parquet enriquecido" via SQL COPY com CTE per virtual col + LEFT JOIN single-pass. Spec: `docs/superpowers/specs/20260506-tabular-virtual-cols-design.md` (arquivada workspace externo após release)

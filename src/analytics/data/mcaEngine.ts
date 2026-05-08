@@ -33,26 +33,30 @@ export interface MCAResult {
 /**
  * Compute MCA from unified markers.
  * Returns null if there's insufficient data (< 2 codes or < 2 markers with codes).
+ *
+ * `codeIds` é usado pra matching contra `marker.codes` (IDs pós Phase C).
+ * `codeNames` é paralelo a `codeIds` e usado só pra display (output `codePoints[].name`).
  */
 export async function calculateMCA(
   markers: UnifiedMarker[],
-  codes: string[],
+  codeIds: string[],
+  codeNames: string[],
   colors: string[],
 ): Promise<MCAResult | null> {
   // Filter markers that have at least one of the target codes
-  const codeSet = new Set(codes);
+  const codeSet = new Set(codeIds);
   const validMarkers = markers.filter(m => m.codes.some(c => codeSet.has(c)));
 
-  if (validMarkers.length < 2 || codes.length < 2) return null;
+  if (validMarkers.length < 2 || codeIds.length < 2) return null;
 
   // 1. Build indicator matrix Z[i][j] = marker i has code j ? 1 : 0
   const nRows = validMarkers.length;
-  const nCols = codes.length;
+  const nCols = codeIds.length;
   const Z: number[][] = [];
   for (let i = 0; i < nRows; i++) {
     const row: number[] = [];
     for (let j = 0; j < nCols; j++) {
-      row.push(validMarkers[i]!.codes.includes(codes[j]!) ? 1 : 0);
+      row.push(validMarkers[i]!.codes.includes(codeIds[j]!) ? 1 : 0);
     }
     Z.push(row);
   }
@@ -67,7 +71,7 @@ export async function calculateMCA(
   const activeColIdx = colSums.map((s, i) => ({ s, i })).filter(x => x.s > 0).map(x => x.i);
   if (activeColIdx.length < 2) return null;
 
-  const activeCodes = activeColIdx.map(j => codes[j]);
+  const activeCodes = activeColIdx.map(j => codeNames[j]);
   const activeColors = activeColIdx.map(j => colors[j]);
   const nActiveCols = activeColIdx.length;
 

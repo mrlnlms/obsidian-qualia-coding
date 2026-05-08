@@ -69,20 +69,21 @@ export function renderACMBiplot(ctx: AnalyticsViewContext, filters: FilterConfig
 
   const generation = ctx.renderGeneration;
   const loadingEl = ctx.chartContainer.createDiv({ cls: "codemarker-wc-loading", text: "Computing MCA..." });
-  loadAndRenderACM(ctx, filtered, enabledCodeNames, enabledColors, loadingEl, generation);
+  loadAndRenderACM(ctx, filtered, enabledCodeIds, enabledCodeNames, enabledColors, loadingEl, generation);
 }
 
 async function loadAndRenderACM(
   ctx: AnalyticsViewContext,
   markers: UnifiedMarker[],
-  codes: string[],
+  codeIds: string[],
+  codeNames: string[],
   colors: string[],
   loadingEl: HTMLElement,
   generation: number,
 ): Promise<void> {
   if (!ctx.chartContainer) return;
 
-  const result = await calculateMCA(markers, codes, colors);
+  const result = await calculateMCA(markers, codeIds, codeNames, colors);
   if (!ctx.isRenderCurrent(generation)) return;
   loadingEl.remove();
 
@@ -307,7 +308,7 @@ export async function buildACMRows(ctx: AnalyticsViewContext): Promise<string[][
   if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
   const ids = Array.from(ctx.enabledCodes);
-  const codes = ids.map((id) => ctx.data!.codes.find((c) => c.id === id)?.name ?? id);
+  const names = ids.map((id) => ctx.data!.codes.find((c) => c.id === id)?.name ?? id);
   const colors = ids.map((id) => ctx.data!.codes.find((c) => c.id === id)?.color ?? "#888888");
 
   const enabledCodesSet = ctx.enabledCodes;
@@ -319,7 +320,7 @@ export async function buildACMRows(ctx: AnalyticsViewContext): Promise<string[][
     codes: m.codes.filter(c => enabledCodesSet.has(c)),
   })).filter(m => m.codes.length > 0);
 
-  const result = await calculateMCA(filtered, codes, colors);
+  const result = await calculateMCA(filtered, ids, names, colors);
   if (!result) return null;
 
   const rows: string[][] = [["type", "name", "dim1", "dim2", "file", "codes"]];

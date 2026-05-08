@@ -1,11 +1,11 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-08 (Code Explorer perf + Export multi-file fallback + Tabular virtual cols).
+> Última atualização: 2026-05-08 (Filter sem flash branco + MCA bug fix).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
-**Versão:** 0.4.0 (2026-05-07, tag pushed). Tabular virtual cols (persist + filter + comment + export) + Sidebar markerText hydrator. **Próximo release esperado:** 0.4.1 (patch — Code Explorer perf 30s→13s + Export Parquet multi-file fallback + modal info dinâmica). Commits no main aguardando bump de versão. Checklist de testes manuais da Fase 6 em `plugin-docs/archive/claude_sources/plans/20260504-manual-tests-fase-6.md` (workspace externo).
+**Versão:** 0.4.2 (2026-05-08). LazyTextFilter custom em todas colunas (real + virtual) elimina flash branco no filter de parquet/CSV lazy via `refreshInfiniteCache`. Bug latente do MCA Biplot corrigido (signature `calculateMCA` separa codeIds matching de codeNames display). Trade-off conhecido: ms-pequeno de delay no swap visual das cells virtuais durante refresh — efeito direto do mecanismo que elimina o flash. **Versão anterior:** 0.4.1 (Code Explorer perf 30s→13s + Export Parquet multi-file fallback + modal info dinâmica).
 
 **Infra que a Fase 6 estabeleceu (não é só "abrir parquet grande"):**
 - DuckDB-Wasm + Worker + Blob URLs → reusável pra LLM provider (Ollama/OpenAI/Anthropic) e Whisper transcription
