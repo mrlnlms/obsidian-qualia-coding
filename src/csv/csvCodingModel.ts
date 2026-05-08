@@ -645,7 +645,13 @@ export class CsvCodingModel {
 		provider: RowProvider,
 		opts: { chunkSize?: number } = {},
 	): Promise<number> {
-		const chunkSize = opts.chunkSize ?? 1000;
+		// chunkSize 10_000 (vs anterior 1000): reduz número de round-trips DuckDB-Wasm
+		// 10× num vault pesado (200k markers → 20 chunks em vez de 200). Cada query maior
+		// (IN list ~50KB de SQL, result ~1-2MB) é trivial pro DuckDB; o gargalo era
+		// overhead fixo de postMessage main↔worker per query. Combina com paralelismo
+		// por-column dentro de batchGetMarkerText pra cortar duração de ~30s pra ~6-12s
+		// (medido 2026-05-08 em pathological 200k markers × 5 cols, M1 8GB).
+		const chunkSize = opts.chunkSize ?? 10_000;
 		const missing = this.getMarkersForFile(fileId).filter(m => !this.markerTextCache.has(m.id));
 		if (missing.length === 0) return 0;
 

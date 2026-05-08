@@ -156,13 +156,23 @@ export class DuckDBRowProvider implements RowProvider {
 			else byColumn.set(r.column, [r.sourceRowId]);
 		}
 
-		for (const [col, ids] of byColumn) {
+		// Disparar TODAS as queries (uma por col) em paralelo via Promise.all. DuckDB-Wasm
+		// worker é single-threaded (sem pthread), então o worker mesmo processa em fila —
+		// mas o main thread NÃO fica idle entre awaits. Postar N mensagens de uma vez
+		// elimina o overhead de postMessage round-trip × N que dominava a duração total
+		// no caminho sequencial anterior. Diagnosticado 2026-05-08 via DevTools profile.
+		const queries = Array.from(byColumn.entries()).map(async ([col, ids]) => {
 			const inList = ids.join(",");
 			const result = await this.trackedQuery(
 				`SELECT __source_row, ${quoteIdent(col)} AS val ` +
 				`FROM ${this.tableName} ` +
 				`WHERE __source_row IN (${inList})`,
 			);
+			return { col, ids, result };
+		});
+		const queryResults = await Promise.all(queries);
+
+		for (const { col, ids, result } of queryResults) {
 			const seen = new Set<number>();
 			for (const row of result.toArray()) {
 				const j = row.toJSON();
