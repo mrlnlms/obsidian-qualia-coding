@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-05-08 — Pre-alpha
+
+Patch focado em performance e robustez do export enriquecido. Code Explorer build em vault com muitos markers caiu de ~30 s pra ~13 s (2.3× mais rápido) via yield UI + chunks 10× maiores + paralelização de queries por column + migração de inline styles dinâmicos pra CSS classes/vars. Export Parquet enriquecido ganha multi-file fallback automático quando single-file estoura OOM no DuckDB-Wasm worker — máquina-agnóstico, runtime-detect via regex. Modal info dinâmica de carga estimada (markers count + MB comments + vcols enabled) pra dar visibilidade do peso antes do export.
+
 ### Added
 
 - **Export Parquet enriquecido — multi-file fallback automático** — quando o single-file COPY estoura OOM no DuckDB-Wasm worker (cap 4 GB wasm32), o wrapper detecta via regex (`/Out of Memory|Allocation failure|memory access out of bounds/i`) e ativa automaticamente caminho multi-file: `<base>.qualia-enriched/part-NNN.parquet`, chunks de 500k source rows escritos direto no vault e dropados do virtual fs entre cada chunk (worker peak ~1.5 GB stable em vez de estourar). Decisão dinâmica em runtime — máquina-agnóstico, sem hardcode de teto por classe de hardware. Notice de fallback inclui inline o comando pra ler o dataset (`read_parquet('dir/*.parquet')` ou `pd.read_parquet('dir/')`).
