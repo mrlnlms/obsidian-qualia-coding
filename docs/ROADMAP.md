@@ -22,7 +22,7 @@
 
 2. ~~**Smart Codes (Tier 3 Coding Management)**~~ ✅ **FEITO 2026-05-04** — branch `feat/smart-codes`, 19 commits. Schema completo (PredicateNode AST com 10 leaves + nesting), evaluator puro com short-circuit + cycle detection, SmartCodeCache com invalidação granular + computePreview, SmartCodeApi CRUD + autoRewriteOnMerge + diff helper, builder modal row-based + Smart Code Detail + List hub, command palette (`Smart Codes: Open hub` + `Smart Codes: New`), audit log entity discriminator + 5 sc_* event types, ⚡ icon na Codebook Timeline, export/import QDPX (`qualia:SmartCodes` namespace + 2-pass parse), CSV tabular `smart_codes.csv` + README R/Python snippets. **107 testes novos** (2584 → 2759). Stress: 10k markers + 100 smart codes em <1s. **Phase 2 ✅ FEITO (2026-05-05):** SC1 (analytics modes — frequency/cooccurrence/evolution/codeMetadata/lagSequential/memoView via helper `getSmartCodeViews`) + SC2 (Code Explorer ganha grupo SC top-level com tree SC → file → matches) + SC3 (emit granular MarkerMutation em todos 5 engine models — cache invalidation cirúrgica, dead code removal, cascade fix, hide UX cleanup, clear all completo). Smart Codes Tier 3 100% fechado.
 
-3. **Submissão Community Plugins PR** — Release 0.2.0 já tem o artefato; falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas é grande pra padrão da Community — pode receber pushback no review.
+3. **Submissão Community Plugins PR** — Release 0.4.2 (2026-05-08) tem o artefato robusto; falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas é grande pra padrão da Community — pode receber pushback no review.
 
 4. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão de produto pendente:** qual escola Qualia subscreve, qual use case primário, qual provider strategy, onde no fluxo entra, qual granularidade de revisão humana. Antes dessas 5 decisões cravadas (1 sessão de brainstorm dedicado), design não rola. Pós-decisão: ~10-15 sessões pra MVP S+M.
 
@@ -34,7 +34,7 @@
 
 **Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slices A/B/C/D/E ✅ (2026-05-04)** · **Q-mode gaps S0+S1+S2+S3 ✅ (2026-05-04 — Files Dendrogram + File Similarity + cluster drill-down)** · **Smart Codes Tier 3 ✅ (2026-05-04 — branch `feat/smart-codes`, 19 commits, 107 testes novos, schema + evaluator + cache + UI hub + QDPX round-trip + CSV tabular)**. **Coding Management 100% fechado.**
 
-**Bloqueadores no `BACKLOG.md`:** zero. Carla label vazia (whitespace-only) é minor não bloqueante.
+**Bloqueadores no `BACKLOG.md`:** zero.
 
 ---
 
