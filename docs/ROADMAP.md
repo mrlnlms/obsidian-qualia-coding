@@ -54,7 +54,7 @@ Sem ordem imposta — agrupamento temático pra varredura. Decisões de execuç�
 
 Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 
-- **[Parquet/CSV lazy loading](#parquetcsv-lazy-loading)** — **design doc fechado** (`docs/parquet-lazy-design.md`, 539 linhas, revisado por Codex+Gemini). Stack escolhida: DuckDB-Wasm + OPFS + AG Grid Infinite. 7 fases, 13-15 sessões. Decisão atualizada: **NÃO é mais contingente a LLM** — Fase 0 (sourceRowId) destrava ambos
+- ~~**Parquet/CSV lazy loading**~~ ✅ **FEITO 2026-05-04** — todas as 7 fases entregues. Stack final: DuckDB-Wasm + OPFS + AG Grid Infinite. Doc autoritativo `docs/parquet-lazy-design.md` preservado como referência arquitetural / post-mortem. Estendido em 2026-05-07 com tabular virtual cols (release 0.4.0) + 2026-05-08 com Code Explorer perf + Export multi-file fallback
 - **[LLM-assisted coding](#llm-assisted-coding)** — **pesquisa de mercado profunda concluída** (`docs/_study/llm-coding/`, 41 arquivos: 40 tools + 5 patterns + síntese cross-tool + qualia-fit). 5 escolas filosóficas mapeadas. Decisão pendente: posicionamento (qual escola). Sem isso, design não rola
 - **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability--material-de-repertório-pra-discussão-epistemológica)** — registro 2026-05-04 acumula material de 2 conversas externas com 2 ângulos (A: ICR clássico Kappa/α; B: auditabilidade interpretativa via Friese/B&C; possível C híbrido). Repertório pra brainstorm, não decisão. Possível acoplamento com decisão LLM mapeado mas não cravado.
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
