@@ -197,7 +197,7 @@ Antes de chegar no design final, foi implementado e descartado **chunked export 
 - `tests/csv/exportParquetEnriched.test.ts` — 5 testes pra `isOOMError`
 - `scripts/seed-stress-export.mjs` — 6 cenários (`baseline`, `long-comments`, `many-codes`, `between-1`, `between-2`, `pathological`)
 
-### Code Explorer build latency em vault com muitos markers
+### ~~Code Explorer build latency em vault com muitos markers~~ ✅ FEITO (2026-05-08)
 
 **Sintoma observado (2026-05-07, MacBook Pro M1 8 GB):** com `data.json` de 320 MB (200k markers + 200 codes + 228 MB comments synth do cenário pathological do stress test de export enriched):
 - Vault load do Obsidian + plugin `onload` + `JSON.parse` do data.json = **rápido, sem latência perceptível**.
@@ -234,17 +234,15 @@ Frames de **3-9 segundos sem paint** (frame view) — UI percebida como travada.
 
 **Agravante secundário:** quando cada file termina hidratação, `scheduleNotify` dispara `model.onChange` → `Code Explorer.scheduleRefresh` → **rebuild completo** do `renderTree` (200 codes × 200 virtual lists × DOM destruir+recriar). Isso explica os 2.4 s de Recalculate Style multiplicados pelo número de files no vault.
 
-**Mitigações:**
+**Mitigações aplicadas:**
 
-| # | Estratégia | Impacto medido / esperado | Status |
+| # | Estratégia | Impacto medido | Status |
 |---|---|---|---|
-| **A** | Yield UI entre chunks no hydrator (`await new Promise(r => setTimeout(r, 0))` antes de cada chunk no `populateMissingMarkerTextsForFile`) | UI percepção: ganho marginal — interação já funcionava antes (frames longas no profile ≠ UI travada). Custo: ~800ms adicional (200 chunks × ~4ms clamping). Mantido como defensiva | ✅ FEITO 2026-05-08 (commit 611a99b) |
-| **B** | `chunkSize=1000` → `chunkSize=10_000` (10× menos round-trips) + paralelizar queries por column dentro de `batchGetMarkerText` via `Promise.all` | **Medido: ~30s → ~13s (2.3× mais rápido)** no pathological 200k markers × 5 cols, M1 8GB | ✅ FEITO 2026-05-08 (commit c3e6a10) |
-| **C** | Code Explorer atualiza apenas labels mudados em vez de rebuild full no `onChange` (DOM diff cirúrgico via `markerId` lookup) | Elimina N × 2.4 s de Recalculate Style cumulativo (sem repro de N depois de B; possivelmente menos relevante agora) | Pendente |
-| **D** | Hidratação lazy por viewport — só hidrata markers visíveis na lista do Code Explorer | Solução arquitetural: load inicial fica imediato, on-scroll hydrata viewport | Pendente |
-| **E** | `style.height/paddingLeft` inline → CSS classes/data attrs com `transform: translateY` | Reduz cost individual do Recalculate Style | Pendente |
+| **A** | Yield UI entre chunks no hydrator (`await new Promise(r => setTimeout(r, 0))` antes de cada chunk no `populateMissingMarkerTextsForFile`) | UI percepção: ganho marginal (interação já funcionava antes). Custo: ~800ms adicional. Mantido como defensiva | ✅ FEITO 2026-05-08 (commit 611a99b) |
+| **B** | `chunkSize=1000` → `chunkSize=10_000` (10× menos round-trips) + paralelizar queries por column dentro de `batchGetMarkerText` via `Promise.all` | **~30s → ~13s (2.3× mais rápido)** no pathological 200k markers × 5 cols, M1 8GB | ✅ FEITO 2026-05-08 (commit c3e6a10) |
+| **E** | `style.height/paddingLeft` inline → classes + CSS vars (`.qc-explorer-code-self`, `.qc-explorer-list`, `.qc-vlist-row`) | Reduz cost individual do Recalculate Style | ✅ FEITO 2026-05-08 (commit f7f98d0) |
 
-**Estado pós A+B:** ~13s no pathological 200k markers. UX aceitável pra cenário sintético extremo. Vault de user real precisaria ser pelo menos desse tamanho pra reclamar — sem repro real ainda. Decisão de atacar C/D/E fica pendente até aparecer demanda concreta.
+**Estado pós A+B+E:** ~13s no pathological 200k markers. UX aceitável pra cenário sintético extremo. Vault de user real precisaria ser pelo menos desse tamanho pra reclamar — sem repro real ainda. **Considerado fechado** — sem C/D pendentes (rejeitadas explicitamente: rebuild parcial conflita com "estado sempre fresh" e lazy-by-viewport reverte simplificações arquiteturais já tomadas).
 
 **Localização do código:**
 - `src/csv/markerPreviewHydrator.ts:144-192` — `runLazyBatch` + invocação do `populateMissingMarkerTextsForFile`
