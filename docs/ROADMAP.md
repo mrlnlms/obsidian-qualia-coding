@@ -5,6 +5,8 @@
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
+> **📄 Doc autoritativo de visão integrada (2026-05-08):** `obsidian-qualia-coding/plugin-docs/research/CONSOLIDACAO-PRODUTO-2026-05-08.md` (138 KB, 1839 linhas). Reformula o produto em **3 caixinhas com ordem cravada (ICR → LLM → Analytics)** + introduz **Qualia Core** (backend Python plugin-based Beta v0.2.0, 851 testes, 8 plugins) como peça arquitetural separada do plugin Obsidian. Pitch reformulado: **plugin Obsidian = QDAS standalone**; **plugin + Qualia Core = QDMMAS sério**. Companion files: `ICR-DESIGN-SKETCH-2026-05-08.md`, `ICR-PRACTICE-WORKFLOW-2026-05-08.md`, `ICR-WORKFLOWS-LANDSCAPE-2026-05-08.md`. **As "frentes engatilhadas" abaixo precisam ser revisitadas à luz desse doc** — não foi feito ainda.
+
 **Versão:** 0.4.2 (2026-05-08). LazyTextFilter custom em todas colunas (real + virtual) elimina flash branco no filter de parquet/CSV lazy via `refreshInfiniteCache`. Bug latente do MCA Biplot corrigido (signature `calculateMCA` separa codeIds matching de codeNames display). Trade-off conhecido: ms-pequeno de delay no swap visual das cells virtuais durante refresh — efeito direto do mecanismo que elimina o flash. **Versão anterior:** 0.4.1 (Code Explorer perf 30s→13s + Export Parquet multi-file fallback + modal info dinâmica).
 
 **Infra que a Fase 6 estabeleceu (não é só "abrir parquet grande"):**
@@ -192,6 +194,8 @@ Mitigação atual (size guard #28, 2026-04-28) já cobre crash via banner "Load 
 
 ### LLM-assisted coding
 
+> **📄 Visão integrada atualizada 2026-05-08:** `plugin-docs/research/CONSOLIDACAO-PRODUTO-2026-05-08.md` §2.2 (Caixinha 2 — LLM como complemento), §2.2.4 (memo-as-prompt — tese vendável), §2.2.5 (verbatim verification — defesa não-negociável), §3.1 (5 escolas filosóficas vs operações primitivas), §3.2 (operações primitivas: 5 de coding + 8 adjacentes). Provider strategy cravada: "plugin não embute LLM" (§5.6). Pesquisa de mercado original (`docs/_study/llm-coding/`) preservada como base — consolidação adicionou framing "operações primitivas" e cruzamento com chassi atual.
+>
 > **📄 Pesquisa autoritativa: `docs/_study/llm-coding/`** (41 arquivos). Pontos de entrada:
 > - `index.md` — TOC das 40 ferramentas + 5 patterns analisados
 > - `comparison.md` (337 linhas) — síntese cross-tool, 5 escolas filosóficas, gaps universais, outliers únicos
@@ -247,6 +251,8 @@ Mitigação atual (size guard #28, 2026-04-28) já cobre crash via banner "Load 
 **Estimativa MVP** (após decisão de posicionamento): provavelmente 10-15 sessões pra MVP cobrindo S+M; L é roadmap próprio.
 
 ### Intercoder Reliability — material de repertório pra discussão epistemológica
+
+> **📄 Atualizado 2026-05-08:** `plugin-docs/research/CONSOLIDACAO-PRODUTO-2026-05-08.md` §2.1 (Caixinha 1 — ICR determinística), §3.4 (κ como validação de prompt, não de concordância), §3.5 (multi-LLM literatura, paper arxiv 2512.20352). Esboço arquitetural com `codedBy` unificado em `ICR-DESIGN-SKETCH-2026-05-08.md`. Workflow real de equipes em `ICR-PRACTICE-WORKFLOW-2026-05-08.md`. Landscape de mercado em `ICR-WORKFLOWS-LANDSCAPE-2026-05-08.md`. Conteúdo desta seção (2026-05-04) preservado como repertório anterior — discussão evoluiu, ler o doc novo primeiro.
 
 **2026-05-04 — registro pra brainstorm futuro.** Material acumulado em duas conversas externas (`claude_ai 2026-04-26 "Intercoder reliability em ferramentas QDA"` + `2026-04-28 "Status dos projetos em andamento"`) traz ângulos que vale ter lado a lado **quando a decisão for atacada**. Nenhuma das perspectivas abaixo está cravada como caminho — são repertório pra a discussão ser rica, não conclusões. Uma não anula a outra.
 
