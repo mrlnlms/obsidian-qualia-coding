@@ -6166,6 +6166,18 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .search-result.is-smart-code .tree-item-inner { font-style: italic; }
 .search-result-file-match.is-stale { color: var(--text-faint); font-style: italic; }
 
+/* Style props que antes eram inline (forçavam recalc-style por elemento durante renderTree).
+   Agora via classes + CSS vars: browser cache rule, recalc fica O(1) por mutation. */
+.qc-explorer-code-self { padding-left: calc(var(--qc-depth, 0) * 18px + 4px); }
+.qc-explorer-list { position: relative; height: var(--qc-list-height, auto); }
+.qc-explorer-list--scrollable { overflow-y: auto; }
+.qc-vlist-row {
+  position: absolute;
+  width: 100%;
+  top: var(--qc-row-top, 0);
+  height: var(--qc-row-height, 26px);
+}
+
 /* Analytics codes filter — sub-header pra separar SC chips de regulares. */
 .codemarker-config-codes-subheader { font-size: 0.8em; color: var(--text-muted); padding: 6px 4px 2px; text-transform: uppercase; letter-spacing: 0.05em; }
 .codemarker-config-row.is-smart-code .codemarker-config-swatch { border-radius: 50%; }

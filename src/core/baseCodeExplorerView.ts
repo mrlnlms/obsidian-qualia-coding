@@ -368,8 +368,10 @@ export abstract class BaseCodeExplorerView extends ItemView {
 			// --- Code group (level 1) ---
 			const depth = def ? this.model.registry.getDepth(def.id) : 0;
 			const codeTreeItem = resultsEl.createDiv({ cls: 'tree-item search-result' });
-			const codeSelf = codeTreeItem.createDiv({ cls: 'tree-item-self search-result-file-title is-clickable' });
-			codeSelf.style.paddingLeft = `${depth * 18 + 4}px`;
+			const codeSelf = codeTreeItem.createDiv({ cls: 'tree-item-self search-result-file-title is-clickable qc-explorer-code-self' });
+			// CSS var consumida pela rule `.qc-explorer-code-self { padding-left: calc(var(--qc-depth) * 18px + 4px) }`
+			// — evita inline padding-left que força recalculate-style por elemento.
+			codeSelf.style.setProperty('--qc-depth', String(depth));
 
 			codeSelf.createDiv({ cls: 'tree-item-icon collapse-icon' }, (el) => setIcon(el, 'right-triangle'));
 
@@ -399,15 +401,17 @@ export abstract class BaseCodeExplorerView extends ItemView {
 				fileSelf.createSpan({ cls: 'tree-item-inner', text: fileName });
 				fileSelf.createSpan({ cls: 'tree-item-flair', text: String(markers.length) });
 
-				const fileChildren = fileTreeItem.createDiv({ cls: 'search-result-file-matches' });
+				const fileChildren = fileTreeItem.createDiv({ cls: 'search-result-file-matches qc-explorer-list' });
 				// Constrained height + virtual scroll. Files with thousands of
 				// markers (e.g. batch-coded parquet rows) would otherwise mount
 				// each match in the DOM and freeze the UI thread.
+				// `position: relative` vem da classe .qc-explorer-list. Height dinâmica via
+				// CSS var (.qc-explorer-list { height: var(--qc-list-height) }) evita inline
+				// height. Overflow-auto via classe modifier .qc-explorer-list--scrollable.
 				const naturalHeight = markers.length * EXPLORER_ROW_HEIGHT;
 				const maxByVh = Math.floor(window.innerHeight * (EXPLORER_LIST_MAX_VH / 100));
-				fileChildren.style.height = `${Math.min(naturalHeight, maxByVh)}px`;
-				if (naturalHeight > maxByVh) fileChildren.style.overflowY = 'auto';
-				fileChildren.style.position = 'relative';
+				fileChildren.style.setProperty('--qc-list-height', `${Math.min(naturalHeight, maxByVh)}px`);
+				if (naturalHeight > maxByVh) fileChildren.classList.add('qc-explorer-list--scrollable');
 
 				const list = createVirtualList<BaseMarker>({
 					container: fileChildren,

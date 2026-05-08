@@ -83,14 +83,15 @@ export function createVirtualList<T>(config: VirtualListConfig<T>): VirtualListH
 		}
 
 		// Mount rows that entered the visible range.
+		// position/width/height fixos vão pela classe .qc-vlist-row no CSS.
+		// Apenas top é dinâmico (varia por index) — fica via CSS var.
 		for (let i = startIdx; i < endIdx; i++) {
 			if (rowPool.has(i)) continue;
 			const item = items[i]!;
 			const rowEl = config.renderRow(item, i);
-			rowEl.style.position = 'absolute';
-			rowEl.style.top = `${i * rowHeight}px`;
-			rowEl.style.height = `${rowHeight}px`;
-			rowEl.style.width = '100%';
+			rowEl.classList.add('qc-vlist-row');
+			rowEl.style.setProperty('--qc-row-top', `${i * rowHeight}px`);
+			rowEl.style.setProperty('--qc-row-height', `${rowHeight}px`);
 			spacer.appendChild(rowEl);
 			rowPool.set(i, rowEl);
 		}
