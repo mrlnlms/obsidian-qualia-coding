@@ -651,6 +651,15 @@ export class CsvCodingModel {
 
 		let added = 0;
 		for (let i = 0; i < missing.length; i += chunkSize) {
+			// Yield pra UI antes de cada chunk (exceto o primeiro). Sem isso, o loop de
+			// awaits sequenciais no `batchGetMarkerText` (200+ chunks em vault pesado)
+			// satura microtask queue e bloqueia paint cycle — diagnosticado via DevTools
+			// profile (2026-05-08, ver BACKLOG "Code Explorer build latency"). setTimeout(0)
+			// vira macrotask, browser tem janela pra paint entre chunks. Trade: ~4ms de
+			// clamping × N chunks (200 × 4 = ~800ms adicional num pathological 200k markers
+			// — desprezível vs ~30s de wait sequential que estoura a UX).
+			if (i > 0) await new Promise<void>(r => setTimeout(r, 0));
+
 			const slice = missing.slice(i, i + chunkSize);
 			const seen = new Set<string>();
 			const refs: MarkerRef[] = [];
