@@ -234,19 +234,17 @@ Frames de **3-9 segundos sem paint** (frame view) — UI percebida como travada.
 
 **Agravante secundário:** quando cada file termina hidratação, `scheduleNotify` dispara `model.onChange` → `Code Explorer.scheduleRefresh` → **rebuild completo** do `renderTree` (200 codes × 200 virtual lists × DOM destruir+recriar). Isso explica os 2.4 s de Recalculate Style multiplicados pelo número de files no vault.
 
-**Mitigações possíveis (não decidir agora — registrar pra atacar quando atacarmos):**
+**Mitigações:**
 
-| # | Estratégia | Impacto esperado | Esforço estimado |
+| # | Estratégia | Impacto medido / esperado | Status |
 |---|---|---|---|
-| **A** | Yield UI entre chunks no hydrator (`await new Promise(r => setTimeout(r, 0))` ou `requestIdleCallback`) entre cada chunk no `populateMissingMarkerTextsForFile` | UI imediatamente responsiva, mesma duração total absoluta — só elimina percepção de trava | ~1h |
-| **B** | `chunkSize=1000` → `chunkSize=10000` ou paralelizar queries via `Promise.all([...])` em vez de await sequencial | Reduz overhead postMessage; potencialmente 2-5× mais rápido em duração total | ~1-2h |
-| **C** | Code Explorer atualiza apenas labels mudados em vez de rebuild full no `onChange` (DOM diff cirúrgico via `markerId` lookup) | Elimina N × 2.4 s de Recalculate Style — UI fica fluida durante hidratação | ~3-5h |
-| **D** | Hidratação lazy por viewport — só hidrata markers visíveis na lista do Code Explorer | Solução arquitetural: load inicial fica imediato, on-scroll hydrata viewport | ~5-8h |
-| **E** | `style.height/paddingLeft` inline → CSS classes/data attrs com `transform: translateY` | Reduz cost individual do Recalculate Style | ~2-3h |
+| **A** | Yield UI entre chunks no hydrator (`await new Promise(r => setTimeout(r, 0))` antes de cada chunk no `populateMissingMarkerTextsForFile`) | UI percepção: ganho marginal — interação já funcionava antes (frames longas no profile ≠ UI travada). Custo: ~800ms adicional (200 chunks × ~4ms clamping). Mantido como defensiva | ✅ FEITO 2026-05-08 (commit 611a99b) |
+| **B** | `chunkSize=1000` → `chunkSize=10_000` (10× menos round-trips) + paralelizar queries por column dentro de `batchGetMarkerText` via `Promise.all` | **Medido: ~30s → ~13s (2.3× mais rápido)** no pathological 200k markers × 5 cols, M1 8GB | ✅ FEITO 2026-05-08 (commit c3e6a10) |
+| **C** | Code Explorer atualiza apenas labels mudados em vez de rebuild full no `onChange` (DOM diff cirúrgico via `markerId` lookup) | Elimina N × 2.4 s de Recalculate Style cumulativo (sem repro de N depois de B; possivelmente menos relevante agora) | Pendente |
+| **D** | Hidratação lazy por viewport — só hidrata markers visíveis na lista do Code Explorer | Solução arquitetural: load inicial fica imediato, on-scroll hydrata viewport | Pendente |
+| **E** | `style.height/paddingLeft` inline → CSS classes/data attrs com `transform: translateY` | Reduz cost individual do Recalculate Style | Pendente |
 
-**Recomendação se atacar:** combinação **A + C** é o melhor ROI — UI imediatamente responsiva + elimina N rebuilds redundantes. Total estimado: ~4-6h.
-
-**Não atacado neste slice.** Sem repro em vault de user real ainda — pathological é cenário sintético. Decisão de quando atacar fica pendente: provavelmente quando aparecer um vault cliente real desse tamanho, OU quando alguém reclamar de UX lenta em vault menor (limite onde começa a doer).
+**Estado pós A+B:** ~13s no pathological 200k markers. UX aceitável pra cenário sintético extremo. Vault de user real precisaria ser pelo menos desse tamanho pra reclamar — sem repro real ainda. Decisão de atacar C/D/E fica pendente até aparecer demanda concreta.
 
 **Localização do código:**
 - `src/csv/markerPreviewHydrator.ts:144-192` — `runLazyBatch` + invocação do `populateMissingMarkerTextsForFile`
