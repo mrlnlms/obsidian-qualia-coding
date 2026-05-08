@@ -1,11 +1,11 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-04 (Q-mode frente #1 fechada — Files Dendrogram + File Similarity + cluster drill-down).
+> Última atualização: 2026-05-08 (Code Explorer perf + Export multi-file fallback + Tabular virtual cols).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
-**Versão:** 0.3.0 (2026-05-05, tag pushed, GitHub Release automático via `.github/workflows/release.yml`). Smart Codes Tier 3 + Phase 2 fechado. Checklist de testes manuais da Fase 6 em `plugin-docs/archive/claude_sources/plans/20260504-manual-tests-fase-6.md` (workspace externo).
+**Versão:** 0.4.0 (2026-05-07, tag pushed). Tabular virtual cols (persist + filter + comment + export) + Sidebar markerText hydrator. **Próximo release esperado:** 0.4.1 (patch — Code Explorer perf 30s→13s + Export Parquet multi-file fallback + modal info dinâmica). Commits no main aguardando bump de versão. Checklist de testes manuais da Fase 6 em `plugin-docs/archive/claude_sources/plans/20260504-manual-tests-fase-6.md` (workspace externo).
 
 **Infra que a Fase 6 estabeleceu (não é só "abrir parquet grande"):**
 - DuckDB-Wasm + Worker + Blob URLs → reusável pra LLM provider (Ollama/OpenAI/Anthropic) e Whisper transcription

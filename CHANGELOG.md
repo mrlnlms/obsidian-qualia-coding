@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Export Parquet enriquecido — multi-file fallback automático** — quando o single-file COPY estoura OOM no DuckDB-Wasm worker (cap 4 GB wasm32), o wrapper detecta via regex (`/Out of Memory|Allocation failure|memory access out of bounds/i`) e ativa automaticamente caminho multi-file: `<base>.qualia-enriched/part-NNN.parquet`, chunks de 500k source rows escritos direto no vault e dropados do virtual fs entre cada chunk (worker peak ~1.5 GB stable em vez de estourar). Decisão dinâmica em runtime — máquina-agnóstico, sem hardcode de teto por classe de hardware. Notice de fallback inclui inline o comando pra ler o dataset (`read_parquet('dir/*.parquet')` ou `pd.read_parquet('dir/')`).
+- **Export modal — info dinâmica de carga estimada** — quando format = "Parquet enriquecido", mostra `Estimated load: X markers, Y MB of comment text, Z virtual columns enabled` + behavior expectation `Output: <name>.qualia-enriched.parquet (single file). Auto-fallback to <name>.qualia-enriched/ folder with parts if memory limit hit on this machine.` Descritivo, não preditivo — sistema reage ao runtime, modal só dá visibilidade do peso.
+- **Stress test seed gerador** — `scripts/seed-stress-export.mjs` parametrizado via `--scenario=baseline|long-comments|many-codes|pathological|between-1|between-2`. Mocka markers + codes synth direto no `data.json` (sem passar pelo UI), com backup automático antes de mutar. Reproduz cenários de stress do export enriquecido em parquet target. Tabela de teto empírico na M1 8GB documentada no BACKLOG.
+
+### Performance
+
+- **Code Explorer build latency em vault com muitos markers — `~30 s → ~13 s` (2.3× mais rápido)** — diagnóstico via DevTools profile (2026-05-08) identificou cadeia: `populateMissingMarkerTextsForFile` fazia 200 chunks × ~5 cols sequenciais = ~1000 round-trips DuckDB-Wasm × ~20-30 ms cada (postMessage saturava microtask queue). Aplicadas 3 mitigações:
+  - Yield UI entre chunks (`await new Promise(r => setTimeout(r, 0))`) — paint cycle livre durante hidratação. Custo: ~800 ms adicional num pathological 200k markers.
+  - `chunkSize=1000` → `chunkSize=10_000` (10× menos round-trips) + paralelização das queries por column dentro de `batchGetMarkerText` via `Promise.all`. Worker DuckDB-Wasm é single-threaded (sem pthread), mas postMessage paralelo elimina idle entre awaits.
+  - Inline `style.paddingLeft`/`style.height`/`style.position` (per code, per file group, per virtual list row) → classes + CSS vars (`.qc-explorer-code-self`, `.qc-explorer-list`, `.qc-vlist-row` com `--qc-depth`/`--qc-list-height`/`--qc-row-top`). Reduz Recalculate Style cumulative.
+
+### Documentation
+
+- BACKLOG: tabela de teto empírico do export enriquecido na M1 8GB (single-file aguenta até ~150k markers + ~54 MB comments + 12 vcols; multi-file fallback aguenta tudo). Em máquinas maiores o teto será mais alto — fallback automático cobre seja qual for.
+- Spec `tabular-virtual-cols-design` movida pro workspace externo (`obsidian-qualia-coding/plugin-docs/archive/claude_sources/specs/`) — convenção: spec preservada como snapshot do raciocínio pré-implementação; ARCHITECTURE/CHANGELOG/commits viram source of truth.
+
 ## [0.4.0] — 2026-05-07 — Pre-alpha
 
 Tabular virtual cols viram cidadãs de primeira em parquet/CSV lazy: persistem visibility, ganham filter UI server-side via DuckDB e exportam como Parquet enriquecido (cols originais + `<col>__codes_frow`/`__codes_seg`/`__comment` joined single-pass). Sidebar passa a previewar markerText pra arquivos lazy não hidratados via background hydrator (cobre cold start de vault migrado). Misc fixes em race conditions OPFS/inflight, virtual list timing e label whitespace-only. PDF undo stack removido pra eliminar inconsistência cross-engine.
