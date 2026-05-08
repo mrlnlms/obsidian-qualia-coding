@@ -201,25 +201,59 @@ Antes de chegar no design final, foi implementado e descartado **chunked export 
 
 **Sintoma observado (2026-05-07, MacBook Pro M1 8 GB):** com `data.json` de 320 MB (200k markers + 200 codes + 228 MB comments synth do cenário pathological do stress test de export enriched):
 - Vault load do Obsidian + plugin `onload` + `JSON.parse` do data.json = **rápido, sem latência perceptível**.
-- Disparar comando `Code Explorer: open` via command palette → **~30 s** pra montar a UI (lista hierárquica de codes + counts).
-- RAM Renderer estabiliza em ~3.95 GB pós-load do Code Explorer; abrir Code Detail dispara pico transitório a ~5 GB.
+- Disparar comando `Code Explorer: open` via command palette → **~30 s** pra UI estabilizar (lista hierárquica + labels populados).
+- Profile DevTools (2026-05-08) total 48 s, distribuição: Scripting 3.3 s + Rendering 3.4 s + Painting 0.2 s + System 1.1 s + **Idle 40.1 s** (main thread esperando worker DuckDB).
 
-Ou seja: **o gargalo não é parsing — é processamento síncrono no build da view**.
+**Diagnóstico (com profile via DevTools Performance):**
 
-**Hipóteses do gargalo (não diagnosticado em profundidade ainda):**
-- Scan dos 200k markers pra construir `countIndex` em `hierarchyHelpers.ts` (markers per code, agregação direta + transitiva pelos parents) — O(N markers × profundidade tree)
-- `buildFlatTree` montando estrutura linear pra render virtual list
-- `markerPreviewHydrator.requestHydration` disparado em batch pra todos os files com markers (mesmo que assíncrono em background, contende main thread)
-- Re-renders do React/DOM em cascata conforme registry/cache emitem onChange durante a montagem inicial
+Cadeia identificada em `BaseCodeExplorerView.buildCodeIndex` linha 215:
 
-**Impacto real:** se um vault chegar a ~200k markers + comments longos, abrir Code Explorer vira 30+ s travados (UI bloqueada). Numa máquina 8 GB com Memory Pressure verde é viável; em pressure já amarelo pode triturar swap.
+```
+buildCodeIndex()
+  → markerPreviewHydrator.requestHydration(fileId)  [background promise]
+    → runLazyBatch() → populateMissingMarkerTextsForFile()
+      ↓ chunkSize=1000, 200k markers = 200 chunks
+      for cada chunk: await provider.batchGetMarkerText(refs)
+        ↓ markers em 5 colunas × 200 chunks = ~1000 queries DuckDB-Wasm sequenciais
+        await trackedQuery(...) — postMessage round-trip ~30-40 ms cada
+        TOTAL: ~25-35 s
+```
 
-**Não atacado neste slice.** Item separado do export enriched. Investigação primeiro (perfilar o que de fato consome 30 s — `performance.mark`/`measure` em torno do `buildFlatTree` + countIndex + hydrator dispatch); estratégias possíveis depois:
-- countIndex incremental (atualizado por `onMarkerMutation` cirurgicamente, não rebuild full)
-- markerPreviewHydrator dispatch com debounce/yield pra liberar main thread
-- Code Explorer com lista virtualizada que computa counts on-demand por viewport visível
+**Bottom-Up top ofensores (Self Time):**
 
-Sem repro em vault de user real ainda. Decisão de quando atacar fica pendente — provavelmente quando aparecer um vault cliente que de fato chegue nesse tamanho, OU quando alguém reclamar de UX lenta em vault menor (limite onde isso começa a doer).
+| % | Activity | Análise |
+|---|---|---|
+| 33.1% (2.4 s) | **Recalculate Style** | rebuild repetido do DOM do Code Explorer (Nx por file hidratado), inline styles (`style.height`, `style.paddingLeft`) cascateando reflow |
+| 8.1% (588 ms) | Hit Test | scroll/mouse resolution durante rebuilds |
+| 4.7% (339 ms) | `populateMissingMarkerTextsForFile` self time | overhead do main thread orquestrando os 200 awaits |
+| 4.5% (328 ms) | CPP GC | pressão de GC alta durante o ciclo de allocations |
+| 1.6% (119 ms) | `getAllMarkers` | spread de 200k arrays em cada `getMarkersForFile` |
+| 1.2% (85 ms) | `buildCodeIndex` self | **NÃO é o vilão** |
+
+Frames de **3-9 segundos sem paint** (frame view) — UI percebida como travada. Causa: microtask queue saturada pelo loop de awaits sequenciais ocupa o event loop sem janela pra paint cycle.
+
+**Agravante secundário:** quando cada file termina hidratação, `scheduleNotify` dispara `model.onChange` → `Code Explorer.scheduleRefresh` → **rebuild completo** do `renderTree` (200 codes × 200 virtual lists × DOM destruir+recriar). Isso explica os 2.4 s de Recalculate Style multiplicados pelo número de files no vault.
+
+**Mitigações possíveis (não decidir agora — registrar pra atacar quando atacarmos):**
+
+| # | Estratégia | Impacto esperado | Esforço estimado |
+|---|---|---|---|
+| **A** | Yield UI entre chunks no hydrator (`await new Promise(r => setTimeout(r, 0))` ou `requestIdleCallback`) entre cada chunk no `populateMissingMarkerTextsForFile` | UI imediatamente responsiva, mesma duração total absoluta — só elimina percepção de trava | ~1h |
+| **B** | `chunkSize=1000` → `chunkSize=10000` ou paralelizar queries via `Promise.all([...])` em vez de await sequencial | Reduz overhead postMessage; potencialmente 2-5× mais rápido em duração total | ~1-2h |
+| **C** | Code Explorer atualiza apenas labels mudados em vez de rebuild full no `onChange` (DOM diff cirúrgico via `markerId` lookup) | Elimina N × 2.4 s de Recalculate Style — UI fica fluida durante hidratação | ~3-5h |
+| **D** | Hidratação lazy por viewport — só hidrata markers visíveis na lista do Code Explorer | Solução arquitetural: load inicial fica imediato, on-scroll hydrata viewport | ~5-8h |
+| **E** | `style.height/paddingLeft` inline → CSS classes/data attrs com `transform: translateY` | Reduz cost individual do Recalculate Style | ~2-3h |
+
+**Recomendação se atacar:** combinação **A + C** é o melhor ROI — UI imediatamente responsiva + elimina N rebuilds redundantes. Total estimado: ~4-6h.
+
+**Não atacado neste slice.** Sem repro em vault de user real ainda — pathological é cenário sintético. Decisão de quando atacar fica pendente: provavelmente quando aparecer um vault cliente real desse tamanho, OU quando alguém reclamar de UX lenta em vault menor (limite onde começa a doer).
+
+**Localização do código:**
+- `src/csv/markerPreviewHydrator.ts:144-192` — `runLazyBatch` + invocação do `populateMissingMarkerTextsForFile`
+- `src/csv/csvCodingModel.ts:643-675` — `populateMissingMarkerTextsForFile` (loop de chunks com await sequencial)
+- `src/csv/duckdb/duckdbRowProvider.ts:145-179` — `batchGetMarkerText` (1 query por column do batch)
+- `src/core/baseCodeExplorerView.ts:215` — dispatch do `requestHydration` per-file no `buildCodeIndex`
+- `src/core/baseCodeExplorerView.ts:328-450` — `renderTree` (rebuild full do DOM no `scheduleRefresh`)
 
 ### ~~Spec rev1 da feature tabular-virtual-cols~~ ✅ ARQUIVADA (2026-05-07)
 
