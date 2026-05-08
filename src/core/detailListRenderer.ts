@@ -68,7 +68,7 @@ export function renderListShell(
 	renderCodebookToolbar(container, model, callbacks);
 
 	if (codes.length === 0) {
-		container.createEl('p', { text: 'No codes yet.', cls: 'codemarker-detail-empty' });
+		container.createEl('p', { text: 'No codes yet. Use the + button below to create your first code.', cls: 'codemarker-detail-empty' });
 		return { listSearchWrap: null, listContentZone: null, cleanup: () => {}, updateHeaderCount };
 	}
 

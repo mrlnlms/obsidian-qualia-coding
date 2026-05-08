@@ -136,7 +136,7 @@ export abstract class BaseCodeExplorerView extends ItemView {
 				return;
 			}
 			this.hydratorStatusEl.style.display = '';
-			this.hydratorStatusEl.setText(`Hidratando previews… ${s.completedCount}/${s.totalSeen}`);
+			this.hydratorStatusEl.setText(`Hydrating previews… ${s.completedCount}/${s.totalSeen}`);
 		});
 	}
 

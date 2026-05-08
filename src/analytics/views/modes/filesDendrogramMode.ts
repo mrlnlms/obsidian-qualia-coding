@@ -10,7 +10,10 @@ import {
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import { downloadCsv } from "../shared/chartHelpers";
 
-const N_FILES_WARN_THRESHOLD = 200;
+// Hierarchical clustering is O(n²) distance matrix + O(n³) linkage worst case.
+// Lower threshold than file similarity (which is O(n²) only) — at ~150 files
+// agglomerative becomes noticeably laggy on average hardware.
+const N_FILES_WARN_THRESHOLD = 150;
 
 export function renderFilesDendrogramOptionsSection(ctx: AnalyticsViewContext): void {
   const cutSection = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });

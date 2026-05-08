@@ -69,14 +69,6 @@ export class SegmentEditor {
 
 		const header = this.editorPanel.createEl('div');
 		header.className = 'csv-segment-editor-header';
-		header.style.display = 'flex';
-		header.style.alignItems = 'center';
-		header.style.justifyContent = 'space-between';
-		header.style.padding = '4px 12px';
-		header.style.fontSize = '12px';
-		header.style.color = 'var(--text-muted)';
-		header.style.backgroundColor = 'var(--background-secondary)';
-		header.style.flexShrink = '0';
 
 		header.createSpan({ text: `Row ${sourceRowId + 1} \u00b7 ${column}` });
 

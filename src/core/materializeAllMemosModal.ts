@@ -181,7 +181,7 @@ export class MaterializeAllMemosModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl('h3', { text: 'Done' });
+		contentEl.createEl('h3', { text: 'Materialized' });
 
 		const list = contentEl.createEl('ul', { cls: 'qualia-materialize-results' });
 		const line = (icon: string, text: string, cls = '') => {

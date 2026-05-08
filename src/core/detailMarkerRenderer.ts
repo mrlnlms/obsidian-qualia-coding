@@ -47,7 +47,7 @@ export function renderMarkerDetail(
 
 	const marker = model.getMarkerById(markerId);
 	if (!marker) {
-		container.createEl('p', { text: 'Marker not found.', cls: 'codemarker-detail-empty' });
+		container.createEl('p', { text: 'Marker not found. It may have been deleted from the source file.', cls: 'codemarker-detail-empty' });
 		return;
 	}
 

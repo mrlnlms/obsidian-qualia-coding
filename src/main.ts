@@ -827,7 +827,6 @@ export default class QualiaCodingPlugin extends Plugin {
 			const tQuery = performance.now() - tQ;
 			const rows = result.toArray().map((r) => r.toJSON());
 			const msg = `✅ DuckDB OK · boot ${tBoot.toFixed(0)}ms · query ${tQuery.toFixed(1)}ms · ${JSON.stringify(rows)}`;
-			console.log("[qualia-coding] duckdb smoke", { rows, tBoot, tQuery });
 			new Notice(msg, 8000);
 		} catch (err) {
 			const msg = `❌ DuckDB smoke failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -858,7 +857,6 @@ export default class QualiaCodingPlugin extends Plugin {
 				`SELECT kind, COUNT(*) AS n FROM ${tableName} GROUP BY kind ORDER BY kind`,
 			);
 			const byKindArr = byKind.toArray().map((r) => r.toJSON());
-			console.log(`[qualia-markers-tmp] ${tableName}`, { total: totalN, byKind: byKindArr });
 			new Notice(`✅ ${tableName}: ${totalN} rows · ${byKindArr.map((r: any) => `${r.kind}=${r.n}`).join(', ')}`, 12000);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);

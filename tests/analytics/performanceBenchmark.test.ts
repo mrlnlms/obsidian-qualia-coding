@@ -219,10 +219,11 @@ describe('analytics performance benchmark', () => {
 			});
 
 			it('calculateMCA', async () => {
-				const codes = data.codes.map((c) => c.name);
+				const codeIds = data.codes.map((c) => c.id);
+				const codeNames = data.codes.map((c) => c.name);
 				const colors = data.codes.map((c) => c.color);
 				const filtered = data.markers.filter((m) => filters.sources.includes(m.source));
-				const ms = await benchAsync('mca', async () => { await calculateMCA(filtered, codes, colors); });
+				const ms = await benchAsync('mca', async () => { await calculateMCA(filtered, codeIds, codeNames, colors); });
 				results.push({ scale: scale.label, fn: 'mca', ms });
 				expect(ms).toBeLessThan(scale.maxMs);
 			});

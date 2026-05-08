@@ -9,11 +9,39 @@
 
 ## 🟢 Estado atual
 
-**Nenhum bloqueador aberto.** Single item legado: §11 E3 (limitação de formato, won't-fix documentado).
+Único bloqueador legado: §11 E3 (limitação de formato, won't-fix documentado). Polish ativo abaixo.
 
 ### 🔍 Sintomas observados sem repro confiável
 
 Quando aparecer, capturar `data.json` + screenshot + steps na hora — diagnóstico fica trivial com forensic data. Sem nenhum sintoma aberto no momento.
+
+---
+
+## 🪶 Polish curto
+
+### Filter active indicator perdido em `LazyTextFilter` (regressão 0.4.2)
+
+**Sintoma:** AG Grid `agTextColumnFilter` padrão renderiza um dot/badge roxo no header da coluna quando o filtro está ativo. O custom `LazyTextFilter` (`src/csv/duckdb/lazyTextFilter.ts`, introduzido em 0.4.2 pra eliminar flash branco no refresh) perdeu esse indicador. Usuário não tem feedback visual de quais colunas estão filtradas — quebra usabilidade e quebra consistência com colunas não-lazy.
+
+**Severidade:** média. Não impede usar; impede saber que filtro está ativo.
+
+**Investigar:** AG Grid expõe `isFilterActive(): boolean` no contrato do filter component — ele consome essa flag pra decidir mostrar o indicator no header. Verificar se `LazyTextFilter` implementa `isFilterActive` retornando `true` quando há `filterModel`. Possíveis causas:
+- Método não implementado / sempre retorna `false` → indicator nunca aparece
+- AG Grid Community talvez só rendere indicator built-in pra filters nativos; pode precisar render manual via `headerComponent` custom ou CSS targeting `.ag-header-cell-filter-active`
+
+**Caminho rápido:** se for só `isFilterActive` faltando, fix é uma linha. Se AG Grid não rendera pra custom filter, adicionar pseudo-element CSS via `.ag-header-cell-filtered::after` ou hook no `headerComponentParams`.
+
+### Mecânicos atacáveis (fila — pendentes)
+
+Levantamento de hardening 2026-05-08. **9 itens da rodada inicial fechados em 2026-05-08** (ver BACKLOG-HISTORY). Os 3 abaixo precisam de refactor maior do que "leve" — saíram da fila atacável.
+
+| # | Path:linha | Por que não foi atacado em 1 sessão | Tamanho real |
+|---|------------|--------------------------------------|--------------|
+| 1 | `src/analytics/data/codeMetadata.ts:155` | Detectar tautologia exige walk recursivo no `PredicateNode` (kinds AND/OR/NOT + 10 leaf types) pra checar se `caseVarEquals` referencia a `variableName` sendo plotada. Sem isso, banner ou é genérico demais (qualquer SC dispara) ou não dispara nos casos certos. | refactor (1-2h) |
+| 2 | `src/analytics/views/modes/dendrogramMode.ts:20-28` | Computar K em real-time durante drag do slider exige rodar clustering (Jaccard matrix + linkage) síncrono — caro em codebooks grandes. Mostrar count "post-render" exigiria armazenar último resultado em `ctx`, fora do escopo de UI patch. | refactor leve (30-60min) |
+| 3 | `src/analytics/views/modes/cooccurrenceMode.ts:82-100` | `reorderCooccurrence` é função síncrona dentro de render flow. Tornar async muda contrato dos callers + propaga `await`. Notice + `setTimeout(0)` exige refactor pra função async. | refactor (45-90min) |
+
+**Padrão raiz comum aos 3:** todos exigem refactor além do trivial — não cabem em "1 string isolada" ou "1 condicional defensivo". Atacar quando o hardening real rodar (pós-ICR), provavelmente como parte do componente shared `<EmptyState>`/`<LoadingState>`/`<ErrorState>` que resolve cluster maior do levantamento.
 
 ---
 

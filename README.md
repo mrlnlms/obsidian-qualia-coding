@@ -154,7 +154,6 @@ Once approved, **Settings → Community plugins → Browse → Qualia Coding →
 
 ## In development
 
-- **Intercoder reliability** — Cohen's kappa and Krippendorff's alpha to measure agreement between multiple coders on the same dataset. Required by peer reviewers in academic publishing, and a prerequisite for collaborative coding workflows in Qualia.
 - **LLM-assisted coding** — under product design. 40 tools and 5 patterns surveyed (`docs/_study/llm-coding/`); local-first stance and review granularity decisions pending before implementation begins.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full feature roadmap.

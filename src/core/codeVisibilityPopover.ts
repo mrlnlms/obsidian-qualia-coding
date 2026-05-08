@@ -22,10 +22,10 @@ export function renderCodeVisibilityPopoverBody(
 	container.addClass('qc-visibility-popover-body');
 
 	const header = container.createDiv({ cls: 'qc-visibility-header' });
-	header.createSpan({ text: 'Códigos neste documento' });
+	header.createSpan({ text: 'Codes in this document' });
 
 	if (codesInFile.length === 0) {
-		container.createDiv({ cls: 'qc-visibility-empty', text: 'Nenhum código aplicado neste doc.' });
+		container.createDiv({ cls: 'qc-visibility-empty', text: 'No codes applied in this document.' });
 		return;
 	}
 

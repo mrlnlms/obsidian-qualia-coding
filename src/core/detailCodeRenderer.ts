@@ -190,7 +190,7 @@ export function renderCodeDetail(
 		: [];
 
 	if (allMarkers.length === 0) {
-		container.createEl('p', { text: 'No segments yet.', cls: 'codemarker-detail-empty' });
+		container.createEl('p', { text: 'No segments yet. Apply this code to a text selection, region, or cell to create one.', cls: 'codemarker-detail-empty' });
 		if (def) {
 			renderAuditSection(container, def);
 			renderHistorySection(container, def, callbacks);

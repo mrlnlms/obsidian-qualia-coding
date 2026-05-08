@@ -336,7 +336,7 @@ function formatCellValue(v: number, display: AnalyticsViewContext["cmDisplay"]):
 }
 
 function truncateLabel(s: string, maxChars: number): string {
-  return s.length <= maxChars ? s : s.slice(0, maxChars - 1) + "…";
+  return s.length <= maxChars ? s : s.slice(0, maxChars - 1) + "...";
 }
 
 export function renderCodeMetadataOptionsSection(ctx: AnalyticsViewContext): void {

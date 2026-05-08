@@ -231,8 +231,14 @@ export class ImageCodingView extends FileView {
 		if (!shape) return;
 
 		const bound = shape.getBoundingRect();
-		const x = bound.left + bound.width / 2;
-		const y = bound.top + bound.height + 8;
+		const rawX = bound.left + bound.width / 2;
+		const rawY = bound.top + bound.height + 8;
+		// Clamp to viewport so menu doesn't open offscreen when shape sits at bottom/right edge.
+		// Rough menu size estimate — popover repositions itself if it has its own bounds logic.
+		const ESTIMATED_MENU_W = 280;
+		const ESTIMATED_MENU_H = 320;
+		const x = Math.max(8, Math.min(rawX, window.innerWidth - ESTIMATED_MENU_W));
+		const y = Math.max(8, Math.min(rawY, window.innerHeight - ESTIMATED_MENU_H));
 
 		this.codingMenu?.open(markerId, x, y);
 	}

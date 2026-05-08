@@ -93,11 +93,14 @@ export function createToolbar(
 
     // Mode shortcuts from catalog
     for (const spec of DRAW_TOOL_BUTTONS) {
-      if (e.key.toLowerCase() === spec.shortcut.toLowerCase() && ['select', 'rect', 'ellipse', 'freeform'].includes(spec.mode)) {
-        toolbarState.activeMode = spec.mode;
-        toolbarState.onModeChange?.(spec.mode);
-        drawHandle.setActiveMode(spec.mode);
-        return;
+      if (e.key.toLowerCase() === spec.shortcut.toLowerCase()) {
+        if (['select', 'rect', 'ellipse', 'freeform'].includes(spec.mode)) {
+          toolbarState.activeMode = spec.mode;
+          toolbarState.onModeChange?.(spec.mode);
+          drawHandle.setActiveMode(spec.mode);
+          return;
+        }
+        console.warn(`[image-toolbar] shortcut '${spec.shortcut}' triggered for unsupported mode '${spec.mode}'`);
       }
     }
 

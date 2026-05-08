@@ -712,7 +712,7 @@ export class CsvCodingModel {
 		if (text != null) {
 			const trimmed = text.trim();
 			if (trimmed.length > 0) {
-				return trimmed.length > 60 ? trimmed.slice(0, 60) + '…' : trimmed;
+				return trimmed.length > 60 ? trimmed.slice(0, 60) + '...' : trimmed;
 			}
 		}
 		const isSegment = 'from' in marker;

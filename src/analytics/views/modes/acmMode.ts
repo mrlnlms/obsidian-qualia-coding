@@ -3,7 +3,7 @@ import { Notice } from "obsidian";
 import type { FilterConfig, UnifiedMarker } from "../../data/dataTypes";
 import { calculateMCA, type MCAResult } from "../../data/mcaEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { downloadCsv } from "../shared/chartHelpers";
+import { downloadCsv, SOURCE_COLORS } from "../shared/chartHelpers";
 
 export function renderACMOptionsSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -90,7 +90,7 @@ async function loadAndRenderACM(
   if (!result) {
     ctx.chartContainer.createDiv({
       cls: "codemarker-analytics-empty",
-      text: "Insufficient data for MCA (need \u22652 active codes with \u22652 markers).",
+      text: `Insufficient data for MCA: have ${markers.length} markers and ${codeIds.length} active codes. Need \u22652 markers and \u22652 codes that co-occur.`,
     });
     return;
   }
@@ -131,15 +131,7 @@ async function renderACMChart(ctx: AnalyticsViewContext, result: MCAResult): Pro
 
   // Marker points (smaller, semi-transparent)
   if (ctx.acmShowMarkers && result.markerPoints.length > 0) {
-    const sourceColors: Record<string, string> = {
-      markdown: "#42A5F5",
-      "csv-segment": "#66BB6A",
-      "csv-row": "#81C784",
-      image: "#FFA726",
-      pdf: "#EF5350",
-      audio: "#AB47BC",
-      video: "#7E57C2",
-    };
+    const sourceColors = SOURCE_COLORS;
     datasets.push({
       label: "Markers",
       data: result.markerPoints.map((p) => ({ x: p.x, y: p.y })),

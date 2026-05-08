@@ -294,8 +294,8 @@ describe('getMarkerLabel', () => {
 		const longText = 'A'.repeat(120);
 		model.rowDataCache.set('f.csv', [{ comment: longText } as any]);
 		const label = model.getMarkerLabel(row);
-		expect(label.length).toBe(61);
-		expect(label.endsWith('…')).toBe(true);
+		expect(label.length).toBe(63);
+		expect(label.endsWith('...')).toBe(true);
 	});
 
 	it('falls back to coordinate when cell content is whitespace-only', () => {

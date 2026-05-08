@@ -140,7 +140,7 @@ export function renderDendrogramFull(opts: DendrogramFullOptions): DendrogramRen
     }
     canvasCtx.fillStyle = textColor;
     const rawLabel = leaf.label ?? "";
-    const label = rawLabel.length > 16 ? rawLabel.slice(0, 15) + "…" : rawLabel;
+    const label = rawLabel.length > 16 ? rawLabel.slice(0, 15) + "..." : rawLabel;
     canvasCtx.fillText(label, labelWidth - 22, y);
   }
 

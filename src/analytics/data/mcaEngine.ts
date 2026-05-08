@@ -149,7 +149,12 @@ export async function calculateMCA(
   const totalInertia = eigenvalues.reduce((a: number, b: number) => a + b, 0);
 
   // Find first 2 non-trivial dimensions (eigenvalue > epsilon).
-  // In MCA the first SVD dimension can be trivial (eigenvalue ≈ 0).
+  // In MCA the first SVD dimension is often trivial (eigenvalue ≈ 0) because
+  // the row/column profile centering forces a degenerate dimension that just
+  // separates marginal masses. Standard practice is to skip it. The 1e-10
+  // threshold is conservative for double-precision SVD; if the codebook is
+  // pathological (e.g. <2 markers, all codes co-occurring on the same marker)
+  // fewer than 2 non-trivial dims may exist — caller returns null.
   const TRIVIAL_THRESHOLD = 1e-10;
   const dimIndices: number[] = [];
   for (let k = 0; k < q.length && dimIndices.length < 2; k++) {

@@ -57,9 +57,10 @@ export function getMarkerLabel(marker: BaseMarker, mdModel: CodeMarkerModel | nu
 	}
 	if (isImageMarker(marker)) {
 		// Adapter view fornece shapeLabel computado; engine raw (SC cache) tem só `shape`. Fallback inline.
+		// Formato alinhado com PDF (`Page N`) / CSV (`Row N · column`): tipo capitalized sucinto.
 		if (marker.shapeLabel) return marker.shapeLabel;
 		const shape = (marker as { shape?: string }).shape;
-		return shape ? `${shape.charAt(0).toUpperCase()}${shape.slice(1)} region` : 'Image region';
+		return shape ? `${shape.charAt(0).toUpperCase()}${shape.slice(1)}` : 'Region';
 	}
 	if (isCsvMarker(marker)) {
 		const preview = previewText(marker.markerText, maxLength);

@@ -332,7 +332,7 @@ export class QualiaSettingTab extends PluginSettingTab {
 							new Notice(`Cleared cache for ${entry.originalPath}`);
 							await renderCacheList();
 						} catch (err) {
-							new Notice(`Clear failed: ${(err as Error).message}`);
+							new Notice(`Failed to clear cache for ${entry.originalPath}: ${(err as Error).message}`);
 						}
 					}));
 			}

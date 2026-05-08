@@ -42,7 +42,10 @@ export class RegionLabels {
     }
 
     const text = marker.codes.map(c => this.model.registry.getById(c.codeId)?.name ?? c.codeId).join(", ");
-    const color = this.model.registry.getColorForCodeIds(getCodeIds(marker.codes)) || "#6200EE";
+    // Fallback color (when none of the applied codes have a registry color):
+    // mid gray works in both light and dark themes. Fabric.js cannot consume CSS vars,
+    // so a literal value is required.
+    const color = this.model.registry.getColorForCodeIds(getCodeIds(marker.codes)) || "#888";
 
     let label = this.labels.get(markerId);
     if (label) {

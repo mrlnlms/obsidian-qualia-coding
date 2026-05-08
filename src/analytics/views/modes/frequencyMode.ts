@@ -3,7 +3,7 @@ import { setIcon, Notice } from "obsidian";
 import type { FilterConfig, FrequencyResult } from "../../data/dataTypes";
 import { calculateFrequency } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
-import { generateFileColors , downloadCsv } from "../shared/chartHelpers";
+import { generateFileColors , downloadCsv, SOURCE_COLORS } from "../shared/chartHelpers";
 
 export function renderSortSection(ctx: AnalyticsViewContext): void {
   const section = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
@@ -123,7 +123,7 @@ async function renderBarChart(ctx: AnalyticsViewContext, results: FrequencyResul
       {
         label: "Markdown",
         data: results.map((r) => r.bySource.markdown),
-        backgroundColor: "#42A5F5",
+        backgroundColor: SOURCE_COLORS.markdown,
       },
       {
         label: "CSV Segment",

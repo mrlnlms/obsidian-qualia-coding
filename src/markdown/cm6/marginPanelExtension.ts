@@ -507,7 +507,6 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 				el.style.width = 'auto';
 				el.style.maxWidth = `${leftmostBarEdge - PANEL_LEFT_MARGIN}px`;
 				el.style.color = label.color;
-				el.style.fontSize = '11px';
 				el.style.lineHeight = `${LABEL_HEIGHT}px`;
 				el.style.whiteSpace = 'nowrap';
 				el.style.textAlign = 'right';

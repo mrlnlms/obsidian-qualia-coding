@@ -46,7 +46,7 @@ export function createDrawToolbar(
     const btn = document.createElement('div');
     btn.className = 'clickable-icon';
     setIcon(btn, spec.icon);
-    setTooltip(btn, `${spec.tooltip} (${spec.shortcut})`);
+    setTooltip(btn, spec.shortcut ? `${spec.tooltip} (${spec.shortcut})` : spec.tooltip);
     btn.setAttribute('aria-label', spec.tooltip);
 
     btn.addEventListener('click', (e) => {
