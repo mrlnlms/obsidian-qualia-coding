@@ -8,6 +8,7 @@
 import type { Marker } from '../../markdown/models/codeMarkerModel';
 import type { PdfMarker } from '../../pdf/pdfCodingTypes';
 import type { SegmentMarker } from '../../csv/csvCodingTypes';
+import type { MediaMarker } from '../../media/mediaTypes';
 
 export interface TextRange {
 	fileId: string;
@@ -35,6 +36,18 @@ export function extractCsvSegmentRange(m: SegmentMarker): TextRange {
 		locator: `row:${m.sourceRowId}|col:${m.column}`,
 		from: m.from,
 		to: m.to,
+	};
+}
+
+/** Áudio/vídeo — overlap temporal em segundos. Math.floor/ceil arredonda
+ *  pra inteiros (resolução 1s, alinhado com ATLAS.ti 25). Conservador:
+ *  cobre todo segmento parcial. */
+export function extractMediaRange(m: MediaMarker): TextRange {
+	return {
+		fileId: m.fileId,
+		locator: m.markerType,
+		from: Math.floor(m.from),
+		to: Math.ceil(m.to),
 	};
 }
 

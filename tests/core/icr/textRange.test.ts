@@ -3,10 +3,12 @@ import {
 	extractMarkdownRange,
 	extractPdfRange,
 	extractCsvSegmentRange,
+	extractMediaRange,
 } from '../../../src/core/icr/textRange';
 import type { Marker } from '../../../src/markdown/models/codeMarkerModel';
 import type { PdfMarker } from '../../../src/pdf/pdfCodingTypes';
 import type { SegmentMarker } from '../../../src/csv/csvCodingTypes';
+import type { MediaMarker } from '../../../src/media/mediaTypes';
 
 const baseMd = (overrides: Partial<Marker> = {}): Marker => ({
 	markerType: 'markdown',
@@ -91,5 +93,41 @@ describe('extractCsvSegmentRange', () => {
 		expect(r.locator).toBe('row:5|col:response');
 		expect(r.from).toBe(12);
 		expect(r.to).toBe(20);
+	});
+});
+
+describe('extractMediaRange', () => {
+	it('rounds from/to to integer seconds (floor/ceil) — audio', () => {
+		const m: MediaMarker = {
+			markerType: 'audio', id: 'm1', fileId: 'audio.mp3',
+			from: 12.3, to: 18.7,
+			codes: [], createdAt: 1, updatedAt: 1,
+		};
+		const r = extractMediaRange(m);
+		expect(r.fileId).toBe('audio.mp3');
+		expect(r.locator).toBe('audio');
+		expect(r.from).toBe(12);
+		expect(r.to).toBe(19);
+	});
+
+	it('uses video locator pra video markers', () => {
+		const m: MediaMarker = {
+			markerType: 'video', id: 'm2', fileId: 'video.mp4',
+			from: 5.0, to: 10.0, codes: [], createdAt: 1, updatedAt: 1,
+		};
+		const r = extractMediaRange(m);
+		expect(r.locator).toBe('video');
+		expect(r.from).toBe(5);
+		expect(r.to).toBe(10);
+	});
+
+	it('handles fractional seconds < 1', () => {
+		const m: MediaMarker = {
+			markerType: 'audio', id: 'm3', fileId: 'a.mp3',
+			from: 0.1, to: 0.9, codes: [], createdAt: 1, updatedAt: 1,
+		};
+		const r = extractMediaRange(m);
+		expect(r.from).toBe(0);
+		expect(r.to).toBe(1);
 	});
 });

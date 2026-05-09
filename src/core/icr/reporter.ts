@@ -16,7 +16,11 @@ import { krippendorffAlphaNominal } from './coefficients/krippendorffAlpha';
 import { alphaBinary } from './coefficients/alphaBinary';
 import { cuAlpha } from './coefficients/cuAlpha';
 
-export type EngineId = 'markdown' | 'pdf' | 'csvSegment';
+export type EngineId = 'markdown' | 'pdf' | 'csvSegment' | 'csvRow' | 'audio' | 'video';
+
+const TEXT_LIKE_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment'];
+const TEMPORAL_ENGINES: EngineId[] = ['audio', 'video'];
+const CATEGORICAL_ENGINES: EngineId[] = ['csvRow'];
 
 export interface EngineKappaInput {
 	engine: EngineId;
@@ -35,6 +39,8 @@ export interface KappaReport {
 	byEngine: Partial<Record<EngineId, CoefficientReport>>;
 	aggregate: CoefficientReport;
 	weights: Partial<Record<EngineId, number>>;
+	/** Warnings sobre o aggregate — emitido quando engines com unidades incomparáveis entram juntos. */
+	aggregateWarnings: string[];
 }
 
 export function reportKappa(inputs: EngineKappaInput[]): KappaReport {
@@ -45,7 +51,23 @@ export function reportKappa(inputs: EngineKappaInput[]): KappaReport {
 		weights[engine] = kappaInput.markers.length;
 	}
 	const aggregate = aggregateReports(byEngine, weights);
-	return { byEngine, aggregate, weights };
+
+	// Aggregate warning quando misturar unidades incomparáveis (chars/segundos/categorical)
+	const aggregateWarnings: string[] = [];
+	const presentEngines = Object.keys(byEngine) as EngineId[];
+	const unitFamilies = new Set<string>();
+	for (const e of presentEngines) {
+		if (TEXT_LIKE_ENGINES.includes(e)) unitFamilies.add('chars');
+		if (TEMPORAL_ENGINES.includes(e)) unitFamilies.add('seconds');
+		if (CATEGORICAL_ENGINES.includes(e)) unitFamilies.add('categorical');
+	}
+	if (unitFamilies.size > 1) {
+		aggregateWarnings.push(
+			'Aggregate combines engines with incomparable units (chars vs seconds vs categorical) — use per-engine values for analytical comparison',
+		);
+	}
+
+	return { byEngine, aggregate, weights, aggregateWarnings };
 }
 
 function computeAll(input: KappaInput): CoefficientReport {

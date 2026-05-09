@@ -81,4 +81,51 @@ describe('reportKappa', () => {
 		const r = reportKappa(inputs);
 		expect(r.aggregate.fleissKappa).toBe(1);
 	});
+
+	it('emits aggregateWarning when mixing chars + seconds engines', () => {
+		const inputs: EngineKappaInput[] = [
+			{
+				engine: 'markdown',
+				kappaInput: {
+					markers: [{ coderId: 'a', range: { fileId: 'f.md', locator: '', from: 0, to: 5 }, codeIds: ['c1'] }],
+					sources: [{ fileId: 'f.md', locator: '', totalUnits: 100 }],
+					coders: ['a'],
+				},
+			},
+			{
+				engine: 'audio',
+				kappaInput: {
+					markers: [{ coderId: 'a', range: { fileId: 'f.mp3', locator: 'audio', from: 0, to: 5 }, codeIds: ['c1'] }],
+					sources: [{ fileId: 'f.mp3', locator: 'audio', totalUnits: 60 }],
+					coders: ['a'],
+				},
+			},
+		];
+		const r = reportKappa(inputs);
+		expect(r.aggregateWarnings.length).toBeGreaterThan(0);
+		expect(r.aggregateWarnings[0]).toContain('incomparable units');
+	});
+
+	it('does NOT emit aggregateWarning when only same-unit-family engines', () => {
+		const inputs: EngineKappaInput[] = [
+			{
+				engine: 'markdown',
+				kappaInput: {
+					markers: [{ coderId: 'a', range: { fileId: 'f.md', locator: '', from: 0, to: 5 }, codeIds: ['c1'] }],
+					sources: [{ fileId: 'f.md', locator: '', totalUnits: 100 }],
+					coders: ['a'],
+				},
+			},
+			{
+				engine: 'pdf',
+				kappaInput: {
+					markers: [{ coderId: 'a', range: { fileId: 'f.pdf', locator: 'page:1', from: 0, to: 5 }, codeIds: ['c1'] }],
+					sources: [{ fileId: 'f.pdf', locator: 'page:1', totalUnits: 100 }],
+					coders: ['a'],
+				},
+			},
+		];
+		const r = reportKappa(inputs);
+		expect(r.aggregateWarnings.length).toBe(0);
+	});
 });
