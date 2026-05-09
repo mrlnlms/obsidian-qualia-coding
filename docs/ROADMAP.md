@@ -7,7 +7,9 @@
 
 > **📄 Visão integrada de produto (2026-05-08, navegação fragmentada):** entry point é `obsidian-qualia-coding/plugin-docs/research/INDEX-2026-05-08.md`. Docs filhos focados: `ICR-MATERIA-2026-05-08.md` (caminhos materializados), `LLM-MATERIA-2026-05-08.md` (em movimento — não cravado), `RELACOES-ICR-LLM-2026-05-08.md` (interdependências), `QUALIA-CORE-VISION-2026-05-08.md` (vision separada do plugin). Doc original `CONSOLIDACAO-PRODUTO-2026-05-08.md` (138 KB, 1839 linhas) preservado pra detalhe denso. Resumo do que ficou cravado pra produto: ordem **ICR → LLM → Analytics**; pitch **plugin = QDAS standalone**, **plugin + Qualia Core = QDMMAS sério**; LLM continua em movimento. **As "frentes engatilhadas" abaixo precisam ser revisitadas à luz dessa visão** — não foi feito ainda.
 
-> **🔧 Infra compartilhada — caminhos cravados (2026-05-09):** sessão consolidou ICR como **infra compartilhada primeiro** (rename de "ICR primeiro como determinística"). Não é feature de nicho — é base estrutural que destrava simultaneamente ICR multi-coder, merge de projetos, multi-coder live, handoff com procedência, audit estruturado. Decisões cravadas: schema híbrido `Coder` + `CoderRun`; hash por source como primitiva arquitetural transversal; ICR multimodal (4 algoritmos adaptáveis por engine — gap real do mercado, ATLAS.ti faz só áudio/vídeo); validação P1 com dados sintéticos é fluxo completo (não fica órfão sem LLM); sequência **Fase B (P1 in-plugin) → Fase C (P2 transport remoto)** com LLM fora do escopo paralelo. **Próxima sessão:** atacar schema additive + registry + hash + função pura κ + script de seed (5 itens da Fase B sem decisão de produto pendente). Detalhe completo + checklist em §"Decisões de produto abertas" abaixo. Docs companion em `obsidian-qualia-coding/plugin-docs/research/`: [[ICR — Cenários cobertos e descobertos]], [[Export-Import — Mapeamento e casos de uso]], [[Sync — Caminhos de infraestrutura]], [[Deep Research Report - ICR Qualitative]].
+> **🔧 Infra compartilhada — caminhos cravados (2026-05-09):** sessão consolidou ICR como **infra compartilhada primeiro** (rename de "ICR primeiro como determinística"). Não é feature de nicho — é base estrutural que destrava simultaneamente ICR multi-coder, merge de projetos, multi-coder live, handoff com procedência, audit estruturado. Decisões cravadas: schema híbrido `Coder` + `CoderRun`; hash por source como primitiva arquitetural transversal; ICR multimodal **como destino arquitetural** (função pura κ paramétrica por geometria de overlap — recebe adapters por engine sem refactor); validação com dados sintéticos é fluxo completo (não fica órfão sem LLM); sequência **Fase B (in-plugin) → Fase C (P2 transport remoto)** com LLM fora do escopo paralelo. Detalhe completo + checklist em §"Decisões de produto abertas" abaixo. Docs companion em `obsidian-qualia-coding/plugin-docs/research/`: [[ICR — Cenários cobertos e descobertos]], [[Export-Import — Mapeamento e casos de uso]], [[Sync — Caminhos de infraestrutura]], [[Deep Research Report - ICR Qualitative]].
+
+> **🔧 Refinamento 2026-05-09 (segunda passada):** Fase B recortada em **slices independentes** após análise de gap multimodal na literatura QDA (deep research confirma: "não há métrica adaptada de κ pra limites espaciais/temporais além de overlap aproximado"). **Slice 1 — Motor κ texto:** schema + registry + função pura κ paramétrica + adapter per-character cobrindo **markdown + PDF text + CSV cod segment** (engines text-likes, mesma primitiva per-char offset). **Slice 2 — Hash por source:** plano próprio, peso comparável ao motor (toca markerTextCache, virtual cols parquet, listeners rename/modify, dedup QDPX, Smart Code cache); ataca **depois** do motor, não em paralelo. **Slices de extensão (sobre motor existente):** CSV cod row (categórico), áudio/vídeo (overlap temporal ms — caminho conhecido), PDF shape + imagem (bbox IoU — terreno aberto, brainstorm metodológico precede). **Slices gated em UX brainstorm:** View Compare Coders + Reconciliação UI. **Próxima sessão:** brainstorm de 3 perguntas pré-spec do Slice 1 (coeficientes Cohen/Fleiss/α; two-level α-binary+cu-α; κ por engine vs agregado) → plan formal Slice 1 → execução inline.
 
 **Versão:** 0.4.2 (2026-05-08). LazyTextFilter custom em todas colunas (real + virtual) elimina flash branco no filter de parquet/CSV lazy via `refreshInfiniteCache`. Bug latente do MCA Biplot corrigido (signature `calculateMCA` separa codeIds matching de codeNames display). Trade-off conhecido: ms-pequeno de delay no swap visual das cells virtuais durante refresh — efeito direto do mecanismo que elimina o flash. **Versão anterior:** 0.4.1 (Code Explorer perf 30s→13s + Export Parquet multi-file fallback + modal info dinâmica).
 
@@ -65,20 +67,35 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   **Decisões cravadas (sessão 2026-05-09):**
   - **Schema híbrido coder:** `Coder` (registry com display estável + detalhes opcionais) + `CoderRun` (audit log com config completa por execução). Fecha decisão aberta de DESIGN-SKETCH §11.1
   - **Hash por source promovido a primitiva arquitetural transversal** — não é só "validação pra ICR"; serve cache invalidation cirúrgica, detect rename vs new file, deduplicação na importação QDPX, provenance audit, cross-vault remap, backup integrity, Smart Codes revalidação confiável
-  - **ICR multimodal cravado como diferenciador** — função pura κ + 4 algoritmos adaptáveis por engine (per-char textual / bbox IoU PDF/imagem / overlap temporal ms áudio/vídeo / cell range CSV). ATLAS.ti 25 só faz áudio/vídeo; outras só texto ou nada
-  - **Validação P1 com dados sintéticos é fluxo completo** — bateria de 2+ coders fictícios exercita motor end-to-end nas 6 engines, não fica órfão sem LLM
-  - **Sequência cravada: Fase B (P1 in-plugin) → Fase C (P2 transport remoto)**. LLM frente fora do escopo paralelo
+  - **ICR multimodal como destino arquitetural** — função pura κ paramétrica por **geometria de overlap** (per-char textual / bbox IoU espacial / overlap temporal ms / cell range / categórico segment-agnostic). Slice 1 entrega adapter per-char; modalidades subsequentes entram como adapters sobre o mesmo motor sem refactor. Diferenciador real: nenhuma das 4 grandes cobre multimodal completo (ATLAS.ti 25 só áudio/vídeo; outras só texto ou nada)
+  - **Recorte do Slice 1 a engines text-likes (refinamento 2026-05-09 segunda passada):** deep research confirmou que "não há métrica adaptada de κ pra limites espaciais/temporais além de overlap aproximado" (PDF shape, imagem). Slice 1 cobre **markdown + PDF text + CSV cod segment** (mesma primitiva per-char offset, terreno consolidado na literatura). Cod row (categórico) + áudio/vídeo (caminho conhecido, overlap ms) + PDF shape/imagem (bbox IoU — terreno aberto) viram slices de extensão sobre motor já existente
+  - **Hash por source separado em slice próprio (refinamento 2026-05-09 segunda passada):** peso comparável ao motor por footprint amplo (markerTextCache, virtual cols parquet, listeners rename/modify, dedup QDPX, Smart Code cache, provenance audit). Ataca **depois** do motor, **não em paralelo** — motor primeiro, integridade depois. Motor é validável com hash trivial em dados sintéticos; hash entra de fato quando lida com edição real do user no vault
+  - **Validação com dados sintéticos é fluxo completo** — bateria de 2+ coders fictícios sobre arquivos texto-likes exercita motor end-to-end, não fica órfão sem LLM
+  - **Sequência cravada: Fase B (in-plugin) → Fase C (P2 transport remoto)**. LLM frente fora do escopo paralelo
 
-  **Checklist Fase B — Infra compartilhada P1** (núcleo, sem decisão de produto pendente):
+  **Checklist Fase B — estrutura em slices independentes:**
+
+  **Slice 1 — Motor κ texto** (sem decisão de produto pendente após brainstorm pré-spec):
+  - [ ] Brainstorm dedicado pré-spec — 3 perguntas: coeficientes (Cohen κ pareado / Fleiss multi-coder / Krippendorff α — quais entram?); two-level α-binary + cu-α (ATLAS.ti) — incluir ambos ou começar só cu-α?; κ por engine vs agregado em vault multi-engine
   - [ ] Schema additive: `codedBy: CoderId` em `BaseMarker` / `CodeApplication` / audit
   - [ ] Registry `coders[]` com `Coder` (display + detalhes) + `CoderRun` (audit)
-  - [ ] Hash por source — primitiva transversal (cache, dedup, audit, integrity)
-  - [ ] Função pura κ + 4 algoritmos adaptáveis por engine
-  - [ ] Script de seed sintético (2+ coders fictícios cobrindo as 6 engines)
-  - [ ] View Compare Coders (drill-down NVivo-style — bounds renderizados conforme modalidade) — **brainstorm de UX antes**
-  - [ ] Reconciliação registrada via audit + memos (orquestração do tripé) — **brainstorm de UX antes**
+  - [ ] Função pura κ paramétrica por geometria de overlap (paramétrica desde início pra extensão futura)
+  - [ ] Adapter per-character cobrindo markdown + PDF text + CSV cod segment
+  - [ ] Script de seed sintético (2+ coders fictícios sobre arquivos texto-likes; markdown + PDF text + CSV cod segment)
 
-  **Checklist Fase C — Transport multi-coder remoto P2** (após B funcionando):
+  **Slice 2 — Hash por source** (peso comparável ao motor, pós-Slice 1):
+  - [ ] Hash por source — primitiva transversal (markerTextCache, virtual cols parquet, vault listeners rename/modify, dedup QDPX import, Smart Code cache, provenance audit, cross-vault remap, backup integrity)
+
+  **Slices de extensão** (sobre motor já existente, ordem por terreno conhecido → aberto):
+  - [ ] Adapter CSV cod row (categórico — algoritmo "code-only segment-agnostic"; sem geometria de overlap)
+  - [ ] Adapter overlap temporal ms (áudio/vídeo — caminho conhecido, alinhado com ATLAS.ti 25)
+  - [ ] Adapter bbox IoU (PDF shape, imagem — **brainstorm metodológico precede**, terreno aberto: threshold de match, agregação em κ, bounds não-retangulares, chance agreement pra área 2D, sobreposição M:N)
+
+  **Slices gated em brainstorm de UX:**
+  - [ ] View Compare Coders (drill-down NVivo-style — bounds renderizados conforme modalidade)
+  - [ ] Reconciliação registrada via audit + memos (orquestração do tripé)
+
+  **Checklist Fase C — Transport multi-coder remoto P2** (após Fase B funcionando):
   - [ ] `extractCoderContribution(data, coderId)` + `mergeCoderContribution(local, incoming)` — funções puras
   - [ ] `codebookVersion` hash anexado ao transport (cravado, não-negociável)
   - [ ] UX de envio/recebimento — **brainstorm dedicado precede spec** (7 perguntas em aberto + 2 eixos ortogonais, ver ICR-MATERIA §7.1 + ICR §2.5; perguntas adicionadas 2026-05-09 cobrem alerta de source divergente no import e modo "múltiplos imports em staging" pra comparação direta sem mexer no master)
@@ -86,7 +103,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   **Possibilidade complementar (não-prioridade, pós-B/C):**
   - [ ] Campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio. Análogo a Git: ferramenta externa serve fora do plugin se a pessoa quiser. Reavaliar fazer/não fazer depois de B+C entregues
 
-  **Próximo passo concreto na próxima sessão:** atacar os 5 primeiros itens da Fase B (schema additive + registry + hash + função pura + script de seed). Não exige brainstorm de produto — decisões cravadas. Os 2 últimos (View Compare + Reconciliação UI) precedem brainstorm de UX que opera sobre primitiva já existente.
+  **Próximo passo concreto na próxima sessão:** brainstorm dedicado das 3 perguntas pré-spec do Slice 1 (coeficientes / two-level / κ por engine vs agregado) → plan formal Slice 1 → execução inline. Slice 2 (hash) entra como plano próprio depois.
 
   **Docs companion** (todos em `obsidian-qualia-coding/plugin-docs/research/`):
   - [[ICR — Cenários cobertos e descobertos]] — cenários cobertos vs descobertos, sequência B/C, ICR multimodal
