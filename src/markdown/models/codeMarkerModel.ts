@@ -8,6 +8,7 @@ import { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
 import type { CodeApplication, MarkerMutationEvent, SidebarModelInterface } from '../../core/types';
 import type { MemoRecord } from '../../core/memoTypes';
 import type { CoderId } from '../../core/icr/coderTypes';
+import { attachSourceHashSnapshot } from '../../core/icr/provenance/attachSourceHashSnapshot';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../../core/codeApplicationHelpers';
 import { setFileIdEffect } from '../cm6/markerStateField';
 
@@ -106,6 +107,10 @@ export class CodeMarkerModel implements SidebarModelInterface {
 
 			this.addMarkerToFile(snapshot.fileId, marker);
 			this.saveMarkers();
+			// ICR provenance audit (Slice 5 piloto): popula sourceHashAtCoding fire-and-forget
+			void attachSourceHashSnapshot(marker, this.plugin.sourceHashRegistry).then(() => {
+				if (marker.sourceHashAtCoding) this.saveMarkers();
+			});
 			return marker;
 		}
 
@@ -127,6 +132,10 @@ export class CodeMarkerModel implements SidebarModelInterface {
 
 		this.addMarkerToFile(snapshot.fileId, marker);
 		this.saveMarkers();
+		// ICR provenance audit (Slice 5 piloto): popula sourceHashAtCoding fire-and-forget
+		void attachSourceHashSnapshot(marker, this.plugin.sourceHashRegistry).then(() => {
+			if (marker.sourceHashAtCoding) this.saveMarkers();
+		});
 		return marker;
 	}
 

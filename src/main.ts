@@ -9,6 +9,8 @@ import { SourceHashRegistry } from './core/icr/sourceHashRegistry';
 import { extractCoderContribution } from './core/icr/transport/extractCoderContribution';
 import { mergeCoderContribution } from './core/icr/transport/mergeCoderContribution';
 import type { ExtractResult, MergeResult, Payload } from './core/icr/transport/payloadTypes';
+import { detectStaleMarkers } from './core/icr/provenance/detectStaleMarkers';
+import type { StaleReport } from './core/icr/provenance/detectStaleMarkers';
 import { appendEntry, renderCodeHistoryMarkdown } from './core/auditLog';
 import { CaseVariablesRegistry } from './core/caseVariables/caseVariablesRegistry';
 import { CaseVariablesView } from './core/caseVariables/caseVariablesView';
@@ -63,6 +65,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	icrTransport!: {
 		extract: (coderId: string) => Promise<ExtractResult>;
 		merge: (payload: Payload) => Promise<MergeResult>;
+		detectStaleMarkers: () => Promise<StaleReport>;
 	};
 	caseVariablesRegistry!: CaseVariablesRegistry;
 	private cleanups: EngineCleanup[] = [];
@@ -205,6 +208,10 @@ export default class QualiaCodingPlugin extends Plugin {
 				this.dataManager.markDirty();
 				return result;
 			},
+			detectStaleMarkers: () => detectStaleMarkers(
+				this.dataManager.getDataRef(),
+				this.sourceHashRegistry,
+			),
 		};
 
 		// Case Variables registry — per-file typed properties (like Obsidian Properties for binaries)
