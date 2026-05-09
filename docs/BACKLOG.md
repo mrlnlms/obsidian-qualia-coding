@@ -159,6 +159,47 @@ Sem essas 6 frentes de UX, Slice 3 entrega motor de transport completo mas usáv
 
 ---
 
+## 🧱 ICR — Adapters fora do Slice 4
+
+Slice 4 (planejado 2026-05-09) adiciona adapters **cod row** (CSV categórico) e **áudio/vídeo** (overlap temporal em segundos) sobre o motor κ paramétrico existente. Restam adapters fora do Slice 4:
+
+### Adapter PDF shape + imagem (bbox IoU — terreno aberto)
+
+**Estado atual:** motor κ assume overlap 1D (intervalo `from` → `to`). PDF shape (`PdfShapeMarker`) e Image (`ImageMarker`) têm coordenadas espaciais 2D — retângulo, elipse, polígono.
+
+**Impacto sem fazer:** ICR não cobre coding de regiões em PDFs/imagens. Markers desses engines existem mas ficam fora do Compare Coders.
+
+**Quando atacar:** após **brainstorm metodológico dedicado**. Decisões em aberto na literatura QDA:
+- Threshold de "match" (IoU ≥ 0.5? ≥ 0.7? configurável?)
+- Como bbox match vira input do κ (binário matched/unmatched? ranking? ponderado pelo IoU?)
+- Bounds não-retangulares (elipse, polígono) — IoU geral funciona mas custo computacional cresce
+- Sobreposição parcial M:N entre coders — caso ambíguo
+- Chance agreement pra área 2D — Krippendorff α tem precedente nominal mas não pra geometria espacial
+
+**Não há receita pronta no mercado:** ATLAS.ti 25 só faz áudio/vídeo. NVivo Coding Comparison opera sobre "regiões" sem métrica espacial dedicada. Diferenciador potencial mas requer pesquisa metodológica.
+
+### Resolução sub-segundo pra áudio/vídeo
+
+**Estado após Slice 4:** áudio/vídeo arredondam `from`/`to` pra inteiros de segundo (`Math.floor`/`Math.ceil`). Alinhado com ATLAS.ti 25.
+
+**Impacto sem fazer:** discordâncias sub-segundo (ex: Carla marcou 12.3-18.7s, Joana marcou 12.5-18.5s) viram match perfeito após arredondamento (12-19 vs 12-19). Em pesquisa fonética ou microanalysis conversacional, isso pode importar.
+
+**Quando atacar:** quando alguém puxar uso real que justifique. Implementação: configurar resolução por engine (ms ou décimos de segundo), com performance trade-off documentado.
+
+### Pre-warm de durações de media files
+
+**Estado após Slice 4:** caller passa `totalUnits` (= duração em segundos) ao montar input do reporter. Runtime usa `HTMLMediaElement.duration` (precisa abrir o file). Em batch sobre vault grande, abrir cada arquivo só pra durar é caro.
+
+**Impacto sem fazer:** Compare Coders cross-file precisa abrir cada media file pra obter duração. Latência inicial alta.
+
+**Quando atacar:** quando Compare Coders UI entrar e o user reportar latência. Cache de durações em `data.mediaDurations: Record<fileId, number>` populado lazy on file open.
+
+### Resumo do impacto cumulativo
+
+Slice 4 entrega 5 das 6 engines do plugin (markdown + PDF text + CSV cod segment ✅ Slice 1; áudio + vídeo ✅ Slice 4; CSV cod row ✅ Slice 4). Falta apenas PDF shape + imagem — terreno aberto que requer pesquisa metodológica antes. Sub-segundo e pre-warm são otimizações conhecidas que entram quando uso real puxar.
+
+---
+
 ## 🔒 Won't-fix (não reabrir)
 
 Lista canônica de decisões registradas. Cada uma tem razão explícita pra não voltar a virar tarefa.
