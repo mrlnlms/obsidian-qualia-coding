@@ -57,6 +57,48 @@ Da fila cross-cutting do hardening, 4 frentes atacadas em 2026-05-09 (parseInt v
 
 ---
 
+## 🧱 ICR — Hash consumers fora do Slice 2
+
+Slice 2 (planejado 2026-05-09) entrega a **primitiva** de hash por source + 3 consumers iniciais (`markerTextCache` invalidation, `vault.on('rename')`/`('modify')` rename detection, QDPX import dedup). Os consumers abaixo dependem da MESMA primitiva — escopo recortado pra Slice 2 não inflar. Cada um vira slice próprio sobre primitiva já existente.
+
+### Smart Code cache hash-based invalidation
+
+**Estado atual:** invalidação granular via `MarkerMutationEvent` (por marker mutation). Não detecta source mutation externa (ex: tool fora do Obsidian editou arquivo).
+
+**Impacto sem fazer:** predicates Smart Code que dependem de texto do source (ex: `caseVarEquals` cruzado com texto, futuro `textContains` se vier) podem servir matches stale após edição externa. Risco baixo no uso típico (single-user no Obsidian) mas degrada quando workflow inclui pipeline externo.
+
+**Quando atacar:** quando uso real revelar staleness OU junto de "Provenance audit field" (compartilham mecanismo de hash check).
+
+### Provenance audit field nos markers (snapshot do hash)
+
+**Estado atual:** markers referenciam fileId (path) sem snapshot do estado do source no momento do coding.
+
+**Impacto sem fazer:** edição posterior do source pode quebrar offsets dos markers (line/ch ou char-index ficam apontando pra texto que mudou) sem aviso ao user. User não sabe quando confiar nos bounds vs revisar — inferência manual via mtime/diff.
+
+**Quando atacar:** quando provenance virar requirement explícito (paper publishing rigoroso, compliance regulatório, ICR multi-coder remoto onde lead precisa saber se source mudou desde coder enviar contribuição).
+
+### Backup integrity validation
+
+**Estado atual:** backups em `obsidian-qualia-coding/data_synthetic_bak/` validados só por path/timestamp. Restore re-aponta markers pros sources atuais sem checar se mudaram desde backup.
+
+**Impacto sem fazer:** restore silencioso pode reapontar markers sobre source modificado, criando markers com bounds desalinhados. Perda invisível de fidelidade analítica.
+
+**Quando atacar:** quando rotina de backup/restore virar fluxo crítico (hoje é manual e raro).
+
+### Cross-vault remap (CRÍTICO pra Fase C — P2 transport multi-coder remoto)
+
+**Estado atual:** import QDPX cria sources locais por path. Conflito de path com sources existentes do vault não é detectado por conteúdo.
+
+**Impacto sem fazer:** **bloqueia Fase C** (transport multi-coder remoto, ver `docs/ROADMAP.md §"Infra compartilhada"`). Lead recebe contribuição de coder remoto e não consegue casar markers com sources locais quando paths divergem entre vaults (caso comum quando equipes não compartilham raiz idêntica). Sem hash, lead vê "source diferente" mesmo quando conteúdo é idêntico.
+
+**Quando atacar:** **antes ou junto da Fase C**. Não pode ser depois — é pré-requisito estrutural pra P2 funcionar.
+
+### Resumo do impacto cumulativo
+
+Sem esses 4 consumers, a primitiva entregue no Slice 2 cobre os 3 casos mais frequentes (cache invalidation, rename detection, import dedup) mas deixa em aberto: detecção de edição externa pra Smart Codes, integridade temporal dos markers, integridade de backup, e — crucialmente — o pré-requisito de Fase C. Os 3 primeiros são otimizações de robustez progressiva; o último (cross-vault remap) é gating pra próximo grande marco do roadmap ICR.
+
+---
+
 ## 🔒 Won't-fix (não reabrir)
 
 Lista canônica de decisões registradas. Cada uma tem razão explícita pra não voltar a virar tarefa.
