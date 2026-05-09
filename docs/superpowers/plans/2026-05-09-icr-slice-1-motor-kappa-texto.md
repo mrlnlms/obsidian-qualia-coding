@@ -9,7 +9,7 @@
 **Tech Stack:** TypeScript strict, Vitest + jsdom (testes), padrão de classe stateful do `CodeDefinitionRegistry` (addOnMutate + auditListener + toJSON/fromJSON). Persistência via `DataManager` (campo `coders` novo no `QualiaData`).
 
 **Pré-requisitos** (já feitos antes deste plano):
-- Vault de teste em `/Users/mosx/Desktop/obsidian-plugins-workbench/ICR-test/` com 2 .md, 2 PDFs, 1 CSV (ver `ICR-test/README.md`)
+- Pasta `ICR-test/` no vault `obsidian-plugins-workbench` com 2 .md, 2 PDFs, 1 CSV (ver `ICR-test/README.md`)
 - `data.json` resetado pra `createDefaultData()` (backup em `obsidian-qualia-coding/data_synthetic_bak/data.json.pre-icr-2026-05-09.bak`)
 
 **Decisões cravadas (referência):**
@@ -1501,7 +1501,7 @@ function aggregateReports(
 **Files:**
 - Create: `scripts/seed-icr-corpus.mjs`
 
-Script popula `data.json` do vault workbench com:
+Script popula o `data.json` do plugin no vault `obsidian-plugins-workbench` (`/Users/mosx/Desktop/obsidian-plugins-workbench/.obsidian/plugins/obsidian-qualia-coding/data.json`) com:
 - 2-3 coders no registry (`human:default` + `human:carla` + `human:joana`)
 - ~5 codes definidos (códigos descritivos de pesquisa qualitativa)
 - Markers sobre arquivos `ICR-test/`:
@@ -1668,7 +1668,7 @@ Slice 1 está **done** quando:
 2. ✅ Reporter retorna per-engine + agregado funcionando em fixture multi-engine
 3. ✅ `npm run test` verde (2759+ testes)
 4. ✅ `npm run build` OK
-5. ✅ Vault de teste carregou com 3 coders + 5 codes + 16 markers seed
+5. ✅ Plugin no vault `obsidian-plugins-workbench` carregou com 3 coders + 5 codes + 16 markers seed
 6. ✅ Console DevTools mostra markers + coders absorvidos sem erro
 7. ✅ Code Explorer renderiza os 5 codes seedados
 8. ✅ Markers visíveis em ICR-test/* (markdown highlights, PDF/CSV via sidebar)
