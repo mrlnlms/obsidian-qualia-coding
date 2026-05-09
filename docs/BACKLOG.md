@@ -69,13 +69,17 @@ Slice 2 (planejado 2026-05-09) entrega a **primitiva** de hash por source + 3 co
 
 **Quando atacar:** quando uso real revelar staleness OU junto de "Provenance audit field" (compartilham mecanismo de hash check).
 
-### Provenance audit field nos markers (snapshot do hash)
+**Decisão 2026-05-09 (não atacar agora):** os 10 leaves atuais de Smart Codes (`hasCode`, `caseVarEquals`, `magnitudeGte/Lte`, `inFolder`, `inGroup`, `engineType`, `relationExists`, `smartCode` nesting) **não dependem de texto do source**. Predicates operam sobre `marker.codes` / case variables / hierarquia. Hash invalidation faz sentido quando entrar leaf `textContains` ou similar — aí source editado externamente afeta predicate. Implementar agora vira código órfão sem consumer real. Reabrir quando o primeiro predicate de texto entrar.
+
+### Provenance audit field nos markers (snapshot do hash) — ✅ FAZER AGORA (Slice 5)
 
 **Estado atual:** markers referenciam fileId (path) sem snapshot do estado do source no momento do coding.
 
 **Impacto sem fazer:** edição posterior do source pode quebrar offsets dos markers (line/ch ou char-index ficam apontando pra texto que mudou) sem aviso ao user. User não sabe quando confiar nos bounds vs revisar — inferência manual via mtime/diff.
 
 **Quando atacar:** quando provenance virar requirement explícito (paper publishing rigoroso, compliance regulatório, ICR multi-coder remoto onde lead precisa saber se source mudou desde coder enviar contribuição).
+
+**Decisão 2026-05-09:** atacado em Slice 5 (próximo). Use case real: ICR multi-coder remoto (Fase C) já entregue precisa disso pra lead detectar source desalinhado. Mesmo sem UI completa de Fase C P1, snapshot field nos markers vira útil agora.
 
 ### Backup integrity validation
 
@@ -84,6 +88,8 @@ Slice 2 (planejado 2026-05-09) entrega a **primitiva** de hash por source + 3 co
 **Impacto sem fazer:** restore silencioso pode reapontar markers sobre source modificado, criando markers com bounds desalinhados. Perda invisível de fidelidade analítica.
 
 **Quando atacar:** quando rotina de backup/restore virar fluxo crítico (hoje é manual e raro).
+
+**Decisão 2026-05-09 (não atacar agora):** semântica fragmentada — `.bak` é manual + raro (restore ad-hoc durante dev), e `sourceHashes` no backup pode estar desatualizado se hashes foram computed lazy depois do backup. Pra validation funcionar bem, precisaria capturar snapshot completo de hashes no momento do backup (pre-warm + persist). Custo de fazer agora (~30 LOC + tests) sem fluxo de restore real exercitando = pequeno mas nulo de retorno. Reabrir quando backup/restore virar rotina.
 
 ### Cross-vault remap (CRÍTICO pra Fase C — P2 transport multi-coder remoto)
 
