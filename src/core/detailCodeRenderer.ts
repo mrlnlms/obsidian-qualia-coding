@@ -213,10 +213,8 @@ export function renderCodeDetail(
 
 	// Virtualized list — only viewport rows are mounted in the DOM. Renders
 	// flat without nesting per file (segmentsByFile section below covers that).
-	const scrollEl = segSection.createDiv({ cls: 'codemarker-detail-marker-list codemarker-virtual-marker-scroll' });
+	const scrollEl = segSection.createDiv({ cls: 'codemarker-detail-marker-list codemarker-virtual-marker-scroll qc-scroll-container' });
 	scrollEl.style.maxHeight = `${MARKER_LIST_MAX_VH}vh`;
-	scrollEl.style.overflowY = 'auto';
-	scrollEl.style.position = 'relative';
 
 	const flatList = createVirtualList<BaseMarker>({
 		container: scrollEl,
@@ -328,11 +326,9 @@ function renderSegmentsByFile(
 		fileSelf.createSpan({ cls: 'tree-item-inner', text: fileName });
 		fileSelf.createSpan({ cls: 'tree-item-flair', text: String(markers.length) });
 
-		const fileChildren = fileTreeItem.createDiv({ cls: 'search-result-file-matches' });
+		const fileChildren = fileTreeItem.createDiv({ cls: 'search-result-file-matches qc-scroll-container' });
 		// Constrained height + virtual scroll. Avoids mounting 100k+ matches at once.
 		fileChildren.style.maxHeight = `${MARKER_LIST_MAX_VH}vh`;
-		fileChildren.style.overflowY = 'auto';
-		fileChildren.style.position = 'relative';
 
 		const list = createVirtualList<BaseMarker>({
 			container: fileChildren,

@@ -6340,3 +6340,18 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	background-color: var(--background-secondary);
 	flex-shrink: 0;
 }
+
+/* Hidden file/color input pattern — used to host a native picker offscreen
+   without disturbing layout (input.click() opens dialog). */
+.qc-hidden-input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* Scroll container with constrained height — caller sets max-height inline
+   (uses dynamic vh values per surface). */
+.qc-scroll-container {
+	overflow-y: auto;
+	position: relative;
+}

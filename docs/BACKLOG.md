@@ -83,10 +83,12 @@ Suspeita inicial: >500 marker memos visíveis trava scroll por peso de DOM. **Mo
 
 | Item | Razão |
 |------|-------|
-| 6 `as any` (3 PDF internal + 3 deepMerge) | APIs externas sem tipos |
-| 3 `@ts-ignore` (wavesurfer) | Module resolution |
-| !important 66 instâncias | Maioria AG Grid defensivos |
-| Inline styles ~15 estáticos | Migrar quando tocar nos arquivos |
+| 13 `as any` em `pdf/index.ts` + `pdf/pdfExportData.ts` | Obsidian/pdfjs internals (`leaf.tabHeaderEl`, `view.viewer.child`, `window.pdfjsLib`) sem tipos públicos |
+| 5 `as any` em `core/memoMigration.ts` | Migração one-shot lê shape legado pré-`MemoRecord`. Zero usuários atuais — código será deletado quando workbench rodar uma vez |
+| 3 `@ts-ignore` (wavesurfer) | Module resolution `.esm.js` subpath não resolve com `moduleResolution: 'node'`; esbuild lida em runtime |
+| 2 `@ts-expect-error` (`csv/duckdb/wasmAssets.ts`) | Custom esbuild loaders retornam `Uint8Array`/`string`; TS não tem visibilidade |
+| !important 68 instâncias | Maioria override defensivo de AG Grid (`.ag-cell *` selectors com especificidade alta) |
+| Inline styles dinâmicos remanescentes | `style.display = 'none'/''` toggles, position/zIndex em popovers — refactor pra classe é boilerplate por boilerplate |
 | fflate bundled (~8KB gzip) | Dependência do QDPX export — sem alternativa nativa no Obsidian |
 
 ---

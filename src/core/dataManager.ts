@@ -183,15 +183,17 @@ export class DataManager {
 }
 
 /** Recursively merge defaults into persisted data. Persisted values win. */
-function deepMerge<T>(defaults: T, persisted: Partial<T> | undefined): T {
+function deepMerge<T extends object>(defaults: T, persisted: Partial<T> | undefined): T {
 	if (!persisted) return { ...defaults };
-	const result = { ...defaults } as any;
-	for (const key of Object.keys(persisted as object)) {
-		const val = (persisted as any)[key];
-		const def = (defaults as any)[key];
+	const persistedRec = persisted as Record<string, unknown>;
+	const defaultsRec = defaults as Record<string, unknown>;
+	const result: Record<string, unknown> = { ...defaultsRec };
+	for (const key of Object.keys(persistedRec)) {
+		const val = persistedRec[key];
+		const def = defaultsRec[key];
 		if (val !== null && typeof val === 'object' && !Array.isArray(val)
 			&& def !== null && typeof def === 'object' && !Array.isArray(def)) {
-			result[key] = deepMerge(def, val);
+			result[key] = deepMerge(def as object, val as object);
 		} else if (val !== undefined) {
 			result[key] = val;
 		}

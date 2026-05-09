@@ -262,10 +262,8 @@ function renderEvidenceList(
 	const section = container.createDiv({ cls: 'codemarker-detail-section' });
 	section.createEl('h6', { text: `Evidence (${matchingMarkers.length})` });
 
-	const scrollEl = section.createDiv();
+	const scrollEl = section.createDiv({ cls: 'qc-scroll-container' });
 	scrollEl.style.maxHeight = `${EVIDENCE_LIST_MAX_VH}vh`;
-	scrollEl.style.overflowY = 'auto';
-	scrollEl.style.position = 'relative';
 
 	// Dispatcha hidratação uma vez por fileId único — independente do virtual list mounter,
 	// pra ativar batch antes mesmo dos rows serem renderizados.

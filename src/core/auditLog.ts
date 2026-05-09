@@ -36,11 +36,12 @@ export function appendEntry(log: AuditEntry[], entry: Omit<AuditEntry, 'id'> & {
 			const e = log[i]!;
 			if (e.codeId !== entry.codeId) continue;
 			if (e.type !== entry.type) continue;
-			if ((e as any).entity !== (entry as any).entity) continue;
+			if (e.entity !== entry.entity) continue;
 			if (e.hidden) continue;
 			if (entry.at - e.at > COALESCE_WINDOW_MS) break;
-			// Coalesce: mantém from, atualiza to e at
-			(e as any).to = (entry as any).to;
+			// Coalesce: mantém from, atualiza to e at. Narrow pra variants que têm `to` field.
+			type WithTo = Extract<AuditEntry, { to: string }>;
+			(e as WithTo).to = (entry as WithTo).to;
 			e.at = entry.at;
 			return log;
 		}
@@ -52,7 +53,7 @@ export function appendEntry(log: AuditEntry[], entry: Omit<AuditEntry, 'id'> & {
 			const e = log[i]!;
 			if (e.codeId !== entry.codeId) continue;
 			if (e.type !== 'sc_predicate_edited') continue;
-			if ((e as any).entity !== 'smartCode') continue;
+			if (e.entity !== 'smartCode') continue;
 			if (e.hidden) continue;
 			if (entry.at - e.at > COALESCE_WINDOW_MS) break;
 			const existing = e as Extract<AuditEntry, { type: 'sc_predicate_edited' }>;
@@ -93,7 +94,7 @@ export function getEntriesForCode(
 	codeId: string,
 	includeHidden = false,
 ): AuditEntry[] {
-	const filtered = log.filter(e => ((e as any).entity ?? 'code') === 'code' && e.codeId === codeId && (includeHidden || !e.hidden));
+	const filtered = log.filter(e => (e.entity ?? 'code') === 'code' && e.codeId === codeId && (includeHidden || !e.hidden));
 	return filtered.sort((a, b) => a.at - b.at);
 }
 
@@ -103,7 +104,7 @@ export function getEntriesForSmartCode(
 	smartCodeId: string,
 	includeHidden = false,
 ): AuditEntry[] {
-	const filtered = log.filter(e => (e as any).entity === 'smartCode' && e.codeId === smartCodeId && (includeHidden || !e.hidden));
+	const filtered = log.filter(e => e.entity === 'smartCode' && e.codeId === smartCodeId && (includeHidden || !e.hidden));
 	return filtered.sort((a, b) => a.at - b.at);
 }
 

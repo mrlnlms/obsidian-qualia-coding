@@ -448,9 +448,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 		// Default: cor do primeiro selecionado (heurística — user vê a cor "atual" como ponto de partida)
 		const firstColor = this.model.registry.getById(ids[0]!)?.color ?? '#888888';
 		input.value = firstColor;
-		input.style.position = 'absolute';
-		input.style.opacity = '0';
-		input.style.pointerEvents = 'none';
+		input.classList.add('qc-hidden-input');
 		document.body.appendChild(input);
 		input.addEventListener('change', () => {
 			for (const id of ids) {
@@ -1163,9 +1161,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 				const input = document.createElement('input');
 				input.type = 'color';
 				input.value = def.color;
-				input.style.position = 'absolute';
-				input.style.opacity = '0';
-				input.style.pointerEvents = 'none';
+				input.classList.add('qc-hidden-input');
 				document.body.appendChild(input);
 				input.addEventListener('input', () => {
 					this.model.registry.update(codeId, { color: input.value });
