@@ -154,7 +154,7 @@ export class ImportModal extends Modal {
         conflictStrategy: this.conflictStrategy,
         keepOriginalSources: this.keepOriginalSources,
         projectName: this.preview.projectName,
-      } as ImportOptions, this.caseVariablesRegistry);
+      } as ImportOptions, this.caseVariablesRegistry, this.plugin?.sourceHashRegistry);
 
       const parts = [
         `${result.codesCreated} codes created`,

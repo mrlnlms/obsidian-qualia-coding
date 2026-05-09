@@ -375,6 +375,7 @@ export async function importQdpx(
   registry: CodeDefinitionRegistry,
   options: ImportOptions,
   caseVariablesRegistry?: CaseVariablesRegistry,
+  sourceHashRegistry?: import('../core/icr/sourceHashRegistry').SourceHashRegistry,
 ): Promise<ImportResult> {
   const result: ImportResult = {
     codesCreated: 0, codesMerged: 0, sourcesImported: 0,
@@ -441,7 +442,7 @@ export async function importQdpx(
 
   for (const src of sources) {
     try {
-      const filePath = await extractSource(src, files, app.vault, importDir, options.keepOriginalSources);
+      const filePath = await extractSource(src, files, app.vault, importDir, options.keepOriginalSources, sourceHashRegistry);
       if (filePath) {
         resolver.sources.set(src.guid, filePath);
         result.sourcesImported++;
@@ -527,6 +528,7 @@ async function extractSource(
   vault: Vault,
   importDir: string,
   keepOriginal: boolean,
+  sourceHashRegistry?: import('../core/icr/sourceHashRegistry').SourceHashRegistry,
 ): Promise<string | null> {
   const destPath = `${importDir}/${src.name}`;
 
@@ -539,7 +541,20 @@ async function extractSource(
 
     const text = strFromU8(txtData);
     const mdPath = destPath.replace(/\.\w+$/, '.md');
+
+    // Dedup via hash: se algum source no vault já tem mesmo hash, reusa em vez de criar duplicata
+    if (sourceHashRegistry) {
+      const { computeSourceHash } = await import('../core/icr/computeSourceHash');
+      const incomingHash = await computeSourceHash(txtData.buffer as ArrayBuffer);
+      const matches = sourceHashRegistry.findByHash(incomingHash);
+      if (matches.length > 0) return matches[0]!;
+    }
+
     await vault.adapter.write(mdPath, text);
+    if (sourceHashRegistry) {
+      // Register hash do new source pra futuras dedups
+      await sourceHashRegistry.getOrCompute(mdPath).catch(() => { /* swallow — non-critical */ });
+    }
     return mdPath;
   }
 
@@ -547,7 +562,19 @@ async function extractSource(
   const binPath = resolveInternalPath(src.path);
   const binData = binPath ? zipFiles[binPath] : undefined;
   if (!binData) return null;
+
+  // Dedup via hash
+  if (sourceHashRegistry) {
+    const { computeSourceHash } = await import('../core/icr/computeSourceHash');
+    const incomingHash = await computeSourceHash(binData.buffer as ArrayBuffer);
+    const matches = sourceHashRegistry.findByHash(incomingHash);
+    if (matches.length > 0) return matches[0]!;
+  }
+
   await vault.adapter.writeBinary(destPath, binData.buffer as ArrayBuffer);
+  if (sourceHashRegistry) {
+    await sourceHashRegistry.getOrCompute(destPath).catch(() => { /* swallow — non-critical */ });
+  }
   return destPath;
 }
 
