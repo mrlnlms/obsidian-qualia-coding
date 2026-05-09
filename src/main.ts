@@ -6,6 +6,9 @@ import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
 import { CoderRegistry } from './core/icr/coderRegistry';
 import { SourceHashRegistry } from './core/icr/sourceHashRegistry';
+import { extractCoderContribution } from './core/icr/transport/extractCoderContribution';
+import { mergeCoderContribution } from './core/icr/transport/mergeCoderContribution';
+import type { ExtractResult, MergeResult, Payload } from './core/icr/transport/payloadTypes';
 import { appendEntry, renderCodeHistoryMarkdown } from './core/auditLog';
 import { CaseVariablesRegistry } from './core/caseVariables/caseVariablesRegistry';
 import { CaseVariablesView } from './core/caseVariables/caseVariablesView';
@@ -57,6 +60,10 @@ export default class QualiaCodingPlugin extends Plugin {
 	sharedRegistry!: CodeDefinitionRegistry;
 	coderRegistry!: CoderRegistry;
 	sourceHashRegistry!: SourceHashRegistry;
+	icrTransport!: {
+		extract: (coderId: string) => Promise<ExtractResult>;
+		merge: (payload: Payload) => Promise<MergeResult>;
+	};
 	caseVariablesRegistry!: CaseVariablesRegistry;
 	private cleanups: EngineCleanup[] = [];
 	// Tracks the refresh listener per FileView for dedupe (.has) and re-invocation
@@ -180,6 +187,25 @@ export default class QualiaCodingPlugin extends Plugin {
 				this.csvModel?.invalidateMarkerTextCacheForFile(file.path);
 			}
 		}));
+
+		// ─── ICR Transport API (Slice 3 Fase C P0) ─────────────────
+		// Funções puras expostas pra console/script (sem UI ainda — UX é Fase C P1).
+		this.icrTransport = {
+			extract: (coderId: string) => extractCoderContribution(
+				this.dataManager.getDataRef(),
+				coderId,
+				this.sourceHashRegistry,
+			),
+			merge: async (payload) => {
+				const result = await mergeCoderContribution(
+					this.dataManager.getDataRef(),
+					payload,
+					this.sourceHashRegistry,
+				);
+				this.dataManager.markDirty();
+				return result;
+			},
+		};
 
 		// Case Variables registry — per-file typed properties (like Obsidian Properties for binaries)
 		this.caseVariablesRegistry = new CaseVariablesRegistry(this.app, this.dataManager);
