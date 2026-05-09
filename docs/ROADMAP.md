@@ -75,35 +75,67 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 
   **Checklist Fase B — estrutura em slices independentes:**
 
-  **Slice 1 — Motor κ texto** (sem decisão de produto pendente após brainstorm pré-spec):
-  - [ ] Brainstorm dedicado pré-spec — 3 perguntas: coeficientes (Cohen κ pareado / Fleiss multi-coder / Krippendorff α — quais entram?); two-level α-binary + cu-α (ATLAS.ti) — incluir ambos ou começar só cu-α?; κ por engine vs agregado em vault multi-engine
-  - [ ] Schema additive: `codedBy: CoderId` em `BaseMarker` / `CodeApplication` / audit
-  - [ ] Registry `coders[]` com `Coder` (display + detalhes) + `CoderRun` (audit)
-  - [ ] Função pura κ paramétrica por geometria de overlap (paramétrica desde início pra extensão futura)
-  - [ ] Adapter per-character cobrindo markdown + PDF text + CSV cod segment
-  - [ ] Script de seed sintético (2+ coders fictícios sobre arquivos texto-likes; markdown + PDF text + CSV cod segment)
+  **✅ Slice 1 — Motor κ texto (FEITO 2026-05-09):**
+  - [x] Brainstorm dedicado pré-spec — 3 perguntas resolvidas: 5 coeficientes entram (Cohen κ pareado + Fleiss + Krippendorff α + α-binary + cu-α); per-engine + agregado por média ponderada
+  - [x] Schema additive: `codedBy?: CoderId` em BaseMarker / Marker / SegmentMarker / PdfMarker
+  - [x] Registry `coders[]` com `Coder` (display + detalhes) + `CoderRun` (audit, schema-only)
+  - [x] Função pura κ paramétrica por geometria de overlap (TextRange normalizado)
+  - [x] Adapter per-character cobrindo markdown + PDF text + CSV cod segment
+  - [x] Script de seed sintético — 3 coders + 5 codes + 20 markers em ICR-test/
+  - **Smoke real verde em vault.** 62 testes ICR novos. Tag `post-icr-slice-1-checkpoint`.
 
-  **Slice 2 — Hash por source** (peso comparável ao motor, pós-Slice 1):
-  - [ ] Hash por source — primitiva transversal (markerTextCache, virtual cols parquet, vault listeners rename/modify, dedup QDPX import, Smart Code cache, provenance audit, cross-vault remap, backup integrity)
+  **✅ Slice 2 — Hash por source (FEITO 2026-05-09):**
+  - [x] Primitiva SHA-256 via SubtleCrypto + SourceHashRegistry (lazy compute + recompute + rename/remove + findByHash + addOnMutate + toJSON)
+  - [x] Consumer 1: markerTextCache invalidation on hash change
+  - [x] Consumer 2: vault.on('rename')/('delete')/('modify') sync registry
+  - [x] Consumer 3: QDPX import dedup via findByHash em extractSource
+  - **Smoke real verde** (rename + modify + invalidação validados em vault). 24 testes novos. Tag `post-icr-slice-2-checkpoint`.
 
-  **Slices de extensão** (sobre motor já existente, ordem por terreno conhecido → aberto):
-  - [ ] Adapter CSV cod row (categórico — algoritmo "code-only segment-agnostic"; sem geometria de overlap)
-  - [ ] Adapter overlap temporal ms (áudio/vídeo — caminho conhecido, alinhado com ATLAS.ti 25)
-  - [ ] Adapter bbox IoU (PDF shape, imagem — **brainstorm metodológico precede**, terreno aberto: threshold de match, agregação em κ, bounds não-retangulares, chance agreement pra área 2D, sobreposição M:N)
+  **✅ Slice 3 — Fase C P0 transport puro (FEITO 2026-05-09):**
+  - [x] `extractCoderContribution(data, coderId, hashRegistry)` puro — filtra markers + coleta codes/groups/sources/coder + computa codebookVersion
+  - [x] `mergeCoderContribution(localData, payload, hashRegistry)` puro — codebook divergence + coder reg + cross-vault remap embutido + code/group merge + marker insertion
+  - [x] `crossVaultRemap` puro — match único / múltiplos / zero / hash mismatch (warnings estruturados)
+  - [x] `computeCodebookHash` determinístico (sort por id + canonical JSON, ignora createdAt/updatedAt)
+  - [x] `codebookVersion` hash no transport (cravado, não-negociável)
+  - [x] Plugin `icrTransport.extract / merge` exposto pra console (sem UI ainda)
+  - 26 testes novos. Tag `post-icr-slice-3-checkpoint`. **UX layer (P1) gated em brainstorm dedicado** — ver `BACKLOG.md > 🧱 ICR — Fase C P1`.
 
-  **Slices gated em brainstorm de UX:**
-  - [ ] View Compare Coders (drill-down NVivo-style — bounds renderizados conforme modalidade)
-  - [ ] Reconciliação registrada via audit + memos (orquestração do tripé)
+  **✅ Slice 4 — Adapters cod row + áudio/vídeo (FEITO 2026-05-09):**
+  - [x] Refactor `totalChars → totalUnits` em SourceMeta (semântica genérica)
+  - [x] Adapter cod row (categórico) + 3 coeficientes categóricos novos (Cohen / Fleiss / α nominal)
+  - [x] Adapter audio/video (overlap temporal segundos, Math.floor/ceil)
+  - [x] Reporter EngineId expandido pra `csvRow | audio | video` + aceita union KappaInput | CategoricalKappaInput
+  - [x] aggregateWarnings cross-unit (chars vs seconds vs categorical)
+  - **5 das 6 engines cobertas.** 23 testes novos. Tag `post-icr-slice-4-checkpoint`.
 
-  **Checklist Fase C — Transport multi-coder remoto P2** (após Fase B funcionando):
-  - [ ] `extractCoderContribution(data, coderId)` + `mergeCoderContribution(local, incoming)` — funções puras
-  - [ ] `codebookVersion` hash anexado ao transport (cravado, não-negociável)
-  - [ ] UX de envio/recebimento — **brainstorm dedicado precede spec** (7 perguntas em aberto + 2 eixos ortogonais, ver ICR-MATERIA §7.1 + ICR §2.5; perguntas adicionadas 2026-05-09 cobrem alerta de source divergente no import e modo "múltiplos imports em staging" pra comparação direta sem mexer no master)
+  **✅ Slice 5 — Provenance audit (FEITO 2026-05-09):**
+  - [x] `sourceHashAtCoding?: string` em todos marker types (BaseMarker + 7 specific)
+  - [x] `attachSourceHashSnapshot` helper público (idempotente + swallow errors)
+  - [x] `detectStaleMarkers` puro itera 6 engines + classifica fresh/stale/inconclusive
+  - [x] Wire piloto em markdown marker creation (outros engines = slice de extensão)
+  - [x] Plugin `icrTransport.detectStaleMarkers` exposto pra console
+  - 10 testes novos. Tag `post-icr-slice-5-checkpoint`.
 
-  **Possibilidade complementar (não-prioridade, pós-B/C):**
-  - [ ] Campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio. Análogo a Git: ferramenta externa serve fora do plugin se a pessoa quiser. Reavaliar fazer/não fazer depois de B+C entregues
+  **Slices fora do escopo entregue (pendentes):**
+  - [ ] **Adapter bbox IoU (PDF shape, imagem)** — terreno aberto, brainstorm metodológico precede. Decisões em aberto: threshold de match, agregação em κ, bounds não-retangulares, chance agreement pra área 2D, sobreposição M:N
+  - [ ] **View Compare Coders** (drill-down NVivo-style — bounds renderizados conforme modalidade) — gated em UX brainstorm
+  - [ ] **Reconciliação registrada via audit + memos** (orquestração do tripé) — gated em UX brainstorm
+  - [ ] **Wire `attachSourceHashSnapshot` em outros 5 engines** (PDF / CSV / image / audio / video) — slice de extensão mecânica do piloto markdown
 
-  **Próximo passo concreto na próxima sessão:** brainstorm dedicado das 3 perguntas pré-spec do Slice 1 (coeficientes / two-level / κ por engine vs agregado) → plan formal Slice 1 → execução inline. Slice 2 (hash) entra como plano próprio depois.
+  **Checklist Fase C — Transport multi-coder remoto P2:**
+  - [x] **P0 (Slice 3) entregue:** funções puras extract/merge + cross-vault remap + codebookVersion hash + plugin API
+  - [ ] **P1 — UX layer** (gated em brainstorm dedicado): comando export, modal preview, side-by-side compare, cherry-pick, conflict resolution UX, multi-import staging, codebook divergence resolution UX, source divergente alert UX. 7 perguntas em aberto + 2 eixos ortogonais. Detalhe em `BACKLOG.md > 🧱 ICR — Fase C P1`
+
+  **Possibilidade complementar (não-prioridade, pós-Fase C P1):**
+  - [ ] Campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio
+
+  **Resumo da sessão 2026-05-09:** **5 slices entregues** numa só sessão, +147 testes ICR (2814 → 2961). Infraestrutura ICR completa em todos os flancos sem UI. 5 das 6 engines cobertas. Decisões adiadas registradas em `BACKLOG.md`: Smart Code cache hash invalidation (consumer não existe — predicates não dependem de texto), Backup integrity (semântica fragmentada), wiring provenance em outros engines (extensão mecânica).
+
+  **Próximo passo (gated em você):**
+  - Brainstorm UX da Fase C P1 (modal preview / cherry-pick / staging / conflict resolution)
+  - Brainstorm UX do View Compare Coders + Reconciliação
+  - Brainstorm metodológico pra PDF shape + imagem (bbox IoU em QDA)
+  - Wire mechanical de `attachSourceHashSnapshot` em outros 5 engines
 
   **Docs companion** (todos em `obsidian-qualia-coding/plugin-docs/research/`):
   - [[ICR — Cenários cobertos e descobertos]] — cenários cobertos vs descobertos, sequência B/C, ICR multimodal

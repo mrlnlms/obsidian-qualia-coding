@@ -630,6 +630,97 @@ Linhas representam leaves do predicate; nesting de OpNodes via indent + group op
 
 ---
 
+## 5g. ICR — Inter-Coder Reliability (Slices 1-5, 2026-05-09)
+
+5 slices entregues numa sessão. Sem UI ainda — toda interação via console DevTools. Detalhe arquitetural em `ARCHITECTURE.md §19`. Padrões em `TECHNICAL-PATTERNS.md §40-41`.
+
+### Pasta de teste
+
+`/Users/mosx/Desktop/obsidian-plugins-workbench/ICR-test/` no vault — 2 markdowns (entrevistas) + 2 PDFs + 1 CSV. Seed sintético em `scripts/seed-icr-corpus.mjs` popula 3 coders + 5 codes + 20 markers com divergências controladas (perfect agreement / boundary disagreement / code disagreement).
+
+```bash
+node scripts/seed-icr-corpus.mjs
+```
+
+Resetar `data.json` antes (seed assume estado limpo). Backup atual: `obsidian-qualia-coding/data_synthetic_bak/data.json.pre-icr-2026-05-09.bak`.
+
+### Console DevTools — exercitar APIs
+
+```js
+// Plugin reference
+const p = app.plugins.plugins['qualia-coding'];
+
+// Coder registry — list all + details
+console.log(p.coderRegistry.getAll());
+p.coderRegistry.createHuman('Maria');
+p.coderRegistry.createLLM({ model: 'gpt-4o', temperature: 0.2 });
+
+// Source hash registry — lazy compute
+await p.sourceHashRegistry.getOrCompute('ICR-test/ICR-survey.csv');
+console.log(p.sourceHashRegistry.getEntry('ICR-test/ICR-survey.csv'));
+console.log(p.sourceHashRegistry.getAllFileIds());
+
+// Find files by hash (dedup primitive)
+const hash = p.sourceHashRegistry.getEntry('ICR-test/ICR-survey.csv').hash;
+console.log(p.sourceHashRegistry.findByHash(hash));
+
+// Transport — extract coder contribution
+const { payload, warnings } = await p.icrTransport.extract('human:carla');
+console.log('Markers exportados:', Object.values(payload.markers.markdown).flat().length);
+console.log('Codebook hash:', payload.codebookVersion);
+console.log('Sources:', Object.keys(payload.sources));
+
+// Transport — merge (sobre dados atuais; teste cross-vault simula via segundo vault no script)
+// const result = await p.icrTransport.merge(payload);
+
+// Provenance audit — detect stale markers (snapshot vs hash atual)
+const report = await p.icrTransport.detectStaleMarkers();
+console.log('Fresh:', report.fresh);
+console.log('Stale:', report.stale);
+console.log('Inconclusive:', report.inconclusive);
+```
+
+### Smoke real (vault aberto)
+
+| Cenário | Como reproduzir |
+|---|---|
+| Hash compute lazy | `getOrCompute` retorna entry com hex 64-char; segunda chamada usa cache (não re-computa) |
+| Rename detection | Renomear arquivo no Obsidian → `getEntry(oldPath) === null` + `getEntry(newPath)` retorna entry com mesmo hash |
+| Modify + cache invalidation | Pre-compute hash, edit arquivo + Cmd+S, hash muda + computedAt atualizado |
+| Cross-vault remap (script) | `tests/core/icr/transport/smoke.test.ts` simula vault A (paths `remote/`) → vault B (paths `local/`) — markers chegaram com fileId remapeado |
+| Stale marker detection | Edite source de marker existente, rode `detectStaleMarkers()` — markers com snapshot que diverge entram em `stale[]` |
+
+### Cálculo κ via console (multi-engine)
+
+```js
+import('/path/to/main.js').then(m => { /* ... */ });
+// Mais simples: usar o reporter exportado via plugin.icr (não exposto ainda — usar tests):
+// npm run test -- tests/core/icr/multiEngineSmoke.test.ts
+```
+
+Pra testar reporter cross-engine real, mais prático rodar smoke test (já cobre markdown + audio + csvRow simultaneamente) ou criar script Node próprio importando `reportKappa`.
+
+### Tests (177+ ICR)
+
+```bash
+npm run test -- tests/core/icr/                    # todos ICR (62 + 24 + 26 + 23 + 10 + 3 = 148+)
+npm run test -- tests/core/icr/transport/smoke.test.ts        # cross-vault end-to-end
+npm run test -- tests/core/icr/multiEngineSmoke.test.ts       # text+audio+csvRow
+```
+
+### Limites conhecidos (out of scope nas 5 slices)
+
+- **Adapter PDF shape + imagem (bbox IoU)** — terreno aberto, brainstorm metodológico precede
+- **UI completa Fase C P1** — comando export, modal preview, cherry-pick, conflict resolution UX (gated em UX brainstorm)
+- **View Compare Coders + Reconciliação UI** — gated em UX brainstorm
+- **Wire `attachSourceHashSnapshot` em outros 5 engines** — slice de extensão mecânica (piloto markdown funcional)
+- **Smart Code cache hash invalidation** — adiado (predicates atuais não dependem de texto do source)
+- **Backup integrity validation** — adiado (semântica fragmentada, restore raro)
+
+Detalhe completo em `BACKLOG.md > 🧱 ICR —`.
+
+---
+
 ## 6. Obsidian Native Components — Quick Reference
 
 ### Inputs
