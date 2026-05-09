@@ -701,6 +701,16 @@ export class CsvCodingModel {
 		return this.markerTextCache.size;
 	}
 
+	/** Invalida cached preview text pra todos markers de um fileId. Chamado por
+	 *  vault.on('modify') quando hash do source muda — preview pode estar stale.
+	 *  Markers individuais re-hidratarão lazy on next access. */
+	public invalidateMarkerTextCacheForFile(fileId: string): void {
+		const markers = this.getMarkersForFile(fileId);
+		for (const m of markers) {
+			this.markerTextCache.delete(m.id);
+		}
+	}
+
 	/**
 	 * Pra parear com markdown/pdf/audio/video, label preferred is the cell excerpt
 	 * (segment: substring `from..to`; row: célula inteira). Coordenada `Row X · Column`
