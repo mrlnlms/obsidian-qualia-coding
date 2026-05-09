@@ -10,11 +10,15 @@
  */
 
 import type { KappaInput } from './kappaInput';
+import type { CategoricalKappaInput } from './categoricalKappaInput';
 import { cohenKappa } from './coefficients/cohenKappa';
 import { fleissKappa } from './coefficients/fleissKappa';
 import { krippendorffAlphaNominal } from './coefficients/krippendorffAlpha';
 import { alphaBinary } from './coefficients/alphaBinary';
 import { cuAlpha } from './coefficients/cuAlpha';
+import { cohenKappaCategorical } from './coefficients/cohenKappaCategorical';
+import { fleissKappaCategorical } from './coefficients/fleissKappaCategorical';
+import { krippendorffAlphaCategoricalNominal } from './coefficients/krippendorffAlphaCategorical';
 
 export type EngineId = 'markdown' | 'pdf' | 'csvSegment' | 'csvRow' | 'audio' | 'video';
 
@@ -24,7 +28,11 @@ const CATEGORICAL_ENGINES: EngineId[] = ['csvRow'];
 
 export interface EngineKappaInput {
 	engine: EngineId;
-	kappaInput: KappaInput;
+	kappaInput: KappaInput | CategoricalKappaInput;
+}
+
+function isCategorical(input: KappaInput | CategoricalKappaInput): input is CategoricalKappaInput {
+	return 'units' in input;
 }
 
 export interface CoefficientReport {
@@ -48,7 +56,7 @@ export function reportKappa(inputs: EngineKappaInput[]): KappaReport {
 	const weights: Partial<Record<EngineId, number>> = {};
 	for (const { engine, kappaInput } of inputs) {
 		byEngine[engine] = computeAll(kappaInput);
-		weights[engine] = kappaInput.markers.length;
+		weights[engine] = isCategorical(kappaInput) ? kappaInput.units.length : kappaInput.markers.length;
 	}
 	const aggregate = aggregateReports(byEngine, weights);
 
@@ -70,7 +78,26 @@ export function reportKappa(inputs: EngineKappaInput[]): KappaReport {
 	return { byEngine, aggregate, weights, aggregateWarnings };
 }
 
-function computeAll(input: KappaInput): CoefficientReport {
+function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientReport {
+	if (isCategorical(input)) {
+		const cohenK: Record<string, number> = {};
+		for (let i = 0; i < input.coders.length; i++) {
+			for (let j = i + 1; j < input.coders.length; j++) {
+				const key = `${input.coders[i]}|${input.coders[j]}`;
+				cohenK[key] = cohenKappaCategorical(input, input.coders[i]!, input.coders[j]!);
+			}
+		}
+		return {
+			cohenKappa: cohenK,
+			fleissKappa: fleissKappaCategorical(input),
+			alphaNominal: krippendorffAlphaCategoricalNominal(input),
+			// alphaBinary e cuAlpha não-aplicáveis pra categorical (não tem boundary disagreement).
+			// Retorna 1 (vacuous) pra preservar shape do CoefficientReport.
+			alphaBinary: 1,
+			cuAlpha: 1,
+		};
+	}
+
 	const cohenK: Record<string, number> = {};
 	for (let i = 0; i < input.coders.length; i++) {
 		for (let j = i + 1; j < input.coders.length; j++) {
