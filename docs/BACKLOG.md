@@ -97,6 +97,66 @@ Slice 2 (planejado 2026-05-09) entrega a **primitiva** de hash por source + 3 co
 
 Sem esses 4 consumers, a primitiva entregue no Slice 2 cobre os 3 casos mais frequentes (cache invalidation, rename detection, import dedup) mas deixa em aberto: detecção de edição externa pra Smart Codes, integridade temporal dos markers, integridade de backup, e — crucialmente — o pré-requisito de Fase C. Os 3 primeiros são otimizações de robustez progressiva; o último (cross-vault remap) é gating pra próximo grande marco do roadmap ICR.
 
+**Atualização 2026-05-09:** cross-vault remap **entra como pedaço de `mergeCoderContribution`** no Slice 3 (Fase C P0). Não vai ficar isolado — é integrado direto no algoritmo de merge multi-coder. Resolve o gating descrito acima.
+
+---
+
+## 🧱 ICR — Fase C P1 (UX layer, fora do Slice 3)
+
+Slice 3 (planejado 2026-05-09) entrega **Fase C P0** — funções puras de transport multi-coder remoto sem UI: `extractCoderContribution`, `mergeCoderContribution` (com cross-vault remap embutido), payload JSON format, codebook divergence detection. Testável via script. **Sem UI.** UX layer fica em P1, dependente de brainstorm com user (7 perguntas em aberto + 2 eixos ortogonais — ver `ROADMAP.md §"Infra compartilhada — Fase C"` e `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md §7.1`).
+
+### Comando/menu pra exportar contribuição
+
+**Estado após Slice 3:** função `extractCoderContribution(data, coderId)` existe e é chamável via console/script. Sem comando palette, sem item de menu, sem botão.
+
+**Impacto sem fazer:** export só via dev tools. Não-dev users não conseguem usar. **Bloqueia adoção real do workflow multi-coder.**
+
+**Decisão pendente (brainstorm):** comando palette? item de menu na sidebar? botão em settings? trigger automático on certain events? — pergunta 1 do brainstorm Fase C.
+
+### Modal preview de import + side-by-side compare + cherry-pick
+
+**Estado após Slice 3:** `mergeCoderContribution(localData, payload, hashRegistry)` aplica TODO o payload. Caller decide se aplica ou não. Sem preview, sem comparação visual, sem seleção marker-por-marker.
+
+**Impacto sem fazer:** lead aceita o batch inteiro sem revisar. Errors silenciosos (marker fora de range, código não-bate) só aparecem depois.
+
+**Decisão pendente (brainstorm):** modal preview com diff? side-by-side com markers do lead vs incoming? cherry-pick por marker (overhead alto)? batch confirm com warnings highlighted? — perguntas 2-4 do brainstorm.
+
+### Conflict resolution UX
+
+**Estado após Slice 3:** função pura emite `conflicts: ConflictRecord[]` mas não resolve — caller decide. mergePolicies.ts existing já tem políticas pra code-level merge, mas multi-coder marker collision (mesmo segment, codes diferentes entre coders) não tem policy default.
+
+**Impacto sem fazer:** conflitos viram warnings que o caller tem que tratar manualmente. Sem fluxo guiado.
+
+**Decisão pendente (brainstorm):** policy default (last-write-wins / local-wins / incoming-wins / manual)? UI de resolução marker-por-marker? — pergunta 4 do brainstorm.
+
+### Multi-import staging
+
+**Estado após Slice 3:** import é destrutivo — aplica payload no `data.json` master direto. Sem area de staging.
+
+**Impacto sem fazer:** lead que recebe contribuições de 3 coders e quer comparar antes de mergear precisa de 3 vaults separados ou backup manual.
+
+**Decisão pendente (brainstorm):** staging area dedicada? branch model (git-like)? snapshot rollback? — pergunta 5-6 do brainstorm (adicionadas 2026-05-09).
+
+### Codebook divergence resolution UX
+
+**Estado após Slice 3:** função pura detecta `codebookHashMismatch: true` em payload se codebook local diverge do que estava quando coder exportou. Emite warning estruturado. **Não bloqueia merge.**
+
+**Impacto sem fazer:** lead vê warning mas não tem fluxo guiado pra resolver. Pode aceitar merge silencioso com codes inconsistentes.
+
+**Decisão pendente (brainstorm):** auto-rebase (incoming codes ganham IDs locais)? staging com diff? rejection com mensagem? — pergunta 7 do brainstorm.
+
+### Source divergente alert (hash não bate entre vaults)
+
+**Estado após Slice 3:** cross-vault remap procura match por hash. **Se source com mesmo path existe local mas hash diverge** (= source foi editado em algum dos lados), função emite warning `sourceHashMismatch` mas não bloqueia. Caller decide: merge incoming ignorando local? trust local? marcar markers como "potencialmente desalinhados"?
+
+**Impacto sem fazer:** decisão silenciosa do caller (que vai ser o programador, não o pesquisador). Sem fluxo claro.
+
+**Decisão pendente (brainstorm):** UI de alerta com diff visual? batch summary numérico? por arquivo ou agregado? — pergunta adicional do brainstorm 2026-05-09.
+
+### Resumo do impacto cumulativo
+
+Sem essas 6 frentes de UX, Slice 3 entrega motor de transport completo mas usável **só via console/script** — útil pra dev/testing, não pra workflow real de pesquisador. UX brainstorm dedicado precede primeira spec de UI; sem isso, qualquer interface seria especulação.
+
 ---
 
 ## 🔒 Won't-fix (não reabrir)
