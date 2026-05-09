@@ -31,7 +31,7 @@ export function krippendorffAlphaNominal(input: KappaInput): number {
 		const unit = new Map<string, string>();
 		for (const coder of input.coders) {
 			const set = cm?.get(coder);
-			const r = set && set.size > 0 ? Array.from(set).sort()[0] : NONE;
+			const r = (set && set.size > 0 ? Array.from(set).sort()[0] : NONE) ?? NONE;
 			unit.set(coder, r);
 		}
 		units.push(unit);
@@ -94,8 +94,8 @@ export function krippendorffAlphaNominal(input: KappaInput): number {
 	for (let i = 0; i < cats.length; i++) {
 		for (let j = 0; j < cats.length; j++) {
 			if (i === j) continue;
-			const ni = nc.get(cats[i])!;
-			const nj = nc.get(cats[j])!;
+			const ni = nc.get(cats[i]!)!;
+			const nj = nc.get(cats[j]!)!;
 			De += (ni * nj) / (n - 1 || 1);
 		}
 	}

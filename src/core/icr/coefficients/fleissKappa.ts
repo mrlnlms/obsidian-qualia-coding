@@ -29,7 +29,7 @@ export function fleissKappa(input: KappaInput): number {
 		const ratingCounts = new Map<string, number>();
 		for (const coder of input.coders) {
 			const set = cm?.get(coder);
-			const r = set && set.size > 0 ? Array.from(set).sort()[0] : NONE;
+			const r = (set && set.size > 0 ? Array.from(set).sort()[0] : NONE) ?? NONE;
 			ratingCounts.set(r, (ratingCounts.get(r) ?? 0) + 1);
 		}
 		unitRatings.push(ratingCounts);
