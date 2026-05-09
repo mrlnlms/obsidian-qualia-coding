@@ -358,3 +358,12 @@ $PY $SCRIPT --schema
 **Casos avancados** (DuckDB direto): se o wrapper nao cobrir, ler `~/Desktop/AI\ Interaction\ Analysis/CLAUDE.md` secao "Dissecacao das orfas — nb 15" pra schema completo das views (conversations, messages, events, conversation_projects) e padroes DuckDB. Em ultimo caso, `cd` no projeto e rodar Python com `from src.db import DuckDBManager`.
 
 **NAO atualizar a base.** Esse projeto eh consumer read-only — nunca rodar nada que modifique parquets em `data/unified/` ou `data/curated/`.
+
+## Plugins paralelos / spike / PoC
+
+Se uma sessao neste projeto gerar necessidade de criar um plugin Obsidian separado (PoC de viabilidade, spike, plugin novo), e o trabalho estiver no vault `obsidian-plugins-workbench` (bancada local), o layout segue regra fixa:
+
+- **Codigo** -> `.obsidian/plugins/<plugin-id>/` (com `.git` proprio, repo `mrlnlms/<plugin-id>` no GitHub)
+- **Docs / history / research / notas de teste** -> `obsidian-plugins-workbench/<plugin-id>/` (parte do vault, fora do repo do plugin)
+
+Detalhes: ver `obsidian-plugins-workbench/.claude/CLAUDE.md` (CLAUDE.md do vault).
