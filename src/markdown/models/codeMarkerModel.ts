@@ -25,6 +25,7 @@ export interface Marker {
 	text?: string;
 	memo?: MemoRecord;
 	codedBy?: CoderId;
+	sourceHashAtCoding?: string;
 	createdAt: number;
 	updatedAt: number;
 }

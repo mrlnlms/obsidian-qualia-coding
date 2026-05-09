@@ -15,6 +15,7 @@ export interface SegmentMarker {
 	memo?: MemoRecord;
 	colorOverride?: string;
 	codedBy?: CoderId;
+	sourceHashAtCoding?: string;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -30,6 +31,7 @@ export interface RowMarker {
 	memo?: MemoRecord;
 	colorOverride?: string;
 	codedBy?: CoderId;
+	sourceHashAtCoding?: string;
 	/** User-typed comment for this cell. Distinct from `memo` (analytical reflection on
 	 *  the marker itself). Cell-level annotation surface, granularity (file, row, column).
 	 *  Empty/undefined means no comment. RowMarker pode existir só por causa do comment

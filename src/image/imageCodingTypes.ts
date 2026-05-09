@@ -19,6 +19,8 @@ export interface ImageMarker {
 	codes: CodeApplication[];
 	memo?: MemoRecord;
 	colorOverride?: string;
+	codedBy?: import('../core/icr/coderTypes').CoderId;
+	sourceHashAtCoding?: string;
 	createdAt: number;
 	updatedAt: number;
 }

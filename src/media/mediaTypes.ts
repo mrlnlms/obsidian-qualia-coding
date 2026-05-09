@@ -16,6 +16,8 @@ export interface MediaMarker {
 	codes: CodeApplication[];
 	colorOverride?: string;
 	memo?: MemoRecord;
+	codedBy?: import('../core/icr/coderTypes').CoderId;
+	sourceHashAtCoding?: string;
 	createdAt: number;
 	updatedAt: number;
 }

@@ -30,6 +30,7 @@ export interface PdfMarker {
 	memo?: MemoRecord;
 	colorOverride?: string;
 	codedBy?: CoderId;
+	sourceHashAtCoding?: string;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -44,6 +45,8 @@ export interface PdfShapeMarker {
 	codes: CodeApplication[];
 	memo?: MemoRecord;
 	colorOverride?: string;
+	codedBy?: CoderId;
+	sourceHashAtCoding?: string;
 	createdAt: number;
 	updatedAt: number;
 }

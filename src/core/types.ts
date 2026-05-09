@@ -90,6 +90,9 @@ export interface BaseMarker {
 	colorOverride?: string;
 	memo?: MemoRecord;
 	codedBy?: CoderId;
+	/** ICR provenance audit (Slice 5): SHA-256 do source no momento da criação do marker.
+	 *  Comparado com hash atual via detectStaleMarkers() pra detectar desalinhamento. */
+	sourceHashAtCoding?: string;
 	createdAt: number;
 	updatedAt: number;
 }
