@@ -10,7 +10,7 @@ describe('alphaBinary', () => {
 				{ coderId: 'a', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c1'] },
 				{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c2'] },
 			],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 20 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 20 }],
 			coders: ['a', 'b'],
 		};
 		expect(alphaBinary(input)).toBeCloseTo(1.0, 3);
@@ -22,7 +22,7 @@ describe('alphaBinary', () => {
 				{ coderId: 'a', range: { fileId: 'f1', locator: '', from: 0, to: 5 }, codeIds: ['c1'] },
 				{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 5, to: 10 }, codeIds: ['c1'] },
 			],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 10 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 10 }],
 			coders: ['a', 'b'],
 		};
 		expect(alphaBinary(input)).toBeLessThan(0);
@@ -35,7 +35,7 @@ describe('alphaBinary', () => {
 				{ coderId: 'a', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c1'] },
 				{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c2'] },
 			],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 20 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 20 }],
 			coders: ['a', 'b'],
 		};
 		expect(alphaBinary(input)).toBeCloseTo(1.0, 3);

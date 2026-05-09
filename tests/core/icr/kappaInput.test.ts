@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	explodeMarkersToCharLabels,
-	iterateAllCharKeys,
+	iterateAllUnitKeys,
 	type CodedMarker,
 	type SourceMeta,
 } from '../../../src/core/icr/kappaInput';
@@ -50,13 +50,13 @@ describe('explodeMarkersToCharLabels', () => {
 	});
 });
 
-describe('iterateAllCharKeys', () => {
+describe('iterateAllUnitKeys', () => {
 	it('iterates all char positions across all sources', () => {
 		const sources: SourceMeta[] = [
-			{ fileId: 'f1', locator: '', totalChars: 3 },
-			{ fileId: 'f1', locator: 'page:1', totalChars: 2 },
+			{ fileId: 'f1', locator: '', totalUnits: 3 },
+			{ fileId: 'f1', locator: 'page:1', totalUnits: 2 },
 		];
-		const keys = Array.from(iterateAllCharKeys(sources));
+		const keys = Array.from(iterateAllUnitKeys(sources));
 		expect(keys).toEqual([
 			'f1::0', 'f1::1', 'f1::2',
 			'f1:page:1:0', 'f1:page:1:1',
@@ -64,10 +64,10 @@ describe('iterateAllCharKeys', () => {
 	});
 
 	it('returns empty for empty source list', () => {
-		expect(Array.from(iterateAllCharKeys([]))).toEqual([]);
+		expect(Array.from(iterateAllUnitKeys([]))).toEqual([]);
 	});
 
-	it('returns empty for source with totalChars=0', () => {
-		expect(Array.from(iterateAllCharKeys([{ fileId: 'f1', locator: '', totalChars: 0 }]))).toEqual([]);
+	it('returns empty for source with totalUnits=0', () => {
+		expect(Array.from(iterateAllUnitKeys([{ fileId: 'f1', locator: '', totalUnits: 0 }]))).toEqual([]);
 	});
 });

@@ -57,14 +57,14 @@ export function cuAlpha(input: KappaInput): number {
 		return ranges;
 	});
 
-	// Build sources truncados: each source totalChars = max shared pos + 1
+	// Build sources truncados: each source totalUnits = max shared pos + 1
 	const newSources: SourceMeta[] = [];
 	for (const s of input.sources) {
 		const key = `${s.fileId}:${s.locator}`;
 		const set = sharedChars.get(key);
 		if (!set || set.size === 0) continue;
 		const maxPos = Math.max(...set);
-		newSources.push({ ...s, totalChars: maxPos + 1 });
+		newSources.push({ ...s, totalUnits: maxPos + 1 });
 	}
 
 	if (newSources.length === 0) return 1;

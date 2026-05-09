@@ -10,7 +10,7 @@ describe('fleissKappa', () => {
 				{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c1'] },
 				{ coderId: 'c', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c1'] },
 			],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 20 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 20 }],
 			coders: ['a', 'b', 'c'],
 		};
 		expect(fleissKappa(input)).toBeCloseTo(1.0, 3);
@@ -23,7 +23,7 @@ describe('fleissKappa', () => {
 				{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 5, to: 10 }, codeIds: ['c1'] },
 				{ coderId: 'c', range: { fileId: 'f1', locator: '', from: 10, to: 15 }, codeIds: ['c1'] },
 			],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 20 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 20 }],
 			coders: ['a', 'b', 'c'],
 		};
 		expect(fleissKappa(input)).toBeLessThan(0.5);
@@ -32,7 +32,7 @@ describe('fleissKappa', () => {
 	it('returns 1 with single coder (vacuous)', () => {
 		const input: KappaInput = {
 			markers: [],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 10 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 10 }],
 			coders: ['a'],
 		};
 		expect(fleissKappa(input)).toBe(1);
@@ -41,7 +41,7 @@ describe('fleissKappa', () => {
 	it('returns 1 with no markers (all coders agree on __none__)', () => {
 		const input: KappaInput = {
 			markers: [],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 10 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 10 }],
 			coders: ['a', 'b'],
 		};
 		expect(fleissKappa(input)).toBe(1);

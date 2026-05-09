@@ -18,11 +18,12 @@ export interface CodedMarker {
 	codeIds: string[];
 }
 
-/** Source com tamanho — necessário pra cu-α/α-binary cobrirem chars não codificados (chance agreement). */
+/** Source com tamanho — necessário pra cu-α/α-binary cobrirem unidades não codificadas (chance agreement).
+ *  `totalUnits` é genérico: chars (texto-likes) ou segundos (audio/video). */
 export interface SourceMeta {
 	fileId: string;
 	locator: string;
-	totalChars: number;
+	totalUnits: number;
 }
 
 /** Input universal pros coeficientes. */
@@ -58,10 +59,11 @@ export function explodeMarkersToCharLabels(
 	return result;
 }
 
-/** Itera todos chars (fileId, locator, pos) cobertos por sources. */
-export function* iterateAllCharKeys(sources: SourceMeta[]): Generator<string> {
+/** Itera todas units (fileId, locator, pos) cobertas por sources.
+ *  Unit pode ser char (texto) ou segundo (audio/video) — função é agnóstica. */
+export function* iterateAllUnitKeys(sources: SourceMeta[]): Generator<string> {
 	for (const s of sources) {
-		for (let pos = 0; pos < s.totalChars; pos++) {
+		for (let pos = 0; pos < s.totalUnits; pos++) {
 			yield makeCharKey(s.fileId, s.locator, pos);
 		}
 	}

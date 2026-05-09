@@ -13,7 +13,7 @@
  */
 
 import type { KappaInput } from '../kappaInput';
-import { explodeMarkersToCharLabels, iterateAllCharKeys } from '../kappaInput';
+import { explodeMarkersToCharLabels, iterateAllUnitKeys } from '../kappaInput';
 
 const NONE = '__none__';
 
@@ -24,7 +24,7 @@ export function fleissKappa(input: KappaInput): number {
 	const charMap = explodeMarkersToCharLabels(input.markers);
 	const unitRatings: Array<Map<string, number>> = [];
 
-	for (const key of iterateAllCharKeys(input.sources)) {
+	for (const key of iterateAllUnitKeys(input.sources)) {
 		const cm = charMap.get(key);
 		const ratingCounts = new Map<string, number>();
 		for (const coder of input.coders) {

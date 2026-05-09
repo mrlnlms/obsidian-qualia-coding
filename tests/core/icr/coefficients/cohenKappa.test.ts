@@ -9,7 +9,7 @@ describe('cohenKappa', () => {
 				{ coderId: 'a', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c1'] },
 				{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c1'] },
 			],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 20 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 20 }],
 			coders: ['a', 'b'],
 		};
 		expect(cohenKappa(input, 'a', 'b')).toBeCloseTo(1.0, 3);
@@ -21,7 +21,7 @@ describe('cohenKappa', () => {
 				{ coderId: 'a', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c1'] },
 				{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 10, to: 20 }, codeIds: ['c1'] },
 			],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 20 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 20 }],
 			coders: ['a', 'b'],
 		};
 		const k = cohenKappa(input, 'a', 'b');
@@ -35,7 +35,7 @@ describe('cohenKappa', () => {
 				{ coderId: 'a', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c1'] },
 				{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 0, to: 15 }, codeIds: ['c1'] },
 			],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 20 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 20 }],
 			coders: ['a', 'b'],
 		};
 		const k = cohenKappa(input, 'a', 'b');
@@ -45,13 +45,13 @@ describe('cohenKappa', () => {
 	});
 
 	it('symmetric partial overlap gives κ=0 (chance agreement)', () => {
-		// A marca 0-10, B marca 5-15, totalChars=20. Marginais idênticas → Po=Pe → κ=0.
+		// A marca 0-10, B marca 5-15, totalUnits=20. Marginais idênticas → Po=Pe → κ=0.
 		const input: KappaInput = {
 			markers: [
 				{ coderId: 'a', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c1'] },
 				{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 5, to: 15 }, codeIds: ['c1'] },
 			],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 20 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 20 }],
 			coders: ['a', 'b'],
 		};
 		expect(cohenKappa(input, 'a', 'b')).toBeCloseTo(0, 2);
@@ -68,7 +68,7 @@ describe('cohenKappa', () => {
 				{ coderId: 'a', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c1'] },
 				{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['c2'] },
 			],
-			sources: [{ fileId: 'f1', locator: '', totalChars: 10 }],
+			sources: [{ fileId: 'f1', locator: '', totalUnits: 10 }],
 			coders: ['a', 'b'],
 		};
 		// Both coders mark same chars but with different codes — Po=0, Pe is non-trivial

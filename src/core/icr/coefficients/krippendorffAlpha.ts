@@ -17,7 +17,7 @@
  */
 
 import type { KappaInput } from '../kappaInput';
-import { explodeMarkersToCharLabels, iterateAllCharKeys } from '../kappaInput';
+import { explodeMarkersToCharLabels, iterateAllUnitKeys } from '../kappaInput';
 
 const NONE = '__none__';
 
@@ -26,7 +26,7 @@ export function krippendorffAlphaNominal(input: KappaInput): number {
 
 	// Reliability data: each unit → coder → category
 	const units: Array<Map<string, string>> = [];
-	for (const key of iterateAllCharKeys(input.sources)) {
+	for (const key of iterateAllUnitKeys(input.sources)) {
 		const cm = charMap.get(key);
 		const unit = new Map<string, string>();
 		for (const coder of input.coders) {

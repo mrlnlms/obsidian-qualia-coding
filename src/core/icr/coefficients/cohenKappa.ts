@@ -12,7 +12,7 @@
  */
 
 import type { KappaInput } from '../kappaInput';
-import { explodeMarkersToCharLabels, iterateAllCharKeys } from '../kappaInput';
+import { explodeMarkersToCharLabels, iterateAllUnitKeys } from '../kappaInput';
 import type { CoderId } from '../coderTypes';
 
 const NONE = '__none__';
@@ -25,7 +25,7 @@ export function cohenKappa(input: KappaInput, coderA: CoderId, coderB: CoderId):
 	const marginalsB = new Map<string, number>();
 	let total = 0;
 
-	for (const key of iterateAllCharKeys(input.sources)) {
+	for (const key of iterateAllUnitKeys(input.sources)) {
 		const cm = charMap.get(key);
 		const rA = pickFirstCode(cm?.get(coderA)) ?? NONE;
 		const rB = pickFirstCode(cm?.get(coderB)) ?? NONE;
