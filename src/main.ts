@@ -5,6 +5,7 @@ import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
 import { CoderRegistry } from './core/icr/coderRegistry';
+import { SourceHashRegistry } from './core/icr/sourceHashRegistry';
 import { appendEntry, renderCodeHistoryMarkdown } from './core/auditLog';
 import { CaseVariablesRegistry } from './core/caseVariables/caseVariablesRegistry';
 import { CaseVariablesView } from './core/caseVariables/caseVariablesView';
@@ -55,6 +56,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	dataManager!: DataManager;
 	sharedRegistry!: CodeDefinitionRegistry;
 	coderRegistry!: CoderRegistry;
+	sourceHashRegistry!: SourceHashRegistry;
 	caseVariablesRegistry!: CaseVariablesRegistry;
 	private cleanups: EngineCleanup[] = [];
 	// Tracks the refresh listener per FileView for dedupe (.has) and re-invocation
@@ -149,6 +151,35 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.coderRegistry.addOnMutate(() => {
 			this.dataManager.setSection('coders', this.coderRegistry.toJSON());
 		});
+
+		// ─── ICR Source Hash registry (Slice 2) ────────────────────
+		// Lazy compute via getOrCompute(); persiste on mutate.
+		this.sourceHashRegistry = SourceHashRegistry.fromJSON(
+			this.dataManager.getDataRef().sourceHashes ?? null,
+			this.app.vault,
+		);
+		this.sourceHashRegistry.addOnMutate(() => {
+			this.dataManager.setSection('sourceHashes', this.sourceHashRegistry.toJSON());
+		});
+
+		// vault.on('rename') — sincroniza fileId em sourceHashes
+		this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
+			this.sourceHashRegistry.renameEntry(oldPath, file.path);
+		}));
+
+		// vault.on('delete') — remove entry de sourceHashes
+		this.registerEvent(this.app.vault.on('delete', (file) => {
+			this.sourceHashRegistry.removeEntry(file.path);
+		}));
+
+		// vault.on('modify') — recompute hash; se mudou, invalida consumers (Task 5: markerTextCache)
+		this.registerEvent(this.app.vault.on('modify', async (file) => {
+			if (!this.sourceHashRegistry.getEntry(file.path)) return; // não tracked → no-op
+			const result = await this.sourceHashRegistry.recompute(file.path);
+			if (result.changed) {
+				this.csvModel?.invalidateMarkerTextCacheForFile(file.path);
+			}
+		}));
 
 		// Case Variables registry — per-file typed properties (like Obsidian Properties for binaries)
 		this.caseVariablesRegistry = new CaseVariablesRegistry(this.app, this.dataManager);
