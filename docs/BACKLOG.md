@@ -3,7 +3,7 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-08.
+> Última atualização: 2026-05-09.
 
 ---
 
@@ -30,6 +30,21 @@ Quando aparecer, capturar `data.json` + screenshot + steps na hora — diagnóst
 - AG Grid Community talvez só rendere indicator built-in pra filters nativos; pode precisar render manual via `headerComponent` custom ou CSS targeting `.ag-header-cell-filter-active`
 
 **Caminho rápido:** se for só `isFilterActive` faltando, fix é uma linha. Se AG Grid não rendera pra custom filter, adicionar pseudo-element CSS via `.ag-header-cell-filtered::after` ou hook no `headerComponentParams`.
+
+### Image engine (sessão dedicada)
+
+8 itens do raio-x de hardening 2026-05-08. **Atacar como sessão dedicada com vault aberto** — image é o engine menos polido do plugin (construído por dor, não design coeso). Mistura mecânico, refactor, UX call e debug runtime; ataque pontual fora da sessão fica caro/arriscado. Decisão B (`colorOverride`) é a única explicitamente deferida pelo user em 2026-05-08.
+
+| # | Path:linha | Sintoma | Tipo |
+|---|-----------|---------|------|
+| 1 | `src/image/regionLabels.ts:120-126` | Labels desacoplam de regions em pan/zoom (transform inversion na fórmula de viewport) | **debug runtime** — exige reproduzir em vault real |
+| 2 | `src/image/imageCodingMenu.ts:127` | Menu pisca/reposiciona em rajada quando codes editados rápido — `onRebuild` re-chama `open()` sem debounce | **mecânico c/ risco** — debounce ~150ms muda timing de interaction patterns; valida com smoke |
+| 3 | `src/image/canvas/regionManager.ts:114-128` | `marker.colorOverride` no schema sem callsite — `getStyleForMarker()` ignora silenciosamente | **decisão B deferida** (2026-05-08) — wirar (~10 linhas) ou remover do `BaseMarker` type |
+| 4 | `src/image/regionHighlight.ts:37-40` | `suppressModelHover` frágil (bidirectional sync com canvas hover) + WeakMap `origValues` sem cleanup pós-delete | **refactor** — rever sync canvas↔model hover state |
+| 5 | `src/image/views/imageView.ts:144-146` | Menu auto-close em `selection:cleared` sem validação de multi-select rápido — popover fecha antes de permitir code assignment em 2 shapes | **decisão UX** — fechar em 2 selects ou esperar click fora? |
+| 6 | `src/image/views/imageView.ts:156,169` | `refreshAll()` em todo `viewChanged` (zoom, pan) — em imagens com 100+ regions, cada pan dispara 100+ label repaint cycles | **mecânico c/ risco** — debounce/rAF; valida que não atrasa pan/zoom visivelmente |
+| 7 | `src/image/views/imageView.ts:252-266` | Visibility toggle aplica `obj.visible = anyVisible` mas não hidra fill/stroke opacity — região fica visível mas "ghost-like" se código invisível | **decisão visual** — como deve parecer região com código invisível? |
+| 8 | `src/image/canvas/regionDrawing.ts:139,155` | Threshold mínimo assimétrico (rect: w<3 AND h<3; ellipse: rx<2 AND ry<2). User pode criar shapes 1px intencionais → fantasmas no canvas | **mecânico** — padronizar threshold + validação pré-criação |
 
 ### Cross-cutting pendente (pós-rodada 2026-05-09)
 
