@@ -190,6 +190,17 @@ Se o output bater (working clean + branch alinhada com origin), nada está pende
   `cp -p main.js manifest.json styles.css demo/.obsidian/plugins/qualia-coding/`
 - NAO existe plugin copyToDemo no esbuild — copia e manual.
 
+## Backups de dados sintéticos (`.bak` / `.backup`)
+
+Backups gerados automaticamente pelo plugin (qualquer padrão: `data.json.bak-*`, `data.json.backup-*`, `data.json.pre-fase-*.bak`, etc.) NÃO ficam no repo do plugin. Vão pra pasta-irmã `obsidian-qualia-coding/data_synthetic_bak/` (workspace externo, fora do repo).
+
+**Fluxo:**
+1. Quando precisa de massa pra teste de performance ou debug, copia o `.bak` necessário de `data_synthetic_bak/` pra raiz do repo (ou onde o teste exige)
+2. Renomeia/usa conforme necessário
+3. Quando termina, deleta a cópia local — o original fica preservado em `data_synthetic_bak/`
+
+Evita regenerar dados sintéticos toda vez. Quando o plugin gera `.bak` novo durante operação, mover pra `data_synthetic_bak/` pra preservar.
+
 ## Convencoes
 
 - TypeScript strict
