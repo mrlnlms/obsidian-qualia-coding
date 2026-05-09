@@ -4,6 +4,7 @@ import { MarkerPreviewHydrator } from './csv/markerPreviewHydrator';
 import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
+import { CoderRegistry } from './core/icr/coderRegistry';
 import { appendEntry, renderCodeHistoryMarkdown } from './core/auditLog';
 import { CaseVariablesRegistry } from './core/caseVariables/caseVariablesRegistry';
 import { CaseVariablesView } from './core/caseVariables/caseVariablesView';
@@ -53,6 +54,7 @@ import type { VideoCodingModel } from './video/videoCodingModel';
 export default class QualiaCodingPlugin extends Plugin {
 	dataManager!: DataManager;
 	sharedRegistry!: CodeDefinitionRegistry;
+	coderRegistry!: CoderRegistry;
 	caseVariablesRegistry!: CaseVariablesRegistry;
 	private cleanups: EngineCleanup[] = [];
 	// Tracks the refresh listener per FileView for dedupe (.has) and re-invocation
@@ -138,6 +140,14 @@ export default class QualiaCodingPlugin extends Plugin {
 					this.updateVisibilityActionIndicator(leaf.view);
 				}
 			});
+		});
+
+		// ─── ICR Coder registry (Slice 1) ──────────────────────────
+		// Schema additive: data.coders pode estar undefined em data.json antigo;
+		// fromJSON aceita e seed default 'human:default' automaticamente.
+		this.coderRegistry = CoderRegistry.fromJSON(this.dataManager.getDataRef().coders);
+		this.coderRegistry.addOnMutate(() => {
+			this.dataManager.setSection('coders', this.coderRegistry.toJSON());
 		});
 
 		// Case Variables registry — per-file typed properties (like Obsidian Properties for binaries)

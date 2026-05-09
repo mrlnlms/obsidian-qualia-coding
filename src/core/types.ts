@@ -290,6 +290,9 @@ export interface QualiaData {
 		};
 	};
 	caseVariables: CaseVariablesSection;
+	/** ICR Coder registry — display estável + detalhes opcionais (Slice 1).
+	 *  Optional pra round-trip de data antigo sem o campo (CoderRegistry.fromJSON aceita undefined). */
+	coders?: { coders: import('./icr/coderTypes').Coder[] };
 	/** Per-doc visibility overrides. overrides[fileId][codeId] = effective visibility in that doc.
 	 *  Self-cleaning: entries só existem quando divergem do global. */
 	visibilityOverrides: Record<string, Record<string, boolean>>;
