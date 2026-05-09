@@ -2,6 +2,7 @@
 export type { ShapeType, RectCoords, EllipseCoords, PolygonCoords, PercentShapeCoords } from '../core/shapeTypes';
 import type { CodeApplication } from '../core/types';
 import type { MemoRecord } from '../core/memoTypes';
+import type { CoderId } from '../core/icr/coderTypes';
 
 /**
  * Portable text anchor — used only by the QDPX export/import pipeline to
@@ -28,6 +29,7 @@ export interface PdfMarker {
 	codes: CodeApplication[];
 	memo?: MemoRecord;
 	colorOverride?: string;
+	codedBy?: CoderId;
 	createdAt: number;
 	updatedAt: number;
 }

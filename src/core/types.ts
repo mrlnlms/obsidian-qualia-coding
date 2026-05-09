@@ -2,6 +2,7 @@ import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import type { CodeMarkerSettings } from '../markdown/models/settings';
 import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
+import type { CoderId } from './icr/coderTypes';
 
 /** Per-file UI state pra tabular engine. Persiste em data.json csv.fileMeta. */
 export interface CsvFileMeta {
@@ -88,6 +89,7 @@ export interface BaseMarker {
 	codes: CodeApplication[];
 	colorOverride?: string;
 	memo?: MemoRecord;
+	codedBy?: CoderId;
 	createdAt: number;
 	updatedAt: number;
 }

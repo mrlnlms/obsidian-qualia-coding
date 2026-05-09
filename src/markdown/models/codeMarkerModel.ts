@@ -7,6 +7,7 @@ import { getViewForFile as getViewForFileLookup } from '../cm6/utils/viewLookupU
 import { CodeDefinitionRegistry } from '../../core/codeDefinitionRegistry';
 import type { CodeApplication, MarkerMutationEvent, SidebarModelInterface } from '../../core/types';
 import type { MemoRecord } from '../../core/memoTypes';
+import type { CoderId } from '../../core/icr/coderTypes';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../../core/codeApplicationHelpers';
 import { setFileIdEffect } from '../cm6/markerStateField';
 
@@ -23,6 +24,7 @@ export interface Marker {
 	codes: CodeApplication[];
 	text?: string;
 	memo?: MemoRecord;
+	codedBy?: CoderId;
 	createdAt: number;
 	updatedAt: number;
 }

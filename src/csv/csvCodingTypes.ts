@@ -1,5 +1,6 @@
 import type { CodeApplication } from '../core/types';
 import type { MemoRecord } from '../core/memoTypes';
+import type { CoderId } from '../core/icr/coderTypes';
 
 /** Coding of a specific text segment within a cell */
 export interface SegmentMarker {
@@ -13,6 +14,7 @@ export interface SegmentMarker {
 	codes: CodeApplication[];
 	memo?: MemoRecord;
 	colorOverride?: string;
+	codedBy?: CoderId;
 	createdAt: number;
 	updatedAt: number;
 }
