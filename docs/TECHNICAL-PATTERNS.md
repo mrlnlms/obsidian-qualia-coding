@@ -2291,6 +2291,102 @@ Tests: `tests/core/smartCodes/dependencyExtractor.test.ts` (10 leaves, nesting, 
 
 ---
 
+## 40. Função pura paramétrica por adapter — motor genérico cobrindo engines heterogêneas
+
+**Adicionado 2026-05-09 (ICR Slice 1+4).**
+
+Problema: motor κ precisa operar sobre 6 engines com geometrias completamente diferentes (texto per-char, áudio temporal, CSV cell, CSV row categórico, PDF shape 2D, imagem 2D). Implementar 1 versão por engine duplica álgebra; tentar generalizar ad-hoc vira spaghetti.
+
+Solução cravada: **adapter por engine** traduz marker pra **representação normalizada** que o motor consome agnosticamente.
+
+```typescript
+// Motor recebe representação canônica (TextRange ou CategoricalUnit), não marker bruto:
+interface TextRange { fileId; locator; from; to; }     // text-likes / temporal
+interface CategoricalUnit { fileId; sourceRowId; column; codeIds; coderId; }  // categorical
+
+// Adapters traduzem cada engine pra esse shape:
+extractMarkdownRange(m: Marker, sourceText: string) → TextRange  // line/ch → char absoluto
+extractPdfRange(m: PdfMarker)                       → TextRange  // page-aware
+extractCsvSegmentRange(m: SegmentMarker)            → TextRange  // cell-scoped
+extractMediaRange(m: MediaMarker)                   → TextRange  // segundos floor/ceil
+extractRowMarkerUnit(m: RowMarker)                  → CategoricalUnit  // sem geometria
+```
+
+**Insights cravados pelo Slice 1+4:**
+
+1. **Mesmo algoritmo + espaço de coordenadas diferente:** texto e áudio reusam os 5 coeficientes (Cohen κ pareado / Fleiss κ / Krippendorff α / α-binary / cu-α) sem mudança. O que muda é só `totalUnits` em SourceMeta (chars vs segundos). Conceito: a álgebra é independente da unidade de medida.
+
+2. **Categorical é caso DIFERENTE, não variação:** cod row não tem geometria de overlap. Não dá pra fingir que é "intervalo de tamanho 1". Coeficientes próprios (`cohenKappaCategorical`, `fleissKappaCategorical`, `krippendorffAlphaCategoricalNominal`) operam sobre `Map<unitKey, Map<coderId, codeIds>>` direto, sem char explosion. Reporter detecta tipo via `'units' in input` (type guard sobre union).
+
+3. **Aggregate cross-unit é matematicamente suspeito:** chars + segundos + categorical têm escalas incomparáveis. Reporter faz média ponderada mas emite `aggregateWarnings: ['Aggregate combines engines with incomparable units (chars vs seconds vs categorical) — use per-engine values for analytical comparison']` quando detecta misturar famílias. UX layer decide se mostra aggregate ou força separação.
+
+4. **Naming genérico depois descobre uso:** `totalChars` virou `totalUnits` quando audio entrou (Slice 4). Aprendizado: nomes específicos demais (chars) viram dívida quando segunda dimensão chega. Pattern preventivo: nomear pelo **conceito** (units, coordinates) em vez de pela **implementação inicial** (chars, pixels).
+
+5. **`__none__` como sentinel pra ausência de coding em chance agreement:** Krippendorff α + Cohen κ precisam saber "quantos chars NINGUÉM marcou" pra calcular Pe. Categoria sentinel `'__none__'` no map de ratings resolve sem mudar o algoritmo. Cuidado: usar string sentinel improvável de colidir com codeId real (todos codeIds começam com `c_`).
+
+**Quando aplicar:** sempre que motor precise operar sobre dados de fontes heterogêneas. Princípio: caller adapta dado pra forma canônica; motor opera sobre forma canônica. NÃO: motor com switch interno por tipo de fonte.
+
+Files: `src/core/icr/textRange.ts`, `src/core/icr/categoricalKappaInput.ts`, `src/core/icr/coefficients/*.ts`, `src/core/icr/reporter.ts`.
+
+---
+
+## 41. Hash-based registry com lazy compute + listener-driven invalidation
+
+**Adicionado 2026-05-09 (ICR Slice 2).**
+
+Problema: várias features (cache invalidation, rename detection, dedup, cross-vault remap) precisam saber "esse arquivo é o mesmo de antes?" Mtime/path são frágeis (tools externas podem editar sem mudar mtime; rename perde context). Hash de conteúdo é robusto mas caro de computar pra todos files.
+
+Solução cravada: **registry stateful com lazy compute** — só hashea quando alguém pede; `vault.on('modify')` recomputa só pra files já tracked.
+
+```typescript
+class SourceHashRegistry {
+  private entries = new Map<fileId, SourceHashEntry>();
+
+  async getOrCompute(fileId): Promise<string> { ... }  // lazy
+  async recompute(fileId): Promise<{ changed: boolean; oldHash; newHash }> { ... }  // emit only if changed
+  renameEntry(oldFileId, newFileId): void { ... }
+  removeEntry(fileId): void { ... }
+  findByHash(hash): fileId[] { ... }  // pra dedup + cross-vault remap
+
+  addOnMutate(fn: (e: { type: 'compute'|'recompute'|'rename'|'remove' }) => void): void
+}
+```
+
+**Insights cravados:**
+
+1. **Lazy compute escala melhor que pre-warm:** vault grande (1000+ files) tornaria pre-warm caro (multi-segundo no startup). Lazy: hash só vira real quando consumer pede (markerTextCache miss, dedup query, cross-vault remap). Maioria dos files nunca tem hash computed. Trade-off: primeira query é lenta (~100ms pra arquivo de 1MB); subsequentes são instantâneas.
+
+2. **`vault.on('modify')` deve checar tracked-ness antes de recompute:** se file não está no registry, NO-OP. Senão, qualquer modify dispararia hash compute pra files que ninguém pediu (regressão de performance). Padrão:
+   ```typescript
+   vault.on('modify', async (file) => {
+     if (!registry.getEntry(file.path)) return;  // não tracked → ignora
+     const result = await registry.recompute(file.path);
+     if (result.changed) consumer.invalidate(file.path);
+   });
+   ```
+
+3. **`recompute` emite event SÓ se mudou:** evita ruído pra listeners. Modify spurious (Obsidian às vezes re-emite sem mudança real) → recompute → mesmo hash → no event. Fix: `if (changed && old) this.emit({ type: 'recompute', ... })`.
+
+4. **`fileSize` em entry é debug-only, NÃO short-circuit:** tentação inicial era pular rehash se size não mudou. Mas size pode ficar igual com edição (typo correction com mesma length). Decisão: SEMPRE rehash em modify. Custo é baixo (<100ms pra arquivos típicos), correção é absoluta.
+
+5. **`findByHash(hash) → fileId[]` é primitiva universal:** alimenta dedup (QDPX import), cross-vault remap (transport multi-coder), e teoricamente provenance audit. Match único = silencioso, múltiplos = primeiro alfabético + warning, zero = `source_not_found` conflict.
+
+6. **`SubtleCrypto.digest` é built-in browser/Node ≥15 + jsdom 24+:** zero dep nova. Wrap em Uint8Array pra normalizar input (jsdom polyfill é estrito com empty ArrayBuffer):
+   ```typescript
+   const view = new Uint8Array(buffer);
+   const hashBuffer = await crypto.subtle.digest('SHA-256', view);
+   ```
+
+**Padrão aplicável a:** qualquer caso de "esse recurso mudou desde a última vez?" onde mtime/path/timestamp são frágeis. Hash de conteúdo + lazy compute + listener invalidation = solução robusta com custo amortizado.
+
+Files: `src/core/icr/sourceHashRegistry.ts`, `src/core/icr/computeSourceHash.ts`. Wired em `src/main.ts` onload.
+
+### Anti-pattern: invalidação genérica em todos `vault.on('modify')`
+
+Tentar invalidar caches de TODOS os files a cada modify (sem checar tracked-ness) regride performance. Cada save dispara hash compute desnecessário. Pattern correto: registry mantém set de tracked files; modify checa membership antes de agir.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

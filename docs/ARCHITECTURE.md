@@ -1479,6 +1479,32 @@ src/
       detailSmartCodeRenderer.ts — render Smart Code Detail (header + memo com Convert to note + Materialized card + query + matches engine-rich + history + delete). Visual reusa codemarker-detail-* classes
       smartCodeListModal.ts  — hub modal (Cmd+P): lista + new + click abre detail INLINE no sidebar OR modal detail
       smartCodesSection.ts   — renderSmartCodesSection wirado no Code Detail "All Codes" mode (section colapsável + eye toggle + 3-dot menu + new btn). PromptModal/ConfirmModal (sem window.prompt/confirm)
+    icr/                     — ICR (Inter-Coder Reliability): infraestrutura compartilhada de multi-coder. Ver §19 pro mapa completo.
+      coderTypes.ts          — Coder, CoderRun, CoderId types + DEFAULT_CODER_ID
+      coderRegistry.ts       — CoderRegistry classe (createHuman/createLLM + addOnMutate + toJSON, mesmo padrão de CodeDefinitionRegistry)
+      sourceHashTypes.ts     — SourceHashEntry types
+      computeSourceHash.ts   — função pura SHA-256 via SubtleCrypto
+      sourceHashRegistry.ts  — registry stateful (getOrCompute lazy + recompute + rename/remove + findByHash + addOnMutate events compute/recompute/rename/remove)
+      kappaInput.ts          — KappaInput shape (text-likes/temporal) + char-level explosion + iterateAllUnitKeys
+      categoricalKappaInput.ts — CategoricalKappaInput shape (cod row, sem geometria) + extractRowMarkerUnit
+      textRange.ts           — TextRange + adapters (extractMarkdownRange, extractPdfRange, extractCsvSegmentRange, extractMediaRange)
+      overlap.ts             — computeOverlap puro (intersection 1D com scope check fileId+locator)
+      reporter.ts            — reportKappa: per-engine + aggregate ponderado + aggregateWarnings cross-unit (chars/seconds/categorical)
+      coefficients/
+        cohenKappa.ts        — Cohen κ pareado per-char (Po-Pe normalizado)
+        fleissKappa.ts       — Fleiss κ N-coders per-char
+        krippendorffAlpha.ts — Krippendorff α nominal per-char (coincidence matrix Do/De)
+        alphaBinary.ts       — α-binary (collapse codes pra two-level boundary detection)
+        cuAlpha.ts           — cu-α (code agreement within shared boundaries — filter chars + reuse αNominal)
+        cohenKappaCategorical.ts — Cohen κ sobre unit-level decisions (cod row)
+        fleissKappaCategorical.ts — Fleiss κ categórico
+        krippendorffAlphaCategorical.ts — Krippendorff α nominal categórico
+      transport/
+        payloadTypes.ts      — PayloadV1, ConflictRecord, ExtractResult, MergeResult
+        computeCodebookHash.ts — SHA-256 determinístico do codebook (sort por id, ignora createdAt/updatedAt)
+        extractCoderContribution.ts — função pura: filtra markers por coderId + coleta codes/groups/sources/coder + computa codebookVersion
+        crossVaultRemap.ts   — função pura: lookup hash no registry local → remapeia fileId; emite source_hash_mismatch / multiple_hash_matches / source_not_found
+        mergeCoderContribution.ts — função pura: aplica payload via mutação (codebook divergence + coder reg + remap + code/group merge + marker insertion)
     ...                      — DataManager, CodeDefinitionRegistry, settings, types
   markdown/                  — CodeMirror 6 engine para markdown
     cm6/
@@ -1585,6 +1611,131 @@ src/
     waveformRenderer.ts      — wrapper WaveSurfer.js
     formatTime.ts            — helper de formatacao de tempo
 ```
+
+---
+
+## 19. ICR — Inter-Coder Reliability
+
+**Adicionado 2026-05-09.** Frente entregue em 4 slices: motor κ texto, hash por source, transport multi-coder remoto, adapters cod row + áudio/vídeo. Cobre 5 das 6 engines do plugin (PDF shape + imagem ficam pra slice futuro com brainstorm metodológico — bbox IoU em QDA é terreno aberto).
+
+### 19.1 Visão arquitetural
+
+```
+                 ┌─────────────────────────────────┐
+                 │  CoderRegistry (Slice 1)        │
+                 │  ── seed default + create*      │
+                 └────────────┬────────────────────┘
+                              │
+              ┌───────────────┼────────────────┐
+              ▼               ▼                ▼
+     ┌──────────────┐ ┌─────────────┐ ┌──────────────────┐
+     │  Adapters    │ │  Motor κ    │ │  SourceHash      │
+     │  por engine  │→│  paramétric │ │  Registry        │
+     │  (Slice 1+4) │ │  (Slice 1)  │ │  (Slice 2)       │
+     └──────────────┘ └─────────────┘ └────────┬─────────┘
+                              │                 │
+                              ▼                 │
+                  ┌────────────────────┐        │
+                  │  Reporter          │        │
+                  │  per-engine + agg  │        │
+                  │  (Slice 1+4)       │        │
+                  └────────────────────┘        │
+                                                ▼
+                                      ┌──────────────────┐
+                                      │  Transport       │
+                                      │  multi-coder     │
+                                      │  (Slice 3)       │
+                                      │  ── extract      │
+                                      │  ── merge + remap│
+                                      └──────────────────┘
+```
+
+### 19.2 Princípios cravados
+
+1. **`codedBy: CoderId` unificado** — humano e LLM no mesmo eixo de schema (`'human:default'`, `'human:carla'`, `'llm:gpt-4o'`). Função pura κ não distingue tipo de coder. Ver `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md §3`.
+
+2. **Função pura κ paramétrica por geometria de overlap** — adapter por engine traduz marker pra `TextRange` normalizado (texto-likes + temporal) ou `CategoricalUnit` (cod row, sem geometria). Coeficientes operam sobre representação genérica:
+   - **Per-char** (markdown / PDF text / CSV cod segment): char é unit; cu-α / α-binary / Cohen κ / Fleiss κ / Krippendorff α
+   - **Per-segundo** (audio / video): segundo é unit; reusa coeficientes texto-likes (espaço de coordenadas troca, álgebra não)
+   - **Categorical** (CSV cod row): unit pré-definida (file + row + column); coeficientes próprios sobre unit-level decisions sem char explosion
+
+3. **Hash SHA-256 como primitiva arquitetural transversal** — não é só "validação pra ICR"; serve cache invalidation cirúrgica (markerTextCache), rename detection (`vault.on('rename')`), QDPX import dedup, cross-vault remap (transport multi-coder).
+
+4. **Transport multi-coder via funções puras** — payload JSON v1.0 com `codebookVersion` hash + `coder` full + `sources` com hash + `codes` referenciados + `markers` per engine. `extractCoderContribution` filtra subset por coderId; `mergeCoderContribution` aplica via mutação direta com cross-vault remap embutido. UI ainda não existe (Fase C P1, gated em UX brainstorm).
+
+### 19.3 Coeficientes implementados
+
+5 pra texto-likes/temporal + 3 pra categorical = 8 coeficientes ao todo:
+
+| Coeficiente | Texto-likes / Temporal | Categorical |
+|---|:---:|:---:|
+| Cohen κ pareado | ✅ | ✅ |
+| Fleiss κ N-coders | ✅ | ✅ |
+| Krippendorff α nominal | ✅ | ✅ |
+| α-binary (boundary) | ✅ | n/a (vacuous=1) |
+| cu-α (code-within-boundary) | ✅ | n/a (vacuous=1) |
+
+Reporter retorna `byEngine: Record<EngineId, CoefficientReport>` + `aggregate` (média ponderada por #markers ou #units) + `aggregateWarnings` (string[]) emitido quando engines de unidades incomparáveis (chars vs seconds vs categorical) entram juntos no aggregate.
+
+### 19.4 EngineId enum
+
+```typescript
+type EngineId = 'markdown' | 'pdf' | 'csvSegment' | 'csvRow' | 'audio' | 'video';
+```
+
+Cobertura por engine:
+
+| Engine | Geometria | Algoritmo | Slice |
+|---|---|---|---|
+| markdown | per-char offset linear | per-char | 1 |
+| pdf | per-char page-aware (`page:N`) | per-char | 1 |
+| csvSegment | per-char dentro de cell range | per-char | 1 |
+| csvRow | unit pré-definida | categorical | 4 |
+| audio | overlap temporal segundos (Math.floor/ceil) | per-second | 4 |
+| video | overlap temporal segundos | per-second | 4 |
+| **pdf shape** | bbox IoU (não implementado) | bbox IoU | futuro (brainstorm precede) |
+| **image** | bbox IoU (não implementado) | bbox IoU | futuro (brainstorm precede) |
+
+### 19.5 Hash registry (Slice 2)
+
+`SourceHashRegistry` — stateful classe com `Map<fileId, SourceHashEntry>`. Pattern de `CodeDefinitionRegistry` (addOnMutate listeners + toJSON/fromJSON). Eventos: `compute` (primeira vez), `recompute` (mudou), `rename` (path movido), `remove` (deletado). Hooks no plugin onload:
+
+- `vault.on('rename')` → `renameEntry(oldPath, newPath)`
+- `vault.on('delete')` → `removeEntry(path)`
+- `vault.on('modify')` → se file tracked, `recompute(path)`; se hash mudou, invalida `csvModel.markerTextCache` pra esse fileId
+
+QDPX import dedup: `extractSource()` chama `findByHash(incomingHash)` antes de criar duplicata em `imports/<projectName>/`.
+
+### 19.6 Transport (Slice 3)
+
+`extractCoderContribution(data, coderId, hashRegistry)` filtra markers por `codedBy` + coleta deps (codes/groups/sources/coder) + computa `codebookVersion`. Retorna `{ payload: PayloadV1, warnings: string[] }`.
+
+`mergeCoderContribution(localData, payload, hashRegistry)` aplica payload via mutação:
+1. Codebook divergence → emit `codebook_diverged` conflict (warning, não bloqueia)
+2. Coder registration se ausente
+3. Cross-vault remap: `crossVaultRemap(payload.sources, hashRegistry)` retorna `fileIdRemap` + conflicts (`source_hash_mismatch` / `multiple_hash_matches` / `source_not_found`)
+4. Code merge: incoming wins on diff + emit `code_overwritten` conflict
+5. Group merge: skip se existe (não-overwrite, conservador)
+6. Marker insertion per engine com `fileId` remapped
+
+Plugin expõe `icrTransport.extract(coderId) / merge(payload)` no main, chamável via console DevTools. UI fica em Fase C P1 (gated em UX brainstorm).
+
+### 19.7 Out of scope (registrado em BACKLOG)
+
+- **Adapter PDF shape + imagem (bbox IoU)** — terreno aberto, brainstorm metodológico precede
+- **Fase C P1 (UX layer)** — comando export, modal preview, side-by-side compare, cherry-pick, conflict resolution UX, multi-import staging, codebook divergence UX, source divergente alert
+- **Smart Code cache hash invalidation** — adiado (predicates atuais não dependem de texto)
+- **Backup integrity validation** — adiado (semântica fragmentada, restore raro)
+- **Resolução sub-segundo audio/video** — otimização futura
+- **Pre-warm de durações de media files** — otimização futura
+
+### 19.8 Companion docs
+
+- `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
+- `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural
+- `obsidian-qualia-coding/plugin-docs/research/ICR — Cenários cobertos e descobertos.md` — cenários in-plugin vs workaround
+- `obsidian-qualia-coding/plugin-docs/research/Deep Research Report - ICR Qualitative.md` — pesquisa GPT 2026-05-09 (ATLAS.ti 25, NVivo 15, gaps multimodais)
+- `docs/ROADMAP.md §"Infra compartilhada"` — checklist em slices
 
 ---
 
