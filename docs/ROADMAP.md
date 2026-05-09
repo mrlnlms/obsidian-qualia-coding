@@ -81,7 +81,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   **Checklist Fase C — Transport multi-coder remoto P2** (após B funcionando):
   - [ ] `extractCoderContribution(data, coderId)` + `mergeCoderContribution(local, incoming)` — funções puras
   - [ ] `codebookVersion` hash anexado ao transport (cravado, não-negociável)
-  - [ ] UX de envio/recebimento — **brainstorm dedicado precede spec** (5 perguntas + 2 eixos ortogonais ainda em aberto, ver ICR-MATERIA §7.1)
+  - [ ] UX de envio/recebimento — **brainstorm dedicado precede spec** (7 perguntas em aberto + 2 eixos ortogonais, ver ICR-MATERIA §7.1 + ICR §2.5; perguntas adicionadas 2026-05-09 cobrem alerta de source divergente no import e modo "múltiplos imports em staging" pra comparação direta sem mexer no master)
 
   **Possibilidade complementar (não-prioridade, pós-B/C):**
   - [ ] Campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio. Análogo a Git: ferramenta externa serve fora do plugin se a pessoa quiser. Reavaliar fazer/não fazer depois de B+C entregues
