@@ -7,6 +7,8 @@
 
 > **📄 Visão integrada de produto (2026-05-08, navegação fragmentada):** entry point é `obsidian-qualia-coding/plugin-docs/research/INDEX-2026-05-08.md`. Docs filhos focados: `ICR-MATERIA-2026-05-08.md` (caminhos materializados), `LLM-MATERIA-2026-05-08.md` (em movimento — não cravado), `RELACOES-ICR-LLM-2026-05-08.md` (interdependências), `QUALIA-CORE-VISION-2026-05-08.md` (vision separada do plugin). Doc original `CONSOLIDACAO-PRODUTO-2026-05-08.md` (138 KB, 1839 linhas) preservado pra detalhe denso. Resumo do que ficou cravado pra produto: ordem **ICR → LLM → Analytics**; pitch **plugin = QDAS standalone**, **plugin + Qualia Core = QDMMAS sério**; LLM continua em movimento. **As "frentes engatilhadas" abaixo precisam ser revisitadas à luz dessa visão** — não foi feito ainda.
 
+> **🔧 Infra compartilhada — caminhos cravados (2026-05-09):** sessão consolidou ICR como **infra compartilhada primeiro** (rename de "ICR primeiro como determinística"). Não é feature de nicho — é base estrutural que destrava simultaneamente ICR multi-coder, merge de projetos, multi-coder live, handoff com procedência, audit estruturado. Decisões cravadas: schema híbrido `Coder` + `CoderRun`; hash por source como primitiva arquitetural transversal; ICR multimodal (4 algoritmos adaptáveis por engine — gap real do mercado, ATLAS.ti faz só áudio/vídeo); validação P1 com dados sintéticos é fluxo completo (não fica órfão sem LLM); sequência **Fase B (P1 in-plugin) → Fase C (P2 transport remoto)** com LLM fora do escopo paralelo. **Próxima sessão:** atacar schema additive + registry + hash + função pura κ + script de seed (5 itens da Fase B sem decisão de produto pendente). Detalhe completo + checklist em §"Decisões de produto abertas" abaixo. Docs companion em `obsidian-qualia-coding/plugin-docs/research/`: [[ICR — Cenários cobertos e descobertos]], [[Export-Import — Mapeamento e casos de uso]], [[Sync — Caminhos de infraestrutura]], [[Deep Research Report - ICR Qualitative]].
+
 **Versão:** 0.4.2 (2026-05-08). LazyTextFilter custom em todas colunas (real + virtual) elimina flash branco no filter de parquet/CSV lazy via `refreshInfiniteCache`. Bug latente do MCA Biplot corrigido (signature `calculateMCA` separa codeIds matching de codeNames display). Trade-off conhecido: ms-pequeno de delay no swap visual das cells virtuais durante refresh — efeito direto do mecanismo que elimina o flash. **Versão anterior:** 0.4.1 (Code Explorer perf 30s→13s + Export Parquet multi-file fallback + modal info dinâmica).
 
 **Infra que a Fase 6 estabeleceu (não é só "abrir parquet grande"):**
@@ -58,8 +60,44 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 
 - ~~**Parquet/CSV lazy loading**~~ ✅ **FEITO 2026-05-04** — todas as 7 fases entregues. Stack final: DuckDB-Wasm + OPFS + AG Grid Infinite. Doc autoritativo `docs/parquet-lazy-design.md` preservado como referência arquitetural / post-mortem. Estendido em 2026-05-07 com tabular virtual cols (release 0.4.0) + 2026-05-08 com Code Explorer perf + Export multi-file fallback
 - **[LLM-assisted coding](#llm-assisted-coding)** — **pesquisa de mercado profunda concluída** (`docs/_study/llm-coding/`, 41 arquivos: 40 tools + 5 patterns + síntese cross-tool + qualia-fit). 5 escolas filosóficas mapeadas. Decisão pendente: posicionamento (qual escola). Sem isso, design não rola
-- **[Intercoder Reliability (kappa/alpha)](#intercoder-reliability--material-de-repertório-pra-discussão-epistemológica)** — registro 2026-05-04 acumula material de 2 conversas externas com 2 ângulos (A: ICR clássico Kappa/α; B: auditabilidade interpretativa via Friese/B&C; possível C híbrido). Repertório pra brainstorm, não decisão. Possível acoplamento com decisão LLM mapeado mas não cravado. **Update 2026-05-09:** task local derivou 3 docs companion em `obsidian-qualia-coding/plugin-docs/research/` — `ICR — Cenários cobertos e descobertos.md` (foco em ICR), `Export-Import — Mapeamento e casos de uso.md` (inventário + casos cobertos/descobertos), `Sync — Caminhos de infraestrutura.md` (input/output do corpus).
-- **Sync e colaboração multi-coder** — discussão em aberto, possibilidade não cravada. Pesquisa local 2026-05-09 mapeou 4 caminhos de infraestrutura (Obsidian Sync, Google Drive/Dropbox, GitHub, transferência ad-hoc) com tradeoffs por tipo de corpus, custo, isolamento e barreira de entrada. **Sync independe do design do plugin** — escolha do pesquisador conforme corpus e equipe — mas afeta como Export/Import é usado na prática (input do corpus, output da contribuição). Doc: `obsidian-qualia-coding/plugin-docs/research/Sync — Caminhos de infraestrutura.md`. Conexão direta com a frente ICR P2 transport (caminho A do design ICR cravado).
+- **[Infra compartilhada — ICR + merge + multi-coder + handoff](#intercoder-reliability--material-de-repertório-pra-discussão-epistemológica)** — **rename de "Intercoder Reliability" pra refletir alcance real (2026-05-09).** Não é feature de nicho de ICR — é base estrutural compartilhada que destrava simultaneamente ICR multi-coder, merge de projetos (caso bottom-up), multi-coder live no mesmo vault, handoff com procedência por coder, audit estruturado. Diferenciador real do mercado: deep research 2026-05-09 confirmou que **nenhuma das 4 grandes** (NVivo, MAXQDA, ATLAS.ti, Dedoose) tem UI de negotiated agreement, hash de integridade de corpus, ou ICR multimodal completo — gaps universais.
+
+  **Decisões cravadas (sessão 2026-05-09):**
+  - **Schema híbrido coder:** `Coder` (registry com display estável + detalhes opcionais) + `CoderRun` (audit log com config completa por execução). Fecha decisão aberta de DESIGN-SKETCH §11.1
+  - **Hash por source promovido a primitiva arquitetural transversal** — não é só "validação pra ICR"; serve cache invalidation cirúrgica, detect rename vs new file, deduplicação na importação QDPX, provenance audit, cross-vault remap, backup integrity, Smart Codes revalidação confiável
+  - **ICR multimodal cravado como diferenciador** — função pura κ + 4 algoritmos adaptáveis por engine (per-char textual / bbox IoU PDF/imagem / overlap temporal ms áudio/vídeo / cell range CSV). ATLAS.ti 25 só faz áudio/vídeo; outras só texto ou nada
+  - **Validação P1 com dados sintéticos é fluxo completo** — bateria de 2+ coders fictícios exercita motor end-to-end nas 6 engines, não fica órfão sem LLM
+  - **Sequência cravada: Fase B (P1 in-plugin) → Fase C (P2 transport remoto)**. LLM frente fora do escopo paralelo
+
+  **Checklist Fase B — Infra compartilhada P1** (núcleo, sem decisão de produto pendente):
+  - [ ] Schema additive: `codedBy: CoderId` em `BaseMarker` / `CodeApplication` / audit
+  - [ ] Registry `coders[]` com `Coder` (display + detalhes) + `CoderRun` (audit)
+  - [ ] Hash por source — primitiva transversal (cache, dedup, audit, integrity)
+  - [ ] Função pura κ + 4 algoritmos adaptáveis por engine
+  - [ ] Script de seed sintético (2+ coders fictícios cobrindo as 6 engines)
+  - [ ] View Compare Coders (drill-down NVivo-style — bounds renderizados conforme modalidade) — **brainstorm de UX antes**
+  - [ ] Reconciliação registrada via audit + memos (orquestração do tripé) — **brainstorm de UX antes**
+
+  **Checklist Fase C — Transport multi-coder remoto P2** (após B funcionando):
+  - [ ] `extractCoderContribution(data, coderId)` + `mergeCoderContribution(local, incoming)` — funções puras
+  - [ ] `codebookVersion` hash anexado ao transport (cravado, não-negociável)
+  - [ ] UX de envio/recebimento — **brainstorm dedicado precede spec** (5 perguntas + 2 eixos ortogonais ainda em aberto, ver ICR-MATERIA §7.1)
+
+  **Possibilidade complementar (não-prioridade, pós-B/C):**
+  - [ ] Campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio. Análogo a Git: ferramenta externa serve fora do plugin se a pessoa quiser. Reavaliar fazer/não fazer depois de B+C entregues
+
+  **Próximo passo concreto na próxima sessão:** atacar os 5 primeiros itens da Fase B (schema additive + registry + hash + função pura + script de seed). Não exige brainstorm de produto — decisões cravadas. Os 2 últimos (View Compare + Reconciliação UI) precedem brainstorm de UX que opera sobre primitiva já existente.
+
+  **Docs companion** (todos em `obsidian-qualia-coding/plugin-docs/research/`):
+  - [[ICR — Cenários cobertos e descobertos]] — cenários cobertos vs descobertos, sequência B/C, ICR multimodal
+  - [[Export-Import — Mapeamento e casos de uso]] — inventário + casos por fase do projeto (Início/Curso/Meio/Fim)
+  - [[Sync — Caminhos de infraestrutura]] — input/output do corpus, opções de transporte
+  - [[Deep Research Report - ICR Qualitative]] — pesquisa GPT 2026-05-09 com 6 gaps preenchidos
+  - Companions de design originais: ICR-MATERIA, ICR-DESIGN-SKETCH, ICR-PRACTICE-WORKFLOW, ICR-WORKFLOWS-LANDSCAPE, RELACOES-ICR-LLM (todos 2026-05-08)
+
+  **Permanece como repertório histórico (2026-05-04):** material de 2 conversas externas com 2 ângulos (A: ICR clássico Kappa/α; B: auditabilidade interpretativa via Friese/B&C). Convivência A+B é a postura cravada — não é decisão exclusiva.
+
+- **Sync e colaboração multi-coder** — discussão em aberto, possibilidade não cravada. Pesquisa local 2026-05-09 mapeou 4 caminhos de infraestrutura (Obsidian Sync, Google Drive/Dropbox, GitHub, transferência ad-hoc) com tradeoffs por tipo de corpus, custo, isolamento e barreira de entrada. **Sync independe do design do plugin** — escolha do pesquisador conforme corpus e equipe — mas afeta como Export/Import é usado na prática (input do corpus, output da contribuição). Doc: [[Sync — Caminhos de infraestrutura]]. Conexão direta com a frente ICR P2 transport (caminho A do design ICR cravado).
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
 - ~~**Research Board Enhancements**~~ — ✅ todos 6 sub-items resolvidos (4 feitos + 2 won't-do)
 - ~~**Tabular round-trip (import)**~~ — fechado 2026-04-30, ver "Decisões fechadas sem implementar"
