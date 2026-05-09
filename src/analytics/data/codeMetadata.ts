@@ -1,6 +1,8 @@
 import type { ConsolidatedData, FilterConfig, CodeMetadataResult, CodeMetadataStat } from "./dataTypes";
 import type { CaseVariablesRegistry } from "../../core/caseVariables/caseVariablesRegistry";
 import type { VariableValue } from "../../core/caseVariables/caseVariablesTypes";
+import type { PredicateNode } from "../../core/types";
+import type { SmartCodeRegistry } from "../../core/smartCodes/smartCodeRegistryApi";
 import { applyFilters } from "./statsHelpers";
 import { chiSquareFromContingency } from "./inferential";
 import { binNumeric, binDate, explodeMultitext } from "./binning";
@@ -8,6 +10,36 @@ import type { SmartCodeAccess } from "./frequency";
 import { getSmartCodeViews, smartCodePassesCodesFilter } from "./smartCodeAnalytics";
 
 const MISSING_LABEL = "(missing)";
+
+/**
+ * Walk recursivo no PredicateNode pra detectar se alguma branch referencia `variableName`
+ * em `caseVarEquals` ou `caseVarRange`. Quando true, χ² desse Smart Code contra a mesma
+ * variável é tautológico (todos matches caem na mesma coluna por construção do predicate).
+ *
+ * `smartCode` leaves resolvem o nested ref via registry; cycle protection via `visited` set.
+ */
+function predicateReferencesVariable(
+  node: PredicateNode,
+  variableName: string,
+  scRegistry: SmartCodeRegistry,
+  visited: Set<string> = new Set(),
+): boolean {
+  if ('op' in node) {
+    if (node.op === 'NOT') return predicateReferencesVariable(node.child, variableName, scRegistry, visited);
+    return node.children.some(c => predicateReferencesVariable(c, variableName, scRegistry, visited));
+  }
+  if (node.kind === 'caseVarEquals' || node.kind === 'caseVarRange') {
+    return node.variable === variableName;
+  }
+  if (node.kind === 'smartCode') {
+    if (visited.has(node.smartCodeId)) return false;
+    visited.add(node.smartCodeId);
+    const nested = scRegistry.getById(node.smartCodeId);
+    if (!nested) return false;
+    return predicateReferencesVariable(nested.predicate, variableName, scRegistry, visited);
+  }
+  return false;
+}
 
 export function calculateCodeMetadata(
   data: ConsolidatedData,
@@ -152,8 +184,8 @@ export function calculateCodeMetadata(
   // ─── 5b. Smart Codes pass ───
   // Append rows pra cada SC visível. Cada match (UnifiedMarker) bina por case_var value
   // do mesmo jeito que regular markers. Se SC predicate referencia a mesma var sendo
-  // visualizada, χ² fica tautológico (todos matches têm o mesmo value) — TODO: warning visual
-  // futuro. Por enquanto computa stats normalmente; user vê cell concentration óbvia.
+  // visualizada, χ² fica tautológico (todos matches têm o mesmo value) — flagamos via
+  // `tautologicalForVariable: true` pro renderer marcar visualmente.
   if (smartCodes && C > 0) {
     const scViews = getSmartCodeViews(data, smartCodes.cache, smartCodes.registry, filters, registry);
     for (const sc of scViews) {
@@ -176,7 +208,9 @@ export function calculateCodeMetadata(
       }
       // Skip SC se row vazio (todos matches sem case_var resolvido).
       if (row.reduce((a: number, b: number) => a + b, 0) === 0) continue;
-      codes.push({ id: sc.id, name: sc.name, color: sc.color, isSmart: true });
+      const scDef = smartCodes.registry.getById(sc.id);
+      const tautological = scDef ? predicateReferencesVariable(scDef.predicate, variableName, smartCodes.registry) : false;
+      codes.push({ id: sc.id, name: sc.name, color: sc.color, isSmart: true, tautologicalForVariable: tautological });
       matrix.push(row);
     }
   }

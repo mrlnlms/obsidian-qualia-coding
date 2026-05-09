@@ -148,7 +148,8 @@ function drawHeatmap(
     cctx.fillStyle = code.color;
     cctx.fillRect(padding, y - 6, 12, 12);
     cctx.fillStyle = "var(--text-normal)";
-    const labelText = code.isSmart ? `⚡ ${code.name}` : code.name;
+    const prefix = code.tautologicalForVariable ? '⚠ ' : '';
+    const labelText = code.isSmart ? `${prefix}⚡ ${code.name}` : `${prefix}${code.name}`;
     cctx.fillText(truncateLabel(labelText, 22), padding + 18, y);
   }
 
@@ -235,9 +236,12 @@ function drawHeatmap(
     const pctCol = colTot > 0 ? ((count / colTot) * 100).toFixed(1) : "—";
 
     const codeLabel = code.isSmart ? `⚡ ${code.name}` : code.name;
+    const tautologyNote = code.tautologicalForVariable
+      ? `<br><span style="color: var(--text-warning)">⚠ Tautological: this Smart Code's predicate references the variable being plotted; χ² is statistically meaningless here.</span>`
+      : '';
     tooltip.innerHTML =
       `<strong>${escapeHtml(codeLabel)}</strong> × <em>${escapeHtml(value)}</em><br>` +
-      `Count: ${count}<br>% row: ${pctRow}%<br>% col: ${pctCol}%`;
+      `Count: ${count}<br>% row: ${pctRow}%<br>% col: ${pctCol}%${tautologyNote}`;
     tooltip.style.left = `${ev.offsetX + 10}px`;
     tooltip.style.top = `${ev.offsetY + 10}px`;
     tooltip.style.display = "block";

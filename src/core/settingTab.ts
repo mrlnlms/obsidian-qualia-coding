@@ -230,33 +230,50 @@ export class QualiaSettingTab extends PluginSettingTab {
 			csvSection.settings = { parquetSizeWarningMB: 50, csvSizeWarningMB: 100 };
 		}
 
+		// Bounds: 1 MB lower keeps banner useful (anything below would always trigger);
+		// 10000 MB upper rejects nonsense input (no realistic vault has 10 GB tabular files).
+		const MIN_SIZE_WARN_MB = 1;
+		const MAX_SIZE_WARN_MB = 10000;
+		const validateSizeWarn = (raw: string, fallback: number): number | null => {
+			const n = parseInt(raw, 10);
+			if (!Number.isFinite(n) || n < MIN_SIZE_WARN_MB || n > MAX_SIZE_WARN_MB) {
+				new Notice(`Size warning must be an integer between ${MIN_SIZE_WARN_MB} and ${MAX_SIZE_WARN_MB} MB. Reverted to ${fallback}.`);
+				return null;
+			}
+			return n;
+		};
+
 		new Setting(containerEl)
 			.setName('Parquet size warning (MB)')
 			.setDesc('Show "Large file" banner before opening parquet larger than this. Decode is heavy (~5-18× heap multiplier). Default 50 MB. Bench data: 78 MB → 1.4 GB RSS.')
-			.addText(text => text
-				.setPlaceholder('50')
-				.setValue(String(csvSection.settings.parquetSizeWarningMB))
-				.onChange((value) => {
-					const n = parseInt(value, 10);
-					if (Number.isFinite(n) && n > 0) {
-						csvSection.settings.parquetSizeWarningMB = n;
-						save();
+			.addText(text => {
+				text.setPlaceholder('50').setValue(String(csvSection.settings.parquetSizeWarningMB));
+				text.inputEl.addEventListener('blur', () => {
+					const n = validateSizeWarn(text.inputEl.value, csvSection.settings.parquetSizeWarningMB);
+					if (n === null) {
+						text.setValue(String(csvSection.settings.parquetSizeWarningMB));
+						return;
 					}
-				}));
+					csvSection.settings.parquetSizeWarningMB = n;
+					save();
+				});
+			});
 
 		new Setting(containerEl)
 			.setName('CSV size warning (MB)')
 			.setDesc('Show "Large file" banner before opening CSV larger than this. Default 100 MB. Bench data: 148 MB CSV → 1 GB RSS (~7× multiplier).')
-			.addText(text => text
-				.setPlaceholder('100')
-				.setValue(String(csvSection.settings.csvSizeWarningMB))
-				.onChange((value) => {
-					const n = parseInt(value, 10);
-					if (Number.isFinite(n) && n > 0) {
-						csvSection.settings.csvSizeWarningMB = n;
-						save();
+			.addText(text => {
+				text.setPlaceholder('100').setValue(String(csvSection.settings.csvSizeWarningMB));
+				text.inputEl.addEventListener('blur', () => {
+					const n = validateSizeWarn(text.inputEl.value, csvSection.settings.csvSizeWarningMB);
+					if (n === null) {
+						text.setValue(String(csvSection.settings.csvSizeWarningMB));
+						return;
 					}
-				}));
+					csvSection.settings.csvSizeWarningMB = n;
+					save();
+				});
+			});
 
 		// ── Export ──────────────────────────────────────────────
 		containerEl.createEl('h2', { text: 'Export' });

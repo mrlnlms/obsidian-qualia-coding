@@ -31,9 +31,17 @@ function buildCodesDistanceMatrix(matrix: number[][]): number[][] {
   return D;
 }
 
+function dendrogramCutTitleText(ctx: AnalyticsViewContext): string {
+  const count = ctx.lastDendrogramClusterCount;
+  const suffix = count !== undefined ? ` → ${count} clusters` : '';
+  return `Cut Distance: ${ctx.dendrogramCutDistance.toFixed(2)}${suffix}`;
+}
+
 export function renderDendrogramOptionsSection(ctx: AnalyticsViewContext): void {
   const cutSection = ctx.configPanelEl!.createDiv({ cls: "codemarker-config-section" });
-  cutSection.createDiv({ cls: "codemarker-config-section-title", text: `Cut Distance: ${ctx.dendrogramCutDistance.toFixed(2)}` });
+  // Specific class so the renderer can update count post-render without colliding with other
+  // mode option sections that use `codemarker-config-section-title`.
+  cutSection.createDiv({ cls: "codemarker-config-section-title codemarker-dendrogram-cut-title", text: dendrogramCutTitleText(ctx) });
   const slider = cutSection.createEl("input", { type: "range" });
   slider.min = "0.01";
   slider.max = "1.0";
@@ -42,7 +50,7 @@ export function renderDendrogramOptionsSection(ctx: AnalyticsViewContext): void 
   slider.style.width = "100%";
   slider.addEventListener("input", () => {
     ctx.dendrogramCutDistance = parseFloat(slider.value);
-    cutSection.querySelector(".codemarker-config-section-title")!.textContent = `Cut Distance: ${ctx.dendrogramCutDistance.toFixed(2)}`;
+    cutSection.querySelector(".codemarker-dendrogram-cut-title")!.textContent = dendrogramCutTitleText(ctx);
     ctx.scheduleUpdate();
   });
 }
@@ -61,7 +69,7 @@ export function renderDendrogramView(ctx: AnalyticsViewContext, filters: FilterC
   const styles = getComputedStyle(document.body);
   const textColor = styles.getPropertyValue("--text-normal").trim() || (isDark ? "#dcddde" : "#1a1a1a");
 
-  renderDendrogramFull({
+  const renderResult = renderDendrogramFull({
     container: ctx.chartContainer,
     distMatrix,
     names: result.codes,
@@ -70,6 +78,12 @@ export function renderDendrogramView(ctx: AnalyticsViewContext, filters: FilterC
     isDark,
     textColor,
   });
+
+  // Surface cluster count on the slider title (post-render, since computing K up-front
+  // during drag would re-run linkage at every keystroke).
+  ctx.lastDendrogramClusterCount = renderResult.clusterToLeaves.length;
+  const titleEl = ctx.configPanelEl?.querySelector(".codemarker-dendrogram-cut-title");
+  if (titleEl) titleEl.textContent = dendrogramCutTitleText(ctx);
 }
 
 export function renderMiniDendrogram(ctx: AnalyticsViewContext, canvas: HTMLCanvasElement, filters: FilterConfig): void {

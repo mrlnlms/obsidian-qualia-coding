@@ -319,7 +319,12 @@ export interface CodeMetadataStat {
 }
 
 export interface CodeMetadataResult {
-  codes: Array<{ id: string; name: string; color: string; isSmart?: boolean }>;
+  /**
+   * `tautologicalForVariable: true` quando o code é Smart Code cujo predicate referencia
+   * a `variableName` sendo plotada — todos os matches caem na mesma coluna por construção,
+   * tornando χ² estatisticamente sem sentido. Renderer marca visualmente; cálculo segue.
+   */
+  codes: Array<{ id: string; name: string; color: string; isSmart?: boolean; tautologicalForVariable?: boolean }>;
   /** Categorias finais (binadas se number/date; "(missing)" no fim opcional). */
   values: string[];
   /** Matrix [code × value] = contagem. */

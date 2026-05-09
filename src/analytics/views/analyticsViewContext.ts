@@ -60,6 +60,11 @@ export interface AnalyticsViewContext {
 
   // Dendrogram state
   dendrogramCutDistance: number;
+  /**
+   * Cluster count from the last dendrogram render. Slider title surfaces this so the user
+   * sees how the chosen cut distance translates into K. Stale until next scheduleUpdate.
+   */
+  lastDendrogramClusterCount?: number;
 
   // Files Dendrogram state (Q-mode)
   filesDendrogramCutDistance: number;

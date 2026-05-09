@@ -47,5 +47,7 @@ jobs:
           path: .obsidian-cache
           key: obsidian-${{ runner.os }}
 
-      - name: E2E smoke tests (Obsidian + xvfb)
-        run: xvfb-run npx wdio run wdio.conf.mts --spec tests/e2e/specs/smoke.e2e.ts
+      - name: E2E full suite (Obsidian + xvfb)
+        # wdio.conf.mts default specs glob covers all 19 spec files (66 tests).
+        # Smoke alone validated only that Obsidian boots; full suite catches engine regressions.
+        run: xvfb-run npx wdio run wdio.conf.mts

@@ -31,17 +31,14 @@ Quando aparecer, capturar `data.json` + screenshot + steps na hora — diagnóst
 
 **Caminho rápido:** se for só `isFilterActive` faltando, fix é uma linha. Se AG Grid não rendera pra custom filter, adicionar pseudo-element CSS via `.ag-header-cell-filtered::after` ou hook no `headerComponentParams`.
 
-### Mecânicos atacáveis (fila — pendentes)
+### Cross-cutting pendente (pós-rodada 2026-05-09)
 
-Levantamento de hardening 2026-05-08. **9 itens da rodada inicial fechados em 2026-05-08** (ver BACKLOG-HISTORY). Os 3 abaixo precisam de refactor maior do que "leve" — saíram da fila atacável.
+Da fila cross-cutting do hardening, 4 frentes atacadas em 2026-05-09 (parseInt validation, CI e2e suite completa, χ² walk recursivo, dendrogram cluster preview). 2 ficaram pendentes:
 
-| # | Path:linha | Por que não foi atacado em 1 sessão | Tamanho real |
-|---|------------|--------------------------------------|--------------|
-| 1 | `src/analytics/data/codeMetadata.ts:155` | Detectar tautologia exige walk recursivo no `PredicateNode` (kinds AND/OR/NOT + 10 leaf types) pra checar se `caseVarEquals` referencia a `variableName` sendo plotada. Sem isso, banner ou é genérico demais (qualquer SC dispara) ou não dispara nos casos certos. | refactor (1-2h) |
-| 2 | `src/analytics/views/modes/dendrogramMode.ts:20-28` | Computar K em real-time durante drag do slider exige rodar clustering (Jaccard matrix + linkage) síncrono — caro em codebooks grandes. Mostrar count "post-render" exigiria armazenar último resultado em `ctx`, fora do escopo de UI patch. | refactor leve (30-60min) |
-| 3 | `src/analytics/views/modes/cooccurrenceMode.ts:82-100` | `reorderCooccurrence` é função síncrona dentro de render flow. Tornar async muda contrato dos callers + propaga `await`. Notice + `setTimeout(0)` exige refactor pra função async. | refactor (45-90min) |
-
-**Padrão raiz comum aos 3:** todos exigem refactor além do trivial — não cabem em "1 string isolada" ou "1 condicional defensivo". Atacar quando o hardening real rodar (pós-ICR), provavelmente como parte do componente shared `<EmptyState>`/`<LoadingState>`/`<ErrorState>` que resolve cluster maior do levantamento.
+| Item | Por que não couber em rodada mecânica |
+|------|----------------------------------------|
+| **`styles.css` 68 `!important`** — clusters em 833-863 (handles SVG drag), 870-987 (mais handles), 1239-1287 (csv-comment-cell + csv-cod-seg-cell `display: flex` overrides) | Cada `!important` é override defensivo de defaults AG Grid (especificidade alta dos selectors `.ag-cell *`). Auditar exige testar runtime cada um — remover sem teste quebra render. Trabalho pra hardening real com vault aberto, não diff de código. |
+| **`cooccurrenceMode.ts:82-100` reorder async** | Ataca trava de UI em codebooks grandes durante hierarchical cluster. Refactor exige tornar `ModeEntry.render` `void \| Promise<void>` (contrato compartilhado por 25 modes) + `analyticsView.ts:506` await + race com `savedData` restoration. Refactor invasivo, não cabe em mecânico leve. |
 
 ---
 
