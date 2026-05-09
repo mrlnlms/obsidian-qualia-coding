@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Hardening pré-submissão Community Plugins. Sem features novas — sweep horizontal de UX strings, validation, type safety, CSS organization e cross-cutting code quality. 4 rodadas em 2 dias atacaram ~30 itens mecânicos do levantamento de hardening 2026-05-08; restantes ficaram no `BACKLOG.md > Polish curto` (image engine como sessão dedicada + 2 cross-cutting que exigem refactor invasivo).
+
+### Added
+
+- **χ² tautológico — visual feedback no Code Metadata mode** — walk recursivo no `PredicateNode` (`src/analytics/data/codeMetadata.ts`) detecta Smart Codes cujo predicate referencia a `variableName` sendo plotada (caso em que χ² é estatisticamente sem sentido — todos matches caem na mesma coluna por construção). Cobre AND/OR/NOT + 10 leaf kinds + `smartCode` nesting com cycle protection via `visited` set. Novo campo `tautologicalForVariable?: boolean` em `CodeMetadataResult.codes`; renderer marca canvas label com prefix `⚠ ` + tooltip ganha linha amarela explicando por que χ² é tautológico ali.
+- **Dendrogram cluster count preview no slider** — `Cut Distance: 0.50 → 5 clusters` no título da seção de options, atualizado post-render via novo `lastDendrogramClusterCount?` em `AnalyticsViewContext`. Count durante drag não atualiza real-time (rodar linkage por keystroke seria caro em codebooks grandes); aproximação post-render é suficiente. Classe própria `.codemarker-dendrogram-cut-title` evita colisão com outros modes.
+- **Settings size warnings — bounds validation** — Parquet/CSV size warning aceita 1-10000 MB; valor inválido dispara Notice descritivo e revert pro último valor válido. Validação no `blur` (não `onChange`) evita Notice spam por keystroke.
+
+### Changed
+
+- **Strings em inglês throughout** — pt-br residual removido do code visibility popover (`'Códigos neste documento'` → `'Codes in this document'`; `'Nenhum código aplicado neste doc.'` → `'No codes applied in this document.'`) e do hydrator status no Code Explorer toolbar (`'Hidratando previews…'` → `'Hydrating previews…'`).
+- **Empty states com CTA** — `'Marker not found.'` agora sugere arquivo deletado; `'No segments yet.'` sugere apply este código; `'No codes yet.'` aponta pro botão `+` de criação.
+- **`'Done' → 'Materialized'`** no Materialize all memos modal (mais domain-specific que generic).
+- **MCA insufficient data com contagens reais** — `'Insufficient data for MCA: have N markers and M active codes. Need ≥2 markers and ≥2 codes that co-occur.'` em vez de mensagem genérica sem números.
+- **Image marker fallback label alinhado com PDF** — `'Polygon'`/`'Rectangle'`/`'Ellipse'` (capitalizado, sucinto) em vez de `'Polygon region'`/`'Image region'`. Match estrutural com PDF (`'Page N'`).
+- **Truncation `'…'` Unicode → `'...'` ASCII** em 3 arquivos analytics + CSV (alinhado com `previewText` helper centralizado em `markerResolvers.ts`).
+- **CI workflow roda e2e suite completa** (19 specs / 66 testes) em vez de só `smoke.e2e.ts`. Coverage gate Vitest já estava habilitado (30% statements/lines/functions, 25% branches).
+- **`minAppVersion` 1.5.0 → 1.7.0** no manifest (Obsidian 1.7 release de mid-2024, conservador frente ao current 1.12.x).
+- **`N_FILES_WARN_THRESHOLD` da Files Dendrogram 200 → 150** com comentário explicando custo O(n³) clustering vs O(n²) do File Similarity.
+- **`SOURCE_COLORS` palette unificada** — `acmMode` (dict local duplicado) + `frequencyMode` (`#42A5F5` hardcoded) agora importam de `chartHelpers`.
+- **`TRIVIAL_THRESHOLD` do MCA com docstring** explicando origem (row/column profile centering força dimensão degenerada que precisa ser pulada) e quando o threshold falha.
+
+### Fixed
+
+- **Image menu position com bounds clamp** (`src/image/views/imageView.ts:227-237`) — não abre offscreen quando shape está no canto inferior/direito do viewport; `Math.max/min` clampa pra dentro do viewport.
+- **Image regionLabels fallback color theme-agnóstico** — `#888` em vez de `#6200EE` (purple invisível em light theme). Fabric.js não consome CSS vars, requer literal.
+- **Image toolbar shortcut em mode fora da whitelist** — agora gera `console.warn` (era silent fail).
+- **Clear cache error inclui contexto** — `'Failed to clear cache for ${path}: ${err}'` em vez de raw `err.message`.
+- **Tooltip `(undefined)` fallback** no `drawToolbarFactory` quando shortcut ausente.
+- **CSS class `.codemarker-margin-label` font-size** — 11px (CSS class agora é fonte da verdade; eliminou conflito com inline style 11px que sobrescrevia o CSS 10px).
+- **MCA bench test pré-existente** — `calculateMCA` era chamado com 3 args (assinatura antiga); 0.4.2 mudou pra 4 args separando codeIds vs codeNames mas o bench ficou drift. Atualizado.
+
+### Removed
+
+- **2 `console.log` debug solto em `main.ts`** (DuckDB smoke + markers tmp inspect — Notice já mostra ao user; warns/errors mantidos pra silent fail visibility).
+- **README menção a Intercoder reliability** — feature ainda não implementada (LLM-assisted coding mantido pois doc reflete pesquisa real em andamento).
+- **5 `(e as any).entity` vestigiais em `auditLog.ts`** — `AuditEntry.entity` já existe no tipo `BaseAuditEntry`; casts eram obsoletos. Coalesce de text edit usa `Extract<AuditEntry, { to: string }>` pra narrow apropriado nas variants com `to`.
+- **3 `as any` em `dataManager.deepMerge`** — viram `Record<string, unknown>` casts + generic constraint `T extends object`. Type safety melhor sem perder flexibilidade.
+- **12 inline styles repetidos** viram 2 CSS classes shared:
+  - `.qc-hidden-input` (position absolute + opacity 0 + pointer-events none) substitui pattern em 2 hidden color inputs (`baseCodeDetailView` recolor + promptColor).
+  - `.qc-scroll-container` (overflow-y auto + position relative) substitui pattern em 3 scroll containers (`detailCodeRenderer` × 2 + `detailRelationRenderer`); `max-height` segue inline (dinâmico via vh constants).
+- **8 inline styles do segment editor header** viram `.csv-segment-editor-header` CSS class.
+- **Inline `font-size: 11px`** do margin panel label (movido pro CSS class).
+
 ## [0.4.2] — 2026-05-08 — Pre-alpha
 
 Filter de parquet/CSV lazy mode reescrito pra eliminar o flash branco entre keystroke e resultado. Bug latente do MCA Biplot identificado e corrigido no caminho.
