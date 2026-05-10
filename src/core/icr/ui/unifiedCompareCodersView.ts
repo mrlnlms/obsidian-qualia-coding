@@ -1,5 +1,6 @@
 import { ItemView, type WorkspaceLeaf } from 'obsidian';
 import type QualiaCodingPlugin from '../../../main';
+import { runExportTrigger } from '../contributions/exportTrigger';
 import { type CompareCodersViewState, createDefaultViewState, type CurrentSelection } from './compareCodersTypes';
 import { renderOverviewMatrix } from './overviewMatrix';
 import { renderOverviewTable } from './overviewTable';
@@ -90,6 +91,9 @@ export class UnifiedCompareCodersView extends ItemView {
 
 		const sideBtn = pickerHolder.createEl('button', { cls: 'qc-cc-side-btn', text: '↗ ver lado a lado' });
 		sideBtn.onclick = () => this.openSideBySideModal();
+
+		const exportBtn = pickerHolder.createEl('button', { cls: 'qc-cc-side-btn', text: '↗ exportar contribuição' });
+		exportBtn.onclick = () => { void runExportTrigger(this.plugin); };
 
 		const chipsHolder = this.toolbarEl.createDiv();
 		const codersWithMarkers = new Set(getCodersWithMarkersInScope(this.state.scope, this.engineModels()));
