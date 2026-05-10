@@ -33,6 +33,7 @@ declare global {
     addClass(cls: string): void;
     removeClass(cls: string): void;
     toggleClass(cls: string, force?: boolean): void;
+    setText(text: string): void;
   }
 }
 
@@ -88,6 +89,10 @@ HTMLElement.prototype.removeClass = function (cls) {
 
 HTMLElement.prototype.toggleClass = function (cls, force) {
   this.classList.toggle(cls, force);
+};
+
+HTMLElement.prototype.setText = function (text) {
+  this.textContent = text;
 };
 
 
