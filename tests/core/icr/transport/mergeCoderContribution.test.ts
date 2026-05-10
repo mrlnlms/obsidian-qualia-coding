@@ -171,3 +171,84 @@ describe('mergeCoderContribution', () => {
 		expect(result.added.markers).toBe(2); // 1 pdf + 1 csv
 	});
 });
+
+describe('mergeCoderContribution dryRun', () => {
+	it('dryRun: true não muta targetData (registries, markers, coders)', async () => {
+		const { sourceData, targetData, sourceReg, targetReg } = await setup(
+			{ 'shared.md': 'shared content' },
+			{ 'shared.md': 'shared content' },
+		);
+		sourceData.markdown.markers['shared.md'] = [{
+			markerType: 'markdown', id: 'm1', fileId: 'shared.md',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
+			color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla',
+			createdAt: 1, updatedAt: 1,
+		}];
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+
+		const beforeCodes = JSON.stringify(targetData.registry.definitions);
+		const beforeMarkers = JSON.stringify(targetData.markdown.markers);
+		const beforeCoders = JSON.stringify(targetData.coders);
+
+		const result = await mergeCoderContribution(targetData, payload, targetReg, { dryRun: true });
+
+		// Counts ainda computados
+		expect(result.added.markers).toBe(1);
+		expect(result.added.codes).toBe(1);
+		expect(result.added.coder).toBe(true);
+		expect(result.fileIdRemap['shared.md']).toBe('shared.md');
+
+		// targetData NÃO mutou
+		expect(JSON.stringify(targetData.registry.definitions)).toBe(beforeCodes);
+		expect(JSON.stringify(targetData.markdown.markers)).toBe(beforeMarkers);
+		expect(JSON.stringify(targetData.coders)).toBe(beforeCoders);
+	});
+
+	it('dryRun: false (default) muta normalmente — regression', async () => {
+		const { sourceData, targetData, sourceReg, targetReg } = await setup(
+			{ 'shared.md': 'shared content' },
+			{ 'shared.md': 'shared content' },
+		);
+		sourceData.markdown.markers['shared.md'] = [{
+			markerType: 'markdown', id: 'm1', fileId: 'shared.md',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
+			color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla',
+			createdAt: 1, updatedAt: 1,
+		}];
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+
+		const beforeCodeCount = Object.keys(targetData.registry.definitions).length;
+		await mergeCoderContribution(targetData, payload, targetReg);
+
+		expect(Object.keys(targetData.registry.definitions).length).toBeGreaterThan(beforeCodeCount);
+	});
+
+	it('dryRun: true não muta com markers PDF + CSV (cobertura todas engines)', async () => {
+		const { sourceData, targetData, sourceReg, targetReg } = await setup(
+			{ 'remote/doc.pdf': 'pdf-content', 'remote/data.csv': 'csv,content\n1,a' },
+			{ 'local/doc.pdf': 'pdf-content', 'local/data.csv': 'csv,content\n1,a' },
+		);
+		sourceData.pdf.markers.push({
+			markerType: 'pdf', id: 'pm1', fileId: 'remote/doc.pdf',
+			page: 0, beginIndex: 0, endIndex: 5, text: 'hello',
+			color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla',
+			createdAt: 1, updatedAt: 1,
+		} as any);
+		sourceData.csv.segmentMarkers.push({
+			markerType: 'csv-segment', id: 'sm1', fileId: 'remote/data.csv',
+			sourceRowId: 0, column: 'r', from: 0, to: 5,
+			codes: [{ codeId: 'c1' }], codedBy: 'human:carla',
+			createdAt: 1, updatedAt: 1,
+		} as any);
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+
+		const beforePdf = targetData.pdf.markers.length;
+		const beforeCsv = targetData.csv.segmentMarkers.length;
+
+		const result = await mergeCoderContribution(targetData, payload, targetReg, { dryRun: true });
+
+		expect(targetData.pdf.markers.length).toBe(beforePdf);
+		expect(targetData.csv.segmentMarkers.length).toBe(beforeCsv);
+		expect(result.added.markers).toBe(2); // contou os 2 mesmo sem mutar
+	});
+});
