@@ -136,11 +136,15 @@ Se a contribution não tem nenhuma divergência, seções 1-2 não aparecem. Se�
 
 Marker-by-marker. Filter chip secundário (segunda linha do toolbar):
 - `[todos]` (default)
-- `[só sobrepondo local]` — predicate por engine:
-  - **markdown:** mesmo `fileId` (após remap) + ranges overlap (`incoming.range.from < local.range.to && local.range.from < incoming.range.to`)
-  - **pdf:** mesmo `fileId` + mesma `page` + ranges overlap (mesma fórmula)
-  - **csvSegment:** mesmo `fileId` + row ranges overlap (`incoming.fromRow ≤ local.toRow && local.fromRow ≤ incoming.toRow`)
-  - Reusar helpers de overlap existentes em `src/core/icr/overlap.ts` (kappa motor já tem range overlap puro).
+- `[só sobrepondo local]` — predicate genérico via helpers existentes (kappa motor):
+  - Pra cada par (incoming, local) com mesmo `fileId` (após remap):
+    - Extrai TextRange de cada lado via `extract*Range` (`src/core/icr/textRange.ts:23-45`):
+      - markdown: `extractMarkdownRange(marker, sourceText)` — requer leitura do source (kappa já faz isso; reusar caminho)
+      - pdf: `extractPdfRange(marker)` — puro
+      - csvSegment: `extractCsvSegmentRange(marker)` — puro (encoda `locator: 'row:R|col:C'` + char range)
+    - Aplica `computeOverlap(a, b)` (`src/core/icr/overlap.ts:14`) — retorna `CharRange | null`
+    - Overlap > 0 (não-null) → marker incoming "sobrepõe local"
+  - Sem fórmula inline na spec — predicate é "extrai ambos via helper, computeOverlap não-null".
 - `[só novos]` — markers em segments sem nada local (negação do predicate acima)
 
 Card de marker:
@@ -195,8 +199,9 @@ Fluxo:
 3. Se 1 humano → skip seleção, usa esse coder.
 4. Se >1 humano → abre `Modal` pequeno (Obsidian `Modal`, não large) com radio list de coders + botão Confirm/Cancel.
 5. Roda `extractCoderContribution(data, coderId, hashRegistry)`.
-6. Pasta destino: salva em `vault.adapter.basePath/icr-exports/` (cria se não existe — vault-relative). Nome: `<coder.name slug>-<exportedAt ISO>.json`. Sem file picker do OS (mantém vault-relative — Obsidian-friendly).
-7. Notice de sucesso com path relativo.
+6. Pasta destino vault-relative: `vault.adapter.mkdir('icr-exports')` (no-op se existe) + `vault.adapter.write('icr-exports/<filename>', json)` (pattern do `qdpxImporter.ts:553`, `boardPersistence.ts:17`). Sem `basePath` concat. Sem file picker do OS.
+7. Filename: `<slug(coder.name)>-<exportedAt ISO with ':' replaced by '-'>.json` (ISO contém `:` que é inválido em filename Windows).
+8. Notice de sucesso com path relativo.
 
 **Comando palette (sempre):** `ICR: Export my contribution` — mesmo fluxo (passos 1-7).
 
@@ -235,7 +240,7 @@ src/core/icr/contributions/
 
 **Modificações em arquivos existentes:**
 - `src/core/icr/transport/mergeCoderContribution.ts` — adicionar parâmetro `options?: { dryRun?: boolean; overrides?: ResolutionOverrides }`. `dryRun` skipa mutações (computa só conflicts/counts); `overrides` aplica skip/manter durante a aplicação. Patch P0 pré-requisito (ver §2.3).
-- `src/core/icr/transport/payloadTypes.ts` — adicionar `ResolutionOverrides` ao export (compartilhado entre motor e UI).
+- `ResolutionOverrides` — fica em `src/core/icr/contributions/contributionViewTypes.ts` (UI-only — Maps/Sets de escolha do user, não cruza vault boundary). Motor importa de lá quando consumir via `options.overrides`. NÃO entra em `payloadTypes.ts` (esse arquivo descreve só wire format).
 - `src/core/icr/ui/unifiedCompareCodersView.ts:91` — adicionar segundo botão `↗ exportar contribuição` chamando `exportTrigger.ts`.
 - `src/main.ts onload()`:
   - `addRibbonIcon('git-pull-request', 'ICR Import', () => openIcrImportView())`
@@ -281,6 +286,7 @@ src/core/icr/contributions/
 - Dado `MergeResult` + `ResolutionOverrides` + `PayloadV1`, retorna `{ N_in, N_out, breakdown: { pending, skipSource, skipCode, skipMarker } }`
 - Sem dupla contagem (markers em skipSource não contam de novo em skipCode mesmo se code também tá em perCodeSkip)
 - Idempotente
+- **Test pinning precedence:** marker simultaneamente em `perMarkerSkip` E cujo source está em `skipSource` → conta APENAS em `skipSource` (precedência §4.2: skipSource ⊃ skipCode ⊃ skipMarker ⊃ pending)
 
 **Render snapshot dos 3 chips:**
 - Payload mock com 1 codebook diff + 1 source mismatch + 1 source not found + 50 markers limpos
@@ -324,6 +330,7 @@ Cravado em `CLAUDE.md §1` ("Testes verde ≠ feito"):
 1. **Ícone do ribbon e do view type** — `git-pull-request` é tentativa; consultar `obsidian-design` skill durante implementação pode trocar.
 2. **MergePreview recompute** — ao mudar override, recalcula tudo via `mergeCoderContribution(..., { dryRun: true })`. Plan decide se otimiza incremental quando contribuição grande (>500 markers).
 3. **Edge: 2 contribuições do mesmo coderId na rail** — bloquear (não adiciona segunda) ou permitir e avisar? Plan decide; default: permitir, avisar no header da contribuição com badge "duplicate coder".
+4. **Apply é sequencial, não batch** — "Apply" age sobre 1 contribuição por vez. Cada `mergePreview` é dry-run contra `localData` pristine; aplicar 2 contribuições em sequência produz resultado diferente de "aplicar batch" (a segunda vê o efeito da primeira). Isso é correto e desejado, mas `mergePreview` mostrado pra contribuição #2 só vira fiel ao real depois que #1 for applied. Plan decide se recalcula previews da rail após cada apply (sim, default) ou só sob demanda.
 
 ## 13. Dependências
 
