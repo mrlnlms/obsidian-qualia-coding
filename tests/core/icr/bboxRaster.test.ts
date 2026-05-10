@@ -72,3 +72,56 @@ describe('rasterize — ellipse', () => {
 		expect(bm.cellsSet).toBe(0);
 	});
 });
+
+describe('rasterize — polygon', () => {
+	it('paints triangle area approx half of unit square', () => {
+		const bm = rasterize('polygon', {
+			type: 'polygon',
+			points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+		}, 200);
+		const expected = 0.5 * 200 * 200;
+		expect(bm.cellsSet).toBeGreaterThan(expected * 0.97);
+		expect(bm.cellsSet).toBeLessThan(expected * 1.03);
+	});
+
+	it('paints square via 4-point polygon', () => {
+		const bm = rasterize('polygon', {
+			type: 'polygon',
+			points: [{ x: 0, y: 0 }, { x: 0.5, y: 0 }, { x: 0.5, y: 0.5 }, { x: 0, y: 0.5 }],
+		}, 200);
+		expect(bm.cellsSet).toBeGreaterThan(9800);
+		expect(bm.cellsSet).toBeLessThan(10200);
+	});
+
+	it('handles concave polygon (L-shape)', () => {
+		const bm = rasterize('polygon', {
+			type: 'polygon',
+			points: [
+				{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 0.5 },
+				{ x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, { x: 0, y: 1 },
+			],
+		}, 200);
+		const expected = 0.75 * 200 * 200;
+		expect(bm.cellsSet).toBeGreaterThan(expected * 0.97);
+		expect(bm.cellsSet).toBeLessThan(expected * 1.03);
+	});
+
+	it('AABB matches min/max points', () => {
+		const bm = rasterize('polygon', {
+			type: 'polygon',
+			points: [{ x: 0.1, y: 0.2 }, { x: 0.4, y: 0.2 }, { x: 0.25, y: 0.6 }],
+		}, 200);
+		expect(bm.aabb.x0).toBeCloseTo(0.1, 10);
+		expect(bm.aabb.y0).toBeCloseTo(0.2, 10);
+		expect(bm.aabb.x1).toBeCloseTo(0.4, 10);
+		expect(bm.aabb.y1).toBeCloseTo(0.6, 10);
+	});
+
+	it('produces empty bitmap for collinear (zero-area) polygon', () => {
+		const bm = rasterize('polygon', {
+			type: 'polygon',
+			points: [{ x: 0.1, y: 0.5 }, { x: 0.5, y: 0.5 }, { x: 0.9, y: 0.5 }],
+		}, 200);
+		expect(bm.cellsSet).toBe(0);
+	});
+});

@@ -60,7 +60,7 @@ function rasterizeRect(c: RectCoords, gridSize: number, bits: Uint32Array): Bitm
 	for (let y = iy0; y < iy1; y++) {
 		for (let x = ix0; x < ix1; x++) {
 			const idx = y * gridSize + x;
-			bits[idx >>> 5] |= (1 << (idx & 31));
+			bits[idx >>> 5]! |= (1 << (idx & 31));
 			cellsSet++;
 		}
 	}
@@ -100,7 +100,7 @@ function rasterizeEllipse(c: EllipseCoords, gridSize: number, bits: Uint32Array)
 			const dy = y + 0.5 - cyGrid;
 			if ((dx * dx) / rxSq + (dy * dy) / rySq <= 1) {
 				const idx = y * gridSize + x;
-				bits[idx >>> 5] |= (1 << (idx & 31));
+				bits[idx >>> 5]! |= (1 << (idx & 31));
 				cellsSet++;
 			}
 		}
@@ -108,6 +108,63 @@ function rasterizeEllipse(c: EllipseCoords, gridSize: number, bits: Uint32Array)
 	return { bits, cellsSet, aabb: { x0, y0, x1, y1 }, gridSize };
 }
 
-function rasterizePolygon(_c: PolygonCoords, _gridSize: number, _bits: Uint32Array): Bitmap {
-	throw new Error('rasterizePolygon: not yet implemented');
+function rasterizePolygon(c: PolygonCoords, gridSize: number, bits: Uint32Array): Bitmap {
+	// Clamp pontos pra [0,1]² (aceita distorção; warning ficaria no caller).
+	const points = c.points.map(p => ({
+		x: Math.max(0, Math.min(1, p.x)),
+		y: Math.max(0, Math.min(1, p.y)),
+	}));
+
+	if (points.length < 3) {
+		return { bits, cellsSet: 0, aabb: { x0: 0, y0: 0, x1: 0, y1: 0 }, gridSize };
+	}
+
+	let xmin = 1, ymin = 1, xmax = 0, ymax = 0;
+	for (const p of points) {
+		if (p.x < xmin) xmin = p.x;
+		if (p.x > xmax) xmax = p.x;
+		if (p.y < ymin) ymin = p.y;
+		if (p.y > ymax) ymax = p.y;
+	}
+	const aabb: AABB = { x0: xmin, y0: ymin, x1: xmax, y1: ymax };
+
+	if (xmax - xmin <= 0 || ymax - ymin <= 0) {
+		return { bits, cellsSet: 0, aabb, gridSize };
+	}
+
+	// Scanline fill: pra cada linha y, encontra cruzamentos com edges, ordena, preenche entre pares.
+	const iy0 = Math.floor(ymin * gridSize);
+	const iy1 = Math.min(gridSize, Math.ceil(ymax * gridSize));
+
+	let cellsSet = 0;
+	for (let y = iy0; y < iy1; y++) {
+		const yMid = (y + 0.5) / gridSize;
+		const intersections: number[] = [];
+
+		for (let i = 0; i < points.length; i++) {
+			const p1 = points[i]!;
+			const p2 = points[(i + 1) % points.length]!;
+			if ((p1.y <= yMid && p2.y > yMid) || (p2.y <= yMid && p1.y > yMid)) {
+				const t = (yMid - p1.y) / (p2.y - p1.y);
+				intersections.push(p1.x + t * (p2.x - p1.x));
+			}
+		}
+
+		intersections.sort((a, b) => a - b);
+
+		for (let i = 0; i < intersections.length; i += 2) {
+			const xStart = intersections[i];
+			const xEnd = intersections[i + 1];
+			if (xStart === undefined || xEnd === undefined) break;
+			const ix0 = Math.max(0, Math.floor(xStart * gridSize));
+			const ix1 = Math.min(gridSize, Math.ceil(xEnd * gridSize));
+			for (let x = ix0; x < ix1; x++) {
+				const idx = y * gridSize + x;
+				bits[idx >>> 5]! |= (1 << (idx & 31));
+				cellsSet++;
+			}
+		}
+	}
+
+	return { bits, cellsSet, aabb, gridSize };
 }
