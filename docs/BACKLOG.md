@@ -211,26 +211,15 @@ Slice 6 fecha as 6 engines do plugin no motor κ (markdown + PDF text + CSV cod 
 
 ---
 
-## 🧱 ICR — Compare Coders polish (descoberto no smoke E1, 2026-05-10)
+## 🧱 ICR — Compare Coders polish (aberto)
 
-### Coder sem markers no escopo aparece com Cohen κ = 0.00 (vermelho)
+### Bbox merge na matriz Mode A usa avg 50/50 (não weighted por #events)
 
-**Estado atual:** matriz coder × coder pinta cell `Default ↔ {Carla,Joana} = 0.00` em vermelho mesmo quando "Default" não codificou nada — Cohen κ é vacuous mas calculado como zero (todos chars classificados como `__none__` por Default vs distribuição real dos outros). Visualmente confunde porque parece "discordância total" quando na verdade é "ausência de markers".
+**Estado após E2 (2026-05-10):** quando `primaryCoefficient === 'cohen'` e há tanto markers de text-likes quanto bbox markers no escopo, matriz Mode A combina os dois κ via average 50/50. Implementação simples mas não respeita peso real (text marca chars; bbox marca eventos discretos). Aproximação intencional — `bboxAdapter` retorna `KappaInput` com `sources` próprio mas reporter agrega via weighted avg só quando todos engines passam pelo mesmo `reportKappa`. Pra fazer proper, precisa estender pipeline pra aceitar bbox `EngineKappaInput` lado a lado dos text-likes (refactor de `EngineId` ou nova rota cohort-with-bbox).
 
-**Impacto sem fazer:** UX confusa quando vault tem coders no registry sem participação no escopo atual. Pesquisador pode interpretar mal.
+**Impacto sem fazer:** matriz superestima/subestima pair κ quando text+bbox têm magnitudes muito diferentes de #unidades (e.g. 1000 chars vs 2 bbox events). Tooltip user-facing ainda não criado pra alertar.
 
-**Quando atacar:** polish de E2 quando picker de coeficiente entrar (mesma camada). Opções:
-- Filtrar coders com 0 markers no escopo automaticamente (esconder do registry pra essa view)
-- Marcar célula como `n/a (sem markers)` cinza quando um lado é vazio
-- Setting "incluir coders sem markers" off por default
-
-Decisão fica pra E2.
-
-### bbox engines (PDF shape + image) ainda não entram em matriz/heatmap
-
-**Estado após E1:** scope extraction filtra `pdfShape` e `image` explicitamente. Markers desses engines não contribuem pra Cohen κ na matriz. Slice 6 entregou motor + adapter, mas integração no Compare Coders UI fica pra E2 (per-pair pathway diferente do text-likes — não cabe no `extractInputsFromScope` cohort-style).
-
-**Quando atacar:** E2, junto com modes B (tabela) + C (heatmap) — heatmap código × engine é onde bbox naturalmente entra.
+**Quando atacar:** se latência ou viés viraram problema reportado. Backlog menor — UX cobre maioria dos casos atuais.
 
 ### Drill-down P1 spatial não responde visualmente a clicks diferentes na matriz
 
@@ -242,6 +231,12 @@ Decisão fica pra E2.
 - Header com par/região selecionado
 - Filtrar files pra apenas onde AMBOS coders do par têm markers (intersection, não union) — mais discriminativo
 - Limit visual por marker bounds próximos (highlight regiões contestadas vs concordantes)
+
+### Modal "ver lado a lado" toggle "par único" sem cell selecionada mostra todos pares
+
+**Estado após E2 (2026-05-10):** se user abre modal sem cell selecionada (botão direto do toolbar) e toggla "par único", `options.pair` é undefined → `computeRows` cai no fallback de `allPairs()` mas adiciona breakdown per-engine pra cada par. Resultado funcionalmente útil (vê tudo + breakdown) mas conceitualmente inconsistente (label "par único" mostra 3 pares).
+
+**Quando atacar:** se reportar virar issue. Opções: empty state "selecione um par primeiro" / pega primeiro par automaticamente / desabilita toggle quando sem pair.
 
 ---
 

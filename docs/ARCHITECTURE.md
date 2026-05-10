@@ -1764,7 +1764,40 @@ Comando palette: `Compare Coders: Open` (view type `qc-compare-coders`).
 
 Testes: 43 novos (3032 → 3075 total), distribuídos em `tests/core/icr/reportPairwise.test.ts` + `tests/core/icr/ui/*.test.ts`.
 
-### 19.9 Companion docs
+### 19.9 UI layer Slice E2 (2026-05-10)
+
+Segunda camada da Compare Coders View. Completa overview (Mode B tabela + Mode C heatmap), integra bbox engines via per-pair pathway, ativa coefficient picker funcional + filter "esconder agreement total", entrega Modal "ver lado a lado" + polish E1 (κ=0 vacuous).
+
+Arquivos novos em `src/core/icr/ui/`:
+- `coefficientResolver.ts` — `getCoefficientValue(report, coef, pair?)` extrai número do `KappaReport` (Cohen pareado direto; Fleiss/α/α-binary/cu-α scalar) + `isCoefficientApplicable(coef, N, engines)` (Fleiss requer 3+ coders; α-binary/cu-α requerem engine com boundary)
+- `coefficientPicker.ts` — render 5 chips no toolbar com disabled state (mesmo pattern dos mode chips)
+- `bboxScopeExtraction.ts` — `computeBboxKappaForPair(scope, pair, mode, theta)`. Wrap `bboxAdapter.buildKappaInput` per-pair. Modes `'unified'` (1 KappaInput pdfShape ∪ image → coluna virtual `'spatial-bbox'`) ou `'split'` (2 separados)
+- `overviewSharedRender.ts` — `kappaClass(k)` + thresholds extraídos de `overviewMatrix` (reuso entre 3 modes)
+- `overviewTable.ts` — Mode B. 1 row por código com markers no escopo × 5 coeficientes. Sort default por pior coeficiente primário (Cohen pra N=2; Fleiss pra N≥3) ascendente. Click row → `currentSelection: { kind: 'code' }`
+- `overviewHeatmap.ts` — Mode C. Linhas codes × colunas engines visíveis + spatial-bbox (default unified) ou pdfShape | image (toggle splitBboxEngines). Cell = primaryCoefficient. Cinza n/a quando code não aparece na engine. Bbox: avg de C(N,2) Cohen κ pareados pra N>2
+- `coderInclusion.ts` — `getCodersWithMarkersInScope(scope, models)` + `applyCoderInclusion(scope, models, includeWithoutMarkers)`. Polish E1: filtra coders com 0 markers no escopo (default off; toggle reincluí). Considera todos engines incluindo bbox
+- `narrativeDiagnostic.ts` — `analyzeDiagnostic({ cohen, alphaBinary, cuAlpha })` puro. 3 padrões hardcoded: cohen baixo + α-binary alto (boundary OK / código diverge) / cohen baixo + α-binary baixo (boundary disagreement) / cu-α << κ gap ≥ 0.4 (code-within-boundary)
+- `compareCoderCoefficientsModal.ts` — `extends Modal`. 2 estados toggle no header (single-pair adiciona breakdown per-engine; all-pairs lista C(N,2) aggregates). Diagnóstico narrativo dispara em single-pair quando padrão bate. Export markdown via clipboard com Notice de confirmação. Field renomeado `compareScope` (não `scope`) pra evitar colisão com `Modal.scope` da API Obsidian
+
+Modificações:
+- `overviewMatrix.ts` — lê `state.primaryCoefficient` via `getCoefficientValue` (não mais Cohen hardcoded). Bbox merge avg 50/50 com text-likes quando `primaryCoefficient === 'cohen'`. Aplica `applyCoderInclusion` + `hideAgreementTotal` fade
+- `filterChips.ts` — adiciona 6 engine chips (markdown / pdf / csv-seg / csv-row / audio / video) + toggles "split bbox engines" + "incluir coders sem markers". Coder chip ganha `is-empty` (cinza claro + tooltip) quando coder não tem markers + filter polish off
+- `compareCodersTypes.ts` — `ComparisonFilters` ganha `visibleEngineIds?` (override scope.engineIds via toggle), `splitBboxEngines?` (default false), `includeCodersWithoutMarkers?` (default false)
+- `scopeExtraction.ts:EngineModelsForExtraction` — adiciona `image?: { getAllMarkers(): ImageMarker[] }` + `pdf.getAllShapes?(): PdfShapeMarker[]`
+- `unifiedCompareCodersView.ts` — toolbar ganha picker + botão `↗ ver lado a lado`. `engineModels()` inclui `imageModel`. Plug Modes B/C
+- `core/types.ts:GeneralSettings.showNarrativeDiagnosis?` (default true) — opt-out via Settings tab
+
+**Setting nova:** `general.showNarrativeDiagnosis` (default true). Toggle em Settings tab esconde caixa amarela do diagnóstico.
+
+**Bbox em matriz Mode A** usa average 50/50 entre text-likes e bbox quando ambos contribuem pro pair. Weighting proper via #events fica em backlog (não bloqueia E2 — UX honesta com tooltip ainda em backlog também).
+
+**spatial-bbox NÃO é EngineId do reporter** — é label de UI no heatmap. Reporter recebe `engine: 'pdfShape'` mesmo quando bbox unified, porque é só agregação visual.
+
+**Modal Obsidian gotcha:** classe Modal tem propriedade `scope: Scope` própria. Subclasse não pode declarar campo `scope` novo (TS error). Workaround: usar nome diferente (`compareScope`).
+
+Testes: ~75 novos (3075 → 3150 total), em `tests/core/icr/ui/`: coefficientResolver, coefficientPicker, bboxScopeExtraction, overviewTable, overviewHeatmap, coderInclusion, narrativeDiagnostic, compareCoderCoefficientsModal + extensões em overviewMatrix + filterChips.
+
+### 19.10 Companion docs
 
 - `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
 - `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural

@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-08 (Filter sem flash branco + MCA bug fix).
+> Última atualização: 2026-05-10 (Slice E2 Compare Coders Modes B/C + Modal + bbox).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
@@ -137,8 +137,25 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [x] CSS isolado em `styles.css` (qc-cc-* prefix)
   - **Smoke real verde 2026-05-10.** 43 testes novos (3032 → 3075 verde). Tag `post-icr-slice-e1-checkpoint`.
 
+  **✅ Slice E2 — Compare Coders Modes B/C + Modal + bbox integration (FEITO 2026-05-10):**
+  - [x] Helper `coefficientResolver` — extrai valor de coeficiente do KappaReport (pareado/scalar) + checa aplicabilidade ao escopo
+  - [x] `coefficientPicker` — 5 chips no toolbar (Cohen / Fleiss / α / α-binary / cu-α) com disabled state quando coeficiente não se aplica (Fleiss < 3 coders, α-binary/cu-α em csvRow puro)
+  - [x] Mode A matriz lê `state.primaryCoefficient` (não mais Cohen hardcoded)
+  - [x] Engine filter chips no toolbar (`markdown / pdf / csv-seg / csv-row / audio / video`) — toggle ad-hoc reduz escopo de cálculo (ad-hoc na Slice E4 entra Saved Comparisons como camada nomeada)
+  - [x] `bboxScopeExtraction` helper — Cohen κ per-pair pra pdfShape + image markers via `bboxAdapter.buildKappaInput`. Modes `'unified'` (1 coluna virtual `spatial-bbox`) ou `'split'` (pdfShape + image separados)
+  - [x] Bbox integrado na matriz Mode A — Cohen κ avg 50/50 com text-likes quando ambos existem (weighting proper via #events vai pra backlog)
+  - [x] Mode B — `overviewTable` 1 row por código × 5 coeficientes, sort default por pior κ ascendente. Cohen aparece pra N=2; Fleiss pra N≥3 (outro mostra "—")
+  - [x] Mode C — `overviewHeatmap` linhas codes × colunas engines visíveis + spatial-bbox (default unified) ou pdfShape | image (toggle `splitBboxEngines`)
+  - [x] Filter `hideAgreementTotal` funcional nos 3 modes — cells/linhas com κ > 0.8 ganham `qc-cc-fade` (opacity 0.25)
+  - [x] **Polish E1 (κ=0 vacuous):** filter `includeCodersWithoutMarkers` (default `false`) — coders com 0 markers no escopo são escondidos automaticamente. Toggle reincluí. Chip do coder sem markers aparece `is-empty` (cinza claro + tooltip)
+  - [x] `narrativeDiagnostic` puro — 3 padrões reconhecíveis (cohen baixo + α-binary alto = código diverge / cohen baixo + α-binary baixo = boundary disagreement / cu-α << κ = code-within-boundary)
+  - [x] `CompareCoderCoefficientsModal` — extends Modal. 2 estados toggle no header (par único / todos pares). Single-pair adiciona breakdown per-engine. Diagnóstico narrativo dispara em single-pair quando padrão bate. Export markdown via clipboard
+  - [x] Botão `↗ ver lado a lado` no toolbar — sem cell selecionada abre em "todos pares"; com `kind:'pair'` selecionado abre em "par único" pré-filtrado
+  - [x] Setting `general.showNarrativeDiagnosis` (default `true`) — opt-out global pra power-users que acharem ruído
+  - [x] Helper `kappaClass` extraído pra `overviewSharedRender.ts` (reuso entre os 3 modes)
+  - **Smoke real verde 2026-05-10.** ~75 testes novos (3075 → 3150 verde). Tag `post-icr-slice-e2-checkpoint`.
+
   **Slices fora do escopo entregue (pendentes):**
-  - [ ] **Slice E2** — Modes B (tabela por código) + C (heatmap código×engine) + Modal "ver lado a lado" + coefficient picker funcional + bbox integration na matriz/heatmap (per-pair pathway)
   - [ ] **Slice E3a** — Schema reconciliação (3 audit types `reconciliation_*` + Coder kind `'consensus'`) + `executeReconciliationDecision` + Drill-down P2 (cards lado a lado + 4 ações)
   - [ ] **Slice E3b** — Drill-down P3 (queue 4-colunas) + revert mechanic + κ pré/pós toggle + export relatório
   - [ ] **Slice E4** — Saved Comparisons + ribbon + atalho contextual no codebook
@@ -151,11 +168,11 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   **Possibilidade complementar (não-prioridade, pós-Fase C P1):**
   - [ ] Campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio
 
-  **Resumo da sessão 2026-05-09 → 2026-05-10:** **7 slices entregues** (1-6 motor + E1 UI primeira camada), +239 testes ICR (2814 → 3075). Infraestrutura ICR completa em todos os flancos + 6 das 6 engines cobertas (motor κ multimodal completo). Slice 6 entregou bbox adapter; Slice E1 entregou primeira camada de UI (skeleton + Mode A + P1 spatial + filter chips). Decisões adiadas registradas em `BACKLOG.md`: Smart Code cache hash invalidation, Backup integrity, wiring provenance em outros engines, polish E1 (Default coder κ=0 vacuous), bbox em matriz/heatmap pra E2.
+  **Resumo da sessão 2026-05-09 → 2026-05-10:** **8 slices entregues** (1-6 motor + E1 + E2 UI), +314 testes ICR (2814 → 3150). Infraestrutura ICR completa em todos os flancos + 6 das 6 engines cobertas (motor κ multimodal completo). Compare Coders View entrega overview completo (Mode A matriz / Mode B tabela por código / Mode C heatmap código×engine) + Modal "ver lado a lado" com diagnóstico narrativo + bbox engines integrados na matriz/heatmap. Polish E1 (κ=0 vacuous) resolvido via filter `includeCodersWithoutMarkers`. Decisões adiadas registradas em `BACKLOG.md`: Smart Code cache hash invalidation, Backup integrity, wiring provenance em outros engines, drill-down P1 não-responsivo a clicks (revisita em E3), bbox weighting via #events em matriz Mode A.
 
   **Próximo passo (gated em você):**
   - Brainstorm UX da Fase C P1 (modal preview / cherry-pick / staging / conflict resolution)
-  - **Slice E2** Compare Coders — Modes B/C + Modal "ver lado a lado" + coefficient picker + bbox integration (spec já aprovada, plano próprio precede execução)
+  - **Slice E3a/b** Compare Coders — Reconciliação UI (P2 cards + 4 ações + audit `reconciliation_*` + P3 queue + revert)
   - Refactor motor κ pra set-valued labels (eliminar redução first-code alfabético — afeta TODAS as engines). **Material de repertório metodológico em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md`** — leitura obrigatória antes do brainstorm: cobre Jaccard vs MASI, variantes Cohen multi-label (binary-per-label / Rosenberg augmented / weighted), generalização Krippendorff α com δ customizado, riscos no refactor de tests existentes.
   - Wire mechanical de `attachSourceHashSnapshot` em outros 5 engines
 
