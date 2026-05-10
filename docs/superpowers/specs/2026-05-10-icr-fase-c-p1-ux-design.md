@@ -14,11 +14,13 @@ Camada UX sobre o motor de transport multi-coder remoto (Slice 3, já entregue).
 
 ### 1.1. Out of scope nesta spec
 
-- **Persistência da rail** — rail é session-only. Fechou Obsidian, dropa de novo. Arquivo .json no disco é source of truth. (Pode evoluir se demanda real aparecer.)
+- **Persistência da rail** — rail é session-only. Fechou Obsidian, dropa de novo. Arquivo .json no disco é source of truth.
 - **Document Cloning estilo Dedoose** (blind coding sem transport offline serializado).
 - **Merge driver via git.**
 - **Conflict policy configurável** — default = incoming-wins (atual do motor) com override per-item via UI (manter local). Sem setting global.
-- **Marker collision como conflito do motor** — markers de coders diferentes coexistem (mesmo segment com codes diferentes não é conflito; cada um tem seu `codedBy`). Revisão é interpretativa, não merge.
+- **Marker collision como conflito do motor** — markers de coders diferentes coexistem (mesmo segment com codes diferentes não é conflito; cada um tem seu `codedBy`). Revisão é interpretativa, não merge. Sem dedup automática.
+- **Conflitos de `description`, `memo`, `group_overwritten`** — `ConflictRecord` union em `payloadTypes.ts:47-53` lista `code_overwritten` field=`description|memo` e `memo_overwritten` mas o motor **não emite** esses (schema-ready, never emitted — verificado em `mergeCoderContribution.ts:60-92`). UI desta spec só renderiza o que o motor emite hoje: `code_overwritten` field=`name|color`, `source_*`, `codebook_diverged`. Group merge é "skip se já existe" (motor §5, linha 81-92) — sem overwrite, sem conflict.
+- **Engines fora do PayloadV1** — Slice 3 cobre só `markdown`, `pdf`, `csvSegment` (`payloadTypes.ts:31-35`). Audio/video/csvRow/pdfShape/image **não entram em export nem import** nesta spec. Markers desses engines no vault local ficam intactos; markers desses engines no coder remoto ficam fora do payload.
 
 ## 2. Surface única: ItemView "ICR Import"
 
@@ -72,7 +74,11 @@ interface ResolutionOverrides {
 }
 ```
 
-`mergePreview` cacheado: ao adicionar contribution, roda merge num clone do `localData`, salva resultado. Re-roda se o user mudar overrides (ou recalcula incrementalmente — decisão do plan).
+`mergePreview` é computado via **dry-run no motor** (NÃO via clone do `localData` — clonar `QualiaData` é não-trivial: registries com métodos, marker arrays cross-engine, `SourceHashRegistry` instance methods).
+
+**Pré-requisito P0 desta spec:** estender `mergeCoderContribution` com parâmetro `options?: { dryRun?: boolean }` que, quando `true`, computa `MergeResult` (conflicts + counts + remap) **sem** mutar `localData`. Mudança pequena: guardar todas as mutações sob `if (!options?.dryRun)`, retornar accumulated conflicts/counts. Sem isso, P1 não fecha.
+
+`mergePreview` recomputado a cada mudança de overrides (re-roda dry-run). Otimização incremental fica pra plan se ficar lento.
 
 ## 3. Chips e perguntas-âncora
 
@@ -91,10 +97,10 @@ Em vez de um chip "Divergências" separado, todas as ações de resolução vive
 ### 4.1. Seções (em ordem)
 
 1. **⚠ Codebook divergiu** (border laranja, expanded por default se houver) — uma diff row por code afetado:
-   - `code_overwritten` field=name → "code_42 · name: 'ANSIEDADE' (local) ↔ 'ANSIEDADE-ESCOLAR' (Carla)" + botões `[Manter local]` `[Aceitar Carla (default)]`
-   - `code_overwritten` field=color → mostra swatches lado a lado, mesma escolha
-   - `code_overwritten` field=description / memo → texto truncado lado a lado, mesma escolha
+   - `code_overwritten` field=`name` → "code_42 · name: 'ANSIEDADE' (local) ↔ 'ANSIEDADE-ESCOLAR' (Carla)" + botões `[Manter local]` `[Aceitar Carla (default)]`
+   - `code_overwritten` field=`color` → mostra swatches lado a lado, mesma escolha
    - Code novo (existe em payload, não em local) → `[Skip (não importa)]` `[Adicionar ao codebook]`
+   - **Não renderizado:** `code_overwritten` field=`description|memo` e `memo_overwritten` (motor não emite — ver §1.1).
 
 2. **⚠ Sources com problemas** (border vermelho, expanded por default) — uma row por source affetada:
    - `source_hash_mismatch` → "P03.md · 45 markers · você editou esse arquivo depois" + `[Trust local (offsets podem desalinhar)]` `[Skip source]`
@@ -106,11 +112,20 @@ Em vez de um chip "Divergências" separado, todas as ações de resolução vive
 ### 4.2. Footer
 
 ```
-[Apply (113 markers — 87 pendentes ficam fora)]  [Discard contribution]
-resolva os 87 pendentes acima ou pula eles
+[Apply (N_in markers — N_out ficam fora)]  [Discard contribution]
+N_out = N_pending + N_skipSource + N_skipCode + N_skipMarker
 ```
 
-- "Apply" insere via `mergeCoderContribution` aplicando os `overrides`. Markers sem source resolvido (skip ou ainda pending) ficam fora do count.
+Onde:
+- `N_pending` = `MergeResult.pendingMarkers` após overrides (markers cujo source remap falhou E user não escolheu `trust-local` ou `map-manual`)
+- `N_skipSource` = Σ markers cujo `payloadFileId` tem `sourceOverrides[fid] = 'skip-source'`
+- `N_skipCode` = Σ markers cujo `codeId` ∈ `perCodeSkip`
+- `N_skipMarker` = `|perMarkerSkip|`
+- `N_in` = total markers do payload − N_out (sem dupla contagem; ordem de aplicação dos filtros: skipSource ⊃ skipCode ⊃ skipMarker ⊃ pending)
+
+Subtitle: `"resolva os N_out pendentes acima ou pula eles"` (sumido se N_out=0).
+
+- "Apply" chama `mergeCoderContribution(localData, payload, hashRegistry, { dryRun: false, overrides })` aplicando os `overrides` (motor estendido, ver §2.3).
 - "Discard contribution" remove da rail (não toca data.json).
 
 ### 4.3. Edge case — codebook + source perfeitos
@@ -121,8 +136,12 @@ Se a contribution não tem nenhuma divergência, seções 1-2 não aparecem. Se�
 
 Marker-by-marker. Filter chip secundário (segunda linha do toolbar):
 - `[todos]` (default)
-- `[só sobrepondo local]` — markers da contribuição cujo segment tem marker local existente (mesmo coder ou outro)
-- `[só novos]` — markers em segments sem nada local
+- `[só sobrepondo local]` — predicate por engine:
+  - **markdown:** mesmo `fileId` (após remap) + ranges overlap (`incoming.range.from < local.range.to && local.range.from < incoming.range.to`)
+  - **pdf:** mesmo `fileId` + mesma `page` + ranges overlap (mesma fórmula)
+  - **csvSegment:** mesmo `fileId` + row ranges overlap (`incoming.fromRow ≤ local.toRow && local.fromRow ≤ incoming.toRow`)
+  - Reusar helpers de overlap existentes em `src/core/icr/overlap.ts` (kappa motor já tem range overlap puro).
+- `[só novos]` — markers em segments sem nada local (negação do predicate acima)
 
 Card de marker:
 ```
@@ -156,7 +175,7 @@ ANSIEDADE-ESCOLAR · Carla aplicou 47x · você 12x · overlap 8
 
 - "Revisar 1-a-1 →" muda chip pra Lado a lado com filter aplicado (só markers desse code).
 - "Accept all" = noop (default).
-- "Skip all" adiciona codeId ao `overrides.perCodeSkip` → todos markers desse code da contribuição ficam fora do Apply.
+- "Skip all" adiciona codeId ao `overrides.perCodeSkip` → todos markers desse code da contribuição ficam fora do Apply. **Comportamento adicional:** se o code é novo (não existe local ainda), "Skip all" também adiciona ao `codebookOverrides[codeId] = 'add-as-new' → 'skip'` pra que a definição **não** seja adicionada ao codebook local — evita poluir codebook com codes sem markers. Se o code já existia local, "Skip all" só skipa markers (definição local intocada).
 
 Ordenação: codes com mais markers da contribuição primeiro. Codes que existem só na contribuição (não local) marcados "novo".
 
@@ -170,9 +189,16 @@ Ordenação: codes com mais markers da contribuição primeiro. Codes que existe
 [↗ exportar contribuição]
 ```
 
-Click abre file save dialog (Obsidian file modal) → escolhe coder (se >1 humano local; se só 1, skip) → escolhe pasta destino → escreve `<coderName>-<exportedAt>.json`.
+Fluxo:
+1. Filtra `coderRegistry.getAll()` por `type === 'human'` (definição em `coderTypes.ts:15`).
+2. Se 0 humanos → Notice "Nenhum coder humano registrado" + abort.
+3. Se 1 humano → skip seleção, usa esse coder.
+4. Se >1 humano → abre `Modal` pequeno (Obsidian `Modal`, não large) com radio list de coders + botão Confirm/Cancel.
+5. Roda `extractCoderContribution(data, coderId, hashRegistry)`.
+6. Pasta destino: salva em `vault.adapter.basePath/icr-exports/` (cria se não existe — vault-relative). Nome: `<coder.name slug>-<exportedAt ISO>.json`. Sem file picker do OS (mantém vault-relative — Obsidian-friendly).
+7. Notice de sucesso com path relativo.
 
-**Comando palette (sempre):** `ICR: Export my contribution` (mesmo fluxo).
+**Comando palette (sempre):** `ICR: Export my contribution` — mesmo fluxo (passos 1-7).
 
 ### 7.2. Import
 
@@ -180,29 +206,41 @@ Click abre file save dialog (Obsidian file modal) → escolhe coder (se >1 human
 
 **Comando palette (sempre):** `ICR: Open import` (mesmo).
 
-**Drop arquivo:** drop de `.json` na ItemView (drop zone na rail) carrega e valida. Drop fora da view não dispara nada (evita conflito com outros plugins).
+**Drop arquivo:** registrar `dragenter` / `dragover` / `drop` via `view.registerDomEvent(dropZoneEl, 'drop', handler)` no elemento drop zone da rail (NÃO no contentEl inteiro — evita capturar drops de notas/links do próprio Obsidian). Handler:
+1. `event.preventDefault()` em todos 3.
+2. Lê `event.dataTransfer.files` — array de File.
+3. Filter por extensão `.json`. Não-json → Notice "só arquivos .json" + abort.
+4. Pra cada arquivo: `await file.text()` → `contributionLoader.parse()` → se válido, push em `pending`; se inválido, Notice com erro específico (não bloqueia outros arquivos do mesmo drop).
+5. Após processar todos: seleciona o último válido (`activeId = lastValid.id`).
+
+Drop fora da drop zone → comportamento default do Obsidian (sem captura).
 
 ## 8. Componentes / módulos novos
 
-Tudo em `src/core/icr/import/`:
+Tudo em `src/core/icr/contributions/` (nome cobre import + export — `import/` seria contraditório com `exportTrigger.ts`):
 
 ```
-src/core/icr/import/
-  importViewTypes.ts       — IcrImportViewState, PendingContribution, ResolutionOverrides
+src/core/icr/contributions/
+  contributionViewTypes.ts — IcrImportViewState, PendingContribution, ResolutionOverrides
   unifiedIcrImportView.ts  — ItemView (rail + toolbar + body re-render)
   importToolbar.ts         — chips + sub-pergunta + meta header
   overviewChip.ts          — Visão geral: seções inline (codebook + sources + ok + footer Apply)
   sideBySideChip.ts        — Lado a lado: marker-by-marker, accept/skip, navegação ←/→
   byCodeChip.ts            — Por código: agrupa, batch actions
-  divergenceResolver.ts    — função pura: aplica overrides ao MergeResult / re-roda merge final com overrides
+  divergenceResolver.ts    — função pura: dado MergeResult + ResolutionOverrides, computa contagens efetivas pro footer (N_in, N_out, decomposição) — espelha §4.2
   contributionLoader.ts    — parse + valida arquivo .json como PayloadV1 (rejeita formato inválido com Notice)
   rail.ts                  — lista lateral + drop zone (componente UI)
-  exportTrigger.ts         — função de export via file modal (chamada do botão Compare Coders + comando palette)
+  exportTrigger.ts         — orquestra export: filter coders, modal seleção (>1), chama extractCoderContribution, escreve arquivo
 ```
 
 **Modificações em arquivos existentes:**
-- `src/core/icr/ui/unifiedCompareCodersView.ts:91` — adicionar segundo botão `↗ exportar contribuição`
-- `src/main.ts onload()` — `addRibbonIcon('git-pull-request', 'ICR Import', () => openIcrImportView())` + register view type + register 2 commands
+- `src/core/icr/transport/mergeCoderContribution.ts` — adicionar parâmetro `options?: { dryRun?: boolean; overrides?: ResolutionOverrides }`. `dryRun` skipa mutações (computa só conflicts/counts); `overrides` aplica skip/manter durante a aplicação. Patch P0 pré-requisito (ver §2.3).
+- `src/core/icr/transport/payloadTypes.ts` — adicionar `ResolutionOverrides` ao export (compartilhado entre motor e UI).
+- `src/core/icr/ui/unifiedCompareCodersView.ts:91` — adicionar segundo botão `↗ exportar contribuição` chamando `exportTrigger.ts`.
+- `src/main.ts onload()`:
+  - `addRibbonIcon('git-pull-request', 'ICR Import', () => openIcrImportView())`
+  - Register view type `qc-icr-import`
+  - Register commands: `ICR: Open import` + `ICR: Export my contribution`
 
 ## 9. Reuso de patterns existentes
 
@@ -218,10 +256,10 @@ src/core/icr/import/
 
 **1 slice único.** Justificativa:
 - ItemView com 3 chips compartilha state e re-render — quebrar em "P1.1 só Visão geral, P1.2 Lado a lado depois" exige refactor do state shape entre slices.
-- Motor (Slice 3) já entrega tudo. P1 é só UI sobre coisas existentes.
+- Motor (Slice 3) já entrega quase tudo; P1 é UI + 1 patch P0 (parâmetro `options` no merge — ver §2.3).
 - Lado a lado não é luxo — é o caminho audit, sem ele a ferramenta não cobre o cenário paper-rigor.
 
-**Estimativa de testes:** ~40-60 (em linha com Slice 3 = 26 e E2 = 60+). Detalhamento na §11.
+**Estimativa de testes:** sem comparável idêntico no projeto (ICR slices anteriores: Slice 3 = 26 testes só de transport puro sem UI; Slice E2 ≈ 60+ testes de UI Compare Coders). Esta spec mistura motor patch (pequeno) + UI (~3 chips + rail). Plan vai cravar o número via decomposição em chunks; não estimar agora.
 
 ## 11. Testing
 
@@ -233,12 +271,16 @@ src/core/icr/import/
 - Json malformado → erro "parse"
 - Faltando campos required (`coder`, `markers`, etc) → erro detalhando o que falta
 
-**`divergenceResolver.applyOverrides(mergeResult, overrides, payload)`:**
-- Override `codebookOverrides[code_42] = 'local'` → resultado não inclui code_overwritten desse code
-- Override `sourceOverrides[fid] = 'skip-source'` → markers desse source ficam fora
-- Override `perMarkerSkip` → marker específico fica fora
-- Override `perCodeSkip` → todos markers do code ficam fora
-- Combinação de overrides → idempotente, ordem-independente
+**`mergeCoderContribution(..., { dryRun: true })`** (motor patch):
+- Roda dry-run → retorna mesmo `MergeResult.conflicts`/`pendingMarkers`/`fileIdRemap` que apply real
+- `localData` não muta (verificar registries inalterados após chamada)
+- `dryRun: false` (ou ausente) → comportamento atual mantido (regression)
+- Com `overrides`: `codebookOverrides[code_42] = 'local'` skipa overwrite desse code · `sourceOverrides[fid] = 'skip-source'` skipa todos markers do source · `perCodeSkip` / `perMarkerSkip` skipam respectivos · combinação ordem-independente
+
+**`divergenceResolver` (puro, espelha §4.2):**
+- Dado `MergeResult` + `ResolutionOverrides` + `PayloadV1`, retorna `{ N_in, N_out, breakdown: { pending, skipSource, skipCode, skipMarker } }`
+- Sem dupla contagem (markers em skipSource não contam de novo em skipCode mesmo se code também tá em perCodeSkip)
+- Idempotente
 
 **Render snapshot dos 3 chips:**
 - Payload mock com 1 codebook diff + 1 source mismatch + 1 source not found + 50 markers limpos
@@ -280,9 +322,8 @@ Cravado em `CLAUDE.md §1` ("Testes verde ≠ feito"):
 ## 12. Decisões abertas pra plan/implementação
 
 1. **Ícone do ribbon e do view type** — `git-pull-request` é tentativa; consultar `obsidian-design` skill durante implementação pode trocar.
-2. **MergePreview cacheado vs incremental** — ao mudar override, recalcula tudo (simples) ou só o delta (mais rápido)? Default plan: recalcula tudo, otimiza se ficar lento.
-3. **Edge: 2 contribuições do mesmo coderId** — bloquear na rail (não adiciona segunda) ou permitir e avisar? Plan decide; default: permitir, avisar no header da contribuição.
-4. **Persistência da rail entre sessões** — out of scope desta spec, mas decidir nome do field caso evolua (sugestão: `data.json` em `icrImport.pending` se virar feature).
+2. **MergePreview recompute** — ao mudar override, recalcula tudo via `mergeCoderContribution(..., { dryRun: true })`. Plan decide se otimiza incremental quando contribuição grande (>500 markers).
+3. **Edge: 2 contribuições do mesmo coderId na rail** — bloquear (não adiciona segunda) ou permitir e avisar? Plan decide; default: permitir, avisar no header da contribuição com badge "duplicate coder".
 
 ## 13. Dependências
 
