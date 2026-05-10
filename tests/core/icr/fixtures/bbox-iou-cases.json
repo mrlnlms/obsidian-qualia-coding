@@ -1,0 +1,58 @@
+[
+  {
+    "name": "rect-rect 50% horizontal overlap → IoU=1/3",
+    "shapeA": { "shape": "rect", "coords": { "type": "rect", "x": 0, "y": 0, "w": 0.4, "h": 0.4 } },
+    "shapeB": { "shape": "rect", "coords": { "type": "rect", "x": 0.2, "y": 0, "w": 0.4, "h": 0.4 } },
+    "expectedIoU": 0.333,
+    "epsilon": 0.05
+  },
+  {
+    "name": "rect-rect identical → IoU=1",
+    "shapeA": { "shape": "rect", "coords": { "type": "rect", "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.5 } },
+    "shapeB": { "shape": "rect", "coords": { "type": "rect", "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.5 } },
+    "expectedIoU": 1.0,
+    "epsilon": 0.001
+  },
+  {
+    "name": "rect-rect disjoint → IoU=0",
+    "shapeA": { "shape": "rect", "coords": { "type": "rect", "x": 0, "y": 0, "w": 0.3, "h": 0.3 } },
+    "shapeB": { "shape": "rect", "coords": { "type": "rect", "x": 0.7, "y": 0.7, "w": 0.3, "h": 0.3 } },
+    "expectedIoU": 0.0,
+    "epsilon": 0.001
+  },
+  {
+    "name": "ellipse-ellipse concentric identical → IoU=1",
+    "shapeA": { "shape": "ellipse", "coords": { "type": "ellipse", "cx": 0.5, "cy": 0.5, "rx": 0.2, "ry": 0.2 } },
+    "shapeB": { "shape": "ellipse", "coords": { "type": "ellipse", "cx": 0.5, "cy": 0.5, "rx": 0.2, "ry": 0.2 } },
+    "expectedIoU": 1.0,
+    "epsilon": 0.01
+  },
+  {
+    "name": "polygon-polygon triangle identical → IoU=1",
+    "shapeA": { "shape": "polygon", "coords": { "type": "polygon", "points": [{"x":0,"y":0},{"x":1,"y":0},{"x":0.5,"y":1}] } },
+    "shapeB": { "shape": "polygon", "coords": { "type": "polygon", "points": [{"x":0,"y":0},{"x":1,"y":0},{"x":0.5,"y":1}] } },
+    "expectedIoU": 1.0,
+    "epsilon": 0.01
+  },
+  {
+    "name": "rect-polygon (rect ↔ rectangular polygon) → IoU≈1",
+    "shapeA": { "shape": "rect", "coords": { "type": "rect", "x": 0.1, "y": 0.1, "w": 0.4, "h": 0.4 } },
+    "shapeB": { "shape": "polygon", "coords": { "type": "polygon", "points": [{"x":0.1,"y":0.1},{"x":0.5,"y":0.1},{"x":0.5,"y":0.5},{"x":0.1,"y":0.5}] } },
+    "expectedIoU": 1.0,
+    "epsilon": 0.01
+  },
+  {
+    "name": "tiny rect <0.01% area (sanity check)",
+    "shapeA": { "shape": "rect", "coords": { "type": "rect", "x": 0.5, "y": 0.5, "w": 0.005, "h": 0.005 } },
+    "shapeB": { "shape": "rect", "coords": { "type": "rect", "x": 0.5, "y": 0.5, "w": 0.005, "h": 0.005 } },
+    "expectedIoU": 1.0,
+    "epsilon": 0.1
+  },
+  {
+    "name": "thin rect (w<1/200, large h) identical pair — IoU=1 mesmo com adaptive 400×400",
+    "shapeA": { "shape": "rect", "coords": { "type": "rect", "x": 0.5, "y": 0.1, "w": 0.003, "h": 0.5 } },
+    "shapeB": { "shape": "rect", "coords": { "type": "rect", "x": 0.5, "y": 0.1, "w": 0.003, "h": 0.5 } },
+    "expectedIoU": 1.0,
+    "epsilon": 0.05
+  }
+]
