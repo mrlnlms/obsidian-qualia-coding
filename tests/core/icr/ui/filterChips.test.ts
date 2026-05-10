@@ -17,12 +17,11 @@ describe('renderFilterChips', () => {
 		baseState = createDefaultViewState(coderRegistry.getAll().map(c => c.id));
 	});
 
-	it('renderiza chip por coder + 6 chips de engine + 2 chips de filtro', () => {
+	it('renderiza chip por coder + 6 engines + 3 toggles (highlight + hide + splitBbox)', () => {
 		renderFilterChips(container, baseState, { coderRegistry }, () => {});
 		const N = coderRegistry.getAll().length;
 		const chips = container.querySelectorAll('.qc-cc-filter-chip');
-		// N coders + 6 engines + highlight + hide agreement
-		expect(chips.length).toBe(N + 6 + 2);
+		expect(chips.length).toBe(N + 6 + 3);
 	});
 
 	it('chip de coder começa com is-active quando visibleCoderIds undefined', () => {
@@ -88,5 +87,13 @@ describe('renderFilterChips', () => {
 		expect(csvChip.classList.contains('is-active')).toBe(false);
 		csvChip.click();
 		expect(updates[0]!.filters!.visibleEngineIds).toContain('csvRow');
+	});
+
+	it('click em chip "split bbox engines" toggle splitBboxEngines', () => {
+		const updates: Partial<CompareCodersViewState>[] = [];
+		renderFilterChips(container, baseState, { coderRegistry }, p => updates.push(p));
+		const chip = container.querySelector('[data-filter="split-bbox"]') as HTMLElement;
+		chip.click();
+		expect(updates[0]!.filters!.splitBboxEngines).toBe(true);
 	});
 });

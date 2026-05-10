@@ -3,6 +3,7 @@ import type QualiaCodingPlugin from '../../../main';
 import { type CompareCodersViewState, createDefaultViewState, type CurrentSelection } from './compareCodersTypes';
 import { renderOverviewMatrix } from './overviewMatrix';
 import { renderOverviewTable } from './overviewTable';
+import { renderOverviewHeatmap } from './overviewHeatmap';
 import { renderDrilldownSpatial } from './drilldownSpatial';
 import { renderFilterChips } from './filterChips';
 import { renderCoefficientPicker } from './coefficientPicker';
@@ -67,12 +68,7 @@ export class UnifiedCompareCodersView extends ItemView {
 				cls: `qc-cc-mode-chip ${this.state.overviewMode === mode ? 'is-active' : ''}`,
 				text: this.modeLabel(mode),
 			});
-			if (mode === 'heatmap') {
-				chip.addClass('is-disabled');
-				chip.title = 'Disponível em E2 Chunk 4';
-			} else {
-				chip.onclick = () => this.updateState({ overviewMode: mode });
-			}
+			chip.onclick = () => this.updateState({ overviewMode: mode });
 		}
 		this.toolbarEl.createDiv({
 			cls: 'qc-cc-mode-question',
@@ -131,7 +127,12 @@ export class UnifiedCompareCodersView extends ItemView {
 			);
 			return;
 		}
-		this.overviewEl.createDiv({ text: 'Heatmap disponível no Chunk 4 do E2', cls: 'qc-cc-stub' });
+		await renderOverviewHeatmap(
+			this.overviewEl,
+			this.state,
+			{ ...deps, codeRegistry: this.plugin.sharedRegistry },
+			sel => this.setSelection(sel),
+		);
 	}
 
 	private engineModels(): EngineModelsForExtraction {

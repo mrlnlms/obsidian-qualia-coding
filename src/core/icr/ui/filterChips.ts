@@ -79,4 +79,13 @@ export function renderFilterChips(
 	hideAgreeChip.onclick = () => {
 		onUpdate({ filters: { ...state.filters, hideAgreementTotal: !state.filters.hideAgreementTotal } });
 	};
+
+	const splitBboxChip = container.createSpan({
+		cls: `qc-cc-filter-chip ${state.filters.splitBboxEngines ? 'is-active' : ''}`,
+		text: 'split bbox engines',
+	});
+	splitBboxChip.dataset.filter = 'split-bbox';
+	splitBboxChip.onclick = () => {
+		onUpdate({ filters: { ...state.filters, splitBboxEngines: !state.filters.splitBboxEngines } });
+	};
 }

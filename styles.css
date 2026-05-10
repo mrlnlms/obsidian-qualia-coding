@@ -6587,6 +6587,42 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	opacity: 0.7;
 }
 
+/* Mode C — heatmap código × engine */
+.qc-cc-heatmap {
+	border-collapse: collapse;
+	font-size: var(--font-ui-smaller);
+}
+
+.qc-cc-heatmap th,
+.qc-cc-heatmap td {
+	padding: 6px 10px;
+	text-align: center;
+	border: 1px solid var(--background-modifier-border);
+	min-width: 80px;
+}
+
+.qc-cc-heatmap thead th {
+	background: var(--background-secondary);
+	font-weight: 600;
+	font-family: var(--font-monospace);
+	font-size: calc(var(--font-ui-smaller) * 0.95);
+}
+
+.qc-cc-heatmap tbody th {
+	background: var(--background-secondary);
+	text-align: left;
+	font-weight: 500;
+}
+
+.qc-cc-heatmap tbody td:not(.qc-kappa-na) {
+	cursor: pointer;
+	transition: filter 100ms;
+}
+
+.qc-cc-heatmap tbody td:not(.qc-kappa-na):hover {
+	filter: brightness(1.15);
+}
+
 /* Color scale — universal pra qualquer cell que mostra κ */
 .qc-kappa-low      { background: #c1352e; color: #fff; }
 .qc-kappa-mid-low  { background: #d68c45; color: #1a1a1a; }
