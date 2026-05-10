@@ -3,6 +3,7 @@ import type QualiaCodingPlugin from '../../../main';
 import { type CompareCodersViewState, createDefaultViewState, type CurrentSelection } from './compareCodersTypes';
 import { renderOverviewMatrix } from './overviewMatrix';
 import { renderDrilldownSpatial } from './drilldownSpatial';
+import { renderFilterChips } from './filterChips';
 import type { EngineModelsForExtraction } from './scopeExtraction';
 
 export const COMPARE_CODERS_VIEW_TYPE = 'qc-compare-coders';
@@ -72,6 +73,14 @@ export class UnifiedCompareCodersView extends ItemView {
 			cls: 'qc-cc-mode-question',
 			text: this.modeQuestion(this.state.overviewMode),
 		});
+
+		const chipsHolder = this.toolbarEl.createDiv();
+		renderFilterChips(
+			chipsHolder,
+			this.state,
+			{ coderRegistry: this.plugin.coderRegistry },
+			partial => this.updateState(partial),
+		);
 	}
 
 	private modeLabel(mode: 'matrix' | 'table' | 'heatmap'): string {
