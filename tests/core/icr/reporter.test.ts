@@ -128,4 +128,37 @@ describe('reportKappa', () => {
 		const r = reportKappa(inputs);
 		expect(r.aggregateWarnings.length).toBe(0);
 	});
+
+	it('accepts pdfShape and image as engine ids', () => {
+		const inputs: EngineKappaInput[] = [
+			{ engine: 'pdfShape', kappaInput: { markers: [], sources: [], coders: ['a', 'b'] } },
+			{ engine: 'image', kappaInput: { markers: [], sources: [], coders: ['a', 'b'] } },
+		];
+		const r = reportKappa(inputs);
+		expect(r.byEngine.pdfShape).toBeDefined();
+		expect(r.byEngine.image).toBeDefined();
+	});
+
+	it('emits warning when bbox engines combined with text-likes (incomparable units)', () => {
+		const inputs: EngineKappaInput[] = [
+			{
+				engine: 'markdown',
+				kappaInput: {
+					markers: [{ coderId: 'a', range: { fileId: 'a.md', locator: '', from: 0, to: 5 }, codeIds: ['c1'] }],
+					sources: [{ fileId: 'a.md', locator: '', totalUnits: 100 }],
+					coders: ['a', 'b'],
+				},
+			},
+			{
+				engine: 'pdfShape',
+				kappaInput: {
+					markers: [{ coderId: 'a', range: { fileId: 'b.pdf:page:1', locator: 'bbox:b.pdf:page:1', from: 0, to: 1 }, codeIds: ['c1'] }],
+					sources: [{ fileId: 'b.pdf:page:1', locator: 'bbox:b.pdf:page:1', totalUnits: 5 }],
+					coders: ['a', 'b'],
+				},
+			},
+		];
+		const r = reportKappa(inputs);
+		expect(r.aggregateWarnings.some(w => w.includes('incomparable'))).toBe(true);
+	});
 });

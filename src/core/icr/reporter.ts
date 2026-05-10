@@ -20,11 +20,12 @@ import { cohenKappaCategorical } from './coefficients/cohenKappaCategorical';
 import { fleissKappaCategorical } from './coefficients/fleissKappaCategorical';
 import { krippendorffAlphaCategoricalNominal } from './coefficients/krippendorffAlphaCategorical';
 
-export type EngineId = 'markdown' | 'pdf' | 'csvSegment' | 'csvRow' | 'audio' | 'video';
+export type EngineId = 'markdown' | 'pdf' | 'csvSegment' | 'csvRow' | 'audio' | 'video' | 'pdfShape' | 'image';
 
 const TEXT_LIKE_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment'];
 const TEMPORAL_ENGINES: EngineId[] = ['audio', 'video'];
 const CATEGORICAL_ENGINES: EngineId[] = ['csvRow'];
+const SPATIAL_ENGINES: EngineId[] = ['pdfShape', 'image'];
 
 export interface EngineKappaInput {
 	engine: EngineId;
@@ -68,10 +69,11 @@ export function reportKappa(inputs: EngineKappaInput[]): KappaReport {
 		if (TEXT_LIKE_ENGINES.includes(e)) unitFamilies.add('chars');
 		if (TEMPORAL_ENGINES.includes(e)) unitFamilies.add('seconds');
 		if (CATEGORICAL_ENGINES.includes(e)) unitFamilies.add('categorical');
+		if (SPATIAL_ENGINES.includes(e)) unitFamilies.add('spatial-bbox');
 	}
 	if (unitFamilies.size > 1) {
 		aggregateWarnings.push(
-			'Aggregate combines engines with incomparable units (chars vs seconds vs categorical) — use per-engine values for analytical comparison',
+			'Aggregate combines engines with incomparable units (chars vs seconds vs categorical vs spatial-bbox) — use per-engine values for analytical comparison',
 		);
 	}
 
