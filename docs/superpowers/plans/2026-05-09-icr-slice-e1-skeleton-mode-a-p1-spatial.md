@@ -171,7 +171,7 @@ Expected: FAIL — `reportPairwise is not exported from reporter`.
 Em `src/core/icr/reporter.ts`, append:
 
 ```typescript
-import type { KappaInput, CodedMarker } from './kappaInput';
+import type { KappaInput } from './kappaInput';
 import type { CategoricalKappaInput } from './categoricalKappaInput';
 // ... CoderId já importado nos slices anteriores; verificar import existe
 
@@ -437,9 +437,15 @@ import { type CompareCodersViewState, createDefaultViewState } from './compareCo
 
 export const COMPARE_CODERS_VIEW_TYPE = 'qc-compare-coders';
 
+import type { EngineModelsForExtraction } from './scopeExtraction';
+
 export interface CompareCodersViewDeps {
   coderRegistry: CoderRegistry;
   codeRegistry: CodeDefinitionRegistry;
+  /** Optional pra testes minimal sem fixture; render functions tratam ausência como "[] inputs". */
+  engineModels?: EngineModelsForExtraction;
+  /** Obsidian app — necessário pra `vault.cachedRead` em markdown extraction. Optional pelo mesmo motivo. */
+  app?: App;
   // dataManager, markerOps etc. virão em E3a — em E1 read-only
 }
 
@@ -453,7 +459,8 @@ export class UnifiedCompareCodersView extends ItemView {
 
   constructor(leaf: WorkspaceLeaf, app: App, deps: CompareCodersViewDeps) {
     super(leaf);
-    this.deps = deps;
+    // Folda app no deps pra render functions acessarem via deps.app uniformemente.
+    this.deps = { ...deps, app: deps.app ?? app };
     const allCoderIds = deps.coderRegistry.getAll().map(c => c.id);
     this.state = createDefaultViewState(allCoderIds);
   }
@@ -1132,9 +1139,7 @@ function buildCategoricalInput(
 
 - [ ] **Step 7: Run scopeExtraction.test.ts, verify PASS**
 
-- [ ] **Step 8: Run overviewMatrix.test.ts (com `await` nas calls), verify PASS**
-
-Tests do step 1 da Task 4 precisam ser ajustados pra ` await renderOverviewMatrix(...)` em cada `it(...)` async. Sem markers no escopo, cells viram `qc-kappa-na` (correto).
+- [ ] **Step 8: Run overviewMatrix.test.ts, verify PASS**
 
 - [ ] **Step 9: Commit consolidado**
 
