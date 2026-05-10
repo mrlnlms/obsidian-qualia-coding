@@ -112,6 +112,16 @@ export function createEmptyOverrides(): ResolutionOverrides {
 		perCodeSkip: new Set(),
 	};
 }
+
+/** Clone shallow das estruturas — usado por chips antes de mutar e emitir onOverridesChange. */
+export function cloneOverrides(o: ResolutionOverrides): ResolutionOverrides {
+	return {
+		codebookOverrides: new Map(o.codebookOverrides),
+		sourceOverrides: new Map(o.sourceOverrides),
+		perMarkerSkip: new Set(o.perMarkerSkip),
+		perCodeSkip: new Set(o.perCodeSkip),
+	};
+}
 ```
 
 - [ ] **Step 2: Verifica typecheck**
@@ -259,7 +269,7 @@ if (payload.groups) {
 	}
 }
 
-// Marker insertion (3 engines) — em cada loop, guardar push
+// Marker insertion — markdown (nested Record<fileId, Marker[]>)
 for (const [payloadFileId, markers] of Object.entries(payload.markers.markdown)) {
 	const localFileId = remap.fileIdRemap[payloadFileId];
 	if (!localFileId) {
@@ -274,7 +284,28 @@ for (const [payloadFileId, markers] of Object.entries(payload.markers.markdown))
 		added.markers++;
 	}
 }
-// Idem pra pdf e csvSegment
+
+// Marker insertion — PDF (flat array, fileId no marker)
+for (const m of payload.markers.pdf) {
+	const localFileId = remap.fileIdRemap[m.fileId];
+	if (!localFileId) {
+		pendingMarkers++;
+		continue;
+	}
+	if (!dryRun) localData.pdf.markers.push({ ...m, fileId: localFileId });
+	added.markers++;
+}
+
+// Marker insertion — CSV segment (flat array, fileId no marker)
+for (const m of payload.markers.csvSegment) {
+	const localFileId = remap.fileIdRemap[m.fileId];
+	if (!localFileId) {
+		pendingMarkers++;
+		continue;
+	}
+	if (!dryRun) localData.csv.segmentMarkers.push({ ...m, fileId: localFileId });
+	added.markers++;
+}
 ```
 
 - [ ] **Step 5: Run tests — devem passar**
@@ -486,44 +517,9 @@ git add src/core/icr/transport/mergeCoderContribution.ts tests/core/icr/transpor
 
 ---
 
-### Task 1.4: Smoke chunk 1 — script Node valida dryRun + overrides
+### Task 1.4: (removida — não há script `test-cross-vault-merge.mjs` existente; unit tests do Task 1.2/1.3 cobrem dryRun + overrides exhaustivamente)
 
-**Files:**
-- Modify: existing `scripts/test-cross-vault-merge.mjs` (se existir; senão skip — já temos os unit tests cobrindo)
-
-- [ ] **Step 1: Verificar se script existe**
-
-Run: `ls scripts/test-cross-vault-merge.mjs 2>/dev/null && echo "existe" || echo "não existe — skip smoke chunk 1"`
-
-- [ ] **Step 2: Se existe, adicionar 1 caso dryRun + 1 caso override no fim do script**
-
-```javascript
-// No fim do test-cross-vault-merge.mjs
-console.log('--- dryRun smoke ---');
-const before = JSON.stringify(vaultB.data);
-await mergeCoderContribution(vaultB.data, payload, vaultB.hashRegistry, { dryRun: true });
-const after = JSON.stringify(vaultB.data);
-console.assert(before === after, 'dryRun mutou vaultB!');
-console.log('✓ dryRun não mutou');
-
-console.log('--- skip-source override smoke ---');
-const overrides = { codebookOverrides: new Map(), sourceOverrides: new Map([[Object.keys(payload.sources)[0], 'skip-source']]), perMarkerSkip: new Set(), perCodeSkip: new Set() };
-const result = await mergeCoderContribution(vaultB.data, payload, vaultB.hashRegistry, { overrides });
-console.assert(result.pendingMarkers > 0, 'skip-source não somou em pendingMarkers');
-console.log(`✓ skip-source pendingMarkers=${result.pendingMarkers}`);
-```
-
-Run: `node scripts/test-cross-vault-merge.mjs`
-Expected: imprime "✓ dryRun não mutou" e "✓ skip-source pendingMarkers=N"
-
-- [ ] **Step 3: Commit (se modificou)**
-
-```bash
-git add scripts/test-cross-vault-merge.mjs
-~/.claude/scripts/commit.sh "test(icr): smoke script cobre dryRun + skip-source override"
-```
-
-**Chunk 1 done quando:** `npm test` verde + smoke script roda sem erro (ou skipped). Motor pronto pra ser consumido pelo P1.
+**Chunk 1 done quando:** `npm test` verde (todos os testes novos de mergeCoderContribution + regression dos antigos). Motor pronto pra ser consumido pelo P1.
 
 ---
 
@@ -1286,7 +1282,7 @@ private setupDropHandler(): void {
 			// Computa dryRun preview
 			const overrides = createEmptyOverrides();
 			const preview = await mergeCoderContribution(
-				this.plugin.dataManager.data,
+				this.plugin.dataManager.getDataRef(),
 				result.payload,
 				this.plugin.sourceHashRegistry,
 				{ dryRun: true, overrides },
@@ -1310,7 +1306,7 @@ private setupDropHandler(): void {
 }
 ```
 
-**Atenção:** `this.plugin.dataManager.data` e `this.plugin.sourceHashRegistry` são as APIs do plugin que expõem state — verificar nomes reais em `src/main.ts`. Ajustar se diferentes (provável: `this.plugin.data` direto ou via getter).
+**Confirmado:** `dataManager.getDataRef(): QualiaData` (`dataManager.ts:75`) + `sourceHashRegistry` exposto no plugin. Não usar `dataManager.data` (private).
 
 - [ ] **Step 2: Verificar APIs reais do plugin**
 
@@ -1641,7 +1637,7 @@ function renderCodebookSection(
 			newOverrides.codebookOverrides.set(conf.codeId, 'local');
 			cb.onOverridesChange(newOverrides);
 		};
-		const incomingBtn = actions.createEl('button', { cls: 'qc-icr-button', text: 'Aceitar Carla (default)' });
+		const incomingBtn = actions.createEl('button', { cls: 'qc-icr-button', text: `Aceitar ${contrib.payload.coder.name} (default)` });
 		incomingBtn.onclick = () => {
 			const newOverrides = cloneOverrides(contrib.overrides);
 			newOverrides.codebookOverrides.set(conf.codeId, 'incoming');
@@ -1662,16 +1658,9 @@ function renderFooterStub(container: HTMLElement, contrib: PendingContribution, 
 function formatVal(v: string): string {
 	return v.length > 30 ? `${v.slice(0, 27)}…` : v;
 }
-
-function cloneOverrides(o: ResolutionOverrides): ResolutionOverrides {
-	return {
-		codebookOverrides: new Map(o.codebookOverrides),
-		sourceOverrides: new Map(o.sourceOverrides),
-		perMarkerSkip: new Set(o.perMarkerSkip),
-		perCodeSkip: new Set(o.perCodeSkip),
-	};
-}
 ```
+
+(Importar `cloneOverrides` de `./contributionViewTypes` no topo do arquivo.)
 
 - [ ] **Step 4: Run tests**
 
@@ -1995,7 +1984,7 @@ private async updateOverrides(contribId: string, overrides: ResolutionOverrides)
 
 	// Recompute mergePreview com novos overrides
 	const newPreview = await mergeCoderContribution(
-		this.plugin.dataManager.data, // ajustar nome conforme main.ts
+		this.plugin.dataManager.getDataRef(), // ajustar nome conforme main.ts
 		contrib.payload,
 		this.plugin.sourceHashRegistry, // ajustar nome
 		{ dryRun: true, overrides },
@@ -2009,22 +1998,24 @@ private async updateOverrides(contribId: string, overrides: ResolutionOverrides)
 
 private async applyContribution(contrib: PendingContribution): Promise<void> {
 	const result = await mergeCoderContribution(
-		this.plugin.dataManager.data,
+		this.plugin.dataManager.getDataRef(),
 		contrib.payload,
 		this.plugin.sourceHashRegistry,
 		{ overrides: contrib.overrides }, // sem dryRun = mutação real
 	);
 
-	await this.plugin.dataManager.save?.(); // chamar save do data manager — verificar API real
+	this.plugin.dataManager.markDirty(); // schedula auto-save (não há save() público — verificado dataManager.ts:75-101)
 
 	new Notice(`ICR Import: ${result.added.markers} markers aplicados, ${result.pendingMarkers} skipped`);
 
 	this.discardContribution(contrib.id);
 
-	// Recompute previews das contribuições restantes (decisão spec §12.4)
+	// Recompute previews das contribuições restantes (decisão spec §12 item 4)
 	for (const remaining of this.state.pending) {
 		const newPreview = await mergeCoderContribution(
-			this.plugin.dataManager.data, contrib.payload, this.plugin.sourceHashRegistry,
+			this.plugin.dataManager.getDataRef(),
+			remaining.payload, // <-- payload da contribuição RESTANTE, não da just-applied
+			this.plugin.sourceHashRegistry,
 			{ dryRun: true, overrides: remaining.overrides },
 		);
 		remaining.mergePreview = newPreview;
@@ -2043,7 +2034,7 @@ private discardContribution(id: string): void {
 }
 ```
 
-**Atenção:** `this.plugin.dataManager.data` e `.save()` e `.sourceHashRegistry` — confirmar nomes em `src/main.ts`. Provável que seja `this.plugin.data` direto + algum `saveData()`.
+**Confirmado:** APIs reais — `dataManager.getDataRef()` retorna `QualiaData` (não tem método `data` público); `dataManager.markDirty()` schedula auto-save (não há `save()` público); `sourceHashRegistry` exposto no plugin. Verificado em `src/core/dataManager.ts:75-101`.
 
 - [ ] **Step 2: Verificar APIs reais**
 
@@ -2121,17 +2112,19 @@ describe('findOverlappingLocalMarkers (markdown)', () => {
 	});
 
 	test('PDF: mesmo fileId + range overlap → match', () => {
-		const incoming = { id: 'i1', fileId: 'f1', beginIndex: 100, endIndex: 200, pageIndex: 0, text: 't' } as any;
-		const local = [{ id: 'l1', fileId: 'f1', beginIndex: 150, endIndex: 250, pageIndex: 0, text: 't' } as any];
+		// PdfMarker shape (verificado pdfCodingTypes.ts:23-24): { fileId, page: number, beginIndex, endIndex, text, ... }
+		const incoming = { id: 'i1', fileId: 'f1', beginIndex: 100, endIndex: 200, page: 0, text: 't' } as any;
+		const local = [{ id: 'l1', fileId: 'f1', beginIndex: 150, endIndex: 250, page: 0, text: 't' } as any];
 		const result = findOverlappingLocalMarkers('pdf', incoming, local);
 		expect(result.length).toBe(1);
 	});
 
 	test('CSV segment: mesmo row+col + char range overlap → match', () => {
-		const incoming = { id: 'i1', fileId: 'f1', sourceRowId: 'r1', column: 'c1', from: 0, to: 50 } as any;
+		// SegmentMarker shape (verificado csvCodingTypes.ts:6-13): { fileId, sourceRowId: number, column: string, from, to, ... }
+		const incoming = { id: 'i1', fileId: 'f1', sourceRowId: 1, column: 'c1', from: 0, to: 50 } as any;
 		const local = [
-			{ id: 'l1', fileId: 'f1', sourceRowId: 'r1', column: 'c1', from: 30, to: 80 } as any,
-			{ id: 'l2', fileId: 'f1', sourceRowId: 'r1', column: 'c2', from: 0, to: 50 } as any, // col diferente
+			{ id: 'l1', fileId: 'f1', sourceRowId: 1, column: 'c1', from: 30, to: 80 } as any,
+			{ id: 'l2', fileId: 'f1', sourceRowId: 1, column: 'c2', from: 0, to: 50 } as any, // col diferente
 		];
 		const result = findOverlappingLocalMarkers('csvSegment', incoming, local);
 		expect(result.map(m => m.id)).toEqual(['l1']);
@@ -2331,9 +2324,12 @@ export interface SideBySideContext {
 export interface SideBySideCallbacks {
 	currentIndex: number;
 	filter: SideBySideFilter;
+	/** Quando setado, restringe markers àqueles que contenham esse codeId. */
+	filterCodeId: string | null;
 	onSkipMarker: (markerId: string) => void;
 	onNavigate: (delta: number) => void; // -1, +1
 	onFilterChange: (f: SideBySideFilter) => void;
+	onClearCodeFilter: () => void;
 }
 
 interface FlatMarker {
@@ -2353,8 +2349,11 @@ export function renderSideBySideChip(
 	// Flatten markers da contribuição (3 engines em ordem)
 	const all = flattenMarkers(contrib);
 
-	// Aplica filter
-	const filtered = filterMarkers(all, ctx, cb.filter);
+	// Aplica filter (overlap + codeId)
+	let filtered = filterMarkers(all, ctx, cb.filter);
+	if (cb.filterCodeId) {
+		filtered = filtered.filter(fm => (fm.marker as any).codes?.some((c: any) => c.codeId === cb.filterCodeId));
+	}
 
 	// Filter chips toolbar
 	const filterRow = container.createDiv({ cls: 'qc-icr-filter-row' });
@@ -2364,6 +2363,11 @@ export function renderSideBySideChip(
 			text: filterLabel(f),
 		});
 		chip.onclick = () => cb.onFilterChange(f);
+	}
+	// Code filter pill (visível quando setado)
+	if (cb.filterCodeId) {
+		const pill = filterRow.createSpan({ cls: 'qc-icr-filter-pill', text: `code: ${cb.filterCodeId} ✕` });
+		pill.onclick = () => cb.onClearCodeFilter();
 	}
 
 	if (filtered.length === 0) {
@@ -2487,6 +2491,9 @@ export interface IcrImportViewState {
 	activeChip: ChipId;
 	sideBySideIndex: number;
 	sideBySideFilter: SideBySideFilter;
+	/** Filter additional: quando user clica "Revisar 1-a-1 →" no chip Por código,
+	 * grava codeId aqui pra restringir markers do side-by-side. null = sem filter. */
+	sideBySideFilterCodeId: string | null;
 }
 
 export function createDefaultViewState(): IcrImportViewState {
@@ -2496,6 +2503,7 @@ export function createDefaultViewState(): IcrImportViewState {
 		activeChip: 'overview',
 		sideBySideIndex: 0,
 		sideBySideFilter: 'all',
+		sideBySideFilterCodeId: null,
 	};
 }
 ```
@@ -2512,6 +2520,7 @@ if (this.state.activeChip === 'side-by-side') {
 	renderSideBySideChip(this.bodyEl, active, { localMarkersByFileId }, {
 		currentIndex: this.state.sideBySideIndex,
 		filter: this.state.sideBySideFilter,
+		filterCodeId: this.state.sideBySideFilterCodeId,
 		onSkipMarker: (markerId) => {
 			const updated = cloneOverrides(active.overrides);
 			updated.perMarkerSkip.add(markerId);
@@ -2523,25 +2532,40 @@ if (this.state.activeChip === 'side-by-side') {
 		onFilterChange: (f) => {
 			this.updateState({ sideBySideFilter: f, sideBySideIndex: 0 });
 		},
+		onClearCodeFilter: () => {
+			this.updateState({ sideBySideFilterCodeId: null, sideBySideIndex: 0 });
+		},
 	});
 }
 
 private collectLocalMarkers(contrib: PendingContribution): Record<string, any[]> {
 	// Pega markers locais (de TODOS coders) por fileId após remap
 	const out: Record<string, any[]> = {};
-	const data = this.plugin.dataManager.data; // ajustar
+	const data = this.plugin.dataManager.getDataRef();
 	for (const [payloadFid, localFid] of Object.entries(contrib.mergePreview.fileIdRemap)) {
-		out[payloadFid] = []; // chave por payload fid pro chip
+		out[payloadFid] = [];
 		// markdown
-		const mdMarkers = data.markdown?.markers?.[localFid] ?? [];
+		const mdMarkers = data.markdown.markers[localFid] ?? [];
 		out[payloadFid].push(...mdMarkers);
 		// pdf
-		out[payloadFid].push(...(data.pdf?.markers?.filter((m: any) => m.fileId === localFid) ?? []));
+		out[payloadFid].push(...data.pdf.markers.filter((m: any) => m.fileId === localFid));
 		// csvSegment
-		out[payloadFid].push(...(data.csv?.segmentMarkers?.filter((m: any) => m.fileId === localFid) ?? []));
+		out[payloadFid].push(...data.csv.segmentMarkers.filter((m: any) => m.fileId === localFid));
 	}
 	return out;
 }
+
+/**
+ * Markdown overlap degradation note:
+ * `extractMarkdownRange` precisa de sourceText (vault read) — fetch async impacta render.
+ * Pra primeira versão, NÃO passa sourceText pro chip (sideBySide passa undefined).
+ * Resultado: markdown overlap retorna [] (degraded — filter "só sobrepondo" não captura
+ * markdown). Filter "todos" e "só novos" funcionam (novos = sem overlap = todos os
+ * markdown). PDF + CSV overlap funcionam normalmente (helpers são puros).
+ *
+ * Refactor pra fetch sourceText fica como follow-up (#XX no BACKLOG quando o plan virar
+ * commit final).
+ */
 ```
 
 E em `onOpen()`, após setup:
@@ -2778,7 +2802,7 @@ export function renderByCodeChip(
 		const header = block.createDiv({ cls: 'qc-icr-code-block-header' });
 		const headerParts = [
 			g.codeName,
-			`Carla aplicou ${g.incomingCount}x`,
+			`${contrib.payload.coder.name} aplicou ${g.incomingCount}x`,
 			`você ${localCount}x`,
 			`overlap ${overlap}`,
 		];
@@ -2790,8 +2814,8 @@ export function renderByCodeChip(
 		const onlyTheirs = g.incomingCount - overlap;
 		desc.setText(
 			isNew
-				? `Código ${g.codeName} é novo (você nunca marcou). ${g.incomingCount} markers da Carla.`
-				: `${g.incomingCount} markers da Carla (${overlap} que você também marcou, ${onlyTheirs} só dela).`,
+				? `Código ${g.codeName} é novo (você nunca marcou). ${g.incomingCount} markers de ${contrib.payload.coder.name}.`
+				: `${g.incomingCount} markers de ${contrib.payload.coder.name} (${overlap} que você também marcou, ${onlyTheirs} só dele).`,
 		);
 
 		const actions = body.createDiv({ cls: 'qc-icr-code-block-actions' });
@@ -2853,11 +2877,12 @@ if (this.state.activeChip === 'by-code') {
 			this.updateOverrides(active.id, o);
 		},
 		onRevise: (codeId) => {
-			// Muda chip pra side-by-side e filtra (filter por code-id é extensão futura;
-			// por ora, muda chip + reseta index)
-			this.updateState({ activeChip: 'side-by-side', sideBySideIndex: 0 });
-			// TODO plan: filter por codeId no side-by-side — adicionar parâmetro filterCodeId
-			// se ficar útil. Decisão de plan: por ora navega pro chip e fica visível.
+			// Muda chip pra side-by-side filtrado pelo codeId (spec §6 cravado)
+			this.updateState({
+				activeChip: 'side-by-side',
+				sideBySideIndex: 0,
+				sideBySideFilterCodeId: codeId,
+			});
 		},
 	});
 }
@@ -2866,7 +2891,7 @@ private collectByCodeContext(contrib: PendingContribution): ByCodeContext {
 	const localCountByCode: Record<string, number> = {};
 	const overlapCountByCode: Record<string, number> = {};
 
-	const data = this.plugin.dataManager.data; // ajustar
+	const data = this.plugin.dataManager.getDataRef(); // ajustar
 	const allLocalMarkers = [
 		...Object.values(data.markdown?.markers ?? {}).flat(),
 		...(data.pdf?.markers ?? []),
@@ -2879,46 +2904,17 @@ private collectByCodeContext(contrib: PendingContribution): ByCodeContext {
 		}
 	}
 
-	// Overlap: markers locais cujo code+segment bate com algum incoming
-	// Simplificação: count exato de markers locais com mesmo (codeId, fileId+range overlap)
-	// Pra plan, usar findOverlappingLocalMarkers do helper. Pro MVP do chip, contar local com mesmo codeId é suficiente como aproximação.
-	// Decisão: implementar overlap exato (não aproximação) usando overlapHelper.
-	for (const [fid, markers] of Object.entries(contrib.payload.markers.markdown)) {
-		for (const incoming of markers) {
-			for (const c of (incoming as any).codes ?? []) {
-				const overlapping = findOverlappingLocalMarkers('markdown', incoming, data.markdown?.markers?.[fid] ?? [], '/* sourceText */');
-				const hasOverlap = overlapping.some((l: any) => l.codes?.some((lc: any) => lc.codeId === c.codeId));
-				if (hasOverlap) overlapCountByCode[c.codeId] = (overlapCountByCode[c.codeId] ?? 0) + 1;
-			}
+	// Overlap: aproximação por codeId compartilhado (não usa range overlap pra evitar
+	// async fetch de sourceText markdown). Por código chip mostra "overlap N" como
+	// indicador qualitativo — refinement pra range overlap exato fica pra follow-up.
+	for (const [codeId, localCount] of Object.entries(localCountByCode)) {
+		const incomingForCode = countIncomingMarkersWithCode(contrib, codeId);
+		if (incomingForCode > 0) {
+			overlapCountByCode[codeId] = Math.min(localCount, incomingForCode);
 		}
 	}
-	// Idem pra pdf, csvSegment
 
 	return { localCountByCode, overlapCountByCode };
-}
-```
-
-**Atenção:** `sourceText` em `findOverlappingLocalMarkers` markdown — precisa ler do vault. Async. Decisão de plan: simplificar contexto markdown (skip overlap exato pra texto, usar count aproximado por codeId) OU pré-fetch sourceTexts em hook. Manter aproximação inicial; refinar se necessário.
-
-**Decisão concreta pra implementação:** primeira versão usa count aproximado (overlap = markers locais que compartilham codeId, sem checar range). Refinar pra range overlap exato em iteração futura. Documentar essa escolha em comentário.
-
-```typescript
-// Substituir overlap loop por aproximação:
-for (const [codeId, count] of Object.entries(localCountByCode)) {
-	const incomingHasCode = (() => {
-		for (const ms of Object.values(contrib.payload.markers.markdown)) {
-			if (ms.some((m: any) => m.codes?.some((c: any) => c.codeId === codeId))) return true;
-		}
-		if (contrib.payload.markers.pdf.some((m: any) => m.codes?.some((c: any) => c.codeId === codeId))) return true;
-		if (contrib.payload.markers.csvSegment.some((m: any) => m.codes?.some((c: any) => c.codeId === codeId))) return true;
-		return false;
-	})();
-	if (incomingHasCode) {
-		// count aproximado: min(local, incoming) — não é overlap real, é "potencial overlap"
-		// Pra display do chip, suficiente. Refactor pra exact em iteração futura.
-		const incomingForCode = countIncomingMarkersWithCode(contrib, codeId);
-		overlapCountByCode[codeId] = Math.min(count, incomingForCode);
-	}
 }
 
 function countIncomingMarkersWithCode(contrib: PendingContribution, codeId: string): number {
@@ -2931,6 +2927,8 @@ function countIncomingMarkersWithCode(contrib: PendingContribution, codeId: stri
 	return n;
 }
 ```
+
+**Decisão fixa:** overlap = `min(local, incoming)` por codeId (não-async). Refinement pra range overlap exato é follow-up — não bloqueia P1.
 
 - [ ] **Step 2: Typecheck**
 
@@ -3023,7 +3021,7 @@ import { extractCoderContribution } from '../transport/extractCoderContribution'
 export function sanitizeFilename(coderName: string, isoTimestamp: string): string {
 	const slug = coderName
 		.toLowerCase()
-		.normalize('NFD').replace(/[̀-ͯ]/g, '') // strip diacritics
+		.normalize('NFD').replace(/[̀-ͯ]/g, '') // strip combining diacritics
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-+|-+$/g, '');
 	const safeIso = isoTimestamp.replace(/:/g, '-');
@@ -3069,20 +3067,22 @@ export async function runExportTrigger(plugin: QualiaCodingPlugin): Promise<void
 
 class CoderPickerModal extends Modal {
 	private selected: Coder | null = null;
-	private resolve: ((c: Coder | null) => void) | null = null;
+	private resolve!: (c: Coder | null) => void;
+	private resolved = false;
+	public promise: Promise<Coder | null>;
 
 	constructor(app: App, private coders: Coder[]) {
 		super(app);
-	}
-
-	open(): void {
-		super.open();
-	}
-
-	wait(): Promise<Coder | null> {
-		return new Promise(resolve => {
+		// Promise criada NO CONSTRUCTOR pra evitar race com onOpen disparado por super.open()
+		this.promise = new Promise(resolve => {
 			this.resolve = resolve;
 		});
+	}
+
+	private resolveOnce(value: Coder | null): void {
+		if (this.resolved) return;
+		this.resolved = true;
+		this.resolve(value);
 	}
 
 	onOpen(): void {
@@ -3098,17 +3098,14 @@ class CoderPickerModal extends Modal {
 
 		const buttons = this.contentEl.createDiv({ cls: 'qc-icr-coder-picker-buttons' });
 		const confirm = buttons.createEl('button', { text: 'Confirm', cls: 'mod-cta' });
-		confirm.onclick = () => { this.resolve?.(this.selected); this.close(); };
+		confirm.onclick = () => { this.resolveOnce(this.selected); this.close(); };
 		const cancel = buttons.createEl('button', { text: 'Cancel' });
-		cancel.onclick = () => { this.resolve?.(null); this.close(); };
+		cancel.onclick = () => { this.resolveOnce(null); this.close(); };
 	}
 
 	onClose(): void {
-		// Se fechou sem decidir, resolve com null
-		if (this.resolve) {
-			this.resolve(null);
-			this.resolve = null;
-		}
+		// Se fechou sem decidir (X / Esc), resolve com null
+		this.resolveOnce(null);
 		this.contentEl.empty();
 	}
 }
@@ -3116,7 +3113,7 @@ class CoderPickerModal extends Modal {
 async function pickCoderModal(app: App, coders: Coder[]): Promise<Coder | null> {
 	const modal = new CoderPickerModal(app, coders);
 	modal.open();
-	return await modal.wait();
+	return await modal.promise;
 }
 ```
 
@@ -3249,12 +3246,17 @@ git add src/main.ts
 
 **Files:** nenhuma modificação esperada, apenas validação.
 
+**IMPORTANTE — preparo de DOIS vaults distintos:** ICR transport multi-coder REQUER vaults separados (cada um com seu próprio `sourceHashRegistry`). Mutar o workbench original e re-importar nele NÃO testa cross-vault.
+
+Vault A = workbench atual (`/Users/mosx/Desktop/obsidian-plugins-workbench`).
+Vault B = vault temp (`~/Desktop/temp-icr-fase-c-p1/`) — criar com plugin instalado via `bash scripts/smoke-roundtrip.sh` (já existe pra QDPX, padrão pode ser adaptado) OU manualmente: copiar `.obsidian/` essencial + `manifest.json` + `main.js` + `styles.css` pro novo vault.
+
 **Vault A (export):**
 
 - [ ] **Step 1: Preparar vault A**
 
-Setup no workbench atual (raiz `/Users/mosx/Desktop/obsidian-plugins-workbench`):
-1. Criar 3 sources: `vault-A-roundtrip/P01.md`, `P02.md`, `P03.md` (com texto pra codar)
+No workbench atual:
+1. Criar 3 sources na raiz: `temp-roundtrip-A/P01.md`, `P02.md`, `P03.md` (texto pra codar)
 2. No Obsidian, codar com 1 coder humano (criar via comando se necessário): 5 codes diferentes, ~20 markers distribuídos nos 3 sources
 
 - [ ] **Step 2: Build + reload**
@@ -3263,7 +3265,7 @@ Setup no workbench atual (raiz `/Users/mosx/Desktop/obsidian-plugins-workbench`)
 npm run build
 ```
 
-Reload Obsidian (Cmd P → "Reload app").
+Reload Obsidian workbench (Cmd P → "Reload app").
 
 - [ ] **Step 3: Export**
 
@@ -3271,35 +3273,54 @@ Reload Obsidian (Cmd P → "Reload app").
 2. Click "↗ exportar contribuição"
 3. (se 1 humano: skip modal; se >1: escolher)
 4. Verificar Notice "salvo em icr-exports/<name>.json"
-5. Verificar arquivo existe: `ls .obsidian/plugins/obsidian-qualia-coding/../../icr-exports/` (vault root)
+5. Verificar arquivo existe na raiz do vault A: `ls /Users/mosx/Desktop/obsidian-plugins-workbench/icr-exports/`
 
-**Vault B (import):**
+- [ ] **Step 4: Setup vault B (TEMP, separado do A)**
 
-- [ ] **Step 4: Preparar vault B (mesma raiz, divergir)**
+```bash
+# Criar vault B novo
+mkdir -p ~/Desktop/temp-icr-fase-c-p1/.obsidian/plugins/obsidian-qualia-coding
+# Copiar plugin
+cp manifest.json main.js styles.css ~/Desktop/temp-icr-fase-c-p1/.obsidian/plugins/obsidian-qualia-coding/
+# Habilitar plugin (criar community-plugins.json se necessário)
+echo '["obsidian-qualia-coding"]' > ~/Desktop/temp-icr-fase-c-p1/.obsidian/community-plugins.json
+# Copiar P01/P02/P03 (mesmos arquivos pra ter sources matching)
+cp /Users/mosx/Desktop/obsidian-plugins-workbench/temp-roundtrip-A/P*.md ~/Desktop/temp-icr-fase-c-p1/
+```
 
-1. Renomear localmente 1 code (ex: "ANSIEDADE" → "ANSIEDADE-ESCOLAR" via UI)
-2. Editar P03.md (adicionar texto, vai mudar o hash)
-3. Deletar P02.md (vai gerar source_not_found)
+Abrir vault B no Obsidian (File → Open vault → escolher `~/Desktop/temp-icr-fase-c-p1/`).
 
-- [ ] **Step 5: Import**
+- [ ] **Step 5: Divergir vault B do A pra exercitar conflicts**
 
+Dentro do vault B:
+1. Criar 1 code local (Cmd P → "Add code") com nome diferente do A pra forçar codebook divergence se houver overlap
+2. Editar P03.md (adicionar parágrafo) → muda hash do source
+3. Deletar P02.md → vai gerar source_not_found no import
+
+- [ ] **Step 6: Import no vault B**
+
+Copiar o .json de vault A pra um path acessível ao vault B:
+```bash
+cp /Users/mosx/Desktop/obsidian-plugins-workbench/icr-exports/*.json ~/Desktop/temp-icr-fase-c-p1/
+```
+
+No vault B (Obsidian aberto):
 1. Click ribbon `git-pull-request` → abre ItemView vazia
-2. Drop o arquivo .json exportado na rail (drop zone)
+2. Drop o arquivo .json na rail (drop zone)
 3. Verificar contribution aparece na rail
 4. Verificar chip "Visão geral" mostra:
-   - Seção codebook (1 code com diff name)
    - Seção sources (P02 not found + P03 hash mismatch)
    - Seção OK (markers de P01)
    - Footer com "Apply (X markers — Y ficam fora)"
+   - Codebook section pode ou não aparecer (depende se codes do A clashearam com locais do B)
 
-- [ ] **Step 6: Resolver divergências**
+- [ ] **Step 7: Resolver divergências**
 
-1. Codebook: click "Manter local" no code renomeado
-2. P02: click "Skip source"
-3. P03: click "Trust local"
-4. Verificar footer atualiza com novos counts
+1. Sources: P02 → "Skip source"; P03 → "Trust local"
+2. Codebook (se houver): "Manter local" ou "Aceitar Carla" conforme o caso
+3. Verificar footer atualiza com novos counts
 
-- [ ] **Step 7: Testar Lado a lado**
+- [ ] **Step 8: Testar Lado a lado**
 
 1. Click chip "Lado a lado"
 2. Navegar com ←/→ alguns markers
@@ -3307,30 +3328,26 @@ Reload Obsidian (Cmd P → "Reload app").
 4. Skip 1 marker
 5. Voltar pra Visão geral, footer atualizou
 
-- [ ] **Step 8: Testar Por código**
+- [ ] **Step 9: Testar Por código**
 
 1. Click chip "Por código"
 2. Verificar blocos por code com counts
 3. Click "Skip all" em 1 code novo
-4. Voltar pra Visão geral, footer atualizou
+4. Click "Revisar 1-a-1 →" em outro code → muda pra Lado a lado filtrado
+5. Verificar pill "code: cXXX ✕" no toolbar do Lado a lado
+6. Click "✕" pra clear filter
+7. Voltar pra Visão geral
 
-- [ ] **Step 9: Apply**
+- [ ] **Step 10: Apply**
 
 1. Click Apply
 2. Verificar Notice com count
 3. Contribution sai da rail
-4. Abrir Compare Coders View → coder importado aparece com markers aplicados
+4. Abrir Compare Coders View no vault B → coder importado aparece com markers aplicados
 
-- [ ] **Step 10: Documentar smoke**
+- [ ] **Step 11: Documentar smoke**
 
-Capturar screenshots ou notas no MANUAL-TESTS-ICR-fase-c-p1.md descrevendo passos exercitados, problemas encontrados, output esperado.
-
-- [ ] **Step 11: Commit final + tag (opcional)**
-
-```bash
-git add docs/superpowers/specs/2026-05-10-icr-fase-c-p1-ux-design.md docs/superpowers/plans/2026-05-10-icr-fase-c-p1-ux.md
-~/.claude/scripts/commit.sh "docs(icr): pós-Fase C P1 — UX layer multi-coder funcional, smoke roundtrip OK"
-```
+Capturar screenshots ou notas em `temp-roundtrip-A/MANUAL-TESTS-ICR-fase-c-p1.md` (raiz do vault A pra ficar visível no Obsidian) descrevendo passos exercitados, problemas encontrados, output esperado vs real.
 
 ---
 
