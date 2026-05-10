@@ -78,12 +78,50 @@ export function hungarianAssignment(cost: number[][]): Array<[number, number]> {
 	return result;
 }
 
-// match() and AlignmentEvent definidos na próxima task
 export type AlignmentEvent =
 	| { kind: 'matched'; aIndex: number; bIndex: number; iou: number }
 	| { kind: 'unmatched_a'; aIndex: number }
 	| { kind: 'unmatched_b'; bIndex: number };
 
-export function match(_iouMatrix: number[][], _theta: number): AlignmentEvent[] {
-	throw new Error('match: not yet implemented');
+/**
+ * match — Hungarian assignment + θ post-cutoff.
+ *
+ * 1. Roda Hungarian sobre matriz de custos `1 - iou` pra obter assignment ótimo.
+ * 2. Pares com `iou < θ` são desfeitos: aIndex vira unmatched_a, bIndex vira unmatched_b.
+ * 3. Bboxes sem assignment (sobras) viram unmatched do respectivo lado.
+ *
+ * Output ordenado: todos matched primeiro, depois unmatched_a (em ordem), depois unmatched_b.
+ *
+ * Caller (bboxAdapter) é responsável por pré-handlar casos 0×N e N×0
+ * (porque match() não consegue inferir M quando N=0).
+ */
+export function match(iouMatrix: number[][], theta: number): AlignmentEvent[] {
+	const n = iouMatrix.length;
+	const m = n > 0 ? iouMatrix[0]!.length : 0;
+	if (n === 0 || m === 0) return [];
+
+	const cost = iouMatrix.map(row => row.map(v => 1 - v));
+	const assignments = hungarianAssignment(cost);
+
+	const matchedA = new Set<number>();
+	const matchedB = new Set<number>();
+	const events: AlignmentEvent[] = [];
+
+	for (const [i, j] of assignments) {
+		const v = iouMatrix[i]![j]!;
+		if (v >= theta) {
+			events.push({ kind: 'matched', aIndex: i, bIndex: j, iou: v });
+			matchedA.add(i);
+			matchedB.add(j);
+		}
+	}
+
+	for (let i = 0; i < n; i++) {
+		if (!matchedA.has(i)) events.push({ kind: 'unmatched_a', aIndex: i });
+	}
+	for (let j = 0; j < m; j++) {
+		if (!matchedB.has(j)) events.push({ kind: 'unmatched_b', bIndex: j });
+	}
+
+	return events;
 }
