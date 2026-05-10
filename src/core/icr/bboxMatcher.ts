@@ -1,15 +1,19 @@
 /**
- * Hungarian / Munkres assignment problem solver.
+ * Hungarian / Munkres assignment problem solver — versão rectangular CP-Algorithms.
  *
- * Input: matriz de custos N×M (linhas = "agentes", cols = "tarefas").
- * Output: lista de pares [agente, tarefa] formando assignment 1:1 ótimo
- * (minimiza soma de custos). Pra retângulos, faz padding ao quadrado com
- * Infinity (linhas/cols extras nunca são escolhidas; pares com Inf descartados).
+ * Input: matriz de custos N×M.
+ * Output: lista de pares [linha, coluna] formando assignment 1:1 ótimo (minimiza
+ * soma de custos). Quando N ≠ M, retorna `min(N, M)` pares (lado maior tem sobras).
  *
- * Complexidade O(max(N,M)³).
+ * Strategy: o algoritmo CP-Algorithms exige `n ≤ m` (linhas ≤ cols). Se n > m,
+ * transpõe primeiro, roda, e swap dos índices na saída.
+ *
+ * Padding ao quadrado com BIG estourava ótimo em casos onde muitas linhas/cols
+ * tinham custos iguais — bug observado em smoke real (10×5). Versão nativa não
+ * sofre disso.
+ *
+ * Complexidade O(n²·m).
  */
-
-const BIG = 1e9; // padding pra Munkres em retângulos. Maior que qualquer custo real (∈ [0, 1]).
 
 export function hungarianAssignment(cost: number[][]): Array<[number, number]> {
 	const n = cost.length;
@@ -17,31 +21,41 @@ export function hungarianAssignment(cost: number[][]): Array<[number, number]> {
 	const m = cost[0]!.length;
 	if (m === 0) return [];
 
-	const size = Math.max(n, m);
-	const c: number[][] = Array(size).fill(0).map((_, i) =>
-		Array(size).fill(0).map((_, j) =>
-			i < n && j < m ? cost[i]![j]! : BIG,
-		),
-	);
+	if (n > m) {
+		// Transpose: rodar com (m, n) onde "rows" = n, "cols" = m no original viram cols/rows respectivamente.
+		const transposed: number[][] = Array(m).fill(0).map((_, j) =>
+			Array(n).fill(0).map((_, i) => cost[i]![j]!),
+		);
+		const result = hungarianRectangular(transposed);
+		return result.map(([j, i]) => [i, j]);
+	}
+	return hungarianRectangular(cost);
+}
 
-	const u = new Array(size + 1).fill(0);
-	const v = new Array(size + 1).fill(0);
-	const p = new Array(size + 1).fill(0);
-	const way = new Array(size + 1).fill(0);
+/** CP-Algorithms Munkres pra n ≤ m (rectangular nativo). */
+function hungarianRectangular(cost: number[][]): Array<[number, number]> {
+	const n = cost.length;
+	const m = cost[0]!.length;
 
-	for (let i = 1; i <= size; i++) {
+	const u = new Array(n + 1).fill(0);
+	const v = new Array(m + 1).fill(0);
+	const p = new Array(m + 1).fill(0);
+	const way = new Array(m + 1).fill(0);
+	const INF = Number.POSITIVE_INFINITY;
+
+	for (let i = 1; i <= n; i++) {
 		p[0] = i;
 		let j0 = 0;
-		const minv = new Array(size + 1).fill(BIG);
-		const used = new Array(size + 1).fill(false);
+		const minv = new Array(m + 1).fill(INF);
+		const used = new Array(m + 1).fill(false);
 		do {
 			used[j0] = true;
 			const i0 = p[j0];
-			let delta = BIG;
+			let delta = INF;
 			let j1 = 0;
-			for (let j = 1; j <= size; j++) {
+			for (let j = 1; j <= m; j++) {
 				if (used[j]) continue;
-				const cur = c[i0 - 1]![j - 1]! - u[i0] - v[j];
+				const cur = cost[i0 - 1]![j - 1]! - u[i0] - v[j];
 				if (cur < minv[j]) {
 					minv[j] = cur;
 					way[j] = j0;
@@ -51,7 +65,7 @@ export function hungarianAssignment(cost: number[][]): Array<[number, number]> {
 					j1 = j;
 				}
 			}
-			for (let j = 0; j <= size; j++) {
+			for (let j = 0; j <= m; j++) {
 				if (used[j]) {
 					u[p[j]] += delta;
 					v[j] -= delta;
@@ -68,11 +82,11 @@ export function hungarianAssignment(cost: number[][]): Array<[number, number]> {
 		} while (j0 !== 0);
 	}
 
+	// Extract: p[j] = i means row i is assigned to col j-1. Skip j onde p[j] is 0 (col não atribuída — só possível se m > n).
 	const result: Array<[number, number]> = [];
-	for (let j = 1; j <= size; j++) {
-		const i = p[j] - 1;
-		if (i < n && j - 1 < m && cost[i]![j - 1]! < BIG) {
-			result.push([i, j - 1]);
+	for (let j = 1; j <= m; j++) {
+		if (p[j] !== 0) {
+			result.push([p[j] - 1, j - 1]);
 		}
 	}
 	return result;

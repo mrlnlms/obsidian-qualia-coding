@@ -55,6 +55,34 @@ describe('hungarianAssignment', () => {
 	it('handles N×0 (no cols)', () => {
 		expect(hungarianAssignment([[], []])).toEqual([]);
 	});
+
+	it('regression: 10×5 com 5 cells de cost=0 únicos por row+col não-padding (smoke real)', () => {
+		// Repro do bug de smoke: 5 cells de cost=0 (rows 0,2,4,6,8 → cols 0,1,2,3,4),
+		// resto cost=1. Hungarian deve achar todos 5 zeros como assignment ótimo.
+		const cost = [
+			[0, 1, 1, 1, 1],
+			[1, 1, 1, 1, 1],
+			[1, 0, 1, 1, 1],
+			[1, 1, 1, 1, 1],
+			[1, 1, 0, 1, 1],
+			[1, 1, 1, 1, 1],
+			[1, 1, 1, 0, 1],
+			[1, 1, 1, 1, 1],
+			[1, 1, 1, 1, 0],
+			[1, 1, 1, 1, 1],
+		];
+		const result = hungarianAssignment(cost);
+		expect(result).toHaveLength(5);
+		// Total cost deve ser 0 (todos os 5 ótimos)
+		const totalCost = result.reduce((sum, [i, j]) => sum + cost[i]![j]!, 0);
+		expect(totalCost).toBe(0);
+		// Verificar pares específicos
+		expect(result).toContainEqual([0, 0]);
+		expect(result).toContainEqual([2, 1]);
+		expect(result).toContainEqual([4, 2]);
+		expect(result).toContainEqual([6, 3]);
+		expect(result).toContainEqual([8, 4]);
+	});
 });
 
 describe('bboxMatcher.match', () => {
