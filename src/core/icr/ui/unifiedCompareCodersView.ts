@@ -6,7 +6,10 @@ import { renderOverviewMatrix } from './overviewMatrix';
 import { renderOverviewTable } from './overviewTable';
 import { renderOverviewHeatmap } from './overviewHeatmap';
 import { renderDrilldownSpatial } from './drilldownSpatial';
+import { renderDrilldownCards } from './drilldownCards';
 import { renderFilterChips } from './filterChips';
+import { appendEntry } from '../../auditLog';
+import type { AuditEntry } from '../../types';
 import { renderCoefficientPicker } from './coefficientPicker';
 import { getCodersWithMarkersInScope } from './coderInclusion';
 import { CompareCoderCoefficientsModal } from './compareCoderCoefficientsModal';
@@ -78,6 +81,22 @@ export class UnifiedCompareCodersView extends ItemView {
 			text: this.modeQuestion(this.state.overviewMode),
 		});
 
+		// Drill-down mode picker (E3a entrega `cards`; `workflow` ainda stub até E3b).
+		const drillGroup = this.toolbarEl.createSpan({ cls: 'qc-cc-mode-group' });
+		drillGroup.createSpan({ cls: 'qc-cc-mode-label', text: 'drill-down' });
+		const drillRow = drillGroup.createSpan({ cls: 'qc-cc-mode-row' });
+		for (const mode of ['spatial', 'cards', 'workflow'] as const) {
+			const chip = drillRow.createSpan({
+				cls: `qc-cc-mode-chip ${this.state.drilldownMode === mode ? 'is-active' : ''}`,
+				text: this.drilldownLabel(mode),
+			});
+			chip.onclick = () => this.updateState({ drilldownMode: mode });
+		}
+		this.toolbarEl.createDiv({
+			cls: 'qc-cc-mode-question',
+			text: this.drilldownQuestion(this.state.drilldownMode),
+		});
+
 		const pickerHolder = this.toolbarEl.createDiv({ cls: 'qc-cc-picker-row' });
 		const enginesInScope = this.state.filters.visibleEngineIds
 			?? this.state.scope.engineIds
@@ -114,6 +133,18 @@ export class UnifiedCompareCodersView extends ItemView {
 			matrix: 'qual par de coders diverge mais?',
 			table: 'qual código está frágil?',
 			heatmap: 'em qual modalidade mora a discordância?',
+		}[mode];
+	}
+
+	private drilldownLabel(mode: 'spatial' | 'cards' | 'workflow'): string {
+		return { spatial: '🗺 Spatial', cards: '🃏 Cards', workflow: '📋 Workflow' }[mode];
+	}
+
+	private drilldownQuestion(mode: 'spatial' | 'cards' | 'workflow'): string {
+		return {
+			spatial: '#1 onde discordamos? · #2 que tipo?',
+			cards: '#3 o que cada um leu? · #4 por que diferimos?',
+			workflow: '#5 como reconcilio? · #6 como fica registrado? (E3b)',
 		}[mode];
 	}
 
@@ -158,16 +189,44 @@ export class UnifiedCompareCodersView extends ItemView {
 
 	private async renderDrilldown(): Promise<void> {
 		this.drilldownEl.empty();
-		if (this.state.drilldownMode !== 'spatial') {
-			this.drilldownEl.createDiv({ text: 'Perspectiva disponível em E3', cls: 'qc-cc-stub' });
+		if (this.state.drilldownMode === 'spatial') {
+			renderDrilldownSpatial(this.drilldownEl, this.state, {
+				coderRegistry: this.plugin.coderRegistry,
+				codeRegistry: this.plugin.sharedRegistry,
+				engineModels: this.engineModels(),
+				app: this.plugin.app,
+			});
 			return;
 		}
-		renderDrilldownSpatial(this.drilldownEl, this.state, {
-			coderRegistry: this.plugin.coderRegistry,
-			codeRegistry: this.plugin.sharedRegistry,
-			engineModels: this.engineModels(),
-			app: this.plugin.app,
-		});
+		if (this.state.drilldownMode === 'cards') {
+			if (!this.plugin.icrMarkerOps) {
+				this.drilldownEl.createDiv({ text: 'IcrMarkerOps não inicializado', cls: 'qc-cc-stub' });
+				return;
+			}
+			const auditLog = (this.plugin.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+			renderDrilldownCards(
+				this.drilldownEl,
+				this.state,
+				{
+					coderRegistry: this.plugin.coderRegistry,
+					codeRegistry: this.plugin.sharedRegistry,
+					engineModels: this.engineModels(),
+					markerOps: this.plugin.icrMarkerOps,
+					auditLog,
+					persistAuditLog: log => this.plugin.dataManager.setSection('auditLog', log),
+					app: this.plugin.app,
+				},
+				{
+					onSetSelection: sel => this.setSelection(sel),
+					onAfterReconciliation: () => {
+						// re-render pra refletir state pós-decisão (consensus marker novo, audit entry).
+						this.updateState({});
+					},
+				},
+			);
+			return;
+		}
+		this.drilldownEl.createDiv({ text: 'Perspectiva workflow disponível em E3b', cls: 'qc-cc-stub' });
 	}
 
 	/** Selection change hook — chamado por overview ao clicar célula/linha. */

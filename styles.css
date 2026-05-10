@@ -7266,3 +7266,255 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	justify-content: flex-end;
 	margin-top: 12px;
 }
+
+/* ─── Compare Coders P2 (drill-down cards) — Slice E3a ────────────────── */
+
+.qc-cc-region-picker {
+	padding: 12px;
+}
+
+.qc-cc-region-item {
+	padding: 8px 10px;
+	margin-bottom: 6px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background 120ms ease;
+}
+
+.qc-cc-region-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.qc-cc-region-header {
+	display: flex;
+	gap: 12px;
+	align-items: baseline;
+	font-size: 0.95em;
+}
+
+.qc-cc-region-file {
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.qc-cc-region-engine {
+	color: var(--text-muted);
+	font-size: 0.85em;
+	text-transform: uppercase;
+}
+
+.qc-cc-region-bounds {
+	color: var(--text-faint);
+	font-size: 0.85em;
+}
+
+.qc-cc-region-meta {
+	margin-top: 4px;
+	color: var(--text-muted);
+	font-size: 0.85em;
+}
+
+.qc-cc-region-active {
+	padding: 10px 12px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	margin-bottom: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.qc-cc-region-active-file {
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.qc-cc-region-active-meta {
+	color: var(--text-muted);
+	font-size: 0.85em;
+}
+
+.qc-cc-region-back {
+	align-self: flex-start;
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 0.85em;
+}
+
+.qc-cc-region-back:hover {
+	background: var(--background-modifier-hover);
+}
+
+.qc-cc-cards-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 10px;
+	margin-bottom: 12px;
+}
+
+.qc-cc-card {
+	background: var(--background-secondary);
+	border-radius: 4px;
+	padding: 8px 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.qc-cc-card-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+}
+
+.qc-cc-card-name {
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+.qc-cc-card-kind {
+	font-size: 0.7em;
+	text-transform: uppercase;
+	padding: 1px 6px;
+	border-radius: 8px;
+	background: var(--background-modifier-border);
+}
+
+.qc-cc-kind-human { background: #e8f1fb; color: #1c4d80; }
+.qc-cc-kind-llm { background: #f3e8fb; color: #5b1c80; }
+.qc-cc-kind-consensus { background: #fbf0e8; color: #804b1c; }
+
+.theme-dark .qc-cc-kind-human { background: #1c2d40; color: #9cc3e8; }
+.theme-dark .qc-cc-kind-llm { background: #2d1c40; color: #c89cea; }
+.theme-dark .qc-cc-kind-consensus { background: #40341c; color: #ecbf9c; }
+
+.qc-cc-card-body {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.qc-cc-card-empty {
+	color: var(--text-faint);
+	font-style: italic;
+	font-size: 0.85em;
+}
+
+.qc-cc-card-code-chip {
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 0.8em;
+	color: #fff;
+	background: var(--text-faint);
+}
+
+.qc-cc-reconciliation-memo {
+	margin-bottom: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.qc-cc-reconciliation-memo label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-cc-memo-input {
+	width: 100%;
+	min-height: 60px;
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-family: var(--font-text);
+	resize: vertical;
+}
+
+.qc-cc-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.qc-cc-action-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+}
+
+.qc-cc-action-select {
+	flex: 1 1 auto;
+	min-width: 120px;
+	padding: 4px 6px;
+}
+
+.qc-cc-action-overwrite {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-cc-action-btn {
+	padding: 4px 12px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: 0;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 0.9em;
+}
+
+.qc-cc-action-btn:hover {
+	background: var(--interactive-accent-hover);
+}
+
+.qc-cc-action-accept .qc-cc-action-btn,
+.qc-cc-action-split .qc-cc-action-btn {
+	background: var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+.qc-cc-action-accept .qc-cc-action-btn:hover,
+.qc-cc-action-split .qc-cc-action-btn:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* Split modal */
+.qc-cc-split-row {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-bottom: 10px;
+}
+
+.qc-cc-split-row label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-cc-split-row input[type="text"] {
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-primary);
+}
+
+.qc-cc-split-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 12px;
+}
