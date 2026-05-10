@@ -120,6 +120,33 @@ describe('renderOverviewMatrix', () => {
 		expect(distinctValues.size).toBe(1);
 	});
 
+	it('Cohen κ inclui bbox quando há pdfShape/image markers no escopo', async () => {
+		const allCoders = coderRegistry.getAll().filter(c => c.id !== 'human:default').map(c => c.id);
+		const [coderA, coderB] = allCoders;
+		// 2 PDF shapes concordantes (mesmo bbox) → bbox κ = 1; sem text-likes
+		const pdfShapes = [
+			{ markerType: 'pdf', id: 's1', fileId: 'f.pdf', page: 1, shape: 'rect',
+				coords: { type: 'rect', x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+				codes: [{ codeId: 'X' }], codedBy: coderA, createdAt: 0, updatedAt: 0 },
+			{ markerType: 'pdf', id: 's2', fileId: 'f.pdf', page: 1, shape: 'rect',
+				coords: { type: 'rect', x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+				codes: [{ codeId: 'X' }], codedBy: coderB, createdAt: 0, updatedAt: 0 },
+		];
+		const engineModels: any = {
+			markdown: { getAllMarkers: () => [] },
+			pdf: { getAllMarkers: () => [], getAllShapes: () => pdfShapes },
+			csv: { getAllMarkers: () => [] },
+			audio: { getAllMarkers: () => [] }, video: { getAllMarkers: () => [] },
+			image: { getAllMarkers: () => [] },
+		};
+		const state = createDefaultViewState([coderA, coderB]);
+		await renderOverviewMatrix(container, state, { coderRegistry, engineModels, app: noopApp }, () => {});
+		const cell = container.querySelector('.qc-cc-matrix-cell:not(.is-diagonal):not(.qc-kappa-na)');
+		// Concordância 100% → cell deveria mostrar 1.00 (não n/a)
+		expect(cell).not.toBeNull();
+		expect(cell?.textContent).toBe('1.00');
+	});
+
 	it('com markers de markdown, célula do par concordante mostra κ alto', async () => {
 		const allCoders = coderRegistry.getAll().map(c => c.id);
 		const state = createDefaultViewState(allCoders);

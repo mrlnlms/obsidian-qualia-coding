@@ -20,6 +20,7 @@ import type { CoderRegistry } from '../coderRegistry';
 import type { App } from 'obsidian';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
+import { computeBboxKappaForPair } from './bboxScopeExtraction';
 
 export interface OverviewMatrixDeps {
 	coderRegistry: CoderRegistry;
@@ -68,6 +69,35 @@ export async function renderOverviewMatrix(
 		kappaByPair.set(normalKey, value);
 	}
 
+	// Bbox engines (pdfShape + image) entram só pra Cohen κ — bbox adapter reduz
+	// a binary categorical, demais coeficientes não fazem sentido sobre essa redução.
+	// Merge: avg 50/50 com text-likes quando ambos existem; standalone quando só bbox.
+	// Weighting proper via #events vai pra backlog (não bloqueia UX em E2).
+	if (state.primaryCoefficient === 'cohen') {
+		const splitBbox = state.filters.splitBboxEngines ?? false;
+		const bboxMode: 'unified' | 'split' = splitBbox ? 'split' : 'unified';
+		// Restringe bbox aos engines visíveis (toggle filter chips). pdfShape ⊂ visibleEngineIds
+		// implícito via `image` chip — chip 'pdf' controla pdf-text; chip 'image' está na mesma
+		// família de bbox. E1 não tem chips pra pdfShape/image individual; mode unified default
+		// cobre os 2; usuário desliga ambos via chip pdf+image se quiser.
+		for (const [a, b] of pairs) {
+			const bboxK = computeBboxKappaForPair({
+				models: { pdf: deps.engineModels.pdf, image: deps.engineModels.image },
+				scope: effectiveScope,
+				pair: [a, b],
+				mode: bboxMode,
+				theta: 0.5,
+			});
+			const bboxValue = bboxMode === 'unified'
+				? bboxK.spatialBbox
+				: average([bboxK.pdfShape, bboxK.image].filter((v): v is number => v !== undefined));
+			if (bboxValue === undefined) continue;
+			const normalKey = a < b ? `${a}|${b}` : `${b}|${a}`;
+			const textK = kappaByPair.get(normalKey);
+			kappaByPair.set(normalKey, textK === undefined ? bboxValue : (textK + bboxValue) / 2);
+		}
+	}
+
 	const grid = container.createEl('table', { cls: 'qc-cc-matrix' });
 	const head = grid.createEl('thead').createEl('tr');
 	head.createEl('th');
@@ -97,5 +127,10 @@ export async function renderOverviewMatrix(
 			cell.onclick = () => onSelect({ kind: 'pair', value: [rowId, colId] });
 		}
 	}
+}
+
+function average(nums: number[]): number | undefined {
+	if (nums.length === 0) return undefined;
+	return nums.reduce((s, n) => s + n, 0) / nums.length;
 }
 

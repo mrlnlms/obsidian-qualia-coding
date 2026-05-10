@@ -135,6 +135,7 @@ export class UnifiedCompareCodersView extends ItemView {
 			csv: this.plugin.csvModel,
 			audio: this.plugin.audioModel,
 			video: this.plugin.videoModel,
+			image: this.plugin.imageModel,
 		};
 	}
 

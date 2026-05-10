@@ -232,6 +232,17 @@ Decisão fica pra E2.
 
 **Quando atacar:** E2, junto com modes B (tabela) + C (heatmap) — heatmap código × engine é onde bbox naturalmente entra.
 
+### Drill-down P1 spatial não responde visualmente a clicks diferentes na matriz
+
+**Estado após E2 Chunk 1 smoke (2026-05-10):** clicar em diferentes células off-diagonal na matriz não muda visualmente o conteúdo do drill-down P1. Causa: `collectRelevantFiles` retorna files onde QUALQUER coder do par tem markers (union); no synth corpus a maioria dos files tem markers de quase todos coders, então o conteúdo é parecido entre cliques. Falta também header explícito "par selecionado: X ↔ Y" pra contextualizar.
+
+**Impacto sem fazer:** UX confusa — pesquisador clica diferentes pares e vê mesmas lanes. Não é bug funcional (state.currentSelection muda); é falta de feedback visual.
+
+**Quando atacar:** polish P1 (não bloqueia E2 — drill-down ficou em E1). Atacar quando voltar pro drill-down (E3 entrega P2/P3 e revisita P1). Opções:
+- Header com par/região selecionado
+- Filtrar files pra apenas onde AMBOS coders do par têm markers (intersection, não union) — mais discriminativo
+- Limit visual por marker bounds próximos (highlight regiões contestadas vs concordantes)
+
 ---
 
 ## 🔒 Won't-fix (não reabrir)

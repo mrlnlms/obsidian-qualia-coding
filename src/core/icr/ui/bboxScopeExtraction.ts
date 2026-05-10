@@ -26,8 +26,8 @@ import { buildKappaInput } from '../bboxAdapter';
 import { reportKappa } from '../reporter';
 
 export interface BboxModels {
-	pdf?: { getAllShapes(): PdfShapeMarker[] };
-	image?: { getAllMarkers(): ImageMarker[] };
+	pdf?: { getAllShapes?(): PdfShapeMarker[] };
+	image?: { getAllMarkers?(): ImageMarker[] };
 }
 
 export interface BboxKappaParams {
@@ -49,8 +49,8 @@ export interface BboxKappaResult {
 
 export function computeBboxKappaForPair(params: BboxKappaParams): BboxKappaResult {
 	const { models, scope, pair, mode, theta } = params;
-	const pdfAll = models.pdf?.getAllShapes() ?? [];
-	const imgAll = models.image?.getAllMarkers() ?? [];
+	const pdfAll = models.pdf?.getAllShapes?.() ?? [];
+	const imgAll = models.image?.getAllMarkers?.() ?? [];
 
 	const pdfFiltered = filterMarkers(pdfAll, scope, pair);
 	const imgFiltered = filterMarkers(imgAll, scope, pair);

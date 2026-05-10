@@ -20,9 +20,10 @@ import type { EngineKappaInput, EngineId } from '../reporter';
 import type { CodedMarker, KappaInput, SourceMeta } from '../kappaInput';
 import type { CategoricalKappaInput } from '../categoricalKappaInput';
 import type { Marker } from '../../../markdown/models/codeMarkerModel';
-import type { PdfMarker } from '../../../pdf/pdfCodingTypes';
+import type { PdfMarker, PdfShapeMarker } from '../../../pdf/pdfCodingTypes';
 import type { SegmentMarker, RowMarker, CsvMarker } from '../../../csv/csvCodingTypes';
 import type { MediaMarker } from '../../../media/mediaTypes';
+import type { ImageMarker } from '../../../image/imageCodingTypes';
 import {
 	extractMarkdownRange,
 	extractPdfRange,
@@ -40,10 +41,11 @@ const E1_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment', 'csvRow', 'audi
  */
 export interface EngineModelsForExtraction {
 	markdown?: { getAllMarkers(): Marker[] };
-	pdf?: { getAllMarkers(): PdfMarker[] };
+	pdf?: { getAllMarkers(): PdfMarker[]; getAllShapes?(): PdfShapeMarker[] };
 	csv?: { getAllMarkers(): CsvMarker[] };  // mixed segment + row; discriminar via m.kind
 	audio?: { getAllMarkers(): MediaMarker[] };
 	video?: { getAllMarkers(): MediaMarker[] };
+	image?: { getAllMarkers(): ImageMarker[] };
 }
 
 export interface ExtractionContext {

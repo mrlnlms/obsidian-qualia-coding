@@ -29,6 +29,10 @@ export interface ComparisonFilters {
 	visibleCoderIds?: CoderId[];
 	/** Override ad-hoc do scope.engineIds via toggle no toolbar. undefined = usa scope.engineIds (ou default). */
 	visibleEngineIds?: EngineId[];
+	/** Quando true, heatmap mostra `pdfShape` e `image` em colunas separadas; matriz Mode A
+	 *  faz merge text+bbox via avg de pdfShape e image individuais.
+	 *  Quando false (default), bbox engines viram coluna virtual única `'spatial-bbox'`. */
+	splitBboxEngines?: boolean;
 }
 
 export type ReconciliationBounds =
