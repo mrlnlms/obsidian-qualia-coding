@@ -21,6 +21,8 @@ import {
 import { buildWhereClause, type AgFilterModel } from './duckdb/filterModelToSql';
 import { buildVirtualFilterClause, splitFilterModel, combineClauses } from './duckdb/virtualFilterResolver';
 import { LazyTextFilter, type LazyTextFilterContext } from './duckdb/lazyTextFilter';
+import type { RowMarker } from './csvCodingTypes';
+import { computeRowGradient } from '../core/icr/ui/compareModeColoring';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -79,6 +81,13 @@ export class CsvCodingView extends FileView {
 	 *  virtual cols (cod-frow, cod-seg, comment) + export parquet enriquecido. */
 	private qualiaMarkersTable: QualiaMarkersTable | null = null;
 	private batchedMutationApplier: BatchedMutationApplier | null = null;
+
+	/** ICR Compare mode — quando setado, cellStyle dos columnDefs aplica
+	 *  gradient por coder. Limpado por `clearCompareMode()`. */
+	private compareModeContext: {
+		markerIndex: Map<string, RowMarker[]>;
+		coderColors: Map<string, string>;
+	} | null = null;
 
 	get markdownModel() { return this.plugin.markdownModel!; }
 
@@ -239,7 +248,14 @@ export class CsvCodingView extends FileView {
 
 		this.gridApi = createGrid(wrapper, {
 			theme: obsidianTheme,
-			columnDefs: headers.map((h: string) => ({ field: h, headerName: h })),
+			columnDefs: headers.map((h: string) => ({
+				field: h,
+				headerName: h,
+				cellStyle: (params: { data?: Record<string, unknown>; node?: { rowIndex: number | null } }) => {
+					const sourceRowId = (params.data?.sourceRowId as number | undefined) ?? params.node?.rowIndex ?? undefined;
+					return this.cellStyleForCompareMode(h, sourceRowId === null ? undefined : sourceRowId);
+				},
+			})),
 			defaultColDef: { sortable: true, filter: true, resizable: true },
 			rowData: rows,
 			enableCellTextSelection: true,
@@ -447,6 +463,10 @@ export class CsvCodingView extends FileView {
 					headerName: h,
 					filter: LazyTextFilter,
 					filterParams: { context: lazyTextContext },
+					cellStyle: (params: { data?: Record<string, unknown>; node?: { rowIndex: number | null } }) => {
+						const sourceRowId = (params.data?.sourceRowId as number | undefined) ?? params.node?.rowIndex ?? undefined;
+						return this.cellStyleForCompareMode(h, sourceRowId === null ? undefined : sourceRowId);
+					},
 				})),
 				// `filter: true` enables AG Grid's built-in filter UI per column. The
 				// datasource translates `params.filterModel` into a SQL WHERE fragment
@@ -591,6 +611,38 @@ export class CsvCodingView extends FileView {
 
 	waitUntilReady(): Promise<void> {
 		return this.readyPromise;
+	}
+
+	// ─── ICR Compare Mode ────────────────────────────────────
+
+	/** Ativa coloring por coder na grid. cellStyle dos columnDefs consulta este
+	 *  contexto pra gerar gradient quando há row markers no escopo. */
+	setCompareMode(ctx: { markerIndex: Map<string, RowMarker[]>; coderColors: Map<string, string> }): void {
+		this.compareModeContext = ctx;
+		if (this.gridApi) this.gridApi.refreshCells({ force: true });
+	}
+
+	clearCompareMode(): void {
+		this.compareModeContext = null;
+		if (this.gridApi) this.gridApi.refreshCells({ force: true });
+	}
+
+	/** cellStyle callback compartilhado entre eager + lazy createGrid setups.
+	 *  Retorna null quando não há compare mode ou cell sem markers. */
+	private cellStyleForCompareMode(field: string, sourceRowId: number | undefined): { background: string } | null {
+		if (!this.compareModeContext) return null;
+		if (sourceRowId === undefined) return null;
+		const key = `${sourceRowId}::${field}`;
+		const cellMarkers = this.compareModeContext.markerIndex.get(key);
+		if (!cellMarkers || cellMarkers.length === 0) return null;
+		const apps = cellMarkers
+			.filter(m => m.codedBy !== undefined)
+			.map(m => ({
+				coderId: m.codedBy as string,
+				codeColor: this.compareModeContext!.coderColors.get(m.codedBy as string) ?? '#888888',
+			}));
+		const gradient = computeRowGradient(apps);
+		return gradient ? { background: gradient } : null;
 	}
 
 	/**

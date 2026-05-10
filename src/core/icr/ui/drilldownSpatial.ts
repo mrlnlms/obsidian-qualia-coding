@@ -8,6 +8,7 @@
  * (ao invés de stub "Fase 2", omitir é a UX honesta).
  */
 
+import type { App } from 'obsidian';
 import type { CompareCodersViewState } from './compareCodersTypes';
 import type { EngineId } from '../reporter';
 import type { CoderRegistry } from '../coderRegistry';
@@ -16,6 +17,7 @@ import type { Marker } from '../../../markdown/models/codeMarkerModel';
 import type { PdfMarker } from '../../../pdf/pdfCodingTypes';
 import type { SegmentMarker, RowMarker, CsvMarker } from '../../../csv/csvCodingTypes';
 import type { EngineModelsForExtraction } from './scopeExtraction';
+import { computeRowMarkersByCell } from './compareModeColoring';
 
 const E1_DRILLDOWN_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment', 'csvRow'];
 
@@ -23,6 +25,8 @@ export interface DrilldownSpatialDeps {
 	coderRegistry: CoderRegistry;
 	codeRegistry: CodeDefinitionRegistry;
 	engineModels: EngineModelsForExtraction;
+	/** App pra workspace lookup (csv-row coloring sync com vista CSV aberta). */
+	app?: App;
 }
 
 export function renderDrilldownSpatial(
@@ -128,7 +132,7 @@ function renderForEngine(
 			renderTextLikeLanes(container, engine, fileId, state, deps);
 			break;
 		case 'csvRow':
-			renderCsvRowHint(container, fileId);
+			renderCsvRowHint(container, fileId, state, deps);
 			break;
 	}
 }
@@ -177,12 +181,52 @@ function renderTextLikeLanes(
 	}
 }
 
-/** csv-row stub UX: indica que coloring vive no AG Grid (Task 6 wiring real).
- *  Mensagem aponta o que o usuário precisa fazer (abrir vista CSV) — não é
- *  "Fase 2" stub. */
-function renderCsvRowHint(container: HTMLElement, fileId: string): void {
-	container.createDiv({
-		cls: 'qc-cc-csv-row-hint',
-		text: `Abra ${fileId} numa vista CSV pra ver o coloring por coder na grid`,
-	});
+/** csv-row coloring real: ativa setCompareMode na CsvCodingView aberta pra esse
+ *  fileId. Se não tem leaf da vista aberta, mostra hint pro user abrir. */
+function renderCsvRowHint(
+	container: HTMLElement,
+	fileId: string,
+	state: CompareCodersViewState,
+	deps: DrilldownSpatialDeps,
+): void {
+	if (!deps.app) {
+		container.createDiv({
+			cls: 'qc-cc-csv-row-hint',
+			text: `Abra ${fileId} numa vista CSV pra ver o coloring por coder na grid`,
+		});
+		return;
+	}
+
+	const allRowMarkers = (collectMarkersForEngine('csvRow', deps) as RowMarker[])
+		.filter(m => m.fileId === fileId);
+	if (allRowMarkers.length === 0) {
+		container.createDiv({ text: `Sem row markers em ${fileId}`, cls: 'qc-cc-empty' });
+		return;
+	}
+
+	const markerIndex = computeRowMarkersByCell(allRowMarkers);
+	const coderColors = new Map<string, string>();
+	for (const coderId of state.scope.coderIds) {
+		const sample = allRowMarkers.find(m => m.codedBy === coderId);
+		const codeId = sample?.codes[0]?.codeId;
+		const def = codeId ? deps.codeRegistry.getById(codeId) : undefined;
+		coderColors.set(coderId, def?.color ?? '#888888');
+	}
+
+	// Procura leaf de CsvCodingView aberto com esse fileId; ativa compare mode.
+	const csvLeaves = deps.app.workspace.getLeavesOfType('qualia-csv');
+	type CsvLeafView = { file?: { path: string }; setCompareMode?: (ctx: { markerIndex: Map<string, RowMarker[]>; coderColors: Map<string, string> }) => void };
+	const targetLeaf = csvLeaves.find(leaf => (leaf.view as unknown as CsvLeafView).file?.path === fileId);
+	if (targetLeaf && (targetLeaf.view as unknown as CsvLeafView).setCompareMode) {
+		(targetLeaf.view as unknown as CsvLeafView).setCompareMode!({ markerIndex, coderColors });
+		container.createDiv({
+			cls: 'qc-cc-csv-row-hint is-active',
+			text: `CSV row coloring ativo em ${fileId} (vê na vista CSV aberta)`,
+		});
+	} else {
+		container.createDiv({
+			cls: 'qc-cc-csv-row-hint',
+			text: `Abra ${fileId} numa vista CSV pra ver o coloring por coder na grid`,
+		});
+	}
 }

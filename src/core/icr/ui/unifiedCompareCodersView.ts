@@ -124,6 +124,7 @@ export class UnifiedCompareCodersView extends ItemView {
 			coderRegistry: this.plugin.coderRegistry,
 			codeRegistry: this.plugin.sharedRegistry,
 			engineModels: this.engineModels(),
+			app: this.plugin.app,
 		});
 	}
 
