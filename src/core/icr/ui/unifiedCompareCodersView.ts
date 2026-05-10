@@ -2,6 +2,7 @@ import { ItemView, type WorkspaceLeaf } from 'obsidian';
 import type QualiaCodingPlugin from '../../../main';
 import { type CompareCodersViewState, createDefaultViewState, type CurrentSelection } from './compareCodersTypes';
 import { renderOverviewMatrix } from './overviewMatrix';
+import { renderDrilldownSpatial } from './drilldownSpatial';
 import type { EngineModelsForExtraction } from './scopeExtraction';
 
 export const COMPARE_CODERS_VIEW_TYPE = 'qc-compare-coders';
@@ -119,8 +120,11 @@ export class UnifiedCompareCodersView extends ItemView {
 			this.drilldownEl.createDiv({ text: 'Perspectiva disponível em E3', cls: 'qc-cc-stub' });
 			return;
 		}
-		// Task 5 substitui esse stub por delegação a renderDrilldownSpatial.
-		this.drilldownEl.createDiv({ text: 'Drill-down spatial — placeholder (Task 5)', cls: 'qc-cc-stub' });
+		renderDrilldownSpatial(this.drilldownEl, this.state, {
+			coderRegistry: this.plugin.coderRegistry,
+			codeRegistry: this.plugin.sharedRegistry,
+			engineModels: this.engineModels(),
+		});
 	}
 
 	/** Selection change hook — chamado por overview ao clicar célula/linha. */
