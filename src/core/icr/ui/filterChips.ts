@@ -6,6 +6,7 @@
 
 import type { CompareCodersViewState } from './compareCodersTypes';
 import type { CoderRegistry } from '../coderRegistry';
+import type { CoderId } from '../coderTypes';
 import type { EngineId } from '../reporter';
 
 export const FILTERABLE_ENGINES: { id: EngineId; label: string }[] = [
@@ -19,6 +20,8 @@ export const FILTERABLE_ENGINES: { id: EngineId; label: string }[] = [
 
 export interface FilterChipsDeps {
 	coderRegistry: CoderRegistry;
+	/** Coders que têm markers no escopo (computed pelo caller). Quando undefined, todos são considerados ativos. */
+	codersWithMarkers?: Set<CoderId>;
 }
 
 export function renderFilterChips(
@@ -30,14 +33,19 @@ export function renderFilterChips(
 	container.empty();
 	container.addClass('qc-cc-filter-chips');
 
+	const includeEmpty = state.filters.includeCodersWithoutMarkers ?? false;
 	for (const coderId of state.scope.coderIds) {
 		const coder = deps.coderRegistry.getById(coderId);
 		const visible = !state.filters.visibleCoderIds || state.filters.visibleCoderIds.includes(coderId);
-		const chip = container.createSpan({
-			cls: `qc-cc-filter-chip qc-cc-coder-chip ${visible ? 'is-active' : ''}`,
-			text: coder?.name ?? coderId,
-		});
+		const hasMarkers = !deps.codersWithMarkers || deps.codersWithMarkers.has(coderId);
+		// Coder sem markers + filter polish OFF = chip cinza claro com tooltip explicativo
+		const isInactive = !hasMarkers && !includeEmpty;
+		const cls = `qc-cc-filter-chip qc-cc-coder-chip ${visible && !isInactive ? 'is-active' : ''}${isInactive ? ' is-empty' : ''}`;
+		const chip = container.createSpan({ cls: cls.trim(), text: coder?.name ?? coderId });
 		chip.dataset.coderId = coderId;
+		if (isInactive) {
+			chip.title = 'Sem markers no escopo — habilite "incluir coders sem markers" pra incluir mesmo assim';
+		}
 		chip.onclick = () => {
 			const cur = state.filters.visibleCoderIds ?? [...state.scope.coderIds];
 			const next = visible ? cur.filter(id => id !== coderId) : [...cur, coderId];

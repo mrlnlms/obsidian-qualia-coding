@@ -7,6 +7,7 @@ import { renderOverviewHeatmap } from './overviewHeatmap';
 import { renderDrilldownSpatial } from './drilldownSpatial';
 import { renderFilterChips } from './filterChips';
 import { renderCoefficientPicker } from './coefficientPicker';
+import { getCodersWithMarkersInScope } from './coderInclusion';
 import type { EngineModelsForExtraction } from './scopeExtraction';
 import type { EngineId } from '../reporter';
 
@@ -87,10 +88,11 @@ export class UnifiedCompareCodersView extends ItemView {
 		);
 
 		const chipsHolder = this.toolbarEl.createDiv();
+		const codersWithMarkers = new Set(getCodersWithMarkersInScope(this.state.scope, this.engineModels()));
 		renderFilterChips(
 			chipsHolder,
 			this.state,
-			{ coderRegistry: this.plugin.coderRegistry },
+			{ coderRegistry: this.plugin.coderRegistry, codersWithMarkers },
 			partial => this.updateState(partial),
 		);
 	}

@@ -6488,6 +6488,11 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	user-select: none;
 }
 
+.qc-cc-filter-chip.is-empty {
+	opacity: 0.4;
+	font-style: italic;
+}
+
 .qc-cc-filter-chip.is-active {
 	background: var(--background-modifier-hover);
 	border-color: var(--text-accent);
