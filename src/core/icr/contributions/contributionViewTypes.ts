@@ -6,6 +6,42 @@
  * (sem entrar em payloadTypes.ts, que descreve só wire format).
  */
 
+import type { PayloadV1, MergeResult } from '../transport/payloadTypes';
+
+export type ChipId = 'overview' | 'side-by-side' | 'by-code';
+
+export type SideBySideFilter = 'all' | 'overlapping' | 'new';
+
+export interface PendingContribution {
+	id: string;                    // uuid local (crypto.randomUUID())
+	payload: PayloadV1;
+	sourcePath: string;            // path do arquivo (display)
+	mergePreview: MergeResult;     // dry-run cacheado, recomputado quando overrides mudam
+	overrides: ResolutionOverrides;
+}
+
+export interface IcrImportViewState {
+	pending: PendingContribution[];
+	activeId: string | null;
+	activeChip: ChipId;
+	sideBySideIndex: number;
+	sideBySideFilter: SideBySideFilter;
+	/** Quando user clica "Revisar 1-a-1 →" no chip Por código, grava codeId aqui pra
+	 * restringir markers visíveis no side-by-side. null = sem filter de code. */
+	sideBySideFilterCodeId: string | null;
+}
+
+export function createDefaultViewState(): IcrImportViewState {
+	return {
+		pending: [],
+		activeId: null,
+		activeChip: 'overview',
+		sideBySideIndex: 0,
+		sideBySideFilter: 'all',
+		sideBySideFilterCodeId: null,
+	};
+}
+
 export interface ResolutionOverrides {
 	/** Override per code: 'local' = mantém local, 'incoming' = aceita incoming (default), 'skip' = não importa code novo. */
 	codebookOverrides: Map<string /* codeId */, 'local' | 'incoming' | 'skip'>;
