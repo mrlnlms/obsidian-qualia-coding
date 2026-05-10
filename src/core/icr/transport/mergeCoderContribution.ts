@@ -134,7 +134,26 @@ export async function mergeCoderContribution(
 		return remap.fileIdRemap[payloadFileId];
 	};
 
-	// 6. Marker insertion — markdown (nested Record<fileId, Marker[]>)
+	// 6. Pre-check: garantir que todo fileId referenciado por markers tenha cobertura
+	// (remap ou conflict). Marker cujo source nem entrou em payload.sources (porque
+	// extract não tinha hash registry pra esse arquivo) escapa do crossVaultRemap.
+	// Aqui emitimos source_not_found pra fechar o gap — UX precisa saber por que
+	// markers ficaram pending.
+	const unresolvedFileIds = new Set<string>();
+	for (const fid of Object.keys(payload.markers.markdown)) {
+		if (!remap.fileIdRemap[fid] && !payload.sources[fid]) unresolvedFileIds.add(fid);
+	}
+	for (const m of payload.markers.pdf) {
+		if (!remap.fileIdRemap[m.fileId] && !payload.sources[m.fileId]) unresolvedFileIds.add(m.fileId);
+	}
+	for (const m of payload.markers.csvSegment) {
+		if (!remap.fileIdRemap[m.fileId] && !payload.sources[m.fileId]) unresolvedFileIds.add(m.fileId);
+	}
+	for (const fid of unresolvedFileIds) {
+		conflicts.push({ kind: 'source_not_found', fileId: fid, payloadHash: '(no hash in payload)' });
+	}
+
+	// 7. Marker insertion — markdown (nested Record<fileId, Marker[]>)
 	for (const [payloadFileId, markers] of Object.entries(payload.markers.markdown)) {
 		const localFileId = resolveFileId(payloadFileId);
 		if (!localFileId) {

@@ -173,6 +173,39 @@ describe('mergeCoderContribution', () => {
 	});
 });
 
+describe('mergeCoderContribution — source não em payload.sources (extract sem hash)', () => {
+	it('marker com fileId fora de payload.sources → emite source_not_found + conta em pendingMarkers', async () => {
+		const { sourceData, targetData, sourceReg, targetReg } = await setup(
+			{ 'shared.md': 'shared' },
+			{ 'shared.md': 'shared' },
+		);
+		sourceData.markdown.markers['shared.md'] = [{
+			markerType: 'markdown', id: 'm1', fileId: 'shared.md',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 1 } },
+			color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla',
+			createdAt: 1, updatedAt: 1,
+		}];
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+
+		// Simula caso real: extract não conseguiu hash de algum source (PDF não aberto, etc.)
+		// Apaga sources do payload pra forçar o gap
+		const orphanFileId = 'orphan/path.md';
+		payload.markers.markdown[orphanFileId] = [{
+			markerType: 'markdown', id: 'm_orphan', fileId: orphanFileId,
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 1 } },
+			color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla',
+			createdAt: 1, updatedAt: 1,
+		}];
+		// orphan NÃO está em payload.sources
+
+		const result = await mergeCoderContribution(targetData, payload, targetReg);
+
+		expect(result.pendingMarkers).toBe(1);
+		const orphanConflict = result.conflicts.find(c => c.kind === 'source_not_found' && c.fileId === orphanFileId);
+		expect(orphanConflict).toBeDefined();
+	});
+});
+
 describe('mergeCoderContribution dryRun', () => {
 	it('dryRun: true não muta targetData (registries, markers, coders)', async () => {
 		const { sourceData, targetData, sourceReg, targetReg } = await setup(
