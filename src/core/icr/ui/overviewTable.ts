@@ -1,0 +1,135 @@
+/**
+ * Mode B — tabela 1 row por código × 5 coeficientes (#markers + Cohen + Fleiss + α + α-binary + cu-α).
+ *
+ * Sort default: pior coeficiente primário ascendente (pior κ no topo). Critério varia por N coders:
+ * - 2 coders → sort por Cohen κ (Fleiss "—")
+ * - 3+ coders → sort por Fleiss κ (Cohen "—")
+ *
+ * Click row seleciona o code (state.currentSelection = { kind: 'code' }).
+ *
+ * Códigos sem markers no escopo NÃO entram (não polui com linhas vazias). Pra ver
+ * todos os códigos do registry mesmo sem markers, usuário ajusta scope.codeIds.
+ *
+ * Async pelo mesmo motivo de overviewMatrix (vault.cachedRead pra markdown).
+ */
+
+import type { CompareCodersViewState, CurrentSelection } from './compareCodersTypes';
+import type { CoderRegistry } from '../coderRegistry';
+import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
+import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
+import { reportKappa } from '../reporter';
+import { kappaClass } from './overviewSharedRender';
+import type { App } from 'obsidian';
+
+export interface OverviewTableDeps {
+	coderRegistry: CoderRegistry;
+	codeRegistry: CodeDefinitionRegistry;
+	engineModels: EngineModelsForExtraction;
+	app: App;
+}
+
+interface CodeRow {
+	codeId: string;
+	codeName: string;
+	markerCount: number;
+	cohen?: number;
+	fleiss?: number;
+	alpha?: number;
+	alphaBinary?: number;
+	cuAlpha?: number;
+}
+
+export async function renderOverviewTable(
+	container: HTMLElement,
+	state: CompareCodersViewState,
+	deps: OverviewTableDeps,
+	onSelect: (sel: CurrentSelection) => void,
+): Promise<void> {
+	container.empty();
+	const candidateCodeIds = state.scope.codeIds ?? deps.codeRegistry.getAll().map(c => c.id);
+	if (candidateCodeIds.length === 0) {
+		container.createDiv({ text: 'Sem códigos no escopo', cls: 'qc-cc-empty' });
+		return;
+	}
+	const N = state.scope.coderIds.length;
+	if (N < 2) {
+		container.createDiv({ text: 'Selecione 2+ coders no escopo', cls: 'qc-cc-empty' });
+		return;
+	}
+
+	// Override scope.engineIds quando há filter chip de engine ativo (mesmo pattern do matrix)
+	const effectiveScope = state.filters.visibleEngineIds
+		? { ...state.scope, engineIds: state.filters.visibleEngineIds }
+		: state.scope;
+
+	const rows: CodeRow[] = [];
+	for (const codeId of candidateCodeIds) {
+		const inputs = await extractInputsFromScope(
+			{ ...effectiveScope, codeIds: [codeId] },
+			{ models: deps.engineModels, app: deps.app },
+		);
+		const totalMarkers = inputs.reduce((s, i) => {
+			const k = i.kappaInput as { markers?: unknown[]; units?: unknown[] };
+			return s + (k.markers?.length ?? k.units?.length ?? 0);
+		}, 0);
+		if (totalMarkers === 0) continue;
+		const report = reportKappa(inputs);
+		const cohenValues = Object.values(report.aggregate.cohenKappa);
+		// Cohen "—" pra 3+ coders (não há valor único pareado)
+		const cohen = N === 2 && cohenValues.length > 0 ? cohenValues[0] : undefined;
+		// Fleiss "—" pra 2 coders (use Cohen)
+		const fleiss = N >= 3 ? report.aggregate.fleissKappa : undefined;
+		rows.push({
+			codeId,
+			codeName: deps.codeRegistry.getById(codeId)?.name ?? codeId,
+			markerCount: totalMarkers,
+			cohen,
+			fleiss,
+			alpha: report.aggregate.alphaNominal,
+			alphaBinary: report.aggregate.alphaBinary,
+			cuAlpha: report.aggregate.cuAlpha,
+		});
+	}
+
+	// Sort: pior coeficiente primário (Cohen pra N=2, Fleiss pra N≥3) ascendente; n/a no fim
+	rows.sort((a, b) => {
+		const ka = N === 2 ? a.cohen : a.fleiss;
+		const kb = N === 2 ? b.cohen : b.fleiss;
+		if (ka === undefined && kb === undefined) return 0;
+		if (ka === undefined) return 1;
+		if (kb === undefined) return -1;
+		return ka - kb;
+	});
+
+	if (rows.length === 0) {
+		container.createDiv({ text: 'Nenhum código tem markers no escopo atual', cls: 'qc-cc-empty' });
+		return;
+	}
+
+	const table = container.createEl('table', { cls: 'qc-cc-table' });
+	const thead = table.createEl('thead').createEl('tr');
+	['código', '# markers', 'Cohen κ', 'Fleiss κ', 'α', 'α-binary', 'cu-α'].forEach(h => thead.createEl('th', { text: h }));
+	const tbody = table.createEl('tbody');
+	for (const r of rows) {
+		const tr = tbody.createEl('tr');
+		tr.createEl('td', { text: r.codeName });
+		tr.createEl('td', { text: String(r.markerCount), cls: 'col-count' });
+		appendCell(tr, 'col-cohen', r.cohen);
+		appendCell(tr, 'col-fleiss', r.fleiss);
+		appendCell(tr, 'col-alpha', r.alpha);
+		appendCell(tr, 'col-alpha-binary', r.alphaBinary);
+		appendCell(tr, 'col-cu-alpha', r.cuAlpha);
+		tr.onclick = () => onSelect({ kind: 'code', value: r.codeId });
+	}
+}
+
+function appendCell(row: HTMLElement, cls: string, value: number | undefined): void {
+	const td = row.createEl('td', { cls });
+	if (value === undefined || isNaN(value)) {
+		td.textContent = '—';
+		td.addClass('qc-kappa-na');
+	} else {
+		td.textContent = value.toFixed(2);
+		td.addClass(kappaClass(value));
+	}
+}
