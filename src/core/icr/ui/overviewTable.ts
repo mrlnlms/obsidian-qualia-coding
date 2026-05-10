@@ -19,6 +19,7 @@ import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
 import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
 import { reportKappa } from '../reporter';
 import { kappaClass } from './overviewSharedRender';
+import { applyCoderInclusion } from './coderInclusion';
 import type { App } from 'obsidian';
 
 export interface OverviewTableDeps {
@@ -51,16 +52,23 @@ export async function renderOverviewTable(
 		container.createDiv({ text: 'Sem códigos no escopo', cls: 'qc-cc-empty' });
 		return;
 	}
-	const N = state.scope.coderIds.length;
+
+	// Polish E1: filtra coders sem markers no escopo (default off)
+	const filteredScope = applyCoderInclusion(
+		state.scope,
+		deps.engineModels,
+		state.filters.includeCodersWithoutMarkers ?? false,
+	);
+	const N = filteredScope.coderIds.length;
 	if (N < 2) {
-		container.createDiv({ text: 'Selecione 2+ coders no escopo', cls: 'qc-cc-empty' });
+		container.createDiv({ text: 'Selecione 2+ coders com markers no escopo (ou habilite "incluir coders sem markers")', cls: 'qc-cc-empty' });
 		return;
 	}
 
 	// Override scope.engineIds quando há filter chip de engine ativo (mesmo pattern do matrix)
 	const effectiveScope = state.filters.visibleEngineIds
-		? { ...state.scope, engineIds: state.filters.visibleEngineIds }
-		: state.scope;
+		? { ...filteredScope, engineIds: state.filters.visibleEngineIds }
+		: filteredScope;
 
 	const rows: CodeRow[] = [];
 	for (const codeId of candidateCodeIds) {
@@ -110,8 +118,12 @@ export async function renderOverviewTable(
 	const thead = table.createEl('thead').createEl('tr');
 	['código', '# markers', 'Cohen κ', 'Fleiss κ', 'α', 'α-binary', 'cu-α'].forEach(h => thead.createEl('th', { text: h }));
 	const tbody = table.createEl('tbody');
+	const hideAgree = state.filters.hideAgreementTotal;
 	for (const r of rows) {
 		const tr = tbody.createEl('tr');
+		// Fade row inteira quando coeficiente primário > 0.8 e filter ativo
+		const primary = N === 2 ? r.cohen : r.fleiss;
+		if (hideAgree && primary !== undefined && primary > 0.8) tr.addClass('qc-cc-fade');
 		tr.createEl('td', { text: r.codeName });
 		tr.createEl('td', { text: String(r.markerCount), cls: 'col-count' });
 		appendCell(tr, 'col-cohen', r.cohen);

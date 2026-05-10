@@ -6630,6 +6630,10 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-kappa-high     { background: #2d6a4f; color: #fff; }
 .qc-kappa-na       { background: var(--background-modifier-border); opacity: 0.5; }
 
+.qc-cc-fade {
+	opacity: 0.25;
+}
+
 /* Splitter */
 
 .qc-cc-splitter {

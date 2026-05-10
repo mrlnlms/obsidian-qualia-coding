@@ -88,4 +88,13 @@ export function renderFilterChips(
 	splitBboxChip.onclick = () => {
 		onUpdate({ filters: { ...state.filters, splitBboxEngines: !state.filters.splitBboxEngines } });
 	};
+
+	const includeEmptyChip = container.createSpan({
+		cls: `qc-cc-filter-chip ${state.filters.includeCodersWithoutMarkers ? 'is-active' : ''}`,
+		text: 'incluir coders sem markers',
+	});
+	includeEmptyChip.dataset.filter = 'include-empty-coders';
+	includeEmptyChip.onclick = () => {
+		onUpdate({ filters: { ...state.filters, includeCodersWithoutMarkers: !state.filters.includeCodersWithoutMarkers } });
+	};
 }

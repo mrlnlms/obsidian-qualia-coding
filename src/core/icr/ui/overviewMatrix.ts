@@ -21,6 +21,7 @@ import type { App } from 'obsidian';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
 import { computeBboxKappaForPair } from './bboxScopeExtraction';
+import { applyCoderInclusion } from './coderInclusion';
 
 export interface OverviewMatrixDeps {
 	coderRegistry: CoderRegistry;
@@ -35,18 +36,25 @@ export async function renderOverviewMatrix(
 	onSelect: (sel: CurrentSelection) => void,
 ): Promise<void> {
 	container.empty();
-	const coderIds = state.scope.coderIds;
+
+	// Polish E1: filtra coders sem markers no escopo (default off — toggle reincluí).
+	const filteredScope = applyCoderInclusion(
+		state.scope,
+		deps.engineModels,
+		state.filters.includeCodersWithoutMarkers ?? false,
+	);
+	const coderIds = filteredScope.coderIds;
 	const N = coderIds.length;
 	if (N < 2) {
-		container.createDiv({ text: 'Selecione 2+ coders no escopo', cls: 'qc-cc-empty' });
+		container.createDiv({ text: 'Selecione 2+ coders com markers no escopo (ou habilite "incluir coders sem markers")', cls: 'qc-cc-empty' });
 		return;
 	}
 
 	// Filter chips no toolbar podem restringir engines via state.filters.visibleEngineIds.
 	// Override scope.engineIds com a interseção quando filtro estiver ativo.
 	const effectiveScope = state.filters.visibleEngineIds
-		? { ...state.scope, engineIds: state.filters.visibleEngineIds }
-		: state.scope;
+		? { ...filteredScope, engineIds: state.filters.visibleEngineIds }
+		: filteredScope;
 
 	const inputs = await extractInputsFromScope(effectiveScope, {
 		models: deps.engineModels,
@@ -123,6 +131,7 @@ export async function renderOverviewMatrix(
 			} else {
 				cell.addClass(kappaClass(k));
 				cell.textContent = k.toFixed(2);
+				if (state.filters.hideAgreementTotal && k > 0.8) cell.addClass('qc-cc-fade');
 			}
 			cell.onclick = () => onSelect({ kind: 'pair', value: [rowId, colId] });
 		}

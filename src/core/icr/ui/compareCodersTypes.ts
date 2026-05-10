@@ -33,6 +33,9 @@ export interface ComparisonFilters {
 	 *  faz merge text+bbox via avg de pdfShape e image individuais.
 	 *  Quando false (default), bbox engines viram coluna virtual única `'spatial-bbox'`. */
 	splitBboxEngines?: boolean;
+	/** Polish E1: quando false (default), coders com 0 markers no escopo são escondidos
+	 *  da matriz/tabela/heatmap. Toggle reincluí (útil pra ver coders ainda não engajados). */
+	includeCodersWithoutMarkers?: boolean;
 }
 
 export type ReconciliationBounds =

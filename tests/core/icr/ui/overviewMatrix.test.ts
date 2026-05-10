@@ -33,9 +33,14 @@ describe('renderOverviewMatrix', () => {
 		coderRegistry.createHuman('C');
 	});
 
+	function stateAllCoders(): any {
+		// Por default applyCoderInclusion filtra coders sem markers — força inclusão pra testar shape da grade.
+		const base = createDefaultViewState(coderRegistry.getAll().map(c => c.id));
+		return { ...base, filters: { ...base.filters, includeCodersWithoutMarkers: true } };
+	}
+
 	it('renderiza grade N×N (N=4 com default coder + 3 humanos = 16 cells)', async () => {
-		const state = createDefaultViewState(coderRegistry.getAll().map(c => c.id));
-		await renderOverviewMatrix(container, state, {
+		await renderOverviewMatrix(container, stateAllCoders(), {
 			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
 		}, () => {});
 		const cells = container.querySelectorAll('.qc-cc-matrix-cell');
@@ -44,8 +49,7 @@ describe('renderOverviewMatrix', () => {
 	});
 
 	it('diagonal renderiza is-diagonal com "—"', async () => {
-		const state = createDefaultViewState(coderRegistry.getAll().map(c => c.id));
-		await renderOverviewMatrix(container, state, {
+		await renderOverviewMatrix(container, stateAllCoders(), {
 			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
 		}, () => {});
 		const diagonal = container.querySelectorAll('.qc-cc-matrix-cell.is-diagonal');
@@ -55,8 +59,7 @@ describe('renderOverviewMatrix', () => {
 	});
 
 	it('cells off-diagonal sem markers viram qc-kappa-na', async () => {
-		const state = createDefaultViewState(coderRegistry.getAll().map(c => c.id));
-		await renderOverviewMatrix(container, state, {
+		await renderOverviewMatrix(container, stateAllCoders(), {
 			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
 		}, () => {});
 		const offDiag = container.querySelectorAll('.qc-cc-matrix-cell:not(.is-diagonal)');
@@ -66,9 +69,8 @@ describe('renderOverviewMatrix', () => {
 	});
 
 	it('click em célula off-diagonal dispara onSelect com par', async () => {
-		const state = createDefaultViewState(coderRegistry.getAll().map(c => c.id));
 		let captured: any = null;
-		await renderOverviewMatrix(container, state, {
+		await renderOverviewMatrix(container, stateAllCoders(), {
 			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
 		}, sel => {
 			captured = sel;
@@ -77,6 +79,37 @@ describe('renderOverviewMatrix', () => {
 		offDiag.click();
 		expect(captured).toMatchObject({ kind: 'pair' });
 		expect(captured.value).toHaveLength(2);
+	});
+
+	it('coderInclusion default off filtra coders sem markers (polish E1)', async () => {
+		// Sem markers nenhum coder qualifica → empty state mostra
+		const state = createDefaultViewState(coderRegistry.getAll().map(c => c.id));
+		await renderOverviewMatrix(container, state, {
+			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
+		}, () => {});
+		expect(container.querySelector('.qc-cc-empty')).toBeTruthy();
+		expect(container.querySelector('.qc-cc-matrix')).toBeFalsy();
+	});
+
+	it('hideAgreementTotal aplica fade em cells > 0.8', async () => {
+		const allCoders = coderRegistry.getAll().filter(c => c.id !== 'human:default').map(c => c.id);
+		const [coderA, coderB] = allCoders;
+		const markersData = [
+			{ markerType: 'markdown', id: 'm1', fileId: 'f.md', range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } }, color: '#888', codes: [{ codeId: 'X' }], codedBy: coderA, createdAt: 0, updatedAt: 0 },
+			{ markerType: 'markdown', id: 'm2', fileId: 'f.md', range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } }, color: '#888', codes: [{ codeId: 'X' }], codedBy: coderB, createdAt: 0, updatedAt: 0 },
+		];
+		const engineModels: any = {
+			markdown: { getAllMarkers: () => markersData },
+			pdf: { getAllMarkers: () => [] }, csv: { getAllMarkers: () => [] },
+			audio: { getAllMarkers: () => [] }, video: { getAllMarkers: () => [] },
+		};
+		const app: any = { vault: { getAbstractFileByPath: () => ({ extension: 'md' }), cachedRead: async () => 'Hello world' } };
+		const base = createDefaultViewState(allCoders);
+		const state = { ...base, filters: { ...base.filters, hideAgreementTotal: true } };
+		await renderOverviewMatrix(container, state, { coderRegistry, engineModels, app }, () => {});
+		const fadedCells = container.querySelectorAll('.qc-cc-matrix-cell.qc-cc-fade');
+		// Concordância 100% (κ=1) deve passar 0.8 e ganhar fade
+		expect(fadedCells.length).toBeGreaterThan(0);
 	});
 
 	it('escopo com 1 coder mostra prompt "Selecione 2+ coders"', async () => {

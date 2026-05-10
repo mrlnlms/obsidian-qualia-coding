@@ -24,6 +24,7 @@ import { computeBboxKappaForPair } from './bboxScopeExtraction';
 import { reportKappa, type EngineId } from '../reporter';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
+import { applyCoderInclusion } from './coderInclusion';
 import type { App } from 'obsidian';
 import type { CoderId } from '../coderTypes';
 
@@ -50,11 +51,19 @@ export async function renderOverviewHeatmap(
 		container.createDiv({ text: 'Sem códigos no escopo', cls: 'qc-cc-empty' });
 		return;
 	}
-	const N = state.scope.coderIds.length;
+
+	// Polish E1: filtra coders sem markers no escopo (default off)
+	const filteredScope = applyCoderInclusion(
+		state.scope,
+		deps.engineModels,
+		state.filters.includeCodersWithoutMarkers ?? false,
+	);
+	const N = filteredScope.coderIds.length;
 	if (N < 2) {
-		container.createDiv({ text: 'Selecione 2+ coders no escopo', cls: 'qc-cc-empty' });
+		container.createDiv({ text: 'Selecione 2+ coders com markers no escopo (ou habilite "incluir coders sem markers")', cls: 'qc-cc-empty' });
 		return;
 	}
+	state = { ...state, scope: filteredScope };
 
 	const splitBbox = state.filters.splitBboxEngines ?? false;
 	const visibleEngineIds = state.filters.visibleEngineIds ?? NON_BBOX_ENGINES;
@@ -125,6 +134,7 @@ export async function renderOverviewHeatmap(
 			} else {
 				td.textContent = k.toFixed(2);
 				td.addClass(kappaClass(k));
+				if (state.filters.hideAgreementTotal && k > 0.8) td.addClass('qc-cc-fade');
 				const targetEngine: EngineId = col === 'spatial-bbox' ? 'pdfShape' : col;
 				td.onclick = () => onSelect({ kind: 'codeEngine', value: { codeId: row.codeId, engineId: targetEngine } });
 			}

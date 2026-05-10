@@ -17,11 +17,11 @@ describe('renderFilterChips', () => {
 		baseState = createDefaultViewState(coderRegistry.getAll().map(c => c.id));
 	});
 
-	it('renderiza chip por coder + 6 engines + 3 toggles (highlight + hide + splitBbox)', () => {
+	it('renderiza chip por coder + 6 engines + 4 toggles (highlight + hide + splitBbox + includeEmpty)', () => {
 		renderFilterChips(container, baseState, { coderRegistry }, () => {});
 		const N = coderRegistry.getAll().length;
 		const chips = container.querySelectorAll('.qc-cc-filter-chip');
-		expect(chips.length).toBe(N + 6 + 3);
+		expect(chips.length).toBe(N + 6 + 4);
 	});
 
 	it('chip de coder começa com is-active quando visibleCoderIds undefined', () => {
@@ -95,5 +95,13 @@ describe('renderFilterChips', () => {
 		const chip = container.querySelector('[data-filter="split-bbox"]') as HTMLElement;
 		chip.click();
 		expect(updates[0]!.filters!.splitBboxEngines).toBe(true);
+	});
+
+	it('click em chip "incluir coders sem markers" toggle includeCodersWithoutMarkers', () => {
+		const updates: Partial<CompareCodersViewState>[] = [];
+		renderFilterChips(container, baseState, { coderRegistry }, p => updates.push(p));
+		const chip = container.querySelector('[data-filter="include-empty-coders"]') as HTMLElement;
+		chip.click();
+		expect(updates[0]!.filters!.includeCodersWithoutMarkers).toBe(true);
 	});
 });
