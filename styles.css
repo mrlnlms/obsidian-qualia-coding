@@ -6427,6 +6427,38 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	font-style: italic;
 }
 
+.qc-cc-picker-row {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.qc-cc-coefficient-picker {
+	display: flex;
+	gap: 4px;
+}
+
+.qc-cc-coef-chip {
+	padding: 2px 10px;
+	border-radius: 14px;
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	user-select: none;
+}
+
+.qc-cc-coef-chip.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.qc-cc-coef-chip.is-disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
 .qc-cc-filter-chips {
 	display: flex;
 	gap: 4px;

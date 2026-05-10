@@ -4,7 +4,11 @@ import { type CompareCodersViewState, createDefaultViewState, type CurrentSelect
 import { renderOverviewMatrix } from './overviewMatrix';
 import { renderDrilldownSpatial } from './drilldownSpatial';
 import { renderFilterChips } from './filterChips';
+import { renderCoefficientPicker } from './coefficientPicker';
 import type { EngineModelsForExtraction } from './scopeExtraction';
+import type { EngineId } from '../reporter';
+
+const ALL_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment', 'csvRow', 'audio', 'video', 'pdfShape', 'image'];
 
 export const COMPARE_CODERS_VIEW_TYPE = 'qc-compare-coders';
 
@@ -73,6 +77,14 @@ export class UnifiedCompareCodersView extends ItemView {
 			cls: 'qc-cc-mode-question',
 			text: this.modeQuestion(this.state.overviewMode),
 		});
+
+		const pickerHolder = this.toolbarEl.createDiv({ cls: 'qc-cc-picker-row' });
+		renderCoefficientPicker(
+			pickerHolder,
+			this.state,
+			{ enginesInScope: this.state.scope.engineIds ?? ALL_ENGINES },
+			coefficient => this.updateState({ primaryCoefficient: coefficient }),
+		);
 
 		const chipsHolder = this.toolbarEl.createDiv();
 		renderFilterChips(

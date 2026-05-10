@@ -62,4 +62,19 @@ describe('UnifiedCompareCodersView', () => {
 		const sel = view.getCompareState().currentSelection;
 		expect(sel.kind).toBe('pair');
 	});
+
+	it('toolbar renderiza coefficient picker (5 chips)', async () => {
+		await view.onOpen();
+		const chips = view.contentEl.querySelectorAll('.qc-cc-coef-chip');
+		expect(chips.length).toBe(5);
+		const cohenChip = view.contentEl.querySelector('.qc-cc-coef-chip[data-coefficient="cohen"]');
+		expect(cohenChip?.classList.contains('is-active')).toBe(true);
+	});
+
+	it('click chip Fleiss atualiza state.primaryCoefficient', async () => {
+		await view.onOpen();
+		const fleissChip = view.contentEl.querySelector('.qc-cc-coef-chip[data-coefficient="fleiss"]') as HTMLElement;
+		fleissChip.click();
+		expect(view.getCompareState().primaryCoefficient).toBe('fleiss');
+	});
 });
