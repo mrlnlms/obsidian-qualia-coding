@@ -24,6 +24,7 @@ import { teardownMediaToggleButtons } from './core/mediaToggleButton';
 import { UnifiedModelAdapter } from './core/unifiedModelAdapter';
 import { UnifiedCodeExplorerView, CODE_EXPLORER_VIEW_TYPE } from './core/unifiedExplorerView';
 import { UnifiedCodeDetailView, CODE_DETAIL_VIEW_TYPE } from './core/unifiedDetailView';
+import { UnifiedCompareCodersView, COMPARE_CODERS_VIEW_TYPE } from './core/icr/ui/unifiedCompareCodersView';
 import { PdfSidebarAdapter } from './pdf/views/pdfSidebarAdapter';
 import { ImageSidebarAdapter } from './image/views/imageSidebarAdapter';
 import { CsvSidebarAdapter } from './csv/views/csvSidebarAdapter';
@@ -597,6 +598,25 @@ export default class QualiaCodingPlugin extends Plugin {
 			new UnifiedCodeDetailView(leaf, this, unifiedModel, mdModel, auditAccess, memoAccess, smartCodeAccess));
 		this.registerView(CASE_VARIABLES_VIEW_TYPE, (leaf) =>
 			new CaseVariablesView(leaf, this));
+		this.registerView(COMPARE_CODERS_VIEW_TYPE, (leaf) =>
+			new UnifiedCompareCodersView(leaf, this));
+
+		this.addCommand({
+			id: 'compare-coders-open',
+			name: 'Compare Coders: Open',
+			callback: async () => {
+				const { workspace } = this.app;
+				let leaf = workspace.getLeavesOfType(COMPARE_CODERS_VIEW_TYPE)[0];
+				if (!leaf) {
+					const newLeaf = workspace.getLeaf('tab');
+					if (newLeaf) {
+						await newLeaf.setViewState({ type: COMPARE_CODERS_VIEW_TYPE, active: true });
+						leaf = newLeaf;
+					}
+				}
+				if (leaf) workspace.revealLeaf(leaf);
+			},
+		});
 
 		this.addCommand({
 			id: 'materialize-all-memos',
