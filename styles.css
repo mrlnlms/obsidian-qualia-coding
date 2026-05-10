@@ -6548,6 +6548,45 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	opacity: 0.5;
 }
 
+/* Mode B — tabela por código */
+.qc-cc-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--font-ui-smaller);
+}
+
+.qc-cc-table th,
+.qc-cc-table td {
+	padding: 6px 10px;
+	text-align: center;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.qc-cc-table th {
+	background: var(--background-secondary);
+	position: sticky;
+	top: 0;
+	font-weight: 600;
+}
+
+.qc-cc-table tbody tr {
+	cursor: pointer;
+}
+
+.qc-cc-table tbody tr:hover td:first-child {
+	text-decoration: underline;
+}
+
+.qc-cc-table tbody td:first-child {
+	text-align: left;
+	font-weight: 500;
+}
+
+.qc-cc-table tbody td.col-count {
+	font-variant-numeric: tabular-nums;
+	opacity: 0.7;
+}
+
 /* Color scale — universal pra qualquer cell que mostra κ */
 .qc-kappa-low      { background: #c1352e; color: #fff; }
 .qc-kappa-mid-low  { background: #d68c45; color: #1a1a1a; }

@@ -42,6 +42,7 @@ describe.runIf(dataExists)('SC3 smoke contra data.json real', () => {
 			for (const m of ms as any[]) out.push({ engine: 'markdown', fileId: fid, markerId: m.id, codes: m.codes.map((c: any) => c.codeId), marker: m });
 		}
 		for (const m of (data.pdf?.markers ?? []) as any[]) out.push({ engine: 'pdf', fileId: m.fileId, markerId: m.id, codes: m.codes.map((c: any) => c.codeId), marker: m });
+		for (const m of (data.pdf?.shapes ?? []) as any[]) out.push({ engine: 'pdfShape', fileId: m.fileId, markerId: m.id, codes: m.codes.map((c: any) => c.codeId), marker: m });
 		for (const m of (data.image?.markers ?? []) as any[]) out.push({ engine: 'image', fileId: m.fileId, markerId: m.id, codes: m.codes.map((c: any) => c.codeId), marker: m });
 		for (const m of (data.csv?.segmentMarkers ?? []) as any[]) out.push({ engine: 'csv', fileId: m.fileId, markerId: m.id, codes: m.codes.map((c: any) => c.codeId), marker: m });
 		for (const m of (data.csv?.rowMarkers ?? []) as any[]) out.push({ engine: 'csv', fileId: m.fileId, markerId: m.id, codes: m.codes.map((c: any) => c.codeId), marker: m });

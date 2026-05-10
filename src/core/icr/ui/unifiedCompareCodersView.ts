@@ -2,6 +2,7 @@ import { ItemView, type WorkspaceLeaf } from 'obsidian';
 import type QualiaCodingPlugin from '../../../main';
 import { type CompareCodersViewState, createDefaultViewState, type CurrentSelection } from './compareCodersTypes';
 import { renderOverviewMatrix } from './overviewMatrix';
+import { renderOverviewTable } from './overviewTable';
 import { renderDrilldownSpatial } from './drilldownSpatial';
 import { renderFilterChips } from './filterChips';
 import { renderCoefficientPicker } from './coefficientPicker';
@@ -66,11 +67,11 @@ export class UnifiedCompareCodersView extends ItemView {
 				cls: `qc-cc-mode-chip ${this.state.overviewMode === mode ? 'is-active' : ''}`,
 				text: this.modeLabel(mode),
 			});
-			if (mode === 'matrix') {
-				chip.onclick = () => this.updateState({ overviewMode: 'matrix' });
-			} else {
+			if (mode === 'heatmap') {
 				chip.addClass('is-disabled');
-				chip.title = 'Disponível em E2';
+				chip.title = 'Disponível em E2 Chunk 4';
+			} else {
+				chip.onclick = () => this.updateState({ overviewMode: mode });
 			}
 		}
 		this.toolbarEl.createDiv({
@@ -112,20 +113,25 @@ export class UnifiedCompareCodersView extends ItemView {
 
 	private async renderOverview(): Promise<void> {
 		this.overviewEl.empty();
-		if (this.state.overviewMode !== 'matrix') {
-			this.overviewEl.createDiv({ text: 'Mode disponível em E2', cls: 'qc-cc-stub' });
+		const deps = {
+			coderRegistry: this.plugin.coderRegistry,
+			engineModels: this.engineModels(),
+			app: this.plugin.app,
+		};
+		if (this.state.overviewMode === 'matrix') {
+			await renderOverviewMatrix(this.overviewEl, this.state, deps, sel => this.setSelection(sel));
 			return;
 		}
-		await renderOverviewMatrix(
-			this.overviewEl,
-			this.state,
-			{
-				coderRegistry: this.plugin.coderRegistry,
-				engineModels: this.engineModels(),
-				app: this.plugin.app,
-			},
-			sel => this.setSelection(sel),
-		);
+		if (this.state.overviewMode === 'table') {
+			await renderOverviewTable(
+				this.overviewEl,
+				this.state,
+				{ ...deps, codeRegistry: this.plugin.sharedRegistry },
+				sel => this.setSelection(sel),
+			);
+			return;
+		}
+		this.overviewEl.createDiv({ text: 'Heatmap disponível no Chunk 4 do E2', cls: 'qc-cc-stub' });
 	}
 
 	private engineModels(): EngineModelsForExtraction {
