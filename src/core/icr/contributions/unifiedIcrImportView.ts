@@ -13,8 +13,11 @@ import {
 	createEmptyOverrides,
 	type IcrImportViewState,
 	type PendingContribution,
+	type ResolutionOverrides,
 } from './contributionViewTypes';
 import { renderRailContent } from './rail';
+import { renderToolbarContent } from './importToolbar';
+import { renderOverviewChip } from './overviewChip';
 import { parseContribution } from './contributionLoader';
 import { mergeCoderContribution } from '../transport/mergeCoderContribution';
 
@@ -145,8 +148,79 @@ export class UnifiedIcrImportView extends ItemView {
 			return;
 		}
 
-		// Stub — chips reais vêm em chunks 4-6
-		const placeholder = this.bodyEl.createDiv();
-		placeholder.setText(`active: ${this.state.activeId} · chip: ${this.state.activeChip}`);
+		renderToolbarContent(this.toolbarEl, active, this.state.activeChip, (chip) => {
+			this.updateState({ activeChip: chip });
+		});
+
+		if (this.state.activeChip === 'overview') {
+			renderOverviewChip(this.bodyEl, active, {
+				onApply: () => { void this.applyContribution(active); },
+				onDiscard: () => this.discardContribution(active.id),
+				onOverridesChange: (overrides) => { void this.updateOverrides(active.id, overrides); },
+			});
+		}
+		// Chips side-by-side e by-code vêm em chunks 5 e 6 (stub por enquanto)
+		else {
+			const placeholder = this.bodyEl.createDiv();
+			placeholder.setText(`chip ${this.state.activeChip} ainda não implementado`);
+		}
+	}
+
+	private async updateOverrides(contribId: string, overrides: ResolutionOverrides): Promise<void> {
+		const idx = this.state.pending.findIndex(c => c.id === contribId);
+		if (idx === -1) return;
+		const contrib = this.state.pending[idx]!;
+
+		const newPreview = await mergeCoderContribution(
+			this.plugin.dataManager.getDataRef(),
+			contrib.payload,
+			this.plugin.sourceHashRegistry,
+			{ dryRun: true, overrides },
+		);
+
+		const updated: PendingContribution = { ...contrib, overrides, mergePreview: newPreview };
+		this.state.pending = this.state.pending.map((c, i) => i === idx ? updated : c);
+		this.renderRail();
+		this.renderMain();
+	}
+
+	private async applyContribution(contrib: PendingContribution): Promise<void> {
+		const result = await mergeCoderContribution(
+			this.plugin.dataManager.getDataRef(),
+			contrib.payload,
+			this.plugin.sourceHashRegistry,
+			{ overrides: contrib.overrides },
+		);
+
+		this.plugin.dataManager.markDirty();
+
+		new Notice(`ICR Import: ${result.added.markers} markers aplicados, ${result.pendingMarkers} skipped`);
+
+		this.state.pending = this.state.pending.filter(c => c.id !== contrib.id);
+		if (this.state.activeId === contrib.id) {
+			this.state.activeId = this.state.pending[0]?.id ?? null;
+		}
+
+		// Recompute previews das restantes (cada uma vê o efeito da just-applied)
+		for (const remaining of this.state.pending) {
+			remaining.mergePreview = await mergeCoderContribution(
+				this.plugin.dataManager.getDataRef(),
+				remaining.payload,
+				this.plugin.sourceHashRegistry,
+				{ dryRun: true, overrides: remaining.overrides },
+			);
+		}
+
+		this.renderRail();
+		this.renderMain();
+	}
+
+	private discardContribution(id: string): void {
+		this.state.pending = this.state.pending.filter(c => c.id !== id);
+		if (this.state.activeId === id) {
+			this.state.activeId = this.state.pending[0]?.id ?? null;
+		}
+		this.renderRail();
+		this.renderMain();
 	}
 }
