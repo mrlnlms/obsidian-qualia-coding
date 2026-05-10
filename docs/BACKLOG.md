@@ -211,6 +211,29 @@ Slice 6 fecha as 6 engines do plugin no motor κ (markdown + PDF text + CSV cod 
 
 ---
 
+## 🧱 ICR — Compare Coders polish (descoberto no smoke E1, 2026-05-10)
+
+### Coder sem markers no escopo aparece com Cohen κ = 0.00 (vermelho)
+
+**Estado atual:** matriz coder × coder pinta cell `Default ↔ {Carla,Joana} = 0.00` em vermelho mesmo quando "Default" não codificou nada — Cohen κ é vacuous mas calculado como zero (todos chars classificados como `__none__` por Default vs distribuição real dos outros). Visualmente confunde porque parece "discordância total" quando na verdade é "ausência de markers".
+
+**Impacto sem fazer:** UX confusa quando vault tem coders no registry sem participação no escopo atual. Pesquisador pode interpretar mal.
+
+**Quando atacar:** polish de E2 quando picker de coeficiente entrar (mesma camada). Opções:
+- Filtrar coders com 0 markers no escopo automaticamente (esconder do registry pra essa view)
+- Marcar célula como `n/a (sem markers)` cinza quando um lado é vazio
+- Setting "incluir coders sem markers" off por default
+
+Decisão fica pra E2.
+
+### bbox engines (PDF shape + image) ainda não entram em matriz/heatmap
+
+**Estado após E1:** scope extraction filtra `pdfShape` e `image` explicitamente. Markers desses engines não contribuem pra Cohen κ na matriz. Slice 6 entregou motor + adapter, mas integração no Compare Coders UI fica pra E2 (per-pair pathway diferente do text-likes — não cabe no `extractInputsFromScope` cohort-style).
+
+**Quando atacar:** E2, junto com modes B (tabela) + C (heatmap) — heatmap código × engine é onde bbox naturalmente entra.
+
+---
+
 ## 🔒 Won't-fix (não reabrir)
 
 Lista canônica de decisões registradas. Cada uma tem razão explícita pra não voltar a virar tarefa.
