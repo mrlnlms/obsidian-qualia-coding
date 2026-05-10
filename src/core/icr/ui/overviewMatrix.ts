@@ -1,8 +1,12 @@
 /**
- * Mode A — matriz coder × coder. Cohen κ pareado em cada célula.
+ * Mode A — matriz coder × coder. Coeficiente lido de `state.primaryCoefficient`.
  *
  * Diagonal cinza, off-diagonal pinta com color scale (vermelho < laranja < verde).
  * Click em célula off-diagonal seleciona o par.
+ *
+ * Cohen κ é per-pair direto; demais coeficientes (Fleiss/α/α-binary/cu-α) são
+ * scalar over cohort — `reportPairwise` filtra inputs ao par e re-roda reporter
+ * pra obter valor por par. Resolver via `getCoefficientValue(report, coef, pair)`.
  *
  * Async porque `extractInputsFromScope` faz `vault.cachedRead` pra markdown
  * (offsets line/ch precisam de source text pra converter em char absoluto).
@@ -14,6 +18,8 @@ import { reportPairwise } from '../reporter';
 import type { CoderId } from '../coderTypes';
 import type { CoderRegistry } from '../coderRegistry';
 import type { App } from 'obsidian';
+import { getCoefficientValue } from './coefficientResolver';
+import { kappaClass } from './overviewSharedRender';
 
 export interface OverviewMatrixDeps {
 	coderRegistry: CoderRegistry;
@@ -51,9 +57,7 @@ export async function renderOverviewMatrix(
 	const kappaByPair = new Map<string, number | undefined>();
 	for (const r of reports) {
 		const [a, b] = r.pair;
-		const cohenTable = r.report.aggregate.cohenKappa;
-		// Reporter pode tabular como `a|b` ou `b|a` dependendo da ordem; normaliza.
-		const value = cohenTable[`${a}|${b}`] ?? cohenTable[`${b}|${a}`];
+		const value = getCoefficientValue(r.report, state.primaryCoefficient, [a, b]);
 		const normalKey = a < b ? `${a}|${b}` : `${b}|${a}`;
 		kappaByPair.set(normalKey, value);
 	}
@@ -89,11 +93,3 @@ export async function renderOverviewMatrix(
 	}
 }
 
-const KAPPA_THRESHOLDS = { low: 0.4, midLow: 0.6, midHigh: 0.8 } as const;
-
-function kappaClass(k: number): string {
-	if (k < KAPPA_THRESHOLDS.low) return 'qc-kappa-low';
-	if (k < KAPPA_THRESHOLDS.midLow) return 'qc-kappa-mid-low';
-	if (k < KAPPA_THRESHOLDS.midHigh) return 'qc-kappa-mid-high';
-	return 'qc-kappa-high';
-}
