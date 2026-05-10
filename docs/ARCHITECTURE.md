@@ -1511,6 +1511,14 @@ src/
         extractCoderContribution.ts — função pura: filtra markers por coderId + coleta codes/groups/sources/coder + computa codebookVersion
         crossVaultRemap.ts   — função pura: lookup hash no registry local → remapeia fileId; emite source_hash_mismatch / multiple_hash_matches / source_not_found
         mergeCoderContribution.ts — função pura: aplica payload via mutação (codebook divergence + coder reg + remap + code/group merge + marker insertion)
+      ui/                      — Compare Coders View (Slice E1, 2026-05-10) — UI ICR primeira camada
+        compareCodersTypes.ts  — CompareCodersViewState + CurrentSelection + ComparisonScope + ComparisonFilters + createDefaultViewState
+        unifiedCompareCodersView.ts — ItemView shell: toolbar sticky + 2 mode pickers (matrix active, table/heatmap E2) + estado central + delega renders
+        overviewMatrix.ts      — Mode A matriz coder×coder: Cohen κ pareado via reportPairwise + color scale fixo (qc-kappa-low/-mid-low/-mid-high/-high) + click→pair selection
+        scopeExtraction.ts     — cohort-level adapter: itera 5 engines (md/pdf/csvSegment/csvRow/audio/video) + filter por scope + delega per-marker extractors dos slices 1+4. vault.cachedRead pra source text de markdown. Bbox engines pulados (E2)
+        drilldownSpatial.ts    — P1 spatial: lanes per coder com [code-label] colorido (text-likes); csv-row delega pra csvCodingView.setCompareMode (cellStyle real no AG Grid)
+        compareModeColoring.ts — helpers puros: computeRowGradient (gradient CSS N stripes por coder) + computeRowMarkersByCell (Map<sourceRowId::column, markers[]>)
+        filterChips.ts         — toggle coders + "destacar conflitos" + "esconder agreement total" → mutate state.filters
     ...                      — DataManager, CodeDefinitionRegistry, settings, types
   markdown/                  — CodeMirror 6 engine para markdown
     cm6/
@@ -1735,7 +1743,28 @@ Plugin expõe `icrTransport.extract(coderId) / merge(payload)` no main, chamáve
 - **Resolução sub-segundo audio/video** — otimização futura
 - **Pre-warm de durações de media files** — otimização futura
 
-### 19.8 Companion docs
+### 19.8 UI layer (Slice E1, 2026-05-10)
+
+Primeira camada de UI ICR. Cobre overview Mode A + drill-down P1 spatial + filter chips. E2/E3a/E3b/E4 destrava completar a frente (Modes B/C + Modal + Reconciliação P2/P3 + Saved Comparisons).
+
+Arquivos novos em `src/core/icr/ui/`:
+- `compareCodersTypes.ts` — types de estado central (`CompareCodersViewState`, `CurrentSelection`, `ComparisonScope`, `ComparisonFilters`)
+- `unifiedCompareCodersView.ts` — `ItemView` shell. Constructor `(leaf, plugin)` per project pattern. Toolbar sticky com 2 mode pickers + estado central. Render delega pra módulos
+- `overviewMatrix.ts` — Mode A matriz coder×coder. Cohen κ pareado por célula (via `reportPairwise` no reporter). Color scale fixo (vermelho<0.4, laranja<0.6, verde claro<0.8, verde escuro)
+- `scopeExtraction.ts` — cohort-level adapter. Itera 5 engines (md/pdf/csvSegment/csvRow/audio/video), filter por scope, chama per-marker extractors dos slices 1+4 (`extractMarkdownRange` etc), produz `EngineKappaInput[]`. `vault.cachedRead` pra source text de markdown. Bbox engines (`pdfShape`, `image`) pulados — per-pair pathway do slice 6 fica pra E2
+- `drilldownSpatial.ts` — P1 spatial. Lanes per coder com `[ code-label ]` colorido pra text-likes. csv-row delega pra `csvCodingView.setCompareMode` (cellStyle real no AG Grid)
+- `compareModeColoring.ts` — helpers puros `computeRowGradient(applications)` (gradient CSS N stripes por coder) + `computeRowMarkersByCell(markers)` (Map<sourceRowId::column, markers[]>)
+- `filterChips.ts` — toggle coders (modifica `filters.visibleCoderIds`) + "destacar conflitos" + "esconder agreement total"
+
+Helper novo no reporter: `reportPairwise(inputs, pairs)` — KappaReport por par. Cohen κ direto de `aggregate.cohenKappa[a|b]`; Fleiss/α/cu-α/α-binary via input filtrado ao par (filter `markers` por `coderId`, troca `coders` por `[a, b]`).
+
+Hook novo em `csvCodingView.ts`: `setCompareMode({ markerIndex, coderColors })` / `clearCompareMode()`. cellStyle callback consulta `compareModeContext` e retorna `{ background: linear-gradient(...) }` quando há row markers no escopo.
+
+Comando palette: `Compare Coders: Open` (view type `qc-compare-coders`).
+
+Testes: 43 novos (3032 → 3075 total), distribuídos em `tests/core/icr/reportPairwise.test.ts` + `tests/core/icr/ui/*.test.ts`.
+
+### 19.9 Companion docs
 
 - `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
 - `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural

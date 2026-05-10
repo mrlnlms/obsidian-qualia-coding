@@ -126,9 +126,22 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [x] Smoke handle exposto no `main.ts` (`plugin.__icrSmoke`) + nota smoke na raiz do vault
   - **6 das 6 engines cobertas — fecha o motor κ multimodal completo.** 49 testes novos (168 → 217 em tests/core/icr/). Spec em `obsidian-qualia-coding/plugin-docs/superpowers/specs/2026-05-09-icr-bbox-adapter-design.md` com Appendix A (alternativas rejeitadas) + Appendix B (methodology user-facing).
 
+  **✅ Slice E1 — Compare Coders skeleton + Mode A + P1 spatial (FEITO 2026-05-10):**
+  - [x] `UnifiedCompareCodersView` (ItemView shell com toolbar sticky + 2 mode pickers + estado central)
+  - [x] Helper `reportPairwise(inputs, pairs)` no reporter — KappaReport por par (Cohen κ direto + Fleiss/α/cu-α/α-binary via input filtrado ao par)
+  - [x] `extractInputsFromScope` cohort-level adapter — coleta markers das 5 engines (md/pdf/csvSegment/csvRow/audio/video) via per-marker extractors dos slices 1+4 + filter por scope; `vault.cachedRead` pra source text de markdown. Bbox engines (`pdfShape`, `image`) explicitamente pulados (per-pair pathway, pendente E2)
+  - [x] Mode A — matriz coder×coder com Cohen κ + color scale (vermelho/laranja/verde) + click→pair selection
+  - [x] Drill-down P1 spatial — lanes per coder com `[ code-label ]` colorido pelo código pra markdown/pdf-text/csv-segment; csv-row com `setCompareMode` hook em `csvCodingView` via cellStyle AG Grid (gradient N stripes por coder via `computeRowGradient`)
+  - [x] Filter chips: toggle coders + "destacar conflitos" + "esconder agreement total"
+  - [x] Comando palette `Compare Coders: Open` + view type `qc-compare-coders`
+  - [x] CSS isolado em `styles.css` (qc-cc-* prefix)
+  - **Smoke real verde 2026-05-10.** 43 testes novos (3032 → 3075 verde). Tag `post-icr-slice-e1-checkpoint`.
+
   **Slices fora do escopo entregue (pendentes):**
-  - [ ] **View Compare Coders** (drill-down NVivo-style — bounds renderizados conforme modalidade) — gated em UX brainstorm
-  - [ ] **Reconciliação registrada via audit + memos** (orquestração do tripé) — gated em UX brainstorm
+  - [ ] **Slice E2** — Modes B (tabela por código) + C (heatmap código×engine) + Modal "ver lado a lado" + coefficient picker funcional + bbox integration na matriz/heatmap (per-pair pathway)
+  - [ ] **Slice E3a** — Schema reconciliação (3 audit types `reconciliation_*` + Coder kind `'consensus'`) + `executeReconciliationDecision` + Drill-down P2 (cards lado a lado + 4 ações)
+  - [ ] **Slice E3b** — Drill-down P3 (queue 4-colunas) + revert mechanic + κ pré/pós toggle + export relatório
+  - [ ] **Slice E4** — Saved Comparisons + ribbon + atalho contextual no codebook
   - [ ] **Wire `attachSourceHashSnapshot` em outros 5 engines** (PDF / CSV / image / audio / video) — slice de extensão mecânica do piloto markdown
 
   **Checklist Fase C — Transport multi-coder remoto P2:**
@@ -138,11 +151,11 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   **Possibilidade complementar (não-prioridade, pós-Fase C P1):**
   - [ ] Campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio
 
-  **Resumo da sessão 2026-05-09:** **6 slices entregues** numa só sessão, +196 testes ICR (2814 → ~3010). Infraestrutura ICR completa em todos os flancos + 6 das 6 engines cobertas (motor κ multimodal completo). Slice 6 entregou bbox adapter (PDF shape + Image) com receita metodológica nova alinhada COCO/CV — diferenciador real de mercado (NVivo, ATLAS.ti, MAXQDA não cobrem ICR multimodal completo). Decisões adiadas registradas em `BACKLOG.md`: Smart Code cache hash invalidation, Backup integrity, wiring provenance em outros engines.
+  **Resumo da sessão 2026-05-09 → 2026-05-10:** **7 slices entregues** (1-6 motor + E1 UI primeira camada), +239 testes ICR (2814 → 3075). Infraestrutura ICR completa em todos os flancos + 6 das 6 engines cobertas (motor κ multimodal completo). Slice 6 entregou bbox adapter; Slice E1 entregou primeira camada de UI (skeleton + Mode A + P1 spatial + filter chips). Decisões adiadas registradas em `BACKLOG.md`: Smart Code cache hash invalidation, Backup integrity, wiring provenance em outros engines, polish E1 (Default coder κ=0 vacuous), bbox em matriz/heatmap pra E2.
 
   **Próximo passo (gated em você):**
   - Brainstorm UX da Fase C P1 (modal preview / cherry-pick / staging / conflict resolution)
-  - Brainstorm UX do View Compare Coders + Reconciliação
+  - **Slice E2** Compare Coders — Modes B/C + Modal "ver lado a lado" + coefficient picker + bbox integration (spec já aprovada, plano próprio precede execução)
   - Refactor motor κ pra set-valued labels (eliminar redução first-code alfabético — afeta TODAS as engines). **Material de repertório metodológico em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md`** — leitura obrigatória antes do brainstorm: cobre Jaccard vs MASI, variantes Cohen multi-label (binary-per-label / Rosenberg augmented / weighted), generalização Krippendorff α com δ customizado, riscos no refactor de tests existentes.
   - Wire mechanical de `attachSourceHashSnapshot` em outros 5 engines
 

@@ -2444,6 +2444,52 @@ Sem padding, sem BIG, sem floats infinitos. Complexidade O(n²·m).
 
 ---
 
+## 43. Gotchas de jsdom + Obsidian ItemView (descobertos em Slice E1, 2026-05-10)
+
+Coletânea de quirks pegos durante implementação da Compare Coders View. Cada um custa 1-3 min se for surpresa; documentar evita.
+
+### `setText` não polyfilled em jsdom
+
+`HTMLElement.setText(text)` é monkey-patch da Obsidian — não existe em jsdom. `tests/setup.ts` polyfilla `empty`/`createDiv`/`createSpan`/`createEl`/`addClass`/`removeClass`/`toggleClass` mas NÃO `setText`. Tests que usam `setText` em código sob teste quebram com `TypeError: cell.setText is not a function`.
+
+**Fix:** usar `el.textContent = '...'` em vez de `el.setText('...')` no código de produção. Ambos funcionam em runtime real (textContent é DOM standard); apenas `textContent` funciona também em jsdom.
+
+### `CSS.escape` ausente em jsdom
+
+`document.querySelector(`[data-key="${CSS.escape(value)}"]`)` quebra: `TypeError: Cannot read properties of undefined (reading 'escape')`. Polyfill não vem por padrão.
+
+**Fix em testes:** iterar via `Array.from(querySelectorAll(...))` + `.find(el => el.dataset.key === value)`. Mais seguro contra valores com `:` (ex: `human:default`) que confundem CSS selector parsing.
+
+### `getState`/`setState` são reservados em `View` do Obsidian
+
+`View` base class declara `getState(): Record<string, unknown>` e `setState(state, result): Promise<void>` (workspace state serialization). Subclasse declarar com signatures diferentes quebra com `TS2416: Property is not assignable to the same property in base type`.
+
+**Fix:** nomear acessor de estado interno diferente — ex: `getCompareState()`, `updateState(partial)`. Não usar `getState`/`setState` como API pública da view custom.
+
+### Discriminação de union via field-presence (sem `kind` explícito)
+
+`CsvMarker = SegmentMarker | RowMarker` — ambos têm `markerType: 'csv'`. SegmentMarker tem `from`/`to`; RowMarker não. Sem campo `kind`/discriminator explícito, type guard via `'from' in m && 'to' in m`.
+
+**Fix:**
+```ts
+function isSegmentMarker(m: CsvMarker): m is SegmentMarker {
+  return 'from' in m && 'to' in m;
+}
+function isRowMarker(m: CsvMarker): m is RowMarker {
+  return !('from' in m && 'to' in m);
+}
+```
+
+Funciona pra E1; refactor pra `kind: 'segment' | 'row'` field explícito seria útil long-term mas toca todos callsites — fora de escopo.
+
+### AG Grid `cellStyle` callback + RowData inference
+
+AG Grid infere `RowData` dos primeiros acessos a `params.data` no `cellStyle`. Acessar `params.data?.sourceRowId` faz TS narrow `RowData = { sourceRowId?: number }` — então `field: string` no columnDef quebra (`field` deve ser keyof RowData).
+
+**Fix:** typar params explicitamente como `{ data?: Record<string, unknown>; node?: { rowIndex: number | null } }` no callback. Cast field access via `params.data?.sourceRowId as number | undefined`.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
