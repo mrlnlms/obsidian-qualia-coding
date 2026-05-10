@@ -79,10 +79,13 @@ export class UnifiedCompareCodersView extends ItemView {
 		});
 
 		const pickerHolder = this.toolbarEl.createDiv({ cls: 'qc-cc-picker-row' });
+		const enginesInScope = this.state.filters.visibleEngineIds
+			?? this.state.scope.engineIds
+			?? ALL_ENGINES;
 		renderCoefficientPicker(
 			pickerHolder,
 			this.state,
-			{ enginesInScope: this.state.scope.engineIds ?? ALL_ENGINES },
+			{ enginesInScope },
 			coefficient => this.updateState({ primaryCoefficient: coefficient }),
 		);
 

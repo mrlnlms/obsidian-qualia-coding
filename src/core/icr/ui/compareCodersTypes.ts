@@ -27,6 +27,8 @@ export interface ComparisonFilters {
 	highlightConflicts: boolean;
 	excludeConsensusCoders: boolean;
 	visibleCoderIds?: CoderId[];
+	/** Override ad-hoc do scope.engineIds via toggle no toolbar. undefined = usa scope.engineIds (ou default). */
+	visibleEngineIds?: EngineId[];
 }
 
 export type ReconciliationBounds =

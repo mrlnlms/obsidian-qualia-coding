@@ -41,7 +41,13 @@ export async function renderOverviewMatrix(
 		return;
 	}
 
-	const inputs = await extractInputsFromScope(state.scope, {
+	// Filter chips no toolbar podem restringir engines via state.filters.visibleEngineIds.
+	// Override scope.engineIds com a interseção quando filtro estiver ativo.
+	const effectiveScope = state.filters.visibleEngineIds
+		? { ...state.scope, engineIds: state.filters.visibleEngineIds }
+		: state.scope;
+
+	const inputs = await extractInputsFromScope(effectiveScope, {
 		models: deps.engineModels,
 		app: deps.app,
 	});

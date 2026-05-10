@@ -17,11 +17,12 @@ describe('renderFilterChips', () => {
 		baseState = createDefaultViewState(coderRegistry.getAll().map(c => c.id));
 	});
 
-	it('renderiza chip por coder + 2 chips de filtro', () => {
+	it('renderiza chip por coder + 6 chips de engine + 2 chips de filtro', () => {
 		renderFilterChips(container, baseState, { coderRegistry }, () => {});
 		const N = coderRegistry.getAll().length;
 		const chips = container.querySelectorAll('.qc-cc-filter-chip');
-		expect(chips.length).toBe(N + 2);  // N coders + highlight + hide agreement
+		// N coders + 6 engines + highlight + hide agreement
+		expect(chips.length).toBe(N + 6 + 2);
 	});
 
 	it('chip de coder começa com is-active quando visibleCoderIds undefined', () => {
@@ -58,5 +59,34 @@ describe('renderFilterChips', () => {
 		const chip = container.querySelector('[data-filter="hide-agreement"]') as HTMLElement;
 		chip.click();
 		expect(updates[0]!.filters!.hideAgreementTotal).toBe(true);
+	});
+
+	it('engine chips começam ativos quando visibleEngineIds undefined', () => {
+		renderFilterChips(container, baseState, { coderRegistry }, () => {});
+		const engineChips = container.querySelectorAll('.qc-cc-engine-chip');
+		expect(engineChips.length).toBe(6);
+		engineChips.forEach(c => expect(c.classList.contains('is-active')).toBe(true));
+	});
+
+	it('click em engine chip remove engine de visibleEngineIds', () => {
+		const updates: Partial<CompareCodersViewState>[] = [];
+		renderFilterChips(container, baseState, { coderRegistry }, p => updates.push(p));
+		const csvChip = container.querySelector('[data-engine-id="csvRow"]') as HTMLElement;
+		csvChip.click();
+		expect(updates[0]!.filters!.visibleEngineIds).not.toContain('csvRow');
+		expect(updates[0]!.filters!.visibleEngineIds).toContain('markdown');
+	});
+
+	it('click em engine inactive readiciona engine', () => {
+		const updates: Partial<CompareCodersViewState>[] = [];
+		const stateWithoutCsv = {
+			...baseState,
+			filters: { ...baseState.filters, visibleEngineIds: ['markdown', 'pdf'] as any },
+		};
+		renderFilterChips(container, stateWithoutCsv, { coderRegistry }, p => updates.push(p));
+		const csvChip = container.querySelector('[data-engine-id="csvRow"]') as HTMLElement;
+		expect(csvChip.classList.contains('is-active')).toBe(false);
+		csvChip.click();
+		expect(updates[0]!.filters!.visibleEngineIds).toContain('csvRow');
 	});
 });

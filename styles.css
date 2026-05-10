@@ -6463,6 +6463,19 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
+	align-items: center;
+}
+
+.qc-cc-filter-sep {
+	opacity: 0.4;
+	padding: 0 2px;
+	font-size: var(--font-ui-small);
+	user-select: none;
+}
+
+.qc-cc-engine-chip {
+	font-family: var(--font-monospace);
+	font-size: calc(var(--font-ui-smaller) * 0.95);
 }
 
 .qc-cc-filter-chip {
