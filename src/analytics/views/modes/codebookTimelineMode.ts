@@ -166,6 +166,15 @@ function entryActionLabel(ev: TimelineEvent): string {
 		case 'sc_memo_edited': return ' memo edited';
 		case 'sc_auto_rewritten_on_merge': return ` predicate auto-rewritten (${e.sourceCodeId} → ${e.targetCodeId})`;
 		case 'sc_deleted': return ' deleted (smart code)';
+		case 'reconciliation_opened': return ` reconciliation opened (${e.coderIds.length} coders)`;
+		case 'reconciliation_decided': {
+			const d = e.decision;
+			if (d.kind === 'adopt') return ` reconciliation: adopted (${d.mode})`;
+			if (d.kind === 'split') return ` reconciliation: split → ${d.newCodeId} (${d.mode})`;
+			if (d.kind === 'accept-divergence') return ' reconciliation: accept divergence';
+			return ' reconciliation: rejected';
+		}
+		case 'reconciliation_reverted': return ` reconciliation reverted (entry ${e.originalEntryId})`;
 	}
 }
 

@@ -94,7 +94,14 @@ export function getEntriesForCode(
 	codeId: string,
 	includeHidden = false,
 ): AuditEntry[] {
-	const filtered = log.filter(e => (e.entity ?? 'code') === 'code' && e.codeId === codeId && (includeHidden || !e.hidden));
+	const filtered = log.filter(e => {
+		const entity = e.entity ?? 'code';
+		// 'code' (default) e 'reconciliation' compartilham o Code Stability Timeline.
+		// Anchor codeId decide em qual timeline a reconciliation entry aparece.
+		if (entity !== 'code' && entity !== 'reconciliation') return false;
+		if (e.codeId !== codeId) return false;
+		return includeHidden || !e.hidden;
+	});
 	return filtered.sort((a, b) => a.at - b.at);
 }
 
@@ -140,6 +147,39 @@ export function renderEntryMarkdown(entry: AuditEntry): string {
 			return `- ${stamp}  Query auto-rewritten: code merged (${entry.sourceCodeId} → ${entry.targetCodeId})`;
 		case 'sc_deleted':
 			return `- ${stamp}  Smart code deleted`;
+		case 'reconciliation_opened': {
+			const trecho = formatBoundsShort(entry.region.bounds);
+			return `- ${stamp}  Reconciliation opened: ${entry.coderIds.length} coders on ${trecho}`;
+		}
+		case 'reconciliation_decided': {
+			const d = entry.decision;
+			if (d.kind === 'adopt') {
+				const modeLabel = d.mode === 'overwrite-originals' ? 'overwrite originals' : 'consensus marker';
+				return `- ${stamp}  Reconciliation decided: adopted code ${d.codeId} (${modeLabel})`;
+			}
+			if (d.kind === 'split') {
+				const modeLabel = d.mode === 'overwrite-originals' ? 'overwrite originals' : 'consensus marker';
+				return `- ${stamp}  Reconciliation decided: split into new code ${d.newCodeId} (${modeLabel})`;
+			}
+			if (d.kind === 'accept-divergence') {
+				return `- ${stamp}  Reconciliation decided: accept divergence`;
+			}
+			return `- ${stamp}  Reconciliation decided: rejected`;
+		}
+		case 'reconciliation_reverted':
+			return `- ${stamp}  Reconciliation reverted (entry ${entry.originalEntryId}; restored ${entry.restoredMarkerIds.length} markers)`;
+	}
+}
+
+/** Format bounds em snippet curto pra display em audit timeline (markdown line). */
+function formatBoundsShort(bounds: import('./types').ReconciliationBounds): string {
+	switch (bounds.kind) {
+		case 'text':
+			return `chars ${bounds.from}–${bounds.to}`;
+		case 'csvRow':
+			return bounds.column ? `row ${bounds.rowIndex} · ${bounds.column}` : `row ${bounds.rowIndex}`;
+		case 'temporal':
+			return `${bounds.fromMs}ms–${bounds.toMs}ms`;
 	}
 }
 

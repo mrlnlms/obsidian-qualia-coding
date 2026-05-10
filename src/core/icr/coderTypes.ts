@@ -9,10 +9,13 @@ export type CoderId = string;
 
 export const DEFAULT_CODER_ID: CoderId = 'human:default';
 
+/** Tipos de coder: humano, LLM, ou consensus (criado via reconciliação Slice E3a). */
+export type CoderKind = 'human' | 'llm' | 'consensus';
+
 export interface Coder {
 	id: CoderId;
 	name: string;
-	type: 'human' | 'llm';
+	type: CoderKind;
 	model?: string;
 	version?: string;
 	temperature?: number;

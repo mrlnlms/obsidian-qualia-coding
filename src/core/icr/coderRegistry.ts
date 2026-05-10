@@ -72,6 +72,28 @@ export class CoderRegistry {
 		return coder;
 	}
 
+	/** Cria/retorna coder consensus. ID estável: `consensus:<slug>`. Idempotente.
+	 *  Convenção: 1 vault → 1 default (`'consensus:default'`); múltiplos permitidos pra waves. */
+	createConsensus(slug: string, displayName?: string): Coder {
+		const id: CoderId = `consensus:${slug}`;
+		const existing = this.coders.get(id);
+		if (existing) return existing;
+		const coder: Coder = {
+			id,
+			name: displayName ?? `Consensus (${slug})`,
+			type: 'consensus',
+			createdAt: Date.now(),
+		};
+		this.coders.set(id, coder);
+		this.emitMutate();
+		return coder;
+	}
+
+	/** Coders elegíveis pra coding ativo. Exclui consensus (consensus marker é criado por executeReconciliationDecision). */
+	getCodableCoders(): Coder[] {
+		return this.getAll().filter(c => c.type !== 'consensus');
+	}
+
 	getById(id: CoderId): Coder | null {
 		return this.coders.get(id) ?? null;
 	}

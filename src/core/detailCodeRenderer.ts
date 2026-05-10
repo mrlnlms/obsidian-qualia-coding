@@ -1024,5 +1024,17 @@ function formatEntryDescription(entry: AuditEntry): string {
 		case 'sc_auto_rewritten_on_merge':
 		case 'sc_deleted':
 			return '(smart code event)';
+		// Reconciliation entries — aparecem no Code Detail quando anchor codeId bate (entity='reconciliation').
+		case 'reconciliation_opened':
+			return `Reconciliation opened (${entry.coderIds.length} coders)`;
+		case 'reconciliation_decided': {
+			const d = entry.decision;
+			if (d.kind === 'adopt') return `Reconciliation: adopted (${d.mode})`;
+			if (d.kind === 'split') return `Reconciliation: split → new code ${d.newCodeId} (${d.mode})`;
+			if (d.kind === 'accept-divergence') return 'Reconciliation: accept divergence';
+			return 'Reconciliation: rejected';
+		}
+		case 'reconciliation_reverted':
+			return `Reconciliation reverted (entry ${entry.originalEntryId})`;
 	}
 }

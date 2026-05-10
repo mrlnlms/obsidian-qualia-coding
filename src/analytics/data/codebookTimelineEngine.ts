@@ -11,8 +11,9 @@ import type { AuditEntry, CodeDefinition } from '../../core/types';
 
 export type Granularity = 'day' | 'week' | 'month';
 
-/** Filter buckets — `description_edited`+`memo_edited` agregam em "edited" no chart/filtro. */
-export type EventTypeFilter = 'created' | 'renamed' | 'edited' | 'absorbed' | 'merged_into' | 'deleted';
+/** Filter buckets — `description_edited`+`memo_edited` agregam em "edited" no chart/filtro.
+ *  Reconciliation é bucket próprio (decisão analítica multi-coder, distinta de operação de codebook). */
+export type EventTypeFilter = 'created' | 'renamed' | 'edited' | 'absorbed' | 'merged_into' | 'deleted' | 'reconciliation';
 
 export const EVENT_TYPE_TO_FILTER: Record<AuditEntry['type'], EventTypeFilter> = {
 	created: 'created',
@@ -28,6 +29,10 @@ export const EVENT_TYPE_TO_FILTER: Record<AuditEntry['type'], EventTypeFilter> =
 	sc_memo_edited: 'edited',
 	sc_auto_rewritten_on_merge: 'edited',
 	sc_deleted: 'deleted',
+	// Reconciliation events (Slice E3a) — bucket único, distinguidos visualmente por 🤝 icon
+	reconciliation_opened: 'reconciliation',
+	reconciliation_decided: 'reconciliation',
+	reconciliation_reverted: 'reconciliation',
 };
 
 /** Cores fixas neutras (não match com paletteIndex de codes). */
@@ -38,6 +43,7 @@ export const EVENT_COLORS: Record<EventTypeFilter, string> = {
 	absorbed: '#7c5cd1',
 	merged_into: '#d05ec8',
 	deleted: '#888888',
+	reconciliation: '#e07b3f',
 };
 
 export interface TimelineEvent {
@@ -129,7 +135,7 @@ export function bucketByGranularity(
 		if (!buckets.has(key)) {
 			buckets.set(key, {
 				bucketDate: anchorDate,
-				counts: { created: 0, renamed: 0, edited: 0, absorbed: 0, merged_into: 0, deleted: 0 },
+				counts: { created: 0, renamed: 0, edited: 0, absorbed: 0, merged_into: 0, deleted: 0, reconciliation: 0 },
 			});
 		}
 		buckets.get(key)!.counts[ev.filterBucket]++;
@@ -196,5 +202,14 @@ export function renderTimelineEntryMarkdown(event: TimelineEvent): string {
 		case 'sc_memo_edited':     return `- ${time} — ⚡ **${name}** memo edited`;
 		case 'sc_auto_rewritten_on_merge': return `- ${time} — ⚡ **${name}** predicate auto-rewritten (${e.sourceCodeId} → ${e.targetCodeId})`;
 		case 'sc_deleted':         return `- ${time} — ⚡ **${name}** deleted`;
+		case 'reconciliation_opened': return `- ${time} — 🤝 **${name}** reconciliation opened (${e.coderIds.length} coders)`;
+		case 'reconciliation_decided': {
+			const d = e.decision;
+			if (d.kind === 'adopt') return `- ${time} — 🤝 **${name}** reconciliation decided: adopted (${d.mode})`;
+			if (d.kind === 'split') return `- ${time} — 🤝 **${name}** reconciliation decided: split → new code ${d.newCodeId} (${d.mode})`;
+			if (d.kind === 'accept-divergence') return `- ${time} — 🤝 **${name}** reconciliation decided: accept divergence`;
+			return `- ${time} — 🤝 **${name}** reconciliation decided: rejected`;
+		}
+		case 'reconciliation_reverted': return `- ${time} — 🤝 **${name}** reconciliation reverted (entry ${e.originalEntryId})`;
 	}
 }

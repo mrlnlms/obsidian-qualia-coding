@@ -3,6 +3,7 @@ import type { CodeMarkerSettings } from '../markdown/models/settings';
 import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
 import type { CoderId } from './icr/coderTypes';
+import type { EngineId } from './icr/reporter';
 
 /** Per-file UI state pra tabular engine. Persiste em data.json csv.fileMeta. */
 export interface CsvFileMeta {
@@ -318,15 +319,42 @@ export interface QualiaData {
 interface BaseAuditEntry {
 	/** ID único pra hide/unhide reversível. */
 	id: string;
-	/** ID do código a que esse event se refere. Polimórfico: codeId pra entity='code' (default), smartCodeId pra entity='smartCode'. */
+	/** ID do código a que esse event se refere. Polimórfico:
+	 *  - entity='code' (default): codeId.
+	 *  - entity='smartCode': smartCodeId.
+	 *  - entity='reconciliation': anchor code (target da decisão / candidateCodeIds[0] / '' se vazio). */
 	codeId: string;
 	/** Timestamp ms. */
 	at: number;
 	/** Soft delete: true esconde da timeline e do export, mas mantém no JSON pra auditoria/restore. */
 	hidden?: true;
 	/** Discriminator de entidade. Ausente = 'code' implícito (entries existentes seguem válidas). */
-	entity?: 'code' | 'smartCode';
+	entity?: 'code' | 'smartCode' | 'reconciliation';
 }
+
+// ─── Reconciliação — tipos auxiliares (Slice E3a) ─────────────
+
+/** Bounds da região contestada per engine. Texto-likes usam char offsets, csv-row usa rowIndex+col, temporal ms. */
+export type ReconciliationBounds =
+	| { kind: 'text'; from: number; to: number }
+	| { kind: 'csvRow'; rowIndex: number; column?: string }
+	| { kind: 'temporal'; fromMs: number; toMs: number };
+
+/** Snapshot serializável de marker pré-mutação — pra revert de overwrite-originals. */
+export interface MarkerSnapshot {
+	markerId: string;
+	engine: EngineId;
+	fileId: string;
+	/** JSON do marker (round-trip via JSON.parse(JSON.stringify)). */
+	serialized: unknown;
+}
+
+/** Decisão de reconciliação aplicada via executeReconciliationDecision. */
+export type ReconciliationDecision =
+	| { kind: 'adopt'; codeId: string; mode: 'consensus-marker' | 'overwrite-originals'; preStateSnapshot?: MarkerSnapshot[] }
+	| { kind: 'split'; newCodeId: string; mode: 'consensus-marker' | 'overwrite-originals'; preStateSnapshot?: MarkerSnapshot[] }
+	| { kind: 'accept-divergence' }
+	| { kind: 'reject' };
 
 export type AuditEntry =
 	// Code entries (entity='code' ou ausente — backcompat)
@@ -342,7 +370,30 @@ export type AuditEntry =
 	| (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_predicate_edited'; addedLeafKinds: string[]; removedLeafKinds: string[]; changedLeafCount: number })
 	| (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_memo_edited'; from: string; to: string })
 	| (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_auto_rewritten_on_merge'; sourceCodeId: string; targetCodeId: string })
-	| (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_deleted' });
+	| (BaseAuditEntry & { entity: 'smartCode'; type: 'sc_deleted' })
+	// Reconciliation entries (entity='reconciliation' obrigatório, codeId carrega anchor code).
+	| (BaseAuditEntry & {
+			entity: 'reconciliation';
+			type: 'reconciliation_opened';
+			region: { fileId: string; engine: EngineId; bounds: ReconciliationBounds };
+			coderIds: CoderId[];
+			candidateCodeIds: string[];
+		})
+	| (BaseAuditEntry & {
+			entity: 'reconciliation';
+			type: 'reconciliation_decided';
+			region: { fileId: string; engine: EngineId; bounds: ReconciliationBounds };
+			coderIds: CoderId[];
+			decision: ReconciliationDecision;
+			consensusMarkerId?: string;
+			memoOfReconciliation: string;
+		})
+	| (BaseAuditEntry & {
+			entity: 'reconciliation';
+			type: 'reconciliation_reverted';
+			originalEntryId: string;
+			restoredMarkerIds: string[];
+		});
 
 export function createDefaultData(): QualiaData {
 	return {

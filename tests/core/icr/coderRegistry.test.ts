@@ -121,3 +121,75 @@ describe('CoderRegistry', () => {
 		expect(count).toBe(0);
 	});
 });
+
+describe('CoderRegistry — consensus (Slice E3a)', () => {
+	beforeEach(() => {
+		registry = new CoderRegistry();
+	});
+
+	it('createConsensus returns coder with consensus:<slug> shape e type', () => {
+		const c = registry.createConsensus('default');
+		expect(c.id).toBe('consensus:default');
+		expect(c.type).toBe('consensus');
+	});
+
+	it('createConsensus default name é "Consensus (<slug>)"', () => {
+		const c = registry.createConsensus('wave-1');
+		expect(c.name).toBe('Consensus (wave-1)');
+	});
+
+	it('createConsensus respeita displayName override', () => {
+		const c = registry.createConsensus('default', 'Final Consensus');
+		expect(c.name).toBe('Final Consensus');
+	});
+
+	it('createConsensus é idempotente (segundo call retorna existente)', () => {
+		const c1 = registry.createConsensus('default');
+		const c2 = registry.createConsensus('default');
+		expect(c1.id).toBe(c2.id);
+		expect(registry.getAll().filter(c => c.id === 'consensus:default').length).toBe(1);
+	});
+
+	it('createConsensus permite múltiplos slugs (waves de reconciliação)', () => {
+		registry.createConsensus('wave-1');
+		registry.createConsensus('wave-2');
+		registry.createConsensus('final');
+		const consensusIds = registry.getAll().filter(c => c.type === 'consensus').map(c => c.id).sort();
+		expect(consensusIds).toEqual(['consensus:final', 'consensus:wave-1', 'consensus:wave-2']);
+	});
+
+	it('createConsensus dispara onMutate na primeira criação, não na repetida', () => {
+		let count = 0;
+		registry.addOnMutate(() => count++);
+		registry.createConsensus('default');
+		registry.createConsensus('default');
+		expect(count).toBe(1);
+	});
+
+	it('toJSON/fromJSON preserva consensus coders', () => {
+		registry.createConsensus('default');
+		registry.createConsensus('wave-1', 'Round 1');
+		const restored = CoderRegistry.fromJSON(registry.toJSON());
+		expect(restored.getById('consensus:default')?.type).toBe('consensus');
+		expect(restored.getById('consensus:wave-1')?.name).toBe('Round 1');
+	});
+
+	it('getCodableCoders exclui consensus mas inclui human + llm', () => {
+		registry.createHuman('Carla');
+		registry.createLLM({ model: 'gpt-4o' });
+		registry.createConsensus('default');
+		const codable = registry.getCodableCoders();
+		expect(codable.map(c => c.id).sort()).toEqual(['human:carla', 'human:default', 'llm:gpt-4o']);
+	});
+
+	it('getCodableCoders retorna só default quando registry é fresh (sem consensus)', () => {
+		expect(registry.getCodableCoders().map(c => c.id)).toEqual(['human:default']);
+	});
+
+	it('getCodableCoders filtra consensus mesmo após restore via fromJSON', () => {
+		registry.createConsensus('default');
+		registry.createHuman('Bob');
+		const restored = CoderRegistry.fromJSON(registry.toJSON());
+		expect(restored.getCodableCoders().map(c => c.id).sort()).toEqual(['human:bob', 'human:default']);
+	});
+});
