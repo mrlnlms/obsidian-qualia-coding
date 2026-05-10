@@ -2087,11 +2087,11 @@ npm run build
 # Reload no Obsidian: Cmd-P → "Reload app without saving"
 ```
 
-- [ ] **Step 2: Abrir Compare Coders**
+- [ ] **Step 3: Abrir Compare Coders**
 
 Cmd-P → "Compare Coders: Open" → tab nova abre com toolbar + matriz + região drill-down vazia.
 
-- [ ] **Step 3: Verificar matriz**
+- [ ] **Step 4: Verificar matriz**
 
 Esperado:
 - Toolbar mostra 3 chips de mode (Matriz ativo) + chips dos 3 coders + "destacar conflitos" + "esconder agreement total"
@@ -2100,7 +2100,7 @@ Esperado:
 - Off-diagonal mostra valores Cohen κ ou "—" cinza se sem markers
 - Color scale aparente
 
-- [ ] **Step 4: Click numa célula**
+- [ ] **Step 5: Click numa célula**
 
 Esperado:
 - Drill-down abre embaixo
@@ -2108,17 +2108,17 @@ Esperado:
 - Lista files do escopo com lanes per coder + brackets `[ code ]` coloridos
 - csv-row aparece se houver markers em CSV row
 
-- [ ] **Step 5: Filter chips**
+- [ ] **Step 6: Filter chips**
 
 - Click no chip de um coder → desmarca, lane some do drill-down
 - Re-click → reaparece
 - Click "destacar conflitos" → cells com κ < 0.4 ganham borda vermelha (se CSS já implementou; senão polish em E2)
 
-- [ ] **Step 6: Capturar screenshot e gravar resultado**
+- [ ] **Step 7: Capturar screenshot e gravar resultado**
 
 Salvar screenshot na pasta workspace externo: `obsidian-qualia-coding/plugin-docs/superpowers/notes/E1-smoke-2026-MM-DD.png`.
 
-- [ ] **Step 7: Commit final do slice**
+- [ ] **Step 8: Commit final do slice**
 
 ```bash
 ~/.claude/scripts/commit.sh "feat(icr): Slice E1 Compare Coders skeleton — smoke real verde"
