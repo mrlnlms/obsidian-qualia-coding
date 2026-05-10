@@ -939,16 +939,15 @@ export default class QualiaCodingPlugin extends Plugin {
 
 	async openIcrImportView(): Promise<void> {
 		const { workspace } = this.app;
-		const existing = workspace.getLeavesOfType(ICR_IMPORT_VIEW_TYPE);
-		if (existing.length > 0) {
-			workspace.revealLeaf(existing[0]!);
-			return;
+		let leaf = workspace.getLeavesOfType(ICR_IMPORT_VIEW_TYPE)[0];
+		if (!leaf) {
+			const newLeaf = workspace.getLeaf('tab');
+			if (newLeaf) {
+				await newLeaf.setViewState({ type: ICR_IMPORT_VIEW_TYPE, active: true });
+				leaf = newLeaf;
+			}
 		}
-		const leaf = workspace.getRightLeaf(false);
-		if (leaf) {
-			await leaf.setViewState({ type: ICR_IMPORT_VIEW_TYPE, active: true });
-			workspace.revealLeaf(leaf);
-		}
+		if (leaf) workspace.revealLeaf(leaf);
 	}
 
 	private async runDuckDBSmoke(): Promise<void> {
