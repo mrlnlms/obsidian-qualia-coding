@@ -8,6 +8,8 @@ import { CoderRegistry } from './core/icr/coderRegistry';
 import { SourceHashRegistry } from './core/icr/sourceHashRegistry';
 import { extractCoderContribution } from './core/icr/transport/extractCoderContribution';
 import { mergeCoderContribution } from './core/icr/transport/mergeCoderContribution';
+import { ICR_IMPORT_VIEW_TYPE, UnifiedIcrImportView } from './core/icr/contributions/unifiedIcrImportView';
+import { runExportTrigger } from './core/icr/contributions/exportTrigger';
 import type { ExtractResult, MergeResult, Payload } from './core/icr/transport/payloadTypes';
 import { detectStaleMarkers } from './core/icr/provenance/detectStaleMarkers';
 import type { StaleReport } from './core/icr/provenance/detectStaleMarkers';
@@ -600,6 +602,24 @@ export default class QualiaCodingPlugin extends Plugin {
 			new CaseVariablesView(leaf, this));
 		this.registerView(COMPARE_CODERS_VIEW_TYPE, (leaf) =>
 			new UnifiedCompareCodersView(leaf, this));
+		this.registerView(ICR_IMPORT_VIEW_TYPE, (leaf) =>
+			new UnifiedIcrImportView(leaf, this));
+
+		this.addRibbonIcon('git-pull-request', 'ICR Import', () => {
+			void this.openIcrImportView();
+		});
+
+		this.addCommand({
+			id: 'icr-open-import',
+			name: 'ICR: Open import',
+			callback: () => { void this.openIcrImportView(); },
+		});
+
+		this.addCommand({
+			id: 'icr-export-my-contribution',
+			name: 'ICR: Export my contribution',
+			callback: () => { void runExportTrigger(this); },
+		});
 
 		this.addCommand({
 			id: 'compare-coders-open',
@@ -914,6 +934,20 @@ export default class QualiaCodingPlugin extends Plugin {
 			return this.duckdb;
 		} finally {
 			this.duckdbInitPromise = null;
+		}
+	}
+
+	async openIcrImportView(): Promise<void> {
+		const { workspace } = this.app;
+		const existing = workspace.getLeavesOfType(ICR_IMPORT_VIEW_TYPE);
+		if (existing.length > 0) {
+			workspace.revealLeaf(existing[0]!);
+			return;
+		}
+		const leaf = workspace.getRightLeaf(false);
+		if (leaf) {
+			await leaf.setViewState({ type: ICR_IMPORT_VIEW_TYPE, active: true });
+			workspace.revealLeaf(leaf);
 		}
 	}
 
