@@ -1107,7 +1107,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 }
 
 .codemarker-margin-label {
-	font-size: 10px;
+	font-size: 11px;
 	font-weight: 500;
 	line-height: 1;
 	opacity: 0.9;
@@ -1327,6 +1327,124 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 .csv-cod-seg-btn:hover {
   opacity: 1;
   background-color: var(--ag-row-hover-color, rgba(0, 0, 0, 0.08));
+}
+
+/* Filter transition mask. Lazy mode (Infinite Row Model): AG Grid limpa o cache
+ * no filter change e renderiza placeholder rows pelo viewport até DuckDB
+ * responder. Class `.csv-coding-filtering` é toggled pelo `refreshLazyFilter` —
+ * visibility:hidden esconde os placeholders durante a janela. Resultado:
+ * ao filtrar, viewport fica brevemente vazio em vez de flashar rows fantasma.
+ * Classes targets confirmadas em ag-grid-community v33 (.ag-row-loading +
+ * .ag-stub-cell). */
+.csv-coding-filtering .ag-row-loading,
+.csv-coding-filtering .ag-stub-cell {
+  visibility: hidden;
+}
+
+/* LazyTextFilter — popover de filter custom pro Infinite Row Model lazy.
+ * Pre-fetch da query DuckDB + refreshInfiniteCache (em vez de
+ * filterChangedCallback que dispara purgeInfiniteCache) → rows antigas ficam
+ * visíveis durante re-fetch, sem flash branco.
+ * Paridade UI com agTextColumnFilter: 8 ops + AND/OR + 2 conditions. */
+.lazy-text-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  min-width: 220px;
+}
+
+.lazy-text-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lazy-text-filter-spinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--background-modifier-border);
+  border-top-color: var(--text-accent);
+  border-radius: 50%;
+  animation: lazy-text-filter-spin 0.7s linear infinite;
+}
+
+@keyframes lazy-text-filter-spin {
+  to { transform: rotate(360deg); }
+}
+
+.lazy-text-filter-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lazy-text-filter-select,
+.lazy-text-filter-input {
+  padding: 6px 8px;
+  font-size: 13px;
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lazy-text-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  cursor: pointer;
+}
+
+/* Caret renderizado via pseudo-element no wrapper — `<select>` não suporta
+ * `::after` diretamente, e Obsidian sobrescreve `background-image` em select
+ * com specificity maior. */
+.lazy-text-filter-select-wrapper {
+  position: relative;
+}
+
+.lazy-text-filter-select-wrapper::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 10px;
+  height: 6px;
+  margin-top: -3px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23888888' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+.lazy-text-filter-select:focus,
+.lazy-text-filter-input:focus {
+  border-color: var(--interactive-accent);
+}
+
+.lazy-text-filter-join {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.lazy-text-filter-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.lazy-text-filter-radio input[type="radio"] {
+  margin: 0;
 }
 
 /* Tag chips area — takes remaining space, flows horizontally */
@@ -2612,6 +2730,14 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 
 .codemarker-explorer-toolbar-spacer {
   flex: 1;
+}
+
+.qc-hydration-status {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 4px 8px;
+  white-space: nowrap;
 }
 
 .codemarker-explorer-swatch {
@@ -6146,6 +6272,18 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .search-result.is-smart-code .tree-item-inner { font-style: italic; }
 .search-result-file-match.is-stale { color: var(--text-faint); font-style: italic; }
 
+/* Style props que antes eram inline (forçavam recalc-style por elemento durante renderTree).
+   Agora via classes + CSS vars: browser cache rule, recalc fica O(1) por mutation. */
+.qc-explorer-code-self { padding-left: calc(var(--qc-depth, 0) * 18px + 4px); }
+.qc-explorer-list { position: relative; height: var(--qc-list-height, auto); }
+.qc-explorer-list--scrollable { overflow-y: auto; }
+.qc-vlist-row {
+  position: absolute;
+  width: 100%;
+  top: var(--qc-row-top, 0);
+  height: var(--qc-row-height, 26px);
+}
+
 /* Analytics codes filter — sub-header pra separar SC chips de regulares. */
 .codemarker-config-codes-subheader { font-size: 0.8em; color: var(--text-muted); padding: 6px 4px 2px; text-transform: uppercase; letter-spacing: 0.05em; }
 .codemarker-config-row.is-smart-code .codemarker-config-swatch { border-radius: 50%; }
@@ -6190,4 +6328,941 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	text-align: center;
 	color: var(--text-accent);
 	font-size: 0.95em;
+}
+
+.csv-segment-editor-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 4px 12px;
+	font-size: 12px;
+	color: var(--text-muted);
+	background-color: var(--background-secondary);
+	flex-shrink: 0;
+}
+
+/* Hidden file/color input pattern — used to host a native picker offscreen
+   without disturbing layout (input.click() opens dialog). */
+.qc-hidden-input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* Scroll container with constrained height — caller sets max-height inline
+   (uses dynamic vh values per surface). */
+.qc-scroll-container {
+	overflow-y: auto;
+	position: relative;
+}
+
+/* ──────────────────────────────────────────
+   ICR Compare Coders View (Slice E1)
+   ────────────────────────────────────────── */
+
+.qc-compare-coders-view {
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.qc-cc-toolbar {
+	position: sticky;
+	top: 0;
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding: 8px 12px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: center;
+	z-index: 1;
+}
+
+.qc-cc-mode-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.qc-cc-mode-row {
+	display: flex;
+	gap: 4px;
+}
+
+.qc-cc-mode-label {
+	font-size: var(--font-ui-smaller);
+	text-transform: uppercase;
+	opacity: 0.6;
+	margin-right: 4px;
+	letter-spacing: 0.5px;
+}
+
+.qc-cc-mode-chip {
+	padding: 2px 10px;
+	border-radius: 14px;
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	user-select: none;
+}
+
+.qc-cc-mode-chip.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.qc-cc-mode-chip.is-disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.qc-cc-mode-question {
+	font-size: var(--font-ui-smaller);
+	opacity: 0.7;
+	width: 100%;
+	font-style: italic;
+}
+
+.qc-cc-picker-row {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.qc-cc-coefficient-picker {
+	display: flex;
+	gap: 4px;
+}
+
+.qc-cc-coef-chip {
+	padding: 2px 10px;
+	border-radius: 14px;
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	user-select: none;
+}
+
+.qc-cc-coef-chip.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.qc-cc-coef-chip.is-disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.qc-cc-filter-chips {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.qc-cc-filter-sep {
+	opacity: 0.4;
+	padding: 0 2px;
+	font-size: var(--font-ui-small);
+	user-select: none;
+}
+
+.qc-cc-engine-chip {
+	font-family: var(--font-monospace);
+	font-size: calc(var(--font-ui-smaller) * 0.95);
+}
+
+.qc-cc-filter-chip {
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	user-select: none;
+}
+
+.qc-cc-filter-chip.is-empty {
+	opacity: 0.4;
+	font-style: italic;
+}
+
+.qc-cc-filter-chip.is-active {
+	background: var(--background-modifier-hover);
+	border-color: var(--text-accent);
+}
+
+.qc-cc-coder-chip:not(.is-active) {
+	opacity: 0.5;
+}
+
+/* Overview matrix */
+
+.qc-cc-overview {
+	flex: 1;
+	overflow: auto;
+	padding: 12px;
+	min-height: 200px;
+}
+
+.qc-cc-empty,
+.qc-cc-stub {
+	opacity: 0.6;
+	font-style: italic;
+	font-size: var(--font-ui-smaller);
+	padding: 12px;
+	text-align: center;
+}
+
+.qc-cc-matrix {
+	border-collapse: collapse;
+	font-size: var(--font-ui-smaller);
+}
+
+.qc-cc-matrix th,
+.qc-cc-matrix td {
+	border: 1px solid var(--background-modifier-border);
+	padding: 6px 12px;
+	text-align: center;
+	min-width: 60px;
+}
+
+.qc-cc-matrix th {
+	background: var(--background-secondary);
+	font-weight: 600;
+}
+
+.qc-cc-matrix-cell {
+	cursor: pointer;
+	transition: filter 100ms;
+}
+
+.qc-cc-matrix-cell:hover {
+	filter: brightness(1.15);
+}
+
+.qc-cc-matrix-cell.is-diagonal {
+	background: var(--background-modifier-border);
+	cursor: default;
+	opacity: 0.5;
+}
+
+/* Mode B — tabela por código */
+.qc-cc-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--font-ui-smaller);
+}
+
+.qc-cc-table th,
+.qc-cc-table td {
+	padding: 6px 10px;
+	text-align: center;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.qc-cc-table th {
+	background: var(--background-secondary);
+	position: sticky;
+	top: 0;
+	font-weight: 600;
+}
+
+.qc-cc-table tbody tr {
+	cursor: pointer;
+}
+
+.qc-cc-table tbody tr:hover td:first-child {
+	text-decoration: underline;
+}
+
+.qc-cc-table tbody td:first-child {
+	text-align: left;
+	font-weight: 500;
+}
+
+.qc-cc-table tbody td.col-count {
+	font-variant-numeric: tabular-nums;
+	opacity: 0.7;
+}
+
+/* Mode C — heatmap código × engine */
+.qc-cc-heatmap {
+	border-collapse: collapse;
+	font-size: var(--font-ui-smaller);
+}
+
+.qc-cc-heatmap th,
+.qc-cc-heatmap td {
+	padding: 6px 10px;
+	text-align: center;
+	border: 1px solid var(--background-modifier-border);
+	min-width: 80px;
+}
+
+.qc-cc-heatmap thead th {
+	background: var(--background-secondary);
+	font-weight: 600;
+	font-family: var(--font-monospace);
+	font-size: calc(var(--font-ui-smaller) * 0.95);
+}
+
+.qc-cc-heatmap tbody th {
+	background: var(--background-secondary);
+	text-align: left;
+	font-weight: 500;
+}
+
+.qc-cc-heatmap tbody td:not(.qc-kappa-na) {
+	cursor: pointer;
+	transition: filter 100ms;
+}
+
+.qc-cc-heatmap tbody td:not(.qc-kappa-na):hover {
+	filter: brightness(1.15);
+}
+
+/* Color scale — universal pra qualquer cell que mostra κ */
+.qc-kappa-low      { background: #c1352e; color: #fff; }
+.qc-kappa-mid-low  { background: #d68c45; color: #1a1a1a; }
+.qc-kappa-mid-high { background: #52b788; color: #1a1a1a; }
+.qc-kappa-high     { background: #2d6a4f; color: #fff; }
+.qc-kappa-na       { background: var(--background-modifier-border); opacity: 0.5; }
+
+.qc-cc-fade {
+	opacity: 0.25;
+}
+
+/* Botão "ver lado a lado" no toolbar */
+.qc-cc-side-btn {
+	margin-left: 12px;
+	padding: 2px 10px;
+	border-radius: 14px;
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+}
+
+.qc-cc-side-btn:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* Modal "ver lado a lado" */
+.qc-cc-modal {
+	min-width: 600px;
+	max-width: 90vw;
+}
+
+.qc-cc-modal-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+}
+
+.qc-cc-modal-toggle {
+	display: flex;
+	gap: 4px;
+}
+
+.qc-cc-modal-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--font-ui-smaller);
+	margin: 8px 0;
+}
+
+.qc-cc-modal-table th,
+.qc-cc-modal-table td {
+	padding: 6px 10px;
+	text-align: center;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.qc-cc-modal-table th {
+	background: var(--background-secondary);
+	font-weight: 600;
+}
+
+.qc-cc-modal-table tbody td:first-child {
+	text-align: left;
+	font-family: var(--font-monospace);
+}
+
+.qc-cc-modal-diagnostic {
+	background: rgba(214, 140, 69, 0.15);
+	border-left: 3px solid #d68c45;
+	padding: 8px 12px;
+	margin: 12px 0;
+	font-size: 0.9em;
+	border-radius: 4px;
+}
+
+.qc-cc-modal-diagnostic > div + div {
+	margin-top: 6px;
+}
+
+.qc-cc-modal-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.qc-cc-modal-footer button {
+	padding: 4px 12px;
+}
+
+/* Splitter */
+
+.qc-cc-splitter {
+	height: 3px;
+	background: var(--background-modifier-border);
+	cursor: row-resize;
+	flex-shrink: 0;
+}
+
+/* Drilldown */
+
+.qc-cc-drilldown {
+	flex: 1;
+	overflow: auto;
+	padding: 12px;
+	min-height: 200px;
+}
+
+.qc-cc-drilldown-empty {
+	opacity: 0.5;
+	font-style: italic;
+	padding: 20px;
+	text-align: center;
+}
+
+.qc-cc-perspective-question {
+	font-size: var(--font-ui-smaller);
+	opacity: 0.7;
+	margin-bottom: 8px;
+	font-style: italic;
+}
+
+.qc-cc-drilldown-file {
+	margin-bottom: 16px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 8px 10px;
+	background: var(--background-primary);
+}
+
+.qc-cc-drilldown-file h4 {
+	margin: 0 0 8px 0;
+	font-size: var(--font-ui-small);
+	font-family: var(--font-monospace);
+	opacity: 0.8;
+}
+
+.qc-cc-lanes {
+	display: flex;
+	gap: 8px;
+}
+
+.qc-cc-lane {
+	flex: 1;
+	min-width: 80px;
+	border-right: 1px solid var(--background-modifier-border);
+	padding-right: 6px;
+}
+
+.qc-cc-lane:last-child {
+	border-right: none;
+}
+
+.qc-cc-lane-header {
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding-bottom: 2px;
+	margin-bottom: 4px;
+	text-align: right;
+}
+
+.qc-cc-lane-marker {
+	font-size: var(--font-ui-smaller);
+	font-family: var(--font-monospace);
+	padding: 2px 0;
+	text-align: right;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.qc-cc-lane-empty {
+	font-size: var(--font-ui-smaller);
+	opacity: 0.3;
+	text-align: right;
+	padding: 2px 0;
+}
+
+.qc-cc-csv-row-hint {
+	padding: 8px 12px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+.qc-cc-csv-row-hint.is-active {
+	color: var(--text-success);
+	border-left: 3px solid var(--text-success);
+}
+
+/* ============================================================
+ * ICR Import view (Fase C P1) — qc-icr-*
+ * Layout: rail 200px | main (toolbar + body com chips)
+ * ============================================================ */
+
+.qc-icr-import-view {
+	display: grid;
+	grid-template-columns: 200px 1fr;
+	height: 100%;
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+}
+
+/* — Rail lateral — */
+.qc-icr-import-rail {
+	background: var(--background-secondary);
+	border-right: 1px solid var(--background-modifier-border);
+	padding: var(--size-4-1);
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.qc-icr-import-rail.is-drag-over {
+	background: var(--background-modifier-hover);
+}
+
+.qc-icr-rail-label {
+	font-size: var(--font-ui-smaller);
+	text-transform: uppercase;
+	opacity: 0.6;
+	letter-spacing: 0.5px;
+	margin-bottom: 4px;
+}
+
+.qc-icr-rail-item {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: 6px 8px;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.qc-icr-rail-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.qc-icr-rail-item.is-active {
+	background: rgba(var(--interactive-accent-rgb), 0.15);
+	border-color: var(--interactive-accent);
+}
+
+.qc-icr-rail-item-name {
+	font-weight: var(--font-semibold);
+	font-size: var(--font-ui-small);
+}
+
+.qc-icr-rail-item-meta {
+	font-size: var(--font-ui-smaller);
+	opacity: 0.7;
+	margin-top: 2px;
+}
+
+.qc-icr-rail-badge {
+	color: var(--text-warning);
+}
+
+.qc-icr-rail-drop {
+	border: 2px dashed var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: 12px 8px;
+	text-align: center;
+	font-size: var(--font-ui-smaller);
+	opacity: 0.6;
+	margin-top: auto;
+}
+
+.qc-icr-rail-drop.is-empty {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+/* — Main column (toolbar + body) — */
+.qc-icr-import-main {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.qc-icr-import-toolbar {
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding: 8px 12px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.qc-icr-toolbar-row {
+	display: flex;
+	gap: 4px;
+}
+
+.qc-icr-toolbar-meta {
+	font-size: var(--font-ui-smaller);
+	opacity: 0.6;
+	margin-left: auto;
+}
+
+.qc-icr-toolbar-question {
+	font-size: var(--font-ui-smaller);
+	opacity: 0.7;
+	width: 100%;
+	font-style: italic;
+}
+
+.qc-icr-import-body {
+	flex: 1;
+	overflow-y: auto;
+	padding: 12px 16px;
+}
+
+.qc-icr-empty {
+	opacity: 0.5;
+	text-align: center;
+	padding: 32px;
+	font-size: var(--font-ui-small);
+}
+
+/* — Sections (codebook / sources / ok) — */
+.qc-icr-section {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	margin-bottom: 10px;
+	overflow: hidden;
+}
+
+.qc-icr-section-warn {
+	border-left: 3px solid var(--text-warning);
+}
+
+.qc-icr-section-error {
+	border-left: 3px solid var(--text-error);
+}
+
+.qc-icr-section-ok {
+	border-left: 3px solid var(--text-success);
+}
+
+.qc-icr-section-head {
+	padding: 8px 12px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	background: var(--background-secondary);
+}
+
+.qc-icr-section-head h4 {
+	margin: 0;
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
+.qc-icr-section-meta {
+	font-size: var(--font-ui-smaller);
+	opacity: 0.7;
+}
+
+.qc-icr-section-body {
+	padding: 8px 12px;
+}
+
+/* — Diff rows (codebook section) — */
+.qc-icr-diff-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+	padding: 6px 0;
+	border-bottom: 1px dashed var(--background-modifier-border);
+}
+
+.qc-icr-diff-row:last-of-type {
+	border-bottom: none;
+}
+
+.qc-icr-diff-cell {
+	padding: 4px 8px;
+	background: var(--background-secondary);
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-smaller);
+}
+
+.qc-icr-diff-cell.local {
+	border-left: 2px solid var(--interactive-accent);
+}
+
+.qc-icr-diff-cell.theirs {
+	border-left: 2px solid var(--text-warning);
+}
+
+.qc-icr-diff-actions {
+	text-align: right;
+	margin: 4px 0 8px;
+}
+
+/* — Source rows — */
+.qc-icr-source-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 6px 0;
+	border-bottom: 1px dashed var(--background-modifier-border);
+	gap: 12px;
+}
+
+.qc-icr-source-row:last-of-type {
+	border-bottom: none;
+}
+
+.qc-icr-source-desc {
+	font-size: var(--font-ui-smaller);
+	flex: 1;
+}
+
+.qc-icr-source-actions {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+/* — Footer — */
+.qc-icr-overview-footer {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.qc-icr-overview-footer-sub {
+	font-size: var(--font-ui-smaller);
+	opacity: 0.6;
+	margin-top: 6px;
+}
+
+/* — Buttons — */
+.qc-icr-button {
+	display: inline-block;
+	padding: 4px 10px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	margin-right: 4px;
+}
+
+.qc-icr-button:hover {
+	opacity: 0.9;
+}
+
+.qc-icr-button.secondary {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.qc-icr-button.outline {
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+/* — Side-by-side chip — */
+.qc-icr-filter-row {
+	display: flex;
+	gap: 4px;
+	margin-bottom: 10px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.qc-icr-filter-chip {
+	padding: 2px 10px;
+	border-radius: 10px;
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	user-select: none;
+}
+
+.qc-icr-filter-chip.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.qc-icr-filter-pill {
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: var(--font-ui-smaller);
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	cursor: pointer;
+	user-select: none;
+	margin-left: auto;
+}
+
+.qc-icr-marker-header {
+	font-size: var(--font-ui-smaller);
+	opacity: 0.7;
+	margin-bottom: 6px;
+}
+
+.qc-icr-marker-card {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: 12px;
+	margin-bottom: 8px;
+}
+
+.qc-icr-marker-text {
+	font-style: italic;
+	opacity: 0.85;
+	padding: 4px 8px;
+	background: var(--background-secondary);
+	border-radius: var(--radius-s);
+	margin-bottom: 8px;
+}
+
+.qc-icr-marker-side {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.qc-icr-marker-side-local,
+.qc-icr-marker-side-incoming {
+	padding: 8px;
+	background: var(--background-secondary);
+	border-radius: var(--radius-s);
+}
+
+.qc-icr-marker-side-local h6,
+.qc-icr-marker-side-incoming h6 {
+	margin: 0 0 6px;
+	font-size: var(--font-ui-smaller);
+	opacity: 0.5;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.qc-icr-marker-memo {
+	margin-top: 4px;
+	font-size: var(--font-ui-smaller);
+	opacity: 0.7;
+	font-style: italic;
+}
+
+.qc-icr-code-tag {
+	display: inline-block;
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-smaller);
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	margin-right: 3px;
+}
+
+.qc-icr-code-tag.theirs {
+	background: var(--text-warning);
+	color: var(--background-primary);
+}
+
+.qc-icr-code-tag.absent {
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	opacity: 0.7;
+}
+
+.qc-icr-marker-actions {
+	display: flex;
+	gap: 4px;
+	margin-top: 4px;
+}
+
+/* — Por código chip — */
+.qc-icr-code-block {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	margin-bottom: 8px;
+	overflow: hidden;
+}
+
+.qc-icr-code-block-header {
+	background: var(--background-secondary);
+	padding: 6px 10px;
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
+.qc-icr-code-block-body {
+	padding: 8px 10px;
+	font-size: var(--font-ui-smaller);
+}
+
+.qc-icr-code-block-actions {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	margin-top: 6px;
+}
+
+/* — Coder picker modal — */
+.qc-icr-coder-picker {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px 0;
+}
+
+.qc-icr-coder-picker-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px;
+	cursor: pointer;
+}
+
+.qc-icr-coder-picker-buttons {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 12px;
 }

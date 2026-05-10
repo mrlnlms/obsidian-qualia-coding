@@ -1797,7 +1797,46 @@ Modificações:
 
 Testes: ~75 novos (3075 → 3150 total), em `tests/core/icr/ui/`: coefficientResolver, coefficientPicker, bboxScopeExtraction, overviewTable, overviewHeatmap, coderInclusion, narrativeDiagnostic, compareCoderCoefficientsModal + extensões em overviewMatrix + filterChips.
 
-### 19.10 Companion docs
+### 19.10 UI layer Fase C P1 — Import/Export multi-coder (2026-05-10)
+
+**Surface:** ItemView único `qc-icr-import` (full tab via `getLeaf('tab')`, não sidebar). Layout grid 200px (rail) + 1fr (main com toolbar + body re-render). Reusa pattern `qc-cc-mode-chip` do Compare Coders.
+
+**3 chips no body:**
+- ▦ **Visão geral** — seções inline expandable (codebook divergence + sources problemáticos + OK) + footer Apply via `divergenceResolver.computeBreakdown`
+- ▤ **Lado a lado** — marker-by-marker com nav ←/→ + filter chips (todos/sobrepondo/novos) + filterCodeId opcional. Markers locais sobrepondo via `findOverlappingLocalMarkers` (extract*Range + computeOverlap).
+- ▥ **Por código** — agrupa por codeId com counts + batch actions (Accept all / Skip all / Revisar 1-a-1 → muda chip filtrado)
+
+**Motor estendido (P0 prereq):** `mergeCoderContribution(..., options?: { dryRun?, overrides? })`. `dryRun: true` computa MergeResult sem mutar localData (preview pra UX). `overrides: ResolutionOverrides` aplica skip per-source/code/marker + manter local. Precedência §4.2: skipSource ⊃ skipCode ⊃ skipMarker ⊃ pending.
+
+**Bug latente fixado:** motor agora emite `source_not_found` pra fileIds referenciados por markers que escaparam de `payload.sources` (caso real: extract sem hash registry pro PDF). Sem isso, UX mostraria "N ficam fora" sem seção pra explicar.
+
+**Triggers:**
+- Import = ribbon `git-pull-request` ("ICR Import") + comando `ICR: Open import`
+- Export = botão `↗ exportar contribuição` no toolbar do Compare Coders View + comando `ICR: Export my contribution`. Filter coders por `type === 'human'`. Modal seleção quando >1. Salva em `vault/icr-exports/<slug>-<iso>.json` via `vault.adapter.write`.
+
+**Arquivos novos** em `src/core/icr/contributions/`:
+- `contributionViewTypes.ts` — IcrImportViewState, PendingContribution, ResolutionOverrides + helpers (createEmpty, clone)
+- `contributionLoader.ts` — parse PayloadV1 com erros estruturados
+- `divergenceResolver.ts` — computeBreakdown puro (N_in/N_out)
+- `unifiedIcrImportView.ts` — ItemView, drop handler, keyboard nav, applyContribution, recompute previews sequenciais
+- `importToolbar.ts` — chips + sub-pergunta + meta header
+- `rail.ts` — lista lateral + drop zone (DOM puro testável)
+- `overviewChip.ts` — 3 seções inline + footer
+- `sideBySideChip.ts` — marker card + filter
+- `byCodeChip.ts` — group + batch actions
+- `overlapHelper.ts` — predicate per engine via extract*Range + computeOverlap (markdown degraded sem sourceText)
+- `exportTrigger.ts` — orquestrador export + CoderPickerModal
+
+**Modificações:** `mergeCoderContribution.ts` (options param), `unifiedCompareCodersView.ts:91` (botão export), `main.ts` (registerView + ribbon + 2 commands + helper `openIcrImportView`), `tests/setup.ts` (setText polyfill).
+
+**Limites conhecidos** (refinements no BACKLOG):
+- Markdown overlap retorna [] sem sourceText (degraded mode — PDF + CSV funcionam)
+- Por código overlap = aproximação `min(local, incoming)` por codeId (não range overlap exato)
+- "Map manual" pra source não implementado (só Skip / Trust local)
+
+Testes: 72 novos (3150 → 3222 total), em `tests/core/icr/contributions/`.
+
+### 19.11 Companion docs
 
 - `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
 - `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural

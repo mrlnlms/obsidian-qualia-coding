@@ -107,7 +107,37 @@ Sem esses 4 consumers, a primitiva entregue no Slice 2 cobre os 3 casos mais fre
 
 ---
 
-## 🧱 ICR — Fase C P1 (UX layer, fora do Slice 3)
+## ✅ ICR — Fase C P1 (UX layer) — RESOLVIDO 2026-05-10
+
+Spec + plan arquivados em `obsidian-qualia-coding/plugin-docs/archive/claude_sources/{specs,plans}/20260510-*`. Entregue em branch `icr-fase-c-p1` (mergeado em `main`). 6 frentes resolvidas:
+
+- ✅ **Comando export** — botão `↗ exportar contribuição` no toolbar do Compare Coders View + comando palette `ICR: Export my contribution`. Modal seleção quando >1 humano. Salva em `vault/icr-exports/<slug>-<iso>.json`.
+- ✅ **Modal preview + side-by-side + cherry-pick** — substituído por ItemView único `qc-icr-import` com 3 chips (Visão geral / Lado a lado / Por código). Cherry-pick em 2 níveis: per-marker (chip Lado a lado) + per-code (chip Por código).
+- ✅ **Conflict resolution UX** — inline na Visão geral. `code_overwritten` (name/color) → Manter local / Aceitar incoming. Sources problemáticos → Trust local / Skip source. Default: incoming wins (motor) com override por item.
+- ✅ **Multi-import staging** — rail lateral 200px aceita N contribuições simultâneas via drop ou comando. Sequential apply (cada uma vê efeito da anterior).
+- ✅ **Codebook divergence resolution UX** — seção "Codebook divergiu" inline na Visão geral com diff rows por code + 2 botões. Skip-all em code novo também skipa do codebook (não polui).
+- ✅ **Source divergente alert UX** — seção "Sources com problemas" inline com row por fileId. Bug latente do motor fixado: agora emite `source_not_found` pra fileIds que escaparam de `payload.sources` (extract sem hash registry).
+
+**Decisões cravadas durante implementação:**
+- Surface única (sem modal paralelo, sem setting global, sem dialog de entrada) — cenário é do user, sistema é agnóstico ao N
+- Pattern reusado: `qc-cc-mode-chip` do Compare Coders/Analytics (chip toolbar + sub-pergunta)
+- Markdown overlap em modo degraded (sem fetch async de sourceText) — PDF + CSV funcionam normalmente. Refinement no backlog.
+- Persistência da rail é session-only (arquivo .json é source of truth)
+
+**+72 testes** (3150 → 3222). Smoke roundtrip OK no vault real.
+
+## 🧱 ICR — Fase C P1 — itens restantes (refinements menores)
+
+- [ ] Markdown overlap exato no Lado a lado: pre-fetch sourceText via vault.read antes de render do chip, ou switch para sync read (Obsidian API)
+- [ ] Range overlap exato no Por código: substituir aproximação `min(local, incoming)` por overlap real por codeId
+- [ ] "Map manual" em sources problemáticos (atualmente só Skip / Trust local — falta UI de remap manual pra outro fileId local)
+- [ ] Edge case: 2 contribuições do mesmo coderId na rail — atualmente permite, sem badge "duplicate coder"
+
+---
+
+## 🧱 OBSOLETO (mantido pra histórico de decisão)
+
+### ICR — Fase C P1 (UX layer, fora do Slice 3) — original
 
 Slice 3 (planejado 2026-05-09) entrega **Fase C P0** — funções puras de transport multi-coder remoto sem UI: `extractCoderContribution`, `mergeCoderContribution` (com cross-vault remap embutido), payload JSON format, codebook divergence detection. Testável via script. **Sem UI.** UX layer fica em P1, dependente de brainstorm com user (7 perguntas em aberto + 2 eixos ortogonais — ver `ROADMAP.md §"Infra compartilhada — Fase C"` e `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md §7.1`).
 
