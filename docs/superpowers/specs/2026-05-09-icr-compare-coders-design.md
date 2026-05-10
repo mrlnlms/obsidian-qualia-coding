@@ -9,7 +9,9 @@
 - `obsidian-qualia-coding/plugin-docs/research/ICR — Cenários cobertos e descobertos.md §2.1, §2.2, §5` (gaps in-plugin: ICR completo + negotiated agreement + diferenciador de mercado)
 - `obsidian-qualia-coding/plugin-docs/research/Deep Research Report - ICR Qualitative.md §3` (gap multimodal de mercado QDA)
 - `src/core/auditLog.ts` (audit log central — base do P3 e da reconciliação)
-- `src/core/marginPanelExtension.ts` (base do P1 spatial)
+- `src/core/icr/reporter.ts` + `src/core/icr/coefficients/` (motor κ entregue nos slices 1+4)
+- `src/core/icr/coderRegistry.ts` + `src/core/icr/coderTypes.ts` (Coder/CoderRun do slice 1)
+- `src/markdown/cm6/marginPanelExtension.ts` (base do P1 spatial)
 - `src/core/mergeModal.ts` (referência de pattern Modal + executeMerge)
 - `src/core/smartCodes/smartCodeRegistryApi.ts` + `smartCodeListModal.ts` (referência de pattern saved entity hub)
 
@@ -95,34 +97,55 @@ interface CompareCodersViewState {
 **Escrita do estado:** overview escreve `currentSelection`; drill-down lê. Modal "ver lado a lado" lê tudo mas não escreve. Toolbar escreve `overviewMode`/`drilldownMode`/`primaryCoefficient`/`filters`. Filter chips escrevem `filters`/`scope`.
 
 **Dependências de runtime:**
-- Motor κ (`src/core/icr/motor.ts` + adapters por engine — slices 1+4)
-- Reporter (`src/core/icr/reporter.ts` — slice 4)
-- `CoderRegistry` (slice 1)
+- Reporter (`src/core/icr/reporter.ts`) + coefficients (`src/core/icr/coefficients/`) — slices 1+4
+- Adapters per engine (`src/core/icr/textRange.ts`, adapters em `src/core/icr/`) — slices 1+4
+- `CoderRegistry` (`src/core/icr/coderRegistry.ts`) — slice 1
 - `CodeDefinitionRegistry`
-- `auditLog.ts`
+- `auditLog.ts` (helpers puros — append + soft-delete)
+- DataManager (pra commit das mutations + listener de re-render)
 - Engines existentes pra render do P1 (não cria render novo na Fase 1)
+
+**Helper novo no reporter** (parte do Slice E1): `reportPairwise(inputs, pairs)` em `src/core/icr/reporter.ts` que recebe lista de pares e retorna `{ pair, report }[]` com cada par tendo seu próprio `KappaInput` restrito (filter dos coders fora do par). Necessário porque Cohen κ é o único intrinsecamente pair-keyed; Fleiss/α/α-binary/cu-α são scalar over cohort — pra matriz coder×coder de qualquer coeficiente, calcula-se restrito ao par. Mode A consome este helper.
+
+**EngineId vs EngineType:** spec usa `EngineId` (de `reporter.ts`: `'markdown' | 'pdf' | 'csvSegment' | 'csvRow' | 'audio' | 'video'`) consistentemente. NÃO usar `EngineType` (de `types.ts`, valores diferentes — `'markdown' | 'pdf' | 'csv' | 'image' | 'audio' | 'video'`). Choice: `EngineId` é a granularidade que o motor ICR opera (segment/row separados em CSV); UI Compare Coders herda essa granularidade.
 
 **Lifecycle:**
 - `onOpen()` carrega scope default ou último saved comparison ativo (`loadedFromSavedId`)
 - `onClose()` salva `lastUsed` em `data.json` se config não vem de saved
-- Re-render reativo a mudanças no `auditLog`/`registry` via listeners existentes (`addOnMutate`)
+- **Re-render reativo:** `CodeDefinitionRegistry` + `CoderRegistry` + `ComparisonRegistry` já têm `addOnMutate`. Audit log NÃO tem listener nativo (helpers puros) — solução: subscrever ao `DataManager.onSave` (ou criar hook explícito `auditLog.onAppend(fn)` na implementação do E3). Sempre que reconciliação ou nova decisão é commitada, view re-renderiza P3 + recalcula κ exibido
 
 ---
 
 ## 2. Mudanças no data model
 
-### 2.1 AuditEntry — 3 event types novos
+### 2.1 AuditEntry — 3 event types novos sob discriminator `'reconciliation'`
 
-Em `src/core/types.ts`, append no union `AuditEntry`:
+Em `src/core/types.ts`, estender `BaseAuditEntry.entity?` com `'reconciliation'` e append no union `AuditEntry`. Pattern espelha `'smartCode'` — discriminator separa escopo do `codeId` e dos filtros.
+
+`BaseAuditEntry.entity` fica:
+```typescript
+entity?: 'code' | 'smartCode' | 'reconciliation';
+```
+
+Para `entity: 'reconciliation'`, `BaseAuditEntry.codeId` carrega um **anchor code** que define em qual Code Stability Timeline a entry aparece:
+- `reconciliation_decided{kind:'adopt'}`: `codeId = decision.codeId` (target code adotado)
+- `reconciliation_decided{kind:'split'}`: `codeId = decision.newCodeId` (code novo criado)
+- `reconciliation_decided{kind:'accept-divergence'}`: `codeId = candidateCodeIds[0]` (anchor arbitrário — entry aparece no timeline do primeiro candidato; se não houver candidatos, `codeId = ''` e entry só aparece na queue P3)
+- `reconciliation_opened`: `codeId = candidateCodeIds[0]` (mesmo critério)
+- `reconciliation_reverted`: `codeId` herda do `originalEntryId` referenciado
+
+Append:
 
 ```typescript
 | (BaseAuditEntry & {
+    entity: 'reconciliation';
     type: 'reconciliation_opened';
     region: { fileId: string; engine: EngineId; bounds: ReconciliationBounds };
     coderIds: CoderId[];
     candidateCodeIds: string[];
   })
 | (BaseAuditEntry & {
+    entity: 'reconciliation';
     type: 'reconciliation_decided';
     region: { fileId: string; engine: EngineId; bounds: ReconciliationBounds };
     coderIds: CoderId[];
@@ -131,6 +154,7 @@ Em `src/core/types.ts`, append no union `AuditEntry`:
     memoOfReconciliation: string;
   })
 | (BaseAuditEntry & {
+    entity: 'reconciliation';
     type: 'reconciliation_reverted';
     originalEntryId: string;
     restoredMarkerIds: string[];
@@ -159,17 +183,34 @@ interface MarkerSnapshot {
 
 **Coalescing:** nenhum. Cada decisão de reconciliação é atômica. Sem janela de 60s (ao contrário de `description_edited`/`memo_edited`).
 
+**Extensão de `renderEntryMarkdown`** (work item explícito do Slice E3): o switch em `src/core/auditLog.ts` (linha ~118) precisa lidar com os 3 types novos. Sem isso, TS narrowing exhaustiveness quebra build OU entries caem no fallback silencioso e somem do export. Format sugerido:
+```
+- 2026-05-09 14:30  Reconciliation opened: 3 coders on "trecho..."
+- 2026-05-09 14:32  Reconciliation decided: adopted "Frustração" (consensus marker)
+- 2026-05-09 14:35  Reconciliation reverted (entry: audit_xyz)
+```
+Soft-delete (`hidden`) e filter functions (`getEntriesForCode`) tratam reconciliação como qualquer outra entry — anchor `codeId` decide em qual timeline aparece.
+
 ### 2.2 Coder type — `'consensus'` adicional
 
-Em `src/core/icr/types.ts` (ou onde `CoderKind` mora):
+Em `src/core/icr/coderTypes.ts`:
 
 ```typescript
 type CoderKind = 'human' | 'llm' | 'consensus';
 ```
 
-`CoderId` continua sendo `${kind}:${slug}`. Convenção: 1 vault → 1 consensus coder default (`'consensus:default'`); múltiplos permitidos pra workflows com waves de reconciliação (`'consensus:wave-1'`, `'consensus:final'`).
+`CoderId` continua `${kind}:${slug}`. Convenção: 1 vault → 1 consensus coder default (`'consensus:default'`); múltiplos permitidos pra workflows com waves de reconciliação (`'consensus:wave-1'`, `'consensus:final'`).
 
-**Bloqueio em coding ativo:** UI dos engines bloqueia "codificar como consensus:*" — o coder só recebe markers via `executeReconciliationDecision`. Validação no submit dos popovers de coding.
+**Método novo no `CoderRegistry`** (`src/core/icr/coderRegistry.ts`): `createConsensus(slug: string, displayName?: string): Coder`. Retorna `Coder` com `id: 'consensus:${slug}'`, `name: displayName ?? 'Consensus (${slug})'`, `type: 'consensus'`, `createdAt: Date.now()`. Idempotente — se já existe, retorna o existente.
+
+`fromJSON` round-trip: já é genérico (itera array de `Coder` e re-popula Map). Aceita `'consensus'` automático sem mudança no método. Validar via teste.
+
+**Bloqueio em coding ativo:** UI bloqueia codificar como `consensus:*`. Pontos de entrada (callsites de marker creation):
+- `src/markdown/cm6/codingPopover.ts` (popover de seleção de código no markdown)
+- `src/core/baseCodingMenu.ts` (menu compartilhado de coding)
+- Equivalentes em PDF / CSV / image / audio / video
+
+Helper novo no registry: `getCodableCoders(): Coder[]` — retorna `coders.filter(c => c.type !== 'consensus')`. UI lista só esses no picker. Tentativa de submit com `codedBy: 'consensus:*'` via API direta (testes / scripts) é permitido — bloqueio é só UX layer.
 
 ### 2.3 SavedComparison schema
 
@@ -219,7 +260,7 @@ Zero. Todos os campos novos são opcionais/aditivos:
 
 **Pergunta visível:** `qual par de coders diverge mais?`
 
-**Render:** grade `N × N` onde `N = scope.coderIds.length`. Diagonal cinza com "—". Célula `(i, j)` (`i ≠ j`) pinta com `primaryCoefficient` calculado entre `coderI` e `coderJ` via reporter `byCoderPair` agregado.
+**Render:** grade `N × N` onde `N = scope.coderIds.length`. Diagonal cinza com "—". Célula `(i, j)` (`i ≠ j`) pinta com `primaryCoefficient` calculado entre `coderI` e `coderJ` via `reportPairwise(inputs, [[coderI, coderJ]])` (helper novo descrito em §1). Para Cohen κ pareado, lê direto de `reportKappa(inputs).aggregate.cohenKappa[`${coderI}|${coderJ}`]` (já é per-pair). Para Fleiss/α/α-binary/cu-α que são scalar over cohort, `reportPairwise` filtra `KappaInput` pra incluir só os 2 coders do par e roda `reportKappa` reduzido — resultado vai pra célula.
 
 **Color scale (não-configurável):**
 - `< 0.4` vermelho (`#c1352e`)
@@ -319,6 +360,7 @@ Implementação: texto small abaixo do label do chip ativo. UX cheap, refatora s
 - Linha do CSV recebe N background colors empilhados (1 por coder, com transparência)
 - Border-left por coder no header da row
 - Tooltip por hover mostra `[ coder | code | memo ]` por marker
+- Plug-in point: `src/csv/csvCodingView.ts` (renderer da grid AG Grid Infinite). Marker styling existente já usa `cellStyle` callback — extensão recebe N coders e gera gradient de N cores. Header injection via `src/csv/csvHeaderInjection.ts` pra border-left por coder
 
 **audio · vídeo** (Fase 2):
 - Timeline horizontal com lanes verticais por coder
@@ -456,9 +498,39 @@ Toggle no toolbar (`filters.excludeConsensusCoders`). Modal "ver lado a lado" mo
 
 ---
 
-## 5. Reconciliação — função pura
+## 5. Reconciliação — função orquestradora + adapter de markers
 
-`executeReconciliationDecision(params)` em `src/core/icr/reconciliation.ts` (novo arquivo). Padrão de `executeMerge` (`src/core/mergeModal.ts`).
+`executeReconciliationDecision(params)` em `src/core/icr/reconciliation.ts` (novo arquivo). Diferença com `executeMerge` (`src/core/mergeModal.ts`): `executeMerge` opera sobre 1 array `BaseMarker[]` injetado pelo caller — é puro sobre 1 engine de cada vez, e o caller (em `baseCodeDetailView.ts`) sabe qual engine. Reconciliação **opera cross-engine** (decisão pode envolver markers de markdown + pdf + csv simultaneamente em casos M:N) e precisa de creation/deletion/update genérico — então NÃO segue o pattern direto de `executeMerge`. Em vez disso, recebe um adapter `IcrMarkerOps` que abstrai as 5 engines.
+
+### 5.1 IcrMarkerOps — façade per-engine
+
+Interface nova em `src/core/icr/markerOps.ts`:
+
+```typescript
+interface IcrMarkerOps {
+  /** Cria marker novo na engine indicada. Retorna o marker criado (com id alocado). */
+  createMarker(engine: EngineId, spec: { fileId: string; bounds: ReconciliationBounds; codeIds: string[]; codedBy: CoderId }): { markerId: string };
+
+  /** Remove marker por id. No-op se não existir. */
+  removeMarker(engine: EngineId, fileId: string, markerId: string): void;
+
+  /** Update mutable fields. Re-aplicável (mesmo que o registry pattern). */
+  updateMarker(engine: EngineId, fileId: string, markerId: string, fields: { codes?: CodeApplication[] }): void;
+
+  /** Snapshot serializável do marker pra revert. */
+  serializeMarker(engine: EngineId, fileId: string, markerId: string): MarkerSnapshot;
+
+  /** Restore marker via snapshot. Engine-specific: markdown re-insere; PDF re-attach a fileMetadata; CSV reconstrói row anchor. */
+  restoreMarker(snapshot: MarkerSnapshot): void;
+
+  /** Encontra markers que sobrepõem uma região. Pra coletar coders perdedores no overwrite-mode. */
+  findMarkersInRegion(region: { fileId: string; engine: EngineId; bounds: ReconciliationBounds }): { markerId: string; codedBy: CoderId; codes: CodeApplication[] }[];
+}
+```
+
+Implementação concreta `IcrMarkerOpsImpl` no `main.ts` da plugin instance, wrappando os 5 engine models existentes (markdown via `codeMarkerModel`, PDF via `pdfModel`, CSV via `csvModel`, áudio/vídeo via seus models). Mapping engine → método específico fica em uma única tabela. Detalhe per-engine fica pro plan; spec garante que as 5 engines têm operações equivalentes (`createMarker`/`removeMarker`/etc) — verificável grep'ando os models.
+
+### 5.2 Função orquestradora
 
 ```typescript
 interface ReconciliationParams {
@@ -472,8 +544,8 @@ interface ReconciliationParams {
   // dependências injetadas
   registry: CodeDefinitionRegistry;
   coderRegistry: CoderRegistry;
-  data: QualiaData;
   log: AuditEntry[];
+  markerOps: IcrMarkerOps;
 }
 
 interface ReconciliationResult {
@@ -482,34 +554,39 @@ interface ReconciliationResult {
   consensusMarkerId?: string;
   newCodeId?: string;          // se decision.kind === 'split'
   preStateSnapshot?: MarkerSnapshot[];
+  auditEntryId: string;        // id da entry emitida
 }
 
 function executeReconciliationDecision(params: ReconciliationParams): ReconciliationResult;
-function executeReconciliationRevert(originalEntryId: string, params: ...): ReconciliationResult;
+function executeReconciliationRevert(originalEntryId: string, params: Omit<ReconciliationParams, 'region' | 'coderIds' | 'decision' | 'memoOfReconciliation' | 'consensusBounds' | 'consensusCoderId'>): ReconciliationResult;
 ```
+
+### 5.3 Pipeline
 
 **Pipeline (ações `adopt` / `split`):**
 1. Valida region (engine válida, bounds parseáveis)
-2. Garante consensus coder no registry (cria se ausente)
-3. Se `mode === 'overwrite-originals'`: snapshot dos markers dos coders perdedores em `preStateSnapshot`; mutate `codes` via `removeCodeApplication` + `addCodeApplication`
-4. Cria consensus marker via engine model (`addMarker` ou equivalente do MarkerInterface). Se `kind === 'split'`, antes cria CodeDefinition nova
-5. Emite `reconciliation_decided` no audit log com todos os campos preenchidos
-6. Retorna `ReconciliationResult`
+2. Garante consensus coder no registry (`coderRegistry.createConsensus(slug)` — idempotente)
+3. Se `decision.kind === 'split'`, cria CodeDefinition nova via `registry.create(...)` e captura `newCodeId`
+4. Determina `targetCodeId`: `decision.kind === 'adopt' ? decision.codeId : newCodeId`
+5. Se `mode === 'overwrite-originals'`: `markerOps.findMarkersInRegion(region)` → para cada marker dos coders perdedores: `serializeMarker` pra `preStateSnapshot[]`; `markerOps.updateMarker` trocando o code original pelo `targetCodeId`
+6. Cria consensus marker: `markerOps.createMarker(engine, { fileId, bounds: consensusBounds ?? unionOfCoderBounds, codeIds: [targetCodeId], codedBy: consensusCoderId ?? 'consensus:default' })`
+7. Emite `reconciliation_decided` no audit log via `appendEntry(log, { entity: 'reconciliation', type: 'reconciliation_decided', codeId: targetCodeId, region, coderIds, decision: { ...decision, preStateSnapshot, ... }, consensusMarkerId, memoOfReconciliation, at: Date.now() })`
+8. Retorna `ReconciliationResult`
 
 **Pipeline (ação `accept-divergence`):**
 1. Valida region
-2. Emite `reconciliation_decided{ kind: 'accept-divergence' }` no audit
-3. Retorna `{ ok: true }`
+2. Emite `reconciliation_decided{ kind: 'accept-divergence' }` no audit (codeId = `candidateCodeIds[0]` ou `''`)
+3. Retorna `{ ok: true, auditEntryId }`
 
 **Pipeline (revert):**
-1. Procura `originalEntryId` no audit
-2. Branch por `decision.kind`:
-   - `adopt/consensus-marker` ou `split/consensus-marker`: deleta consensus marker pelo `consensusMarkerId`
-   - `adopt/overwrite-originals` ou `split/overwrite-originals`: pra cada `MarkerSnapshot`, restaura marker via deserialize
-   - `accept-divergence`: nada
-3. Emite `reconciliation_reverted{ originalEntryId, restoredMarkerIds }`
+1. Procura `originalEntryId` no audit (helper pequeno que filtra por id)
+2. Branch por `decision.kind` + `mode`:
+   - `adopt/consensus-marker` ou `split/consensus-marker`: `markerOps.removeMarker(engine, fileId, consensusMarkerId)`. `restoredMarkerIds = [consensusMarkerId]`
+   - `adopt/overwrite-originals` ou `split/overwrite-originals`: pra cada `MarkerSnapshot`, `markerOps.restoreMarker(snapshot)`. `restoredMarkerIds = snapshots.map(s => s.markerId)`
+   - `accept-divergence`: nada. `restoredMarkerIds = []`
+3. Emite `reconciliation_reverted{ originalEntryId, restoredMarkerIds }` no audit (codeId herda do original)
 
-**Função pura?** Recebe `data`, `log` por referência. Mutates in-place (igual a `executeMerge`). Caller dispara via `dataManager.commit()` pra persistir.
+**Pure-ish?** Recebe `log` + `markerOps` por referência. `log` mutates via `appendEntry` (in-place, idempotente). `markerOps` é side-effecting (dispara mutations nos engine models). Caller dispara `dataManager.commit()` pra persistir. Padrão alinhado com `executeMerge` pattern indireto (registry mutations dentro do pipeline disparam audit + persistência via DataManager).
 
 ---
 
@@ -659,7 +736,7 @@ Estado **ephemeral** (não cria saved). Pattern de "atalho contextual" já exist
 - `drilldownMode`: `'spatial'`
 - `primaryCoefficient`: `'cohen'`
 
-**Warning de escopo grande:** se `<estimateMarkerCount(scope)>` excede `10_000`, mostra notice "Escopo grande, considerar filtrar antes de calcular κ" mas **não bloqueia**. Pesquisador escolhe.
+**Warning de escopo grande:** **fora da V1.** Default sempre calcula com escopo completo; pesquisador filtra manualmente se ficar lento. Otimização "warning + estimate count" entra em backlog (§11) — depende de helper `estimateMarkerCount` que ainda não existe e adicionar agora seria specing pra cenário hipotético.
 
 ---
 
@@ -671,9 +748,10 @@ Estado **ephemeral** (não cria saved). Pattern de "atalho contextual" já exist
 
 **Escopo:**
 - `UnifiedCompareCodersView` (ItemView + estado central + toolbar + 2 mode pickers)
-- Overview Mode A (matriz coder × coder) com Cohen κ default
+- Helper novo `reportPairwise` em `src/core/icr/reporter.ts`
+- Overview Mode A (matriz coder × coder) com **Cohen κ hardcoded** (sem coefficient picker — entra no E2)
 - Drill-down P1 (spatial lanes) pra markdown + pdf-text + csv-segment
-- CSV row: lane simples (linha colorida)
+- CSV row: lane simples (linha colorida) com `cellStyle` callback no AG Grid
 - Filter chips: liga/desliga coders + "destacar conflitos"
 - Entry point: command palette `Compare Coders: Open`
 - Read-only (sem reconciliação)
@@ -681,9 +759,9 @@ Estado **ephemeral** (não cria saved). Pattern de "atalho contextual" já exist
 
 **Smoke real obrigatório:**
 1. Abre view via palette
-2. Vê matriz 4x4 com κ entre coders sintéticos
+2. Vê matriz 4x4 com Cohen κ entre coders sintéticos
 3. Clica numa célula com κ < 0.5
-4. Drill-down P1 mostra lanes do par no source
+4. Drill-down P1 mostra lanes do par no source (markdown + csv segment)
 5. Filter chip "destacar conflitos" funciona
 
 ### Slice E2 — Modes B/C + Modal "ver lado a lado"
@@ -705,28 +783,49 @@ Estado **ephemeral** (não cria saved). Pattern de "atalho contextual" já exist
 5. Click `↧ exportar markdown` → arquivo gerado
 6. Caixa de diagnóstico aparece quando padrão reconhecível
 
-### Slice E3 — Reconciliação UI (P2 + P3)
+### Slice E3a — Schema + executeReconciliationDecision + P2 cards
 
-**Entrega:** "negotiated agreement com audit trail"
+**Entrega:** "consigo fazer 1 decisão de reconciliação e ela fica registrada"
 
 **Escopo:**
-- Schema: 3 audit types `reconciliation_*` + Coder type `'consensus'`
-- `executeReconciliationDecision` (função pura) + `executeReconciliationRevert`
+- Schema: extensão `entity?: 'reconciliation'` + 3 audit types `reconciliation_*` + extensão de `renderEntryMarkdown`
+- Coder type `'consensus'` em `coderTypes.ts` + `createConsensus` em `coderRegistry.ts` + `getCodableCoders()` helper
+- UI bloqueio em coding ativo (filtro `getCodableCoders()` em popovers das 5 engines)
+- `IcrMarkerOps` interface + `IcrMarkerOpsImpl` no main.ts wrappando os 5 engine models
+- `executeReconciliationDecision` + `executeReconciliationRevert` (função orquestradora)
 - Drill-down P2 (cards lado a lado + 4 ações + memo de reconciliação)
-- Drill-down P3 (queue 4 colunas + revert + export relatório)
-- Consensus marker creation + overwrite-mode com snapshot
-- κ pré vs pós (toggle `excludeConsensusCoders`)
-- Audit entries aparecem na Code Stability Timeline existente
+- Audit entries aparecem na Code Stability Timeline existente do anchor code
 
 **Smoke real obrigatório:**
 1. Em P1, click numa região contestada → drill-down troca pra P2
-2. P2 mostra 3 cards (1 por coder)
-3. Click `Adotar Frustração` → consensus marker criado, P3 atualiza coluna `Resolvidos`
-4. Toggle `excludeConsensusCoders` → κ recalcula
-5. Click `Reverter` em P3 → consensus marker some, card volta pra `Abertos`
-6. Repete com `Adotar X (substituir originais)` → markers originais mudam, snapshot preservado
-7. Reverter restaura snapshot
-8. `Manter divergência` registra no audit sem mudar markers
+2. P2 mostra cards dos coders com código, magnitude, memo
+3. Click `Adotar Frustração` → consensus marker criado em vault, audit entry visível na Timeline do código `Frustração`
+4. Click `Reverter` no audit timeline → consensus marker some
+5. Repete com `Adotar X (substituir originais)` → markers originais mudam, snapshot preservado em audit
+6. Reverter restaura markers originais via snapshot
+7. `Manter divergência` registra no audit sem mudar markers
+8. `Split em código novo` cria code novo + consensus marker no novo code
+9. `Manter divergência` com `candidateCodeIds = []` resulta em entry com `codeId = ''` — verifica que aparece em P3 (E3b) mas não polui Code Stability Timeline de nenhum code (corner case)
+
+### Slice E3b — P3 queue + κ pré/pós + export relatório
+
+**Entrega:** "consigo ver o pipeline de reconciliação e exportar relatório pro paper"
+
+**Escopo:**
+- Drill-down P3 (queue 4 colunas: Abertos / Em discussão / Resolvidos / Divergência aceita)
+- Lógica derivada do "Abertos" — computa regiões com κ < 1.0 entre coders no escopo, menos as decididas
+- Reverter via P3 (botão no card)
+- Export relatório markdown estruturado (timeline + memos + κ pré e pós)
+- Toggle `excludeConsensusCoders` no toolbar + reporter flag correspondente
+- Modal "ver lado a lado" mostra coluna pré + pós quando há consensus coders
+
+**Smoke real obrigatório:**
+1. Após várias decisões em E3a, abre P3
+2. Vê cards distribuídos nas 4 colunas
+3. Click card de `Resolvidos` → carrega P2 com a região
+4. Click `Reverter` no card → card volta pra `Abertos`
+5. Toggle `excludeConsensusCoders` no toolbar → matriz/heatmap recalculam
+6. Click `Exportar relatório de reconciliação` → markdown gerado com timeline completa
 
 ### Slice E4 — Saved Comparisons + ribbon + contextual
 
@@ -763,7 +862,9 @@ Estado **ephemeral** (não cria saved). Pattern de "atalho contextual" já exist
 | **Synthetic data** | Estende `ICR-test/` (slice 1) com 4-coder scenarios incluindo 1 consensus pré-criado em alguns casos, csv-row markers, regiões com diferentes tipos de discordância (boundary / code / existência) |
 | **Smoke real obrigatório** | Cada slice (E1-E4) tem checklist de smoke explícito acima |
 
-**Estimativa de testes:** ~80-120 testes novos no total dos 4 slices, em linha com slices ICR anteriores (Slice 1 = 62, Slice 2 = 24, Slice 3 = 26, Slice 4 = 23, Slice 5 = 10).
+**Estimativa de testes:** ~80-120 testes novos no total dos 5 slices (E1, E2, E3a, E3b, E4), em linha com slices ICR anteriores (Slice 1 = 62, Slice 2 = 24, Slice 3 = 26, Slice 4 = 23, Slice 5 = 10).
+
+**Test fixtures pra diagnóstico narrativo (§6):** as regras hardcoded que disparam as caixas amarelas precisam de testes que validem trigger correto pra cada padrão (`κ<X + α-binary>Y` etc). Listar fixtures com valores limítrofes pra confirmar não disparar em cenários adjacentes.
 
 **Test file structure:**
 ```
@@ -797,6 +898,7 @@ Registrar em `docs/BACKLOG.md` quando frente fechar:
 - **Multi-vault saved comparisons sync** — fora de escopo dessa frente
 - **Re-cálculo incremental do reporter** — V1 recalcula full byEngine quando seleção/scope muda. Reporter granular (só recalcula o que mudou) entra se latência reportar
 - **Pre-warm de durações de media files** — já registrado em backlog ICR Slice 4; bate aqui se Compare Coders abrir scope grande de áudio/vídeo na Fase 2
+- **`estimateMarkerCount(scope)` + warning de escopo grande** — V1 sempre calcula full; pesquisador filtra manualmente se ficar lento. Otimização entra se latência reportar em vault grande
 
 ---
 
