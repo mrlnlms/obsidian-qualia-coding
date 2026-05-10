@@ -23,6 +23,10 @@ npm run dev                         # esbuild watch mode (hot reload com hot-rel
 bash scripts/smoke-roundtrip.sh     # prepara vault temp em ~/Desktop/temp-roundtrip/ com plugin instalado
                                     # pra smoke test manual do QDPX round-trip
                                     # SKIP_BUILD=1 pra pular o build
+node scripts/smoke-icr-bbox.mjs <fileId>  # seed 15 PdfShapeMarkers + 2 coders no data.json
+                                    # pra smoke test do ICR bbox adapter (Slice 6) em vault real
+                                    # ex: node scripts/smoke-icr-bbox.mjs ICR-test/ICR-entrevista-1.pdf
+                                    # consumir via console: plugin.__icrSmoke.bboxAdapter / cohenKappa
 ```
 
 ### Output

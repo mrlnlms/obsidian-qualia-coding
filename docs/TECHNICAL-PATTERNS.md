@@ -2387,6 +2387,63 @@ Tentar invalidar caches de TODOS os files a cada modify (sem checar tracked-ness
 
 ---
 
+## 42. Hungarian/Munkres rectangular nativo > padding-to-square
+
+### Problema
+
+Implementação ingênua de Hungarian assignment em matrizes retangulares N×M (N≠M) faz padding ao quadrado: cria matriz `max(N,M)×max(N,M)` preenchendo cells extras com BIG cost finito (ou Infinity). Linhas/cols extras nunca são "escolhidas" porque BIG > qualquer custo real, e o algoritmo Munkres roda na matriz quadrada.
+
+**O bug:** em casos com muitas cells de cost igual (ex: matriz 10×5 onde 5 cells têm cost=0 únicos por linha+coluna e o resto cost=1), o ótimo dual da Munkres convergia pra assignment SUB-ÓTIMO. Picava 2 cells de cost=0 + 3 cells de cost=1 (total real = 3) em vez dos 5 cells de cost=0 (total real = 0).
+
+Padding-to-square introduzia interações entre linhas reais e cols-padding via atualizações de potencial dual (`u[]` e `v[]`) que não acontecem na versão rectangular. Bug silencioso — testes 2×2/2×3 pequenos passavam.
+
+**Onde foi pego:** smoke real Slice 6 ICR. Caso 10 carla × 5 joana com 5 matches espacialmente perfeitos. Esperado: 5 matched + 5 unmatched_a. Observado: 2 matched + 8 unmatched (events totalUnits=13 em vez de 10). Cohen κ deu valor errado (-0.5 em vez de 0). Unit tests não pegaram porque cobriam só matrizes 2×2/2×3.
+
+### Solução
+
+Versão rectangular CP-Algorithms exige `n ≤ m`. Wrapper transpõe automaticamente quando `n > m` e faz swap dos índices na saída:
+
+```ts
+export function hungarianAssignment(cost: number[][]): Array<[number, number]> {
+  const n = cost.length;
+  if (n === 0) return [];
+  const m = cost[0]!.length;
+  if (m === 0) return [];
+
+  if (n > m) {
+    const transposed = Array(m).fill(0).map((_, j) =>
+      Array(n).fill(0).map((_, i) => cost[i]![j]!),
+    );
+    const result = hungarianRectangular(transposed);
+    return result.map(([j, i]) => [i, j]);  // swap back
+  }
+  return hungarianRectangular(cost);
+}
+
+function hungarianRectangular(cost: number[][]): Array<[number, number]> {
+  // CP-Algorithms Munkres com loops sobre n linhas e m cols (sem padding)
+  // ...
+}
+```
+
+Sem padding, sem BIG, sem floats infinitos. Complexidade O(n²·m).
+
+### Quando aplicar
+
+- Qualquer assignment problem em matrizes não-quadradas no codebase.
+- Bug pode estar latente em outras implementações de algoritmos com "padding pra simplificar dimensões" (square-pad em FFT é OK; square-pad em otimização discreta com custos finitos NÃO é).
+
+### Onde está implementado
+
+- `src/core/icr/bboxMatcher.ts` — `hungarianAssignment` (público) + `hungarianRectangular` (privado).
+- Test de regressão: `tests/core/icr/bboxMatcher.test.ts` cenário "regression: 10×5 com 5 cells de cost=0 únicos por row+col não-padding (smoke real)".
+
+### Lição transversal
+
+**Smoke em runtime real pegou bug que 13 unit tests não pegaram.** Reforça regra TOP PRIORITY do CLAUDE.md: testes verde ≠ feito; smoke por chunk é checkpoint obrigatório. O bug do Hungarian existia desde o primeiro commit do bboxMatcher; só apareceu quando dimensões realistas (10×5 + muitos cells iguais) foram exercitadas.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
