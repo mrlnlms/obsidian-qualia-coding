@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mergeCoderContribution } from '../../../../src/core/icr/transport/mergeCoderContribution';
 import { extractCoderContribution } from '../../../../src/core/icr/transport/extractCoderContribution';
 import { SourceHashRegistry } from '../../../../src/core/icr/sourceHashRegistry';
+import { createEmptyOverrides } from '../../../../src/core/icr/contributions/contributionViewTypes';
 import type { QualiaData } from '../../../../src/core/types';
 
 function makeData(): QualiaData {
@@ -250,5 +251,144 @@ describe('mergeCoderContribution dryRun', () => {
 		expect(targetData.pdf.markers.length).toBe(beforePdf);
 		expect(targetData.csv.segmentMarkers.length).toBe(beforeCsv);
 		expect(result.added.markers).toBe(2); // contou os 2 mesmo sem mutar
+	});
+});
+
+describe('mergeCoderContribution overrides', () => {
+	it('codebookOverrides[codeId] = "local" skipa overwrite desse code', async () => {
+		const { sourceData, targetData, sourceReg, targetReg } = await setup(
+			{ 'shared.md': 'shared' },
+			{ 'shared.md': 'shared' },
+		);
+		// Local tem code com nome OLD
+		targetData.registry.definitions['c1'] = { id: 'c1', name: 'OLD-NAME', color: '#fff', paletteIndex: 0, createdAt: 1, updatedAt: 1, childrenOrder: [] };
+		targetData.registry.rootOrder.push('c1');
+		// Source tenta renomear pra NEW
+		sourceData.registry.definitions['c1'] = { id: 'c1', name: 'NEW-NAME', color: '#fff', paletteIndex: 0, createdAt: 1, updatedAt: 1, childrenOrder: [] };
+		sourceData.markdown.markers['shared.md'] = [{
+			markerType: 'markdown', id: 'm1', fileId: 'shared.md',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
+			color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla',
+			createdAt: 1, updatedAt: 1,
+		}];
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+		const overrides = createEmptyOverrides();
+		overrides.codebookOverrides.set('c1', 'local');
+
+		await mergeCoderContribution(targetData, payload, targetReg, { overrides });
+
+		expect(targetData.registry.definitions['c1']!.name).toBe('OLD-NAME');
+	});
+
+	it('codebookOverrides[codeId] = "skip" pra code novo: não adiciona ao registry', async () => {
+		const { sourceData, targetData, sourceReg, targetReg } = await setup(
+			{ 'shared.md': 'shared' },
+			{ 'shared.md': 'shared' },
+		);
+		// Source tem code que local não tem
+		sourceData.registry.definitions['c999'] = { id: 'c999', name: 'BRAND-NEW', color: '#fff', paletteIndex: 0, createdAt: 1, updatedAt: 1, childrenOrder: [] };
+		sourceData.markdown.markers['shared.md'] = [{
+			markerType: 'markdown', id: 'm1', fileId: 'shared.md',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
+			color: '#fff', codes: [{ codeId: 'c999' }], codedBy: 'human:carla',
+			createdAt: 1, updatedAt: 1,
+		}];
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+		const overrides = createEmptyOverrides();
+		overrides.codebookOverrides.set('c999', 'skip');
+
+		await mergeCoderContribution(targetData, payload, targetReg, { overrides });
+
+		expect(targetData.registry.definitions['c999']).toBeUndefined();
+	});
+
+	it('sourceOverrides[fid] = "skip-source": markers desse source ficam fora (somam em pendingMarkers)', async () => {
+		const { sourceData, targetData, sourceReg, targetReg } = await setup(
+			{ 'shared.md': 'shared' },
+			{ 'shared.md': 'shared' },
+		);
+		sourceData.markdown.markers['shared.md'] = [
+			{ markerType: 'markdown', id: 'm1', fileId: 'shared.md', range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 1 } }, color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla', createdAt: 1, updatedAt: 1 },
+			{ markerType: 'markdown', id: 'm2', fileId: 'shared.md', range: { from: { line: 0, ch: 1 }, to: { line: 0, ch: 2 } }, color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla', createdAt: 1, updatedAt: 1 },
+		];
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+		const overrides = createEmptyOverrides();
+		overrides.sourceOverrides.set('shared.md', 'skip-source');
+
+		const result = await mergeCoderContribution(targetData, payload, targetReg, { overrides });
+
+		expect(result.added.markers).toBe(0);
+		expect(result.pendingMarkers).toBe(2);
+		expect(targetData.markdown.markers['shared.md']).toBeUndefined();
+	});
+
+	it('perMarkerSkip: skipa marker individual', async () => {
+		const { sourceData, targetData, sourceReg, targetReg } = await setup(
+			{ 'shared.md': 'shared' },
+			{ 'shared.md': 'shared' },
+		);
+		sourceData.markdown.markers['shared.md'] = [
+			{ markerType: 'markdown', id: 'm1', fileId: 'shared.md', range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 1 } }, color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla', createdAt: 1, updatedAt: 1 },
+			{ markerType: 'markdown', id: 'm2', fileId: 'shared.md', range: { from: { line: 0, ch: 1 }, to: { line: 0, ch: 2 } }, color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla', createdAt: 1, updatedAt: 1 },
+			{ markerType: 'markdown', id: 'm3', fileId: 'shared.md', range: { from: { line: 0, ch: 2 }, to: { line: 0, ch: 3 } }, color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla', createdAt: 1, updatedAt: 1 },
+		];
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+		const overrides = createEmptyOverrides();
+		overrides.perMarkerSkip.add('m2');
+
+		const result = await mergeCoderContribution(targetData, payload, targetReg, { overrides });
+
+		expect(result.added.markers).toBe(2);
+		const ids = (targetData.markdown.markers['shared.md'] ?? []).map(m => m.id);
+		expect(ids).toEqual(['m1', 'm3']);
+	});
+
+	it('perCodeSkip: skipa todos markers desse code', async () => {
+		const { sourceData, targetData, sourceReg, targetReg } = await setup(
+			{ 'shared.md': 'shared' },
+			{ 'shared.md': 'shared' },
+		);
+		sourceData.registry.definitions['cX'] = { id: 'cX', name: 'X', color: '#fff', paletteIndex: 1, createdAt: 1, updatedAt: 1, childrenOrder: [] };
+		sourceData.markdown.markers['shared.md'] = [
+			{ markerType: 'markdown', id: 'm1', fileId: 'shared.md', range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 1 } }, color: '#fff', codes: [{ codeId: 'cX' }], codedBy: 'human:carla', createdAt: 1, updatedAt: 1 },
+			{ markerType: 'markdown', id: 'm2', fileId: 'shared.md', range: { from: { line: 0, ch: 1 }, to: { line: 0, ch: 2 } }, color: '#fff', codes: [{ codeId: 'cX' }], codedBy: 'human:carla', createdAt: 1, updatedAt: 1 },
+		];
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+		const overrides = createEmptyOverrides();
+		overrides.perCodeSkip.add('cX');
+
+		const result = await mergeCoderContribution(targetData, payload, targetReg, { overrides });
+
+		expect(result.added.markers).toBe(0);
+	});
+
+	it('combinação ordem-independente: (skipMarker, skipSource) ou (skipSource, skipMarker)', async () => {
+		const { sourceData, targetData: t1, sourceReg, targetReg: r1 } = await setup(
+			{ 'shared.md': 'shared' },
+			{ 'shared.md': 'shared' },
+		);
+		const { targetData: t2, targetReg: r2 } = await setup(
+			{ 'shared.md': 'shared' },
+			{ 'shared.md': 'shared' },
+		);
+		sourceData.markdown.markers['shared.md'] = [
+			{ markerType: 'markdown', id: 'm1', fileId: 'shared.md', range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 1 } }, color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla', createdAt: 1, updatedAt: 1 },
+			{ markerType: 'markdown', id: 'm2', fileId: 'shared.md', range: { from: { line: 0, ch: 1 }, to: { line: 0, ch: 2 } }, color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla', createdAt: 1, updatedAt: 1 },
+		];
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+
+		const overridesA = createEmptyOverrides();
+		overridesA.perMarkerSkip.add('m1');
+		overridesA.sourceOverrides.set('shared.md', 'skip-source');
+
+		const overridesB = createEmptyOverrides();
+		overridesB.sourceOverrides.set('shared.md', 'skip-source');
+		overridesB.perMarkerSkip.add('m1');
+
+		const rA = await mergeCoderContribution(t1, payload, r1, { overrides: overridesA });
+		const rB = await mergeCoderContribution(t2, payload, r2, { overrides: overridesB });
+
+		expect(rA.added.markers).toBe(rB.added.markers);
+		expect(rA.pendingMarkers).toBe(rB.pendingMarkers);
 	});
 });

@@ -19,12 +19,15 @@
 import type { QualiaData } from '../../types';
 import type { Payload, MergeResult, ConflictRecord } from './payloadTypes';
 import type { SourceHashRegistry } from '../sourceHashRegistry';
+import type { ResolutionOverrides } from '../contributions/contributionViewTypes';
 import { computeCodebookHash } from './computeCodebookHash';
 import { crossVaultRemap } from './crossVaultRemap';
 
 export interface MergeOptions {
 	/** Quando true, computa MergeResult sem mutar localData (preview pra UX). */
 	dryRun?: boolean;
+	/** Escolhas do user (chips Visão geral / Lado a lado / Por código). */
+	overrides?: ResolutionOverrides;
 }
 
 export async function mergeCoderContribution(
@@ -34,6 +37,7 @@ export async function mergeCoderContribution(
 	options?: MergeOptions,
 ): Promise<MergeResult> {
 	const dryRun = options?.dryRun ?? false;
+	const overrides = options?.overrides;
 	const conflicts: ConflictRecord[] = [];
 	const warnings: string[] = [];
 	const added = { markers: 0, codes: 0, groups: 0, coder: false };
@@ -67,10 +71,13 @@ export async function mergeCoderContribution(
 	const remap = crossVaultRemap(payload.sources, localHashRegistry);
 	conflicts.push(...remap.conflicts);
 
-	// 4. Code merge — incoming wins on diff
+	// 4. Code merge — incoming wins on diff (override 'local' mantém local; 'skip' não adiciona novo)
 	for (const code of payload.codes) {
+		const codeOverride = overrides?.codebookOverrides.get(code.id);
 		const existing = localData.registry.definitions[code.id];
 		if (!existing) {
+			// Code novo
+			if (codeOverride === 'skip') continue; // não adiciona, não conta
 			if (!dryRun) {
 				localData.registry.definitions[code.id] = code;
 				if (!localData.registry.rootOrder.includes(code.id)) {
@@ -79,6 +86,8 @@ export async function mergeCoderContribution(
 			}
 			added.codes++;
 		} else {
+			// Code existe local — se override === 'local', skipa overwrite
+			if (codeOverride === 'local') continue;
 			if (existing.name !== code.name) {
 				conflicts.push({ kind: 'code_overwritten', codeId: code.id, field: 'name', from: existing.name, to: code.name });
 				if (!dryRun) existing.name = code.name;
@@ -105,26 +114,56 @@ export async function mergeCoderContribution(
 		}
 	}
 
+	// Helper: precedência skipSource ⊃ skipCode ⊃ skipMarker (spec §4.2). Retorna true
+	// se algum override decide skipar, e qual contagem aplica.
+	const shouldSkipMarker = (markerId: string, payloadFileId: string, codeIds: string[]): boolean => {
+		const sourceOverride = overrides?.sourceOverrides.get(payloadFileId);
+		if (sourceOverride === 'skip-source') return true;
+		if (codeIds.some(cid => overrides?.perCodeSkip.has(cid))) return true;
+		if (overrides?.perMarkerSkip.has(markerId)) return true;
+		return false;
+	};
+
+	// Helper: resolve fileId remap considerando sourceOverrides (skip = early; map-manual = override).
+	const resolveFileId = (payloadFileId: string): string | undefined => {
+		const sourceOverride = overrides?.sourceOverrides.get(payloadFileId);
+		if (sourceOverride === 'skip-source') return undefined;
+		if (sourceOverride && typeof sourceOverride === 'object' && sourceOverride.kind === 'map-manual') {
+			return sourceOverride.localFileId;
+		}
+		return remap.fileIdRemap[payloadFileId];
+	};
+
 	// 6. Marker insertion — markdown (nested Record<fileId, Marker[]>)
 	for (const [payloadFileId, markers] of Object.entries(payload.markers.markdown)) {
-		const localFileId = remap.fileIdRemap[payloadFileId];
+		const localFileId = resolveFileId(payloadFileId);
 		if (!localFileId) {
 			pendingMarkers += markers.length;
 			continue;
 		}
-		if (!dryRun) {
-			if (!localData.markdown.markers[localFileId]) localData.markdown.markers[localFileId] = [];
-		}
 		for (const m of markers) {
-			if (!dryRun) localData.markdown.markers[localFileId]!.push({ ...m, fileId: localFileId });
+			const codeIds = (m as any).codes?.map((c: any) => c.codeId) ?? [];
+			if (shouldSkipMarker(m.id, payloadFileId, codeIds)) {
+				pendingMarkers++;
+				continue;
+			}
+			if (!dryRun) {
+				if (!localData.markdown.markers[localFileId]) localData.markdown.markers[localFileId] = [];
+				localData.markdown.markers[localFileId]!.push({ ...m, fileId: localFileId });
+			}
 			added.markers++;
 		}
 	}
 
 	// PDF (flat array)
 	for (const m of payload.markers.pdf) {
-		const localFileId = remap.fileIdRemap[m.fileId];
+		const localFileId = resolveFileId(m.fileId);
 		if (!localFileId) {
+			pendingMarkers++;
+			continue;
+		}
+		const codeIds = (m as any).codes?.map((c: any) => c.codeId) ?? [];
+		if (shouldSkipMarker(m.id, m.fileId, codeIds)) {
 			pendingMarkers++;
 			continue;
 		}
@@ -134,8 +173,13 @@ export async function mergeCoderContribution(
 
 	// CSV segment (flat array)
 	for (const m of payload.markers.csvSegment) {
-		const localFileId = remap.fileIdRemap[m.fileId];
+		const localFileId = resolveFileId(m.fileId);
 		if (!localFileId) {
+			pendingMarkers++;
+			continue;
+		}
+		const codeIds = (m as any).codes?.map((c: any) => c.codeId) ?? [];
+		if (shouldSkipMarker(m.id, m.fileId, codeIds)) {
 			pendingMarkers++;
 			continue;
 		}
