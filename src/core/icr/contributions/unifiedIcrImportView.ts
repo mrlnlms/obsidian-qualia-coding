@@ -15,9 +15,13 @@ import {
 	type PendingContribution,
 	type ResolutionOverrides,
 } from './contributionViewTypes';
+import {
+	cloneOverrides,
+} from './contributionViewTypes';
 import { renderRailContent } from './rail';
 import { renderToolbarContent } from './importToolbar';
 import { renderOverviewChip } from './overviewChip';
+import { renderSideBySideChip } from './sideBySideChip';
 import { parseContribution } from './contributionLoader';
 import { mergeCoderContribution } from '../transport/mergeCoderContribution';
 
@@ -53,6 +57,20 @@ export class UnifiedIcrImportView extends ItemView {
 		this.renderRail();
 		this.renderMain();
 		this.setupDropHandler();
+		this.setupKeyboardNavigation();
+	}
+
+	private setupKeyboardNavigation(): void {
+		this.registerDomEvent(this.contentEl, 'keydown', (e: KeyboardEvent) => {
+			if (this.state.activeChip !== 'side-by-side') return;
+			if (e.key === 'ArrowLeft') {
+				this.updateState({ sideBySideIndex: Math.max(0, this.state.sideBySideIndex - 1) });
+				e.preventDefault();
+			} else if (e.key === 'ArrowRight') {
+				this.updateState({ sideBySideIndex: this.state.sideBySideIndex + 1 });
+				e.preventDefault();
+			}
+		});
 	}
 
 	private setupDropHandler(): void {
@@ -158,12 +176,47 @@ export class UnifiedIcrImportView extends ItemView {
 				onDiscard: () => this.discardContribution(active.id),
 				onOverridesChange: (overrides) => { void this.updateOverrides(active.id, overrides); },
 			});
-		}
-		// Chips side-by-side e by-code vêm em chunks 5 e 6 (stub por enquanto)
-		else {
+		} else if (this.state.activeChip === 'side-by-side') {
+			const localMarkersByFileId = this.collectLocalMarkers(active);
+			renderSideBySideChip(this.bodyEl, active, { localMarkersByFileId }, {
+				currentIndex: this.state.sideBySideIndex,
+				filter: this.state.sideBySideFilter,
+				filterCodeId: this.state.sideBySideFilterCodeId,
+				onSkipMarker: (markerId) => {
+					const o = cloneOverrides(active.overrides);
+					o.perMarkerSkip.add(markerId);
+					void this.updateOverrides(active.id, o);
+				},
+				onNavigate: (delta) => {
+					this.updateState({ sideBySideIndex: Math.max(0, this.state.sideBySideIndex + delta) });
+				},
+				onFilterChange: (f) => {
+					this.updateState({ sideBySideFilter: f, sideBySideIndex: 0 });
+				},
+				onClearCodeFilter: () => {
+					this.updateState({ sideBySideFilterCodeId: null, sideBySideIndex: 0 });
+				},
+			});
+		} else {
+			// chip by-code vem em chunk 6
 			const placeholder = this.bodyEl.createDiv();
 			placeholder.setText(`chip ${this.state.activeChip} ainda não implementado`);
 		}
+	}
+
+	private collectLocalMarkers(contrib: PendingContribution): Record<string, any[]> {
+		// Pega markers locais (de TODOS coders) por payloadFileId após remap.
+		// Markdown overlap precisaria de sourceText (degradação documentada — sourceText não fetchado).
+		const out: Record<string, any[]> = {};
+		const data = this.plugin.dataManager.getDataRef();
+		for (const [payloadFid, localFid] of Object.entries(contrib.mergePreview.fileIdRemap)) {
+			out[payloadFid] = [];
+			const mdMarkers = data.markdown.markers[localFid] ?? [];
+			out[payloadFid].push(...mdMarkers);
+			out[payloadFid].push(...data.pdf.markers.filter((m: any) => m.fileId === localFid));
+			out[payloadFid].push(...data.csv.segmentMarkers.filter((m: any) => m.fileId === localFid));
+		}
+		return out;
 	}
 
 	private async updateOverrides(contribId: string, overrides: ResolutionOverrides): Promise<void> {
