@@ -107,6 +107,12 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.dataManager = new DataManager(this);
 		await this.dataManager.load();
 
+		// Slice 6 ICR bbox smoke — expõe adapter + cohenKappa pra dev console.
+		// Acesso: app.plugins.plugins['qualia-coding'].__icrSmoke
+		const bboxAdapter = await import('./core/icr/bboxAdapter');
+		const { cohenKappa } = await import('./core/icr/coefficients/cohenKappa');
+		(this as any).__icrSmoke = { bboxAdapter, cohenKappa };
+
 		// Single shared registry for ALL engines
 		this.sharedRegistry = CodeDefinitionRegistry.fromJSON(
 			this.dataManager.section('registry'),
