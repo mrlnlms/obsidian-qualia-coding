@@ -6,14 +6,17 @@
  * Reusa pattern qc-cc-mode-chip do unifiedCompareCodersView.ts.
  */
 
-import { ItemView, type WorkspaceLeaf } from 'obsidian';
+import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 import type QualiaCodingPlugin from '../../../main';
 import {
 	createDefaultViewState,
+	createEmptyOverrides,
 	type IcrImportViewState,
 	type PendingContribution,
 } from './contributionViewTypes';
 import { renderRailContent } from './rail';
+import { parseContribution } from './contributionLoader';
+import { mergeCoderContribution } from '../transport/mergeCoderContribution';
 
 export const ICR_IMPORT_VIEW_TYPE = 'qc-icr-import';
 
@@ -46,6 +49,65 @@ export class UnifiedIcrImportView extends ItemView {
 
 		this.renderRail();
 		this.renderMain();
+		this.setupDropHandler();
+	}
+
+	private setupDropHandler(): void {
+		const dropZone = this.railEl;
+
+		this.registerDomEvent(dropZone, 'dragenter', (e: DragEvent) => {
+			e.preventDefault();
+			dropZone.addClass('is-drag-over');
+		});
+		this.registerDomEvent(dropZone, 'dragover', (e: DragEvent) => {
+			e.preventDefault();
+		});
+		this.registerDomEvent(dropZone, 'dragleave', () => {
+			dropZone.removeClass('is-drag-over');
+		});
+		this.registerDomEvent(dropZone, 'drop', async (e: DragEvent) => {
+			e.preventDefault();
+			dropZone.removeClass('is-drag-over');
+			if (!e.dataTransfer) return;
+
+			const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.json'));
+			if (files.length === 0) {
+				new Notice('ICR Import: só arquivos .json');
+				return;
+			}
+
+			let lastValidId: string | null = null;
+			for (const file of files) {
+				const text = await file.text();
+				const result = parseContribution(text);
+				if (!result.payload) {
+					new Notice(`${file.name}: ${result.errors.join('; ')}`);
+					continue;
+				}
+
+				const overrides = createEmptyOverrides();
+				const preview = await mergeCoderContribution(
+					this.plugin.dataManager.getDataRef(),
+					result.payload,
+					this.plugin.sourceHashRegistry,
+					{ dryRun: true, overrides },
+				);
+
+				const contrib: PendingContribution = {
+					id: crypto.randomUUID(),
+					payload: result.payload,
+					sourcePath: file.name,
+					mergePreview: preview,
+					overrides,
+				};
+				this.addContribution(contrib);
+				lastValidId = contrib.id;
+			}
+
+			if (lastValidId) {
+				this.updateState({ activeId: lastValidId });
+			}
+		});
 	}
 
 	getViewState(): IcrImportViewState { return this.state; }
