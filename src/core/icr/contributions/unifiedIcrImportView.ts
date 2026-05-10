@@ -22,6 +22,7 @@ import { renderRailContent } from './rail';
 import { renderToolbarContent } from './importToolbar';
 import { renderOverviewChip } from './overviewChip';
 import { renderSideBySideChip } from './sideBySideChip';
+import { renderByCodeChip, type ByCodeContext } from './byCodeChip';
 import { parseContribution } from './contributionLoader';
 import { mergeCoderContribution } from '../transport/mergeCoderContribution';
 
@@ -197,11 +198,64 @@ export class UnifiedIcrImportView extends ItemView {
 					this.updateState({ sideBySideFilterCodeId: null, sideBySideIndex: 0 });
 				},
 			});
-		} else {
-			// chip by-code vem em chunk 6
-			const placeholder = this.bodyEl.createDiv();
-			placeholder.setText(`chip ${this.state.activeChip} ainda não implementado`);
+		} else if (this.state.activeChip === 'by-code') {
+			const ctx = this.collectByCodeContext(active);
+			renderByCodeChip(this.bodyEl, active, ctx, {
+				onAcceptAllCode: (codeId) => {
+					const o = cloneOverrides(active.overrides);
+					o.perCodeSkip.delete(codeId);
+					o.codebookOverrides.delete(codeId);
+					void this.updateOverrides(active.id, o);
+				},
+				onSkipAllCode: (codeId) => {
+					const o = cloneOverrides(active.overrides);
+					o.perCodeSkip.add(codeId);
+					// Spec §6: se code é novo (não existe local), também skipa do codebook
+					const isNew = (ctx.localCountByCode[codeId] ?? 0) === 0;
+					if (isNew) {
+						o.codebookOverrides.set(codeId, 'skip');
+					}
+					void this.updateOverrides(active.id, o);
+				},
+				onRevise: (codeId) => {
+					this.updateState({
+						activeChip: 'side-by-side',
+						sideBySideIndex: 0,
+						sideBySideFilterCodeId: codeId,
+					});
+				},
+			});
 		}
+	}
+
+	private collectByCodeContext(contrib: PendingContribution): ByCodeContext {
+		const localCountByCode: Record<string, number> = {};
+		const overlapCountByCode: Record<string, number> = {};
+
+		const data = this.plugin.dataManager.getDataRef();
+		const allLocal = [
+			...Object.values(data.markdown.markers).flat(),
+			...data.pdf.markers,
+			...data.csv.segmentMarkers,
+		];
+
+		for (const m of allLocal) {
+			for (const c of (m as any).codes ?? []) {
+				localCountByCode[c.codeId] = (localCountByCode[c.codeId] ?? 0) + 1;
+			}
+		}
+
+		// Aproximação: overlap = min(local, incoming) por codeId compartilhado.
+		// Não usa range overlap pra evitar fetch async de sourceText markdown.
+		// Refinement pra range overlap exato fica como follow-up.
+		for (const [codeId, localCount] of Object.entries(localCountByCode)) {
+			const incomingForCode = countIncomingMarkersWithCode(contrib, codeId);
+			if (incomingForCode > 0) {
+				overlapCountByCode[codeId] = Math.min(localCount, incomingForCode);
+			}
+		}
+
+		return { localCountByCode, overlapCountByCode };
 	}
 
 	private collectLocalMarkers(contrib: PendingContribution): Record<string, any[]> {
@@ -276,4 +330,14 @@ export class UnifiedIcrImportView extends ItemView {
 		this.renderRail();
 		this.renderMain();
 	}
+}
+
+function countIncomingMarkersWithCode(contrib: PendingContribution, codeId: string): number {
+	let n = 0;
+	for (const ms of Object.values(contrib.payload.markers.markdown)) {
+		n += ms.filter((m: any) => m.codes?.some((c: any) => c.codeId === codeId)).length;
+	}
+	n += contrib.payload.markers.pdf.filter((m: any) => m.codes?.some((c: any) => c.codeId === codeId)).length;
+	n += contrib.payload.markers.csvSegment.filter((m: any) => m.codes?.some((c: any) => c.codeId === codeId)).length;
+	return n;
 }
