@@ -143,7 +143,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   **Próximo passo (gated em você):**
   - Brainstorm UX da Fase C P1 (modal preview / cherry-pick / staging / conflict resolution)
   - Brainstorm UX do View Compare Coders + Reconciliação
-  - Refactor motor κ pra set-valued labels (eliminar redução first-code alfabético — afeta TODAS as engines)
+  - Refactor motor κ pra set-valued labels (eliminar redução first-code alfabético — afeta TODAS as engines). **Material de repertório metodológico em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md`** — leitura obrigatória antes do brainstorm: cobre Jaccard vs MASI, variantes Cohen multi-label (binary-per-label / Rosenberg augmented / weighted), generalização Krippendorff α com δ customizado, riscos no refactor de tests existentes.
   - Wire mechanical de `attachSourceHashSnapshot` em outros 5 engines
 
   **Docs companion** (todos em `obsidian-qualia-coding/plugin-docs/research/`):

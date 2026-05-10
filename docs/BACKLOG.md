@@ -180,7 +180,7 @@ Slice 4 (planejado 2026-05-09) adiciona adapters **cod row** (CSV categórico) e
 **Decisões cravadas (ver Appendix A do spec pra alternativas rejeitadas e condições de retomada):**
 - Threshold θ: configurável por análise, default 0.5 (alinhado COCO).
 - Matching: Hungarian 1:1 ótimo + cutoff θ pós-assignment (rejeitadas: greedy, many-to-one).
-- Multi-código por bbox: herda redução first-code alfabético do motor κ (limitação geral, refactor separado).
+- Multi-código por bbox: herda redução first-code alfabético do motor κ (limitação geral, refactor separado). Repertório metodológico pro refactor: `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md` (Jaccard / MASI / variantes Cohen multi-label / Krippendorff α paramétrico).
 - Multi-coder N>2: matriz triangular C(N,2) de κ pair-wise (rejeitada: clustering N-way bbox).
 - IoU não-rect: rasterização uniforme grid 200×200 (adaptive 400×400 quando bbox <0.01% área OU min-dim < 2/gridSize).
 
