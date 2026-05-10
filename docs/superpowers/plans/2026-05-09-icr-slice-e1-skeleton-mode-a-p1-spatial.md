@@ -222,27 +222,21 @@ function filterKappaInputToPair(
   };
 }
 
-// Helpers — definir conforme shape real de CategoricalKappaInput
+// `isCategorical` em reporter.ts:34 NÃO é exportado — duplicar discriminator inline (1 linha):
 function isCategoricalKappaInput(input: KappaInput | CategoricalKappaInput): input is CategoricalKappaInput {
-  // já existe em reporter.ts (linha 34) — reusar isCategorical
-  return 'units' in (input as object) || 'perUnitCoderDecisions' in (input as object);
+  return 'units' in (input as object);
 }
 
 function narrowCategoricalToPair(input: CategoricalKappaInput, pair: [CoderId, CoderId]): CategoricalKappaInput {
-  // Filter the coder set + filter perUnitCoderDecisions keeping only entries for the 2 coders.
-  // Shape exata vem de `src/core/icr/categoricalKappaInput.ts` — confirmar antes de implementar.
-  // Pseudocódigo (substituir por shape real):
-  return { ...input, coders: pair };
+  // CategoricalKappaInput shape (verificada em categoricalKappaInput.ts:23-26):
+  //   { units: CategoricalUnit[]; coders: CoderId[] }
+  // CategoricalUnit tem coderId interno — filtra units do par + ajusta `coders`.
+  return {
+    units: input.units.filter(u => u.coderId === pair[0] || u.coderId === pair[1]),
+    coders: pair,
+  };
 }
 ```
-
-**Verificar shape de `CategoricalKappaInput` antes de implementar:**
-
-```bash
-grep -n "^export interface CategoricalKappaInput\|coders\|units" src/core/icr/categoricalKappaInput.ts | head
-```
-
-Se shape difere do palpite acima, ajustar `narrowCategoricalToPair`. Reusar `isCategorical` já exportado em `reporter.ts:34` se possível (confirmar export).
 
 Importar `CoderId` no topo se ainda não estiver importado.
 
@@ -684,7 +678,7 @@ describe('renderOverviewMatrix', () => {
 
 - [ ] **Step 2: Run, verify FAIL**
 
-- [ ] **Step 3: Implementar `renderOverviewMatrix`**
+- [ ] **Step 3: Implementar `renderOverviewMatrix` (async, integrado com extractInputsFromScope)**
 
 `src/core/icr/ui/overviewMatrix.ts`:
 
@@ -693,18 +687,22 @@ import type { CompareCodersViewState, CurrentSelection } from './compareCodersTy
 import type { CompareCodersViewDeps } from './unifiedCompareCodersView';
 import type { CoderId } from '../coderTypes';
 import { reportPairwise, type EngineKappaInput } from '../reporter';
+import { extractInputsFromScope } from './scopeExtraction';
 
 /**
  * Renderiza Mode A — matriz coder × coder.
  * Cohen κ pareado em cada célula. Diagonal cinza.
  * Click em célula off-diagonal seleciona o par.
+ *
+ * Async porque `extractInputsFromScope` faz `vault.cachedRead` pra markdown
+ * (offsets line/ch precisam de source text pra converter em char absoluto).
  */
-export function renderOverviewMatrix(
+export async function renderOverviewMatrix(
   container: HTMLElement,
   state: CompareCodersViewState,
   deps: CompareCodersViewDeps,
   onSelect: (sel: CurrentSelection) => void,
-): void {
+): Promise<void> {
   container.empty();
   const coderIds = state.scope.coderIds;
   const N = coderIds.length;
@@ -713,8 +711,7 @@ export function renderOverviewMatrix(
     return;
   }
 
-  // Coleta inputs por engine (placeholder em E1 — real implementação puxa de markerExtraction adapter, slice 1)
-  const inputs: EngineKappaInput[] = collectEngineInputs(state, deps);
+  const inputs = await collectEngineInputs(state, deps);
 
   const pairs: [CoderId, CoderId][] = [];
   for (let i = 0; i < N; i++) {
@@ -725,9 +722,13 @@ export function renderOverviewMatrix(
   const reports = inputs.length > 0 ? reportPairwise(inputs, pairs) : [];
   const kappaByPair = new Map<string, number | undefined>();
   for (const r of reports) {
-    const key = `${r.pair[0]}|${r.pair[1]}`;
-    const k = r.report.aggregate.cohenKappa[key];
-    kappaByPair.set(key, k);
+    const [a, b] = r.pair;
+    const cohenTable = r.report.aggregate.cohenKappa;
+    // Reporter pode tabular como `a|b` ou `b|a` dependendo da ordem;
+    // normalizar lookup pra ambos.
+    const value = cohenTable[`${a}|${b}`] ?? cohenTable[`${b}|${a}`];
+    const normalKey = a < b ? `${a}|${b}` : `${b}|${a}`;
+    kappaByPair.set(normalKey, value);
   }
 
   const grid = container.createEl('table', { cls: 'qc-cc-matrix' });
@@ -761,16 +762,18 @@ export function renderOverviewMatrix(
   }
 }
 
+const KAPPA_THRESHOLDS = { low: 0.4, midLow: 0.6, midHigh: 0.8 } as const;
+
 function kappaClass(k: number): string {
-  if (k < 0.4) return 'qc-kappa-low';
-  if (k < 0.6) return 'qc-kappa-mid-low';
-  if (k < 0.8) return 'qc-kappa-mid-high';
+  if (k < KAPPA_THRESHOLDS.low) return 'qc-kappa-low';
+  if (k < KAPPA_THRESHOLDS.midLow) return 'qc-kappa-mid-low';
+  if (k < KAPPA_THRESHOLDS.midHigh) return 'qc-kappa-mid-high';
   return 'qc-kappa-high';
 }
 
 /**
  * Coleta `EngineKappaInput[]` do estado atual via `extractInputsFromScope`.
- * Retorna [] quando `deps.engineModels` ausente (cenário de teste com mock vazio).
+ * Retorna [] quando `deps.engineModels`/`deps.app` ausentes (cenário de teste sem fixture).
  */
 async function collectEngineInputs(
   state: CompareCodersViewState,
@@ -781,162 +784,132 @@ async function collectEngineInputs(
 }
 ```
 
-**Async adjustment:** `renderOverviewMatrix` precisa virar async (ou usar pattern Promise+re-render quando resolver). Versão simplificada do render fica:
+**Tests precisam ser ajustados pra `await renderOverviewMatrix(...)` em vez de chamada sync.** O test do step 1 já roda contra container limpo — adicionar `await` antes da chamada e tornar o `it(...)` callback async. Para mocks sem markers (`coderRegistry, codeRegistry` only, sem `engineModels`), `collectEngineInputs` retorna `[]` e cells viram `qc-kappa-na` — comportamento esperado.
+
+- [ ] **Step 4: Failing test pra `extractInputsFromScope`**
+
+`tests/core/icr/ui/scopeExtraction.test.ts`:
 
 ```typescript
-export async function renderOverviewMatrix(
-  container: HTMLElement,
-  state: CompareCodersViewState,
-  deps: CompareCodersViewDeps,
-  onSelect: (sel: CurrentSelection) => void,
-): Promise<void> {
-  // ... estrutura do header igual
-
-  const inputs = await collectEngineInputs(state, deps);
-  const reports = inputs.length > 0 ? reportPairwise(inputs, pairs) : [];
-  // ... render céllulas igual
-}
-```
-
-Caller (view shell) passa a awaitar o render — explicitar no Task 3 abaixo.
-
-**Nota crítica:** o placeholder em `collectEngineInputs` é o ponto onde a infra real precisa ser conectada. Pra mantê-lo dentro do escopo do E1, dois caminhos:
-
-(a) **Conectar aos models nesse slice** — adicionar `deps.engineModels: Record<EngineId, IModelInterface>` em `CompareCodersViewDeps`, escrever helper `extractInputsFromScope(scope, engineModels)` que itera engines e usa adapters dos slices 1+4. Mais código, mais teste.
-
-(b) **Stub em E1, conexão real em E2** — view abre e renderiza estrutura mas matriz mostra "n/a" cinza enquanto não plugado. Smoke real ainda valida shell + colunas + click handler.
-
-**Decisão:** caminho (a) — infra de extração precisa existir desde E1 pra smoke real fazer sentido. Estendi `CompareCodersViewDeps` com `engineModels`. Adicionar helper `extractInputsFromScope` em `src/core/icr/ui/scopeExtraction.ts` (próximo step abaixo).
-
-- [ ] **Step 4: Adicionar `extractInputsFromScope`**
-
-Criar `src/core/icr/ui/scopeExtraction.ts`:
-
-```typescript
-import type { ComparisonScope } from './compareCodersTypes';
-import type { EngineKappaInput, EngineId } from '../reporter';
-// imports dos adapters por engine — slices 1+4 entregaram esses módulos
-// ex: import { extractTextRangeMarkdown } from '../adapters/markdownAdapter';
-
-/**
- * Stub mínimo em E1 — retorna [] (placeholder).
- *
- * Pra smoke real funcionar, este helper precisa puxar markers reais dos 5 engine
- * models (markdown / pdf / csv / audio / video) e converter via adapters dos
- * slices 1 e 4 em `EngineKappaInput[]`. Implementação completa depende de:
- *  1. Estender `CompareCodersViewDeps` com `engineModels` (markdown/pdf/csv/audio/video)
- *  2. Iterar `scope.engineIds` (ou todas as engines se undefined)
- *  3. Para cada engine, chamar adapter pra reduzir markers em `KappaInput`
- *
- * Refactor pra real implementação fica como sub-task explícita em E1.5
- * (após smoke do shell + matrix + drilldown estruturais).
- */
-export function extractInputsFromScope(
-  scope: ComparisonScope,
-  engineModels: Record<EngineId, unknown>,  // tipos reais dos models
-): EngineKappaInput[] {
-  // E1.5 follow-up — implementação real
-  return [];
-}
-```
-
-E renomear `collectEngineInputs` em `overviewMatrix.ts` pra delegar:
-
-```typescript
-import { extractInputsFromScope } from './scopeExtraction';
-// ...
-function collectEngineInputs(state, deps): EngineKappaInput[] {
-  if (!deps.engineModels) return [];
-  return extractInputsFromScope(state.scope, deps.engineModels);
-}
-```
-
-**Honestidade do plano:** este é o trecho mais sensível. A implementação real de `extractInputsFromScope` pode ser ~200 LOC porque cada engine tem seu próprio model + serialização. Decisão pragmática: **escrever a versão real desse helper como Task 4.5 explícita** (próxima abaixo), antes do drill-down. Sem essa task, o smoke real do E1 mostra matriz vazia.
-
-- [ ] **Step 5: Run tests, verify PASS dos casos básicos**
-
-Testes do step 1 passam (estrutura + diagonal + click). Cells todas viram `qc-kappa-na` enquanto `extractInputsFromScope` retorna `[]`.
-
-- [ ] **Step 6: Commit (estrutura mínima)**
-
-```bash
-git add src/core/icr/ui/overviewMatrix.ts src/core/icr/ui/scopeExtraction.ts tests/core/icr/ui/overviewMatrix.test.ts
-~/.claude/scripts/commit.sh "feat(icr): Mode A matriz coder×coder + scopeExtraction stub"
-```
-
----
-
-### Task 4.5: Implementar `extractInputsFromScope` real
-
-**Files:**
-- Modify: `src/core/icr/ui/scopeExtraction.ts`
-- Modify: `src/core/icr/ui/unifiedCompareCodersView.ts` (estender `CompareCodersViewDeps` com models)
-- Create: `tests/core/icr/ui/scopeExtraction.test.ts`
-
-**Why:** Sem essa task, matriz fica vazia. Helper itera engine models, coleta markers no scope, chama adapters dos slices 1/4 pra produzir `KappaInput`/`CategoricalKappaInput`.
-
-- [ ] **Step 1: Failing test com mock dos models**
-
-```typescript
-// tests/core/icr/ui/scopeExtraction.test.ts
 import { describe, it, expect } from 'vitest';
 import { extractInputsFromScope } from '../../../../src/core/icr/ui/scopeExtraction';
 
+const noopApp: any = {
+  vault: {
+    getAbstractFileByPath: (_path: string) => null,
+    cachedRead: async (_file: any) => '',
+  },
+};
+
+function makeMarkdownMarker(spec: { fileId: string; codedBy: string; codeId: string; line?: number }) {
+  return {
+    id: `m-${Math.random()}`,
+    fileId: spec.fileId,
+    line: spec.line ?? 0,
+    ch: 0,
+    endLine: spec.line ?? 0,
+    endCh: 5,
+    codes: [{ codeId: spec.codeId }],
+    codedBy: spec.codedBy,
+  };
+}
+
+function makeRowMarker(spec: { fileId: string; codedBy: string; codeId: string; sourceRowId: number; column: string }) {
+  return {
+    kind: 'row' as const,
+    id: `r-${Math.random()}`,
+    fileId: spec.fileId,
+    sourceRowId: spec.sourceRowId,
+    column: spec.column,
+    codes: [{ codeId: spec.codeId }],
+    codedBy: spec.codedBy,
+  };
+}
+
+function emptyModels(): any {
+  return {
+    markdown: { getAllMarkers: () => [] },
+    pdf: { getAllMarkers: () => [] },
+    csv: { getAllMarkers: () => [] },
+    audio: { getAllMarkers: () => [] },
+    video: { getAllMarkers: () => [] },
+  };
+}
+
 describe('extractInputsFromScope', () => {
-  it('retorna [] quando engineIds está vazio explicitamente', () => {
-    const result = extractInputsFromScope(
+  it('retorna [] quando engineIds está vazio explicitamente', async () => {
+    const result = await extractInputsFromScope(
       { coderIds: ['human:a'], engineIds: [] },
-      mockAllEngineModels(),
+      { models: emptyModels(), app: noopApp },
     );
     expect(result).toEqual([]);
   });
 
-  it('inclui markdown quando engine no scope (ou undefined = todos)', () => {
-    const result = extractInputsFromScope(
+  it('inclui markdown e popula coders no KappaInput', async () => {
+    const models = emptyModels();
+    models.markdown.getAllMarkers = () => [
+      makeMarkdownMarker({ fileId: 'f1.md', codedBy: 'human:a', codeId: 'X' }),
+      makeMarkdownMarker({ fileId: 'f1.md', codedBy: 'human:b', codeId: 'X' }),
+    ];
+    const app = {
+      vault: {
+        getAbstractFileByPath: (p: string) => ({ extension: 'md', path: p }),
+        cachedRead: async (_file: any) => 'Hello world from a markdown file',
+      },
+    };
+    const result = await extractInputsFromScope(
       { coderIds: ['human:a', 'human:b'] },
-      mockEngineModelsWithMarkdownMarkers(),
+      { models, app: app as any },
     );
     const md = result.find(r => r.engine === 'markdown');
     expect(md).toBeTruthy();
-    expect(md!.kappaInput.coderIds).toContain('human:a');
-    expect(md!.kappaInput.coderIds).toContain('human:b');
+    expect(md!.kappaInput.coders).toContain('human:a');
+    expect(md!.kappaInput.coders).toContain('human:b');
   });
 
-  it('filtra markers por scope.codeIds quando definido', () => {
-    const result = extractInputsFromScope(
-      { coderIds: ['human:a', 'human:b'], codeIds: ['code-1'] },
-      mockEngineModelsWithMarkers([
-        { engine: 'markdown', codeId: 'code-1', codedBy: 'human:a' },
-        { engine: 'markdown', codeId: 'code-2', codedBy: 'human:a' },  // filtrado
-      ]),
+  it('filtra markers por scope.codeIds quando definido', async () => {
+    const models = emptyModels();
+    models.markdown.getAllMarkers = () => [
+      makeMarkdownMarker({ fileId: 'f1.md', codedBy: 'human:a', codeId: 'code-1' }),
+      makeMarkdownMarker({ fileId: 'f1.md', codedBy: 'human:a', codeId: 'code-2' }),  // filtrado
+    ];
+    const app: any = {
+      vault: {
+        getAbstractFileByPath: () => ({ extension: 'md' }),
+        cachedRead: async () => 'Some markdown source.',
+      },
+    };
+    const result = await extractInputsFromScope(
+      { coderIds: ['human:a'], codeIds: ['code-1'] },
+      { models, app },
     );
     const md = result.find(r => r.engine === 'markdown');
-    // markers de code-2 não entram
-    expect(extractedRangesCount(md)).toBe(1);
+    expect(md).toBeTruthy();
+    // Verificação: só 1 CodedMarker no kappaInput.markers (o de code-1)
+    expect((md!.kappaInput as any).markers).toHaveLength(1);
   });
 
-  it('csvRow vira CategoricalKappaInput, não KappaInput', () => {
-    const result = extractInputsFromScope(
+  it('csvRow produz CategoricalKappaInput com units', async () => {
+    const models = emptyModels();
+    models.csv.getAllMarkers = () => [
+      makeRowMarker({ fileId: 'f1.csv', codedBy: 'human:a', codeId: 'X', sourceRowId: 1, column: 'col1' }),
+      makeRowMarker({ fileId: 'f1.csv', codedBy: 'human:b', codeId: 'Y', sourceRowId: 1, column: 'col1' }),
+    ];
+    const result = await extractInputsFromScope(
       { coderIds: ['human:a', 'human:b'] },
-      mockEngineModelsWithCsvRowMarkers(),
+      { models, app: noopApp },
     );
     const csvRow = result.find(r => r.engine === 'csvRow');
     expect(csvRow).toBeTruthy();
-    expect('perCoderUnitDecisions' in csvRow!.kappaInput).toBe(true);
+    // CategoricalKappaInput tem `units`, não `markers` (KappaInput tem `markers`).
+    expect('units' in csvRow!.kappaInput).toBe(true);
   });
 });
-
-// Helpers de mock — definir conforme shape dos models
-function mockAllEngineModels(): any { /* ... */ }
-function mockEngineModelsWithMarkdownMarkers(): any { /* ... */ }
-function mockEngineModelsWithMarkers(specs: any[]): any { /* ... */ }
-function mockEngineModelsWithCsvRowMarkers(): any { /* ... */ }
-function extractedRangesCount(input: any): number { /* ... */ }
 ```
 
-- [ ] **Step 2: Run, verify FAIL**
+- [ ] **Step 5: Run test, verify FAIL** (módulo `scopeExtraction.ts` ainda não existe)
 
-- [ ] **Step 3: Implementar real (cohort-level adapter layer)**
+- [ ] **Step 6: Implementar `scopeExtraction.ts` (cohort-level adapter layer)**
 
 Esta é a camada não-trivial que o slice 1 deixou de fora — slices 1 e 4 entregaram **per-marker extractors** (`extractMarkdownRange`, `extractPdfRange`, `extractCsvSegmentRange`, `extractMediaRange`, `extractRowMarkerUnit`). O `extractInputsFromScope` deve reduzir um cohort de markers (filtrado pelo escopo) num `KappaInput`/`CategoricalKappaInput` aceito pelo reporter.
 
@@ -1147,39 +1120,27 @@ function buildCategoricalInput(
   markers: RowMarker[],
   coders: string[],
 ): CategoricalKappaInput {
-  // CategoricalKappaInput shape verificada em src/core/icr/categoricalKappaInput.ts.
-  // Builder: agrupa markers por unit (fileId+sourceRowId+column) → cada coder
-  // contribui código(s). extractRowMarkerUnit(m) retorna CategoricalUnit pronta.
-  // Implementação completa fica como sub-step abaixo após confirmar shape.
-
-  const units = markers.map(m => extractRowMarkerUnit(m));
-  // Pseudo — ajustar conforme shape real. CategoricalKappaInput é provavelmente:
+  // CategoricalKappaInput shape verificada em src/core/icr/categoricalKappaInput.ts:
   //   { units: CategoricalUnit[]; coders: CoderId[] }
-  // ou semelhante. `units` já é o input raw; reporter faz o resto.
-  return {
-    units,
-    coders,
-  } as CategoricalKappaInput;
+  // extractRowMarkerUnit(m) retorna CategoricalUnit pronta com fileId/sourceRowId/column/codeIds/coderId.
+  const units = markers.map(m => extractRowMarkerUnit(m));
+  return { units, coders };
 }
 ```
 
-**Sub-step de verificação obrigatório antes de codar `buildCategoricalInput`:**
+**Honestidade do plano:** este helper é a maior peça nova do slice. ~120-180 LOC (incluindo testes). Performance: `app.vault.cachedRead` por file pode ser lento em vault grande — backlog "pre-warm de durações + cache de source text" cobre otimização posterior.
+
+- [ ] **Step 7: Run scopeExtraction.test.ts, verify PASS**
+
+- [ ] **Step 8: Run overviewMatrix.test.ts (com `await` nas calls), verify PASS**
+
+Tests do step 1 da Task 4 precisam ser ajustados pra ` await renderOverviewMatrix(...)` em cada `it(...)` async. Sem markers no escopo, cells viram `qc-kappa-na` (correto).
+
+- [ ] **Step 9: Commit consolidado**
 
 ```bash
-grep -n "^export interface CategoricalKappaInput\|^export type CategoricalUnit" src/core/icr/categoricalKappaInput.ts
-sed -n '1,80p' src/core/icr/categoricalKappaInput.ts
-```
-
-Confirmar shape exata + ajustar `buildCategoricalInput` antes do commit.
-
-**Honestidade do plano:** o helper acima é a maior peça nova desse slice. ~120-180 LOC (incluindo testes). Performance: `app.vault.cachedRead` por file pode ser lento em vault grande — backlog "pre-warm de durações + cache de source text" cobre otimização posterior.
-
-- [ ] **Step 4: Run, verify PASS**
-
-- [ ] **Step 5: Commit**
-
-```bash
-~/.claude/scripts/commit.sh "feat(icr): extractInputsFromScope real — coleta markers + adapters per engine"
+git add src/core/icr/ui/overviewMatrix.ts src/core/icr/ui/scopeExtraction.ts tests/core/icr/ui/overviewMatrix.test.ts tests/core/icr/ui/scopeExtraction.test.ts
+~/.claude/scripts/commit.sh "feat(icr): Mode A matriz + extractInputsFromScope real (cohort-level adapter)"
 ```
 
 ---
@@ -1247,7 +1208,9 @@ function mockDepsWithMarkers(markers: any[]): any {
     engineModels: {
       markdown: { getAllMarkers: () => markers.map(m => ({ ...m, engine: 'markdown', codes: [{ codeId: 'c1' }] })) },
       pdf: { getAllMarkers: () => [] },
-      csv: { getSegmentMarkers: () => [], getRowMarkers: () => [] },
+      // CSV: union mixed (segment+row); este mock retorna [] pois drilldownSpatial
+      // tests focam em markdown. CSV branch testa em scopeExtraction.test.ts.
+      csv: { getAllMarkers: () => [] },
       audio: { getAllMarkers: () => [] },
       video: { getAllMarkers: () => [] },
     },
