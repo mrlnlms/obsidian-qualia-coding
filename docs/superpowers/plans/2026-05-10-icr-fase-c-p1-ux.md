@@ -3048,7 +3048,7 @@ export async function runExportTrigger(plugin: QualiaCodingPlugin): Promise<void
 	if (!coder) return; // user cancelou
 
 	const result = extractCoderContribution(
-		plugin.dataManager.data, // ajustar nome
+		plugin.dataManager.getDataRef(),
 		coder.id,
 		plugin.sourceHashRegistry, // ajustar nome
 	);
