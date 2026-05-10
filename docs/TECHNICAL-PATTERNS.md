@@ -2490,6 +2490,64 @@ AG Grid infere `RowData` dos primeiros acessos a `params.data` no `cellStyle`. A
 
 ---
 
+## 44. Gotchas de Obsidian Modal subclass (descoberto em Slice E2, 2026-05-10)
+
+Coletânea de quirks pegos durante implementação do `CompareCoderCoefficientsModal`. Pequenos mas custam tempo se forem surpresa.
+
+### `Modal.scope` é reservado pela API Obsidian
+
+`Modal` base class declara `scope: Scope` (instância de keyboard-binding scope). Subclasse declarar campo `private scope: SomethingElse` quebra com `TS2415: Class incorrectly extends base class — Property 'scope' is private in subclass but not in base type`.
+
+**Fix:** nomear field diferente — ex: `compareScope`, `modalScope`, `myScope`. NÃO usar `scope` como propriedade pública/privada da subclass. Mesma família de gotcha que `getState`/`setState` do `View` (§43): API Obsidian reserva nomes "óbvios" sem indicação visível.
+
+```ts
+// ❌ Quebra build
+class MyModal extends Modal {
+	constructor(app: App, private scope: ComparisonScope) { super(app); }
+}
+
+// ✅ OK
+class MyModal extends Modal {
+	constructor(app: App, private compareScope: ComparisonScope) { super(app); }
+}
+```
+
+### `Modal.onOpen()` é sync mas precisa async work
+
+API canônica: `onOpen(): void` síncrona. Mas modals reais frequentemente precisam fetch/compute async antes de renderizar (extract markers do escopo, calcular reports, etc).
+
+**Fix:** declarar `async onOpen(): Promise<void>` (TS aceita; runtime ignora retorno) e tratar render em ordem: header sync → kickoff async → footer sync. Quando user toggla algo (ex: par único ↔ todos pares), `void this.refresh()` re-renderiza sem await — UI aparece com loading implícito (rows aparecem após compute).
+
+Alternativa: render skeleton + replace conteúdo após await. Spec do E2 escolheu a primeira via simplicidade — overhead de skeleton não compensa pra escopo de 3-10 pares.
+
+### Chip ativo + disabled simultâneo é UX honesta, não bug
+
+Pattern recorrente em chips toolbar: `is-active` indica seleção; `is-disabled` indica não-aplicável. Quando ambos batem (ex: user tinha Fleiss ativo, depois reduziu pra 2 coders → Fleiss vira inaplicável), tendência é remover `is-active`.
+
+**Decisão E2:** chip mantém `is-active` only se applicable; `is-disabled` sempre prevalece visualmente. Code: `const active = state.primaryCoefficient === key && applicable;`. Click no disabled é no-op (tooltip explica por que). Não há fallback automático pra outro coeficiente — user decide o que fazer.
+
+Test pattern:
+```ts
+it('chip ativo + is-disabled simultaneamente NÃO acontece (active só se applicable)', () => {
+	const state = { ...defaultState, primaryCoefficient: 'fleiss' };
+	// scope com 2 coders → Fleiss não aplicável
+	render(state);
+	const chip = container.querySelector('[data-coefficient="fleiss"]');
+	expect(chip.classList.contains('is-active')).toBe(false);
+	expect(chip.classList.contains('is-disabled')).toBe(true);
+});
+```
+
+### Coder chip `is-empty` separa "polish silently exclui" de "user clicou off"
+
+`visibleCoderIds` (user toggle) vs `codersWithMarkers` (computed) são conceitos ortogonais. Quando filter polish (`includeCodersWithoutMarkers: false`) silently exclui coders sem markers, chip do coder ainda aparece no toolbar (porque está em `state.scope.coderIds`). Visual confunde — parece ativo mas não está contribuindo.
+
+**Fix:** chip ganha class `is-empty` (cinza claro + itálico + tooltip) quando coder não está em `codersWithMarkers` set + filter polish off. Click ainda funciona (re-toggla `visibleCoderIds`), mas distinção visual fica clara: "esse coder não tem markers no escopo, e o filter polish está escondendo da matriz".
+
+Plumbing: caller (view) pre-computa `codersWithMarkers = new Set(getCodersWithMarkersInScope(scope, models))` e passa como `deps.codersWithMarkers` pro `renderFilterChips`. Render decide visual; lógica de filtragem fica em `applyCoderInclusion` (puro, separado).
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

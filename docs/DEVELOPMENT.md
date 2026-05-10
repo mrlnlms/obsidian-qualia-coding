@@ -712,17 +712,17 @@ npm run test -- tests/core/icr/transport/smoke.test.ts        # cross-vault end-
 npm run test -- tests/core/icr/multiEngineSmoke.test.ts       # text+audio+csvRow
 ```
 
-### Limites conhecidos (out of scope nas 7 slices entregues — 1-6 motor + E1 UI)
+### Limites conhecidos (out of scope nas 8 slices entregues — 1-6 motor + E1/E2 UI)
 
-- **Adapter PDF shape + imagem (bbox IoU)** — ✅ ENTREGUE Slice 6 (motor cobre 6/6 engines). Integração no Compare Coders matriz/heatmap fica em Slice E2 (per-pair pathway diferente do text-likes)
+- **Adapter PDF shape + imagem (bbox IoU)** — ✅ ENTREGUE Slice 6 (motor cobre 6/6 engines). ✅ Integração na matriz/heatmap entregue em Slice E2 (per-pair pathway via `computeBboxKappaForPair`)
+- **Compare Coders Modes B/C + Modal "ver lado a lado"** — ✅ ENTREGUE Slice E2 (overview completo + bbox + polish E1)
 - **UI completa Fase C P1** — comando export, modal preview, cherry-pick, conflict resolution UX (gated em UX brainstorm)
-- **Compare Coders Modes B/C + Modal "ver lado a lado"** — Slice E2 (próximo plano)
 - **Reconciliação UI (Drill-down P2 + P3)** — Slices E3a + E3b (schema audit + executeReconciliationDecision + queue + revert)
 - **Saved Comparisons + ribbon + atalho contextual** — Slice E4
 - **Wire `attachSourceHashSnapshot` em outros 5 engines** — slice de extensão mecânica (piloto markdown funcional)
 - **Smart Code cache hash invalidation** — adiado (predicates atuais não dependem de texto do source)
 - **Backup integrity validation** — adiado (semântica fragmentada, restore raro)
-- **Polish E1: Default coder κ=0 vacuous** — registrado em BACKLOG (UX confunde quando coder no registry sem markers no escopo)
+- **Bbox merge na matriz Mode A — avg 50/50 vs weighted por #events** — registrado em BACKLOG (aproximação E2; weighting proper exige refactor pipeline cohort-with-bbox)
 
 Detalhe completo em `BACKLOG.md > 🧱 ICR —`.
 
