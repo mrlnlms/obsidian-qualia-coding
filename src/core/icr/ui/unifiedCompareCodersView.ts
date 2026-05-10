@@ -1,0 +1,110 @@
+import { ItemView, type WorkspaceLeaf } from 'obsidian';
+import type QualiaCodingPlugin from '../../../main';
+import { type CompareCodersViewState, createDefaultViewState, type CurrentSelection } from './compareCodersTypes';
+
+export const COMPARE_CODERS_VIEW_TYPE = 'qc-compare-coders';
+
+export class UnifiedCompareCodersView extends ItemView {
+	private state: CompareCodersViewState;
+
+	private toolbarEl!: HTMLElement;
+	private overviewEl!: HTMLElement;
+	private drilldownEl!: HTMLElement;
+
+	constructor(leaf: WorkspaceLeaf, private plugin: QualiaCodingPlugin) {
+		super(leaf);
+		const allCoderIds = plugin.coderRegistry.getAll().map(c => c.id);
+		this.state = createDefaultViewState(allCoderIds);
+	}
+
+	getViewType(): string { return COMPARE_CODERS_VIEW_TYPE; }
+	getDisplayText(): string { return 'Compare Coders'; }
+	getIcon(): string { return 'users-2'; }
+
+	async onOpen(): Promise<void> {
+		const root = this.contentEl;
+		root.empty();
+		root.addClass('qc-compare-coders-view');
+
+		this.toolbarEl = root.createDiv({ cls: 'qc-cc-toolbar' });
+		this.renderToolbar();
+
+		this.overviewEl = root.createDiv({ cls: 'qc-cc-overview' });
+		root.createDiv({ cls: 'qc-cc-splitter' });
+		this.drilldownEl = root.createDiv({ cls: 'qc-cc-drilldown' });
+
+		await this.renderOverview();
+		await this.renderDrilldown();
+	}
+
+	/** Acessor pra estado central — `getState` é reservado em View do Obsidian. */
+	getCompareState(): CompareCodersViewState { return this.state; }
+
+	/** Mutate state + re-render. updateState chain é ok pra E1; E2 considera partial re-render. */
+	updateState(partial: Partial<CompareCodersViewState>): void {
+		this.state = { ...this.state, ...partial };
+		this.renderToolbar();
+		void this.renderOverview();
+		void this.renderDrilldown();
+	}
+
+	private renderToolbar(): void {
+		this.toolbarEl.empty();
+		const modeGroup = this.toolbarEl.createSpan({ cls: 'qc-cc-mode-group' });
+		modeGroup.createSpan({ cls: 'qc-cc-mode-label', text: 'overview' });
+		const modeRow = modeGroup.createSpan({ cls: 'qc-cc-mode-row' });
+		for (const mode of ['matrix', 'table', 'heatmap'] as const) {
+			const chip = modeRow.createSpan({
+				cls: `qc-cc-mode-chip ${this.state.overviewMode === mode ? 'is-active' : ''}`,
+				text: this.modeLabel(mode),
+			});
+			if (mode === 'matrix') {
+				chip.onclick = () => this.updateState({ overviewMode: 'matrix' });
+			} else {
+				chip.addClass('is-disabled');
+				chip.title = 'Disponível em E2';
+			}
+		}
+		this.toolbarEl.createDiv({
+			cls: 'qc-cc-mode-question',
+			text: this.modeQuestion(this.state.overviewMode),
+		});
+	}
+
+	private modeLabel(mode: 'matrix' | 'table' | 'heatmap'): string {
+		return { matrix: '▦ Matriz', table: '▤ Tabela', heatmap: '▥ Heatmap' }[mode];
+	}
+
+	private modeQuestion(mode: 'matrix' | 'table' | 'heatmap'): string {
+		return {
+			matrix: 'qual par de coders diverge mais?',
+			table: 'qual código está frágil?',
+			heatmap: 'em qual modalidade mora a discordância?',
+		}[mode];
+	}
+
+	private async renderOverview(): Promise<void> {
+		this.overviewEl.empty();
+		if (this.state.overviewMode !== 'matrix') {
+			this.overviewEl.createDiv({ text: 'Mode disponível em E2', cls: 'qc-cc-stub' });
+			return;
+		}
+		// Task 4 substitui esse stub por delegação a renderOverviewMatrix.
+		this.overviewEl.createDiv({ text: 'Matriz coder × coder — placeholder (Task 4)', cls: 'qc-cc-stub' });
+	}
+
+	private async renderDrilldown(): Promise<void> {
+		this.drilldownEl.empty();
+		if (this.state.drilldownMode !== 'spatial') {
+			this.drilldownEl.createDiv({ text: 'Perspectiva disponível em E3', cls: 'qc-cc-stub' });
+			return;
+		}
+		// Task 5 substitui esse stub por delegação a renderDrilldownSpatial.
+		this.drilldownEl.createDiv({ text: 'Drill-down spatial — placeholder (Task 5)', cls: 'qc-cc-stub' });
+	}
+
+	/** Selection change hook — chamado por overview ao clicar célula/linha. */
+	setSelection(sel: CurrentSelection): void {
+		this.updateState({ currentSelection: sel });
+	}
+}
