@@ -98,6 +98,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	markerPreviewHydrator?: MarkerPreviewHydrator;
 	audioModel?: AudioCodingModel;
 	videoModel?: VideoCodingModel;
+	icrMarkerOps?: import('./core/icr/markerOps').IcrMarkerOps;
 	togglePdfInstrumentation?: (view: unknown, force?: 'on' | 'off') => void;
 	memoReverseLookup: Map<string, import('./core/memoTypes').EntityRef> = new Map();
 	memoSelfWriting: Set<string> = new Set();
@@ -428,6 +429,21 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.csvModel = csvModel;
 		this.audioModel = audioModel;
 		this.videoModel = videoModel;
+
+		// ─── ICR reconciliation orchestrator (Slice E3a) ────────────────
+		// IcrMarkerOps wrappa os 5 engine models pra executeReconciliationDecision operar cross-engine.
+		// Slice E3a Fase 1 cobre markdown + csvRow; outras engines lançam erro até slice futuro.
+		const { IcrMarkerOpsImpl } = await import('./core/icr/icrMarkerOpsImpl');
+		this.icrMarkerOps = new IcrMarkerOpsImpl(this);
+
+		// Smoke runtime hook (chunk B) — expõe executeReconciliationDecision/Revert no console.
+		// Acesso: app.plugins.plugins['qualia-coding'].__icrSmoke.reconcile(...)
+		const reconciliation = await import('./core/icr/reconciliation');
+		(this as any).__icrSmoke = {
+			...((this as any).__icrSmoke ?? {}),
+			executeReconciliationDecision: reconciliation.executeReconciliationDecision,
+			executeReconciliationRevert: reconciliation.executeReconciliationRevert,
+		};
 
 		// Hydrator de markerText preview pra arquivos lazy (parquet/CSV grandes não abertos
 		// nessa máquina). Trigger é per-file na renderização dos consumers (Code Explorer

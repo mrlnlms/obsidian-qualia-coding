@@ -262,6 +262,18 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		}
 	}
 
+	/** Re-insere marker já-formado (snapshot restore via reconciliação). Persistente + emit ADD event. */
+	insertMarkerRaw(marker: Marker): void {
+		this.addMarkerToFile(marker.fileId, marker);
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId: marker.id,
+			prevCodeIds: [], nextCodeIds: marker.codes.map(c => c.codeId),
+			codeIds: marker.codes.map(c => c.codeId), marker,
+		});
+		this.saveMarkers();
+		this.updateMarkersForFile(marker.fileId);
+	}
+
 	/**
 	 * Persist markers + registry via DataManager.
 	 */

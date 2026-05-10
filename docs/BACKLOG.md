@@ -133,6 +133,11 @@ Spec + plan arquivados em `obsidian-qualia-coding/plugin-docs/archive/claude_sou
 - [ ] "Map manual" em sources problemáticos (atualmente só Skip / Trust local — falta UI de remap manual pra outro fileId local)
 - [ ] Edge case: 2 contribuições do mesmo coderId na rail — atualmente permite, sem badge "duplicate coder"
 
+## 🧱 ICR — Slice E3a — itens identificados durante chunk B
+
+- [ ] **Coder picker em coding ativo** (5 engines) — dropdown "Coding as: [Default ▾]" em popovers/menus + filter `getCodableCoders()` pra excluir consensus. Hoje markers em produção real são criados sem `codedBy`; só seed scripts populam manualmente. Spec E3a §2.2 assumia que existia. Peer ICR feature, não bloqueia E3a (orquestrador setta consensus coder por dentro). Atacar quando ICR sair de zero-user gating e equipes reais abrirem multi-coder no mesmo vault.
+- [ ] **IcrMarkerOps: PDF text + CSV segment + audio + video + image + pdfShape** — bounds.kind='text' / 'temporal' são insuficientes pra essas engines (PDF precisa page+spans, CSV-segment precisa sourceRowId+column+from/to, audio/vídeo precisa file durations). Slice E3a Fase 1 cobre só markdown + csvRow (suficiente pro fluxo "texto-likes" mais frequente). Estender bounds com variants engine-specific (`{kind:'pdfSpan', page, beginIndex, ...}` etc) ou aceitar `engineSpecific` extra na bounds quando expandir. Atacar quando frente E3a seguir pra slices maiores.
+
 ---
 
 ## 🧱 OBSOLETO (mantido pra histórico de decisão)

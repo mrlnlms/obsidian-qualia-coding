@@ -795,4 +795,21 @@ export class CsvCodingModel {
 	private generateId(): string {
 		return Date.now().toString(36) + Math.random().toString(36).substring(2);
 	}
+
+	/** Re-insere marker já-formado (snapshot restore via reconciliação). Persistente + emit ADD event. */
+	insertMarkerRaw(marker: SegmentMarker | RowMarker): void {
+		if (marker.markerType !== 'csv') return;
+		// Discrimina por shape: rowMarker tem só sourceRowId+column; segmentMarker tem from/to também
+		if ('from' in marker && 'to' in marker && typeof (marker as SegmentMarker).from === 'number') {
+			this.segmentMarkers.push(marker as SegmentMarker);
+		} else {
+			this.rowMarkers.push(marker as RowMarker);
+		}
+		this.notify();
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId: marker.id,
+			prevCodeIds: [], nextCodeIds: marker.codes.map(c => c.codeId),
+			codeIds: marker.codes.map(c => c.codeId), marker,
+		});
+	}
 }
