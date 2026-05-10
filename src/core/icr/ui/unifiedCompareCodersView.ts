@@ -1,6 +1,8 @@
 import { ItemView, type WorkspaceLeaf } from 'obsidian';
 import type QualiaCodingPlugin from '../../../main';
 import { type CompareCodersViewState, createDefaultViewState, type CurrentSelection } from './compareCodersTypes';
+import { renderOverviewMatrix } from './overviewMatrix';
+import type { EngineModelsForExtraction } from './scopeExtraction';
 
 export const COMPARE_CODERS_VIEW_TYPE = 'qc-compare-coders';
 
@@ -89,8 +91,26 @@ export class UnifiedCompareCodersView extends ItemView {
 			this.overviewEl.createDiv({ text: 'Mode disponível em E2', cls: 'qc-cc-stub' });
 			return;
 		}
-		// Task 4 substitui esse stub por delegação a renderOverviewMatrix.
-		this.overviewEl.createDiv({ text: 'Matriz coder × coder — placeholder (Task 4)', cls: 'qc-cc-stub' });
+		await renderOverviewMatrix(
+			this.overviewEl,
+			this.state,
+			{
+				coderRegistry: this.plugin.coderRegistry,
+				engineModels: this.engineModels(),
+				app: this.plugin.app,
+			},
+			sel => this.setSelection(sel),
+		);
+	}
+
+	private engineModels(): EngineModelsForExtraction {
+		return {
+			markdown: this.plugin.markdownModel,
+			pdf: this.plugin.pdfModel,
+			csv: this.plugin.csvModel,
+			audio: this.plugin.audioModel,
+			video: this.plugin.videoModel,
+		};
 	}
 
 	private async renderDrilldown(): Promise<void> {
