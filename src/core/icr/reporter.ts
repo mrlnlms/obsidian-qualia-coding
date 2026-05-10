@@ -9,8 +9,9 @@
  * por markers é default razoável mas não única defensável).
  */
 
-import type { KappaInput } from './kappaInput';
+import type { KappaInput, CodedMarker } from './kappaInput';
 import type { CategoricalKappaInput } from './categoricalKappaInput';
+import type { CoderId } from './coderTypes';
 import { cohenKappa } from './coefficients/cohenKappa';
 import { fleissKappa } from './coefficients/fleissKappa';
 import { krippendorffAlphaNominal } from './coefficients/krippendorffAlpha';
@@ -159,5 +160,49 @@ function aggregateReports(
 		alphaNominal: wavg('alphaNominal'),
 		alphaBinary: wavg('alphaBinary'),
 		cuAlpha: wavg('cuAlpha'),
+	};
+}
+
+// ─── Per-pair helper ─────────────────────────────────────────
+//
+// Mode A da Compare Coders View precisa κ entre cada par de coders pra cada
+// coeficiente. Cohen κ já é per-pair direto (`aggregate.cohenKappa[key]`),
+// mas Fleiss/α/α-binary/cu-α são scalar over cohort. Pra obter valor por par
+// pra esses, filter `KappaInput` pra incluir só os 2 coders e re-rodar reporter.
+
+export interface PairwiseReport {
+	pair: [CoderId, CoderId];
+	report: KappaReport;
+}
+
+export function reportPairwise(
+	inputs: EngineKappaInput[],
+	pairs: [CoderId, CoderId][],
+): PairwiseReport[] {
+	return pairs.map(pair => {
+		const filteredInputs: EngineKappaInput[] = inputs.map(input => ({
+			engine: input.engine,
+			kappaInput: filterKappaInputToPair(input.kappaInput, pair),
+		}));
+		const report = reportKappa(filteredInputs);
+		return { pair, report };
+	});
+}
+
+function filterKappaInputToPair(
+	input: KappaInput | CategoricalKappaInput,
+	pair: [CoderId, CoderId],
+): KappaInput | CategoricalKappaInput {
+	const [a, b] = pair;
+	if (isCategorical(input)) {
+		return {
+			units: input.units.filter(u => u.coderId === a || u.coderId === b),
+			coders: [a, b],
+		};
+	}
+	return {
+		markers: input.markers.filter((m: CodedMarker) => m.coderId === a || m.coderId === b),
+		sources: input.sources,
+		coders: [a, b],
 	};
 }
