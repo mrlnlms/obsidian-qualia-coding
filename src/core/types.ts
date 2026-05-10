@@ -236,6 +236,9 @@ export interface GeneralSettings {
 	showRelationsInPopover: boolean;
 	openToggleInNewTab: boolean;
 	memoFolders: MemoFolders;
+	/** ICR Compare Coders Modal: mostra caixa amarela com interpretação de padrões reconhecíveis
+	 *  (cohen baixo + α-binary alto, etc). Opt-out pra power-users que acharem ruído. */
+	showNarrativeDiagnosis?: boolean;
 }
 
 export interface QualiaData {
@@ -349,6 +352,7 @@ export function createDefaultData(): QualiaData {
 			showMagnitudeInPopover: true,
 			showRelationsInPopover: true,
 			openToggleInNewTab: false,
+			showNarrativeDiagnosis: true,
 			memoFolders: {
 				code: 'Analytic Memos/Codes',
 				group: 'Analytic Memos/Groups',

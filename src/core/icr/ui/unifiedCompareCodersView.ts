@@ -8,6 +8,7 @@ import { renderDrilldownSpatial } from './drilldownSpatial';
 import { renderFilterChips } from './filterChips';
 import { renderCoefficientPicker } from './coefficientPicker';
 import { getCodersWithMarkersInScope } from './coderInclusion';
+import { CompareCoderCoefficientsModal } from './compareCoderCoefficientsModal';
 import type { EngineModelsForExtraction } from './scopeExtraction';
 import type { EngineId } from '../reporter';
 
@@ -87,6 +88,9 @@ export class UnifiedCompareCodersView extends ItemView {
 			coefficient => this.updateState({ primaryCoefficient: coefficient }),
 		);
 
+		const sideBtn = pickerHolder.createEl('button', { cls: 'qc-cc-side-btn', text: '↗ ver lado a lado' });
+		sideBtn.onclick = () => this.openSideBySideModal();
+
 		const chipsHolder = this.toolbarEl.createDiv();
 		const codersWithMarkers = new Set(getCodersWithMarkersInScope(this.state.scope, this.engineModels()));
 		renderFilterChips(
@@ -165,5 +169,24 @@ export class UnifiedCompareCodersView extends ItemView {
 	/** Selection change hook — chamado por overview ao clicar célula/linha. */
 	setSelection(sel: CurrentSelection): void {
 		this.updateState({ currentSelection: sel });
+	}
+
+	private openSideBySideModal(): void {
+		const sel = this.state.currentSelection;
+		const isPair = sel.kind === 'pair';
+		const general = this.plugin.dataManager.section('general');
+		new CompareCoderCoefficientsModal(
+			this.plugin.app,
+			this.state.scope,
+			{
+				models: this.engineModels(),
+				app: this.plugin.app,
+				showNarrative: general.showNarrativeDiagnosis ?? true,
+			},
+			{
+				initial: isPair ? 'single-pair' : 'all-pairs',
+				pair: isPair ? sel.value : undefined,
+			},
+		).open();
 	}
 }

@@ -51,7 +51,7 @@ export class CompareCoderCoefficientsModal extends Modal {
 
 	constructor(
 		app: App,
-		private scope: ComparisonScope,
+		private compareScope: ComparisonScope,
 		private ctx: ModalCtx,
 		private options: ModalOptions,
 	) {
@@ -101,7 +101,7 @@ export class CompareCoderCoefficientsModal extends Modal {
 			? [this.options.pair]
 			: this.allPairs();
 		if (pairs.length === 0) return;
-		const inputs = await extractInputsFromScope(this.scope, { models: this.ctx.models, app: this.ctx.app });
+		const inputs = await extractInputsFromScope(this.compareScope, { models: this.ctx.models, app: this.ctx.app });
 		if (inputs.length === 0) return;
 		const reports = reportPairwise(inputs, pairs);
 		for (const r of reports) {
@@ -135,7 +135,7 @@ export class CompareCoderCoefficientsModal extends Modal {
 
 	private allPairs(): [CoderId, CoderId][] {
 		const pairs: [CoderId, CoderId][] = [];
-		const ids = this.scope.coderIds;
+		const ids = this.compareScope.coderIds;
 		for (let i = 0; i < ids.length; i++)
 			for (let j = i + 1; j < ids.length; j++)
 				pairs.push([ids[i]!, ids[j]!]);
@@ -194,7 +194,7 @@ export class CompareCoderCoefficientsModal extends Modal {
 
 	exportMarkdown(): string {
 		const lines: string[] = [];
-		lines.push(`# Coeficientes ICR · escopo ${this.scope.coderIds.join(', ')}`);
+		lines.push(`# Coeficientes ICR · escopo ${this.compareScope.coderIds.join(', ')}`);
 		lines.push('');
 		lines.push(`**Data:** ${new Date().toISOString()}`);
 		lines.push('');

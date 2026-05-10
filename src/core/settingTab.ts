@@ -52,6 +52,16 @@ export class QualiaSettingTab extends PluginSettingTab {
 					save();
 				}));
 
+		new Setting(containerEl)
+			.setName('ICR · narrative diagnosis in "ver lado a lado" modal')
+			.setDesc('Show interpretive box for recognizable patterns (cohen low + α-binary high, etc) in the Compare Coders coefficients modal.')
+			.addToggle(toggle => toggle
+				.setValue(generalSettings.showNarrativeDiagnosis ?? true)
+				.onChange((value) => {
+					generalSettings.showNarrativeDiagnosis = value;
+					save();
+				}));
+
 		// ── Memo materialization ──────────────────────────────
 		containerEl.createEl('h2', { text: 'Memo materialization' });
 		containerEl.createEl('p', {
