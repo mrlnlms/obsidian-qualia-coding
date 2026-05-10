@@ -116,8 +116,17 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [x] Plugin `icrTransport.detectStaleMarkers` exposto pra console
   - 10 testes novos. Tag `post-icr-slice-5-checkpoint`.
 
+  **✅ Slice 6 — Adapter bbox IoU PDF shape + Image (FEITO 2026-05-09):**
+  - [x] 6 módulos novos em `src/core/icr/`: `bboxNormalize`, `bboxRaster`, `bboxIoU`, `bboxMatcher`, `bboxKappaInput`, `bboxAdapter`
+  - [x] Reporter `EngineId += 'pdfShape' | 'image'` (família spatial-bbox + warning aggregate cross-unit)
+  - [x] Algoritmo: bbox-as-unit binário + Hungarian + κ pareado; default θ=0.5 (COCO)
+  - [x] Adaptive resolution 400×400 quando bbox <0.01% área OU min-dim < 2/gridSize
+  - [x] Pair-wise (2 coders); multi-coder N>2 reportado como matriz triangular C(N,2)
+  - [x] `docs/ICR-METHODOLOGY.md` user-facing pra pesquisador citar em paper
+  - [x] Smoke handle exposto no `main.ts` (`plugin.__icrSmoke`) + nota smoke na raiz do vault
+  - **6 das 6 engines cobertas — fecha o motor κ multimodal completo.** 49 testes novos (168 → 217 em tests/core/icr/). Spec em `obsidian-qualia-coding/plugin-docs/superpowers/specs/2026-05-09-icr-bbox-adapter-design.md` com Appendix A (alternativas rejeitadas) + Appendix B (methodology user-facing).
+
   **Slices fora do escopo entregue (pendentes):**
-  - [ ] **Adapter bbox IoU (PDF shape, imagem)** — terreno aberto, brainstorm metodológico precede. Decisões em aberto: threshold de match, agregação em κ, bounds não-retangulares, chance agreement pra área 2D, sobreposição M:N
   - [ ] **View Compare Coders** (drill-down NVivo-style — bounds renderizados conforme modalidade) — gated em UX brainstorm
   - [ ] **Reconciliação registrada via audit + memos** (orquestração do tripé) — gated em UX brainstorm
   - [ ] **Wire `attachSourceHashSnapshot` em outros 5 engines** (PDF / CSV / image / audio / video) — slice de extensão mecânica do piloto markdown
@@ -129,12 +138,12 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   **Possibilidade complementar (não-prioridade, pós-Fase C P1):**
   - [ ] Campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio
 
-  **Resumo da sessão 2026-05-09:** **5 slices entregues** numa só sessão, +147 testes ICR (2814 → 2961). Infraestrutura ICR completa em todos os flancos sem UI. 5 das 6 engines cobertas. Decisões adiadas registradas em `BACKLOG.md`: Smart Code cache hash invalidation (consumer não existe — predicates não dependem de texto), Backup integrity (semântica fragmentada), wiring provenance em outros engines (extensão mecânica).
+  **Resumo da sessão 2026-05-09:** **6 slices entregues** numa só sessão, +196 testes ICR (2814 → ~3010). Infraestrutura ICR completa em todos os flancos + 6 das 6 engines cobertas (motor κ multimodal completo). Slice 6 entregou bbox adapter (PDF shape + Image) com receita metodológica nova alinhada COCO/CV — diferenciador real de mercado (NVivo, ATLAS.ti, MAXQDA não cobrem ICR multimodal completo). Decisões adiadas registradas em `BACKLOG.md`: Smart Code cache hash invalidation, Backup integrity, wiring provenance em outros engines.
 
   **Próximo passo (gated em você):**
   - Brainstorm UX da Fase C P1 (modal preview / cherry-pick / staging / conflict resolution)
   - Brainstorm UX do View Compare Coders + Reconciliação
-  - Brainstorm metodológico pra PDF shape + imagem (bbox IoU em QDA)
+  - Refactor motor κ pra set-valued labels (eliminar redução first-code alfabético — afeta TODAS as engines)
   - Wire mechanical de `attachSourceHashSnapshot` em outros 5 engines
 
   **Docs companion** (todos em `obsidian-qualia-coding/plugin-docs/research/`):

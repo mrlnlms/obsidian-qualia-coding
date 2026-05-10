@@ -1489,7 +1489,13 @@ src/
       categoricalKappaInput.ts — CategoricalKappaInput shape (cod row, sem geometria) + extractRowMarkerUnit
       textRange.ts           — TextRange + adapters (extractMarkdownRange, extractPdfRange, extractCsvSegmentRange, extractMediaRange)
       overlap.ts             — computeOverlap puro (intersection 1D com scope check fileId+locator)
-      reporter.ts            — reportKappa: per-engine + aggregate ponderado + aggregateWarnings cross-unit (chars/seconds/categorical)
+      bboxNormalize.ts       — bridge PdfShapeMarker.coords ↔ ImageMarker.coords → PercentShapeCoords comum
+      bboxRaster.ts          — rasterize(shape, coords, gridSize) → Bitmap (Uint32Array packed) com clip-to-viewport
+      bboxIoU.ts             — iou(a, b) com AABB early-out + AND/popcount32 SWAR
+      bboxMatcher.ts         — Hungarian/Munkres assignment (O(max(N,M)³)) + match() com θ post-cutoff → AlignmentEvent[]
+      bboxKappaInput.ts      — fromEvents: alignment events → CodedMarker[] (matched colide no mesmo i, unmatched ocupam units sequenciais)
+      bboxAdapter.ts         — entry point per-pair: scope grouping (PDF page/Image fileId), adaptive resolution 400×400 trigger, pre-handla casos 0×N e N×0
+      reporter.ts            — reportKappa: per-engine + aggregate ponderado + aggregateWarnings cross-unit (chars/seconds/categorical/spatial-bbox)
       coefficients/
         cohenKappa.ts        — Cohen κ pareado per-char (Po-Pe normalizado)
         fleissKappa.ts       — Fleiss κ N-coders per-char

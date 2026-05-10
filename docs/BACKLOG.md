@@ -169,20 +169,25 @@ Sem essas 6 frentes de UX, Slice 3 entrega motor de transport completo mas usáv
 
 Slice 4 (planejado 2026-05-09) adiciona adapters **cod row** (CSV categórico) e **áudio/vídeo** (overlap temporal em segundos) sobre o motor κ paramétrico existente. Restam adapters fora do Slice 4:
 
-### Adapter PDF shape + imagem (bbox IoU — terreno aberto)
+### Adapter PDF shape + imagem (bbox IoU) ✅ ENTREGUE 2026-05-09 (Slice 6)
 
-**Estado atual:** motor κ assume overlap 1D (intervalo `from` → `to`). PDF shape (`PdfShapeMarker`) e Image (`ImageMarker`) têm coordenadas espaciais 2D — retângulo, elipse, polígono.
+**Spec:** `obsidian-qualia-coding/plugin-docs/superpowers/specs/2026-05-09-icr-bbox-adapter-design.md`
+**Plan:** `docs/superpowers/plans/2026-05-09-icr-slice-6-bbox-adapter.md`
+**Methodology (user-facing):** `docs/ICR-METHODOLOGY.md`
 
-**Impacto sem fazer:** ICR não cobre coding de regiões em PDFs/imagens. Markers desses engines existem mas ficam fora do Compare Coders.
+**Implementação:** bbox-as-unit binário com matching IoU + Hungarian + κ pareado, sobre o motor κ existente. 6 módulos novos em `src/core/icr/`: `bboxNormalize`, `bboxRaster`, `bboxIoU`, `bboxMatcher`, `bboxKappaInput`, `bboxAdapter`. Reporter `EngineId += 'pdfShape' | 'image'` (família spatial-bbox).
 
-**Quando atacar:** após **brainstorm metodológico dedicado**. Decisões em aberto na literatura QDA:
-- Threshold de "match" (IoU ≥ 0.5? ≥ 0.7? configurável?)
-- Como bbox match vira input do κ (binário matched/unmatched? ranking? ponderado pelo IoU?)
-- Bounds não-retangulares (elipse, polígono) — IoU geral funciona mas custo computacional cresce
-- Sobreposição parcial M:N entre coders — caso ambíguo
-- Chance agreement pra área 2D — Krippendorff α tem precedente nominal mas não pra geometria espacial
+**Decisões cravadas (ver Appendix A do spec pra alternativas rejeitadas e condições de retomada):**
+- Threshold θ: configurável por análise, default 0.5 (alinhado COCO).
+- Matching: Hungarian 1:1 ótimo + cutoff θ pós-assignment (rejeitadas: greedy, many-to-one).
+- Multi-código por bbox: herda redução first-code alfabético do motor κ (limitação geral, refactor separado).
+- Multi-coder N>2: matriz triangular C(N,2) de κ pair-wise (rejeitada: clustering N-way bbox).
+- IoU não-rect: rasterização uniforme grid 200×200 (adaptive 400×400 quando bbox <0.01% área OU min-dim < 2/gridSize).
 
-**Não há receita pronta no mercado:** ATLAS.ti 25 só faz áudio/vídeo. NVivo Coding Comparison opera sobre "regiões" sem métrica espacial dedicada. Diferenciador potencial mas requer pesquisa metodológica.
+**Trabalho futuro registrado em Appendix A do spec:**
+- cu-α com IoU contínuo (linha de pesquisa publicável).
+- Per-código matching primeiro (γ).
+- Multi-coder via clustering N-way (Fleiss-equivalent).
 
 ### Resolução sub-segundo pra áudio/vídeo
 
@@ -202,7 +207,7 @@ Slice 4 (planejado 2026-05-09) adiciona adapters **cod row** (CSV categórico) e
 
 ### Resumo do impacto cumulativo
 
-Slice 4 entrega 5 das 6 engines do plugin (markdown + PDF text + CSV cod segment ✅ Slice 1; áudio + vídeo ✅ Slice 4; CSV cod row ✅ Slice 4). Falta apenas PDF shape + imagem — terreno aberto que requer pesquisa metodológica antes. Sub-segundo e pre-warm são otimizações conhecidas que entram quando uso real puxar.
+Slice 6 fecha as 6 engines do plugin no motor κ (markdown + PDF text + CSV cod segment ✅ Slice 1; áudio + vídeo ✅ Slice 4; CSV cod row ✅ Slice 4; **PDF shape + imagem ✅ Slice 6**). Sub-segundo e pre-warm são otimizações conhecidas que entram quando uso real puxar.
 
 ---
 
