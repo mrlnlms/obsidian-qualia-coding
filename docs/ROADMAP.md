@@ -179,7 +179,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [x] Default scope mudou: agora inclui TODOS coders (humanos + consensus); `applyCoderInclusion` remove consensus sem markers
   - [x] Modal "ver lado a lado": toggle pré/pós no header (visível só com consensus no scope) + banner indicativo + empty state pra par envolvendo consensus em "pré"
   - [x] `generateReconciliationReport` puro: timeline + memos + κ pré/pós + clipboard export do P3
-  - **Build prod limpo + 3360 testes verde** (3303 → 3360, +57 testes). Tag `post-icr-slice-e3b-checkpoint` pendente do smoke real.
+  - **Smoke real verde 2026-05-11.** Build prod limpo + 3365 testes verde (3303 → 3365, +62 testes incluindo +5 regression do rangeKey fix). Tag `post-icr-slice-e3b-checkpoint` pushada.
 
   **Slices fora do escopo entregue (pendentes):**
   - [ ] **Slice E4** — Saved Comparisons + ribbon + atalho contextual no codebook

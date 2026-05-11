@@ -1975,7 +1975,9 @@ Reporter continua puro sobre `EngineKappaInput[]`; filtro de coders consensus ac
 - IcrMarkerOps continua markdown + csvRow (Fase 1 do E3a). Extensão pendente em backlog.
 - Workflow queue não tem virtualização ainda; spec §4.3 deixou nota pra reabrir se ficar lento em vault grande com muitas regiões abertas.
 
-Testes: +57 (3303 → 3360 total), distribuídos em `tests/core/icr/ui/regionDerivation.test.ts` (23), `tests/core/icr/openReconciliation.test.ts` (5), `tests/core/icr/ui/drilldownWorkflow.test.ts` (8), `tests/core/icr/ui/reconciliationReport.test.ts` (9), `tests/core/icr/ui/coderInclusion.test.ts` (+9 cases), `tests/core/icr/ui/compareCoderCoefficientsModal.test.ts` (+6 cases pré/pós).
+Testes: +62 (3303 → 3365 total), distribuídos em `tests/core/icr/ui/regionDerivation.test.ts` (23), `tests/core/icr/openReconciliation.test.ts` (5), `tests/core/icr/ui/drilldownWorkflow.test.ts` (8), `tests/core/icr/ui/reconciliationReport.test.ts` (9), `tests/core/icr/ui/coderInclusion.test.ts` (+9 cases), `tests/core/icr/ui/compareCoderCoefficientsModal.test.ts` (+6 cases pré/pós), `tests/core/icr/icrMarkerOpsRangeKey.test.ts` (4 regression do bug rangeKey).
+
+**Bug crítico fixado durante smoke 2026-05-11 — rangeKey vazando como char offset:** `regionDerivation.buildMarkdownRegionFromCluster` encoda bounds como `rangeKey = line × 1_000_000 + ch` (chave artificial pra clustering ordinal). Em E3a esse valor era passado direto pra `markerOps.createMarker(engine='markdown', { bounds })` que setava `range: { from: { line: 0, ch: <rangeKey> } }` — `range.ch` virava 10_000_000. Invisible em E3a porque scope default excluía consensus → `extractInputsFromScope` filtrava esses markers fora. E3b mudou scope default pra incluir consensus → `explodeMarkersToCharLabels` iterava 2M chars por marker × 9 consensus markers = main thread travada por 60s+. Fix em `icrMarkerOpsImpl.ts`: `decodeRangeKey()` e `rangesOverlapLineCh()` (linha-comparison via rangeKey). Limpeza one-shot do `data.json` removeu 9 consensus markers corruptos + 17 audit entries órfãs.
 
 ### 19.13 Companion docs
 

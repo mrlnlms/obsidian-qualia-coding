@@ -103,7 +103,7 @@ export class UnifiedCompareCodersView extends ItemView {
 			text: this.modeQuestion(this.state.overviewMode),
 		});
 
-		// Drill-down mode picker (E3a entrega `cards`; `workflow` ainda stub até E3b).
+		// Drill-down mode picker (E3a entrega `cards`; E3b entrega `workflow`).
 		const drillGroup = this.toolbarEl.createSpan({ cls: 'qc-cc-mode-group' });
 		drillGroup.createSpan({ cls: 'qc-cc-mode-label', text: 'drill-down' });
 		const drillRow = drillGroup.createSpan({ cls: 'qc-cc-mode-row' });

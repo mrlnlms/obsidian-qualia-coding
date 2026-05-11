@@ -154,7 +154,7 @@ Spec original em `docs/superpowers/specs/2026-05-09-icr-compare-coders-design.md
 
 ## ✅ ICR — Slice E3b (P3 workflow queue) — RESOLVIDO 2026-05-12
 
-Spec original em `obsidian-qualia-coding/plugin-docs/archive/claude_sources/specs/20260509-icr-compare-coders-design.md §9 Slice E3b`. +57 testes (3303 → 3360). Tag `post-icr-slice-e3b-checkpoint` pendente do smoke real.
+Spec original em `obsidian-qualia-coding/plugin-docs/archive/claude_sources/specs/20260509-icr-compare-coders-design.md §9 Slice E3b`. +62 testes (3303 → 3365, inclui +4 regression do rangeKey fix). Tag `post-icr-slice-e3b-checkpoint` pushada. Smoke real verde 2026-05-11.
 
 **Entregue:**
 - `regionDerivation.ts` extraído (helpers puros reusados por P2 e P3)
