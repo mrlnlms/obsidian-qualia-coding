@@ -30,11 +30,18 @@ export class UnifiedCompareCodersView extends ItemView {
 	 *  Sem isso, 2 updateState próximos disparam 2 renders async; ambos `empty()` o container
 	 *  no início mas escrevem na ordem de resolução do await — concorrência duplica conteúdo. */
 	private renderToken = 0;
+	/** Serializa renders async: clicks rápidos NÃO empilham trabalho concorrente (extractInputsFromScope
+	 *  faz vault.cachedRead caro pra cada md). Sem isso, N clicks viram N renders paralelos competindo
+	 *  pelo event loop — UI trava sob load. Token-guard descarta o trabalho stale ao final. */
+	private renderQueue: Promise<void> = Promise.resolve();
 
 	constructor(leaf: WorkspaceLeaf, private plugin: QualiaCodingPlugin) {
 		super(leaf);
-		const allCoderIds = plugin.coderRegistry.getAll().map(c => c.id);
-		this.state = createDefaultViewState(allCoderIds);
+		// Default scope exclui consensus coders — eles tendem a ter poucos markers e poluem
+		// matriz κ com colunas vermelhas vazias. User reincluí via filter chip "Consensus (...)"
+		// quando quiser ver κ pré/pós reconciliação.
+		const codableCoderIds = plugin.coderRegistry.getCodableCoders().map(c => c.id);
+		this.state = createDefaultViewState(codableCoderIds);
 	}
 
 	getViewType(): string { return COMPARE_CODERS_VIEW_TYPE; }
@@ -153,37 +160,41 @@ export class UnifiedCompareCodersView extends ItemView {
 		}[mode];
 	}
 
-	private async renderOverview(token: number): Promise<void> {
-		// Renderiza num scratch fragment; commit só se o token ainda é o atual.
-		// Sem o token-guard, 2 chamadas async escrevem no mesmo container e duplicam conteúdo.
-		const scratch = document.createDocumentFragment();
-		const wrap = document.createElement('div');
-		scratch.appendChild(wrap);
-		const deps = {
-			coderRegistry: this.plugin.coderRegistry,
-			engineModels: this.engineModels(),
-			app: this.plugin.app,
-		};
-		if (this.state.overviewMode === 'matrix') {
-			await renderOverviewMatrix(wrap, this.state, deps, sel => this.setSelection(sel));
-		} else if (this.state.overviewMode === 'table') {
-			await renderOverviewTable(
-				wrap,
-				this.state,
-				{ ...deps, codeRegistry: this.plugin.sharedRegistry },
-				sel => this.setSelection(sel),
-			);
-		} else {
-			await renderOverviewHeatmap(
-				wrap,
-				this.state,
-				{ ...deps, codeRegistry: this.plugin.sharedRegistry },
-				sel => this.setSelection(sel),
-			);
-		}
-		if (token !== this.renderToken) return; // stale — descarta
-		this.overviewEl.empty();
-		while (wrap.firstChild) this.overviewEl.appendChild(wrap.firstChild);
+	private renderOverview(token: number): Promise<void> {
+		// Encadeia neste queue: cada render espera o anterior. Skipa stale token ANTES de
+		// começar o trabalho async caro (extractInputsFromScope itera todos engines + vault.cachedRead).
+		this.renderQueue = this.renderQueue.then(async () => {
+			if (token !== this.renderToken) return; // skip — newer click já chegou
+			const scratch = document.createDocumentFragment();
+			const wrap = document.createElement('div');
+			scratch.appendChild(wrap);
+			const deps = {
+				coderRegistry: this.plugin.coderRegistry,
+				engineModels: this.engineModels(),
+				app: this.plugin.app,
+			};
+			if (this.state.overviewMode === 'matrix') {
+				await renderOverviewMatrix(wrap, this.state, deps, sel => this.setSelection(sel));
+			} else if (this.state.overviewMode === 'table') {
+				await renderOverviewTable(
+					wrap,
+					this.state,
+					{ ...deps, codeRegistry: this.plugin.sharedRegistry },
+					sel => this.setSelection(sel),
+				);
+			} else {
+				await renderOverviewHeatmap(
+					wrap,
+					this.state,
+					{ ...deps, codeRegistry: this.plugin.sharedRegistry },
+					sel => this.setSelection(sel),
+				);
+			}
+			if (token !== this.renderToken) return; // ainda stale (chegou outro click durante await)
+			this.overviewEl.empty();
+			while (wrap.firstChild) this.overviewEl.appendChild(wrap.firstChild);
+		});
+		return this.renderQueue;
 	}
 
 	private engineModels(): EngineModelsForExtraction {
