@@ -2069,7 +2069,63 @@ Cada call site de criação de marker stampa `codedBy: this.plugin.getActiveCode
 
 **Bug registrado em BACKLOG (não fixado nesta entrega):** CSV row markers são shared cross-coder por cell — `findOrCreateRowMarker(file, rowId, column)` retorna marker existente independente do coder ativo. Quando coder B troca picker e aplica código já aplicado pelo coder A, o no-op é silencioso. Use case "duas pessoas no mesmo PC trocando perfil" não é cenário real do projeto, mas a semântica merece decisão (1 marker per cell+coder vs `codedByList[]`). Pensar conjuntamente com como ICR semântica trata row-level vs segment-level coding.
 
-### 19.15 Companion docs
+### 19.15 IcrMarkerOps + reconciliação cross-engine (Slice E5a, 2026-05-11)
+
+**Entrega:** reconciliação P2 Cards funciona em pdf-text, csv-segment, audio, video — antes só markdown + csvRow eram suportados (outras engines davam "engine-not-supported-in-slice" no drill-down).
+
+**Schema** — `ReconciliationBounds` ganhou 2 variants:
+
+```typescript
+export type ReconciliationBounds =
+  | { kind: 'text'; from: number; to: number }                                                       // markdown
+  | { kind: 'csvRow'; rowIndex: number; column?: string }                                            // CSV row marker
+  | { kind: 'csvSegment'; rowIndex: number; column: string; from: number; to: number }              // novo E5a
+  | { kind: 'pdfText'; page: number; from: number; to: number }                                     // novo E5a
+  | { kind: 'temporal'; fromMs: number; toMs: number };                                              // audio + video
+```
+
+Bbox spatial (image + pdfShape) fica pro Slice E5b — semantics 2D não trivial (adopt = union ou intersect?).
+
+**Switches sincronizados (todos cobrindo 5 kinds):**
+- `formatBoundsLabel` em `regionDerivation.ts` (display) e `formatBoundsShort` em `auditLog.ts` (timeline)
+- `isValidBounds` + `unionOfBounds` em `reconciliation.ts` (consensus bounds derivation)
+- `sameBounds` em `regionDerivation.ts` e `sameBoundsLocal` em `reconciliationReport.ts`
+- `regionKey` (chave de deduplicação cross-region)
+
+**Collectors novos em `regionDerivation.ts`:**
+
+- `collectPdfTextRegions(pdfModel, scopeCoders)`: agrupa markers por `(fileId, page)` → cluster por overlap em `beginIndex/endIndex` → emit `ContestedRegion` se ≥2 coders no cluster.
+- `collectCsvSegmentRegions(csvModel, scopeCoders)`: agrupa por `(fileId, rowIndex, column)` → cluster por overlap em `from/to` → emit. Detecta segment via presença de `from` numérico (RowMarker não tem).
+- `collectTemporalRegions(mediaModel, scopeCoders, engine: 'audio' | 'video')`: agrupa por `fileId` → cluster por overlap em `fromMs/toMs` → emit com engine recebido como param.
+- `formatMs` helper local (`MM:SS` display).
+
+`collectContestedRegions` agora itera 5 engines (antes 2). Wire dos novos collectors verificou `engineModels.{pdf,audio,video}` antes de chamar.
+
+**IcrMarkerOpsImpl refactor** — antes tinha branches per-engine duplicados; agora:
+- `getModelForUpdate(engine)` retorna interface mínima `{ findMarker, addCodeToMarker, removeCodeFromMarker }` — extrai pattern compartilhado. Markdown/Csv/Pdf/Audio/Video plugam o mesmo update flow.
+- `createMarker`/`removeMarker`/`restoreMarker`/`findMarkersInRegion` ganharam branches pros 4 engines novos. Snapshot/restore via `insertMarkerRaw` em cada model.
+- PDF text marker criado via ICR usa `beginIndex/endIndex` = bounds.from/to; `beginOffset/endOffset = 0` e `text = ''` (consensus markers não têm anchor span-relative — collector trabalha em coords range-level).
+
+**Métodos novos nos engine models:**
+- `PdfCodingModel.insertMarkerRaw(marker)`: push + notify + emit ADD event
+- `MediaCodingModel.insertMarkerRaw(marker)`: `getOrCreateFile` + push + notify + emit
+(CsvCodingModel já tinha; markdown idem)
+
+**Provenance audit (`attachSourceHashSnapshot`)** — wire mecânico em todas paths de criação singular:
+- `pdfCodingModel.findOrCreateMarker` (text) + `createShape`
+- `csvCodingModel.setCellComment` (auto-create row) + `findOrCreateRowMarker` + `findOrCreateSegmentMarker`
+- `mediaCodingModel.findOrCreateMarker` (audio + video compartilhado)
+- Bulk `addCodeToManyRows` propositalmente fora — N hash requests por batch seria custoso, vale só pra criação singular onde latência humana esconde a I/O.
+
+**Seed (`scripts/seed-icr-corpus.mjs`)** — estendido pra cobrir audio + video. Coders agora aditivos (`ensureCoder(id, name)` em vez de substituir o array) — preserva coders criados via UI fora do seed.
+
+**Testes** — 3392 → 3414 (+22):
+- `tests/core/icr/ui/regionDerivation.collectors.test.ts`: 14 cases pros 3 collectors novos (overlap, group boundaries, scope filtering, divergenceKind classification)
+- `tests/core/icr/icrMarkerOpsImpl.test.ts`: 8 cases pros 4 engines novos (create + reject bounds + findMarkersInRegion). Tests antigos de "engine-not-supported" reescritos pra cobrir só pdfShape + image (E5b ainda pendente).
+
+**Lentidão observada no smoke (não bloqueante):** registrada no BACKLOG. Hipótese: 3 collectors a mais por chamada de `collectContestedRegions` (sem cache). Pra escala do seed (~30 markers cross-engine) deve ser sub-ms, mas no dev box pareceu perceptível. Verificar se memoização (chave = state.scope hash + generation counter) vale, ou se é perf de hardware.
+
+### 19.16 Companion docs
 
 - `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
 - `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural

@@ -18,14 +18,15 @@ const data = JSON.parse(fs.readFileSync(DATA_JSON, 'utf-8'));
 const now = Date.now();
 const id = (prefix) => `${prefix}_${Math.random().toString(36).slice(2, 11)}`;
 
-// ─── Coders ─────────────────────────────────────────────
-data.coders = {
-	coders: [
-		{ id: 'human:default', name: 'Default', type: 'human', createdAt: now },
-		{ id: 'human:carla', name: 'Carla', type: 'human', createdAt: now },
-		{ id: 'human:joana', name: 'Joana', type: 'human', createdAt: now },
-	],
+// ─── Coders (aditivo — preserva coders existentes; só adiciona Default/Carla/Joana se faltar) ──
+data.coders = data.coders ?? { coders: [] };
+const ensureCoder = (id_, name) => {
+	if (data.coders.coders.some(c => c.id === id_)) return;
+	data.coders.coders.push({ id: id_, name, type: 'human', createdAt: now });
 };
+ensureCoder('human:default', 'Default');
+ensureCoder('human:carla', 'Carla');
+ensureCoder('human:joana', 'Joana');
 
 // ─── Codes (5 categorical) ───────────────────────────────
 const codeIds = {};
@@ -151,6 +152,57 @@ data.csv.segmentMarkers.push(
 	},
 );
 
+// ─── Audio markers (Slice E5a smoke) ──────────────────────
+// Files reais no vault — paths relativos. Markers contestados: Carla vs Joana sobrepondo.
+const AUDIO_FILE = 'obsidian-qualia-coding/Conquerors and The World.mp3';
+data.audio = data.audio ?? { files: [], settings: data.audio?.settings ?? {} };
+const audioFile = data.audio.files.find(f => f.path === AUDIO_FILE) ?? (() => {
+	const f = { path: AUDIO_FILE, markers: [] };
+	data.audio.files.push(f);
+	return f;
+})();
+audioFile.markers.push(
+	{
+		markerType: 'audio', id: id('m'), fileId: AUDIO_FILE,
+		from: 5000, to: 12000,
+		codes: [{ codeId: codeIds['Frustração'] }],
+		codedBy: 'human:carla',
+		createdAt: now, updatedAt: now,
+	},
+	{
+		markerType: 'audio', id: id('m'), fileId: AUDIO_FILE,
+		from: 8000, to: 15000,
+		codes: [{ codeId: codeIds['Crítica institucional'] }],
+		codedBy: 'human:joana',
+		createdAt: now, updatedAt: now,
+	},
+);
+
+// ─── Video markers (Slice E5a smoke) ──────────────────────
+const VIDEO_FILE = 'obsidian-qualia-coding/leticia.mp4';
+data.video = data.video ?? { files: [], settings: data.video?.settings ?? {} };
+const videoFile = data.video.files.find(f => f.path === VIDEO_FILE) ?? (() => {
+	const f = { path: VIDEO_FILE, markers: [] };
+	data.video.files.push(f);
+	return f;
+})();
+videoFile.markers.push(
+	{
+		markerType: 'video', id: id('m'), fileId: VIDEO_FILE,
+		from: 0, to: 5000,
+		codes: [{ codeId: codeIds['Confiança'] }],
+		codedBy: 'human:carla',
+		createdAt: now, updatedAt: now,
+	},
+	{
+		markerType: 'video', id: id('m'), fileId: VIDEO_FILE,
+		from: 3000, to: 8000,
+		codes: [{ codeId: codeIds['Estratégia'] }],
+		codedBy: 'human:joana',
+		createdAt: now, updatedAt: now,
+	},
+);
+
 fs.writeFileSync(DATA_JSON, JSON.stringify(data, null, 2));
 
 console.log('ICR seed corpus populated.');
@@ -159,3 +211,5 @@ console.log(`- ${Object.keys(data.registry.definitions).length} codes`);
 console.log(`- ${Object.values(mdMarkers).flat().length} markdown markers`);
 console.log(`- ${data.pdf.markers.length} PDF markers`);
 console.log(`- ${data.csv.segmentMarkers.length} CSV segment markers`);
+console.log(`- ${audioFile.markers.length} audio markers (${AUDIO_FILE})`);
+console.log(`- ${videoFile.markers.length} video markers (${VIDEO_FILE})`);

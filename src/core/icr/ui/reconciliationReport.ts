@@ -177,6 +177,8 @@ function sameBoundsLocal(a: ReconciliationBounds, b: ReconciliationBounds): bool
 	if (a.kind !== b.kind) return false;
 	if (a.kind === 'text' && b.kind === 'text') return a.from === b.from && a.to === b.to;
 	if (a.kind === 'csvRow' && b.kind === 'csvRow') return a.rowIndex === b.rowIndex && (a.column ?? '') === (b.column ?? '');
+	if (a.kind === 'csvSegment' && b.kind === 'csvSegment') return a.rowIndex === b.rowIndex && a.column === b.column && a.from === b.from && a.to === b.to;
+	if (a.kind === 'pdfText' && b.kind === 'pdfText') return a.page === b.page && a.from === b.from && a.to === b.to;
 	if (a.kind === 'temporal' && b.kind === 'temporal') return a.fromMs === b.fromMs && a.toMs === b.toMs;
 	return false;
 }

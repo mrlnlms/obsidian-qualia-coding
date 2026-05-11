@@ -67,6 +67,19 @@ export function collectContestedRegions(
 
 	if (engineModels.csv) {
 		out.push(...collectCsvRowRegions(engineModels.csv, scopeCoders));
+		out.push(...collectCsvSegmentRegions(engineModels.csv, scopeCoders));
+	}
+
+	if (engineModels.pdf) {
+		out.push(...collectPdfTextRegions(engineModels.pdf, scopeCoders));
+	}
+
+	if (engineModels.audio) {
+		out.push(...collectTemporalRegions(engineModels.audio, scopeCoders, 'audio'));
+	}
+
+	if (engineModels.video) {
+		out.push(...collectTemporalRegions(engineModels.video, scopeCoders, 'video'));
 	}
 
 	return out;
@@ -76,9 +89,12 @@ export function regionKey(
 	region: { fileId: string; engine: EngineId; bounds: ReconciliationBounds },
 ): string {
 	const b = region.bounds;
-	const boundsKey = b.kind === 'text' ? `t:${b.from}-${b.to}`
-		: b.kind === 'csvRow' ? `r:${b.rowIndex}:${b.column ?? ''}`
-		: `m:${b.fromMs}-${b.toMs}`;
+	const boundsKey =
+		b.kind === 'text' ? `t:${b.from}-${b.to}` :
+		b.kind === 'csvRow' ? `r:${b.rowIndex}:${b.column ?? ''}` :
+		b.kind === 'csvSegment' ? `cs:${b.rowIndex}:${b.column}:${b.from}-${b.to}` :
+		b.kind === 'pdfText' ? `pt:${b.page}:${b.from}-${b.to}` :
+		`m:${b.fromMs}-${b.toMs}`;
 	return `${region.fileId}::${region.engine}::${boundsKey}`;
 }
 
@@ -86,6 +102,8 @@ export function sameBounds(a: ReconciliationBounds, b: ReconciliationBounds): bo
 	if (a.kind !== b.kind) return false;
 	if (a.kind === 'text' && b.kind === 'text') return a.from === b.from && a.to === b.to;
 	if (a.kind === 'csvRow' && b.kind === 'csvRow') return a.rowIndex === b.rowIndex && (a.column ?? '') === (b.column ?? '');
+	if (a.kind === 'csvSegment' && b.kind === 'csvSegment') return a.rowIndex === b.rowIndex && a.column === b.column && a.from === b.from && a.to === b.to;
+	if (a.kind === 'pdfText' && b.kind === 'pdfText') return a.page === b.page && a.from === b.from && a.to === b.to;
 	if (a.kind === 'temporal' && b.kind === 'temporal') return a.fromMs === b.fromMs && a.toMs === b.toMs;
 	return false;
 }
@@ -167,6 +185,10 @@ export function formatBoundsLabel(bounds: ReconciliationBounds): string {
 			return `chars ${bounds.from}–${bounds.to}`;
 		case 'csvRow':
 			return bounds.column ? `row ${bounds.rowIndex} · ${bounds.column}` : `row ${bounds.rowIndex}`;
+		case 'csvSegment':
+			return `row ${bounds.rowIndex} · ${bounds.column} · chars ${bounds.from}–${bounds.to}`;
+		case 'pdfText':
+			return `page ${bounds.page} · chars ${bounds.from}–${bounds.to}`;
 		case 'temporal':
 			return `${bounds.fromMs}ms–${bounds.toMs}ms`;
 	}
@@ -328,8 +350,276 @@ function collectCsvRowRegions(
 	return out;
 }
 
+// ─── Slice E5a — collectors texto-likes + temporal ────────────
+
+interface PdfTextMarkerInScope {
+	fileId: string;
+	page: number;
+	beginIndex: number;
+	endIndex: number;
+	coderId: CoderId;
+	markerId: string;
+	codes: CodeApplication[];
+}
+
+function collectPdfTextRegions(
+	pdfModel: NonNullable<EngineModelsForExtraction['pdf']>,
+	scopeCoders: Set<CoderId>,
+): ContestedRegion[] {
+	const inScope: PdfTextMarkerInScope[] = [];
+	for (const m of pdfModel.getAllMarkers()) {
+		if (!m.codedBy || !scopeCoders.has(m.codedBy)) continue;
+		inScope.push({
+			fileId: m.fileId,
+			page: m.page,
+			beginIndex: m.beginIndex,
+			endIndex: m.endIndex,
+			coderId: m.codedBy,
+			markerId: m.id,
+			codes: m.codes,
+		});
+	}
+	// Agrupa por (fileId, page) — markers de páginas diferentes nunca clusterizam.
+	const byKey = new Map<string, PdfTextMarkerInScope[]>();
+	for (const m of inScope) {
+		const k = `${m.fileId}::${m.page}`;
+		const list = byKey.get(k) ?? [];
+		list.push(m);
+		byKey.set(k, list);
+	}
+	const out: ContestedRegion[] = [];
+	for (const [, list] of byKey) {
+		const sorted = list.slice().sort((a, b) => a.beginIndex - b.beginIndex);
+		let cluster: PdfTextMarkerInScope[] = [];
+		let clusterEnd = -Infinity;
+		for (const m of sorted) {
+			if (m.beginIndex <= clusterEnd && cluster.length > 0) {
+				cluster.push(m);
+				clusterEnd = Math.max(clusterEnd, m.endIndex);
+			} else {
+				if (cluster.length > 0) {
+					const region = buildPdfTextRegionFromCluster(cluster);
+					if (region.coderIds.length >= 2) out.push(region);
+				}
+				cluster = [m];
+				clusterEnd = m.endIndex;
+			}
+		}
+		if (cluster.length > 0) {
+			const region = buildPdfTextRegionFromCluster(cluster);
+			if (region.coderIds.length >= 2) out.push(region);
+		}
+	}
+	return out;
+}
+
+function buildPdfTextRegionFromCluster(cluster: PdfTextMarkerInScope[]): ContestedRegion {
+	const first = cluster[0]!;
+	let from = first.beginIndex;
+	let to = first.endIndex;
+	const coderIds = new Set<CoderId>();
+	const markerRefs: MarkerRef[] = [];
+	for (const m of cluster) {
+		if (m.beginIndex < from) from = m.beginIndex;
+		if (m.endIndex > to) to = m.endIndex;
+		coderIds.add(m.coderId);
+		markerRefs.push({ markerId: m.markerId, codedBy: m.coderId, codes: m.codes });
+	}
+	return {
+		fileId: first.fileId,
+		engine: 'pdf',
+		bounds: { kind: 'pdfText', page: first.page, from, to },
+		coderIds: Array.from(coderIds),
+		displayLabel: `page ${first.page} · chars ${from}–${to}`,
+		markerRefs,
+		divergenceKind: classifyDivergence(markerRefs, Array.from(coderIds)),
+	};
+}
+
+interface CsvSegmentMarkerInScope {
+	fileId: string;
+	rowIndex: number;
+	column: string;
+	from: number;
+	to: number;
+	coderId: CoderId;
+	markerId: string;
+	codes: CodeApplication[];
+}
+
+function collectCsvSegmentRegions(
+	csvModel: NonNullable<EngineModelsForExtraction['csv']>,
+	scopeCoders: Set<CoderId>,
+): ContestedRegion[] {
+	const inScope: CsvSegmentMarkerInScope[] = [];
+	for (const m of csvModel.getAllMarkers()) {
+		if (m.markerType !== 'csv') continue;
+		// SegmentMarker tem from/to (numbers); RowMarker não tem.
+		if (!('from' in m) || typeof (m as { from?: unknown }).from !== 'number') continue;
+		const sm = m as unknown as { fileId: string; sourceRowId: number; column: string; from: number; to: number; codes: CodeApplication[]; codedBy?: CoderId; id: string };
+		if (!sm.codedBy || !scopeCoders.has(sm.codedBy)) continue;
+		inScope.push({
+			fileId: sm.fileId,
+			rowIndex: sm.sourceRowId,
+			column: sm.column,
+			from: sm.from,
+			to: sm.to,
+			coderId: sm.codedBy,
+			markerId: sm.id,
+			codes: sm.codes,
+		});
+	}
+	// Agrupa por (fileId, rowIndex, column) — segments só clusterizam dentro da mesma célula.
+	const byKey = new Map<string, CsvSegmentMarkerInScope[]>();
+	for (const m of inScope) {
+		const k = `${m.fileId}::${m.rowIndex}::${m.column}`;
+		const list = byKey.get(k) ?? [];
+		list.push(m);
+		byKey.set(k, list);
+	}
+	const out: ContestedRegion[] = [];
+	for (const [, list] of byKey) {
+		const sorted = list.slice().sort((a, b) => a.from - b.from);
+		let cluster: CsvSegmentMarkerInScope[] = [];
+		let clusterEnd = -Infinity;
+		for (const m of sorted) {
+			if (m.from <= clusterEnd && cluster.length > 0) {
+				cluster.push(m);
+				clusterEnd = Math.max(clusterEnd, m.to);
+			} else {
+				if (cluster.length > 0) {
+					const region = buildCsvSegmentRegionFromCluster(cluster);
+					if (region.coderIds.length >= 2) out.push(region);
+				}
+				cluster = [m];
+				clusterEnd = m.to;
+			}
+		}
+		if (cluster.length > 0) {
+			const region = buildCsvSegmentRegionFromCluster(cluster);
+			if (region.coderIds.length >= 2) out.push(region);
+		}
+	}
+	return out;
+}
+
+function buildCsvSegmentRegionFromCluster(cluster: CsvSegmentMarkerInScope[]): ContestedRegion {
+	const first = cluster[0]!;
+	let from = first.from;
+	let to = first.to;
+	const coderIds = new Set<CoderId>();
+	const markerRefs: MarkerRef[] = [];
+	for (const m of cluster) {
+		if (m.from < from) from = m.from;
+		if (m.to > to) to = m.to;
+		coderIds.add(m.coderId);
+		markerRefs.push({ markerId: m.markerId, codedBy: m.coderId, codes: m.codes });
+	}
+	return {
+		fileId: first.fileId,
+		engine: 'csvSegment',
+		bounds: { kind: 'csvSegment', rowIndex: first.rowIndex, column: first.column, from, to },
+		coderIds: Array.from(coderIds),
+		displayLabel: `row ${first.rowIndex} · ${first.column} · chars ${from}–${to}`,
+		markerRefs,
+		divergenceKind: classifyDivergence(markerRefs, Array.from(coderIds)),
+	};
+}
+
+interface TemporalMarkerInScope {
+	fileId: string;
+	fromMs: number;
+	toMs: number;
+	coderId: CoderId;
+	markerId: string;
+	codes: CodeApplication[];
+}
+
+function collectTemporalRegions(
+	mediaModel: NonNullable<EngineModelsForExtraction['audio']>,
+	scopeCoders: Set<CoderId>,
+	engine: 'audio' | 'video',
+): ContestedRegion[] {
+	const inScope: TemporalMarkerInScope[] = [];
+	for (const m of mediaModel.getAllMarkers()) {
+		if (!m.codedBy || !scopeCoders.has(m.codedBy)) continue;
+		inScope.push({
+			fileId: m.fileId,
+			fromMs: m.from,
+			toMs: m.to,
+			coderId: m.codedBy,
+			markerId: m.id,
+			codes: m.codes,
+		});
+	}
+	// Agrupa por fileId — temporal markers de files diferentes nunca clusterizam.
+	const byFile = new Map<string, TemporalMarkerInScope[]>();
+	for (const m of inScope) {
+		const list = byFile.get(m.fileId) ?? [];
+		list.push(m);
+		byFile.set(m.fileId, list);
+	}
+	const out: ContestedRegion[] = [];
+	for (const [, list] of byFile) {
+		const sorted = list.slice().sort((a, b) => a.fromMs - b.fromMs);
+		let cluster: TemporalMarkerInScope[] = [];
+		let clusterEnd = -Infinity;
+		for (const m of sorted) {
+			if (m.fromMs <= clusterEnd && cluster.length > 0) {
+				cluster.push(m);
+				clusterEnd = Math.max(clusterEnd, m.toMs);
+			} else {
+				if (cluster.length > 0) {
+					const region = buildTemporalRegionFromCluster(cluster, engine);
+					if (region.coderIds.length >= 2) out.push(region);
+				}
+				cluster = [m];
+				clusterEnd = m.toMs;
+			}
+		}
+		if (cluster.length > 0) {
+			const region = buildTemporalRegionFromCluster(cluster, engine);
+			if (region.coderIds.length >= 2) out.push(region);
+		}
+	}
+	return out;
+}
+
+function buildTemporalRegionFromCluster(cluster: TemporalMarkerInScope[], engine: 'audio' | 'video'): ContestedRegion {
+	const first = cluster[0]!;
+	let fromMs = first.fromMs;
+	let toMs = first.toMs;
+	const coderIds = new Set<CoderId>();
+	const markerRefs: MarkerRef[] = [];
+	for (const m of cluster) {
+		if (m.fromMs < fromMs) fromMs = m.fromMs;
+		if (m.toMs > toMs) toMs = m.toMs;
+		coderIds.add(m.coderId);
+		markerRefs.push({ markerId: m.markerId, codedBy: m.coderId, codes: m.codes });
+	}
+	return {
+		fileId: first.fileId,
+		engine,
+		bounds: { kind: 'temporal', fromMs, toMs },
+		coderIds: Array.from(coderIds),
+		displayLabel: `${formatMs(fromMs)}–${formatMs(toMs)}`,
+		markerRefs,
+		divergenceKind: classifyDivergence(markerRefs, Array.from(coderIds)),
+	};
+}
+
+function formatMs(ms: number): string {
+	const totalSec = Math.floor(ms / 1000);
+	const mm = Math.floor(totalSec / 60);
+	const ss = totalSec % 60;
+	return `${mm}:${ss.toString().padStart(2, '0')}`;
+}
+
 export const __test__ = {
 	clusterMarkdownMarkers,
 	buildMarkdownRegionFromCluster,
 	sameRegion,
+	collectPdfTextRegions,
+	collectCsvSegmentRegions,
+	collectTemporalRegions,
 };

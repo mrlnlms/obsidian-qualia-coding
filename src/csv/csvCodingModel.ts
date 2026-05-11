@@ -5,6 +5,7 @@ import type { SegmentMarker, RowMarker, CsvMarker, CodingSnapshot } from './csvC
 import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import type { RowProvider, MarkerRef } from './duckdb';
 import type QualiaCodingPlugin from '../main';
+import { attachSourceHashSnapshot } from '../core/icr/provenance/attachSourceHashSnapshot';
 
 type ChangeListener = () => void;
 type HoverListener = (markerId: string | null, codeName: string | null) => void;
@@ -118,6 +119,9 @@ export class CsvCodingModel {
 				updatedAt: Date.now(),
 			};
 			this.rowMarkers.push(marker);
+			void attachSourceHashSnapshot(marker, this.plugin.sourceHashRegistry).then(() => {
+				if (marker.sourceHashAtCoding) this.saveMarkers();
+			});
 			this.notify();
 			this.emitMarkerMutation({
 				fileId: file, markerId: marker.id, prevCodeIds: [], nextCodeIds: [], codeIds: [], marker,
@@ -256,6 +260,9 @@ export class CsvCodingModel {
 			updatedAt: Date.now(),
 		};
 		this.rowMarkers.push(marker);
+		void attachSourceHashSnapshot(marker, this.plugin.sourceHashRegistry).then(() => {
+			if (marker.sourceHashAtCoding) this.saveMarkers();
+		});
 		return marker;
 	}
 
@@ -427,6 +434,9 @@ export class CsvCodingModel {
 			updatedAt: Date.now(),
 		};
 		this.segmentMarkers.push(marker);
+		void attachSourceHashSnapshot(marker, this.plugin.sourceHashRegistry).then(() => {
+			if (marker.sourceHashAtCoding) this.saveMarkers();
+		});
 		return marker;
 	}
 

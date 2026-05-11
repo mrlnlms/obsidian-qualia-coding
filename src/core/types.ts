@@ -342,10 +342,18 @@ interface BaseAuditEntry {
 
 // ─── Reconciliação — tipos auxiliares (Slice E3a) ─────────────
 
-/** Bounds da região contestada per engine. Texto-likes usam char offsets, csv-row usa rowIndex+col, temporal ms. */
+/** Bounds da região contestada per engine.
+ *  - text: markdown char offsets (rangeKey encoded line × 1M + ch)
+ *  - csvRow: marker per-cell sem from/to (granularidade célula inteira)
+ *  - csvSegment: char offsets dentro do texto da célula
+ *  - pdfText: char offsets dentro da página específica do PDF
+ *  - temporal: ms — usado por audio e video
+ */
 export type ReconciliationBounds =
 	| { kind: 'text'; from: number; to: number }
 	| { kind: 'csvRow'; rowIndex: number; column?: string }
+	| { kind: 'csvSegment'; rowIndex: number; column: string; from: number; to: number }
+	| { kind: 'pdfText'; page: number; from: number; to: number }
 	| { kind: 'temporal'; fromMs: number; toMs: number };
 
 /** Snapshot serializável de marker pré-mutação — pra revert de overwrite-originals. */

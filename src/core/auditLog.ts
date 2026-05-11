@@ -178,6 +178,10 @@ function formatBoundsShort(bounds: import('./types').ReconciliationBounds): stri
 			return `chars ${bounds.from}–${bounds.to}`;
 		case 'csvRow':
 			return bounds.column ? `row ${bounds.rowIndex} · ${bounds.column}` : `row ${bounds.rowIndex}`;
+		case 'csvSegment':
+			return `row ${bounds.rowIndex} · ${bounds.column} · chars ${bounds.from}–${bounds.to}`;
+		case 'pdfText':
+			return `page ${bounds.page} · chars ${bounds.from}–${bounds.to}`;
 		case 'temporal':
 			return `${bounds.fromMs}ms–${bounds.toMs}ms`;
 	}

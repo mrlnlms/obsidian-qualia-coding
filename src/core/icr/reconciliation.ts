@@ -57,13 +57,19 @@ function isValidBounds(b: ReconciliationBounds): boolean {
 			return b.from >= 0 && b.to >= b.from;
 		case 'csvRow':
 			return b.rowIndex >= 0;
+		case 'csvSegment':
+			return b.rowIndex >= 0 && b.from >= 0 && b.to >= b.from;
+		case 'pdfText':
+			return b.page >= 0 && b.from >= 0 && b.to >= b.from;
 		case 'temporal':
 			return b.fromMs >= 0 && b.toMs >= b.fromMs;
 	}
 }
 
-/** União inclusiva dos bounds. Pra text: [min from, max to]. Pra temporal: idem ms.
- *  Pra csvRow: bounds[0] (heurística — uma região = uma row, não há "união" semanticamente). */
+/** União inclusiva dos bounds. Cobre todos os 5 kinds. Pra csvRow retorna bounds[0]
+ *  (uma região = uma cell, sem "união" semântica). Pra csvSegment/pdfText une apenas
+ *  bounds com mesma cell/page (heurística — bounds de cells/pages diferentes não deveriam
+ *  estar agrupados como mesma região, mas a função é defensiva). */
 function unionOfBounds(bounds: ReconciliationBounds[], fallback: ReconciliationBounds): ReconciliationBounds {
 	if (bounds.length === 0) return fallback;
 	const first = bounds[0]!;
@@ -86,6 +92,27 @@ function unionOfBounds(bounds: ReconciliationBounds[], fallback: ReconciliationB
 			if (b.toMs > max) max = b.toMs;
 		}
 		return { kind: 'temporal', fromMs: min, toMs: max };
+	}
+	if (first.kind === 'pdfText') {
+		let min = first.from;
+		let max = first.to;
+		for (const b of bounds) {
+			if (b.kind !== 'pdfText' || b.page !== first.page) continue;
+			if (b.from < min) min = b.from;
+			if (b.to > max) max = b.to;
+		}
+		return { kind: 'pdfText', page: first.page, from: min, to: max };
+	}
+	if (first.kind === 'csvSegment') {
+		let min = first.from;
+		let max = first.to;
+		for (const b of bounds) {
+			if (b.kind !== 'csvSegment') continue;
+			if (b.rowIndex !== first.rowIndex || b.column !== first.column) continue;
+			if (b.from < min) min = b.from;
+			if (b.to > max) max = b.to;
+		}
+		return { kind: 'csvSegment', rowIndex: first.rowIndex, column: first.column, from: min, to: max };
 	}
 	return first; // csvRow: primeira (não há união semântica)
 }

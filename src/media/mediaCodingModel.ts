@@ -10,6 +10,7 @@ import type { CodeApplication, CodeDefinition, EngineType, MarkerMutationEvent, 
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import { formatTime } from './formatTime';
 import type QualiaCodingPlugin from '../main';
+import { attachSourceHashSnapshot } from '../core/icr/provenance/attachSourceHashSnapshot';
 
 const TOLERANCE = 0.01;
 
@@ -188,6 +189,9 @@ export class MediaCodingModel<
 
 		const file = this.getOrCreateFile(filePath);
 		file.markers.push(marker);
+		void attachSourceHashSnapshot(marker, this.plugin.sourceHashRegistry).then(() => {
+			if (marker.sourceHashAtCoding) this.saveMarkers();
+		});
 		return marker;
 	}
 
@@ -230,6 +234,19 @@ export class MediaCodingModel<
 			codeIds: [], marker,
 		});
 		this.notify();
+	}
+
+	/** Re-insere marker já-formado (criação via ICR reconciliação ou snapshot restore).
+	 *  Garante file container + push + notify + emit ADD event. */
+	insertMarkerRaw(marker: M): void {
+		const file = this.getOrCreateFile(marker.fileId);
+		file.markers.push(marker);
+		this.notify();
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId: marker.id,
+			prevCodeIds: [], nextCodeIds: marker.codes.map(c => c.codeId),
+			codeIds: marker.codes.map(c => c.codeId), marker,
+		});
 	}
 
 	removeMarker(markerId: string): boolean {

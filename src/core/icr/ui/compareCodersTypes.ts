@@ -41,6 +41,8 @@ export interface ComparisonFilters {
 export type ReconciliationBounds =
 	| { kind: 'text'; from: number; to: number }
 	| { kind: 'csvRow'; rowIndex: number; column?: string }
+	| { kind: 'csvSegment'; rowIndex: number; column: string; from: number; to: number }
+	| { kind: 'pdfText'; page: number; from: number; to: number }
 	| { kind: 'temporal'; fromMs: number; toMs: number };
 
 export type CurrentSelection =

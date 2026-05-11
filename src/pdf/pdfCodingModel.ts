@@ -4,6 +4,7 @@ import type { DataManager } from '../core/dataManager';
 import type { CodeDefinition, MarkerMutationEvent } from '../core/types';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import type QualiaCodingPlugin from '../main';
+import { attachSourceHashSnapshot } from '../core/icr/provenance/attachSourceHashSnapshot';
 
 // ── PdfCodingModel ──
 type ChangeListener = () => void;
@@ -189,6 +190,10 @@ export class PdfCodingModel {
 			updatedAt: Date.now(),
 		};
 		this.markers.push(marker);
+		// ICR provenance audit: popula sourceHashAtCoding fire-and-forget.
+		void attachSourceHashSnapshot(marker, this.plugin.sourceHashRegistry).then(() => {
+			if (marker.sourceHashAtCoding) this.save();
+		});
 		return marker;
 	}
 
@@ -315,6 +320,10 @@ export class PdfCodingModel {
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		};
+		// ICR provenance audit: popula sourceHashAtCoding fire-and-forget.
+		void attachSourceHashSnapshot(shape, this.plugin.sourceHashRegistry).then(() => {
+			if (shape.sourceHashAtCoding) this.save();
+		});
 		this.shapes.push(shape);
 		this.emitMarkerMutation({
 			fileId: file, markerId: shape.id,
@@ -410,6 +419,18 @@ export class PdfCodingModel {
 	getShapeLabel(shape: PdfShapeMarker): string {
 		const shapeNames: Record<string, string> = { rect: 'Rectangle', ellipse: 'Ellipse', polygon: 'Polygon' };
 		return `${shapeNames[shape.shape] || shape.shape} — Page ${shape.page}`;
+	}
+
+	/** Re-insere marker já-formado (criação via ICR reconciliação ou snapshot restore).
+	 *  Push direto + notify + emit ADD event. NÃO valida duplicates de id (caller responsável). */
+	insertMarkerRaw(marker: PdfMarker): void {
+		this.markers.push(marker);
+		this.notify();
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId: marker.id,
+			prevCodeIds: [], nextCodeIds: marker.codes.map(c => c.codeId),
+			codeIds: marker.codes.map(c => c.codeId), marker,
+		});
 	}
 
 	removeMarker(id: string, silent = false): boolean {

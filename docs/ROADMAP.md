@@ -196,9 +196,18 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 
   **✅ Coder picker (FEITO 2026-05-11):** status bar item "Coding as: {nome}" sempre visível + menu pra trocar/criar coder humano. `data.activeCoderId` cross-session. Wire em 5 engine models (markdown / pdf / csv segment+row / audio / video) — todo marker novo recebe `codedBy`. PdfCodingModel + CsvCodingModel + MediaCodingModel agora recebem `plugin` no constructor (em vez de `dm`). Fix paralelo: atalho contextual do codebook não persiste em `lastCompareCodersUsed` (antes deixava view "presa" em scope filtrado após reload). Bug descoberto em smoke real registrado no BACKLOG: CSV row marker shared cross-coder por cell.
 
-  **Slices fora do escopo entregue (pendentes):**
-  - [ ] **IcrMarkerOps: extensão pra pdf-text + csv-segment + audio + video + image + pdfShape** — bounds.kind='text'/'temporal' insuficientes pra essas engines (precisa variants engine-specific). Detalhe em BACKLOG §ICR Slice E3a
-  - [ ] **Wire `attachSourceHashSnapshot` em outros 5 engines** (PDF / CSV / image / audio / video) — slice de extensão mecânica do piloto markdown
+  **✅ Slice E5a — IcrMarkerOps + reconciliação cross-engine pra pdf-text + csv-segment + audio + video (FEITO 2026-05-11):**
+  - [x] `ReconciliationBounds` ganhou 2 variants: `pdfText` (page + from + to) e `csvSegment` (rowIndex + column + from + to). `temporal` já existia pra audio/video.
+  - [x] 5 switches sincronizados: `formatBoundsLabel` (regionDerivation + auditLog), `isValidBounds` + `unionOfBounds` (reconciliation), `sameBounds` (regionDerivation + reconciliationReport), `regionKey`.
+  - [x] 4 collectors novos em `regionDerivation`: `collectPdfTextRegions` (agrupa por page + cluster overlap), `collectCsvSegmentRegions` (agrupa por cell), `collectTemporalRegions` (agrupa por file). Wire em `collectContestedRegions`.
+  - [x] `IcrMarkerOpsImpl` cobre 6 engines: markdown, csvRow, csvSegment, pdf, audio, video. Refactor: `getModelForUpdate` extrai pattern compartilhado (findMarker + addCode + removeCode) — antes era duplicado por engine.
+  - [x] `insertMarkerRaw` adicionado em PdfCodingModel + MediaCodingModel (pattern já existia no CsvCodingModel).
+  - [x] `attachSourceHashSnapshot` wire em pdf (text + shape), csv (segment + rowMarker via comment), media (audio + video). Bulk `addCodeToManyRows` propositalmente fora — N requests por bulk seria custoso, vale só pra criação singular.
+  - [x] Seed script `seed-icr-corpus.mjs` estendido com audio + video markers contestados (Carla × Joana). Coders agora aditivos (não substitui existentes).
+  - **Smoke real verde 2026-05-11.** 3414 testes (3392 → 3414, +22): 14 collectors + 8 IcrMarkerOpsImpl pra 4 engines novas. Lentidão observada em heatmap → drill-down registrada no BACKLOG pra investigar (não bloqueante).
+
+  **Slices pendentes:**
+  - [ ] **Slice E5b — bbox spatial** (image + pdfShape) — design doc primeiro: adopt semantics (union vs intersect) + split semantics em 2D.
 
   **Checklist Fase C — Transport multi-coder remoto P2:**
   - [x] **P0 (Slice 3) entregue:** funções puras extract/merge + cross-vault remap + codebookVersion hash + plugin API
