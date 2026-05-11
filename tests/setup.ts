@@ -96,6 +96,16 @@ HTMLElement.prototype.setText = function (text) {
 };
 
 
+// ── ICR cache reset (Slice E3a) ──────────────────────────────────
+// extractInputsFromScope tem cache module-level por scope-hash. Pra evitar leak
+// entre testes (mesma cache key + models diferentes = falso cache hit), reseta
+// generation antes de cada teste.
+import { beforeEach } from 'vitest';
+import { bumpInputsCacheGeneration } from '../src/core/icr/ui/scopeExtraction';
+beforeEach(() => {
+  bumpInputsCacheGeneration();
+});
+
 HTMLCanvasElement.prototype.getContext = function (contextId: string) {
   if (contextId === '2d') {
     return {

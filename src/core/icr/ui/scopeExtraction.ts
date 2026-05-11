@@ -35,6 +35,47 @@ import { extractRowMarkerUnit } from '../categoricalKappaInput';
 /** Engines suportados em E1 (text-likes + temporal + categorical). Bbox fica fora. */
 const E1_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment', 'csvRow', 'audio', 'video'];
 
+// ─── Cache module-level (Slice E3a perf fix) ──────────────────────────────
+// Click numa célula da matriz dispara renderOverview que chama extractInputsFromScope.
+// Mas scope NÃO muda em selection click — só currentSelection muda. Cachear por scope-hash
+// elimina N×vault.cachedRead + N×scan markers em rajadas de clicks.
+//
+// Invalidation: incrementar generation via bumpInputsCacheGeneration() quando markers
+// mudam (após reconciliação, edição manual, etc). LRU 50 entries pra evitar leak em
+// sessão longa com muitos scopes diferentes (chips toggle, filters).
+
+const INPUTS_CACHE_MAX_ENTRIES = 50;
+let cacheGeneration = 0;
+const inputsCache = new Map<string, { gen: number; promise: Promise<EngineKappaInput[]> }>();
+
+/** Invalida todo o cache de inputs. Chamar após qualquer mutação que afete extração:
+ *  reconciliação (markers novos), edição de marker, deleção de coder, etc. */
+export function bumpInputsCacheGeneration(): void {
+	cacheGeneration++;
+	inputsCache.clear();
+}
+
+function cacheKeyForScope(scope: ComparisonScope): string {
+	// Normaliza arrays pra hash estável (ordem não significativa).
+	const norm = (a?: string[]) => a ? [...a].sort() : undefined;
+	return JSON.stringify({
+		coderIds: norm(scope.coderIds),
+		codeIds: norm(scope.codeIds),
+		groupIds: norm(scope.groupIds),
+		folderIds: norm(scope.folderIds),
+		engineIds: norm(scope.engineIds),
+		fileIds: norm(scope.fileIds),
+	});
+}
+
+function pruneCache(): void {
+	while (inputsCache.size > INPUTS_CACHE_MAX_ENTRIES) {
+		const firstKey = inputsCache.keys().next().value;
+		if (firstKey === undefined) break;
+		inputsCache.delete(firstKey);
+	}
+}
+
 /**
  * Models que `extractInputsFromScope` precisa pra coletar markers.
  * Plugin instance fornece (em main.ts: this.markdownModel etc — todos optional).
@@ -54,6 +95,24 @@ export interface ExtractionContext {
 }
 
 export async function extractInputsFromScope(
+	scope: ComparisonScope,
+	ctx: ExtractionContext,
+): Promise<EngineKappaInput[]> {
+	const key = cacheKeyForScope(scope);
+	const cached = inputsCache.get(key);
+	if (cached && cached.gen === cacheGeneration) {
+		// Move to end pra LRU (touch).
+		inputsCache.delete(key);
+		inputsCache.set(key, cached);
+		return cached.promise;
+	}
+	const promise = doExtractInputsFromScope(scope, ctx);
+	inputsCache.set(key, { gen: cacheGeneration, promise });
+	pruneCache();
+	return promise;
+}
+
+async function doExtractInputsFromScope(
 	scope: ComparisonScope,
 	ctx: ExtractionContext,
 ): Promise<EngineKappaInput[]> {

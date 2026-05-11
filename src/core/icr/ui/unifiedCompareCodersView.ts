@@ -14,6 +14,7 @@ import { renderCoefficientPicker } from './coefficientPicker';
 import { getCodersWithMarkersInScope } from './coderInclusion';
 import { CompareCoderCoefficientsModal } from './compareCoderCoefficientsModal';
 import type { EngineModelsForExtraction } from './scopeExtraction';
+import { bumpInputsCacheGeneration } from './scopeExtraction';
 import type { EngineId } from '../reporter';
 
 const ALL_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment', 'csvRow', 'audio', 'video', 'pdfShape', 'image'];
@@ -42,6 +43,8 @@ export class UnifiedCompareCodersView extends ItemView {
 		// quando quiser ver κ pré/pós reconciliação.
 		const codableCoderIds = plugin.coderRegistry.getCodableCoders().map(c => c.id);
 		this.state = createDefaultViewState(codableCoderIds);
+		// Limpa cache de extração — instâncias anteriores podem ter deixado resíduo.
+		bumpInputsCacheGeneration();
 	}
 
 	getViewType(): string { return COMPARE_CODERS_VIEW_TYPE; }
@@ -240,6 +243,8 @@ export class UnifiedCompareCodersView extends ItemView {
 				{
 					onSetSelection: sel => this.setSelection(sel),
 					onAfterReconciliation: partial => {
+						// Reconciliação mudou markers → cache de extração fica stale.
+						bumpInputsCacheGeneration();
 						// Update consolidado: reset seleção + flush state em UM render
 						// (renderOverview é async; 2 chamadas seguidas causaram race + matriz duplicada).
 						this.updateState(partial);
@@ -251,9 +256,17 @@ export class UnifiedCompareCodersView extends ItemView {
 		this.drilldownEl.createDiv({ text: 'Perspectiva workflow disponível em E3b', cls: 'qc-cc-stub' });
 	}
 
-	/** Selection change hook — chamado por overview ao clicar célula/linha. */
+	/** Selection change hook — chamado por overview ao clicar célula/linha.
+	 *
+	 *  CRÍTICO pra perf: selection muda APENAS o que o drill-down mostra. Overview/toolbar/
+	 *  filter chips não dependem dela visualmente (matriz não destaca célula selecionada via state;
+	 *  filter chips mostram scope que é independente). Skipar renderToolbar + renderOverview aqui
+	 *  evita re-execução de extractInputsFromScope (vault.cachedRead caro) + reportPairwise a cada
+	 *  click — vault grande travava por isso. updateState full continua sendo usado em mudanças
+	 *  reais de state (mode swap, filter toggle, reconciliação). */
 	setSelection(sel: CurrentSelection): void {
-		this.updateState({ currentSelection: sel });
+		this.state = { ...this.state, currentSelection: sel };
+		void this.renderDrilldown();
 	}
 
 	private openSideBySideModal(): void {
