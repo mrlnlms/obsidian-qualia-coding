@@ -8,6 +8,7 @@ import type { CompareCodersViewState } from './compareCodersTypes';
 import type { CoderRegistry } from '../coderRegistry';
 import type { CoderId } from '../coderTypes';
 import type { EngineId } from '../reporter';
+import { getConsensusCoderIdsInScope } from './coderInclusion';
 
 export const FILTERABLE_ENGINES: { id: EngineId; label: string }[] = [
 	{ id: 'markdown',   label: 'markdown' },
@@ -105,4 +106,22 @@ export function renderFilterChips(
 	includeEmptyChip.onclick = () => {
 		onUpdate({ filters: { ...state.filters, includeCodersWithoutMarkers: !state.filters.includeCodersWithoutMarkers } });
 	};
+
+	// E3b: toggle κ pré (sem consensus) vs pós (com consensus) — só aparece quando há consensus
+	// coders no escopo COM MARKERS (caso contrário ON/OFF é no-op e poluiria a UI).
+	const consensusInScope = getConsensusCoderIdsInScope(state.scope, deps.coderRegistry);
+	const consensusWithMarkers = consensusInScope.filter(id => !deps.codersWithMarkers || deps.codersWithMarkers.has(id));
+	if (consensusWithMarkers.length > 0) {
+		const excludeConsensusChip = container.createSpan({
+			cls: `qc-cc-filter-chip ${state.filters.excludeConsensusCoders ? 'is-active' : ''}`,
+			text: 'excluir consensus (κ pré)',
+		});
+		excludeConsensusChip.dataset.filter = 'exclude-consensus';
+		excludeConsensusChip.title = state.filters.excludeConsensusCoders
+			? 'Consensus excluído do κ — mostrando agreement pré-reconciliação entre coders humanos'
+			: 'Consensus incluído no κ — clique pra ver κ pré-reconciliação (sem consensus)';
+		excludeConsensusChip.onclick = () => {
+			onUpdate({ filters: { ...state.filters, excludeConsensusCoders: !state.filters.excludeConsensusCoders } });
+		};
+	}
 }

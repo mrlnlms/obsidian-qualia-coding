@@ -16,6 +16,7 @@
 import type { ComparisonScope } from './compareCodersTypes';
 import type { EngineModelsForExtraction } from './scopeExtraction';
 import type { CoderId } from '../coderTypes';
+import type { CoderRegistry } from '../coderRegistry';
 
 export function getCodersWithMarkersInScope(
 	scope: ComparisonScope,
@@ -48,4 +49,35 @@ export function applyCoderInclusion(
 ): ComparisonScope {
 	if (includeWithoutMarkers) return scope;
 	return { ...scope, coderIds: getCodersWithMarkersInScope(scope, models) };
+}
+
+/** Filtra coders do tipo 'consensus' do scope quando `exclude` é true.
+ *  E3b: toggle no toolbar liga/desliga pra ver κ pré (sem consensus) vs pós (com consensus).
+ *
+ *  Detecção dupla: prefix 'consensus:' (sempre confiável) OU registry lookup.
+ *  Prefix é convenção cravada em coderRegistry.createConsensus — não pode mudar sem refactor. */
+export function applyConsensusExclusion(
+	scope: ComparisonScope,
+	coderRegistry: CoderRegistry,
+	exclude: boolean,
+): ComparisonScope {
+	if (!exclude) return scope;
+	const filtered = scope.coderIds.filter(id => !isConsensusCoderId(id, coderRegistry));
+	return { ...scope, coderIds: filtered };
+}
+
+/** Lê os ids de coders consensus presentes em um scope — pra view decidir se mostra
+ *  o toggle "excluir consensus" e/ou colunas pré/pós no modal lado a lado. */
+export function getConsensusCoderIdsInScope(
+	scope: ComparisonScope,
+	coderRegistry: CoderRegistry,
+): CoderId[] {
+	return scope.coderIds.filter(id => isConsensusCoderId(id, coderRegistry));
+}
+
+/** Identifica consensus coder. Prefix `consensus:` é convenção cravada em createConsensus
+ *  (`consensus:${slug}` — coderRegistry.ts L80). Fallback registry pra robustez. */
+function isConsensusCoderId(id: CoderId, coderRegistry: CoderRegistry): boolean {
+	if (id.startsWith('consensus:')) return true;
+	return coderRegistry.getById(id)?.type === 'consensus';
 }

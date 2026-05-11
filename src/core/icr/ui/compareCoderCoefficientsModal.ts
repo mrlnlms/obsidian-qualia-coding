@@ -18,17 +18,21 @@
 import { App, Modal, Notice } from 'obsidian';
 import type { ComparisonScope } from './compareCodersTypes';
 import type { CoderId } from '../coderTypes';
+import type { CoderRegistry } from '../coderRegistry';
 import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
 import { reportPairwise, type EngineId, type CoefficientReport } from '../reporter';
 import { analyzeDiagnostic } from './narrativeDiagnostic';
+import { applyConsensusExclusion, getConsensusCoderIdsInScope } from './coderInclusion';
 
 export interface ModalCtx {
 	models: EngineModelsForExtraction;
 	app: App;
 	showNarrative: boolean;
+	coderRegistry: CoderRegistry;
 }
 
 export type ModalState = 'all-pairs' | 'single-pair';
+export type PrePost = 'pre' | 'post';
 
 export interface ModalOptions {
 	initial: ModalState;
@@ -47,6 +51,8 @@ interface ModalRow {
 
 export class CompareCoderCoefficientsModal extends Modal {
 	private state: ModalState;
+	/** Toggle κ pré (sem consensus) / pós (com consensus). E3b. Só visível quando há consensus no scope. */
+	private prePost: PrePost = 'post';
 	private rows: ModalRow[] = [];
 
 	constructor(
@@ -69,6 +75,30 @@ export class CompareCoderCoefficientsModal extends Modal {
 		this.renderFooter();
 	}
 
+	private hasConsensusInScope(): boolean {
+		// Considera só consensus que TEM markers (caso contrário toggle pré/pós é no-op).
+		const consensus = getConsensusCoderIdsInScope(this.compareScope, this.ctx.coderRegistry);
+		if (consensus.length === 0) return false;
+		// Verifica se algum consensus coder aparece em qualquer marker das engines no escopo.
+		const models = this.ctx.models;
+		const allMarkers = [
+			...(models.markdown?.getAllMarkers?.() ?? []),
+			...(models.pdf?.getAllMarkers?.() ?? []),
+			...(models.csv?.getAllMarkers?.() ?? []),
+			...(models.audio?.getAllMarkers?.() ?? []),
+			...(models.video?.getAllMarkers?.() ?? []),
+			...(models.image?.getAllMarkers?.() ?? []),
+		];
+		const consensusSet = new Set(consensus);
+		return allMarkers.some((m: { codedBy?: string }) => m.codedBy !== undefined && consensusSet.has(m.codedBy));
+	}
+
+	private effectiveScope(): ComparisonScope {
+		return this.prePost === 'pre'
+			? applyConsensusExclusion(this.compareScope, this.ctx.coderRegistry, true)
+			: this.compareScope;
+	}
+
 	private renderHeader(): void {
 		const header = this.contentEl.createDiv({ cls: 'qc-cc-modal-header' });
 		header.createEl('h3', { text: 'Coeficientes ICR · ver lado a lado' });
@@ -82,6 +112,25 @@ export class CompareCoderCoefficientsModal extends Modal {
 				this.state = s;
 				void this.refresh();
 			};
+		}
+
+		// E3b: toggle pré/pós reconciliação — só aparece quando há consensus no scope.
+		if (this.hasConsensusInScope()) {
+			const ppToggle = header.createDiv({ cls: 'qc-cc-modal-toggle qc-cc-modal-prepost' });
+			ppToggle.createSpan({ cls: 'qc-cc-modal-toggle-label', text: 'reconciliação:' });
+			for (const pp of ['pre', 'post'] as PrePost[]) {
+				const chip = ppToggle.createSpan({
+					cls: `qc-cc-mode-chip ${this.prePost === pp ? 'is-active' : ''}`,
+					text: pp === 'pre' ? 'pré (sem consensus)' : 'pós (com consensus)',
+				});
+				chip.title = pp === 'pre'
+					? 'κ baseline humano-humano, ignorando consensus'
+					: 'κ com consensus incluído como coder adicional';
+				chip.onclick = () => {
+					this.prePost = pp;
+					void this.refresh();
+				};
+			}
 		}
 	}
 
@@ -97,11 +146,12 @@ export class CompareCoderCoefficientsModal extends Modal {
 
 	private async computeRows(): Promise<void> {
 		this.rows = [];
+		const scope = this.effectiveScope();
 		const pairs = this.state === 'single-pair' && this.options.pair
-			? [this.options.pair]
-			: this.allPairs();
+			? [this.options.pair].filter(p => scope.coderIds.includes(p[0]) && scope.coderIds.includes(p[1])) as [CoderId, CoderId][]
+			: this.allPairsFromScope(scope);
 		if (pairs.length === 0) return;
-		const inputs = await extractInputsFromScope(this.compareScope, { models: this.ctx.models, app: this.ctx.app });
+		const inputs = await extractInputsFromScope(scope, { models: this.ctx.models, app: this.ctx.app });
 		if (inputs.length === 0) return;
 		const reports = reportPairwise(inputs, pairs);
 		for (const r of reports) {
@@ -133,9 +183,9 @@ export class CompareCoderCoefficientsModal extends Modal {
 		}
 	}
 
-	private allPairs(): [CoderId, CoderId][] {
+	private allPairsFromScope(scope: ComparisonScope): [CoderId, CoderId][] {
 		const pairs: [CoderId, CoderId][] = [];
-		const ids = this.compareScope.coderIds;
+		const ids = scope.coderIds;
 		for (let i = 0; i < ids.length; i++)
 			for (let j = i + 1; j < ids.length; j++)
 				pairs.push([ids[i]!, ids[j]!]);
@@ -144,8 +194,26 @@ export class CompareCoderCoefficientsModal extends Modal {
 
 	private renderTable(): void {
 		if (this.rows.length === 0) {
-			this.contentEl.createDiv({ cls: 'qc-cc-empty', text: 'Sem markers no escopo pra comparar' });
+			const empty = this.contentEl.createDiv({ cls: 'qc-cc-empty' });
+			if (this.prePost === 'pre' && this.state === 'single-pair' && this.options.pair) {
+				const involvesConsensus = this.options.pair.some(id =>
+					this.ctx.coderRegistry.getById(id)?.type === 'consensus',
+				);
+				if (involvesConsensus) {
+					empty.setText('Par envolve consensus — alterne pra "pós" pra ver κ com consensus.');
+					return;
+				}
+			}
+			empty.setText('Sem markers no escopo pra comparar');
 			return;
+		}
+		const banner = this.hasConsensusInScope()
+			? this.contentEl.createDiv({ cls: 'qc-cc-modal-prepost-banner' })
+			: null;
+		if (banner) {
+			banner.setText(this.prePost === 'pre'
+				? 'visão pré-reconciliação — consensus excluído do κ (baseline humano-humano)'
+				: 'visão pós-reconciliação — consensus incluído como coder adicional');
 		}
 		const table = this.contentEl.createEl('table', { cls: 'qc-cc-modal-table' });
 		const thead = table.createEl('thead').createEl('tr');
@@ -194,7 +262,11 @@ export class CompareCoderCoefficientsModal extends Modal {
 
 	exportMarkdown(): string {
 		const lines: string[] = [];
-		lines.push(`# Coeficientes ICR · escopo ${this.compareScope.coderIds.join(', ')}`);
+		const scope = this.effectiveScope();
+		const view = this.hasConsensusInScope()
+			? ` · visão ${this.prePost === 'pre' ? 'pré (sem consensus)' : 'pós (com consensus)'}`
+			: '';
+		lines.push(`# Coeficientes ICR · escopo ${scope.coderIds.join(', ')}${view}`);
 		lines.push('');
 		lines.push(`**Data:** ${new Date().toISOString()}`);
 		lines.push('');

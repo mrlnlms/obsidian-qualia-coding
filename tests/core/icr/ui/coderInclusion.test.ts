@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	getCodersWithMarkersInScope,
 	applyCoderInclusion,
+	applyConsensusExclusion,
+	getConsensusCoderIdsInScope,
 } from '../../../../src/core/icr/ui/coderInclusion';
 
 function makeMd(opts: { id: string; coderId: string; codeId: string; fileId?: string }): any {
@@ -128,5 +130,107 @@ describe('applyCoderInclusion', () => {
 		);
 		expect(r.codeIds).toEqual(['X']);
 		expect(r.fileIds).toEqual(['f.md']);
+	});
+});
+
+// ─── E3b: applyConsensusExclusion + getConsensusCoderIdsInScope ────────────
+
+function fakeCoderRegistry(coders: { id: string; type: 'human' | 'consensus' | 'llm' | 'group' }[]) {
+	return {
+		getById: (id: string) => coders.find(c => c.id === id),
+	} as any;
+}
+
+describe('applyConsensusExclusion', () => {
+	const registry = fakeCoderRegistry([
+		{ id: 'human:a', type: 'human' },
+		{ id: 'human:b', type: 'human' },
+		{ id: 'consensus:default', type: 'consensus' },
+	]);
+
+	it('exclude=true filtra coders consensus', () => {
+		const r = applyConsensusExclusion(
+			{ coderIds: ['human:a', 'human:b', 'consensus:default'] },
+			registry,
+			true,
+		);
+		expect(r.coderIds).toEqual(['human:a', 'human:b']);
+	});
+
+	it('exclude=false retorna scope intacto', () => {
+		const scope = { coderIds: ['human:a', 'human:b', 'consensus:default'] };
+		const r = applyConsensusExclusion(scope, registry, false);
+		expect(r.coderIds).toEqual(scope.coderIds);
+	});
+
+	it('lida com scope sem consensus', () => {
+		const r = applyConsensusExclusion(
+			{ coderIds: ['human:a', 'human:b'] },
+			registry,
+			true,
+		);
+		expect(r.coderIds).toEqual(['human:a', 'human:b']);
+	});
+
+	it('preserva outras propriedades do scope', () => {
+		const r = applyConsensusExclusion(
+			{ coderIds: ['human:a', 'consensus:default'], codeIds: ['X'], fileIds: ['f.md'] },
+			registry,
+			true,
+		);
+		expect(r.codeIds).toEqual(['X']);
+		expect(r.fileIds).toEqual(['f.md']);
+	});
+
+	it('múltiplos consensus coders todos são removidos', () => {
+		const reg = fakeCoderRegistry([
+			{ id: 'human:a', type: 'human' },
+			{ id: 'consensus:default', type: 'consensus' },
+			{ id: 'consensus:wave-1', type: 'consensus' },
+		]);
+		const r = applyConsensusExclusion(
+			{ coderIds: ['human:a', 'consensus:default', 'consensus:wave-1'] },
+			reg,
+			true,
+		);
+		expect(r.coderIds).toEqual(['human:a']);
+	});
+
+	it('coder ausente do registry NÃO é tratado como consensus', () => {
+		const r = applyConsensusExclusion(
+			{ coderIds: ['human:a', 'unknown:x', 'consensus:default'] },
+			registry,
+			true,
+		);
+		expect(r.coderIds).toEqual(['human:a', 'unknown:x']);
+	});
+});
+
+describe('getConsensusCoderIdsInScope', () => {
+	const registry = fakeCoderRegistry([
+		{ id: 'human:a', type: 'human' },
+		{ id: 'consensus:default', type: 'consensus' },
+		{ id: 'consensus:wave-1', type: 'consensus' },
+	]);
+
+	it('retorna só os consensus do scope', () => {
+		const ids = getConsensusCoderIdsInScope(
+			{ coderIds: ['human:a', 'consensus:default', 'consensus:wave-1'] },
+			registry,
+		);
+		expect(ids).toEqual(['consensus:default', 'consensus:wave-1']);
+	});
+
+	it('retorna [] quando scope só tem humanos', () => {
+		const ids = getConsensusCoderIdsInScope({ coderIds: ['human:a'] }, registry);
+		expect(ids).toEqual([]);
+	});
+
+	it('preserva ordem do scope', () => {
+		const ids = getConsensusCoderIdsInScope(
+			{ coderIds: ['consensus:wave-1', 'human:a', 'consensus:default'] },
+			registry,
+		);
+		expect(ids).toEqual(['consensus:wave-1', 'consensus:default']);
 	});
 });

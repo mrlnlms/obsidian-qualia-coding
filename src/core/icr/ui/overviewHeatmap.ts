@@ -24,7 +24,7 @@ import { computeBboxKappaForPair } from './bboxScopeExtraction';
 import { reportKappa, type EngineId } from '../reporter';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
-import { applyCoderInclusion } from './coderInclusion';
+import { applyCoderInclusion, applyConsensusExclusion } from './coderInclusion';
 import type { App } from 'obsidian';
 import type { CoderId } from '../coderTypes';
 
@@ -53,10 +53,15 @@ export async function renderOverviewHeatmap(
 	}
 
 	// Polish E1: filtra coders sem markers no escopo (default off)
-	const filteredScope = applyCoderInclusion(
-		state.scope,
-		deps.engineModels,
-		state.filters.includeCodersWithoutMarkers ?? false,
+	// E3b: exclui consensus coders quando excludeConsensusCoders=true (toggle κ pré/pós).
+	const filteredScope = applyConsensusExclusion(
+		applyCoderInclusion(
+			state.scope,
+			deps.engineModels,
+			state.filters.includeCodersWithoutMarkers ?? false,
+		),
+		deps.coderRegistry,
+		state.filters.excludeConsensusCoders,
 	);
 	const N = filteredScope.coderIds.length;
 	if (N < 2) {
