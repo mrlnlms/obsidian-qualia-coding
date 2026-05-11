@@ -11,7 +11,8 @@ import { renderDrilldownSpatial } from './drilldownSpatial';
 import { renderDrilldownCards } from './drilldownCards';
 import { renderDrilldownWorkflow } from './drilldownWorkflow';
 import { generateReconciliationReport } from './reconciliationReport';
-import { collectContestedRegions, categorizeRegionsByStatus } from './regionDerivation';
+import { collectContestedRegions, categorizeRegionsByStatus, bumpRegionsCacheGeneration } from './regionDerivation';
+import { bumpCoderInclusionCacheGeneration } from './coderInclusion';
 import { applyConsensusExclusion, getConsensusCoderIdsInScope } from './coderInclusion';
 import { extractInputsFromScope } from './scopeExtraction';
 import { reportPairwise } from '../reporter';
@@ -25,6 +26,14 @@ import { CompareCoderCoefficientsModal } from './compareCoderCoefficientsModal';
 import type { EngineModelsForExtraction } from './scopeExtraction';
 import { bumpInputsCacheGeneration } from './scopeExtraction';
 import type { EngineId } from '../reporter';
+
+/** Invalida os 3 caches ICR (extractInputsFromScope, getCodersWithMarkersInScope,
+ *  collectContestedRegions) quando markers mudam. Pattern unificado de invalidation. */
+function bumpAllIcrCaches(): void {
+	bumpInputsCacheGeneration();
+	bumpCoderInclusionCacheGeneration();
+	bumpRegionsCacheGeneration();
+}
 
 const ALL_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment', 'csvRow', 'audio', 'video', 'pdfShape', 'image'];
 
@@ -70,7 +79,7 @@ export class UnifiedCompareCodersView extends ItemView {
 			this.state = defaults;
 		}
 		// Limpa cache de extração — instâncias anteriores podem ter deixado resíduo.
-		bumpInputsCacheGeneration();
+		bumpAllIcrCaches();
 	}
 
 	getViewType(): string { return COMPARE_CODERS_VIEW_TYPE; }
@@ -139,7 +148,7 @@ export class UnifiedCompareCodersView extends ItemView {
 	 *  (senão reload fica preso no scope filtrado sem maneira óbvia de voltar ao default). */
 	loadContextualCode(codeId: string): void {
 		const allCoderIds = this.plugin.coderRegistry.getAll().map(c => c.id);
-		bumpInputsCacheGeneration();
+		bumpAllIcrCaches();
 		this.state = {
 			scope: { coderIds: allCoderIds, codeIds: [codeId] },
 			overviewMode: 'table',
@@ -165,7 +174,7 @@ export class UnifiedCompareCodersView extends ItemView {
 	loadFromSaved(comparisonId: string): boolean {
 		const saved = this.plugin.comparisonRegistry?.getById(comparisonId);
 		if (!saved) return false;
-		bumpInputsCacheGeneration();
+		bumpAllIcrCaches();
 		this.state = {
 			scope: { ...saved.scope },
 			overviewMode: saved.view.overviewMode,
@@ -399,7 +408,7 @@ export class UnifiedCompareCodersView extends ItemView {
 					onSetSelection: sel => this.setSelection(sel),
 					onAfterReconciliation: partial => {
 						// Reconciliação mudou markers → cache de extração fica stale.
-						bumpInputsCacheGeneration();
+						bumpAllIcrCaches();
 						// Update consolidado: reset seleção + flush state em UM render
 						// (renderOverview é async; 2 chamadas seguidas causaram race + matriz duplicada).
 						this.updateState(partial);
@@ -431,7 +440,7 @@ export class UnifiedCompareCodersView extends ItemView {
 				onSetSelection: sel => this.setSelection(sel),
 				onSetDrilldownMode: mode => this.updateState({ drilldownMode: mode }),
 				onAfterReconciliation: partial => {
-					bumpInputsCacheGeneration();
+					bumpAllIcrCaches();
 					this.updateState(partial);
 				},
 			},

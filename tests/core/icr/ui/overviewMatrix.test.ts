@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { renderOverviewMatrix } from '../../../../src/core/icr/ui/overviewMatrix';
 import { createDefaultViewState } from '../../../../src/core/icr/ui/compareCodersTypes';
 import { CoderRegistry } from '../../../../src/core/icr/coderRegistry';
+import { bumpCoderInclusionCacheGeneration } from '../../../../src/core/icr/ui/coderInclusion';
+
+// Module-level caches (coderInclusion) — invalida antes de cada test.
+beforeEach(() => bumpCoderInclusionCacheGeneration());
 
 const noopApp: any = {
 	vault: {

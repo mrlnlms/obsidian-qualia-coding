@@ -7,6 +7,11 @@ import { CoderRegistry } from '../../../../src/core/icr/coderRegistry';
 import { CodeDefinitionRegistry } from '../../../../src/core/codeDefinitionRegistry';
 import { createDefaultViewState } from '../../../../src/core/icr/ui/compareCodersTypes';
 import type { AuditEntry } from '../../../../src/core/types';
+import { bumpRegionsCacheGeneration } from '../../../../src/core/icr/ui/regionDerivation';
+import { bumpCoderInclusionCacheGeneration } from '../../../../src/core/icr/ui/coderInclusion';
+
+// Module-level caches — invalida antes de cada test.
+beforeEach(() => { bumpRegionsCacheGeneration(); bumpCoderInclusionCacheGeneration(); });
 
 function makeMd(opts: { id: string; coderId: string; codeId: string; from?: number; to?: number; fileId?: string }): any {
 	return {

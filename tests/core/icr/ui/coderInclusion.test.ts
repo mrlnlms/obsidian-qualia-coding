@@ -1,10 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
 	getCodersWithMarkersInScope,
 	applyCoderInclusion,
 	applyConsensusExclusion,
 	getConsensusCoderIdsInScope,
+	bumpCoderInclusionCacheGeneration,
 } from '../../../../src/core/icr/ui/coderInclusion';
+
+// Cache module-level — invalida antes de cada test pra evitar cross-contamination.
+beforeEach(() => bumpCoderInclusionCacheGeneration());
 
 function makeMd(opts: { id: string; coderId: string; codeId: string; fileId?: string }): any {
 	return {

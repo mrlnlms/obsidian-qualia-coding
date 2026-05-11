@@ -18,28 +18,86 @@ import type { EngineModelsForExtraction } from './scopeExtraction';
 import type { CoderId } from '../coderTypes';
 import type { CoderRegistry } from '../coderRegistry';
 
+// ─── Cache module-level (perf fix 2026-05-11) ──────────────
+// `getCodersWithMarkersInScope` é chamado em todo `renderToolbar` da Compare Coders View
+// (a cada `updateState`: chip click, mode swap, filter toggle). Sem cache, cada chamada
+// itera markers de TODAS as 7 engines + filtra por scope. Mesmo pattern do scopeExtraction:
+// gen counter + LRU. Invalidado via bumpCoderInclusionCacheGeneration (chamado quando
+// markers mudam — wired no mesmo bumpInputsCacheGeneration via re-export pra simplicidade).
+
+const COVERAGE_CACHE_MAX = 50;
+let coverageGen = 0;
+const coverageCache = new Map<string, { gen: number; result: CoderId[] }>();
+
+export function bumpCoderInclusionCacheGeneration(): void {
+	coverageGen++;
+	coverageCache.clear();
+}
+
+function coverageKey(scope: ComparisonScope): string {
+	const norm = (a?: readonly string[]) => a ? [...a].sort().join(',') : '';
+	return `${norm(scope.coderIds)}|${norm(scope.codeIds)}|${norm(scope.fileIds)}|${norm(scope.groupIds)}|${norm(scope.folderIds)}|${norm(scope.engineIds as string[] | undefined)}`;
+}
+
+function pruneCoverageCache(): void {
+	while (coverageCache.size > COVERAGE_CACHE_MAX) {
+		const k = coverageCache.keys().next().value;
+		if (k === undefined) break;
+		coverageCache.delete(k);
+	}
+}
+
 export function getCodersWithMarkersInScope(
 	scope: ComparisonScope,
 	models: EngineModelsForExtraction,
 ): CoderId[] {
-	const coderSet = new Set<CoderId>();
-	const allMarkers: { codedBy?: string; codes?: { codeId: string }[]; fileId: string }[] = [
-		...(models.markdown?.getAllMarkers() ?? []),
-		...(models.pdf?.getAllMarkers() ?? []),
-		...((models.pdf as any)?.getAllShapes?.() ?? []),
-		...(models.csv?.getAllMarkers() ?? []),
-		...(models.audio?.getAllMarkers() ?? []),
-		...(models.video?.getAllMarkers() ?? []),
-		...(models.image?.getAllMarkers?.() ?? []),
-	];
-	for (const m of allMarkers) {
-		if (!m.codedBy) continue;
-		if (!scope.coderIds.includes(m.codedBy)) continue;
-		if (scope.codeIds && !(m.codes ?? []).some(c => scope.codeIds!.includes(c.codeId))) continue;
-		if (scope.fileIds && !scope.fileIds.includes(m.fileId)) continue;
-		coderSet.add(m.codedBy);
+	const key = coverageKey(scope);
+	const hit = coverageCache.get(key);
+	if (hit && hit.gen === coverageGen) {
+		// Touch LRU
+		coverageCache.delete(key);
+		coverageCache.set(key, hit);
+		return hit.result;
 	}
-	return scope.coderIds.filter(id => coderSet.has(id));
+
+	const coderSet = new Set<CoderId>();
+	const scopeCoderSet = new Set(scope.coderIds);
+	const scopeCodeSet = scope.codeIds ? new Set(scope.codeIds) : null;
+	const scopeFileSet = scope.fileIds ? new Set(scope.fileIds) : null;
+
+	// Iteração inline por engine pra evitar spread de 7 arrays (alocação cara em vault grande).
+	const scan = (markers: { codedBy?: string; codes?: { codeId: string }[]; fileId: string }[]) => {
+		for (const m of markers) {
+			if (!m.codedBy) continue;
+			if (!scopeCoderSet.has(m.codedBy)) continue;
+			if (scopeFileSet && !scopeFileSet.has(m.fileId)) continue;
+			if (scopeCodeSet) {
+				const codes = m.codes ?? [];
+				let hit = false;
+				for (const c of codes) {
+					if (scopeCodeSet.has(c.codeId)) { hit = true; break; }
+				}
+				if (!hit) continue;
+			}
+			coderSet.add(m.codedBy);
+		}
+	};
+
+	if (models.markdown) scan(models.markdown.getAllMarkers() as never);
+	if (models.pdf) {
+		scan(models.pdf.getAllMarkers() as never);
+		const shapes = (models.pdf as { getAllShapes?: () => unknown[] }).getAllShapes?.();
+		if (shapes) scan(shapes as never);
+	}
+	if (models.csv) scan(models.csv.getAllMarkers() as never);
+	if (models.audio) scan(models.audio.getAllMarkers() as never);
+	if (models.video) scan(models.video.getAllMarkers() as never);
+	if (models.image) scan(models.image.getAllMarkers() as never);
+
+	const result = scope.coderIds.filter(id => coderSet.has(id));
+	coverageCache.set(key, { gen: coverageGen, result });
+	pruneCoverageCache();
+	return result;
 }
 
 export function applyCoderInclusion(

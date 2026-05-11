@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { collectContestedRegions, __test__ } from '../../../../src/core/icr/ui/regionDerivation';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { collectContestedRegions, __test__, bumpRegionsCacheGeneration } from '../../../../src/core/icr/ui/regionDerivation';
 import { createDefaultViewState } from '../../../../src/core/icr/ui/compareCodersTypes';
+
+// Cache module-level — invalida antes de cada test pra evitar cross-contamination.
+beforeEach(() => bumpRegionsCacheGeneration());
 import type { CodeApplication } from '../../../../src/core/types';
 import type { CoderId } from '../../../../src/core/icr/coderTypes';
 

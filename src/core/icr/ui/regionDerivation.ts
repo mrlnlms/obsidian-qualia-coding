@@ -51,10 +51,46 @@ export interface RegionsByStatus {
 
 // ─── Public API ────────────────────────────────────────────────
 
+// ─── Cache module-level (perf fix 2026-05-11) ──────────────
+// `collectContestedRegions` é chamado em renderDrilldown (cards + workflow) e em export.
+// 5 collectors itera markers per engine + clustering. Mesmo pattern do scopeExtraction.
+// Bumpado via bumpRegionsCacheGeneration quando markers mudam.
+
+const REGIONS_CACHE_MAX = 50;
+let regionsGen = 0;
+const regionsCache = new Map<string, { gen: number; result: ContestedRegion[] }>();
+
+export function bumpRegionsCacheGeneration(): void {
+	regionsGen++;
+	regionsCache.clear();
+}
+
+function regionsCacheKey(state: CompareCodersViewState): string {
+	const norm = (a?: readonly string[]) => a ? [...a].sort().join(',') : '';
+	const s = state.scope;
+	return `${norm(s.coderIds)}|${norm(s.codeIds)}|${norm(s.fileIds)}|${norm(s.engineIds as string[] | undefined)}`;
+}
+
+function pruneRegionsCache(): void {
+	while (regionsCache.size > REGIONS_CACHE_MAX) {
+		const k = regionsCache.keys().next().value;
+		if (k === undefined) break;
+		regionsCache.delete(k);
+	}
+}
+
 export function collectContestedRegions(
 	state: CompareCodersViewState,
 	engineModels: EngineModelsForExtraction,
 ): ContestedRegion[] {
+	const key = regionsCacheKey(state);
+	const hit = regionsCache.get(key);
+	if (hit && hit.gen === regionsGen) {
+		regionsCache.delete(key);
+		regionsCache.set(key, hit);
+		return hit.result;
+	}
+
 	const out: ContestedRegion[] = [];
 	const scopeCoders = new Set(state.scope.coderIds);
 
@@ -82,6 +118,8 @@ export function collectContestedRegions(
 		out.push(...collectTemporalRegions(engineModels.video, scopeCoders, 'video'));
 	}
 
+	regionsCache.set(key, { gen: regionsGen, result: out });
+	pruneRegionsCache();
 	return out;
 }
 
