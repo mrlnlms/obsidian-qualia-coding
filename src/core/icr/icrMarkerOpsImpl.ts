@@ -119,14 +119,13 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 			const model = this.plugin.markdownModel;
 			if (!model) return [];
 			const all = model.getMarkersForFile(region.fileId);
-			const editor = this.findEditorForFile(region.fileId);
-			const targetFrom = region.bounds.from;
-			const targetTo = region.bounds.to;
+			// regionDerivation encoda bounds em "rangeKey = line × 1M + ch" pra clustering.
+			// Decodifica antes de comparar com marker ranges reais.
+			const fromPos = decodeRangeKey(region.bounds.from);
+			const toPos = decodeRangeKey(region.bounds.to);
 			const out: { markerId: string; codedBy: CoderId; codes: CodeApplication[] }[] = [];
 			for (const m of all) {
-				const offsets = editor ? this.markerToOffsets(m, editor) : null;
-				if (!offsets) continue;
-				if (offsets.from <= targetTo && offsets.to >= targetFrom) {
+				if (rangesOverlapLineCh(m.range, { from: fromPos, to: toPos })) {
 					if (m.codedBy) {
 						out.push({ markerId: m.id, codedBy: m.codedBy, codes: m.codes });
 					}
@@ -165,9 +164,10 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 		const model = this.plugin.markdownModel;
 		if (!model) throw new Error('markdown-model-not-loaded');
 
-		const editor = this.findEditorForFile(spec.fileId);
-		const fromPos = editor ? editor.offsetToPos(spec.bounds.from) : { line: 0, ch: spec.bounds.from };
-		const toPos = editor ? editor.offsetToPos(spec.bounds.to) : { line: 0, ch: spec.bounds.to };
+		// regionDerivation encoda bounds em "rangeKey = line × 1M + ch" pra clustering interno.
+		// Decodifica direto pra line/ch — esses bounds NÃO são char offsets absolutos do source.
+		const fromPos = decodeRangeKey(spec.bounds.from);
+		const toPos = decodeRangeKey(spec.bounds.to);
 
 		const id = `${Date.now().toString(36)}${Math.random().toString(36).substring(2)}`;
 		const marker: MarkdownMarker = {
@@ -236,4 +236,24 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 			return null;
 		}
 	}
+}
+
+/** Decodifica o "rangeKey = line × 1M + ch" usado pelo regionDerivation pra clustering interno.
+ *  Esse encoding NÃO é um char offset absoluto — é uma chave ordinal pra agrupamento. */
+function decodeRangeKey(key: number): { line: number; ch: number } {
+	const line = Math.floor(key / 1_000_000);
+	const ch = key - line * 1_000_000;
+	return { line, ch };
+}
+
+/** Overlap line/ch entre dois ranges. Compara (line, ch) lexicograficamente via rangeKey. */
+function rangesOverlapLineCh(
+	a: { from: { line: number; ch: number }; to: { line: number; ch: number } },
+	b: { from: { line: number; ch: number }; to: { line: number; ch: number } },
+): boolean {
+	const aFrom = a.from.line * 1_000_000 + a.from.ch;
+	const aTo = a.to.line * 1_000_000 + a.to.ch;
+	const bFrom = b.from.line * 1_000_000 + b.from.ch;
+	const bTo = b.to.line * 1_000_000 + b.to.ch;
+	return aFrom <= bTo && aTo >= bFrom;
 }
