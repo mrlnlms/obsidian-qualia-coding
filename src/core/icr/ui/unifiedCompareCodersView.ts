@@ -2,6 +2,8 @@ import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 import type QualiaCodingPlugin from '../../../main';
 import { runExportTrigger } from '../contributions/exportTrigger';
 import { type CompareCodersViewState, createDefaultViewState, type CurrentSelection } from './compareCodersTypes';
+import { computeDirty, snapshotSavable, snapshotLastUsed } from './compareCodersDirty';
+import { CreateComparisonModal } from './createComparisonModal';
 import { renderOverviewMatrix } from './overviewMatrix';
 import { renderOverviewTable } from './overviewTable';
 import { renderOverviewHeatmap } from './overviewHeatmap';
@@ -49,7 +51,21 @@ export class UnifiedCompareCodersView extends ItemView {
 		// automaticamente coders sem markers (consensus pré-reconciliação cai aí). Chip "excluir
 		// consensus" no toolbar permite ver κ pré (sem consensus) quando consensus tem markers.
 		const allCoderIds = plugin.coderRegistry.getAll().map(c => c.id);
-		this.state = createDefaultViewState(allCoderIds);
+		const defaults = createDefaultViewState(allCoderIds);
+		// Slice E4: tenta retomar última config ephemeral (não-saved) persistida no onClose anterior.
+		const last = plugin.dataManager.getDataRef().lastCompareCodersUsed;
+		if (last) {
+			this.state = {
+				...defaults,
+				scope: { ...last.scope },
+				overviewMode: last.view.overviewMode,
+				drilldownMode: last.view.drilldownMode,
+				primaryCoefficient: last.view.primaryCoefficient,
+				filters: { ...last.filters },
+			};
+		} else {
+			this.state = defaults;
+		}
 		// Limpa cache de extração — instâncias anteriores podem ter deixado resíduo.
 		bumpInputsCacheGeneration();
 	}
@@ -74,16 +90,43 @@ export class UnifiedCompareCodersView extends ItemView {
 		await this.renderDrilldown();
 	}
 
+	/** Slice E4 — persiste lastCompareCodersUsed só quando state é ephemeral (não vem de saved).
+	 *  Saved já é persistido via registry mutate listener. */
+	async onClose(): Promise<void> {
+		if (this.state.loadedFromSavedId) return;
+		this.plugin.dataManager.setSection('lastCompareCodersUsed', snapshotLastUsed(this.state));
+	}
+
 	/** Acessor pra estado central — `getState` é reservado em View do Obsidian. */
 	getCompareState(): CompareCodersViewState { return this.state; }
 
-	/** Mutate state + re-render. updateState chain é ok pra E1; E2 considera partial re-render. */
+	/** Mutate state + re-render. updateState chain é ok pra E1; E2 considera partial re-render.
+	 *  Slice E4: quando state vem de saved, recalcula isDirty comparando com o saved atual. */
 	updateState(partial: Partial<CompareCodersViewState>): void {
 		this.state = { ...this.state, ...partial };
+		this.refreshDirtyFlag();
 		const token = ++this.renderToken;
 		this.renderToolbar();
 		void this.renderOverview(token);
 		void this.renderDrilldown();
+	}
+
+	private refreshDirtyFlag(): void {
+		const id = this.state.loadedFromSavedId;
+		if (!id) {
+			if (this.state.isDirty) this.state = { ...this.state, isDirty: false };
+			return;
+		}
+		const saved = this.plugin.comparisonRegistry?.getById(id);
+		if (!saved) {
+			// Saved foi deletado em outro fluxo — descarta o vínculo, state vira ephemeral.
+			this.state = { ...this.state, loadedFromSavedId: undefined, isDirty: false };
+			return;
+		}
+		const dirty = computeDirty(this.state, saved);
+		if (dirty !== this.state.isDirty) {
+			this.state = { ...this.state, isDirty: dirty };
+		}
 	}
 
 	/** Carrega config de um SavedComparison no state, setta `loadedFromSavedId` e re-renderiza.
@@ -109,8 +152,59 @@ export class UnifiedCompareCodersView extends ItemView {
 		return true;
 	}
 
+	private renderSavedBanner(): void {
+		const id = this.state.loadedFromSavedId;
+		const saved = id ? this.plugin.comparisonRegistry?.getById(id) : undefined;
+		// Sem saved carregado: oferecer "Salvar como nova" se houver state divergente dos defaults?
+		// V1 — banner só aparece quando há saved carregado (saved-mode). Ephemeral fica na lastUsed.
+		if (!saved) return;
+
+		const banner = this.toolbarEl.createDiv({ cls: 'qc-cc-saved-banner' });
+		const label = banner.createSpan({ cls: 'qc-cc-saved-label' });
+		if (this.state.isDirty) label.createSpan({ cls: 'qc-cc-saved-dirty-dot', text: '●' });
+		label.createSpan({ cls: 'qc-cc-saved-name', text: saved.name });
+
+		const actions = banner.createSpan({ cls: 'qc-cc-saved-actions' });
+		if (this.state.isDirty) {
+			const saveBtn = actions.createEl('button', { cls: 'qc-cc-saved-btn', text: 'Salvar mudanças' });
+			saveBtn.onclick = () => this.persistChangesToSaved();
+		}
+		const saveAsNewBtn = actions.createEl('button', { cls: 'qc-cc-saved-btn', text: 'Salvar como nova' });
+		saveAsNewBtn.onclick = () => this.openSaveAsNewModal();
+		const detachBtn = actions.createEl('button', { cls: 'qc-cc-saved-btn qc-cc-saved-detach', text: '✕ desvincular' });
+		detachBtn.title = 'Detacha esta view do saved (state vira ephemeral).';
+		detachBtn.onclick = () => this.detachFromSaved();
+	}
+
+	private persistChangesToSaved(): void {
+		const id = this.state.loadedFromSavedId;
+		if (!id) return;
+		const snap = snapshotSavable(this.state);
+		this.plugin.comparisonRegistry.update(id, { scope: snap.scope, view: snap.view, filters: snap.filters });
+		this.state = { ...this.state, isDirty: false };
+		this.renderToolbar();
+		new Notice('Saved comparison atualizada.');
+	}
+
+	private openSaveAsNewModal(): void {
+		const snap = snapshotSavable(this.state);
+		new CreateComparisonModal({
+			app: this.plugin.app,
+			registry: this.plugin.comparisonRegistry,
+			coderRegistry: this.plugin.coderRegistry,
+			initialState: { scope: snap.scope, view: snap.view, filters: snap.filters },
+			onCreated: (cmp) => { this.loadFromSaved(cmp.id); },
+		}).open();
+	}
+
+	private detachFromSaved(): void {
+		this.state = { ...this.state, loadedFromSavedId: undefined, isDirty: false };
+		this.renderToolbar();
+	}
+
 	private renderToolbar(): void {
 		this.toolbarEl.empty();
+		this.renderSavedBanner();
 		const modeGroup = this.toolbarEl.createSpan({ cls: 'qc-cc-mode-group' });
 		modeGroup.createSpan({ cls: 'qc-cc-mode-label', text: 'overview' });
 		const modeRow = modeGroup.createSpan({ cls: 'qc-cc-mode-row' });

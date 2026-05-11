@@ -10,6 +10,11 @@ function mockPlugin(coderRegistry: CoderRegistry): any {
 	return {
 		coderRegistry,
 		sharedRegistry: {} as any,
+		comparisonRegistry: { getById: () => undefined } as any,
+		dataManager: {
+			getDataRef: () => ({ lastCompareCodersUsed: undefined }),
+			setSection: () => {},
+		} as any,
 		app: { vault: {}, workspace: {} },
 	};
 }
