@@ -348,13 +348,18 @@ interface BaseAuditEntry {
  *  - csvSegment: char offsets dentro do texto da célula
  *  - pdfText: char offsets dentro da página específica do PDF
  *  - temporal: ms — usado por audio e video
+ *  - bbox: AABB normalizada 0–1 — usado por pdfShape (com page) e image (sem page).
+ *          Sempre representa retângulo axis-aligned (mesmo quando as shapes originais
+ *          são ellipse/polygon). Consensus de adopt/split é AABB-union — ver
+ *          unionOfBounds e IcrMarkerOpsImpl.createPdfShapeMarker/createImageMarker.
  */
 export type ReconciliationBounds =
 	| { kind: 'text'; from: number; to: number }
 	| { kind: 'csvRow'; rowIndex: number; column?: string }
 	| { kind: 'csvSegment'; rowIndex: number; column: string; from: number; to: number }
 	| { kind: 'pdfText'; page: number; from: number; to: number }
-	| { kind: 'temporal'; fromMs: number; toMs: number };
+	| { kind: 'temporal'; fromMs: number; toMs: number }
+	| { kind: 'bbox'; page?: number; x: number; y: number; w: number; h: number };
 
 /** Snapshot serializável de marker pré-mutação — pra revert de overwrite-originals. */
 export interface MarkerSnapshot {

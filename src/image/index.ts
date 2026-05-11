@@ -30,13 +30,11 @@ function collectImageTargets(plugin: QualiaCodingPlugin): { all: FileView[]; toC
 export { IMAGE_CODING_VIEW_TYPE };
 
 export function registerImageEngine(plugin: QualiaCodingPlugin): EngineRegistration<ImageCodingModel> {
-	const dm = plugin.dataManager;
-
 	// Use shared registry from plugin (single instance for all engines)
 	const registry = plugin.sharedRegistry;
 
 	// Create model
-	const model = new ImageCodingModel(dm, registry);
+	const model = new ImageCodingModel(plugin, registry);
 
 	// Expose on plugin instance for other modules
 	plugin.imageModel = model;

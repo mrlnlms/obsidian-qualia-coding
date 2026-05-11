@@ -184,6 +184,11 @@ function formatBoundsShort(bounds: import('./types').ReconciliationBounds): stri
 			return `page ${bounds.page} · chars ${bounds.from}–${bounds.to}`;
 		case 'temporal':
 			return `${bounds.fromMs}ms–${bounds.toMs}ms`;
+		case 'bbox': {
+			const pct = (v: number) => (v * 100).toFixed(1);
+			const prefix = bounds.page !== undefined ? `p${bounds.page} ` : '';
+			return `${prefix}bbox ${pct(bounds.x)},${pct(bounds.y)}+${pct(bounds.w)}×${pct(bounds.h)}%`;
+		}
 	}
 }
 

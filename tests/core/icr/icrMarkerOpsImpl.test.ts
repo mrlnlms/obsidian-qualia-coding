@@ -219,27 +219,7 @@ describe('IcrMarkerOpsImpl — csvRow', () => {
 	});
 });
 
-describe('IcrMarkerOpsImpl — engines fora de slice (Slice E5b: bbox pendente)', () => {
-	it('findMarkersInRegion pra pdfShape lança engine-not-supported', () => {
-		expect(() =>
-			ops.findMarkersInRegion({
-				fileId: 'F.pdf', engine: 'pdfShape',
-				bounds: { kind: 'text', from: 0, to: 10 },
-			}),
-		).toThrow(/engine-not-supported-in-slice/);
-	});
-
-	it('createMarker pra image lança engine-not-supported', () => {
-		expect(() =>
-			ops.createMarker('image', {
-				fileId: 'F.png',
-				bounds: { kind: 'text', from: 0, to: 10 },
-				codeIds: ['c_x'],
-				codedBy: 'human:alice',
-			}),
-		).toThrow(/engine-not-supported-in-slice/);
-	});
-});
+// Slice E5b cobre pdfShape + image (testes específicos abaixo, após os fakes).
 
 // ─── Slice E5a — 4 engines novas ───────────────────────────
 
@@ -440,5 +420,246 @@ describe('IcrMarkerOpsImpl — audio/video (E5a)', () => {
 			bounds: { kind: 'temporal', fromMs: 2000, toMs: 4000 },
 		});
 		expect(found.map(m => m.markerId)).toEqual(['a1']);
+	});
+});
+
+// ─── Slice E5b — bbox spatial (pdfShape + image) ──────────────
+
+import type { PdfShapeMarker } from '../../../src/pdf/pdfCodingTypes';
+import type { ImageMarker } from '../../../src/image/imageCodingTypes';
+
+function makeFakePdfShapeModel() {
+	const store = new Map<string, PdfShapeMarker>();
+	return {
+		store,
+		insertShapeRaw: vi.fn((s: PdfShapeMarker) => { store.set(s.id, s); }),
+		deleteShape: vi.fn((id: string) => { store.delete(id); }),
+		findShapeById: (id: string) => store.get(id),
+		getShapesForFile: (fileId: string) => Array.from(store.values()).filter(s => s.fileId === fileId),
+		getAllShapes: () => Array.from(store.values()),
+		addCodeToShape: vi.fn((id: string, codeId: string) => {
+			const s = store.get(id);
+			if (s && !s.codes.some(c => c.codeId === codeId)) s.codes.push({ codeId });
+		}),
+		removeCodeFromShape: vi.fn((id: string, codeId: string) => {
+			const s = store.get(id);
+			if (s) s.codes = s.codes.filter(c => c.codeId !== codeId);
+		}),
+	};
+}
+
+function makeFakeImageModel() {
+	const store = new Map<string, ImageMarker>();
+	return {
+		store,
+		insertMarkerRaw: vi.fn((m: ImageMarker) => { store.set(m.id, m); }),
+		removeMarker: vi.fn((id: string) => store.delete(id)),
+		findMarkerById: (id: string) => store.get(id),
+		getMarkersForFile: (fileId: string) => Array.from(store.values()).filter(m => m.fileId === fileId),
+		getAllMarkers: () => Array.from(store.values()),
+		addCodeToMarker: vi.fn((id: string, codeId: string) => {
+			const m = store.get(id);
+			if (m && !m.codes.some(c => c.codeId === codeId)) m.codes.push({ codeId });
+		}),
+		removeCodeFromMarker: vi.fn((id: string, codeId: string) => {
+			const m = store.get(id);
+			if (m) m.codes = m.codes.filter(c => c.codeId !== codeId);
+		}),
+	};
+}
+
+describe('IcrMarkerOpsImpl — pdfShape (E5b)', () => {
+	it('createMarker insere via pdfModel.insertShapeRaw com rect coords da AABB-union + page + codedBy', () => {
+		const pdfModel = makeFakePdfShapeModel();
+		const opsLocal = new IcrMarkerOpsImpl({ pdfModel, app: {} } as never);
+		const r = opsLocal.createMarker('pdfShape', {
+			fileId: 'doc.pdf',
+			bounds: { kind: 'bbox', page: 2, x: 0.1, y: 0.2, w: 0.3, h: 0.4 },
+			codeIds: ['c_alpha'],
+			codedBy: 'consensus:default',
+		});
+		expect(pdfModel.insertShapeRaw).toHaveBeenCalledTimes(1);
+		const inserted = pdfModel.store.get(r.markerId)!;
+		expect(inserted.page).toBe(2);
+		expect(inserted.shape).toBe('rect');
+		expect(inserted.coords).toEqual({ type: 'rect', x: 0.1, y: 0.2, w: 0.3, h: 0.4 });
+		expect(inserted.codedBy).toBe('consensus:default');
+	});
+
+	it('createMarker rejeita bounds não-bbox', () => {
+		const pdfModel = makeFakePdfShapeModel();
+		const opsLocal = new IcrMarkerOpsImpl({ pdfModel, app: {} } as never);
+		expect(() =>
+			opsLocal.createMarker('pdfShape', {
+				fileId: 'doc.pdf',
+				bounds: { kind: 'text', from: 0, to: 10 },
+				codeIds: ['c_x'],
+				codedBy: 'human:alice',
+			}),
+		).toThrow(/pdfShape-requires-bbox-bounds/);
+	});
+
+	it('createMarker exige page no bounds', () => {
+		const pdfModel = makeFakePdfShapeModel();
+		const opsLocal = new IcrMarkerOpsImpl({ pdfModel, app: {} } as never);
+		expect(() =>
+			opsLocal.createMarker('pdfShape', {
+				fileId: 'doc.pdf',
+				bounds: { kind: 'bbox', x: 0, y: 0, w: 0.5, h: 0.5 },
+				codeIds: ['c_x'],
+				codedBy: 'human:alice',
+			}),
+		).toThrow(/pdfShape-requires-page-in-bounds/);
+	});
+
+	it('removeMarker delega ao pdfModel.deleteShape', () => {
+		const pdfModel = makeFakePdfShapeModel();
+		const opsLocal = new IcrMarkerOpsImpl({ pdfModel, app: {} } as never);
+		const r = opsLocal.createMarker('pdfShape', {
+			fileId: 'doc.pdf',
+			bounds: { kind: 'bbox', page: 1, x: 0.1, y: 0.1, w: 0.3, h: 0.3 },
+			codeIds: ['c_x'],
+			codedBy: 'human:alice',
+		});
+		opsLocal.removeMarker('pdfShape', 'doc.pdf', r.markerId);
+		expect(pdfModel.deleteShape).toHaveBeenCalledWith(r.markerId);
+		expect(pdfModel.store.has(r.markerId)).toBe(false);
+	});
+
+	it('findMarkersInRegion filtra por page + AABB overlap', () => {
+		const pdfModel = makeFakePdfShapeModel();
+		const opsLocal = new IcrMarkerOpsImpl({ pdfModel, app: {} } as never);
+		pdfModel.store.set('s1', { id: 's1', fileId: 'doc.pdf', page: 1, shape: 'rect', coords: { type: 'rect', x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, codes: [], codedBy: 'human:alice', markerType: 'pdf', createdAt: 0, updatedAt: 0 } as PdfShapeMarker);
+		pdfModel.store.set('s2', { id: 's2', fileId: 'doc.pdf', page: 1, shape: 'rect', coords: { type: 'rect', x: 0.7, y: 0.7, w: 0.2, h: 0.2 }, codes: [], codedBy: 'human:bob', markerType: 'pdf', createdAt: 0, updatedAt: 0 } as PdfShapeMarker);
+		pdfModel.store.set('s3', { id: 's3', fileId: 'doc.pdf', page: 2, shape: 'rect', coords: { type: 'rect', x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, codes: [], codedBy: 'human:carla', markerType: 'pdf', createdAt: 0, updatedAt: 0 } as PdfShapeMarker);
+
+		const found = opsLocal.findMarkersInRegion({
+			fileId: 'doc.pdf', engine: 'pdfShape',
+			bounds: { kind: 'bbox', page: 1, x: 0.0, y: 0.0, w: 0.4, h: 0.4 },
+		});
+		expect(found.map(m => m.markerId)).toEqual(['s1']); // s2 não toca AABB, s3 page diferente
+	});
+
+	it('updateMarker via getModelForUpdate usa addCodeToShape/removeCodeFromShape', () => {
+		const pdfModel = makeFakePdfShapeModel();
+		const opsLocal = new IcrMarkerOpsImpl({ pdfModel, app: {} } as never);
+		const r = opsLocal.createMarker('pdfShape', {
+			fileId: 'doc.pdf',
+			bounds: { kind: 'bbox', page: 1, x: 0.1, y: 0.1, w: 0.3, h: 0.3 },
+			codeIds: ['c_old'],
+			codedBy: 'human:alice',
+		});
+		opsLocal.updateMarker('pdfShape', 'doc.pdf', r.markerId, { codes: [{ codeId: 'c_new' }] });
+		expect(pdfModel.removeCodeFromShape).toHaveBeenCalledWith(r.markerId, 'c_old', true);
+		expect(pdfModel.addCodeToShape).toHaveBeenCalledWith(r.markerId, 'c_new');
+	});
+
+	it('serialize + restore round-trip via insertShapeRaw', () => {
+		const pdfModel = makeFakePdfShapeModel();
+		const opsLocal = new IcrMarkerOpsImpl({ pdfModel, app: {} } as never);
+		const r = opsLocal.createMarker('pdfShape', {
+			fileId: 'doc.pdf',
+			bounds: { kind: 'bbox', page: 1, x: 0.1, y: 0.1, w: 0.3, h: 0.3 },
+			codeIds: ['c_x'],
+			codedBy: 'human:alice',
+		});
+		const snap = opsLocal.serializeMarker('pdfShape', 'doc.pdf', r.markerId);
+		pdfModel.store.delete(r.markerId);
+		expect(pdfModel.store.has(r.markerId)).toBe(false);
+		opsLocal.restoreMarker(snap);
+		expect(pdfModel.store.has(r.markerId)).toBe(true);
+	});
+});
+
+describe('IcrMarkerOpsImpl — image (E5b)', () => {
+	it('createMarker insere via imageModel.insertMarkerRaw com rect coords + sem page + codedBy', () => {
+		const imageModel = makeFakeImageModel();
+		const opsLocal = new IcrMarkerOpsImpl({ imageModel, app: {} } as never);
+		const r = opsLocal.createMarker('image', {
+			fileId: 'pic.png',
+			bounds: { kind: 'bbox', x: 0.2, y: 0.3, w: 0.4, h: 0.2 },
+			codeIds: ['c_alpha'],
+			codedBy: 'consensus:default',
+		});
+		expect(imageModel.insertMarkerRaw).toHaveBeenCalledTimes(1);
+		const inserted = imageModel.store.get(r.markerId)!;
+		expect(inserted.shape).toBe('rect');
+		expect(inserted.coords).toEqual({ type: 'rect', x: 0.2, y: 0.3, w: 0.4, h: 0.2 });
+		expect(inserted.codedBy).toBe('consensus:default');
+	});
+
+	it('createMarker rejeita bounds não-bbox', () => {
+		const imageModel = makeFakeImageModel();
+		const opsLocal = new IcrMarkerOpsImpl({ imageModel, app: {} } as never);
+		expect(() =>
+			opsLocal.createMarker('image', {
+				fileId: 'pic.png',
+				bounds: { kind: 'text', from: 0, to: 10 },
+				codeIds: ['c_x'],
+				codedBy: 'human:alice',
+			}),
+		).toThrow(/image-requires-bbox-bounds/);
+	});
+
+	it('removeMarker delega ao imageModel.removeMarker', () => {
+		const imageModel = makeFakeImageModel();
+		const opsLocal = new IcrMarkerOpsImpl({ imageModel, app: {} } as never);
+		const r = opsLocal.createMarker('image', {
+			fileId: 'pic.png',
+			bounds: { kind: 'bbox', x: 0.1, y: 0.1, w: 0.3, h: 0.3 },
+			codeIds: ['c_x'],
+			codedBy: 'human:alice',
+		});
+		opsLocal.removeMarker('image', 'pic.png', r.markerId);
+		expect(imageModel.removeMarker).toHaveBeenCalledWith(r.markerId);
+		expect(imageModel.store.has(r.markerId)).toBe(false);
+	});
+
+	it('findMarkersInRegion filtra por fileId + AABB overlap (sem page)', () => {
+		const imageModel = makeFakeImageModel();
+		const opsLocal = new IcrMarkerOpsImpl({ imageModel, app: {} } as never);
+		imageModel.store.set('i1', { id: 'i1', fileId: 'pic.png', shape: 'rect', coords: { type: 'rect', x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, codes: [], codedBy: 'human:alice', markerType: 'image', createdAt: 0, updatedAt: 0 } as ImageMarker);
+		imageModel.store.set('i2', { id: 'i2', fileId: 'pic.png', shape: 'rect', coords: { type: 'rect', x: 0.7, y: 0.7, w: 0.2, h: 0.2 }, codes: [], codedBy: 'human:bob', markerType: 'image', createdAt: 0, updatedAt: 0 } as ImageMarker);
+		imageModel.store.set('i3', { id: 'i3', fileId: 'other.png', shape: 'rect', coords: { type: 'rect', x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, codes: [], codedBy: 'human:carla', markerType: 'image', createdAt: 0, updatedAt: 0 } as ImageMarker);
+
+		const found = opsLocal.findMarkersInRegion({
+			fileId: 'pic.png', engine: 'image',
+			bounds: { kind: 'bbox', x: 0.0, y: 0.0, w: 0.4, h: 0.4 },
+		});
+		expect(found.map(m => m.markerId)).toEqual(['i1']);
+	});
+
+	it('serialize + restore round-trip via insertMarkerRaw', () => {
+		const imageModel = makeFakeImageModel();
+		const opsLocal = new IcrMarkerOpsImpl({ imageModel, app: {} } as never);
+		const r = opsLocal.createMarker('image', {
+			fileId: 'pic.png',
+			bounds: { kind: 'bbox', x: 0.1, y: 0.1, w: 0.3, h: 0.3 },
+			codeIds: ['c_x'],
+			codedBy: 'human:alice',
+		});
+		const snap = opsLocal.serializeMarker('image', 'pic.png', r.markerId);
+		imageModel.store.delete(r.markerId);
+		opsLocal.restoreMarker(snap);
+		expect(imageModel.store.has(r.markerId)).toBe(true);
+	});
+
+	it('createMarker polígono inserido manualmente NO model é detectado por findMarkersInRegion via AABB', () => {
+		// AABB overlap funciona mesmo se shape original é polygon (markers do collector
+		// vêm de coders reais que podem ter desenhado polygons; aabbOf cobre).
+		const imageModel = makeFakeImageModel();
+		const opsLocal = new IcrMarkerOpsImpl({ imageModel, app: {} } as never);
+		imageModel.store.set('poly1', {
+			id: 'poly1', fileId: 'pic.png',
+			shape: 'polygon',
+			coords: { type: 'polygon', points: [{ x: 0.1, y: 0.1 }, { x: 0.3, y: 0.1 }, { x: 0.2, y: 0.3 }] },
+			codes: [], codedBy: 'human:alice', markerType: 'image', createdAt: 0, updatedAt: 0,
+		} as ImageMarker);
+
+		const found = opsLocal.findMarkersInRegion({
+			fileId: 'pic.png', engine: 'image',
+			bounds: { kind: 'bbox', x: 0.0, y: 0.0, w: 0.4, h: 0.4 },
+		});
+		expect(found.map(m => m.markerId)).toEqual(['poly1']);
 	});
 });

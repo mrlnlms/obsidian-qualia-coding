@@ -180,5 +180,6 @@ function sameBoundsLocal(a: ReconciliationBounds, b: ReconciliationBounds): bool
 	if (a.kind === 'csvSegment' && b.kind === 'csvSegment') return a.rowIndex === b.rowIndex && a.column === b.column && a.from === b.from && a.to === b.to;
 	if (a.kind === 'pdfText' && b.kind === 'pdfText') return a.page === b.page && a.from === b.from && a.to === b.to;
 	if (a.kind === 'temporal' && b.kind === 'temporal') return a.fromMs === b.fromMs && a.toMs === b.toMs;
+	if (a.kind === 'bbox' && b.kind === 'bbox') return (a.page ?? -1) === (b.page ?? -1) && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 	return false;
 }

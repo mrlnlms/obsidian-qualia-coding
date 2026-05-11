@@ -200,11 +200,126 @@ describe('collectContestedRegions — wiring 4 engines novos', () => {
 	});
 });
 
+// ─── Slice E5b — bbox spatial collector (pdfShape + image) ────
+
+describe('collectBboxRegions — pdfShape', () => {
+	it('produz região contestada quando 2 coders têm bboxes IoU ≥ 0.5 na mesma page', () => {
+		// Mesmo rect → IoU = 1
+		const pdfModel = {
+			getAllMarkers: () => [],
+			getAllShapes: () => [
+				{ id: 's1', fileId: 'doc.pdf', page: 1, shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.1, y: 0.1, w: 0.3, h: 0.3 }, codes: codes('c_x'), codedBy: A, markerType: 'pdf' as const, createdAt: 0, updatedAt: 0 },
+				{ id: 's2', fileId: 'doc.pdf', page: 1, shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.12, y: 0.12, w: 0.28, h: 0.28 }, codes: codes('c_y'), codedBy: B, markerType: 'pdf' as const, createdAt: 0, updatedAt: 0 },
+			],
+		};
+		const state = createDefaultViewState([A, B]);
+		const regions = collectContestedRegions(state, { pdf: pdfModel as any });
+		expect(regions).toHaveLength(1);
+		expect(regions[0]!.engine).toBe('pdfShape');
+		expect(regions[0]!.bounds.kind).toBe('bbox');
+		const b = regions[0]!.bounds as { kind: 'bbox'; page?: number; x: number; y: number; w: number; h: number };
+		expect(b.page).toBe(1);
+		// AABB-union: x = min(0.1, 0.12), y = min, w = max-min, h = max-min
+		expect(b.x).toBeCloseTo(0.1, 5);
+		expect(b.y).toBeCloseTo(0.1, 5);
+		expect(b.x + b.w).toBeCloseTo(0.4, 5);
+		expect(b.y + b.h).toBeCloseTo(0.4, 5);
+		expect(regions[0]!.coderIds.sort()).toEqual([A, B]);
+		expect(regions[0]!.divergenceKind).toBe('code');
+	});
+
+	it('NÃO cruza pages — markers em pages diferentes ficam em scopes separados', () => {
+		const pdfModel = {
+			getAllMarkers: () => [],
+			getAllShapes: () => [
+				{ id: 's1', fileId: 'doc.pdf', page: 1, shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.1, y: 0.1, w: 0.3, h: 0.3 }, codes: codes('c_x'), codedBy: A, markerType: 'pdf' as const, createdAt: 0, updatedAt: 0 },
+				{ id: 's2', fileId: 'doc.pdf', page: 2, shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.1, y: 0.1, w: 0.3, h: 0.3 }, codes: codes('c_x'), codedBy: B, markerType: 'pdf' as const, createdAt: 0, updatedAt: 0 },
+			],
+		};
+		const state = createDefaultViewState([A, B]);
+		const regions = collectContestedRegions(state, { pdf: pdfModel as any });
+		expect(regions).toHaveLength(0);
+	});
+
+	it('bboxes com IoU < 0.5 NÃO clusterizam (touching corners apenas)', () => {
+		// Dois rects que se tocam num corner mas overlap → IoU < 0.5
+		const pdfModel = {
+			getAllMarkers: () => [],
+			getAllShapes: () => [
+				{ id: 's1', fileId: 'doc.pdf', page: 1, shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.0, y: 0.0, w: 0.5, h: 0.5 }, codes: codes('c_x'), codedBy: A, markerType: 'pdf' as const, createdAt: 0, updatedAt: 0 },
+				{ id: 's2', fileId: 'doc.pdf', page: 1, shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.4, y: 0.4, w: 0.5, h: 0.5 }, codes: codes('c_y'), codedBy: B, markerType: 'pdf' as const, createdAt: 0, updatedAt: 0 },
+			],
+		};
+		// IoU = (0.1*0.1) / (0.25 + 0.25 - 0.01) = 0.01/0.49 ≈ 0.02 (muito baixo)
+		const state = createDefaultViewState([A, B]);
+		const regions = collectContestedRegions(state, { pdf: pdfModel as any });
+		expect(regions).toHaveLength(0);
+	});
+
+	it('respeita scope.coderIds — markers de coder fora do scope ficam fora', () => {
+		const pdfModel = {
+			getAllMarkers: () => [],
+			getAllShapes: () => [
+				{ id: 's1', fileId: 'doc.pdf', page: 1, shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.1, y: 0.1, w: 0.3, h: 0.3 }, codes: codes('c_x'), codedBy: A, markerType: 'pdf' as const, createdAt: 0, updatedAt: 0 },
+				{ id: 's2', fileId: 'doc.pdf', page: 1, shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.1, y: 0.1, w: 0.3, h: 0.3 }, codes: codes('c_y'), codedBy: B, markerType: 'pdf' as const, createdAt: 0, updatedAt: 0 },
+			],
+		};
+		const state = createDefaultViewState([A]); // só A no scope
+		const regions = collectContestedRegions(state, { pdf: pdfModel as any });
+		expect(regions).toHaveLength(0);
+	});
+});
+
+describe('collectBboxRegions — image', () => {
+	it('produz região contestada quando 2 coders têm overlap ≥ 0.5 (sem page)', () => {
+		const imageModel = {
+			getAllMarkers: () => [
+				{ id: 'i1', fileId: 'pic.png', shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.2, y: 0.2, w: 0.4, h: 0.4 }, codes: codes('c_x'), codedBy: A, markerType: 'image' as const, createdAt: 0, updatedAt: 0 },
+				{ id: 'i2', fileId: 'pic.png', shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.22, y: 0.22, w: 0.38, h: 0.38 }, codes: codes('c_y'), codedBy: B, markerType: 'image' as const, createdAt: 0, updatedAt: 0 },
+			],
+		};
+		const state = createDefaultViewState([A, B]);
+		const regions = collectContestedRegions(state, { image: imageModel as any });
+		expect(regions).toHaveLength(1);
+		expect(regions[0]!.engine).toBe('image');
+		const b = regions[0]!.bounds as { kind: 'bbox'; page?: number };
+		expect(b.kind).toBe('bbox');
+		expect(b.page).toBeUndefined();
+	});
+
+	it('NÃO cruza fileIds — markers em images diferentes ficam separados', () => {
+		const imageModel = {
+			getAllMarkers: () => [
+				{ id: 'i1', fileId: 'pic.png', shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.1, y: 0.1, w: 0.3, h: 0.3 }, codes: codes('c_x'), codedBy: A, markerType: 'image' as const, createdAt: 0, updatedAt: 0 },
+				{ id: 'i2', fileId: 'other.png', shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.1, y: 0.1, w: 0.3, h: 0.3 }, codes: codes('c_x'), codedBy: B, markerType: 'image' as const, createdAt: 0, updatedAt: 0 },
+			],
+		};
+		const state = createDefaultViewState([A, B]);
+		const regions = collectContestedRegions(state, { image: imageModel as any });
+		expect(regions).toHaveLength(0);
+	});
+
+	it('polygon + rect com overlap > 0.5 clusterizam (mesma região contestada)', () => {
+		// Polygon = quadrado coberto pelo rect. IoU alto.
+		const imageModel = {
+			getAllMarkers: () => [
+				{ id: 'rect1', fileId: 'pic.png', shape: 'rect' as const, coords: { type: 'rect' as const, x: 0.2, y: 0.2, w: 0.4, h: 0.4 }, codes: codes('c_x'), codedBy: A, markerType: 'image' as const, createdAt: 0, updatedAt: 0 },
+				{ id: 'poly1', fileId: 'pic.png', shape: 'polygon' as const, coords: { type: 'polygon' as const, points: [{ x: 0.22, y: 0.22 }, { x: 0.58, y: 0.22 }, { x: 0.58, y: 0.58 }, { x: 0.22, y: 0.58 }] }, codes: codes('c_y'), codedBy: B, markerType: 'image' as const, createdAt: 0, updatedAt: 0 },
+			],
+		};
+		const state = createDefaultViewState([A, B]);
+		const regions = collectContestedRegions(state, { image: imageModel as any });
+		expect(regions).toHaveLength(1);
+		expect(regions[0]!.markerRefs.map(r => r.markerId).sort()).toEqual(['poly1', 'rect1']);
+	});
+});
+
 // Re-exports pra teste direto sem ir pelo collectContestedRegions.
 describe('__test__ exports', () => {
-	it('expõe os 3 collectors novos', () => {
+	it('expõe os 4 collectors novos', () => {
 		expect(typeof __test__.collectPdfTextRegions).toBe('function');
 		expect(typeof __test__.collectCsvSegmentRegions).toBe('function');
 		expect(typeof __test__.collectTemporalRegions).toBe('function');
+		expect(typeof __test__.collectBboxRegions).toBe('function');
 	});
 });

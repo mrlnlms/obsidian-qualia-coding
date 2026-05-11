@@ -433,6 +433,18 @@ export class PdfCodingModel {
 		});
 	}
 
+	/** Re-insere shape marker já-formado (criação via ICR Slice E5b ou snapshot restore).
+	 *  Mesmo padrão de insertMarkerRaw mas pra PdfShapeMarker[]. */
+	insertShapeRaw(shape: PdfShapeMarker): void {
+		this.shapes.push(shape);
+		this.notify();
+		this.emitMarkerMutation({
+			fileId: shape.fileId, markerId: shape.id,
+			prevCodeIds: [], nextCodeIds: shape.codes.map(c => c.codeId),
+			codeIds: shape.codes.map(c => c.codeId), marker: shape,
+		});
+	}
+
 	removeMarker(id: string, silent = false): boolean {
 		const target = this.markers.find(m => m.id === id);
 		this.markers = this.markers.filter(m => m.id !== id);

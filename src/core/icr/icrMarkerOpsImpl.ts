@@ -1,15 +1,19 @@
 /**
  * IcrMarkerOpsImpl — implementação concreta de IcrMarkerOps wrappando os engine models.
  *
- * Slice E3a Fase 1 cobria markdown + csvRow. Slice E5a estende pra:
+ * Slice E3a Fase 1 cobria markdown + csvRow. Slice E5a estendeu pra:
  *   - pdf (text — bounds 'pdfText' com page + chars)
  *   - csvSegment (bounds 'csvSegment' com rowIndex + column + chars)
  *   - audio (bounds 'temporal' em ms)
  *   - video (bounds 'temporal' em ms)
  *
- * Pendente em E5b (bbox spatial — frente separada):
- *   - pdfShape (bounds 'bbox' com page + shape coords)
+ * Slice E5b (este arquivo, completa cobertura cross-engine):
+ *   - pdfShape (bounds 'bbox' com page + AABB normalizado)
  *   - image (bounds 'bbox' sem page)
+ *
+ * Consensus de bbox é sempre rect AABB-union — ver unionOfBounds (reconciliation.ts)
+ * + createPdfShapeMarker/createImageMarker abaixo. Shape original (rect|ellipse|polygon)
+ * só vive nos markers individuais; consensus marker é simplificado pra rect renderizável.
  */
 
 import type { IcrMarkerOps } from './markerOps';
@@ -19,8 +23,10 @@ import type { EngineId } from './reporter';
 import type QualiaCodingPlugin from '../../main';
 import type { Marker as MarkdownMarker } from '../../markdown/models/codeMarkerModel';
 import type { RowMarker, SegmentMarker } from '../../csv/csvCodingTypes';
-import type { PdfMarker } from '../../pdf/pdfCodingTypes';
+import type { PdfMarker, PdfShapeMarker } from '../../pdf/pdfCodingTypes';
 import type { MediaMarker } from '../../media/mediaTypes';
+import type { ImageMarker } from '../../image/imageCodingTypes';
+import { aabbOf, aabbOverlaps } from './bboxNormalize';
 
 export class IcrMarkerOpsImpl implements IcrMarkerOps {
 	constructor(private plugin: QualiaCodingPlugin) {}
@@ -35,6 +41,8 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 		if (engine === 'pdf') return this.createPdfTextMarker(spec);
 		if (engine === 'audio') return this.createMediaMarker(spec, 'audio');
 		if (engine === 'video') return this.createMediaMarker(spec, 'video');
+		if (engine === 'pdfShape') return this.createPdfShapeMarker(spec);
+		if (engine === 'image') return this.createImageMarker(spec);
 		throw new Error(`engine-not-supported-in-slice: ${engine}`);
 	}
 
@@ -44,6 +52,8 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 		if (engine === 'pdf') { this.plugin.pdfModel?.removeMarker(markerId); return; }
 		if (engine === 'audio') { this.plugin.audioModel?.removeMarker(markerId); return; }
 		if (engine === 'video') { this.plugin.videoModel?.removeMarker(markerId); return; }
+		if (engine === 'pdfShape') { this.plugin.pdfModel?.deleteShape(markerId); return; }
+		if (engine === 'image') { this.plugin.imageModel?.removeMarker(markerId); return; }
 		throw new Error(`engine-not-supported-in-slice: ${engine}`);
 	}
 
@@ -88,6 +98,8 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 		if (e === 'pdf') { this.plugin.pdfModel?.insertMarkerRaw(snapshot.serialized as PdfMarker); return; }
 		if (e === 'audio') { this.plugin.audioModel?.insertMarkerRaw(snapshot.serialized as MediaMarker); return; }
 		if (e === 'video') { this.plugin.videoModel?.insertMarkerRaw(snapshot.serialized as MediaMarker); return; }
+		if (e === 'pdfShape') { this.plugin.pdfModel?.insertShapeRaw(snapshot.serialized as PdfShapeMarker); return; }
+		if (e === 'image') { this.plugin.imageModel?.insertMarkerRaw(snapshot.serialized as ImageMarker); return; }
 		throw new Error(`engine-not-supported-in-slice: ${snapshot.engine}`);
 	}
 
@@ -152,6 +164,34 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 			}
 			return out;
 		}
+		if (region.engine === 'pdfShape' && region.bounds.kind === 'bbox') {
+			const model = this.plugin.pdfModel;
+			if (!model) return [];
+			const regionAabb = { x: region.bounds.x, y: region.bounds.y, w: region.bounds.w, h: region.bounds.h };
+			const all = model.getShapesForFile(region.fileId).filter(s => s.page === (region.bounds as { page?: number }).page);
+			const out: { markerId: string; codedBy: CoderId; codes: CodeApplication[] }[] = [];
+			for (const s of all) {
+				if (!s.codedBy) continue;
+				if (aabbOverlaps(aabbOf(s.coords), regionAabb)) {
+					out.push({ markerId: s.id, codedBy: s.codedBy, codes: s.codes });
+				}
+			}
+			return out;
+		}
+		if (region.engine === 'image' && region.bounds.kind === 'bbox') {
+			const model = this.plugin.imageModel;
+			if (!model) return [];
+			const regionAabb = { x: region.bounds.x, y: region.bounds.y, w: region.bounds.w, h: region.bounds.h };
+			const all = model.getMarkersForFile(region.fileId);
+			const out: { markerId: string; codedBy: CoderId; codes: CodeApplication[] }[] = [];
+			for (const m of all) {
+				if (!m.codedBy) continue;
+				if (aabbOverlaps(aabbOf(m.coords), regionAabb)) {
+					out.push({ markerId: m.id, codedBy: m.codedBy, codes: m.codes });
+				}
+			}
+			return out;
+		}
 		throw new Error(`engine-not-supported-in-slice: ${region.engine}`);
 	}
 
@@ -163,11 +203,14 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 		if (engine === 'pdf') return this.plugin.pdfModel?.findMarkerById(markerId);
 		if (engine === 'audio') return this.plugin.audioModel?.findMarkerById(markerId);
 		if (engine === 'video') return this.plugin.videoModel?.findMarkerById(markerId);
+		if (engine === 'pdfShape') return this.plugin.pdfModel?.findShapeById(markerId);
+		if (engine === 'image') return this.plugin.imageModel?.findMarkerById(markerId);
 		return null;
 	}
 
-	/** Abstrai os 4 models que precisam de update de codes. Retorna interface mínima
-	 *  pra evitar duplicação. PdfShape e Image (E5b) terão outro caminho. */
+	/** Abstrai todos os engine models que precisam de update de codes. Retorna interface mínima
+	 *  pra evitar duplicação. PdfShape usa addCodeToShape/removeCodeFromShape (API distinta
+	 *  no PdfCodingModel); image usa add/removeCodeFromMarker standard. */
 	private getModelForUpdate(engine: EngineId): {
 		findMarker: (id: string) => { codes: CodeApplication[] } | undefined;
 		addCodeToMarker: (id: string, codeId: string) => void;
@@ -216,6 +259,24 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 				findMarker: (id) => m.findMarkerById(id),
 				addCodeToMarker: (id, cid) => m.addCodeToMarker(id, cid),
 				removeCodeFromMarker: (id, cid, k) => m.removeCodeFromMarker(id, cid, k),
+			};
+		}
+		if (engine === 'pdfShape') {
+			const m = this.plugin.pdfModel;
+			if (!m) return null;
+			return {
+				findMarker: (id) => m.findShapeById(id),
+				addCodeToMarker: (id, cid) => m.addCodeToShape(id, cid),
+				removeCodeFromMarker: (id, cid, k) => m.removeCodeFromShape(id, cid, k),
+			};
+		}
+		if (engine === 'image') {
+			const m = this.plugin.imageModel;
+			if (!m) return null;
+			return {
+				findMarker: (id) => m.findMarkerById(id),
+				addCodeToMarker: (id, cid) => { m.addCodeToMarker(id, cid); },
+				removeCodeFromMarker: (id, cid, k) => { m.removeCodeFromMarker(id, cid, k); },
 			};
 		}
 		return null;
@@ -333,6 +394,48 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 			createdAt: Date.now(), updatedAt: Date.now(),
 		};
 		model.insertMarkerRaw(marker as never);
+		return { markerId: id };
+	}
+
+	private createPdfShapeMarker(spec: {
+		fileId: string; bounds: ReconciliationBounds; codeIds: string[]; codedBy: CoderId;
+	}): { markerId: string } {
+		if (spec.bounds.kind !== 'bbox') throw new Error('pdfShape-requires-bbox-bounds');
+		if (spec.bounds.page === undefined) throw new Error('pdfShape-requires-page-in-bounds');
+		const model = this.plugin.pdfModel;
+		if (!model) throw new Error('pdf-model-not-loaded');
+
+		const id = `pdf-shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+		const shape: PdfShapeMarker = {
+			markerType: 'pdf', id, fileId: spec.fileId,
+			page: spec.bounds.page,
+			shape: 'rect',
+			coords: { type: 'rect', x: spec.bounds.x, y: spec.bounds.y, w: spec.bounds.w, h: spec.bounds.h },
+			codes: spec.codeIds.map(codeId => ({ codeId })),
+			codedBy: spec.codedBy,
+			createdAt: Date.now(), updatedAt: Date.now(),
+		};
+		model.insertShapeRaw(shape);
+		return { markerId: id };
+	}
+
+	private createImageMarker(spec: {
+		fileId: string; bounds: ReconciliationBounds; codeIds: string[]; codedBy: CoderId;
+	}): { markerId: string } {
+		if (spec.bounds.kind !== 'bbox') throw new Error('image-requires-bbox-bounds');
+		const model = this.plugin.imageModel;
+		if (!model) throw new Error('image-model-not-loaded');
+
+		const id = `img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+		const marker: ImageMarker = {
+			markerType: 'image', id, fileId: spec.fileId,
+			shape: 'rect',
+			coords: { type: 'rect', x: spec.bounds.x, y: spec.bounds.y, w: spec.bounds.w, h: spec.bounds.h },
+			codes: spec.codeIds.map(codeId => ({ codeId })),
+			codedBy: spec.codedBy,
+			createdAt: Date.now(), updatedAt: Date.now(),
+		};
+		model.insertMarkerRaw(marker);
 		return { markerId: id };
 	}
 }

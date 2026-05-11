@@ -33,7 +33,7 @@ let dm: ReturnType<typeof createMockDm>;
 beforeEach(() => {
 	registry = new CodeDefinitionRegistry();
 	dm = createMockDm();
-	model = new ImageCodingModel(dm as any, registry);
+	model = new ImageCodingModel({ dataManager: dm, getActiveCoderId: () => 'human:default' } as any, registry);
 });
 
 // ── createMarker ──
@@ -216,7 +216,7 @@ describe('constructor normalization', () => {
 			},
 		};
 		const dmLegacy = createMockDm(existing);
-		new ImageCodingModel(dmLegacy as any, registry);
+		new ImageCodingModel({ dataManager: dmLegacy, getActiveCoderId: () => 'human:default' } as any, registry);
 
 		// codeId should now be the canonical UUID
 		const marker = dmLegacy.section('image').markers[0];
@@ -235,7 +235,7 @@ describe('constructor normalization', () => {
 			},
 		};
 		const dmCanonical = createMockDm(existing);
-		new ImageCodingModel(dmCanonical as any, registry);
+		new ImageCodingModel({ dataManager: dmCanonical, getActiveCoderId: () => 'human:default' } as any, registry);
 
 		// Marker should be unchanged
 		const marker = dmCanonical.section('image').markers[0];

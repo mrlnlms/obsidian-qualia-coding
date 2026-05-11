@@ -7,12 +7,14 @@ import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { MarkerMutationEvent } from '../core/types';
 import type { ImageMarker, RegionShape, NormalizedCoords } from './imageCodingTypes';
 import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
+import type QualiaCodingPlugin from '../main';
 
 export type ChangeListener = () => void;
 
 export class ImageCodingModel {
 	readonly registry: CodeDefinitionRegistry;
 	readonly dataManager: DataManager;
+	private plugin: QualiaCodingPlugin;
 	private listeners: ChangeListener[] = [];
 	private markerMutationListeners = new Set<(event: MarkerMutationEvent) => void>();
 
@@ -22,8 +24,9 @@ export class ImageCodingModel {
 	private _hoveredMarkerIds: string[] = [];
 	private hoverListeners: Set<(markerId: string | null, codeName: string | null) => void> = new Set();
 
-	constructor(dataManager: DataManager, registry: CodeDefinitionRegistry) {
-		this.dataManager = dataManager;
+	constructor(plugin: QualiaCodingPlugin, registry: CodeDefinitionRegistry) {
+		this.plugin = plugin;
+		this.dataManager = plugin.dataManager;
 		this.registry = registry;
 
 		const section = this.dataManager.section('image');
@@ -128,6 +131,7 @@ export class ImageCodingModel {
 			shape,
 			coords,
 			codes: [],
+			codedBy: this.plugin.getActiveCoderId(),
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		};
@@ -169,6 +173,18 @@ export class ImageCodingModel {
 		});
 		this.notify();
 		return true;
+	}
+
+	/** Re-insere marker já-formado (criação via ICR reconciliação ou snapshot restore).
+	 *  Push direto + notify + emit ADD event. NÃO valida duplicates de id (caller responsável). */
+	insertMarkerRaw(marker: ImageMarker): void {
+		this.markers.push(marker);
+		this.notify();
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId: marker.id,
+			prevCodeIds: [], nextCodeIds: marker.codes.map(c => c.codeId),
+			codeIds: marker.codes.map(c => c.codeId), marker,
+		});
 	}
 
 	removeAllMarkersForFile(fileId: string): number {

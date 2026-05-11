@@ -63,13 +63,20 @@ function isValidBounds(b: ReconciliationBounds): boolean {
 			return b.page >= 0 && b.from >= 0 && b.to >= b.from;
 		case 'temporal':
 			return b.fromMs >= 0 && b.toMs >= b.fromMs;
+		case 'bbox':
+			return (
+				(b.page === undefined || b.page >= 0)
+				&& b.x >= 0 && b.y >= 0 && b.w > 0 && b.h > 0
+				&& b.x + b.w <= 1 && b.y + b.h <= 1
+			);
 	}
 }
 
-/** União inclusiva dos bounds. Cobre todos os 5 kinds. Pra csvRow retorna bounds[0]
+/** União inclusiva dos bounds. Cobre todos os 6 kinds. Pra csvRow retorna bounds[0]
  *  (uma região = uma cell, sem "união" semântica). Pra csvSegment/pdfText une apenas
- *  bounds com mesma cell/page (heurística — bounds de cells/pages diferentes não deveriam
- *  estar agrupados como mesma região, mas a função é defensiva). */
+ *  bounds com mesma cell/page; pra bbox une apenas mesma page (heurística — bounds de
+ *  cells/pages diferentes não deveriam estar agrupados como mesma região, mas a função
+ *  é defensiva). */
 function unionOfBounds(bounds: ReconciliationBounds[], fallback: ReconciliationBounds): ReconciliationBounds {
 	if (bounds.length === 0) return fallback;
 	const first = bounds[0]!;
@@ -113,6 +120,21 @@ function unionOfBounds(bounds: ReconciliationBounds[], fallback: ReconciliationB
 			if (b.to > max) max = b.to;
 		}
 		return { kind: 'csvSegment', rowIndex: first.rowIndex, column: first.column, from: min, to: max };
+	}
+	if (first.kind === 'bbox') {
+		let x0 = first.x;
+		let y0 = first.y;
+		let x1 = first.x + first.w;
+		let y1 = first.y + first.h;
+		for (const b of bounds) {
+			if (b.kind !== 'bbox') continue;
+			if ((b.page ?? -1) !== (first.page ?? -1)) continue;
+			if (b.x < x0) x0 = b.x;
+			if (b.y < y0) y0 = b.y;
+			if (b.x + b.w > x1) x1 = b.x + b.w;
+			if (b.y + b.h > y1) y1 = b.y + b.h;
+		}
+		return { kind: 'bbox', page: first.page, x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 	}
 	return first; // csvRow: primeira (não há união semântica)
 }

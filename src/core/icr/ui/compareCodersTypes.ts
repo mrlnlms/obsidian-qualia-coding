@@ -8,6 +8,9 @@
 
 import type { CoderId } from '../coderTypes';
 import type { EngineId } from '../reporter';
+import type { ReconciliationBounds } from '../../types';
+
+export type { ReconciliationBounds };
 
 export type OverviewMode = 'matrix' | 'table' | 'heatmap';
 export type DrilldownMode = 'spatial' | 'cards' | 'workflow';
@@ -37,13 +40,6 @@ export interface ComparisonFilters {
 	 *  da matriz/tabela/heatmap. Toggle reincluí (útil pra ver coders ainda não engajados). */
 	includeCodersWithoutMarkers?: boolean;
 }
-
-export type ReconciliationBounds =
-	| { kind: 'text'; from: number; to: number }
-	| { kind: 'csvRow'; rowIndex: number; column?: string }
-	| { kind: 'csvSegment'; rowIndex: number; column: string; from: number; to: number }
-	| { kind: 'pdfText'; page: number; from: number; to: number }
-	| { kind: 'temporal'; fromMs: number; toMs: number };
 
 export type CurrentSelection =
 	| { kind: 'pair'; value: [CoderId, CoderId] }

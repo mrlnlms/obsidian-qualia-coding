@@ -19,6 +19,11 @@ import type { CoderId } from '../coderTypes';
 import type { EngineId } from '../reporter';
 import type { CompareCodersViewState } from './compareCodersTypes';
 import type { EngineModelsForExtraction } from './scopeExtraction';
+import type { PercentShapeCoords } from '../../shapeTypes';
+import type { Bitmap } from '../bboxRaster';
+import { rasterize } from '../bboxRaster';
+import { iou } from '../bboxIoU';
+import { aabbOf, aabbOverlaps } from '../bboxNormalize';
 
 // ─── Tipos ─────────────────────────────────────────────────────
 
@@ -118,6 +123,8 @@ export function collectContestedRegions(
 		out.push(...collectTemporalRegions(engineModels.video, scopeCoders, 'video'));
 	}
 
+	out.push(...collectBboxRegions(engineModels.pdf, engineModels.image, scopeCoders));
+
 	regionsCache.set(key, { gen: regionsGen, result: out });
 	pruneRegionsCache();
 	return out;
@@ -132,6 +139,7 @@ export function regionKey(
 		b.kind === 'csvRow' ? `r:${b.rowIndex}:${b.column ?? ''}` :
 		b.kind === 'csvSegment' ? `cs:${b.rowIndex}:${b.column}:${b.from}-${b.to}` :
 		b.kind === 'pdfText' ? `pt:${b.page}:${b.from}-${b.to}` :
+		b.kind === 'bbox' ? `bb:${b.page ?? '_'}:${b.x.toFixed(6)},${b.y.toFixed(6)},${b.w.toFixed(6)},${b.h.toFixed(6)}` :
 		`m:${b.fromMs}-${b.toMs}`;
 	return `${region.fileId}::${region.engine}::${boundsKey}`;
 }
@@ -143,6 +151,7 @@ export function sameBounds(a: ReconciliationBounds, b: ReconciliationBounds): bo
 	if (a.kind === 'csvSegment' && b.kind === 'csvSegment') return a.rowIndex === b.rowIndex && a.column === b.column && a.from === b.from && a.to === b.to;
 	if (a.kind === 'pdfText' && b.kind === 'pdfText') return a.page === b.page && a.from === b.from && a.to === b.to;
 	if (a.kind === 'temporal' && b.kind === 'temporal') return a.fromMs === b.fromMs && a.toMs === b.toMs;
+	if (a.kind === 'bbox' && b.kind === 'bbox') return (a.page ?? -1) === (b.page ?? -1) && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 	return false;
 }
 
@@ -229,6 +238,11 @@ export function formatBoundsLabel(bounds: ReconciliationBounds): string {
 			return `page ${bounds.page} · chars ${bounds.from}–${bounds.to}`;
 		case 'temporal':
 			return `${bounds.fromMs}ms–${bounds.toMs}ms`;
+		case 'bbox': {
+			const pct = (v: number) => (v * 100).toFixed(1);
+			const prefix = bounds.page !== undefined ? `page ${bounds.page} · ` : '';
+			return `${prefix}bbox ${pct(bounds.x)}%,${pct(bounds.y)}% (${pct(bounds.w)}×${pct(bounds.h)}%)`;
+		}
 	}
 }
 
@@ -653,6 +667,176 @@ function formatMs(ms: number): string {
 	return `${mm}:${ss.toString().padStart(2, '0')}`;
 }
 
+// ─── Slice E5b — collector bbox spatial (pdfShape + image) ────
+
+/** θ pra clustering "duas bboxes marcam o mesmo evento". Igual ao default do motor κ
+ *  (COCO 0.5) — manter um knob só evita semântica divergente entre matching e cluster. */
+const BBOX_CLUSTER_IOU = 0.5;
+
+interface BboxMarkerInScope {
+	fileId: string;
+	page?: number;
+	coords: PercentShapeCoords;
+	coderId: CoderId;
+	markerId: string;
+	codes: CodeApplication[];
+	engine: 'pdfShape' | 'image';
+}
+
+function collectBboxRegions(
+	pdfModel: EngineModelsForExtraction['pdf'],
+	imageModel: EngineModelsForExtraction['image'],
+	scopeCoders: Set<CoderId>,
+): ContestedRegion[] {
+	const inScope: BboxMarkerInScope[] = [];
+	if (pdfModel?.getAllShapes) {
+		for (const s of pdfModel.getAllShapes()) {
+			if (!s.codedBy || !scopeCoders.has(s.codedBy)) continue;
+			inScope.push({
+				fileId: s.fileId,
+				page: s.page,
+				coords: s.coords,
+				coderId: s.codedBy,
+				markerId: s.id,
+				codes: s.codes,
+				engine: 'pdfShape',
+			});
+		}
+	}
+	if (imageModel) {
+		for (const m of imageModel.getAllMarkers()) {
+			if (!m.codedBy || !scopeCoders.has(m.codedBy)) continue;
+			inScope.push({
+				fileId: m.fileId,
+				page: undefined,
+				coords: m.coords as PercentShapeCoords,
+				coderId: m.codedBy,
+				markerId: m.id,
+				codes: m.codes,
+				engine: 'image',
+			});
+		}
+	}
+
+	// Agrupa por (engine, fileId, page?) — markers em scopes diferentes nunca clusterizam.
+	const byScope = new Map<string, BboxMarkerInScope[]>();
+	for (const m of inScope) {
+		const k = `${m.engine}::${m.fileId}::${m.page ?? '_'}`;
+		const list = byScope.get(k) ?? [];
+		list.push(m);
+		byScope.set(k, list);
+	}
+
+	const out: ContestedRegion[] = [];
+	for (const list of byScope.values()) {
+		out.push(...clusterBboxScope(list));
+	}
+	return out;
+}
+
+/** Cluster markers de um scope (mesmo engine + fileId + page) por componente conexa
+ *  no grafo IoU≥θ. NÃO usa Hungarian (Hungarian = pairing ótimo 1:1 entre 2 coders,
+ *  não generaliza pra N>2; aqui queremos componentes conexas). Rasterização lazy +
+ *  AABB early-out fazem o pior caso O(N²) virar O(N·k) quando bboxes são esparsas. */
+function clusterBboxScope(markers: BboxMarkerInScope[]): ContestedRegion[] {
+	const n = markers.length;
+	if (n < 2) return [];
+
+	const aabbs = markers.map(m => aabbOf(m.coords));
+	const gridSize = detectGridSizeForCluster(aabbs);
+	const bitmaps: (Bitmap | null)[] = new Array(n).fill(null);
+	const getBitmap = (i: number): Bitmap => {
+		const cached = bitmaps[i];
+		if (cached) return cached;
+		const m = markers[i]!;
+		const b = rasterize(m.coords.type, m.coords, gridSize);
+		bitmaps[i] = b;
+		return b;
+	};
+
+	// Union-find com path compression (sem rank — N tipicamente <50).
+	const parent = new Array(n).fill(0).map((_, i) => i);
+	const find = (x: number): number => {
+		let r = x;
+		while (parent[r] !== r) r = parent[r]!;
+		while (parent[x] !== r) { const next = parent[x]!; parent[x] = r; x = next; }
+		return r;
+	};
+	const union = (a: number, b: number): void => {
+		const ra = find(a), rb = find(b);
+		if (ra !== rb) parent[ra] = rb;
+	};
+
+	for (let i = 0; i < n; i++) {
+		for (let j = i + 1; j < n; j++) {
+			if (find(i) === find(j)) continue; // já no mesmo cluster
+			if (!aabbOverlaps(aabbs[i]!, aabbs[j]!)) continue; // bitmap AND seria zero
+			if (iou(getBitmap(i), getBitmap(j)) >= BBOX_CLUSTER_IOU) union(i, j);
+		}
+	}
+
+	const groups = new Map<number, number[]>();
+	for (let i = 0; i < n; i++) {
+		const r = find(i);
+		const list = groups.get(r) ?? [];
+		list.push(i);
+		groups.set(r, list);
+	}
+
+	const out: ContestedRegion[] = [];
+	for (const idx of groups.values()) {
+		if (idx.length < 2) continue;
+		const coderIdSet = new Set<CoderId>();
+		for (const i of idx) coderIdSet.add(markers[i]!.coderId);
+		if (coderIdSet.size < 2) continue;
+
+		let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+		for (const i of idx) {
+			const a = aabbs[i]!;
+			if (a.x < x0) x0 = a.x;
+			if (a.y < y0) y0 = a.y;
+			if (a.x + a.w > x1) x1 = a.x + a.w;
+			if (a.y + a.h > y1) y1 = a.y + a.h;
+		}
+
+		const first = markers[idx[0]!]!;
+		const markerRefs: MarkerRef[] = idx.map(i => ({
+			markerId: markers[i]!.markerId,
+			codedBy: markers[i]!.coderId,
+			codes: markers[i]!.codes,
+		}));
+		const coderIds = Array.from(coderIdSet);
+
+		const pct = (v: number): string => (v * 100).toFixed(1);
+		const prefix = first.page !== undefined ? `page ${first.page} · ` : '';
+		const displayLabel = `${prefix}bbox ${pct(x0)}%,${pct(y0)}% (${pct(x1 - x0)}×${pct(y1 - y0)}%)`;
+
+		out.push({
+			fileId: first.fileId,
+			engine: first.engine,
+			bounds: { kind: 'bbox', page: first.page, x: x0, y: y0, w: x1 - x0, h: y1 - y0 },
+			coderIds,
+			displayLabel,
+			markerRefs,
+			divergenceKind: classifyDivergence(markerRefs, coderIds),
+		});
+	}
+	return out;
+}
+
+/** Adaptive resolution: bboxes pequenas precisam grid maior pra evitar erro de rasterização
+ *  (mesma heurística do bboxAdapter, inlined pra evitar export cross-module). */
+function detectGridSizeForCluster(
+	aabbs: { x: number; y: number; w: number; h: number }[],
+): number {
+	const base = 200;
+	for (const a of aabbs) {
+		const area = a.w * a.h;
+		if (area < 0.0001 || Math.min(a.w, a.h) < 2 / base) return 400;
+	}
+	return base;
+}
+
 export const __test__ = {
 	clusterMarkdownMarkers,
 	buildMarkdownRegionFromCluster,
@@ -660,4 +844,5 @@ export const __test__ = {
 	collectPdfTextRegions,
 	collectCsvSegmentRegions,
 	collectTemporalRegions,
+	collectBboxRegions,
 };
