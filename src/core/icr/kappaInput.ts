@@ -35,10 +35,19 @@ export interface KappaInput {
 
 /** Char-level explosion: para cada char (fileId, locator, pos), monta map coderId → set codeIds.
  *  Sparse: chars sem nenhum coder marcando NÃO entram no map (caller usa iterateAllCharKeys
- *  pra cobrir o universe completo via sources + lookup no map). */
+ *  pra cobrir o universe completo via sources + lookup no map).
+ *
+ *  Memoizado por identidade do `markers` array (WeakMap). Os 5 coeficientes que chamam isso
+ *  (cohen, fleiss, alpha, alphaBinary, cuAlpha) recebem o MESMO array dentro de um único
+ *  `computeAll`, então só a primeira chamada paga o custo de O(N markers × N chars). */
+const explodeCache = new WeakMap<CodedMarker[], Map<string, Map<CoderId, Set<string>>>>();
+
 export function explodeMarkersToCharLabels(
 	markers: CodedMarker[],
 ): Map<string, Map<CoderId, Set<string>>> {
+	const cached = explodeCache.get(markers);
+	if (cached) return cached;
+
 	const result = new Map<string, Map<CoderId, Set<string>>>();
 	for (const m of markers) {
 		for (let pos = m.range.from; pos < m.range.to; pos++) {
@@ -56,6 +65,7 @@ export function explodeMarkersToCharLabels(
 			for (const cid of m.codeIds) codeSet.add(cid);
 		}
 	}
+	explodeCache.set(markers, result);
 	return result;
 }
 

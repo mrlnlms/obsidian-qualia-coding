@@ -53,7 +53,54 @@ export interface KappaReport {
 	aggregateWarnings: string[];
 }
 
-export function reportKappa(inputs: EngineKappaInput[]): KappaReport {
+// ─── Caches (perf fix 2026-05-11) ──────────────────────────
+// reportKappa + reportPairwise são chamados N×M× em renderOverview pra render heatmap/matrix/table.
+// Cada call faz 5 coefs com explodeMarkersToCharLabels (per-char positions × per-coder). 1M+ ops.
+//
+// 2 caches em camadas:
+// - WeakMap por identidade do array de inputs (fast path: troca de coefficient mantém ref)
+// - Map por (cacheKey + pairs) (slow path: filter chip cria array novo mesmo com conteúdo igual)
+// Cache key explícita vem do caller (renderOverview*) — geralmente scope hash + engineIds. Bumpado
+// via bumpReportCache quando markers mudam.
+const reportKappaCache = new WeakMap<EngineKappaInput[], KappaReport>();
+const reportPairwiseCache = new WeakMap<EngineKappaInput[], Map<string, PairwiseReport[]>>();
+
+const reportKappaKeyCache = new Map<string, KappaReport>();
+const reportPairwiseKeyCache = new Map<string, PairwiseReport[]>();
+const REPORT_CACHE_MAX = 200;
+let reportCacheGen = 0;
+
+export function bumpReportCache(): void {
+	reportCacheGen++;
+	reportKappaKeyCache.clear();
+	reportPairwiseKeyCache.clear();
+}
+
+function pruneReportCache(map: Map<string, unknown>): void {
+	while (map.size > REPORT_CACHE_MAX) {
+		const k = map.keys().next().value;
+		if (k === undefined) break;
+		map.delete(k);
+	}
+}
+
+function pairsKey(pairs: [CoderId, CoderId][]): string {
+	return pairs.map(p => (p[0] < p[1] ? `${p[0]}|${p[1]}` : `${p[1]}|${p[0]}`)).sort().join(';');
+}
+
+export function reportKappa(inputs: EngineKappaInput[], cacheKey?: string): KappaReport {
+	// Fast path: identidade (mesmo array ref → mesmo report)
+	const idHit = reportKappaCache.get(inputs);
+	if (idHit) return idHit;
+	// Slow path: cache key explícita (arrays diferentes mas conteúdo logicamente igual)
+	if (cacheKey) {
+		const keyed = reportKappaKeyCache.get(`${cacheKey}::${reportCacheGen}`);
+		if (keyed) {
+			reportKappaCache.set(inputs, keyed); // popula fast cache pra próximas com mesma ref
+			return keyed;
+		}
+	}
+
 	const byEngine: Partial<Record<EngineId, CoefficientReport>> = {};
 	const weights: Partial<Record<EngineId, number>> = {};
 	for (const { engine, kappaInput } of inputs) {
@@ -78,7 +125,13 @@ export function reportKappa(inputs: EngineKappaInput[]): KappaReport {
 		);
 	}
 
-	return { byEngine, aggregate, weights, aggregateWarnings };
+	const result: KappaReport = { byEngine, aggregate, weights, aggregateWarnings };
+	reportKappaCache.set(inputs, result);
+	if (cacheKey) {
+		reportKappaKeyCache.set(`${cacheKey}::${reportCacheGen}`, result);
+		pruneReportCache(reportKappaKeyCache);
+	}
+	return result;
 }
 
 function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientReport {
@@ -178,8 +231,29 @@ export interface PairwiseReport {
 export function reportPairwise(
 	inputs: EngineKappaInput[],
 	pairs: [CoderId, CoderId][],
+	cacheKey?: string,
 ): PairwiseReport[] {
-	return pairs.map(pair => {
+	const pKey = pairsKey(pairs);
+	// Fast path: identidade
+	let byPairs = reportPairwiseCache.get(inputs);
+	if (byPairs) {
+		const hit = byPairs.get(pKey);
+		if (hit) return hit;
+	}
+	// Slow path: cache key explícita
+	if (cacheKey) {
+		const fullKey = `${cacheKey}::${pKey}::${reportCacheGen}`;
+		const keyed = reportPairwiseKeyCache.get(fullKey);
+		if (keyed) {
+			if (!byPairs) {
+				byPairs = new Map();
+				reportPairwiseCache.set(inputs, byPairs);
+			}
+			byPairs.set(pKey, keyed);
+			return keyed;
+		}
+	}
+	const result = pairs.map(pair => {
 		const filteredInputs: EngineKappaInput[] = inputs.map(input => ({
 			engine: input.engine,
 			kappaInput: filterKappaInputToPair(input.kappaInput, pair),
@@ -187,6 +261,16 @@ export function reportPairwise(
 		const report = reportKappa(filteredInputs);
 		return { pair, report };
 	});
+	if (!byPairs) {
+		byPairs = new Map();
+		reportPairwiseCache.set(inputs, byPairs);
+	}
+	byPairs.set(pKey, result);
+	if (cacheKey) {
+		reportPairwiseKeyCache.set(`${cacheKey}::${pKey}::${reportCacheGen}`, result);
+		pruneReportCache(reportPairwiseKeyCache);
+	}
+	return result;
 }
 
 function filterKappaInputToPair(

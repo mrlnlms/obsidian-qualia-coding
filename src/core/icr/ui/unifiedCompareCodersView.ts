@@ -13,6 +13,7 @@ import { renderDrilldownWorkflow } from './drilldownWorkflow';
 import { generateReconciliationReport } from './reconciliationReport';
 import { collectContestedRegions, categorizeRegionsByStatus, bumpRegionsCacheGeneration } from './regionDerivation';
 import { bumpCoderInclusionCacheGeneration } from './coderInclusion';
+import { bumpReportCache } from '../reporter';
 import { applyConsensusExclusion, getConsensusCoderIdsInScope } from './coderInclusion';
 import { extractInputsFromScope } from './scopeExtraction';
 import { reportPairwise } from '../reporter';
@@ -33,6 +34,7 @@ function bumpAllIcrCaches(): void {
 	bumpInputsCacheGeneration();
 	bumpCoderInclusionCacheGeneration();
 	bumpRegionsCacheGeneration();
+	bumpReportCache();
 }
 
 const ALL_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment', 'csvRow', 'audio', 'video', 'pdfShape', 'image'];

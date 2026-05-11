@@ -48,14 +48,20 @@ const INPUTS_CACHE_MAX_ENTRIES = 50;
 let cacheGeneration = 0;
 const inputsCache = new Map<string, { gen: number; promise: Promise<EngineKappaInput[]> }>();
 
+/** Cache adicional per-engine (perf fix 2026-05-11): chip de filter engine quebrava o cache
+ *  do scope (engineIds muda → key novo) mesmo com markers per engine inalterados.
+ *  Cache per engine + scope-sem-engineIds elimina re-extract em chip toggle. */
+const engineInputCache = new Map<string, { gen: number; promise: Promise<EngineKappaInput | null> }>();
+
 /** Invalida todo o cache de inputs. Chamar após qualquer mutação que afete extração:
  *  reconciliação (markers novos), edição de marker, deleção de coder, etc. */
 export function bumpInputsCacheGeneration(): void {
 	cacheGeneration++;
 	inputsCache.clear();
+	engineInputCache.clear();
 }
 
-function cacheKeyForScope(scope: ComparisonScope): string {
+export function cacheKeyForScope(scope: ComparisonScope): string {
 	// Normaliza arrays pra hash estável (ordem não significativa).
 	const norm = (a?: string[]) => a ? [...a].sort() : undefined;
 	return JSON.stringify({
@@ -112,28 +118,59 @@ export async function extractInputsFromScope(
 	return promise;
 }
 
+function engineCacheKey(engine: EngineId, scope: ComparisonScope): string {
+	const norm = (a?: string[]) => a ? [...a].sort() : undefined;
+	return `${engine}::${JSON.stringify({
+		coderIds: norm(scope.coderIds),
+		codeIds: norm(scope.codeIds),
+		groupIds: norm(scope.groupIds),
+		folderIds: norm(scope.folderIds),
+		fileIds: norm(scope.fileIds),
+	})}`;
+}
+
+/** Extrai input pra UMA engine, cacheado por engine + scope-sem-engineIds. Toggle de chip
+ *  de filter NÃO invalida esses caches — cada engine é independente. */
+async function getEngineInput(
+	engine: EngineId,
+	scope: ComparisonScope,
+	ctx: ExtractionContext,
+): Promise<EngineKappaInput | null> {
+	if (engine === 'pdfShape' || engine === 'image') return null;
+	const key = engineCacheKey(engine, scope);
+	const cached = engineInputCache.get(key);
+	if (cached && cached.gen === cacheGeneration) {
+		engineInputCache.delete(key);
+		engineInputCache.set(key, cached);
+		return cached.promise;
+	}
+	const promise = (async (): Promise<EngineKappaInput | null> => {
+		const markers = collectMarkersForEngine(engine, ctx.models);
+		const filtered = filterByScope(markers, scope);
+		if (filtered.length === 0) return null;
+		if (engine === 'csvRow') {
+			const input = buildCategoricalInput(filtered as RowMarker[], scope.coderIds);
+			return input.units.length > 0 ? { engine, kappaInput: input } : null;
+		}
+		const input = await buildPerCharInput(engine, filtered, ctx.app, scope.coderIds);
+		return input.markers.length > 0 ? { engine, kappaInput: input } : null;
+	})();
+	engineInputCache.set(key, { gen: cacheGeneration, promise });
+	while (engineInputCache.size > INPUTS_CACHE_MAX_ENTRIES) {
+		const k = engineInputCache.keys().next().value;
+		if (k === undefined) break;
+		engineInputCache.delete(k);
+	}
+	return promise;
+}
+
 async function doExtractInputsFromScope(
 	scope: ComparisonScope,
 	ctx: ExtractionContext,
 ): Promise<EngineKappaInput[]> {
 	const targetEngines = scope.engineIds ?? E1_ENGINES;
-	const result: EngineKappaInput[] = [];
-
-	for (const engine of targetEngines) {
-		if (engine === 'pdfShape' || engine === 'image') continue;  // E2 path
-		const markers = collectMarkersForEngine(engine, ctx.models);
-		const filtered = filterByScope(markers, scope);
-		if (filtered.length === 0) continue;
-
-		if (engine === 'csvRow') {
-			const input = buildCategoricalInput(filtered as RowMarker[], scope.coderIds);
-			if (input.units.length > 0) result.push({ engine, kappaInput: input });
-		} else {
-			const input = await buildPerCharInput(engine, filtered, ctx.app, scope.coderIds);
-			if (input.markers.length > 0) result.push({ engine, kappaInput: input });
-		}
-	}
-	return result;
+	const perEngine = await Promise.all(targetEngines.map(e => getEngineInput(e, scope, ctx)));
+	return perEngine.filter((r): r is EngineKappaInput => r !== null);
 }
 
 type AnyEngineMarker = Marker | PdfMarker | SegmentMarker | RowMarker | MediaMarker;

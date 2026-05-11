@@ -22,6 +22,7 @@ import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
 import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
 import { computeBboxKappaForPair } from './bboxScopeExtraction';
 import { reportKappa, type EngineId } from '../reporter';
+import { cacheKeyForScope } from './scopeExtraction';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
 import { applyCoderInclusion, applyConsensusExclusion } from './coderInclusion';
@@ -183,17 +184,15 @@ async function computeKappaForCell(
 		return computeBboxAvgPairwise(codeId, col, state, deps);
 	}
 	// text-likes / temporal / categorical
-	const inputs = await extractInputsFromScope(
-		{ ...state.scope, codeIds: [codeId], engineIds: [col] },
-		{ models: deps.engineModels, app: deps.app },
-	);
+	const cellScope = { ...state.scope, codeIds: [codeId], engineIds: [col] };
+	const inputs = await extractInputsFromScope(cellScope, { models: deps.engineModels, app: deps.app });
 	if (inputs.length === 0) return undefined;
 	const totalMarkers = inputs.reduce((s, i) => {
 		const k = i.kappaInput as { markers?: unknown[]; units?: unknown[] };
 		return s + (k.markers?.length ?? k.units?.length ?? 0);
 	}, 0);
 	if (totalMarkers === 0) return undefined;
-	const report = reportKappa(inputs);
+	const report = reportKappa(inputs, cacheKeyForScope(cellScope));
 	const N = state.scope.coderIds.length;
 	const pair: [CoderId, CoderId] | undefined = N === 2
 		? [state.scope.coderIds[0]!, state.scope.coderIds[1]!]
