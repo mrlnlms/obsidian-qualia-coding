@@ -1943,7 +1943,41 @@ Ordenação do picker: unresolved code > boundary > existence > resolved. Resolv
 
 Testes: +81 (3222 → 3303 total), distribuídos em `tests/core/auditLogReconciliation.test.ts` (16), `tests/core/icr/reconciliation.test.ts` (20), `tests/core/icr/icrMarkerOpsImpl.test.ts` (13), `tests/core/icr/drilldownCards.test.ts` (22), `tests/core/icr/coderRegistry.test.ts` (+10 cases consensus).
 
-### 19.12 Companion docs
+### 19.12 UI layer Slice E3b — Workflow queue P3 + κ pré/pós + export markdown (2026-05-12)
+
+Slice E3b fecha o drill-down (P1 espacial + P2 cards + P3 workflow queue) e adiciona o ciclo audit completo: marcar pra revisão · decidir · reverter · exportar.
+
+**Módulos novos:**
+
+- `src/core/icr/ui/regionDerivation.ts` — extração das helpers puras de detecção/categorização que estavam em `drilldownCards.ts`. Inclui:
+  - `ContestedRegion`, `DivergenceKind`, `RegionStatus`, `RegionsByStatus`
+  - `collectContestedRegions(state, engineModels)` cluster markdown + csvRow
+  - `regionKey` / `sameBounds` (chaves estáveis pra match com audit log)
+  - `findLatestActiveDecision(region, log)` — última decided sem revert posterior
+  - `findLatestActiveOpenedEntry(region, log)` — último opened (pra "Em discussão")
+  - `getRegionStatus(region, log)` — decisão → opened → fallback open
+  - `categorizeRegionsByStatus(regions, log)` — distribuição nas 4 colunas
+- `src/core/icr/ui/drilldownWorkflow.ts` — `renderDrilldownWorkflow` (P3) com header (totals + botão Exportar) + 4 colunas Abertos/Em discussão/Resolvidos/Divergência aceita + cards com action Abrir (vai pra P2) + action Reverter em Resolvidos/Divergência aceita
+- `src/core/icr/ui/reconciliationReport.ts` — `generateReconciliationReport` puro (timeline + memos + κ pré/pós + secções por status)
+- `openReconciliation` em `src/core/icr/reconciliation.ts` — emite `reconciliation_opened` sem aplicar mudanças
+
+**Reporter — flag `excludeConsensusCoders` via scope filter:**
+
+Reporter continua puro sobre `EngineKappaInput[]`; filtro de coders consensus acontece antes via `applyConsensusExclusion(scope, coderRegistry, exclude)` (novo helper em `coderInclusion.ts`). Wired nos 3 overview modes (matriz/tabela/heatmap) e no modal "ver lado a lado". Chip toolbar "excluir consensus (κ pré)" aparece só quando `getConsensusCoderIdsInScope(scope, coderRegistry).length > 0`.
+
+**Default scope mudou:** view antes inicializava `state.scope.coderIds = getCodableCoders().map(c => c.id)` (excluía consensus). Agora `state.scope.coderIds = getAll().map(c => c.id)` (inclui consensus); `applyCoderInclusion` (default sem markers off) remove consensus quando ele não tem markers. Pós-reconciliação consensus aparece naturalmente; chip "excluir consensus" filtra UI quando user quer ver κ baseline humano-humano.
+
+**Modal pré/pós:** `CompareCoderCoefficientsModal` ganhou estado interno `prePost: 'pre' | 'post'` (default `'post'`). Toggle no header só aparece quando há consensus no scope. Banner indicativo em todas tabelas. Em `single-pair` com par envolvendo consensus E `prePost === 'pre'`, empty state "Par envolve consensus — alterne pra 'pós'". exportMarkdown indica a visão no header.
+
+**Audit-only path:** "Em discussão" (via botão "Marcar pra revisão" no P2) emite `reconciliation_opened` sem tocar markers. Decisão posterior (decided) supera o opened naturalmente via ordenação cronológica em `getRegionStatus`. Revert via UI no card P3 chama `executeReconciliationRevert` existente; card volta pra Abertos (status recomputado live via `categorizeRegionsByStatus`).
+
+**Limitações herdadas (no Slice E3b):**
+- IcrMarkerOps continua markdown + csvRow (Fase 1 do E3a). Extensão pendente em backlog.
+- Workflow queue não tem virtualização ainda; spec §4.3 deixou nota pra reabrir se ficar lento em vault grande com muitas regiões abertas.
+
+Testes: +57 (3303 → 3360 total), distribuídos em `tests/core/icr/ui/regionDerivation.test.ts` (23), `tests/core/icr/openReconciliation.test.ts` (5), `tests/core/icr/ui/drilldownWorkflow.test.ts` (8), `tests/core/icr/ui/reconciliationReport.test.ts` (9), `tests/core/icr/ui/coderInclusion.test.ts` (+9 cases), `tests/core/icr/ui/compareCoderCoefficientsModal.test.ts` (+6 cases pré/pós).
+
+### 19.13 Companion docs
 
 - `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
 - `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural

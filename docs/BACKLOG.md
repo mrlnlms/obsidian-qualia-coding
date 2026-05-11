@@ -3,7 +3,7 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-09.
+> Última atualização: 2026-05-12 (Slice E3b drill-down P3 + revert UI + κ pré/pós + export markdown).
 
 ---
 
@@ -152,12 +152,34 @@ Spec original em `docs/superpowers/specs/2026-05-09-icr-compare-coders-design.md
 - `findLatestActiveDecision` em audit log substitui state runtime — fonte de verdade pra "região foi decidida" é o audit, não snapshot do estado da UI
 - `setSelection` skip overview = descoberta crítica de perf: matriz não destaca célula selecionada via state, logo selection-only não precisa re-renderizar overview
 
-## 🧱 ICR — Slice E3a — itens restantes (E3b + extensões)
+## ✅ ICR — Slice E3b (P3 workflow queue) — RESOLVIDO 2026-05-12
+
+Spec original em `obsidian-qualia-coding/plugin-docs/archive/claude_sources/specs/20260509-icr-compare-coders-design.md §9 Slice E3b`. +57 testes (3303 → 3360). Tag `post-icr-slice-e3b-checkpoint` pendente do smoke real.
+
+**Entregue:**
+- `regionDerivation.ts` extraído (helpers puros reusados por P2 e P3)
+- `RegionStatus` + `categorizeRegionsByStatus` + `findLatestActiveOpenedEntry`
+- `openReconciliation` em reconciliation.ts (emite reconciliation_opened)
+- Botão "Marcar pra revisão" no P2 → Em discussão no P3
+- `renderDrilldownWorkflow` (P3 queue 4 colunas) com header + totals + export button
+- Click no card P3 abre P2; botão Reverter em Resolvidos/Divergência aceita
+- Reporter flag `excludeConsensusCoders` via scope filter (`applyConsensusExclusion`) — wired nos 3 modes
+- Chip toolbar "excluir consensus (κ pré)" — só aparece com consensus no scope
+- Default scope mudou: TODOS coders (humanos + consensus); applyCoderInclusion remove consensus sem markers
+- Modal pré/pós toggle (visível só com consensus) + banner indicativo + empty state pra par envolvendo consensus em "pré"
+- `generateReconciliationReport` puro + clipboard export do P3 (timeline + memos + κ pré/pós)
+
+**Decisões cravadas durante implementação:**
+- Coluna P3 sempre mostra 4 colunas mesmo vazias (UX consistente); empty caption global aparece junto quando 0 regiões
+- Default scope inclui consensus (era exclui); chip "excluir consensus" é o que filtra UI — alinha com semântica do filter `excludeConsensusCoders`
+- "Em discussão" via botão explícito "Marcar pra revisão" (V1 cravado no spec); timeout auto-detect fica em backlog
+
+## 🧱 ICR — Slice E3b — itens restantes (extensões)
 
 - [ ] **Coder picker em coding ativo** (5 engines) — dropdown "Coding as: [Default ▾]" em popovers/menus + filter `getCodableCoders()` pra excluir consensus. Hoje markers em produção real são criados sem `codedBy`; só seed scripts populam manualmente. Spec E3a §2.2 assumia que existia. Peer ICR feature, não bloqueia E3a (orquestrador setta consensus coder por dentro). Atacar quando ICR sair de zero-user gating e equipes reais abrirem multi-coder no mesmo vault.
 - [ ] **IcrMarkerOps: PDF text + CSV segment + audio + video + image + pdfShape** — bounds.kind='text' / 'temporal' são insuficientes pra essas engines (PDF precisa page+spans, CSV-segment precisa sourceRowId+column+from/to, audio/vídeo precisa file durations). Slice E3a Fase 1 cobre só markdown + csvRow (suficiente pro fluxo "texto-likes" mais frequente). Estender bounds com variants engine-specific (`{kind:'pdfSpan', page, beginIndex, ...}` etc) ou aceitar `engineSpecific` extra na bounds quando expandir. Atacar quando frente E3b seguir + LLM-coded audio/vídeo aparecer.
-- [ ] **Slice E3b — Drill-down P3 (workflow queue)**: queue 4-colunas (Abertos / Em discussão / Resolvidos / Divergência aceita), revert via UI (botão no card de Resolvidos), toggle `excludeConsensusCoders` no toolbar pra κ pré/pós reconciliação, export relatório markdown com timeline + memos. Hoje E3a entrega revert via console + badge resolvida no picker (mínimo viável). Spec original §4.3.
 - [ ] **Slice E4 — Saved Comparisons hub**: schema `comparisons[]` em QualiaData + ComparisonRegistry + CompareComparisonsListModal + CreateComparisonModal + estado dirty no toolbar + ribbon + atalho contextual no codebook. Spec original §7+§8.
+- [ ] **Auto-detect "Em discussão" via timeout** — V1 do E3b usa botão explícito "Marcar pra revisão". Spec deixou aberto se inferimos automático via timeout (user abre P2, fica X minutos sem decidir → marca). Reabrir se uso real mostrar fricção do botão explícito.
 
 ---
 

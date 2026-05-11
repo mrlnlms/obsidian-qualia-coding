@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-10 (Slice E2 Compare Coders Modes B/C + Modal + bbox).
+> Última atualização: 2026-05-12 (Slice E3b drill-down P3 + revert UI + κ pré/pós + export markdown).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
@@ -168,8 +168,20 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [x] `bumpInputsCacheGeneration` em construct + `onAfterReconciliation` — invalida cache quando markers mudam
   - **Smoke real verde 2026-05-11.** +81 testes (3222 → 3303). Tag `post-icr-slice-e3a-checkpoint`.
 
+  **✅ Slice E3b — Drill-down P3 + revert UI + κ pré/pós + export relatório (FEITO 2026-05-12):**
+  - [x] `regionDerivation.ts` extraído de drilldownCards (helpers puros: collect/regionKey/sameBounds/findLatestActiveDecision)
+  - [x] `RegionStatus` + `categorizeRegionsByStatus` + `findLatestActiveOpenedEntry` — 4 buckets workflow
+  - [x] `openReconciliation` em reconciliation.ts (emite reconciliation_opened sem aplicar mudanças)
+  - [x] Botão "Marcar pra revisão" no P2 → emite opened → região vai pra coluna "Em discussão"
+  - [x] `renderDrilldownWorkflow` (P3): queue 4 colunas com cards · header com totals + botão Exportar · click no card abre P2 · botão Reverter em Resolvidos/Divergência aceita chama executeReconciliationRevert
+  - [x] Reporter flag `excludeConsensusCoders` via scope filter (`applyConsensusExclusion`) — wired nos 3 overview modes (matriz/tabela/heatmap)
+  - [x] Chip toolbar "excluir consensus (κ pré)" — só aparece quando há consensus no scope
+  - [x] Default scope mudou: agora inclui TODOS coders (humanos + consensus); `applyCoderInclusion` remove consensus sem markers
+  - [x] Modal "ver lado a lado": toggle pré/pós no header (visível só com consensus no scope) + banner indicativo + empty state pra par envolvendo consensus em "pré"
+  - [x] `generateReconciliationReport` puro: timeline + memos + κ pré/pós + clipboard export do P3
+  - **Build prod limpo + 3360 testes verde** (3303 → 3360, +57 testes). Tag `post-icr-slice-e3b-checkpoint` pendente do smoke real.
+
   **Slices fora do escopo entregue (pendentes):**
-  - [ ] **Slice E3b** — Drill-down P3 (queue 4-colunas Abertos/Em discussão/Resolvidos/Divergência aceita) + revert mechanic via UI + κ pré/pós toggle + export relatório markdown
   - [ ] **Slice E4** — Saved Comparisons + ribbon + atalho contextual no codebook
   - [ ] **IcrMarkerOps: extensão pra pdf-text + csv-segment + audio + video + image + pdfShape** — bounds.kind='text'/'temporal' insuficientes pra essas engines (precisa variants engine-specific). Detalhe em BACKLOG §ICR Slice E3a
   - [ ] **Coder picker em coding ativo** (5 engines) — peer ICR feature não-entregue; bloqueio consensus em UI atual é trivial (sem picker). Detalhe em BACKLOG
@@ -187,7 +199,6 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   **Resumo da sessão 2026-05-09 → 2026-05-11:** **9 slices entregues** (1-6 motor + E1 + E2 UI + **E3a reconciliação P2**) + **Fase C P1 UX layer**, +467 testes ICR (2814 → 3303). Compare Coders View completa pra workflow real de reconciliação multi-coder: pesquisador vê matriz/tabela/heatmap, abre drill-down Cards, escolhe região contestada (com tag de divergência), decide entre adopt/split/manter-divergência, decisão fica audit-trailed reversível. Audit log estendido com 3 types `reconciliation_*` aparecendo na Code Stability Timeline existente (anchor codeId). Reconciliação multimodal arquitetural — IcrMarkerOps é façade per-engine que aceita extensão pra pdf/audio/vídeo/image em slice futura sem refactor do orquestrador.
 
   **Próximo passo (gated em você):**
-  - **Slice E3b** Drill-down P3 (queue 4-colunas + revert UI + κ pré/pós toggle + export relatório markdown)
   - **Slice E4** Saved Comparisons + ribbon + atalho contextual no codebook
   - **IcrMarkerOps extensão** pra pdf-text + csv-segment + audio + video (requer bounds engine-specific — design em BACKLOG)
   - Refactor motor κ pra set-valued labels (eliminar redução first-code alfabético — afeta TODAS as engines). **Material de repertório metodológico em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md`** — leitura obrigatória antes do brainstorm: cobre Jaccard vs MASI, variantes Cohen multi-label (binary-per-label / Rosenberg augmented / weighted), generalização Krippendorff α com δ customizado, riscos no refactor de tests existentes.
