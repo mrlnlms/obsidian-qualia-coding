@@ -129,6 +129,30 @@ export class UnifiedCompareCodersView extends ItemView {
 		}
 	}
 
+	/** Atalho contextual do codebook (Slice E4 §8.3): foca em 1 código específico, todos coders,
+	 *  table mode pra ver κ-por-código. Estado ephemeral (sem loadedFromSavedId). */
+	loadContextualCode(codeId: string): void {
+		const allCoderIds = this.plugin.coderRegistry.getAll().map(c => c.id);
+		bumpInputsCacheGeneration();
+		this.state = {
+			scope: { coderIds: allCoderIds, codeIds: [codeId] },
+			overviewMode: 'table',
+			drilldownMode: 'spatial',
+			primaryCoefficient: 'cohen',
+			filters: {
+				hideAgreementTotal: false,
+				highlightConflicts: false,
+				excludeConsensusCoders: false,
+			},
+			currentSelection: { kind: 'none' },
+			isDirty: false,
+		};
+		const token = ++this.renderToken;
+		this.renderToolbar();
+		void this.renderOverview(token);
+		void this.renderDrilldown();
+	}
+
 	/** Carrega config de um SavedComparison no state, setta `loadedFromSavedId` e re-renderiza.
 	 *  Slice E4. Cache invalidado por mudança de scope. Dirty detection vem no Chunk 3. */
 	loadFromSaved(comparisonId: string): boolean {

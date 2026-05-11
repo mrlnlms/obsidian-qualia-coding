@@ -638,6 +638,10 @@ export default class QualiaCodingPlugin extends Plugin {
 			void this.openIcrImportView();
 		});
 
+		this.addRibbonIcon('users-2', 'Compare Coders', () => {
+			void openCompareCodersView(this);
+		});
+
 		this.addCommand({
 			id: 'icr-open-import',
 			name: 'ICR: Open import',

@@ -20,6 +20,9 @@ export interface ContextMenuCallbacks {
 	promptDescription(codeId: string): void;
 	setParent(codeId: string, parentId: string | undefined): void;
 	promptAddToGroup(codeId: string): void;
+	/** Slice E4 §8.3 — atalho contextual "Ver κ deste código entre coders". Opcional —
+	 *  callers que não injetam (ex: testes, contextos sem ICR) não mostram o item. */
+	openCompareForCode?(codeId: string): void;
 }
 
 export function showCodeContextMenu(
@@ -114,6 +117,14 @@ export function showCodeContextMenu(
 	menu.addItem(item =>
 		item.setTitle('Set magnitude...').setIcon('gauge').onClick(() => callbacks.showCodeDetail(codeId)),
 	);
+
+	if (callbacks.openCompareForCode) {
+		menu.addSeparator();
+		menu.addItem(item =>
+			item.setTitle('Ver κ deste código entre coders').setIcon('users-2')
+				.onClick(() => callbacks.openCompareForCode!(codeId)),
+		);
+	}
 
 	menu.addSeparator();
 

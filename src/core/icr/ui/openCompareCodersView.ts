@@ -2,8 +2,11 @@ import type QualiaCodingPlugin from '../../../main';
 import { UnifiedCompareCodersView, COMPARE_CODERS_VIEW_TYPE } from './unifiedCompareCodersView';
 
 export interface OpenCompareCodersOptions {
-	/** Se setado, carrega o saved após abrir a view. */
+	/** Se setado, carrega o saved após abrir a view. Excludente com `contextualCodeId`. */
 	loadFromSavedId?: string;
+	/** Atalho contextual: foca em 1 código específico (table mode), todos coders. Estado
+	 *  ephemeral (não cria saved). Excludente com `loadFromSavedId`. */
+	contextualCodeId?: string;
 }
 
 /**
@@ -24,10 +27,11 @@ export async function openCompareCodersView(
 		leaf = newLeaf;
 	}
 	workspace.revealLeaf(leaf);
+	const view = leaf.view;
+	if (!(view instanceof UnifiedCompareCodersView)) return;
 	if (options.loadFromSavedId) {
-		const view = leaf.view;
-		if (view instanceof UnifiedCompareCodersView) {
-			view.loadFromSaved(options.loadFromSavedId);
-		}
+		view.loadFromSaved(options.loadFromSavedId);
+	} else if (options.contextualCodeId) {
+		view.loadContextualCode(options.contextualCodeId);
 	}
 }

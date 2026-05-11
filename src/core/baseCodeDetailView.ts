@@ -70,6 +70,7 @@ import type { MarkerRef } from './smartCodes/types';
 import type { CodebookTreeState } from './codebookTreeRenderer';
 import { createExpandedState, collectAllCodesUnderFolder, buildFlatTree, type ExpandedState } from './hierarchyHelpers';
 import { showCodeContextMenu, showFolderContextMenu, type ContextMenuCallbacks } from './codebookContextMenu';
+import { openCompareCodersView } from './icr/ui/openCompareCodersView';
 import { setupDragDrop } from './codebookDragDrop';
 import { MergeModal, executeMerge } from './mergeModal';
 import { PromptModal, ConfirmModal } from './dialogs';
@@ -1180,6 +1181,7 @@ export abstract class BaseCodeDetailView extends ItemView {
 				this.model.saveMarkers();
 			},
 			promptAddToGroup: (codeId: string) => this.openAddToGroupPicker(codeId),
+			openCompareForCode: (codeId: string) => { void openCompareCodersView(this.plugin, { contextualCodeId: codeId }); },
 		};
 	}
 
