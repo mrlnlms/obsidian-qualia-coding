@@ -76,3 +76,39 @@ export function createDefaultViewState(allCoderIds: CoderId[]): CompareCodersVie
 		isDirty: false,
 	};
 }
+
+// ─── Saved Comparisons (Slice E4) ────────────────────────────
+
+/**
+ * Subset persistível de view state — `currentSelection`/`loadedFromSavedId`/`isDirty`
+ * são ephemeral e não fazem parte do saved.
+ */
+export interface SavedComparisonView {
+	overviewMode: OverviewMode;
+	drilldownMode: DrilldownMode;
+	primaryCoefficient: CoefficientKey;
+}
+
+/** Schema do saved comparison persistido em data.json. */
+export interface SavedComparison {
+	id: string;           // sc_cmp_*
+	name: string;
+	scope: ComparisonScope;
+	view: SavedComparisonView;
+	filters: ComparisonFilters;
+	createdAt: number;
+	updatedAt: number;
+}
+
+/** Section em QualiaData — espelha SmartCodesSection (sem palette). */
+export interface ComparisonsSection {
+	definitions: Record<string, SavedComparison>;
+	order: string[];
+}
+
+/** Estado ephemeral persistido fora de saved comparisons: última config aberta sem saved. */
+export interface LastCompareCodersUsed {
+	scope: ComparisonScope;
+	view: SavedComparisonView;
+	filters: ComparisonFilters;
+}

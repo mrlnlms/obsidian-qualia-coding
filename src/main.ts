@@ -54,6 +54,7 @@ import { SmartCodeCache } from './core/smartCodes/cache';
 import { SmartCodeRegistry } from './core/smartCodes/smartCodeRegistryApi';
 import { SmartCodeListModal } from './core/smartCodes/smartCodeListModal';
 import { SmartCodeBuilderModal } from './core/smartCodes/builderModal';
+import { ComparisonRegistry } from './core/icr/comparisonRegistry';
 import { getMarkerLabel, previewText } from './core/markerResolvers';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
@@ -106,6 +107,9 @@ export default class QualiaCodingPlugin extends Plugin {
 	// Smart Codes (Tier 3)
 	smartCodeCache!: SmartCodeCache;
 	smartCodeRegistry!: SmartCodeRegistry;
+
+	// Saved Comparisons (Slice E4)
+	comparisonRegistry!: ComparisonRegistry;
 
 	async onload() {
 		this.dataManager = new DataManager(this);
@@ -251,6 +255,12 @@ export default class QualiaCodingPlugin extends Plugin {
 			const log = (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
 			appendEntry(log, { ...event, at: Date.now() });
 			this.dataManager.setSection('auditLog', log);
+		});
+
+		// ─── Saved Comparisons (Slice E4) ───────────────────────
+		this.comparisonRegistry = ComparisonRegistry.fromJSON(this.dataManager.getDataRef().comparisons);
+		this.comparisonRegistry.addOnMutate(() => {
+			this.dataManager.setSection('comparisons', this.comparisonRegistry.toJSON());
 		});
 
 		// Code mutation → invalida smart codes que dependem do code afetado

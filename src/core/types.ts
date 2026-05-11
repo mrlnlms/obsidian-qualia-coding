@@ -303,6 +303,11 @@ export interface QualiaData {
 	/** ICR Slice 2 — hash por source (SHA-256). Lazy compute via SourceHashRegistry.getOrCompute().
 	 *  Optional pra round-trip de data antigo. */
 	sourceHashes?: Record<string, import('./icr/sourceHashTypes').SourceHashEntry>;
+	/** ICR Slice E4 — Saved Comparisons hub. Definitions + order. Optional pra round-trip antigo. */
+	comparisons?: import('./icr/ui/compareCodersTypes').ComparisonsSection;
+	/** ICR Slice E4 — última config da Compare Coders View quando não veio de saved.
+	 *  Persistida no onClose, carregada no onOpen se nenhum saved for explicitamente aberto. */
+	lastCompareCodersUsed?: import('./icr/ui/compareCodersTypes').LastCompareCodersUsed;
 	/** Per-doc visibility overrides. overrides[fileId][codeId] = effective visibility in that doc.
 	 *  Self-cleaning: entries só existem quando divergem do global. */
 	visibilityOverrides: Record<string, Record<string, boolean>>;
@@ -438,5 +443,6 @@ export function createDefaultData(): QualiaData {
 		caseVariables: { values: {}, types: {} },
 		visibilityOverrides: {},
 		auditLog: [],
+		comparisons: { definitions: {}, order: [] },
 	};
 }
