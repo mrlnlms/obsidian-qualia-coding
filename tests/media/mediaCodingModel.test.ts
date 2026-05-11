@@ -40,7 +40,7 @@ beforeEach(() => {
 	vi.useFakeTimers();
 	registry = new CodeDefinitionRegistry();
 	dm = createMockDm();
-	model = new MediaCodingModel(dm as any, registry, 'testSection', DEFAULT_SETTINGS);
+	model = new MediaCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, registry, 'testSection', DEFAULT_SETTINGS);
 });
 
 // ── findOrCreateMarker ──
@@ -416,7 +416,7 @@ describe('constructor normalization', () => {
 		};
 		const dmLegacy = createMockDm(existing);
 		const setSection = vi.spyOn(dmLegacy, 'setSection');
-		new MediaCodingModel(dmLegacy as any, reg, 'testSection', DEFAULT_SETTINGS);
+		new MediaCodingModel({ dataManager: dmLegacy, getActiveCoderId: () => "human:default" } as any, reg, 'testSection', DEFAULT_SETTINGS);
 
 		// codeId should now be the canonical UUID
 		const marker = dmLegacy.section('testSection').files[0].markers[0];
@@ -443,7 +443,7 @@ describe('constructor normalization', () => {
 		};
 		const dmCanonical = createMockDm(existing);
 		const setSection = vi.spyOn(dmCanonical, 'setSection');
-		new MediaCodingModel(dmCanonical as any, reg, 'testSection', DEFAULT_SETTINGS);
+		new MediaCodingModel({ dataManager: dmCanonical, getActiveCoderId: () => "human:default" } as any, reg, 'testSection', DEFAULT_SETTINGS);
 
 		// Marker should be unchanged
 		const marker = dmCanonical.section('testSection').files[0].markers[0];
@@ -473,7 +473,7 @@ describe('migration backfill', () => {
 		};
 		const dmWithData = createMockDm(initialData);
 		const reg = new CodeDefinitionRegistry();
-		const m = new MediaCodingModel(dmWithData as any, reg, 'testSection', DEFAULT_SETTINGS);
+		const m = new MediaCodingModel({ dataManager: dmWithData, getActiveCoderId: () => "human:default" } as any, reg, 'testSection', DEFAULT_SETTINGS);
 
 		const markers = m.getMarkersForFile('old.mp3');
 		expect(markers).toHaveLength(1);
@@ -496,7 +496,7 @@ describe('migration backfill', () => {
 		};
 		const dmWithData = createMockDm(initialData);
 		const reg = new CodeDefinitionRegistry();
-		const m = new MediaCodingModel(dmWithData as any, reg, 'testSection', DEFAULT_SETTINGS);
+		const m = new MediaCodingModel({ dataManager: dmWithData, getActiveCoderId: () => "human:default" } as any, reg, 'testSection', DEFAULT_SETTINGS);
 
 		const markers = m.getMarkersForFile('file.mp3');
 		expect(markers[0]!.updatedAt).toBe(2000);

@@ -33,7 +33,7 @@ export function registerVideoEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 	const dm = plugin.dataManager;
 	const registry = plugin.sharedRegistry;
 
-	const model = new VideoCodingModel(dm, registry);
+	const model = new VideoCodingModel(plugin, registry);
 	plugin.videoModel = model;
 
 	// Register view type

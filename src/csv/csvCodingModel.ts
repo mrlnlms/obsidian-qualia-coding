@@ -4,6 +4,7 @@ import type { MarkerMutationEvent } from '../core/types';
 import type { SegmentMarker, RowMarker, CsvMarker, CodingSnapshot } from './csvCodingTypes';
 import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import type { RowProvider, MarkerRef } from './duckdb';
+import type QualiaCodingPlugin from '../main';
 
 type ChangeListener = () => void;
 type HoverListener = (markerId: string | null, codeName: string | null) => void;
@@ -11,6 +12,7 @@ type HoverListener = (markerId: string | null, codeName: string | null) => void;
 export class CsvCodingModel {
 	readonly registry: CodeDefinitionRegistry;
 	readonly dm: DataManager;
+	readonly plugin: QualiaCodingPlugin;
 	private segmentMarkers: SegmentMarker[] = [];
 	private rowMarkers: RowMarker[] = [];
 	private listeners: ChangeListener[] = [];
@@ -40,8 +42,9 @@ export class CsvCodingModel {
 	 */
 	private markerTextCache: Map<string, string> = new Map();
 
-	constructor(dm: DataManager, registry: CodeDefinitionRegistry) {
-		this.dm = dm;
+	constructor(plugin: QualiaCodingPlugin, registry: CodeDefinitionRegistry) {
+		this.plugin = plugin;
+		this.dm = plugin.dataManager;
 		this.registry = registry;
 		this.loadFromDataManager();
 	}
@@ -110,6 +113,7 @@ export class CsvCodingModel {
 				column,
 				codes: [],
 				comment: trimmed,
+				codedBy: this.plugin.getActiveCoderId(),
 				createdAt: Date.now(),
 				updatedAt: Date.now(),
 			};
@@ -247,6 +251,7 @@ export class CsvCodingModel {
 			id: this.generateId(),
 			fileId: file, sourceRowId, column,
 			codes: [],
+			codedBy: this.plugin.getActiveCoderId(),
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		};
@@ -286,6 +291,7 @@ export class CsvCodingModel {
 					id: this.generateId(),
 					fileId: file, sourceRowId: rowId, column,
 					codes: [],
+					codedBy: this.plugin.getActiveCoderId(),
 					createdAt: now,
 					updatedAt: now,
 				};
@@ -416,6 +422,7 @@ export class CsvCodingModel {
 			from: snapshot.from,
 			to: snapshot.to,
 			codes: [],
+			codedBy: this.plugin.getActiveCoderId(),
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		};

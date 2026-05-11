@@ -20,7 +20,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	const registry = plugin.sharedRegistry;
 
 	// Create model
-	const model = new PdfCodingModel(plugin.dataManager, registry);
+	const model = new PdfCodingModel(plugin, registry);
 	model.load();
 
 	// Expose model on plugin for cross-engine access

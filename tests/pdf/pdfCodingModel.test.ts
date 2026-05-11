@@ -11,7 +11,7 @@ function makePdfModel(): PdfCodingModel {
     create: vi.fn(),
     getByName: vi.fn(),
   } as any;
-  return new PdfCodingModel(dm, registry);
+  return new PdfCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, registry);
 }
 
 describe('PdfCodingModel listeners', () => {

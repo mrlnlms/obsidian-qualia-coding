@@ -28,7 +28,7 @@ let dm: ReturnType<typeof createMockDm>;
 beforeEach(() => {
 	registry = new CodeDefinitionRegistry();
 	dm = createMockDm();
-	model = new CsvCodingModel(dm as any, registry);
+	model = new CsvCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, registry);
 });
 
 // ── Segment Markers ──
@@ -319,7 +319,7 @@ describe('constructor normalization', () => {
 		};
 		const dmLegacy = createMockDm(existing);
 		const setSection = vi.spyOn(dmLegacy, 'setSection');
-		new CsvCodingModel(dmLegacy as any, registry);
+		new CsvCodingModel({ dataManager: dmLegacy, getActiveCoderId: () => "human:default" } as any, registry);
 
 		// codeId should now be the canonical UUID
 		const marker = dmLegacy.section('csv').segmentMarkers[0];
@@ -339,7 +339,7 @@ describe('constructor normalization', () => {
 		};
 		const dmCanonical = createMockDm(existing);
 		const setSection = vi.spyOn(dmCanonical, 'setSection');
-		new CsvCodingModel(dmCanonical as any, registry);
+		new CsvCodingModel({ dataManager: dmCanonical, getActiveCoderId: () => "human:default" } as any, registry);
 
 		// Marker should be unchanged
 		const marker = dmCanonical.section('csv').rowMarkers[0];

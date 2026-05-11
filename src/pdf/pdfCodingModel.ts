@@ -3,6 +3,7 @@ import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinition, MarkerMutationEvent } from '../core/types';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
+import type QualiaCodingPlugin from '../main';
 
 // ── PdfCodingModel ──
 type ChangeListener = () => void;
@@ -11,6 +12,7 @@ type HoverListener = (markerId: string | null, codeName: string | null) => void;
 export class PdfCodingModel {
 	readonly registry: CodeDefinitionRegistry;
 	readonly dataManager: DataManager;
+	readonly plugin: QualiaCodingPlugin;
 	private markers: PdfMarker[] = [];
 	private shapes: PdfShapeMarker[] = [];
 	private listeners = new Set<ChangeListener>();
@@ -20,8 +22,9 @@ export class PdfCodingModel {
 	private hoverCodeName: string | null = null;
 	private _hoveredMarkerIds: string[] = [];
 
-	constructor(dataManager: DataManager, registry: CodeDefinitionRegistry) {
-		this.dataManager = dataManager;
+	constructor(plugin: QualiaCodingPlugin, registry: CodeDefinitionRegistry) {
+		this.plugin = plugin;
+		this.dataManager = plugin.dataManager;
 		this.registry = registry;
 	}
 
@@ -181,6 +184,7 @@ export class PdfCodingModel {
 			endIndex, endOffset,
 			text,
 			codes: [],
+			codedBy: this.plugin.getActiveCoderId(),
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		};
@@ -307,6 +311,7 @@ export class PdfCodingModel {
 			shape: coords.type,
 			coords,
 			codes: [],
+			codedBy: this.plugin.getActiveCoderId(),
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		};

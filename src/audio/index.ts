@@ -33,7 +33,7 @@ export function registerAudioEngine(plugin: QualiaCodingPlugin): EngineRegistrat
 	const dm = plugin.dataManager;
 	const registry = plugin.sharedRegistry;
 
-	const model = new AudioCodingModel(dm, registry);
+	const model = new AudioCodingModel(plugin, registry);
 	plugin.audioModel = model;
 
 	// Register view type

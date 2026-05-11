@@ -194,9 +194,10 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [x] Helper `openCompareCodersView(plugin, { loadFromSavedId | contextualCodeId })` centralizado
   - **Smoke real verde 2026-05-11.** +27 testes (3365 → 3392 verde): 15 do ComparisonRegistry + 12 do dirty helper.
 
+  **✅ Coder picker (FEITO 2026-05-11):** status bar item "Coding as: {nome}" sempre visível + menu pra trocar/criar coder humano. `data.activeCoderId` cross-session. Wire em 5 engine models (markdown / pdf / csv segment+row / audio / video) — todo marker novo recebe `codedBy`. PdfCodingModel + CsvCodingModel + MediaCodingModel agora recebem `plugin` no constructor (em vez de `dm`). Fix paralelo: atalho contextual do codebook não persiste em `lastCompareCodersUsed` (antes deixava view "presa" em scope filtrado após reload). Bug descoberto em smoke real registrado no BACKLOG: CSV row marker shared cross-coder por cell.
+
   **Slices fora do escopo entregue (pendentes):**
   - [ ] **IcrMarkerOps: extensão pra pdf-text + csv-segment + audio + video + image + pdfShape** — bounds.kind='text'/'temporal' insuficientes pra essas engines (precisa variants engine-specific). Detalhe em BACKLOG §ICR Slice E3a
-  - [ ] **Coder picker em coding ativo** (5 engines) — peer ICR feature não-entregue; bloqueio consensus em UI atual é trivial (sem picker). Detalhe em BACKLOG
   - [ ] **Wire `attachSourceHashSnapshot` em outros 5 engines** (PDF / CSV / image / audio / video) — slice de extensão mecânica do piloto markdown
 
   **Checklist Fase C — Transport multi-coder remoto P2:**

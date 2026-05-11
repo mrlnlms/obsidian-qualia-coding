@@ -31,7 +31,7 @@ beforeEach(() => {
 	vi.useFakeTimers();
 	registry = new CodeDefinitionRegistry();
 	const dm = createMockDm();
-	model = new MediaCodingModel(dm as any, registry, 'audio', DEFAULT_SETTINGS);
+	model = new MediaCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, registry, 'audio', DEFAULT_SETTINGS);
 	adapter = new MediaSidebarAdapter(model, 'audio');
 });
 

@@ -45,7 +45,7 @@ beforeEach(async () => {
 	dm = new DataManager(mockObsidianPlugin());
 	await dm.load();
 	reg = new CodeDefinitionRegistry();
-	csvModel = new CsvCodingModel(dm, reg);
+	csvModel = new CsvCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, reg);
 });
 
 describe('exportTabular', () => {

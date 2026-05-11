@@ -9,6 +9,7 @@ import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CodeApplication, CodeDefinition, EngineType, MarkerMutationEvent, QualiaData } from '../core/types';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import { formatTime } from './formatTime';
+import type QualiaCodingPlugin from '../main';
 
 const TOLERANCE = 0.01;
 
@@ -18,6 +19,7 @@ export class MediaCodingModel<
 	S extends BaseMediaSettings = BaseMediaSettings,
 > {
 	readonly dm: DataManager;
+	readonly plugin: QualiaCodingPlugin;
 	private sectionName: string;
 	registry: CodeDefinitionRegistry;
 	files: F[] = [];
@@ -39,10 +41,12 @@ export class MediaCodingModel<
 		return this.dm.section(this.sectionName).settings as S;
 	}
 
-	constructor(dm: DataManager, registry: CodeDefinitionRegistry, sectionName: string, defaultSettings: S) {
-		this.dm = dm;
+	constructor(plugin: QualiaCodingPlugin, registry: CodeDefinitionRegistry, sectionName: string, defaultSettings: S) {
+		this.plugin = plugin;
+		this.dm = plugin.dataManager;
 		this.registry = registry;
 		this.sectionName = sectionName;
+		const dm = plugin.dataManager;
 
 		const section = dm.section(sectionName);
 		this.files = (section.files as F[]) ?? [];
@@ -177,6 +181,7 @@ export class MediaCodingModel<
 			from,
 			to,
 			codes: [],
+			codedBy: this.plugin.getActiveCoderId(),
 			createdAt: now,
 			updatedAt: now,
 		} as MediaMarker as M;

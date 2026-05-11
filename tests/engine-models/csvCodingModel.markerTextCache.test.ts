@@ -24,7 +24,7 @@ const FILE = 'data.parquet';
 beforeEach(() => {
 	registry = new CodeDefinitionRegistry();
 	dm = createMockDm();
-	model = new CsvCodingModel(dm as any, registry);
+	model = new CsvCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, registry);
 });
 
 describe('markerTextCache — populate', () => {

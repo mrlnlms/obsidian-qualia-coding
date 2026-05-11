@@ -2034,7 +2034,42 @@ QualiaData {
 
 Testes: +27 (3365 → 3392 total), distribuídos em `tests/core/icr/comparisonRegistry.test.ts` (15: CRUD + clone defensivo + roundtrip JSON + unsubscribe) e `tests/core/icr/ui/compareCodersDirty.test.ts` (12: equalSavable + set semantics + undefined vs []).
 
-### 19.14 Companion docs
+### 19.14 Coder picker (status bar + cross-engine, 2026-05-11)
+
+**Entrega:** todo marker criado via UI carrega `codedBy` populado — fluxo end-to-end ICR não depende mais de seed scripts pra povoar a identidade do coder.
+
+**Schema:** `data.activeCoderId?: CoderId` em `QualiaData`. Optional pra round-trip de data antigo. Fallback gracioso em `plugin.getActiveCoderId()`: undefined → `DEFAULT_CODER_ID`; coder deletado fora → também cai pro default.
+
+**Plugin API** (em `main.ts`):
+- `getActiveCoderId(): CoderId` — fallback `DEFAULT_CODER_ID` quando undefined ou id inválido
+- `setActiveCoderId(id: CoderId)` — valida via `coderRegistry.has(id)` + emit `activeCoderListeners`
+- `onActiveCoderChange(fn)` — retorna unsubscribe
+
+**Status bar UI** (`src/core/icr/activeCoderStatusBar.ts`):
+- `mountActiveCoderStatusBar(plugin)` — chamado no `onload`, retorna `{ unmount }` registrado em `cleanups`
+- Chip "Coding as: {nome}" com ícone `user` no status bar do Obsidian
+- Click → `Menu` com `getCodableCoders()` (exclui consensus) + "+ Novo coder humano" (PromptModal → `createHuman` + `setActiveCoderId`)
+- Re-renderiza em `coderRegistry.addOnMutate` (coder novo) + `onActiveCoderChange` (troca selecionada)
+
+**Engine wire** — 4 engine models migrados pra receber `plugin` no constructor (em vez de só `dm`):
+- `PdfCodingModel`: `constructor(plugin, registry)` em vez de `(dm, registry)`
+- `CsvCodingModel`: idem
+- `MediaCodingModel`: idem (AudioCodingModel + VideoCodingModel herdam)
+- Markdown já recebia plugin
+
+Cada call site de criação de marker stampa `codedBy: this.plugin.getActiveCoderId()`:
+- `codeMarkerModel.ts:97` (findOrCreateMarkerAtSelection) + `:119` (fallback sem editor)
+- `pdfCodingModel.ts:177` (findOrCreateMarker text) + `:303` (createShape)
+- `csvCodingModel.ts:106` (setCellComment auto-create), `:246` (findOrCreateRowMarker), `:285` (addCodeToManyRows bulk), `:411` (findOrCreateSegmentMarker)
+- `mediaCodingModel.ts:174` (findOrCreateMarker — audio + video compartilhado)
+
+**Fix paralelo (Compare Coders contextual):** `loadContextualCode` agora marca `contextualMode = true` na view; `onClose` skipa `lastCompareCodersUsed` persist quando true. Antes: atalho contextual ("Ver κ deste código entre coders") deixava `lastCompareCodersUsed` com scope filtrado em 1 código + Tabela mode; reload sem banner deixava view presa sem maneira óbvia de voltar ao default.
+
+**Tests:** ~+15 test files de engine models tinham `new XCodingModel(dm as any, ...)` — refatorados pra `{ dataManager: dm, getActiveCoderId: () => 'human:default' } as any` shape mínimo de plugin. Total 3392 verde.
+
+**Bug registrado em BACKLOG (não fixado nesta entrega):** CSV row markers são shared cross-coder por cell — `findOrCreateRowMarker(file, rowId, column)` retorna marker existente independente do coder ativo. Quando coder B troca picker e aplica código já aplicado pelo coder A, o no-op é silencioso. Use case "duas pessoas no mesmo PC trocando perfil" não é cenário real do projeto, mas a semântica merece decisão (1 marker per cell+coder vs `codedByList[]`). Pensar conjuntamente com como ICR semântica trata row-level vs segment-level coding.
+
+### 19.15 Companion docs
 
 - `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
 - `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural

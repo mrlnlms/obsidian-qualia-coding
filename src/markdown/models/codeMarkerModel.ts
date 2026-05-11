@@ -101,6 +101,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 				color: this.getSettings().defaultColor,
 				codes: [],
 				text: snapshot.text,
+				codedBy: this.plugin.getActiveCoderId(),
 				createdAt: Date.now(),
 				updatedAt: Date.now()
 			};
@@ -126,6 +127,7 @@ export class CodeMarkerModel implements SidebarModelInterface {
 			color: this.getSettings().defaultColor,
 			codes: [],
 			text: snapshot.text,
+			codedBy: this.plugin.getActiveCoderId(),
 			createdAt: Date.now(),
 			updatedAt: Date.now()
 		};

@@ -45,7 +45,7 @@ let dm: ReturnType<typeof createMockDm>;
 beforeEach(() => {
 	registry = new CodeDefinitionRegistry();
 	dm = createMockDm();
-	model = new PdfCodingModel(dm as any, registry);
+	model = new PdfCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, registry);
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -336,7 +336,7 @@ describe('load', () => {
 			},
 		};
 		dm = createMockDm(existing);
-		model = new PdfCodingModel(dm as any, registry);
+		model = new PdfCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, registry);
 		model.load();
 		expect(model.getAllMarkers()).toHaveLength(1);
 		expect(model.getAllMarkers()[0].text).toBe('hi');
@@ -350,7 +350,7 @@ describe('load', () => {
 			},
 		};
 		dm = createMockDm(existing);
-		model = new PdfCodingModel(dm as any, registry);
+		model = new PdfCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, registry);
 		model.load();
 		expect(model.getAllShapes()).toHaveLength(1);
 	});
@@ -372,7 +372,7 @@ describe('load', () => {
 			},
 		};
 		dm = createMockDm(existing);
-		model = new PdfCodingModel(dm as any, registry);
+		model = new PdfCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, registry);
 		dm.setSection.mockClear();
 
 		model.load();
@@ -396,7 +396,7 @@ describe('load', () => {
 			},
 		};
 		dm = createMockDm(existing);
-		model = new PdfCodingModel(dm as any, registry);
+		model = new PdfCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, registry);
 		dm.setSection.mockClear();
 
 		model.load();

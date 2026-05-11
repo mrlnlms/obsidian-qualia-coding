@@ -36,6 +36,9 @@ export class UnifiedCompareCodersView extends ItemView {
 	private toolbarEl!: HTMLElement;
 	private overviewEl!: HTMLElement;
 	private drilldownEl!: HTMLElement;
+	/** True quando state veio de `loadContextualCode` — onClose NÃO persiste em lastCompareCodersUsed
+	 *  (estado contextual é gesto-específico, não deve poluir o fallback ephemeral). */
+	private contextualMode = false;
 	/** Bump a cada updateState — render async checa se o token mudou e aborta escrita stale.
 	 *  Sem isso, 2 updateState próximos disparam 2 renders async; ambos `empty()` o container
 	 *  no início mas escrevem na ordem de resolução do await — concorrência duplica conteúdo. */
@@ -91,9 +94,11 @@ export class UnifiedCompareCodersView extends ItemView {
 	}
 
 	/** Slice E4 — persiste lastCompareCodersUsed só quando state é ephemeral (não vem de saved).
-	 *  Saved já é persistido via registry mutate listener. */
+	 *  Saved já é persistido via registry mutate listener. Contextual NÃO persiste — senão
+	 *  reload fica preso no scope filtrado de 1 código sem banner pra desfazer. */
 	async onClose(): Promise<void> {
 		if (this.state.loadedFromSavedId) return;
+		if (this.contextualMode) return;
 		this.plugin.dataManager.setSection('lastCompareCodersUsed', snapshotLastUsed(this.state));
 	}
 
@@ -130,7 +135,8 @@ export class UnifiedCompareCodersView extends ItemView {
 	}
 
 	/** Atalho contextual do codebook (Slice E4 §8.3): foca em 1 código específico, todos coders,
-	 *  table mode pra ver κ-por-código. Estado ephemeral (sem loadedFromSavedId). */
+	 *  table mode pra ver κ-por-código. Estado ephemeral — não persiste em lastCompareCodersUsed
+	 *  (senão reload fica preso no scope filtrado sem maneira óbvia de voltar ao default). */
 	loadContextualCode(codeId: string): void {
 		const allCoderIds = this.plugin.coderRegistry.getAll().map(c => c.id);
 		bumpInputsCacheGeneration();
@@ -147,6 +153,7 @@ export class UnifiedCompareCodersView extends ItemView {
 			currentSelection: { kind: 'none' },
 			isDirty: false,
 		};
+		this.contextualMode = true;
 		const token = ++this.renderToken;
 		this.renderToolbar();
 		void this.renderOverview(token);

@@ -5,6 +5,7 @@ import { DataManager } from './core/dataManager';
 import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
 import { CoderRegistry } from './core/icr/coderRegistry';
+import { DEFAULT_CODER_ID, type CoderId } from './core/icr/coderTypes';
 import { SourceHashRegistry } from './core/icr/sourceHashRegistry';
 import { extractCoderContribution } from './core/icr/transport/extractCoderContribution';
 import { mergeCoderContribution } from './core/icr/transport/mergeCoderContribution';
@@ -58,6 +59,7 @@ import { ComparisonRegistry } from './core/icr/comparisonRegistry';
 import { CompareComparisonsListModal } from './core/icr/ui/compareComparisonsListModal';
 import { CreateComparisonModal } from './core/icr/ui/createComparisonModal';
 import { openCompareCodersView } from './core/icr/ui/openCompareCodersView';
+import { mountActiveCoderStatusBar } from './core/icr/activeCoderStatusBar';
 import { getMarkerLabel, previewText } from './core/markerResolvers';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
@@ -68,6 +70,7 @@ export default class QualiaCodingPlugin extends Plugin {
 	dataManager!: DataManager;
 	sharedRegistry!: CodeDefinitionRegistry;
 	coderRegistry!: CoderRegistry;
+	private activeCoderListeners = new Set<() => void>();
 	sourceHashRegistry!: SourceHashRegistry;
 	icrTransport!: {
 		extract: (coderId: string) => Promise<ExtractResult>;
@@ -642,6 +645,9 @@ export default class QualiaCodingPlugin extends Plugin {
 			void openCompareCodersView(this);
 		});
 
+		const activeCoderBar = mountActiveCoderStatusBar(this);
+		this.cleanups.push(() => activeCoderBar.unmount());
+
 		this.addCommand({
 			id: 'icr-open-import',
 			name: 'ICR: Open import',
@@ -1051,6 +1057,25 @@ export default class QualiaCodingPlugin extends Plugin {
 			console.error('[qualia-markers-tmp] inspect failed', err);
 			new Notice(`❌ Inspect failed: ${msg}`, 12000);
 		}
+	}
+
+	// ─── Coder picker (active coder pra stamping codedBy em markers novos) ─────
+	getActiveCoderId(): CoderId {
+		const id = this.dataManager.getDataRef().activeCoderId;
+		// Fallback gracioso: data antigo sem campo, ou coder deletado fora — cai pro default.
+		if (!id || !this.coderRegistry.has(id)) return DEFAULT_CODER_ID;
+		return id;
+	}
+
+	setActiveCoderId(id: CoderId): void {
+		if (!this.coderRegistry.has(id)) return;
+		this.dataManager.setSection('activeCoderId', id);
+		for (const fn of this.activeCoderListeners) fn();
+	}
+
+	onActiveCoderChange(fn: () => void): () => void {
+		this.activeCoderListeners.add(fn);
+		return () => { this.activeCoderListeners.delete(fn); };
 	}
 
 	async onunload() {
