@@ -1979,7 +1979,62 @@ Testes: +62 (3303 → 3365 total), distribuídos em `tests/core/icr/ui/regionDer
 
 **Bug crítico fixado durante smoke 2026-05-11 — rangeKey vazando como char offset:** `regionDerivation.buildMarkdownRegionFromCluster` encoda bounds como `rangeKey = line × 1_000_000 + ch` (chave artificial pra clustering ordinal). Em E3a esse valor era passado direto pra `markerOps.createMarker(engine='markdown', { bounds })` que setava `range: { from: { line: 0, ch: <rangeKey> } }` — `range.ch` virava 10_000_000. Invisible em E3a porque scope default excluía consensus → `extractInputsFromScope` filtrava esses markers fora. E3b mudou scope default pra incluir consensus → `explodeMarkersToCharLabels` iterava 2M chars por marker × 9 consensus markers = main thread travada por 60s+. Fix em `icrMarkerOpsImpl.ts`: `decodeRangeKey()` e `rangesOverlapLineCh()` (linha-comparison via rangeKey). Limpeza one-shot do `data.json` removeu 9 consensus markers corruptos + 17 audit entries órfãs.
 
-### 19.13 Companion docs
+### 19.13 UI layer Slice E4 — Saved Comparisons hub + ribbon + atalho contextual (2026-05-11)
+
+**Entrega:** "guardar configurações de view nomeadas + voltar nelas + atalho contextual do codebook".
+
+**Schema** (em `src/core/types.ts` + `src/core/icr/ui/compareCodersTypes.ts`):
+
+```typescript
+interface SavedComparison {
+  id: string;           // sc_cmp_*
+  name: string;
+  scope: ComparisonScope;
+  view: { overviewMode; drilldownMode; primaryCoefficient };
+  filters: ComparisonFilters;
+  createdAt: number;
+  updatedAt: number;
+}
+
+QualiaData {
+  comparisons?: { definitions: Record<string, SavedComparison>; order: string[] };
+  lastCompareCodersUsed?: { scope; view; filters };   // ephemeral fallback
+}
+```
+
+`comparisons` espelha `smartCodes` (sem palette — saved não têm cor visível). `lastCompareCodersUsed` é o fallback ephemeral persistido quando view fecha **sem** estar vinculada a saved.
+
+**Registry** (`src/core/icr/comparisonRegistry.ts`): mesmo pattern de `SmartCodeRegistry` — state mutado in-place, `addOnMutate(fn)`, `toJSON/fromJSON`. **Sem audit listener** — saved comparisons são preferência de UX, não decisão analítica. CRUD: `create/rename/update/delete/duplicate`. Clones defensivos em `create/update` evitam mutações externas vazarem (testes verificam).
+
+**Dirty detection** (`src/core/icr/ui/compareCodersDirty.ts` — puro):
+- `computeDirty(state, saved)` — `true` quando scope/view/filters divergem
+- Arrays comparados como **sets** (reordenação não conta como dirty)
+- `undefined` ≠ `[]` em opcionais (`undefined` = "todos", `[]` = "nenhum")
+- Booleans optional default `false` (`splitBboxEngines ?? false`)
+- Ignora `currentSelection` / `loadedFromSavedId` / `isDirty` (ephemeral)
+
+**View wiring** (`unifiedCompareCodersView.ts`):
+- Constructor: carrega `lastCompareCodersUsed` se existe; senão `createDefaultViewState`
+- `loadFromSaved(id)` — copia scope/view/filters do saved, setta `loadedFromSavedId`, `isDirty = false`, bump cache
+- `loadContextualCode(codeId)` — atalho contextual: scope filtrado + Tabela mode, sem `loadedFromSavedId`
+- `updateState` chama `refreshDirtyFlag()` antes do re-render. Se saved sumiu, desvincula automaticamente
+- `onClose` persiste `lastCompareCodersUsed` só quando state é ephemeral
+- Banner no toolbar quando `loadedFromSavedId` presente: `●` dirty + `Salvar mudanças` (só dirty) / `Salvar como nova` / `✕ desvincular`
+
+**Hub modal** (`compareComparisonsListModal.ts`) — espelha `SmartCodeListModal` simplificado (sem detail interno): cards com nome bold + summary do escopo + timestamp humanizado + kebab `Open/Rename/Duplicate/Delete`. Click card → fecha modal + abre view via `openCompareCodersView(plugin, { loadFromSavedId: id })`.
+
+**Create modal** (`createComparisonModal.ts`) — minimalista: só nome + Create. Defaults via `createDefaultViewState` quando sem `initialState`. Aceita `initialState` opcional usado pelo "Salvar como nova" da view (captura state atual).
+
+**Helper centralizado** (`openCompareCodersView.ts`): aceita `{ loadFromSavedId? | contextualCodeId? }`. Reusa leaf existente (`getLeavesOfType`) ou cria nova; após `setViewState`, chama `loadFromSaved` ou `loadContextualCode` conforme.
+
+**Entry points:**
+- Ribbon `users-2` (lucide) — click → `openCompareCodersView(plugin)` (state ephemeral)
+- Command palette: `Compare Coders: Open` + `Open hub` + `New comparison`
+- Codebook context menu: novo item `Ver κ deste código entre coders` (icon `users-2`) — só aparece quando `ContextMenuCallbacks.openCompareForCode` é injetado (opcional pra não quebrar callers sem ICR). Wired em `BaseCodeDetailView.contextMenuCallbacks()`
+
+Testes: +27 (3365 → 3392 total), distribuídos em `tests/core/icr/comparisonRegistry.test.ts` (15: CRUD + clone defensivo + roundtrip JSON + unsubscribe) e `tests/core/icr/ui/compareCodersDirty.test.ts` (12: equalSavable + set semantics + undefined vs []).
+
+### 19.14 Companion docs
 
 - `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
 - `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural

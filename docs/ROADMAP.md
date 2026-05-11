@@ -181,8 +181,20 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [x] `generateReconciliationReport` puro: timeline + memos + κ pré/pós + clipboard export do P3
   - **Smoke real verde 2026-05-11.** Build prod limpo + 3365 testes verde (3303 → 3365, +62 testes incluindo +5 regression do rangeKey fix). Tag `post-icr-slice-e3b-checkpoint` pushada.
 
+  **✅ Slice E4 — Saved Comparisons hub + ribbon + atalho contextual (FEITO 2026-05-11):**
+  - [x] Schema `comparisons: { definitions, order }` + `lastCompareCodersUsed` em `QualiaData`
+  - [x] `ComparisonRegistry` (CRUD + `addOnMutate` + `toJSON/fromJSON`) espelhando `SmartCodeRegistry`
+  - [x] `CompareComparisonsListModal` — hub com cards (nome + summary scope + timestamp humanizado) + kebab Open/Rename/Duplicate/Delete
+  - [x] `CreateComparisonModal` — minimalista (só nome). Aceita `initialState` opcional pra "Salvar como nova" capturar state da view
+  - [x] Banner no toolbar da view quando `loadedFromSavedId` setado: `●` quando dirty + botões `Salvar mudanças` (só dirty) / `Salvar como nova` / `✕ desvincular`
+  - [x] `compareCodersDirty.ts` puro — `computeDirty` (set semantics em arrays; undefined ≠ [], ignora selection/loadedId/isDirty) + `snapshotSavable` + `snapshotLastUsed`
+  - [x] `lastCompareCodersUsed` persistida no `onClose` da view (só quando ephemeral) e carregada no constructor
+  - [x] Ribbon icon `users-2` + 2 comandos novos (`Compare Coders: Open hub` / `Compare Coders: New comparison`)
+  - [x] Atalho contextual no codebook: `Ver κ deste código entre coders` → abre view em Tabela mode + scope filtrado (estado ephemeral, sem saved)
+  - [x] Helper `openCompareCodersView(plugin, { loadFromSavedId | contextualCodeId })` centralizado
+  - **Smoke real verde 2026-05-11.** +27 testes (3365 → 3392 verde): 15 do ComparisonRegistry + 12 do dirty helper.
+
   **Slices fora do escopo entregue (pendentes):**
-  - [ ] **Slice E4** — Saved Comparisons + ribbon + atalho contextual no codebook
   - [ ] **IcrMarkerOps: extensão pra pdf-text + csv-segment + audio + video + image + pdfShape** — bounds.kind='text'/'temporal' insuficientes pra essas engines (precisa variants engine-specific). Detalhe em BACKLOG §ICR Slice E3a
   - [ ] **Coder picker em coding ativo** (5 engines) — peer ICR feature não-entregue; bloqueio consensus em UI atual é trivial (sem picker). Detalhe em BACKLOG
   - [ ] **Wire `attachSourceHashSnapshot` em outros 5 engines** (PDF / CSV / image / audio / video) — slice de extensão mecânica do piloto markdown
@@ -199,7 +211,6 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   **Resumo da sessão 2026-05-09 → 2026-05-11:** **9 slices entregues** (1-6 motor + E1 + E2 UI + **E3a reconciliação P2**) + **Fase C P1 UX layer**, +467 testes ICR (2814 → 3303). Compare Coders View completa pra workflow real de reconciliação multi-coder: pesquisador vê matriz/tabela/heatmap, abre drill-down Cards, escolhe região contestada (com tag de divergência), decide entre adopt/split/manter-divergência, decisão fica audit-trailed reversível. Audit log estendido com 3 types `reconciliation_*` aparecendo na Code Stability Timeline existente (anchor codeId). Reconciliação multimodal arquitetural — IcrMarkerOps é façade per-engine que aceita extensão pra pdf/audio/vídeo/image em slice futura sem refactor do orquestrador.
 
   **Próximo passo (gated em você):**
-  - **Slice E4** Saved Comparisons + ribbon + atalho contextual no codebook
   - **IcrMarkerOps extensão** pra pdf-text + csv-segment + audio + video (requer bounds engine-specific — design em BACKLOG)
   - Refactor motor κ pra set-valued labels (eliminar redução first-code alfabético — afeta TODAS as engines). **Material de repertório metodológico em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md`** — leitura obrigatória antes do brainstorm: cobre Jaccard vs MASI, variantes Cohen multi-label (binary-per-label / Rosenberg augmented / weighted), generalização Krippendorff α com δ customizado, riscos no refactor de tests existentes.
   - Wire mechanical de `attachSourceHashSnapshot` em outros 5 engines
