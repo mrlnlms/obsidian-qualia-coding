@@ -75,6 +75,34 @@ describe('drilldownCards — clusterMarkdownMarkers', () => {
 	});
 });
 
+describe('drilldownCards — classifyDivergence (via cluster)', () => {
+	it('detecta code disagreement quando coders aplicam codes diferentes', () => {
+		const markers = [
+			mdM('F.md', 0, 0, 0, 50, 'human:alice', 'm1', [{ codeId: 'c_alpha' }]),
+			mdM('F.md', 0, 0, 0, 50, 'human:bob', 'm2', [{ codeId: 'c_beta' }]),
+		];
+		const regions = clusterMarkdownMarkers(markers);
+		expect(regions[0]!.divergenceKind).toBe('code');
+	});
+
+	it('detecta boundary disagreement quando mesmo code com bounds diferentes', () => {
+		const markers = [
+			mdM('F.md', 0, 0, 0, 50, 'human:alice', 'm1', [{ codeId: 'c_alpha' }]),
+			mdM('F.md', 0, 30, 0, 80, 'human:bob', 'm2', [{ codeId: 'c_alpha' }]),
+		];
+		const regions = clusterMarkdownMarkers(markers);
+		expect(regions[0]!.divergenceKind).toBe('boundary');
+	});
+
+	it('marca existence quando só 1 coder no cluster (não passa pelo filtro >=2 mas o classifier funciona)', () => {
+		const markers = [
+			mdM('F.md', 0, 0, 0, 50, 'human:alice', 'm1', [{ codeId: 'c_alpha' }]),
+		];
+		const regions = clusterMarkdownMarkers(markers);
+		expect(regions[0]!.divergenceKind).toBe('existence');
+	});
+});
+
 describe('drilldownCards — sameBounds', () => {
 	it('text bounds bate quando from + to iguais', () => {
 		expect(sameBounds({ kind: 'text', from: 10, to: 20 }, { kind: 'text', from: 10, to: 20 })).toBe(true);

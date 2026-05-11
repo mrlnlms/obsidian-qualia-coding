@@ -50,6 +50,8 @@ interface MarkerRef {
 	codes: CodeApplication[];
 }
 
+type DivergenceKind = 'code' | 'boundary' | 'existence';
+
 interface ContestedRegion {
 	fileId: string;
 	engine: EngineId;
@@ -57,6 +59,11 @@ interface ContestedRegion {
 	coderIds: CoderId[];
 	displayLabel: string;
 	markerRefs: MarkerRef[];
+	/** Tipo de divergência detectado:
+	 *  - 'code': coders aplicaram codes DIFERENTES (dropdown vai ter 2+ candidates)
+	 *  - 'boundary': mesmo code, bounds diferentes (dropdown 1 candidate, fix é unificar bounds)
+	 *  - 'existence': só 1 coder marcou (raro com filtro >=2 coders) */
+	divergenceKind: DivergenceKind;
 }
 
 export function renderDrilldownCards(
@@ -92,6 +99,7 @@ export function renderDrilldownCards(
 		coderIds: sel.value.coderIds,
 		displayLabel: formatBoundsLabel(sel.value.bounds),
 		markerRefs: [],
+		divergenceKind: 'existence',
 	};
 	renderRegionView(container, activeRegion, deps, cbs);
 }
@@ -110,14 +118,21 @@ function renderRegionPicker(
 		});
 		return;
 	}
+	// Ordena: divergência de CODE primeiro (mais útil pra reconciliar), boundary depois, existence por último.
+	const order: Record<DivergenceKind, number> = { code: 0, boundary: 1, existence: 2 };
+	const sorted = regions.slice().sort((a, b) => order[a.divergenceKind] - order[b.divergenceKind]);
+
 	const list = container.createDiv({ cls: 'qc-cc-region-picker' });
 	list.createEl('h4', { text: `Regiões contestadas (${regions.length})` });
-	for (const region of regions) {
-		const item = list.createDiv({ cls: 'qc-cc-region-item' });
+	for (const region of sorted) {
+		const item = list.createDiv({ cls: `qc-cc-region-item qc-cc-divergence-${region.divergenceKind}` });
 		const header = item.createDiv({ cls: 'qc-cc-region-header' });
 		header.createSpan({ cls: 'qc-cc-region-file', text: region.fileId });
 		header.createSpan({ cls: 'qc-cc-region-engine', text: region.engine });
 		header.createSpan({ cls: 'qc-cc-region-bounds', text: region.displayLabel });
+		// Chip de tipo de divergência — destaque visual + dica do que esperar no dropdown.
+		const tag = header.createSpan({ cls: `qc-cc-divergence-tag is-${region.divergenceKind}` });
+		tag.textContent = divergenceTagLabel(region.divergenceKind);
 		const meta = item.createDiv({ cls: 'qc-cc-region-meta' });
 		const coderNames = region.coderIds.join(', ');
 		meta.createSpan({ text: `${region.coderIds.length} coders: ${coderNames}` });
@@ -125,6 +140,14 @@ function renderRegionPicker(
 			kind: 'region',
 			value: { fileId: region.fileId, engine: region.engine, bounds: region.bounds, coderIds: region.coderIds },
 		});
+	}
+}
+
+function divergenceTagLabel(kind: DivergenceKind): string {
+	switch (kind) {
+		case 'code': return 'codes diferentes';
+		case 'boundary': return 'mesma marcação, bounds diferentes';
+		case 'existence': return 'só 1 coder marcou';
 	}
 }
 
@@ -249,7 +272,18 @@ function buildMarkdownRegionFromCluster(fileId: string, cluster: MdMarkerInScope
 		coderIds: Array.from(coderIds),
 		displayLabel: `linha ${startLine + 1}:${startCh}–${endLine + 1}:${endCh}`,
 		markerRefs,
+		divergenceKind: classifyDivergence(markerRefs, Array.from(coderIds)),
 	};
+}
+
+/** Classifica o tipo de divergência baseado em quantos codes distintos e quantos coders. */
+function classifyDivergence(markerRefs: MarkerRef[], coderIds: CoderId[]): DivergenceKind {
+	const coderCount = coderIds.length;
+	const codeSet = new Set<string>();
+	for (const m of markerRefs) for (const c of m.codes) codeSet.add(c.codeId);
+	if (coderCount < 2) return 'existence';
+	if (codeSet.size >= 2) return 'code';
+	return 'boundary';
 }
 
 function collectCsvRowRegions(
@@ -285,6 +319,7 @@ function collectCsvRowRegions(
 			coderIds: Array.from(r.coderIds),
 			displayLabel: r.column ? `row ${r.rowIndex} · ${r.column}` : `row ${r.rowIndex}`,
 			markerRefs: r.markerRefs,
+			divergenceKind: classifyDivergence(r.markerRefs, Array.from(r.coderIds)),
 		});
 	}
 	return out;

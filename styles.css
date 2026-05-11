@@ -7309,6 +7309,43 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	font-size: 0.85em;
 }
 
+.qc-cc-divergence-tag {
+	margin-left: auto;
+	font-size: 0.72em;
+	padding: 2px 8px;
+	border-radius: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.qc-cc-divergence-tag.is-code {
+	background: #c1352e;
+	color: #fff;
+}
+
+.qc-cc-divergence-tag.is-boundary {
+	background: #d68c45;
+	color: #fff;
+}
+
+.qc-cc-divergence-tag.is-existence {
+	background: #999;
+	color: #fff;
+}
+
+.qc-cc-region-item.qc-cc-divergence-code {
+	border-left: 3px solid #c1352e;
+}
+
+.qc-cc-region-item.qc-cc-divergence-boundary {
+	border-left: 3px solid #d68c45;
+}
+
+.qc-cc-region-item.qc-cc-divergence-existence {
+	border-left: 3px solid #999;
+	opacity: 0.85;
+}
+
 .qc-cc-region-meta {
 	margin-top: 4px;
 	color: var(--text-muted);
