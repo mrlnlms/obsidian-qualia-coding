@@ -206,8 +206,16 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [x] Seed script `seed-icr-corpus.mjs` estendido com audio + video markers contestados (Carla × Joana). Coders agora aditivos (não substitui existentes).
   - **Smoke real verde 2026-05-11.** 3414 testes (3392 → 3414, +22): 14 collectors + 8 IcrMarkerOpsImpl pra 4 engines novas. Lentidão observada em heatmap → drill-down registrada no BACKLOG pra investigar (não bloqueante).
 
-  **Slices pendentes:**
-  - [ ] **Slice E5b — bbox spatial** (image + pdfShape) — design doc primeiro: adopt semantics (union vs intersect) + split semantics em 2D.
+  **✅ Slice E5b — bbox spatial reconciliação cross-engine (FEITO 2026-05-11):**
+  - [x] `ReconciliationBounds` ganha variant `bbox`: `{ kind: 'bbox', page?: number, x, y, w, h }`. Page presente em pdfShape, ausente em image. Sempre AABB normalizado 0–1.
+  - [x] Consensus shape = **AABB-union rect** (decisão D1) — consistente com 1D `unionOfBounds` min-max. Override via `consensusBounds` reservado pra UI custom futura. Intersect 2D rejeitado: pode degenerar pra ≈vazio quando IoU=θ.
+  - [x] 6 switches sincronizados: `isValidBounds` + `unionOfBounds` (reconciliation.ts), `sameBounds` + `regionKey` + `formatBoundsLabel` (regionDerivation), `sameBoundsLocal` (reconciliationReport), `formatBoundsShort` (auditLog).
+  - [x] `collectBboxRegions` novo: rasterize lazy 1×/marker por scope, AABB early-out antes do bitmap AND, union-find no grafo IoU≥θ. **Não Hungarian** (Hungarian = pairing ótimo 1:1 entre 2 coders; aqui queremos componentes conexas N coders).
+  - [x] θ cluster = 0.5 (COCO, mesmo default do motor κ — decisão D3, knob único).
+  - [x] `IcrMarkerOpsImpl` cobre 8 engines: markdown, csvRow, csvSegment, pdf, audio, video, pdfShape, image. `getModelForUpdate` mapeia pdfShape→`addCodeToShape`/`findShapeById` (API distinta do PdfCodingModel) e image→`add/removeCodeFromMarker` standard.
+  - [x] `insertShapeRaw` adicionado em PdfCodingModel + `insertMarkerRaw` em ImageCodingModel (pra restore via snapshot).
+  - [x] **Imagem agora wired ao coder picker** (gap pré-existente revelado pelo smoke E5b): `ImageCodingModel.createMarker` stampa `codedBy: plugin.getActiveCoderId()`. Constructor passou de `(dm, registry)` pra `(plugin, registry)` — pattern dos 4 models já wired. 8ª engine fecha o coder picker coverage.
+  - **Smoke real verde 2026-05-11.** +18 testes (3414 → 3432, +11 IcrMarkerOpsImpl bbox + 7 collectBboxRegions). 8 das 8 engines do plugin cobertas pra reconciliação cross-engine — fecha o slice E5.
 
   **Checklist Fase C — Transport multi-coder remoto P2:**
   - [x] **P0 (Slice 3) entregue:** funções puras extract/merge + cross-vault remap + codebookVersion hash + plugin API

@@ -2163,7 +2163,71 @@ Bbox spatial (image + pdfShape) fica pro Slice E5b — semantics 2D não trivial
 
 **Lição aprendida:** band-aids empilhados (caches superficiais) mascaram lentidão estrutural mas não resolvem. Quando o problema é compute síncrono pesado bloqueando main thread, **mover pra worker é a única solução real** — não vale empurrar pra backlog. Documentado em `memory/feedback_no_bandaid_avoidance.md`.
 
-### 19.17 Companion docs
+### 19.17 IcrMarkerOps bbox + reconciliação spatial (Slice E5b, 2026-05-11)
+
+**Entrega:** reconciliação P2 Cards/Workflow funciona em `pdfShape` + `image` — antes só E5a (markdown/pdf-text/csvRow/csvSegment/audio/video) era suportado. Slice E5 fecha completo com **8/8 engines** do plugin.
+
+**Schema** — `ReconciliationBounds` ganhou variant `bbox`:
+
+```typescript
+| { kind: 'bbox'; page?: number; x: number; y: number; w: number; h: number };
+```
+
+AABB normalizado 0–1 (mesma origem do motor κ bbox). `page` presente em pdfShape, ausente em image. Sempre representa retângulo axis-aligned mesmo quando shapes originais são ellipse/polygon.
+
+**Decisões de design (D1–D6):**
+
+- **D1 — Consensus shape em 2D = AABB-union rect.** Casa com 1D `unionOfBounds` (min-max). Intersect rejeitado: pode degenerar pra ≈vazio quando IoU=θ. Polygon hull rejeitado: overkill (complica representação, revert, render). Override via `consensusBounds` reservado pra UI custom futura.
+- **D2 — Variant `bbox` armazena AABB plano**, não coords completos. Bounds é da REGIÃO contestada, não das shapes originais — originais ficam em `markerRefs[]` apontando pros markers individuais (que preservam tipo rect/ellipse/polygon).
+- **D3 — Cluster θ no collector = motor θ (0.5 COCO).** Knob único evita semântica divergente entre matching (κ) e clustering (collector). Setting separado rejeitado: dual-knob confuso.
+- **D4 — Algoritmo cluster N coders = union-find no grafo IoU≥θ.** Hungarian é pairing ótimo 1:1 entre 2 coders, não generaliza pra N>2. Aqui queremos componentes conexas — union-find é semanticamente correto + O(α(N)) por edge.
+- **D5 — Scope (engine, fileId, page?) separado.** Markers em pages diferentes do mesmo PDF, ou em imagens diferentes, nunca clusterizam. Mesma regra do bboxAdapter (`scopeOf`).
+- **D6 — PercentShapeCoords vs NormalizedCoords (inconsistência herdada do image engine não refatorada nesse slice).** Bounds AABB plano funciona pros 2 — convertido pra `PercentShapeCoords{type:'rect'}` (pdfShape) ou `NormalizedRect` (image) no momento do `createMarker`. Idêntica geometria, tipos diferentes.
+
+**Switches sincronizados (todos cobrindo 6 kinds):**
+
+- `isValidBounds` + `unionOfBounds` em `reconciliation.ts` — bbox union une apenas markers da mesma page (heurística defensiva).
+- `sameBounds` + `regionKey` + `formatBoundsLabel` em `regionDerivation.ts` — `bb:${page??'_'}:${x},${y},${w},${h}` com 6 casas decimais pra evitar colisão.
+- `sameBoundsLocal` em `reconciliationReport.ts`, `formatBoundsShort` em `auditLog.ts`.
+
+**Collector novo (`collectBboxRegions` em `regionDerivation.ts`):**
+
+- Itera `pdfModel.getAllShapes()` + `imageModel.getAllMarkers()` filtrando por scope coders.
+- Agrupa por `(engine, fileId, page?)` — markers em scopes diferentes nunca clusterizam.
+- Per scope: `aabbOf` lazy → AABB early-out (`aabbOverlaps`) → rasterize 1×/marker → IoU bitmap AND → union-find no grafo IoU≥0.5.
+- Adaptive grid size (200/400) inline — bboxes muito pequenas precisam grid maior (mesma heurística do `bboxAdapter.detectAdaptiveGridSize`, replicada por escolha — evitar cross-module export).
+- Bounds emitido = AABB-union do cluster. DisplayLabel = `bbox NN%,NN% (NN×NN%)` com page prefix opcional.
+
+**IcrMarkerOpsImpl refactor:**
+
+- 2 ramos novos em cada switch (`createMarker`, `removeMarker`, `findMarkersInRegion`, `restoreMarker`, `findMarkerRaw`, `getModelForUpdate`).
+- `getModelForUpdate('pdfShape')` adapta API distinta: PdfCodingModel usa `addCodeToShape`/`removeCodeFromShape`/`findShapeById` (separado de `addCodeToMarker` que é só pra text markers). `getModelForUpdate('image')` usa API standard.
+- `findMarkersInRegion(bbox)` usa AABB overlap puro (não IoU). Correto porque bounds é AABB-union do cluster; markers originais — que contribuíram pra union — todos batem por construção. AABB overlap é trivial + rápido.
+
+**Methods adicionados:**
+
+- `PdfCodingModel.insertShapeRaw(shape: PdfShapeMarker)`: push + notify + emit ADD event. Espelha `insertMarkerRaw` pra text markers.
+- `ImageCodingModel.insertMarkerRaw(marker: ImageMarker)`: mesma coisa.
+
+**Image engine wiring ao coder picker** (gap pré-existente fechado nesse slice):
+
+ImageCodingModel era a 8ª engine fora do coder picker — `createMarker` não stampava `codedBy`. Smoke E5b revelou: markers criados pela UI ficavam órfãos (`codedBy: undefined`) → collector filtrava todos fora.
+
+- Constructor passou de `(dataManager, registry)` pra `(plugin, registry)` — `dataManager = plugin.dataManager`, plugin armazenado.
+- `createMarker` stampa `codedBy: this.plugin.getActiveCoderId()`.
+- Caller em `src/image/index.ts:registerImageEngine` atualizado.
+- ~3 test instantiations atualizadas pro shape `{ dataManager: dm, getActiveCoderId: () => 'human:default' } as any` (mesmo pattern dos 4 models já wired).
+
+**Tests** — 3414 → 3432 (+18):
+
+- `tests/core/icr/icrMarkerOpsImpl.test.ts`: 2 tests "engine-not-supported" reescritos pra cobrir create/remove/findInRegion/serialize/restore + +11 cases pdfShape + image (incluindo polygon AABB overlap).
+- `tests/core/icr/ui/regionDerivation.collectors.test.ts`: +7 cases collectBboxRegions (cluster IoU saudável, IoU<θ não clusteriza, page boundary, scope coder filter, polygon+rect mixing).
+
+**Perf observada:** sub-100ms pra ~20 bboxes em scope típico (sem instrumentação dedicada). Raster cache cross-call deliberadamente NÃO implementado — `regionsCache` per-scope (existente) já cobre o caso comum (toggle de coder/coefficient sem mudança de markers).
+
+**Lição aprendida:** smoke revelou gap de wiring (image coder picker) que era invisível pra typecheck + tests. Reforça a regra "Smoke real obrigatório a CADA chunk de implementação" — mocks não cobrem completude de wiring cross-engine. Documentado em CLAUDE.md §"Furos sistemáticos".
+
+### 19.18 Companion docs
 
 - `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
 - `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural
