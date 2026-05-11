@@ -22,6 +22,7 @@ import type { PdfShapeMarker } from '../../../pdf/pdfCodingTypes';
 import type { ImageMarker } from '../../../image/imageCodingTypes';
 import type { CoderId } from '../coderTypes';
 import type { ComparisonScope } from './compareCodersTypes';
+import type { EngineKappaInput } from '../reporter';
 import { buildKappaInput } from '../bboxAdapter';
 import { reportKappa } from '../reporter';
 
@@ -91,6 +92,58 @@ function computePair(
 	const report = reportKappa([{ engine: 'pdfShape', kappaInput: input }]);
 	return report.aggregate.cohenKappa[`${pair[0]}|${pair[1]}`]
 		?? report.aggregate.cohenKappa[`${pair[1]}|${pair[0]}`];
+}
+
+/** Constrói EngineKappaInput[] per-pair pra matriz Mode A — bbox entra no pipeline
+ *  do `reportKappa` lado a lado dos text-likes, peso natural via `markers.length`.
+ *  Substitui o avg 50/50 do antigo wire. Engine label `'pdfShape'` em modo unified
+ *  (mesma família spatial-bbox); split retorna 2 entries `'pdfShape'` + `'image'`
+ *  separadas pra peso distinto entre as 2 sub-engines. */
+export function computeBboxKappaInputsForPair(params: {
+	models: BboxModels;
+	scope: ComparisonScope;
+	pair: [CoderId, CoderId];
+	mode: 'unified' | 'split';
+	theta: number;
+}): EngineKappaInput[] {
+	const { models, scope, pair, mode, theta } = params;
+	const pdfAll = models.pdf?.getAllShapes?.() ?? [];
+	const imgAll = models.image?.getAllMarkers?.() ?? [];
+	const pdfFiltered = filterMarkers(pdfAll, scope, pair);
+	const imgFiltered = filterMarkers(imgAll, scope, pair);
+	if (pdfFiltered.length === 0 && imgFiltered.length === 0) return [];
+
+	if (mode === 'unified') {
+		const input = buildKappaInput({
+			pdfShapeMarkers: pdfFiltered,
+			imageMarkers: imgFiltered,
+			coders: { a: pair[0], b: pair[1] },
+			theta,
+		});
+		if (input.markers.length === 0) return [];
+		return [{ engine: 'pdfShape', kappaInput: input }];
+	}
+
+	const out: EngineKappaInput[] = [];
+	if (pdfFiltered.length > 0) {
+		const pdfInput = buildKappaInput({
+			pdfShapeMarkers: pdfFiltered,
+			imageMarkers: [],
+			coders: { a: pair[0], b: pair[1] },
+			theta,
+		});
+		if (pdfInput.markers.length > 0) out.push({ engine: 'pdfShape', kappaInput: pdfInput });
+	}
+	if (imgFiltered.length > 0) {
+		const imgInput = buildKappaInput({
+			pdfShapeMarkers: [],
+			imageMarkers: imgFiltered,
+			coders: { a: pair[0], b: pair[1] },
+			theta,
+		});
+		if (imgInput.markers.length > 0) out.push({ engine: 'image', kappaInput: imgInput });
+	}
+	return out;
 }
 
 type AnyBboxMarker = PdfShapeMarker | ImageMarker;

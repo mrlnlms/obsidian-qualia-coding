@@ -65,10 +65,13 @@ function send<T>(op: 'reportKappa' | 'reportPairwise', payload: object): Promise
 
 // Fallback síncrono quando Worker não existe (jsdom em tests, ambientes restritos).
 // Lazy import dos compute helpers — só carrega se for de fato chamado.
-async function syncFallback<T>(op: 'reportKappa' | 'reportPairwise', payload: { inputs: EngineKappaInput[]; pairs?: [CoderId, CoderId][] }): Promise<T> {
+async function syncFallback<T>(
+	op: 'reportKappa' | 'reportPairwise',
+	payload: { inputs: EngineKappaInput[]; pairs?: [CoderId, CoderId][]; perPairInputs?: Map<string, EngineKappaInput[]> },
+): Promise<T> {
 	const { __syncReportKappa, __syncReportPairwise } = await import('./kappaSyncFallback');
 	if (op === 'reportKappa') return __syncReportKappa(payload.inputs) as unknown as T;
-	return __syncReportPairwise(payload.inputs, payload.pairs!) as unknown as T;
+	return __syncReportPairwise(payload.inputs, payload.pairs!, payload.perPairInputs) as unknown as T;
 }
 
 const hasWorker = typeof Worker !== 'undefined';
@@ -81,7 +84,11 @@ export function reportKappaAsync(inputs: EngineKappaInput[]): Promise<KappaRepor
 export function reportPairwiseAsync(
 	inputs: EngineKappaInput[],
 	pairs: [CoderId, CoderId][],
+	perPairInputs?: Map<string, EngineKappaInput[]>,
 ): Promise<PairwiseReport[]> {
-	if (!hasWorker) return syncFallback<PairwiseReport[]>('reportPairwise', { inputs, pairs });
-	return send<PairwiseReport[]>('reportPairwise', { inputs, pairs });
+	// Map não serializa via postMessage — converte pra array de entries pro worker.
+	const perPairEntries: Array<[string, EngineKappaInput[]]> | undefined =
+		perPairInputs && perPairInputs.size > 0 ? Array.from(perPairInputs.entries()) : undefined;
+	if (!hasWorker) return syncFallback<PairwiseReport[]>('reportPairwise', { inputs, pairs, perPairInputs });
+	return send<PairwiseReport[]>('reportPairwise', { inputs, pairs, perPairEntries });
 }

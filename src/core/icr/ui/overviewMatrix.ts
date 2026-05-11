@@ -14,14 +14,14 @@
 
 import type { CompareCodersViewState, CurrentSelection } from './compareCodersTypes';
 import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
-import { reportPairwiseAsync } from '../reporter';
+import { reportPairwiseAsync, pairKey, type EngineKappaInput } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import type { CoderId } from '../coderTypes';
 import type { CoderRegistry } from '../coderRegistry';
 import type { App } from 'obsidian';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
-import { computeBboxKappaForPair } from './bboxScopeExtraction';
+import { computeBboxKappaInputsForPair } from './bboxScopeExtraction';
 import { applyCoderInclusion, applyConsensusExclusion } from './coderInclusion';
 
 export interface OverviewMatrixDeps {
@@ -74,42 +74,40 @@ export async function renderOverviewMatrix(
 		}
 	}
 
-	const reports = inputs.length > 0 ? await reportPairwiseAsync(inputs, pairs, cacheKeyForScope(effectiveScope)) : [];
+	// Bbox engines (pdfShape + image) entram só pra Cohen κ — bbox adapter reduz
+	// a binary categorical, demais coeficientes não fazem sentido sobre essa redução.
+	// Slice E5b-followup: bbox vira EngineKappaInput per-pair injetado em reportPairwise;
+	// aggregate.cohenKappa pondera naturalmente por #markers (chars text-like vs eventos
+	// bbox). Eliminou o avg 50/50 que ignorava magnitudes muito assimétricas.
+	const perPairBbox = new Map<string, EngineKappaInput[]>();
+	if (state.primaryCoefficient === 'cohen' && (deps.engineModels.pdf || deps.engineModels.image)) {
+		const splitBbox = state.filters.splitBboxEngines ?? false;
+		const bboxMode: 'unified' | 'split' = splitBbox ? 'split' : 'unified';
+		for (const pair of pairs) {
+			const bboxInputs = computeBboxKappaInputsForPair({
+				models: { pdf: deps.engineModels.pdf, image: deps.engineModels.image },
+				scope: effectiveScope,
+				pair,
+				mode: bboxMode,
+				theta: 0.5,
+			});
+			if (bboxInputs.length > 0) perPairBbox.set(pairKey(pair), bboxInputs);
+		}
+	}
+
+	const hasAnyInput = inputs.length > 0 || perPairBbox.size > 0;
+	// Suffix bbox no cacheKey: distingue render Cohen-com-bbox de Fleiss/α-sem-bbox.
+	// bumpReportCache (em mutações de marker) invalida o cache normalmente.
+	const reportCacheKey = cacheKeyForScope(effectiveScope) + (perPairBbox.size > 0 ? '::bbox' : '');
+	const reports = hasAnyInput
+		? await reportPairwiseAsync(inputs, pairs, reportCacheKey, perPairBbox)
+		: [];
 	const kappaByPair = new Map<string, number | undefined>();
 	for (const r of reports) {
 		const [a, b] = r.pair;
 		const value = getCoefficientValue(r.report, state.primaryCoefficient, [a, b]);
 		const normalKey = a < b ? `${a}|${b}` : `${b}|${a}`;
 		kappaByPair.set(normalKey, value);
-	}
-
-	// Bbox engines (pdfShape + image) entram só pra Cohen κ — bbox adapter reduz
-	// a binary categorical, demais coeficientes não fazem sentido sobre essa redução.
-	// Merge: avg 50/50 com text-likes quando ambos existem; standalone quando só bbox.
-	// Weighting proper via #events vai pra backlog (não bloqueia UX em E2).
-	if (state.primaryCoefficient === 'cohen') {
-		const splitBbox = state.filters.splitBboxEngines ?? false;
-		const bboxMode: 'unified' | 'split' = splitBbox ? 'split' : 'unified';
-		// Restringe bbox aos engines visíveis (toggle filter chips). pdfShape ⊂ visibleEngineIds
-		// implícito via `image` chip — chip 'pdf' controla pdf-text; chip 'image' está na mesma
-		// família de bbox. E1 não tem chips pra pdfShape/image individual; mode unified default
-		// cobre os 2; usuário desliga ambos via chip pdf+image se quiser.
-		for (const [a, b] of pairs) {
-			const bboxK = computeBboxKappaForPair({
-				models: { pdf: deps.engineModels.pdf, image: deps.engineModels.image },
-				scope: effectiveScope,
-				pair: [a, b],
-				mode: bboxMode,
-				theta: 0.5,
-			});
-			const bboxValue = bboxMode === 'unified'
-				? bboxK.spatialBbox
-				: average([bboxK.pdfShape, bboxK.image].filter((v): v is number => v !== undefined));
-			if (bboxValue === undefined) continue;
-			const normalKey = a < b ? `${a}|${b}` : `${b}|${a}`;
-			const textK = kappaByPair.get(normalKey);
-			kappaByPair.set(normalKey, textK === undefined ? bboxValue : (textK + bboxValue) / 2);
-		}
 	}
 
 	const grid = container.createEl('table', { cls: 'qc-cc-matrix' });
@@ -142,10 +140,5 @@ export async function renderOverviewMatrix(
 			cell.onclick = () => onSelect({ kind: 'pair', value: [rowId, colId] });
 		}
 	}
-}
-
-function average(nums: number[]): number | undefined {
-	if (nums.length === 0) return undefined;
-	return nums.reduce((s, n) => s + n, 0) / nums.length;
 }
 

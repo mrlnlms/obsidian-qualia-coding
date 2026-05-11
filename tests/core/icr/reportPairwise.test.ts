@@ -89,4 +89,89 @@ describe('reportPairwise', () => {
 		const value = cohenTable['human:a|human:b'] ?? cohenTable['human:b|human:a'];
 		expect(value).toBeCloseTo(1.0);
 	});
+
+	describe('perPairInputs (slice E5b followup — bbox weighting)', () => {
+		function makeBboxLikeInput(coderIds: [CoderId, CoderId], markersCount: number): EngineKappaInput {
+			// Simula KappaInput shape do bbox adapter (markers como "events"): 2 coders concordando.
+			const markers: CodedMarker[] = [];
+			for (let i = 0; i < markersCount; i++) {
+				markers.push({ coderId: coderIds[0], range: { fileId: 's1', locator: `bbox:${i}`, from: i, to: i + 1 }, codeIds: ['X'] });
+				markers.push({ coderId: coderIds[1], range: { fileId: 's1', locator: `bbox:${i}`, from: i, to: i + 1 }, codeIds: ['X'] });
+			}
+			return {
+				engine: 'pdfShape',
+				kappaInput: {
+					markers,
+					sources: [{ fileId: 's1', locator: 'bbox:s1', totalUnits: markersCount }],
+					coders: [coderIds[0], coderIds[1]],
+				},
+			};
+		}
+
+		it('inputs extras per-pair entram em reportKappa do par; aggregate ponderado por #markers', () => {
+			// Text-like: 2 coders, 100 chars, agreement perfeito (κ=1).
+			const textInput = makeMarkdownInput(['human:a', 'human:b']);
+			// Bbox per-pair: 50 events agreement perfeito (κ=1).
+			const bboxInput = makeBboxLikeInput(['human:a', 'human:b'], 50);
+
+			const perPair = new Map<string, EngineKappaInput[]>([['human:a|human:b', [bboxInput]]]);
+			const result = reportPairwise([textInput], [['human:a', 'human:b']], undefined, perPair);
+
+			// Ambos engines tem κ=1; aggregate weighted = 1.
+			const cohen = result[0]!.report.aggregate.cohenKappa['human:a|human:b']
+				?? result[0]!.report.aggregate.cohenKappa['human:b|human:a'];
+			expect(cohen).toBeCloseTo(1.0);
+
+			// Confirma que AMBOS engines aparecem em byEngine.
+			expect(result[0]!.report.byEngine.markdown).toBeDefined();
+			expect(result[0]!.report.byEngine.pdfShape).toBeDefined();
+			// Weights refletem #markers (text-like = 2 markers; bbox = 100 markers).
+			expect(result[0]!.report.weights.markdown).toBe(2);
+			expect(result[0]!.report.weights.pdfShape).toBe(100);
+		});
+
+		it('weighted average difere de avg 50/50 quando #markers diverge bruscamente', () => {
+			// Text-like com 1000 markers, κ=1 (agreement perfeito artificial — same range)
+			const textMarkers: CodedMarker[] = [];
+			for (let i = 0; i < 500; i++) {
+				textMarkers.push({ coderId: 'human:a', range: { fileId: 'f', locator: '', from: i, to: i + 1 }, codeIds: ['A'] });
+				textMarkers.push({ coderId: 'human:b', range: { fileId: 'f', locator: '', from: i, to: i + 1 }, codeIds: ['A'] });
+			}
+			const textInput: EngineKappaInput = {
+				engine: 'markdown',
+				kappaInput: { markers: textMarkers, sources: [{ fileId: 'f', locator: '', totalUnits: 1000 }], coders: ['human:a', 'human:b'] },
+			};
+			// Bbox: 2 events, codes DIFERENTES (κ ≈ 0)
+			const bboxMarkers: CodedMarker[] = [
+				{ coderId: 'human:a', range: { fileId: 's', locator: 'bbox:0', from: 0, to: 1 }, codeIds: ['X'] },
+				{ coderId: 'human:b', range: { fileId: 's', locator: 'bbox:0', from: 0, to: 1 }, codeIds: ['Y'] },
+				{ coderId: 'human:a', range: { fileId: 's', locator: 'bbox:1', from: 1, to: 2 }, codeIds: ['X'] },
+				{ coderId: 'human:b', range: { fileId: 's', locator: 'bbox:1', from: 1, to: 2 }, codeIds: ['Y'] },
+			];
+			const bboxInput: EngineKappaInput = {
+				engine: 'pdfShape',
+				kappaInput: { markers: bboxMarkers, sources: [{ fileId: 's', locator: 'bbox:s', totalUnits: 2 }], coders: ['human:a', 'human:b'] },
+			};
+
+			const perPair = new Map<string, EngineKappaInput[]>([['human:a|human:b', [bboxInput]]]);
+			const result = reportPairwise([textInput], [['human:a', 'human:b']], undefined, perPair);
+
+			const cohen = result[0]!.report.aggregate.cohenKappa['human:a|human:b']
+				?? result[0]!.report.aggregate.cohenKappa['human:b|human:a'];
+
+			// Avg 50/50 antigo daria (1 + 0) / 2 = 0.5
+			// Weighted: text=1000 markers κ=1; bbox=4 markers κ≈0; (1*1000 + 0*4) / 1004 ≈ 0.996
+			// Confirma que está MUITO mais perto de 1 que de 0.5
+			expect(cohen).toBeGreaterThan(0.95);
+		});
+
+		it('perPair vazio cai no caminho normal (cohort-only)', () => {
+			const inputs = [makeMarkdownInput(['human:a', 'human:b'])];
+			const perPair = new Map<string, EngineKappaInput[]>();
+			const result = reportPairwise(inputs, [['human:a', 'human:b']], undefined, perPair);
+			expect(result).toHaveLength(1);
+			expect(result[0]!.report.byEngine.markdown).toBeDefined();
+			expect(result[0]!.report.byEngine.pdfShape).toBeUndefined();
+		});
+	});
 });

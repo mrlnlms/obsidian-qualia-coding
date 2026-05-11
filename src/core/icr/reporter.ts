@@ -228,47 +228,60 @@ export interface PairwiseReport {
 	report: KappaReport;
 }
 
+/** Key normalizada pra par de coders — usado em perPairInputs map. */
+export function pairKey(pair: [CoderId, CoderId]): string {
+	return pair[0] < pair[1] ? `${pair[0]}|${pair[1]}` : `${pair[1]}|${pair[0]}`;
+}
+
 export function reportPairwise(
 	inputs: EngineKappaInput[],
 	pairs: [CoderId, CoderId][],
 	cacheKey?: string,
+	/** Inputs extra **já-per-pair** (ex: bbox κ que faz Hungarian per pair).
+	 *  Cada entrada do map: chave = `pairKey([a,b])`, valor = EngineKappaInput[] extra.
+	 *  Caller responsável por sufixar cacheKey quando perPair muda semanticamente
+	 *  (ex: `::bbox-on` quando bbox markers presentes vs `::bbox-off` sem) — WeakMap
+	 *  identity cache é skipado porque map ref muda toda render. */
+	perPairInputs?: Map<string, EngineKappaInput[]>,
 ): PairwiseReport[] {
+	const hasPerPair = perPairInputs !== undefined && perPairInputs.size > 0;
 	const pKey = pairsKey(pairs);
-	// Fast path: identidade
-	let byPairs = reportPairwiseCache.get(inputs);
-	if (byPairs) {
-		const hit = byPairs.get(pKey);
-		if (hit) return hit;
+	// WeakMap identity cache só sem perPair (inputs ref não diferencia extras).
+	if (!hasPerPair) {
+		const byPairs = reportPairwiseCache.get(inputs);
+		if (byPairs) {
+			const hit = byPairs.get(pKey);
+			if (hit) return hit;
+		}
 	}
-	// Slow path: cache key explícita
+	// cacheKey-based cache funciona em ambos casos — caller cravou bbox suffix se necessário.
 	if (cacheKey) {
 		const fullKey = `${cacheKey}::${pKey}::${reportCacheGen}`;
 		const keyed = reportPairwiseKeyCache.get(fullKey);
-		if (keyed) {
-			if (!byPairs) {
-				byPairs = new Map();
-				reportPairwiseCache.set(inputs, byPairs);
-			}
-			byPairs.set(pKey, keyed);
-			return keyed;
-		}
+		if (keyed) return keyed;
 	}
 	const result = pairs.map(pair => {
 		const filteredInputs: EngineKappaInput[] = inputs.map(input => ({
 			engine: input.engine,
 			kappaInput: filterKappaInputToPair(input.kappaInput, pair),
 		}));
-		const report = reportKappa(filteredInputs);
+		const extras = perPairInputs?.get(pairKey(pair)) ?? [];
+		const combined = extras.length > 0 ? [...filteredInputs, ...extras] : filteredInputs;
+		const report = reportKappa(combined);
 		return { pair, report };
 	});
-	if (!byPairs) {
-		byPairs = new Map();
-		reportPairwiseCache.set(inputs, byPairs);
-	}
-	byPairs.set(pKey, result);
 	if (cacheKey) {
 		reportPairwiseKeyCache.set(`${cacheKey}::${pKey}::${reportCacheGen}`, result);
 		pruneReportCache(reportPairwiseKeyCache);
+	}
+	// WeakMap identity store só sem perPair.
+	if (!hasPerPair) {
+		let byPairs = reportPairwiseCache.get(inputs);
+		if (!byPairs) {
+			byPairs = new Map();
+			reportPairwiseCache.set(inputs, byPairs);
+		}
+		byPairs.set(pKey, result);
 	}
 	return result;
 }
@@ -325,34 +338,36 @@ export async function reportPairwiseAsync(
 	inputs: EngineKappaInput[],
 	pairs: [CoderId, CoderId][],
 	cacheKey?: string,
+	perPairInputs?: Map<string, EngineKappaInput[]>,
 ): Promise<PairwiseReport[]> {
+	const hasPerPair = perPairInputs !== undefined && perPairInputs.size > 0;
 	const pKey = pairsKey(pairs);
-	let byPairs = reportPairwiseCache.get(inputs);
-	if (byPairs) {
-		const hit = byPairs.get(pKey);
-		if (hit) return hit;
+	// WeakMap identity cache só sem perPair (inputs ref não diferencia extras).
+	if (!hasPerPair) {
+		const byPairs = reportPairwiseCache.get(inputs);
+		if (byPairs) {
+			const hit = byPairs.get(pKey);
+			if (hit) return hit;
+		}
 	}
+	// cacheKey-based cache em ambos casos — caller responsável por bbox suffix no key.
 	if (cacheKey) {
 		const fullKey = `${cacheKey}::${pKey}::${reportCacheGen}`;
 		const keyed = reportPairwiseKeyCache.get(fullKey);
-		if (keyed) {
-			if (!byPairs) {
-				byPairs = new Map();
-				reportPairwiseCache.set(inputs, byPairs);
-			}
-			byPairs.set(pKey, keyed);
-			return keyed;
-		}
+		if (keyed) return keyed;
 	}
-	const result = await workerReportPairwise(inputs, pairs);
-	if (!byPairs) {
-		byPairs = new Map();
-		reportPairwiseCache.set(inputs, byPairs);
-	}
-	byPairs.set(pKey, result);
+	const result = await workerReportPairwise(inputs, pairs, perPairInputs);
 	if (cacheKey) {
 		reportPairwiseKeyCache.set(`${cacheKey}::${pKey}::${reportCacheGen}`, result);
 		pruneReportCache(reportPairwiseKeyCache);
+	}
+	if (!hasPerPair) {
+		let byPairs = reportPairwiseCache.get(inputs);
+		if (!byPairs) {
+			byPairs = new Map();
+			reportPairwiseCache.set(inputs, byPairs);
+		}
+		byPairs.set(pKey, result);
 	}
 	return result;
 }

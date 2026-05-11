@@ -169,16 +169,23 @@ function filterKappaInputToPair(
 	};
 }
 
+function pairKeyLocal(pair: [CoderId, CoderId]): string {
+	return pair[0] < pair[1] ? `${pair[0]}|${pair[1]}` : `${pair[1]}|${pair[0]}`;
+}
+
 function reportPairwiseCore(
 	inputs: EngineKappaInput[],
 	pairs: [CoderId, CoderId][],
+	perPairInputs?: Map<string, EngineKappaInput[]>,
 ): PairwiseReport[] {
 	return pairs.map(pair => {
 		const filtered: EngineKappaInput[] = inputs.map(input => ({
 			engine: input.engine,
 			kappaInput: filterKappaInputToPair(input.kappaInput, pair),
 		}));
-		return { pair, report: reportKappaCore(filtered) };
+		const extras = perPairInputs?.get(pairKeyLocal(pair)) ?? [];
+		const combined = extras.length > 0 ? [...filtered, ...extras] : filtered;
+		return { pair, report: reportKappaCore(combined) };
 	});
 }
 
@@ -186,7 +193,7 @@ function reportPairwiseCore(
 
 type Request =
 	| { id: number; op: 'reportKappa'; inputs: EngineKappaInput[] }
-	| { id: number; op: 'reportPairwise'; inputs: EngineKappaInput[]; pairs: [CoderId, CoderId][] };
+	| { id: number; op: 'reportPairwise'; inputs: EngineKappaInput[]; pairs: [CoderId, CoderId][]; perPairEntries?: Array<[string, EngineKappaInput[]]> };
 
 type Response =
 	| { id: number; ok: true; op: 'reportKappa'; result: KappaReport }
@@ -204,7 +211,8 @@ ctx.addEventListener('message', (ev: MessageEvent<Request>) => {
 			const resp: Response = { id: req.id, ok: true, op: 'reportKappa', result };
 			ctx.postMessage(resp);
 		} else if (req.op === 'reportPairwise') {
-			const result = reportPairwiseCore(req.inputs, req.pairs);
+			const perPairMap = req.perPairEntries ? new Map(req.perPairEntries) : undefined;
+			const result = reportPairwiseCore(req.inputs, req.pairs, perPairMap);
 			const resp: Response = { id: req.id, ok: true, op: 'reportPairwise', result };
 			ctx.postMessage(resp);
 		}

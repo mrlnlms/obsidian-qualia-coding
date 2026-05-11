@@ -7,6 +7,7 @@ import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { MarkerMutationEvent } from '../core/types';
 import type { ImageMarker, RegionShape, NormalizedCoords } from './imageCodingTypes';
 import { hasCode, getCodeIds, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
+import { attachSourceHashSnapshot } from '../core/icr/provenance/attachSourceHashSnapshot';
 import type QualiaCodingPlugin from '../main';
 
 export type ChangeListener = () => void;
@@ -142,6 +143,10 @@ export class ImageCodingModel {
 			codeIds: [], marker,
 		});
 		this.notify();
+		// ICR provenance audit: popula sourceHashAtCoding fire-and-forget.
+		void attachSourceHashSnapshot(marker, this.plugin.sourceHashRegistry).then(() => {
+			if (marker.sourceHashAtCoding) this.dataManager.markDirty();
+		});
 		return marker;
 	}
 

@@ -20,6 +20,7 @@ export function __syncReportKappa(inputs: EngineKappaInput[]): KappaReport {
 export function __syncReportPairwise(
 	inputs: EngineKappaInput[],
 	pairs: [CoderId, CoderId][],
+	perPairInputs?: Map<string, EngineKappaInput[]>,
 ): PairwiseReport[] {
-	return reportPairwise(inputs, pairs);
+	return reportPairwise(inputs, pairs, undefined, perPairInputs);
 }
