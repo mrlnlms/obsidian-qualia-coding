@@ -2125,7 +2125,45 @@ Bbox spatial (image + pdfShape) fica pro Slice E5b — semantics 2D não trivial
 
 **Lentidão observada no smoke (não bloqueante):** registrada no BACKLOG. Hipótese: 3 collectors a mais por chamada de `collectContestedRegions` (sem cache). Pra escala do seed (~30 markers cross-engine) deve ser sub-ms, mas no dev box pareceu perceptível. Verificar se memoização (chave = state.scope hash + generation counter) vale, ou se é perf de hardware.
 
-### 19.16 Companion docs
+### 19.16 Performance — caches em camadas + Web Worker (2026-05-11)
+
+**Problema:** Compare Coders View travava main thread 400-1900ms em "primeira passada" de combinação de filter chip (toggle de engines no toolbar) porque 5 coeficientes ICR (cohen/fleiss/alpha/alphaBinary/cuAlpha) rodavam síncronos sobre per-char positions × per-coder. Pra 4 coders × 5 engines = 6 pairs × 25 coef-instances = ~150 ops de `explodeMarkersToCharLabels`, cada uma iterando milhares de char keys.
+
+**Diagnóstico** via instrumentation temporária no `updateState` (mediu toolbar vs overview por gesto): toolbar=1-5ms ✓, overview spike de 400-1900ms confirmou que o gargalo era compute pesado dos coefs, não render DOM.
+
+**Solução em 7 camadas (commits c1e8f8c → bbc6fca):**
+
+1. **`getCodersWithMarkersInScope` cache** (`src/core/icr/ui/coderInclusion.ts`) — itera markers de 7 engines em todo `renderToolbar`; LRU 50 por scope-hash + gen counter, iteração inline sem spread.
+2. **`collectContestedRegions` cache** (`src/core/icr/ui/regionDerivation.ts`) — itera 5 engines + clustering em todo drilldown; mesma estratégia LRU 50.
+3. **`reportKappa`/`reportPairwise` 2 camadas** (`src/core/icr/reporter.ts`) — fast path WeakMap por identidade do array de inputs (troca de coefficient mantém ref), slow path Map por `cacheKey` explícita (filter chip cria array novo mas mesma chave de scope).
+4. **`extractInputsFromScope` cache per-engine** (`src/core/icr/ui/scopeExtraction.ts`) — toggle de chip não invalida outros engines; cada engine só recalcula 1× por scope (ignorando engineIds).
+5. **Heatmap + Tabela `Promise.all`** — antes 15 codes × 5 engines = 75 `await` sequenciais; agora todos disparam em paralelo (cache hits resolvem juntos).
+6. **`explodeMarkersToCharLabels` memo por identity** (`src/core/icr/kappaInput.ts`) — 5 coefs dentro de cada `computeAll(input)` recebem o mesmo `input.markers`; só a primeira explosão paga o custo, as 4 seguintes são hit.
+7. **Web Worker** (`src/core/icr/kappa.worker.ts` + `kappaWorkerClient.ts`) — compute dos 5 coefs roda off-main-thread; UI nunca bloqueia mesmo em combos não-cacheadas.
+
+**Invalidação unificada** — `bumpAllIcrCaches()` em `unifiedCompareCodersView.ts` invoca os 4 bumps (`bumpInputsCacheGeneration`, `bumpCoderInclusionCacheGeneration`, `bumpRegionsCacheGeneration`, `bumpReportCache`) quando markers mudam (mutações de reconciliação, load saved, etc).
+
+**Resultado medido:**
+| Gesto | Antes | Depois |
+|---|---|---|
+| Troca de coefficient (Cohen↔Fleiss) | 1200ms | 1-3ms (cache hit) |
+| Toggle de coder | 1200ms | 1-3ms |
+| Toggle de chip engine (combo já vista) | 1200ms | 1-3ms |
+| Toggle de chip engine (combo nova) | 1200ms (freeze) | UI fluida (Worker em background) |
+
+**Web Worker — detalhes arquiteturais:**
+
+- `src/core/icr/kappa.worker.ts` — código standalone que importa só os 5 coefs puros (`./coefficients/*`) + tipos. Zero deps de runtime Obsidian. Listen `postMessage` com `{ id, op: 'reportKappa' | 'reportPairwise', inputs, pairs? }` → devolve `{ id, ok, result }` ou `{ id, ok: false, error }`. Re-implementa `computeAll` + `aggregateReports` + `filterKappaInputToPair` (cópia literal de reporter.ts) — manutenção: se mudar lógica em reporter.ts, propagar aqui.
+- **esbuild plugin `inline-worker`** (`esbuild.config.mjs`) — imports com sufixo `?inline` (ex: `import src from './kappa.worker.ts?inline'`) disparam build standalone do arquivo (`format: 'iife'`, `bundle: true`, `write: false`) e injetam o JS resultante como `export default ${JSON.stringify(source)}`. Pattern espelha o `duckdbWorkerInlinePlugin` que já existia pro DuckDB. Restrição Community Plugins Obsidian: entrega só `main.js + manifest.json + styles.css` — worker tem que viver dentro de main.js.
+- `src/core/icr/kappaWorkerClient.ts` — Blob URL + Worker singleton (lazy, criado no primeiro uso), promise-based via `Map<id, {resolve, reject}>`. Auto-reset em `worker.error` (reconnect transparente). `disposeKappaWorker()` no `onunload` do plugin.
+- `src/core/icr/kappaSyncFallback.ts` — fallback síncrono quando `Worker === undefined` (jsdom em tests). Reusa `reportKappa`/`reportPairwise` sync de reporter.ts. Detecção via `typeof Worker !== 'undefined'` no client.
+- **Async wrappers no reporter** — `reportKappaAsync(inputs, cacheKey?)` e `reportPairwiseAsync(inputs, pairs, cacheKey?)` checam caches main-thread primeiro (WeakMap + Map), deferem ao worker em miss, populam ambos caches no resolve. Callers (Matrix/Tabela/Heatmap) migraram pra essas versões async.
+
+**TypeScript `?inline` support:** `src/inline-worker.d.ts` declara `declare module '*?inline' { const source: string; export default source; }`.
+
+**Lição aprendida:** band-aids empilhados (caches superficiais) mascaram lentidão estrutural mas não resolvem. Quando o problema é compute síncrono pesado bloqueando main thread, **mover pra worker é a única solução real** — não vale empurrar pra backlog. Documentado em `memory/feedback_no_bandaid_avoidance.md`.
+
+### 19.17 Companion docs
 
 - `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
 - `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural

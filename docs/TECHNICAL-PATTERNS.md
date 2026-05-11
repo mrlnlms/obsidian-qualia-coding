@@ -2548,6 +2548,117 @@ Plumbing: caller (view) pre-computa `codersWithMarkers = new Set(getCodersWithMa
 
 ---
 
+## 45. Web Worker inline pra compute pesado em plugin Obsidian (Slice perf 2026-05-11)
+
+**Problema:** compute síncrono pesado (CPU-bound, ms-level) bloqueia main thread — UI freezada. Em plugin Obsidian, Community Plugins **só aceita entregar `main.js + manifest.json + styles.css`** — não dá pra distribuir worker em arquivo separado.
+
+**Solução: worker source bundleado inline + Blob URL em runtime.**
+
+**Setup (esbuild plugin):**
+```js
+// esbuild.config.mjs — plugin que intercepta imports com sufixo ?inline
+const inlineWorkerPlugin = {
+  name: "inline-worker",
+  setup(build) {
+    build.onResolve({ filter: /\?inline$/ }, (args) => {
+      const realPath = args.path.slice(0, -7); // strip ?inline
+      const resolved = realPath.startsWith(".") ? `${args.resolveDir}/${realPath}` : realPath;
+      return { path: resolved, namespace: "inline-worker" };
+    });
+    build.onLoad({ filter: /.*/, namespace: "inline-worker" }, async (args) => {
+      const result = await esbuild.build({
+        entryPoints: [args.path],
+        bundle: true, format: "iife", platform: "browser", target: "es2020",
+        write: false, minify: prod,
+      });
+      return {
+        contents: `export default ${JSON.stringify(result.outputFiles[0].text)};`,
+        loader: "js",
+      };
+    });
+  },
+};
+```
+
+**TypeScript declaration** (`src/inline-worker.d.ts`):
+```ts
+declare module '*?inline' {
+  const source: string;
+  export default source;
+}
+```
+
+**Worker file** (`src/foo/foo.worker.ts`):
+```ts
+// Standalone — só pode importar tipos + helpers puros. Zero deps de runtime Obsidian.
+import { compute } from './pureCompute';
+
+const ctx = self as unknown as Worker;
+ctx.addEventListener('message', (ev: MessageEvent<{ id: number; payload: unknown }>) => {
+  try {
+    const result = compute(ev.data.payload);
+    ctx.postMessage({ id: ev.data.id, ok: true, result });
+  } catch (e) {
+    const err = e instanceof Error ? e.message : String(e);
+    ctx.postMessage({ id: ev.data.id, ok: false, error: err });
+  }
+});
+export {};
+```
+
+**Client** (`src/foo/fooWorkerClient.ts`):
+```ts
+import workerSource from './foo.worker.ts?inline';
+
+let worker: Worker | null = null;
+let workerUrl: string | null = null;
+let nextId = 0;
+const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+
+function ensureWorker(): Worker {
+  if (worker) return worker;
+  const blob = new Blob([workerSource], { type: 'text/javascript' });
+  workerUrl = URL.createObjectURL(blob);
+  const w = new Worker(workerUrl);
+  w.addEventListener('message', (ev) => { /* dispatch via pending Map */ });
+  w.addEventListener('error', () => { /* reject all + reset */ });
+  worker = w;
+  return w;
+}
+
+export function disposeWorker(): void {
+  if (worker) try { worker.terminate(); } catch { /* */ }
+  if (workerUrl) URL.revokeObjectURL(workerUrl);
+  pending.clear();
+  worker = null;
+  workerUrl = null;
+}
+```
+
+**No plugin `onunload`:** chamar `disposeWorker()` pra evitar leak em hot-reload.
+
+**Fallback síncrono pra tests jsdom** (que não tem `Worker`):
+```ts
+const hasWorker = typeof Worker !== 'undefined';
+
+export function computeAsync(payload): Promise<Result> {
+  if (!hasWorker) return import('./syncFallback').then(m => m.compute(payload));
+  return sendViaWorker(payload);
+}
+```
+
+**Pattern já existente no projeto** pro DuckDB-Wasm (`duckdbWorkerInlinePlugin` no esbuild config + `duckdbBootstrap.ts` cria Blob URL). Diferença: DuckDB worker vem pré-buildado do npm package; nosso worker próprio precisa do esbuild plugin custom que builda em build-time.
+
+**Trade-off:** main.js cresce (~14KB pelo bundle do kappa.worker). Aceitável vs. alternativa de UI freeze.
+
+**Caches main-thread permanecem** mesmo com worker — async wrapper checa caches primeiro (WeakMap identity + Map por chave), defer pro worker em miss, popula caches no resolve. Resultado: cache hits ficam instantâneos sem round-trip; cache misses não travam UI.
+
+**Quando usar:** compute CPU-bound síncrono que ultrapassa 16ms (1 frame). Tipicamente: stats/agregações sobre arrays grandes, parsing, criptografia, layout algorithms. **Não use** pra trabalho I/O-bound (já é async natural) nem pra compute <5ms (overhead do postMessage não compensa).
+
+**Lição:** primeira reação a "compute lento" é cache. Cache resolve repetição, não primeira passada. Quando primeira passada também é lenta, worker é a solução estrutural — não banda-aid de pre-warm ou idle scheduler. Documentado em `memory/feedback_no_bandaid_avoidance.md`.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
