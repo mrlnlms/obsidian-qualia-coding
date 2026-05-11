@@ -67,9 +67,7 @@ Slice 2 (planejado 2026-05-09) entrega a **primitiva** de hash por source + 3 co
 
 **Impacto sem fazer:** predicates Smart Code que dependem de texto do source (ex: `caseVarEquals` cruzado com texto, futuro `textContains` se vier) podem servir matches stale após edição externa. Risco baixo no uso típico (single-user no Obsidian) mas degrada quando workflow inclui pipeline externo.
 
-**Quando atacar:** quando uso real revelar staleness OU junto de "Provenance audit field" (compartilham mecanismo de hash check).
-
-**Decisão 2026-05-09 (não atacar agora):** os 10 leaves atuais de Smart Codes (`hasCode`, `caseVarEquals`, `magnitudeGte/Lte`, `inFolder`, `inGroup`, `engineType`, `relationExists`, `smartCode` nesting) **não dependem de texto do source**. Predicates operam sobre `marker.codes` / case variables / hierarquia. Hash invalidation faz sentido quando entrar leaf `textContains` ou similar — aí source editado externamente afeta predicate. Implementar agora vira código órfão sem consumer real. Reabrir quando o primeiro predicate de texto entrar.
+**Gate técnico (não atacar até passar):** existir leaf de predicate que dependa do texto do source (ex: `textContains`). Os 10 leaves atuais (`hasCode`, `caseVarEquals`, `magnitudeGte/Lte`, `inFolder`, `inGroup`, `engineType`, `relationExists`, `smartCode` nesting) operam sobre `marker.codes` / case variables / hierarquia — nenhum lê texto do source. Implementar invalidação por hash agora vira código órfão sem consumer. Atacar **junto da adição** do primeiro leaf de texto.
 
 ### Provenance audit field nos markers (snapshot do hash) — ✅ FAZER AGORA (Slice 5)
 
@@ -80,16 +78,6 @@ Slice 2 (planejado 2026-05-09) entrega a **primitiva** de hash por source + 3 co
 **Quando atacar:** quando provenance virar requirement explícito (paper publishing rigoroso, compliance regulatório, ICR multi-coder remoto onde lead precisa saber se source mudou desde coder enviar contribuição).
 
 **Decisão 2026-05-09:** atacado em Slice 5 (próximo). Use case real: ICR multi-coder remoto (Fase C) já entregue precisa disso pra lead detectar source desalinhado. Mesmo sem UI completa de Fase C P1, snapshot field nos markers vira útil agora.
-
-### Backup integrity validation
-
-**Estado atual:** backups em `obsidian-qualia-coding/data_synthetic_bak/` validados só por path/timestamp. Restore re-aponta markers pros sources atuais sem checar se mudaram desde backup.
-
-**Impacto sem fazer:** restore silencioso pode reapontar markers sobre source modificado, criando markers com bounds desalinhados. Perda invisível de fidelidade analítica.
-
-**Quando atacar:** quando rotina de backup/restore virar fluxo crítico (hoje é manual e raro).
-
-**Decisão 2026-05-09 (não atacar agora):** semântica fragmentada — `.bak` é manual + raro (restore ad-hoc durante dev), e `sourceHashes` no backup pode estar desatualizado se hashes foram computed lazy depois do backup. Pra validation funcionar bem, precisaria capturar snapshot completo de hashes no momento do backup (pre-warm + persist). Custo de fazer agora (~30 LOC + tests) sem fluxo de restore real exercitando = pequeno mas nulo de retorno. Reabrir quando backup/restore virar rotina.
 
 ### Cross-vault remap (CRÍTICO pra Fase C — P2 transport multi-coder remoto)
 
@@ -181,7 +169,6 @@ Spec original em `obsidian-qualia-coding/plugin-docs/archive/claude_sources/spec
 - [ ] **CSV row marker: shared cross-coder por cell** — descoberto durante smoke do coder picker (2026-05-11). `findOrCreateRowMarker(file, rowId, column)` retorna o mesmo marker pra qualquer coder. Quando coder A já marcou código X numa cell, coder B trocando picker e aplicando X de novo é no-op (idempotente no marker existente, que tem `codedBy: A`). Use case "duas pessoas no mesmo PC trocando perfil" não é cenário real do projeto — mas merece decisão consciente: 1 marker per cell+coder? ou shared marker com `codedByList: CoderId[]`? Pensar conjuntamente com como ICR semântica trata row-level coding (vs segment-level que já é per-coder via from/to distintos).
 - [x] **IcrMarkerOps: PDF text + CSV segment + audio + video + image + pdfShape** ✅ FEITO em 2 slices: **E5a** (2026-05-11, pdfText/csvSegment/temporal) + **E5b** (2026-05-11, bbox pra image + pdfShape). 8 engines cobertas. Bounds variants: `pdfText` + `csvSegment` + `temporal` + `bbox`. Consensus shape pra bbox = AABB-union rect (decisão D1, ver ROADMAP §Slice E5b).
 - [x] **Slice E4 — Saved Comparisons hub** (FEITO 2026-05-11): schema `comparisons` + `lastCompareCodersUsed` em QualiaData + ComparisonRegistry + CompareComparisonsListModal + CreateComparisonModal + estado dirty no toolbar (`●` + Salvar mudanças / Salvar como nova / ✕ desvincular) + ribbon `users-2` + atalho contextual no codebook (`Ver κ deste código entre coders`). +27 testes (3365 → 3392). Spec original §7+§8.
-- [ ] **Auto-detect "Em discussão" via timeout** — V1 do E3b usa botão explícito "Marcar pra revisão". Spec deixou aberto se inferimos automático via timeout (user abre P2, fica X minutos sem decidir → marca). Reabrir se uso real mostrar fricção do botão explícito.
 
 ---
 
@@ -269,25 +256,9 @@ Slice 4 (planejado 2026-05-09) adiciona adapters **cod row** (CSV categórico) e
 - Per-código matching primeiro (γ).
 - Multi-coder via clustering N-way (Fleiss-equivalent).
 
-### Resolução sub-segundo pra áudio/vídeo
-
-**Estado após Slice 4:** áudio/vídeo arredondam `from`/`to` pra inteiros de segundo (`Math.floor`/`Math.ceil`). Alinhado com ATLAS.ti 25.
-
-**Impacto sem fazer:** discordâncias sub-segundo (ex: Carla marcou 12.3-18.7s, Joana marcou 12.5-18.5s) viram match perfeito após arredondamento (12-19 vs 12-19). Em pesquisa fonética ou microanalysis conversacional, isso pode importar.
-
-**Quando atacar:** quando alguém puxar uso real que justifique. Implementação: configurar resolução por engine (ms ou décimos de segundo), com performance trade-off documentado.
-
-### Pre-warm de durações de media files
-
-**Estado após Slice 4:** caller passa `totalUnits` (= duração em segundos) ao montar input do reporter. Runtime usa `HTMLMediaElement.duration` (precisa abrir o file). Em batch sobre vault grande, abrir cada arquivo só pra durar é caro.
-
-**Impacto sem fazer:** Compare Coders cross-file precisa abrir cada media file pra obter duração. Latência inicial alta.
-
-**Quando atacar:** quando Compare Coders UI entrar e o user reportar latência. Cache de durações em `data.mediaDurations: Record<fileId, number>` populado lazy on file open.
-
 ### Resumo do impacto cumulativo
 
-Slice 6 fecha as 6 engines do plugin no motor κ (markdown + PDF text + CSV cod segment ✅ Slice 1; áudio + vídeo ✅ Slice 4; CSV cod row ✅ Slice 4; **PDF shape + imagem ✅ Slice 6**). Sub-segundo e pre-warm são otimizações conhecidas que entram quando uso real puxar.
+Slice 6 fecha as 6 engines do plugin no motor κ (markdown + PDF text + CSV cod segment ✅ Slice 1; áudio + vídeo ✅ Slice 4; CSV cod row ✅ Slice 4; **PDF shape + imagem ✅ Slice 6**).
 
 ---
 
