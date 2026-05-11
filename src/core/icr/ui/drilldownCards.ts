@@ -11,6 +11,8 @@
  *
  * Slice E3a Fase 1 cobre markdown (cluster por overlap line/ch) + csvRow (agrupado
  * por sourceRowId+column). Outros engines não aparecem no picker.
+ *
+ * Derivação de regiões e categorização por status ficam em regionDerivation.ts (E3b).
  */
 
 import type { App } from 'obsidian';
@@ -20,11 +22,20 @@ import type { CoderId } from '../coderTypes';
 import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
 import type { EngineModelsForExtraction } from './scopeExtraction';
 import type { IcrMarkerOps } from '../markerOps';
-import type { AuditEntry, ReconciliationDecision, ReconciliationBounds, CodeApplication } from '../../types';
-import type { EngineId } from '../reporter';
-import type { Marker as MarkdownMarker } from '../../../markdown/models/codeMarkerModel';
-import { executeReconciliationDecision } from '../reconciliation';
+import type { AuditEntry, ReconciliationDecision } from '../../types';
+import { executeReconciliationDecision, openReconciliation } from '../reconciliation';
 import { SplitNewCodeModal } from './splitNewCodeModal';
+import {
+	collectContestedRegions,
+	divergenceTagLabel,
+	findLatestActiveDecision,
+	findLatestActiveOpenedEntry,
+	formatBoundsLabel,
+	regionKey,
+	sameBounds,
+	type ContestedRegion,
+	type MarkerRef,
+} from './regionDerivation';
 
 export interface DrilldownCardsDeps {
 	coderRegistry: CoderRegistry;
@@ -44,28 +55,6 @@ export interface DrilldownCardsCallbacks {
 	onAfterReconciliation: (partial: Partial<CompareCodersViewState>) => void;
 }
 
-interface MarkerRef {
-	markerId: string;
-	codedBy: CoderId;
-	codes: CodeApplication[];
-}
-
-type DivergenceKind = 'code' | 'boundary' | 'existence';
-
-interface ContestedRegion {
-	fileId: string;
-	engine: EngineId;
-	bounds: ReconciliationBounds;
-	coderIds: CoderId[];
-	displayLabel: string;
-	markerRefs: MarkerRef[];
-	/** Tipo de divergência detectado:
-	 *  - 'code': coders aplicaram codes DIFERENTES (dropdown vai ter 2+ candidates)
-	 *  - 'boundary': mesmo code, bounds diferentes (dropdown 1 candidate, fix é unificar bounds)
-	 *  - 'existence': só 1 coder marcou (raro com filtro >=2 coders) */
-	divergenceKind: DivergenceKind;
-}
-
 export function renderDrilldownCards(
 	container: HTMLElement,
 	state: CompareCodersViewState,
@@ -78,16 +67,16 @@ export function renderDrilldownCards(
 		text: '#3 o que cada um leu? · #4 por que diferimos?',
 	});
 
-	const regions = collectContestedRegions(state, deps);
+	const regions = collectContestedRegions(state, deps.engineModels);
 	const resolvedSet = computeResolvedRegionSet(regions, deps.auditLog);
+	const inDiscussionSet = computeInDiscussionRegionSet(regions, deps.auditLog);
 
 	const sel = state.currentSelection;
 	if (sel.kind !== 'region') {
-		renderRegionPicker(container, regions, resolvedSet, deps.auditLog, cbs);
+		renderRegionPicker(container, regions, resolvedSet, inDiscussionSet, deps.auditLog, cbs);
 		return;
 	}
 
-	// Match region atual (por fileId + engine + bounds) com cluster pra recuperar markerRefs.
 	const matched = regions.find(r =>
 		r.fileId === sel.value.fileId
 		&& r.engine === sel.value.engine
@@ -105,12 +94,31 @@ export function renderDrilldownCards(
 	renderRegionView(container, activeRegion, deps, cbs);
 }
 
+function computeResolvedRegionSet(regions: ContestedRegion[], log: AuditEntry[]): Set<string> {
+	const resolved = new Set<string>();
+	for (const region of regions) {
+		if (findLatestActiveDecision(region, log)) resolved.add(regionKey(region));
+	}
+	return resolved;
+}
+
+function computeInDiscussionRegionSet(regions: ContestedRegion[], log: AuditEntry[]): Set<string> {
+	const inDiscussion = new Set<string>();
+	for (const region of regions) {
+		// Em discussão = tem opened ativo MAS não tem decisão ativa (a decisão supera o opened).
+		if (findLatestActiveDecision(region, log)) continue;
+		if (findLatestActiveOpenedEntry(region, log)) inDiscussion.add(regionKey(region));
+	}
+	return inDiscussion;
+}
+
 // ─── Region picker (sem região ativa) ──────────────────────────
 
 function renderRegionPicker(
 	container: HTMLElement,
 	regions: ContestedRegion[],
 	resolvedSet: Set<string>,
+	inDiscussionSet: Set<string>,
 	auditLog: AuditEntry[],
 	cbs: DrilldownCardsCallbacks,
 ): void {
@@ -121,26 +129,28 @@ function renderRegionPicker(
 		});
 		return;
 	}
-	// Ordena: unresolved primeiro (code > boundary > existence), depois resolvidas no fim.
-	// Spec §4.3 prevê queue P3 (E3b) — aqui é polish E3a: ao menos sinaliza visualmente o que já foi decidido.
-	const order: Record<DivergenceKind, number> = { code: 0, boundary: 1, existence: 2 };
+	// Ordem: aberto (code > boundary > existence) → em discussão → resolvido.
+	const order: Record<ContestedRegion['divergenceKind'], number> = { code: 0, boundary: 1, existence: 2 };
 	const sorted = regions.slice().sort((a, b) => {
-		const aResolved = resolvedSet.has(regionKey(a)) ? 1 : 0;
-		const bResolved = resolvedSet.has(regionKey(b)) ? 1 : 0;
+		const aResolved = resolvedSet.has(regionKey(a)) ? 2 : inDiscussionSet.has(regionKey(a)) ? 1 : 0;
+		const bResolved = resolvedSet.has(regionKey(b)) ? 2 : inDiscussionSet.has(regionKey(b)) ? 1 : 0;
 		if (aResolved !== bResolved) return aResolved - bResolved;
 		return order[a.divergenceKind] - order[b.divergenceKind];
 	});
 
 	const resolvedCount = sorted.filter(r => resolvedSet.has(regionKey(r))).length;
+	const inDiscussionCount = sorted.filter(r => inDiscussionSet.has(regionKey(r))).length;
 	const list = container.createDiv({ cls: 'qc-cc-region-picker' });
-	const headerText = resolvedCount > 0
-		? `Regiões contestadas (${regions.length}) · ${resolvedCount} resolvida${resolvedCount === 1 ? '' : 's'}`
-		: `Regiões contestadas (${regions.length})`;
-	list.createEl('h4', { text: headerText });
+	const parts = [`Regiões contestadas (${regions.length})`];
+	if (inDiscussionCount > 0) parts.push(`${inDiscussionCount} em discussão`);
+	if (resolvedCount > 0) parts.push(`${resolvedCount} resolvida${resolvedCount === 1 ? '' : 's'}`);
+	list.createEl('h4', { text: parts.join(' · ') });
 	for (const region of sorted) {
 		const isResolved = resolvedSet.has(regionKey(region));
+		const isInDiscussion = !isResolved && inDiscussionSet.has(regionKey(region));
+		const stateCls = isResolved ? ' is-resolved' : isInDiscussion ? ' is-in-discussion' : '';
 		const item = list.createDiv({
-			cls: `qc-cc-region-item qc-cc-divergence-${region.divergenceKind}${isResolved ? ' is-resolved' : ''}`,
+			cls: `qc-cc-region-item qc-cc-divergence-${region.divergenceKind}${stateCls}`,
 		});
 		const header = item.createDiv({ cls: 'qc-cc-region-header' });
 		header.createSpan({ cls: 'qc-cc-region-file', text: region.fileId });
@@ -149,6 +159,9 @@ function renderRegionPicker(
 		if (isResolved) {
 			const tag = header.createSpan({ cls: 'qc-cc-divergence-tag is-resolved' });
 			tag.textContent = '✓ resolvida';
+		} else if (isInDiscussion) {
+			const tag = header.createSpan({ cls: 'qc-cc-divergence-tag is-in-discussion' });
+			tag.textContent = '💬 em discussão';
 		} else {
 			const tag = header.createSpan({ cls: `qc-cc-divergence-tag is-${region.divergenceKind}` });
 			tag.textContent = divergenceTagLabel(region.divergenceKind);
@@ -172,243 +185,6 @@ function renderRegionPicker(
 			value: { fileId: region.fileId, engine: region.engine, bounds: region.bounds, coderIds: region.coderIds },
 		});
 	}
-}
-
-function divergenceTagLabel(kind: DivergenceKind): string {
-	switch (kind) {
-		case 'code': return 'codes diferentes';
-		case 'boundary': return 'mesma marcação, bounds diferentes';
-		case 'existence': return 'só 1 coder marcou';
-	}
-}
-
-function collectContestedRegions(
-	state: CompareCodersViewState,
-	deps: DrilldownCardsDeps,
-): ContestedRegion[] {
-	const out: ContestedRegion[] = [];
-	const scopeCoders = new Set(state.scope.coderIds);
-
-	const mdModel = deps.engineModels.markdown;
-	if (mdModel) {
-		const allMarkers = collectMarkdownMarkersForScope(mdModel, scopeCoders);
-		for (const region of clusterMarkdownMarkers(allMarkers)) {
-			if (region.coderIds.length >= 2) out.push(region);
-		}
-	}
-
-	const csvModel = deps.engineModels.csv;
-	if (csvModel) {
-		out.push(...collectCsvRowRegions(csvModel, scopeCoders));
-	}
-
-	return out;
-}
-
-interface MdMarkerInScope {
-	fileId: string;
-	startLine: number;
-	startCh: number;
-	endLine: number;
-	endCh: number;
-	coderId: CoderId;
-	markerId: string;
-	codes: CodeApplication[];
-}
-
-function collectMarkdownMarkersForScope(
-	mdModel: NonNullable<EngineModelsForExtraction['markdown']>,
-	scopeCoders: Set<CoderId>,
-): MdMarkerInScope[] {
-	const out: MdMarkerInScope[] = [];
-	const allMarkers = mdModel.getAllMarkers ? mdModel.getAllMarkers() : [];
-	for (const m of allMarkers) {
-		const codedBy = m.codedBy;
-		if (!codedBy || !scopeCoders.has(codedBy)) continue;
-		out.push({
-			fileId: m.fileId,
-			startLine: m.range.from.line,
-			startCh: m.range.from.ch,
-			endLine: m.range.to.line,
-			endCh: m.range.to.ch,
-			coderId: codedBy,
-			markerId: m.id,
-			codes: m.codes,
-		});
-	}
-	return out;
-}
-
-/** Sort key: line × 1M + ch — line domina overlap detection sem precisar de file content. */
-function rangeKey(line: number, ch: number): number {
-	return line * 1_000_000 + ch;
-}
-
-function clusterMarkdownMarkers(markers: MdMarkerInScope[]): ContestedRegion[] {
-	const byFile = new Map<string, MdMarkerInScope[]>();
-	for (const m of markers) {
-		const list = byFile.get(m.fileId) ?? [];
-		list.push(m);
-		byFile.set(m.fileId, list);
-	}
-	const regions: ContestedRegion[] = [];
-	for (const [fileId, list] of byFile) {
-		const sorted = list.slice().sort((a, b) => rangeKey(a.startLine, a.startCh) - rangeKey(b.startLine, b.startCh));
-		let cluster: MdMarkerInScope[] = [];
-		let clusterEnd = -Infinity;
-		for (const m of sorted) {
-			const startK = rangeKey(m.startLine, m.startCh);
-			const endK = rangeKey(m.endLine, m.endCh);
-			if (startK <= clusterEnd && cluster.length > 0) {
-				cluster.push(m);
-				clusterEnd = Math.max(clusterEnd, endK);
-			} else {
-				if (cluster.length > 0) regions.push(buildMarkdownRegionFromCluster(fileId, cluster));
-				cluster = [m];
-				clusterEnd = endK;
-			}
-		}
-		if (cluster.length > 0) regions.push(buildMarkdownRegionFromCluster(fileId, cluster));
-	}
-	return regions;
-}
-
-function buildMarkdownRegionFromCluster(fileId: string, cluster: MdMarkerInScope[]): ContestedRegion {
-	let startLine = Infinity;
-	let startCh = Infinity;
-	let endLine = -1;
-	let endCh = -1;
-	const coderIds = new Set<CoderId>();
-	const markerRefs: MarkerRef[] = [];
-	for (const m of cluster) {
-		const sk = rangeKey(m.startLine, m.startCh);
-		const ek = rangeKey(m.endLine, m.endCh);
-		const curStartK = rangeKey(startLine === Infinity ? 0 : startLine, startCh === Infinity ? 0 : startCh);
-		const curEndK = rangeKey(endLine === -1 ? 0 : endLine, endCh === -1 ? 0 : endCh);
-		if (startLine === Infinity || sk < curStartK) {
-			startLine = m.startLine; startCh = m.startCh;
-		}
-		if (endLine === -1 || ek > curEndK) {
-			endLine = m.endLine; endCh = m.endCh;
-		}
-		coderIds.add(m.coderId);
-		markerRefs.push({ markerId: m.markerId, codedBy: m.coderId, codes: m.codes });
-	}
-	// Bounds em char offsets é heurístico (line×1M+ch). Pra preservar shape correto pro orquestrador,
-	// guardamos line/ch raw no displayLabel e usamos char offsets no bounds só pra ID interno.
-	return {
-		fileId,
-		engine: 'markdown',
-		bounds: { kind: 'text', from: rangeKey(startLine, startCh), to: rangeKey(endLine, endCh) },
-		coderIds: Array.from(coderIds),
-		displayLabel: `linha ${startLine + 1}:${startCh}–${endLine + 1}:${endCh}`,
-		markerRefs,
-		divergenceKind: classifyDivergence(markerRefs, Array.from(coderIds)),
-	};
-}
-
-/** Classifica o tipo de divergência baseado em quantos codes distintos e quantos coders. */
-function classifyDivergence(markerRefs: MarkerRef[], coderIds: CoderId[]): DivergenceKind {
-	const coderCount = coderIds.length;
-	const codeSet = new Set<string>();
-	for (const m of markerRefs) for (const c of m.codes) codeSet.add(c.codeId);
-	if (coderCount < 2) return 'existence';
-	if (codeSet.size >= 2) return 'code';
-	return 'boundary';
-}
-
-function collectCsvRowRegions(
-	csvModel: NonNullable<EngineModelsForExtraction['csv']>,
-	scopeCoders: Set<CoderId>,
-): ContestedRegion[] {
-	const rowMap = new Map<string, {
-		fileId: string; rowIndex: number; column: string;
-		coderIds: Set<CoderId>; markerRefs: MarkerRef[];
-	}>();
-	for (const m of csvModel.getAllMarkers()) {
-		if (m.markerType !== 'csv') continue;
-		// Pula segmentMarkers (E3a Fase 1 não cobre csv-segment).
-		if ('from' in m && typeof (m as { from?: number }).from === 'number') continue;
-		const rm = m as unknown as { fileId: string; sourceRowId: number; column: string; codes: CodeApplication[]; codedBy?: CoderId; id: string };
-		if (!rm.codedBy || !scopeCoders.has(rm.codedBy)) continue;
-		const key = `${rm.fileId}::${rm.sourceRowId}::${rm.column}`;
-		let entry = rowMap.get(key);
-		if (!entry) {
-			entry = { fileId: rm.fileId, rowIndex: rm.sourceRowId, column: rm.column, coderIds: new Set(), markerRefs: [] };
-			rowMap.set(key, entry);
-		}
-		entry.coderIds.add(rm.codedBy);
-		entry.markerRefs.push({ markerId: rm.id, codedBy: rm.codedBy, codes: rm.codes });
-	}
-	const out: ContestedRegion[] = [];
-	for (const r of rowMap.values()) {
-		if (r.coderIds.size < 2) continue;
-		out.push({
-			fileId: r.fileId,
-			engine: 'csvRow',
-			bounds: { kind: 'csvRow', rowIndex: r.rowIndex, column: r.column },
-			coderIds: Array.from(r.coderIds),
-			displayLabel: r.column ? `row ${r.rowIndex} · ${r.column}` : `row ${r.rowIndex}`,
-			markerRefs: r.markerRefs,
-			divergenceKind: classifyDivergence(r.markerRefs, Array.from(r.coderIds)),
-		});
-	}
-	return out;
-}
-
-// ─── Resolution tracking (E3a polish — antecipa parte do E3b workflow queue) ──
-
-function regionKey(region: ContestedRegion | { fileId: string; engine: EngineId; bounds: ReconciliationBounds }): string {
-	const b = region.bounds;
-	const boundsKey = b.kind === 'text' ? `t:${b.from}-${b.to}`
-		: b.kind === 'csvRow' ? `r:${b.rowIndex}:${b.column ?? ''}`
-		: `m:${b.fromMs}-${b.toMs}`;
-	return `${region.fileId}::${region.engine}::${boundsKey}`;
-}
-
-/** Set de regionKeys com decisão ATIVA (não revertida). Considera última decided + qualquer revert posterior. */
-function computeResolvedRegionSet(regions: ContestedRegion[], log: AuditEntry[]): Set<string> {
-	const resolved = new Set<string>();
-	for (const region of regions) {
-		if (findLatestActiveDecision(region, log)) resolved.add(regionKey(region));
-	}
-	return resolved;
-}
-
-/** Última decisão ainda válida (decided sem revert posterior). null se nunca decidiu OU revertida. */
-function findLatestActiveDecision(
-	region: ContestedRegion | { fileId: string; engine: EngineId; bounds: ReconciliationBounds },
-	log: AuditEntry[],
-): Extract<AuditEntry, { type: 'reconciliation_decided' }> | null {
-	const decisionsForRegion: Extract<AuditEntry, { type: 'reconciliation_decided' }>[] = [];
-	for (const e of log) {
-		if (e.entity !== 'reconciliation') continue;
-		if (e.type !== 'reconciliation_decided') continue;
-		if (e.region.fileId !== region.fileId) continue;
-		if (e.region.engine !== region.engine) continue;
-		if (!sameBounds(e.region.bounds, region.bounds)) continue;
-		decisionsForRegion.push(e);
-	}
-	if (decisionsForRegion.length === 0) return null;
-	// Por ordem cronológica (insertion order do log). Última = mais recente.
-	for (let i = decisionsForRegion.length - 1; i >= 0; i--) {
-		const decided = decisionsForRegion[i]!;
-		const reverted = log.some(e =>
-			e.entity === 'reconciliation' &&
-			e.type === 'reconciliation_reverted' &&
-			e.originalEntryId === decided.id,
-		);
-		if (!reverted) return decided;
-	}
-	return null;
-}
-
-function sameBounds(a: ReconciliationBounds, b: ReconciliationBounds): boolean {
-	if (a.kind !== b.kind) return false;
-	if (a.kind === 'text' && b.kind === 'text') return a.from === b.from && a.to === b.to;
-	if (a.kind === 'csvRow' && b.kind === 'csvRow') return a.rowIndex === b.rowIndex && (a.column ?? '') === (b.column ?? '');
-	if (a.kind === 'temporal' && b.kind === 'temporal') return a.fromMs === b.fromMs && a.toMs === b.toMs;
-	return false;
 }
 
 // ─── Region view (cards + memo + ações) ────────────────────────
@@ -453,6 +229,29 @@ function renderRegionView(
 	renderAdoptAction(actionsHolder, region, candidateCodeIds, deps, () => memoInput.value, cbs);
 	renderAcceptDivergenceAction(actionsHolder, region, deps, () => memoInput.value, cbs);
 	renderSplitAction(actionsHolder, region, deps, () => memoInput.value, cbs);
+	renderMarkForReviewAction(actionsHolder, region, candidateCodeIds, deps, cbs);
+}
+
+function renderMarkForReviewAction(
+	parent: HTMLElement,
+	region: ContestedRegion,
+	candidates: Set<string>,
+	deps: DrilldownCardsDeps,
+	cbs: DrilldownCardsCallbacks,
+): void {
+	const wrap = parent.createDiv({ cls: 'qc-cc-action-row qc-cc-action-mark-review' });
+	const btn = wrap.createEl('button', { cls: 'qc-cc-action-btn', text: 'Marcar pra revisão' });
+	btn.title = 'Registra a região como "em discussão" no audit sem decidir. Aparece na coluna correspondente do P3 workflow.';
+	btn.onclick = () => {
+		openReconciliation({
+			region: { fileId: region.fileId, engine: region.engine, bounds: region.bounds },
+			coderIds: region.coderIds,
+			candidateCodeIds: Array.from(candidates),
+			log: deps.auditLog,
+		});
+		deps.persistAuditLog(deps.auditLog);
+		cbs.onAfterReconciliation({ currentSelection: { kind: 'none' } });
+	};
 }
 
 function renderCoderCard(
@@ -588,7 +387,6 @@ function runDecision(
 		return;
 	}
 	deps.persistAuditLog(deps.auditLog);
-	// Reset seleção + re-render num único update (evita 2 renders async concorrentes).
 	cbs.onAfterReconciliation({ currentSelection: { kind: 'none' } });
 }
 
@@ -598,25 +396,6 @@ function pickAnchorCode(decision: ReconciliationDecision): string | undefined {
 	return undefined;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────
-
-function formatBoundsLabel(bounds: ReconciliationBounds): string {
-	switch (bounds.kind) {
-		case 'text':
-			return `chars ${bounds.from}–${bounds.to}`;
-		case 'csvRow':
-			return bounds.column ? `row ${bounds.rowIndex} · ${bounds.column}` : `row ${bounds.rowIndex}`;
-		case 'temporal':
-			return `${bounds.fromMs}ms–${bounds.toMs}ms`;
-	}
-}
-
 export const __test__ = {
-	collectContestedRegions,
-	clusterMarkdownMarkers,
-	formatBoundsLabel,
-	sameBounds,
 	computeResolvedRegionSet,
-	findLatestActiveDecision,
-	regionKey,
 };

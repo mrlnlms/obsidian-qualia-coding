@@ -1,4 +1,4 @@
-import { ItemView, type WorkspaceLeaf } from 'obsidian';
+import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 import type QualiaCodingPlugin from '../../../main';
 import { runExportTrigger } from '../contributions/exportTrigger';
 import { type CompareCodersViewState, createDefaultViewState, type CurrentSelection } from './compareCodersTypes';
@@ -7,6 +7,13 @@ import { renderOverviewTable } from './overviewTable';
 import { renderOverviewHeatmap } from './overviewHeatmap';
 import { renderDrilldownSpatial } from './drilldownSpatial';
 import { renderDrilldownCards } from './drilldownCards';
+import { renderDrilldownWorkflow } from './drilldownWorkflow';
+import { generateReconciliationReport } from './reconciliationReport';
+import { collectContestedRegions, categorizeRegionsByStatus } from './regionDerivation';
+import { applyConsensusExclusion, getConsensusCoderIdsInScope } from './coderInclusion';
+import { extractInputsFromScope } from './scopeExtraction';
+import { reportPairwise } from '../reporter';
+import type { CoderId } from '../coderTypes';
 import { renderFilterChips } from './filterChips';
 import { appendEntry } from '../../auditLog';
 import type { AuditEntry } from '../../types';
@@ -38,11 +45,11 @@ export class UnifiedCompareCodersView extends ItemView {
 
 	constructor(leaf: WorkspaceLeaf, private plugin: QualiaCodingPlugin) {
 		super(leaf);
-		// Default scope exclui consensus coders — eles tendem a ter poucos markers e poluem
-		// matriz κ com colunas vermelhas vazias. User reincluí via filter chip "Consensus (...)"
-		// quando quiser ver κ pré/pós reconciliação.
-		const codableCoderIds = plugin.coderRegistry.getCodableCoders().map(c => c.id);
-		this.state = createDefaultViewState(codableCoderIds);
+		// Default scope inclui TODOS coders (humanos + consensus). `applyCoderInclusion` remove
+		// automaticamente coders sem markers (consensus pré-reconciliação cai aí). Chip "excluir
+		// consensus" no toolbar permite ver κ pré (sem consensus) quando consensus tem markers.
+		const allCoderIds = plugin.coderRegistry.getAll().map(c => c.id);
+		this.state = createDefaultViewState(allCoderIds);
 		// Limpa cache de extração — instâncias anteriores podem ter deixado resíduo.
 		bumpInputsCacheGeneration();
 	}
@@ -159,7 +166,7 @@ export class UnifiedCompareCodersView extends ItemView {
 		return {
 			spatial: '#1 onde discordamos? · #2 que tipo?',
 			cards: '#3 o que cada um leu? · #4 por que diferimos?',
-			workflow: '#5 como reconcilio? · #6 como fica registrado? (E3b)',
+			workflow: '#5 como reconcilio? · #6 como fica registrado?',
 		}[mode];
 	}
 
@@ -253,7 +260,86 @@ export class UnifiedCompareCodersView extends ItemView {
 			);
 			return;
 		}
-		this.drilldownEl.createDiv({ text: 'Perspectiva workflow disponível em E3b', cls: 'qc-cc-stub' });
+		// drilldownMode === 'workflow' — P3 queue
+		if (!this.plugin.icrMarkerOps) {
+			this.drilldownEl.createDiv({ text: 'IcrMarkerOps não inicializado', cls: 'qc-cc-stub' });
+			return;
+		}
+		const auditLog = (this.plugin.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+		renderDrilldownWorkflow(
+			this.drilldownEl,
+			this.state,
+			{
+				coderRegistry: this.plugin.coderRegistry,
+				codeRegistry: this.plugin.sharedRegistry,
+				engineModels: this.engineModels(),
+				markerOps: this.plugin.icrMarkerOps,
+				auditLog,
+				persistAuditLog: log => this.plugin.dataManager.setSection('auditLog', log),
+				app: this.plugin.app,
+				onExportReport: () => this.exportReconciliationReport(),
+			},
+			{
+				onSetSelection: sel => this.setSelection(sel),
+				onSetDrilldownMode: mode => this.updateState({ drilldownMode: mode }),
+				onAfterReconciliation: partial => {
+					bumpInputsCacheGeneration();
+					this.updateState(partial);
+				},
+			},
+		);
+	}
+
+	/** Gera markdown estruturado do P3 e copia pra clipboard. Inclui κ pré/pós quando
+	 *  consensus coder está presente no scope (kappaPre = sem consensus, kappaPost = com). */
+	private async exportReconciliationReport(): Promise<void> {
+		const auditLog = (this.plugin.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+		const regions = collectContestedRegions(this.state, this.engineModels());
+		const byStatus = categorizeRegionsByStatus(regions, auditLog);
+		const hasConsensus = getConsensusCoderIdsInScope(this.state.scope, this.plugin.coderRegistry).length > 0;
+
+		const computeKappa = async (scope: typeof this.state.scope): Promise<{ byPair: Record<string, number | undefined> } | undefined> => {
+			if (scope.coderIds.length < 2) return undefined;
+			const inputs = await extractInputsFromScope(scope, { models: this.engineModels(), app: this.plugin.app });
+			if (inputs.length === 0) return undefined;
+			const pairs: [CoderId, CoderId][] = [];
+			for (let i = 0; i < scope.coderIds.length; i++)
+				for (let j = i + 1; j < scope.coderIds.length; j++)
+					pairs.push([scope.coderIds[i]!, scope.coderIds[j]!]);
+			if (pairs.length === 0) return undefined;
+			const reports = reportPairwise(inputs, pairs);
+			const byPair: Record<string, number | undefined> = {};
+			for (const r of reports) {
+				const [a, b] = r.pair;
+				const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+				byPair[key] = r.report.aggregate.cohenKappa[`${a}|${b}`] ?? r.report.aggregate.cohenKappa[`${b}|${a}`];
+			}
+			return { byPair };
+		};
+
+		const kappaPost = hasConsensus ? await computeKappa(this.state.scope) : undefined;
+		const kappaPre = hasConsensus
+			? await computeKappa(applyConsensusExclusion(this.state.scope, this.plugin.coderRegistry, true))
+			: undefined;
+
+		const md = generateReconciliationReport({
+			scope: this.state.scope,
+			byStatus,
+			auditLog,
+			coderRegistry: this.plugin.coderRegistry,
+			codeRegistry: this.plugin.sharedRegistry,
+			kappaPre,
+			kappaPost,
+		});
+
+		if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+			void navigator.clipboard.writeText(md);
+			new Notice('Relatório de reconciliação copiado pra clipboard');
+		} else {
+			new Notice('Clipboard indisponível — relatório no console');
+			// eslint-disable-next-line no-console
+			console.log(md);
+		}
 	}
 
 	/** Selection change hook — chamado por overview ao clicar célula/linha.
@@ -280,6 +366,7 @@ export class UnifiedCompareCodersView extends ItemView {
 				models: this.engineModels(),
 				app: this.plugin.app,
 				showNarrative: general.showNarrativeDiagnosis ?? true,
+				coderRegistry: this.plugin.coderRegistry,
 			},
 			{
 				initial: isPair ? 'single-pair' : 'all-pairs',

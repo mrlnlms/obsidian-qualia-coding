@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { __test__ } from '../../../src/core/icr/ui/drilldownCards';
+import {
+	formatBoundsLabel,
+	sameBounds,
+	findLatestActiveDecision,
+	regionKey,
+	__test__ as regionDerivationTest,
+} from '../../../src/core/icr/ui/regionDerivation';
 import type { AuditEntry } from '../../../src/core/types';
 
-const { clusterMarkdownMarkers, formatBoundsLabel, sameBounds, findLatestActiveDecision, regionKey } = __test__;
+const { clusterMarkdownMarkers } = regionDerivationTest;
 
 function mdM(fileId: string, startLine: number, startCh: number, endLine: number, endCh: number, coderId: string, markerId: string, codes: { codeId: string }[] = []) {
 	return { fileId, startLine, startCh, endLine, endCh, coderId, markerId, codes };

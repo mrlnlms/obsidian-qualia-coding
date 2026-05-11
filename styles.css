@@ -6656,20 +6656,36 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 
 /* Modal "ver lado a lado" */
 .qc-cc-modal {
-	min-width: 600px;
-	max-width: 90vw;
+	min-width: min(900px, 95vw);
+	max-width: 95vw;
+	max-height: 85vh;
+	overflow-y: auto;
+}
+
+/* Aumenta o modal-bg do Obsidian quando contém este modal — default é 600px. */
+.modal:has(.qc-cc-modal) {
+	width: min(960px, 95vw);
 }
 
 .qc-cc-modal-header {
 	display: flex;
+	flex-wrap: wrap;
 	justify-content: space-between;
 	align-items: center;
+	gap: 12px;
 	margin-bottom: 12px;
+}
+
+.qc-cc-modal-header h3 {
+	margin: 0;
+	flex: 1 1 auto;
+	min-width: 200px;
 }
 
 .qc-cc-modal-toggle {
 	display: flex;
 	gap: 4px;
+	flex-wrap: wrap;
 }
 
 .qc-cc-modal-table {
@@ -7338,6 +7354,16 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	color: #fff;
 }
 
+.qc-cc-divergence-tag.is-in-discussion {
+	background: #4a6fa5;
+	color: #fff;
+}
+
+.qc-cc-region-item.is-in-discussion {
+	opacity: 0.85;
+	border-left: 3px solid #4a6fa5;
+}
+
 .qc-cc-region-item.qc-cc-divergence-code {
 	border-left: 3px solid #c1352e;
 }
@@ -7576,4 +7602,226 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	gap: 8px;
 	justify-content: flex-end;
 	margin-top: 12px;
+}
+
+/* ─── E3b — Drill-down P3 workflow queue ─── */
+
+.qc-cc-workflow-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 8px 0;
+	margin-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.qc-cc-workflow-totals {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-cc-workflow-export {
+	background: var(--interactive-normal);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 4px 10px;
+	font-size: 0.85em;
+	cursor: pointer;
+}
+
+.qc-cc-workflow-export:hover:not(:disabled) {
+	background: var(--interactive-hover);
+}
+
+.qc-cc-workflow-export:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.qc-cc-workflow-queue {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 12px;
+	min-height: 200px;
+}
+
+.qc-cc-workflow-column {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 8px;
+	min-width: 0;
+}
+
+.qc-cc-workflow-column.qc-cc-status-open {
+	border-top: 3px solid var(--color-red);
+}
+
+.qc-cc-workflow-column.qc-cc-status-inDiscussion {
+	border-top: 3px solid var(--color-orange);
+}
+
+.qc-cc-workflow-column.qc-cc-status-resolved {
+	border-top: 3px solid var(--color-green);
+}
+
+.qc-cc-workflow-column.qc-cc-status-divergenceAccepted {
+	border-top: 3px solid var(--color-purple);
+}
+
+.qc-cc-workflow-column-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 4px 8px 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+.qc-cc-workflow-column-emoji {
+	font-size: 1.1em;
+}
+
+.qc-cc-workflow-column-count {
+	color: var(--text-muted);
+	font-weight: 400;
+	font-size: 0.85em;
+}
+
+.qc-cc-workflow-cards {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	overflow-y: auto;
+	min-height: 0;
+}
+
+.qc-cc-workflow-empty {
+	font-size: 0.8em;
+	color: var(--text-faint);
+	text-align: center;
+	padding: 16px 0;
+}
+
+.qc-cc-workflow-card {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 8px;
+	font-size: 0.85em;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.qc-cc-workflow-card-header {
+	display: flex;
+	gap: 6px;
+	align-items: baseline;
+}
+
+.qc-cc-workflow-card-file {
+	font-weight: 600;
+	font-size: 0.9em;
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.qc-cc-workflow-card-engine {
+	font-size: 0.75em;
+	color: var(--text-muted);
+	background: var(--background-modifier-border);
+	padding: 1px 5px;
+	border-radius: 3px;
+}
+
+.qc-cc-workflow-card-meta {
+	display: flex;
+	gap: 8px;
+	color: var(--text-muted);
+	font-size: 0.8em;
+}
+
+.qc-cc-workflow-card-decision {
+	font-size: 0.85em;
+	color: var(--text-normal);
+	background: var(--background-secondary-alt);
+	padding: 4px 6px;
+	border-radius: 3px;
+}
+
+.qc-cc-workflow-card-memo {
+	font-size: 0.8em;
+	color: var(--text-muted);
+	font-style: italic;
+	padding: 2px 0;
+	max-height: 3em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.qc-cc-workflow-card-actions {
+	display: flex;
+	gap: 6px;
+	margin-top: 2px;
+}
+
+.qc-cc-workflow-card-open,
+.qc-cc-workflow-card-revert {
+	font-size: 0.8em;
+	padding: 3px 8px;
+	border-radius: 3px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--interactive-normal);
+	cursor: pointer;
+}
+
+.qc-cc-workflow-card-open:hover,
+.qc-cc-workflow-card-revert:hover {
+	background: var(--interactive-hover);
+}
+
+.qc-cc-workflow-card-revert {
+	color: var(--text-error);
+}
+
+/* ─── E3b — Modal pré/pós toggle ─── */
+
+.qc-cc-modal-prepost {
+	margin-left: 12px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.qc-cc-modal-toggle-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-cc-modal-prepost-banner {
+	background: var(--background-secondary-alt);
+	border-left: 3px solid var(--color-accent);
+	padding: 6px 10px;
+	margin-bottom: 8px;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+/* ─── E3b — P2 action Marcar pra revisão ─── */
+
+.qc-cc-action-mark-review .qc-cc-action-btn {
+	background: var(--background-secondary);
+	color: var(--text-muted);
+}
+
+.qc-cc-action-mark-review .qc-cc-action-btn:hover {
+	background: var(--interactive-hover);
 }

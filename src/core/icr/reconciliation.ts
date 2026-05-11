@@ -196,6 +196,28 @@ export interface ReconciliationRevertParams {
 	markerOps: IcrMarkerOps;
 }
 
+/** Marca uma região como "em discussão" — usuário viu o P2 mas não decidiu ainda.
+ *  Emite reconciliation_opened sem aplicar mudanças. Idempotente: re-marcar a mesma
+ *  região emite nova entry mas o status workflow só lê a última via findLatestActiveOpenedEntry. */
+export function openReconciliation(params: {
+	region: { fileId: string; engine: EngineId; bounds: ReconciliationBounds };
+	coderIds: CoderId[];
+	candidateCodeIds: string[];
+	log: AuditEntry[];
+}): { auditEntryId: string } {
+	const entry: Omit<Extract<AuditEntry, { type: 'reconciliation_opened' }>, 'id'> = {
+		codeId: '',
+		at: Date.now(),
+		entity: 'reconciliation',
+		type: 'reconciliation_opened',
+		region: params.region,
+		coderIds: params.coderIds,
+		candidateCodeIds: params.candidateCodeIds,
+	};
+	const id = appendEntryAndReturnId(params.log, entry);
+	return { auditEntryId: id };
+}
+
 export function executeReconciliationRevert(
 	originalEntryId: string,
 	params: ReconciliationRevertParams,
