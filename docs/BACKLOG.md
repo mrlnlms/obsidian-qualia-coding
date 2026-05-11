@@ -264,13 +264,26 @@ Slice 6 fecha as 6 engines do plugin no motor κ (markdown + PDF text + CSV cod 
 
 ## 🧱 ICR — Compare Coders polish (aberto)
 
-### Bbox merge na matriz Mode A usa avg 50/50 (não weighted por #events)
+### Bbox merge na matriz Mode A usa avg 50/50 (não weighted por #events) ✅ RESOLVIDO 2026-05-11
 
-**Estado após E2 (2026-05-10):** quando `primaryCoefficient === 'cohen'` e há tanto markers de text-likes quanto bbox markers no escopo, matriz Mode A combina os dois κ via average 50/50. Implementação simples mas não respeita peso real (text marca chars; bbox marca eventos discretos). Aproximação intencional — `bboxAdapter` retorna `KappaInput` com `sources` próprio mas reporter agrega via weighted avg só quando todos engines passam pelo mesmo `reportKappa`. Pra fazer proper, precisa estender pipeline pra aceitar bbox `EngineKappaInput` lado a lado dos text-likes (refactor de `EngineId` ou nova rota cohort-with-bbox).
+Refactor entregue: `reportPairwise` ganhou param `perPairInputs?: Map<pairKey, EngineKappaInput[]>` pra inputs já-per-pair (bbox κ via Hungarian é per pair). Matrix Mode A monta `perPairBbox` map só pra Cohen e passa ao reporter — bbox naturalmente entra no aggregate weighted por `markers.length` (mesma regra que já existia entre text-likes). Eliminou avg 50/50.
 
-**Impacto sem fazer:** matriz superestima/subestima pair κ quando text+bbox têm magnitudes muito diferentes de #unidades (e.g. 1000 chars vs 2 bbox events). Tooltip user-facing ainda não criado pra alertar.
+**Cache:** cacheKey ganha suffix `::bbox` quando perPair não-vazio — preserva reuso entre re-renders no mesmo scope, invalidação via `bumpReportCache` ao mutar markers. WeakMap identity cache bypassed quando perPair set (identity sozinha não diferencia extras).
 
-**Quando atacar:** se latência ou viés viraram problema reportado. Backlog menor — UX cobre maioria dos casos atuais.
+### Weighting cross-engine no aggregate — discussão metodológica
+
+**Estado:** reporter aggregate cross-engine usa `weights[engine] = markers.length`. Aplicado consistentemente desde Slice 1 entre text-likes; Slice E5b-followup (2026-05-11) estendeu o mesmo princípio pra bbox.
+
+**Limitação conhecida:** `markers.length` é semanticamente heterogêneo entre engines — 1 marker pdf-text = 1 região codificada (pode ter dezenas de chars); 1 marker bbox = 1 evento Hungarian (matched event = 2 markers no input). Quando uma engine tem N markers vs outra com 10×N, a primeira é dominada no aggregate.
+
+**Cenário onde escala importa:** Carla+Joana com 10 markers pdf-text + 7 markers bbox (image+pdfShape): pdf-text pesa 10/17 ≈ 59% do aggregate. Se bbox κ ≈ 0.9 e pdf-text κ ≈ 0.5, aggregate ≈ 0.66 — pdf-text "ganha" porque tem mais markers, não porque é mais relevante analiticamente.
+
+**Alternativas metodológicas (atacar como decisão separada, afeta todas as engines):**
+1. **Equal weight per engine** (1 por engine) — anula viés magnitude, todas engines pesam igual. Mais "democrático" entre tipos de análise, menos sensível a escala. Equivalente conceitual ao avg 50/50 original mas generalizado.
+2. **Unidade analítica natural** — cada engine declara peso (chars text, eventos bbox, rows categorical). Aggregate normaliza por escala intrínseca. Mais princípio, mais metadata schema.
+3. **Matrix Mode A só com 1 engine ativo** — toggle no toolbar (já existe filter chip per-engine); aggregate cross-engine vira opt-in com warning explícito. UI-only fix.
+
+**Por que não entra junto da fix bbox-weighting:** afeta toda a infra de weighting do reporter, não só bbox. Decisão de produto + revisão metodológica antes de spec. Material de repertório em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md` (variantes de weighting já mapeadas em contexto multi-label).
 
 ### Drill-down P1 spatial não responde visualmente a clicks diferentes na matriz
 
