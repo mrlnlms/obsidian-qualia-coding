@@ -133,10 +133,31 @@ Spec + plan arquivados em `obsidian-qualia-coding/plugin-docs/archive/claude_sou
 - [ ] "Map manual" em sources problemáticos (atualmente só Skip / Trust local — falta UI de remap manual pra outro fileId local)
 - [ ] Edge case: 2 contribuições do mesmo coderId na rail — atualmente permite, sem badge "duplicate coder"
 
-## 🧱 ICR — Slice E3a — itens identificados durante chunk B
+## ✅ ICR — Slice E3a (Reconciliação P2) — RESOLVIDO 2026-05-11
+
+Spec original em `docs/superpowers/specs/2026-05-09-icr-compare-coders-design.md §9 Slice E3a`. Branch `icr-fase-c-e3a` (mergeado em main). +81 testes (3222 → 3303). Tag `post-icr-slice-e3a-checkpoint`.
+
+**Entregue:**
+- Schema audit (3 types `reconciliation_*` + ReconciliationBounds/Decision/MarkerSnapshot + entity discriminator)
+- CoderKind 'consensus' + createConsensus + getCodableCoders
+- IcrMarkerOps façade + IcrMarkerOpsImpl (markdown + csvRow)
+- executeReconciliationDecision + executeReconciliationRevert (pipeline adopt/split/accept-divergence/reject + branch revert por kind+mode)
+- Drill-down P2 cards: picker com tipo de divergência (code/boundary/existence) + cards lado a lado + 4 ações + memo soft-required
+- SplitNewCodeModal
+- Polish além do spec: badge `✓ resolvida` no picker (antecipa parte do E3b workflow queue), reordenação code-primeiro
+- Perf: serialize renderOverview (renderQueue Promise chain) + cache module-level em extractInputsFromScope + setSelection skipa toolbar/overview + consensus fora do scope default
+
+**Decisões cravadas durante implementação:**
+- Bounds `text` heurístico (`line × 1M + ch`) suficiente pra clustering interno; displayLabel honesto (`linha N:CH–...`) exposto na UI. Char offset real entra em slice futuro quando bounds engine-specific
+- `findLatestActiveDecision` em audit log substitui state runtime — fonte de verdade pra "região foi decidida" é o audit, não snapshot do estado da UI
+- `setSelection` skip overview = descoberta crítica de perf: matriz não destaca célula selecionada via state, logo selection-only não precisa re-renderizar overview
+
+## 🧱 ICR — Slice E3a — itens restantes (E3b + extensões)
 
 - [ ] **Coder picker em coding ativo** (5 engines) — dropdown "Coding as: [Default ▾]" em popovers/menus + filter `getCodableCoders()` pra excluir consensus. Hoje markers em produção real são criados sem `codedBy`; só seed scripts populam manualmente. Spec E3a §2.2 assumia que existia. Peer ICR feature, não bloqueia E3a (orquestrador setta consensus coder por dentro). Atacar quando ICR sair de zero-user gating e equipes reais abrirem multi-coder no mesmo vault.
-- [ ] **IcrMarkerOps: PDF text + CSV segment + audio + video + image + pdfShape** — bounds.kind='text' / 'temporal' são insuficientes pra essas engines (PDF precisa page+spans, CSV-segment precisa sourceRowId+column+from/to, audio/vídeo precisa file durations). Slice E3a Fase 1 cobre só markdown + csvRow (suficiente pro fluxo "texto-likes" mais frequente). Estender bounds com variants engine-specific (`{kind:'pdfSpan', page, beginIndex, ...}` etc) ou aceitar `engineSpecific` extra na bounds quando expandir. Atacar quando frente E3a seguir pra slices maiores.
+- [ ] **IcrMarkerOps: PDF text + CSV segment + audio + video + image + pdfShape** — bounds.kind='text' / 'temporal' são insuficientes pra essas engines (PDF precisa page+spans, CSV-segment precisa sourceRowId+column+from/to, audio/vídeo precisa file durations). Slice E3a Fase 1 cobre só markdown + csvRow (suficiente pro fluxo "texto-likes" mais frequente). Estender bounds com variants engine-specific (`{kind:'pdfSpan', page, beginIndex, ...}` etc) ou aceitar `engineSpecific` extra na bounds quando expandir. Atacar quando frente E3b seguir + LLM-coded audio/vídeo aparecer.
+- [ ] **Slice E3b — Drill-down P3 (workflow queue)**: queue 4-colunas (Abertos / Em discussão / Resolvidos / Divergência aceita), revert via UI (botão no card de Resolvidos), toggle `excludeConsensusCoders` no toolbar pra κ pré/pós reconciliação, export relatório markdown com timeline + memos. Hoje E3a entrega revert via console + badge resolvida no picker (mínimo viável). Spec original §4.3.
+- [ ] **Slice E4 — Saved Comparisons hub**: schema `comparisons[]` em QualiaData + ComparisonRegistry + CompareComparisonsListModal + CreateComparisonModal + estado dirty no toolbar + ribbon + atalho contextual no codebook. Spec original §7+§8.
 
 ---
 

@@ -1836,7 +1836,114 @@ Testes: ~75 novos (3075 → 3150 total), em `tests/core/icr/ui/`: coefficientRes
 
 Testes: 72 novos (3150 → 3222 total), em `tests/core/icr/contributions/`.
 
-### 19.11 Companion docs
+### 19.11 UI layer Slice E3a — Reconciliação P2 (2026-05-11)
+
+Reconciliação multi-coder via drill-down Cards em `UnifiedCompareCodersView`. Pesquisador escolhe região contestada → cards lado a lado mostram codes de cada coder → 4 ações (adopt additive / adopt overwrite / accept-divergence / split em code novo). Decisão fica em audit log reversível.
+
+**Schema audit (extensão em `src/core/types.ts`):**
+
+`BaseAuditEntry.entity?` ganha terceiro discriminator `'reconciliation'`. `BaseAuditEntry.codeId` continua sendo anchor: target code da adopt, newCodeId da split, `candidateCodeIds[0]` da accept-divergence (ou `''` se sem candidatos — entry vai pra queue P3 mas não polui timeline). Soft-delete via `hidden` funciona igual.
+
+3 audit types novos:
+
+```typescript
+| { entity: 'reconciliation'; type: 'reconciliation_opened';
+    region: { fileId; engine: EngineId; bounds: ReconciliationBounds };
+    coderIds: CoderId[]; candidateCodeIds: string[] }
+| { entity: 'reconciliation'; type: 'reconciliation_decided';
+    region; coderIds; decision: ReconciliationDecision;
+    consensusMarkerId?: string; memoOfReconciliation: string }
+| { entity: 'reconciliation'; type: 'reconciliation_reverted';
+    originalEntryId: string; restoredMarkerIds: string[] }
+```
+
+`ReconciliationDecision` union: `adopt{codeId, mode, preStateSnapshot?}` / `split{newCodeId, mode, preStateSnapshot?}` / `accept-divergence` / `reject`. `mode = 'consensus-marker' | 'overwrite-originals'` (overwrite-only no adopt/split). `ReconciliationBounds` discriminado: `text{from,to}` (markdown char offsets) / `csvRow{rowIndex, column?}` / `temporal{fromMs, toMs}` (audio/vídeo Fase 2). `MarkerSnapshot{markerId, engine, fileId, serialized: unknown}` armazena round-trip JSON pra revert.
+
+`getEntriesForCode(log, codeId)` foi estendido pra incluir entries `entity='reconciliation'` cujo anchor codeId bate — Code Stability Timeline existente exibe as decisões de reconciliação naturalmente. `codebookTimelineEngine` mapeia os 3 types pro bucket `'reconciliation'` (cor #e07b3f, distinto de created/edited/etc).
+
+**Coder type `'consensus'` (em `src/core/icr/coderTypes.ts`):**
+
+`CoderKind = 'human' | 'llm' | 'consensus'`. `CoderRegistry.createConsensus(slug, displayName?)` idempotente — `'consensus:default'` default, slugs adicionais permitidos pra waves (`'consensus:wave-1'`, `'consensus:final'`). `getCodableCoders()` retorna filter excluindo consensus (peer ICR feature em backlog: dropdown coder picker em popovers das 5 engines).
+
+**`IcrMarkerOps` façade (em `src/core/icr/markerOps.ts`):**
+
+Interface cross-engine pra orquestrador. Métodos: `createMarker(engine, spec) → {markerId}`, `removeMarker`, `updateMarker(fields: {codes?})`, `serializeMarker → MarkerSnapshot`, `restoreMarker(snapshot)`, `findMarkersInRegion(region) → {markerId, codedBy, codes}[]`.
+
+`IcrMarkerOpsImpl` (em `src/core/icr/icrMarkerOpsImpl.ts`) wrappando `markdownModel` (`Marker.range` line/ch) + `csvModel.rowMarkers`. PDF/csv-segment/audio/video/image/pdfShape lançam `'engine-not-supported-in-slice'` (extensão exige bounds engine-specific — design em BACKLOG). Pra restore: `insertMarkerRaw(marker)` novo em `codeMarkerModel` + `csvCodingModel` re-insere marker já-formado + emite ADD event + salva.
+
+**Função orquestradora (em `src/core/icr/reconciliation.ts`):**
+
+`executeReconciliationDecision(params): ReconciliationResult`. Pipeline:
+
+- accept-divergence / reject: append audit, retorna (audit-only)
+- adopt: ensure consensus coder via `coderRegistry.createConsensus` → valida `decision.codeId` em registry → se `mode === 'overwrite-originals'`: `findMarkersInRegion` → snapshot coders ∈ `region.coderIds` que NÃO têm targetCode → `updateMarker` substituindo codes → cria consensus marker via `createMarker` codedBy `'consensus:default'` → append audit
+- split: cria `CodeDefinition` via `registry.create(name)` → mesmo branch adopt mas `targetCodeId = newCodeId`
+
+`executeReconciliationRevert(originalEntryId, params)`: branch por `decision.kind + mode`:
+- adopt|split / consensus-marker: `removeMarker(consensusMarkerId)`. `restoredMarkerIds = [consensusMarkerId]`
+- adopt|split / overwrite-originals: pra cada snapshot, `restoreMarker(snapshot)` + remove consensus marker. Code novo de split **NÃO é deletado** (pode ter sido reusado em outros markers)
+- accept-divergence / reject: nada nos markers, só audit
+
+**P2 UI (em `src/core/icr/ui/drilldownCards.ts`):**
+
+`renderDrilldownCards` é mode picker `'cards'` do drill-down. Sem região selecionada renderiza picker de regiões contestadas; com `state.currentSelection.kind === 'region'` renderiza view (cards + memo + 4 ações).
+
+`collectContestedRegions` agrupa markers por overlap:
+- **markdown**: `clusterMarkdownMarkers` itera por file, sort por `rangeKey(line, ch) = line × 1_000_000 + ch`, agrupa por intersecção transitiva. Captura `markerRefs[]` no cluster (não depende de editor aberto pra resolver — corrige bug do smoke 2026-05-11 onde findMarkersInRegion retornava [] sem editor)
+- **csvRow**: agrupa por `(fileId, sourceRowId, column)`
+
+Cada `ContestedRegion` ganha `divergenceKind`:
+- `'code'`: 2+ codes distintos (dropdown vai ter 2+ candidates) — chip vermelho, border-left vermelho
+- `'boundary'`: mesmo code, bounds diferentes — chip laranja
+- `'existence'`: só 1 coder — chip cinza, opacidade reduzida
+
+Ordenação do picker: unresolved code > boundary > existence > resolved. Resolved é detectado via `findLatestActiveDecision(region, log)` — varre audit por `reconciliation_decided` matching `regionKey(fileId, engine, bounds)` E NÃO matched por `reconciliation_reverted` posterior. Resolvidas ganham chip `✓ RESOLVIDA` + summary `decisão: adopt/split/manter divergência`, opacidade 0.65 (hover restaura 1).
+
+`SplitNewCodeModal` (em `src/core/icr/ui/splitNewCodeModal.ts`): nome obrigatório + cor opcional + Enter submit + detecta nome duplicado (confirm pra reusar code existente).
+
+**Perf — fixes do smoke 2026-05-11:**
+
+`renderOverview` é async (vault.cachedRead per md + reportPairwise full). Clicks rápidos disparavam N renders paralelos competindo pela UI thread. Fixes em camadas:
+
+1. **Serialize via Promise chain** (`renderQueue`): cada render espera o anterior. Token-guard ANTES do trabalho async descarta tokens stale sem pagar custo.
+2. **Cache module-level em `extractInputsFromScope`** (em `src/core/icr/ui/scopeExtraction.ts`): scope-hash key normalizada (arrays sorted pra estabilidade) + `cacheGeneration` counter + LRU 50 entries. `bumpInputsCacheGeneration()` exposto pra invalidação manual.
+3. **`setSelection` skipa renderToolbar + renderOverview**: descoberta crítica — overview NÃO destaca célula selecionada via state (matriz só usa `onclick`). Selection-only change só precisa re-renderizar drilldown. Reduz latência de click de 50-150ms+ pra <10ms.
+4. **Consensus fora do scope default**: construtor usa `coderRegistry.getCodableCoders()`, não `getAll()` — matriz fica 2×2 até user reincluir consensus via filter chip.
+5. **Render num scratch fragment** + commit no container só se token ainda é o atual.
+
+`bumpInputsCacheGeneration()` é chamado no construtor da view + no `onAfterReconciliation` (callback do drilldownCards). Test pollution evitada via `beforeEach` global em `tests/setup.ts`.
+
+**Arquivos novos:**
+
+- `src/core/icr/markerOps.ts` — interface IcrMarkerOps
+- `src/core/icr/icrMarkerOpsImpl.ts` — impl wrappando markdownModel + csvModel
+- `src/core/icr/reconciliation.ts` — executeReconciliationDecision + executeReconciliationRevert
+- `src/core/icr/ui/drilldownCards.ts` — P2 picker + region view + ações + classifyDivergence + resolution tracking
+- `src/core/icr/ui/splitNewCodeModal.ts` — modal nome + cor
+
+**Modificações:**
+
+- `src/core/types.ts` — 3 audit types + ReconciliationBounds + MarkerSnapshot + ReconciliationDecision + `entity` discriminator
+- `src/core/auditLog.ts` — `renderEntryMarkdown` estende com formatBoundsShort; `getEntriesForCode` inclui entity='reconciliation' cujo codeId bate
+- `src/core/detailCodeRenderer.ts` + `src/analytics/views/modes/codebookTimelineMode.ts` — switch handlers pra reconciliation_*
+- `src/analytics/data/codebookTimelineEngine.ts` — bucket `'reconciliation'` + cor #e07b3f + mapping dos 3 types
+- `src/core/icr/coderTypes.ts` — `CoderKind` alias
+- `src/core/icr/coderRegistry.ts` — `createConsensus` + `getCodableCoders`
+- `src/markdown/models/codeMarkerModel.ts` + `src/csv/csvCodingModel.ts` — `insertMarkerRaw` pra restore
+- `src/core/icr/ui/scopeExtraction.ts` — cache module-level + bumpInputsCacheGeneration
+- `src/core/icr/ui/unifiedCompareCodersView.ts` — drill-down mode picker + renderDrilldown switch + renderToken + renderQueue + setSelection skip
+- `src/main.ts` — `icrMarkerOps?: IcrMarkerOps` field + instanciação após models loaded + smoke runtime hook (`__icrSmoke.executeReconciliationDecision/Revert`)
+- `styles.css` — ~300 linhas (qc-cc-region-*, qc-cc-card*, qc-cc-action*, qc-cc-divergence-tag, qc-cc-split-*)
+- `tests/setup.ts` — `beforeEach` global pra `bumpInputsCacheGeneration` (evita test pollution)
+
+**Limites conhecidos** (refinements no BACKLOG §ICR Slice E3a):
+- IcrMarkerOps cobre só markdown + csvRow (Fase 1 do E3a). Extensão pra pdf-text + csv-segment + audio + video + image + pdfShape exige variants engine-specific em ReconciliationBounds.
+- Coder picker em coding ativo não existe (peer ICR feature). Bloqueio em popovers é trivial pq não há UI exposta pra escolher consensus.
+- Workflow queue P3 (Slice E3b) entrega revert via UI + κ pré/pós toggle + export relatório markdown.
+
+Testes: +81 (3222 → 3303 total), distribuídos em `tests/core/auditLogReconciliation.test.ts` (16), `tests/core/icr/reconciliation.test.ts` (20), `tests/core/icr/icrMarkerOpsImpl.test.ts` (13), `tests/core/icr/drilldownCards.test.ts` (22), `tests/core/icr/coderRegistry.test.ts` (+10 cases consensus).
+
+### 19.12 Companion docs
 
 - `obsidian-qualia-coding/plugin-docs/research/ICR-MATERIA-2026-05-08.md` — destilação da frente (atualizada 2026-05-09)
 - `obsidian-qualia-coding/plugin-docs/research/ICR-DESIGN-SKETCH-2026-05-08.md` — esboço arquitetural

@@ -155,10 +155,24 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [x] Helper `kappaClass` extraído pra `overviewSharedRender.ts` (reuso entre os 3 modes)
   - **Smoke real verde 2026-05-10.** ~75 testes novos (3075 → 3150 verde). Tag `post-icr-slice-e2-checkpoint`.
 
+  **✅ Slice E3a — Reconciliação UI (drill-down P2 + 4 ações + 9 commits, FEITO 2026-05-11):**
+  - [x] Schema audit: `entity?: 'reconciliation'` + 3 types (`reconciliation_opened` / `_decided` / `_reverted`) + tipos auxiliares (`ReconciliationBounds` / `MarkerSnapshot` / `ReconciliationDecision`) em `types.ts`
+  - [x] `CoderKind` += `'consensus'` + `createConsensus` idempotente + `getCodableCoders()` em `CoderRegistry`
+  - [x] `IcrMarkerOps` interface (cross-engine façade) + `IcrMarkerOpsImpl` wrappando markdown + csv-row (Fase 1; pdf/csv-segment/audio/video em backlog)
+  - [x] `executeReconciliationDecision` + `executeReconciliationRevert` em `src/core/icr/reconciliation.ts` — pipeline adopt/split/accept-divergence + branch por kind+mode no revert
+  - [x] `renderDrilldownCards` (P2): picker de regiões contestadas + view region (cards lado a lado + memo + 4 ações)
+  - [x] `SplitNewCodeModal` (nome obrigatório + cor opcional + Enter submit + detecção de nome duplicado)
+  - [x] Wire em `UnifiedCompareCodersView` — drill-down mode picker (Spatial / Cards / Workflow stub)
+  - [x] **UX polish além do spec:** chip de tipo de divergência (`code` / `boundary` / `existence`) com border colorida + ordenação code-primeiro + badge `✓ resolvida` antecipando parte do E3b
+  - [x] **Perf fixes:** serialize `renderOverview` via Promise chain + token-guard pra descartar render stale + cache module-level em `extractInputsFromScope` (scope-hash, generation counter, LRU 50) + `setSelection` skipa toolbar/overview (só re-renderiza drilldown)
+  - [x] `bumpInputsCacheGeneration` em construct + `onAfterReconciliation` — invalida cache quando markers mudam
+  - **Smoke real verde 2026-05-11.** +81 testes (3222 → 3303). Tag `post-icr-slice-e3a-checkpoint`.
+
   **Slices fora do escopo entregue (pendentes):**
-  - [ ] **Slice E3a** — Schema reconciliação (3 audit types `reconciliation_*` + Coder kind `'consensus'`) + `executeReconciliationDecision` + Drill-down P2 (cards lado a lado + 4 ações)
-  - [ ] **Slice E3b** — Drill-down P3 (queue 4-colunas) + revert mechanic + κ pré/pós toggle + export relatório
+  - [ ] **Slice E3b** — Drill-down P3 (queue 4-colunas Abertos/Em discussão/Resolvidos/Divergência aceita) + revert mechanic via UI + κ pré/pós toggle + export relatório markdown
   - [ ] **Slice E4** — Saved Comparisons + ribbon + atalho contextual no codebook
+  - [ ] **IcrMarkerOps: extensão pra pdf-text + csv-segment + audio + video + image + pdfShape** — bounds.kind='text'/'temporal' insuficientes pra essas engines (precisa variants engine-specific). Detalhe em BACKLOG §ICR Slice E3a
+  - [ ] **Coder picker em coding ativo** (5 engines) — peer ICR feature não-entregue; bloqueio consensus em UI atual é trivial (sem picker). Detalhe em BACKLOG
   - [ ] **Wire `attachSourceHashSnapshot` em outros 5 engines** (PDF / CSV / image / audio / video) — slice de extensão mecânica do piloto markdown
 
   **Checklist Fase C — Transport multi-coder remoto P2:**
@@ -170,10 +184,12 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [ ] Markdown overlap exato no chip Lado a lado (atualmente degradado: requer fetch async de sourceText pra reativar predicate `extractMarkdownRange + computeOverlap`). PDF + CSV funcionam normalmente.
   - [ ] Range overlap exato no chip Por código (atualmente aproximação `min(local, incoming)` por codeId compartilhado)
 
-  **Resumo da sessão 2026-05-09 → 2026-05-10:** **8 slices entregues** (1-6 motor + E1 + E2 UI) + **Fase C P1 UX layer**, +386 testes ICR (2814 → 3222). Infraestrutura ICR completa em todos os flancos + 6 das 6 engines cobertas (motor κ multimodal completo). Compare Coders View entrega overview completo (Mode A matriz / Mode B tabela por código / Mode C heatmap código×engine) + Modal "ver lado a lado" com diagnóstico narrativo + bbox engines integrados na matriz/heatmap. Polish E1 (κ=0 vacuous) resolvido via filter `includeCodersWithoutMarkers`. **Fase C completa pra workflow real** — pesquisador exporta contribuição via UI, lead recebe via drop, revisa nos 3 chips, resolve divergências inline, aplica. Decisões adiadas registradas em `BACKLOG.md`.
+  **Resumo da sessão 2026-05-09 → 2026-05-11:** **9 slices entregues** (1-6 motor + E1 + E2 UI + **E3a reconciliação P2**) + **Fase C P1 UX layer**, +467 testes ICR (2814 → 3303). Compare Coders View completa pra workflow real de reconciliação multi-coder: pesquisador vê matriz/tabela/heatmap, abre drill-down Cards, escolhe região contestada (com tag de divergência), decide entre adopt/split/manter-divergência, decisão fica audit-trailed reversível. Audit log estendido com 3 types `reconciliation_*` aparecendo na Code Stability Timeline existente (anchor codeId). Reconciliação multimodal arquitetural — IcrMarkerOps é façade per-engine que aceita extensão pra pdf/audio/vídeo/image em slice futura sem refactor do orquestrador.
 
   **Próximo passo (gated em você):**
-  - **Slice E3a/b** Compare Coders — Reconciliação UI (P2 cards + 4 ações + audit `reconciliation_*` + P3 queue + revert)
+  - **Slice E3b** Drill-down P3 (queue 4-colunas + revert UI + κ pré/pós toggle + export relatório markdown)
+  - **Slice E4** Saved Comparisons + ribbon + atalho contextual no codebook
+  - **IcrMarkerOps extensão** pra pdf-text + csv-segment + audio + video (requer bounds engine-specific — design em BACKLOG)
   - Refactor motor κ pra set-valued labels (eliminar redução first-code alfabético — afeta TODAS as engines). **Material de repertório metodológico em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md`** — leitura obrigatória antes do brainstorm: cobre Jaccard vs MASI, variantes Cohen multi-label (binary-per-label / Rosenberg augmented / weighted), generalização Krippendorff α com δ customizado, riscos no refactor de tests existentes.
   - Wire mechanical de `attachSourceHashSnapshot` em outros 5 engines
 
