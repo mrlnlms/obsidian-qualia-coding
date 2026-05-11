@@ -29,6 +29,43 @@ const duckdbWorkerInlinePlugin = {
 	},
 };
 
+// Inline o Kappa Worker (compute pesado dos coeficientes ICR fora da main thread).
+// Pattern: imports com sufixo `?inline` (ex: `import src from './kappa.worker.ts?inline'`)
+// disparam um build standalone do arquivo e injetam o JS resultante como string default.
+// Em runtime, o cliente cria um Blob URL e instancia o Worker. Mesma restrição de
+// "só main.js no entregue" do DuckDB.
+const inlineWorkerPlugin = {
+	name: "inline-worker",
+	setup(build) {
+		const SUFFIX = "?inline";
+		build.onResolve({ filter: /\?inline$/ }, (args) => {
+			const realPath = args.path.slice(0, -SUFFIX.length);
+			const resolved = realPath.startsWith(".") || realPath.startsWith("/")
+				? `${args.resolveDir}/${realPath}`.replace(/\/\.\//, "/")
+				: realPath;
+			return { path: resolved, namespace: "inline-worker" };
+		});
+		build.onLoad({ filter: /.*/, namespace: "inline-worker" }, async (args) => {
+			const result = await esbuild.build({
+				entryPoints: [args.path],
+				bundle: true,
+				format: "iife",
+				platform: "browser",
+				target: "es2020",
+				write: false,
+				minify: prod,
+				logLevel: "warning",
+				sourcemap: false,
+			});
+			const source = result.outputFiles[0].text;
+			return {
+				contents: `export default ${JSON.stringify(source)};`,
+				loader: "js",
+			};
+		});
+	},
+};
+
 // Compress the DuckDB WASM bytes with gzip at build time. The .wasm is ~34MB
 // raw and compresses to ~9-10MB (WASM has lots of redundancy). Without this
 // the embedded bundle ships at 49MB which trips Community Plugins guidance.
@@ -80,7 +117,7 @@ const context = await esbuild.context({
 		// DuckDB-Wasm bytes embedded as Uint8Array literal in the bundle.
 		".wasm": "binary",
 	},
-	plugins: [duckdbWorkerInlinePlugin, duckdbWasmGzipPlugin],
+	plugins: [duckdbWorkerInlinePlugin, duckdbWasmGzipPlugin, inlineWorkerPlugin],
 });
 
 if (prod) {

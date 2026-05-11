@@ -21,7 +21,7 @@ import type { CoderRegistry } from '../coderRegistry';
 import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
 import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
 import { computeBboxKappaForPair } from './bboxScopeExtraction';
-import { reportKappa, type EngineId } from '../reporter';
+import { reportKappaAsync, type EngineId } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
@@ -192,7 +192,7 @@ async function computeKappaForCell(
 		return s + (k.markers?.length ?? k.units?.length ?? 0);
 	}, 0);
 	if (totalMarkers === 0) return undefined;
-	const report = reportKappa(inputs, cacheKeyForScope(cellScope));
+	const report = await reportKappaAsync(inputs, cacheKeyForScope(cellScope));
 	const N = state.scope.coderIds.length;
 	const pair: [CoderId, CoderId] | undefined = N === 2
 		? [state.scope.coderIds[0]!, state.scope.coderIds[1]!]

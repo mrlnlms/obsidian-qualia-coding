@@ -14,7 +14,7 @@
 
 import type { CompareCodersViewState, CurrentSelection } from './compareCodersTypes';
 import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
-import { reportPairwise } from '../reporter';
+import { reportPairwiseAsync } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import type { CoderId } from '../coderTypes';
 import type { CoderRegistry } from '../coderRegistry';
@@ -74,7 +74,7 @@ export async function renderOverviewMatrix(
 		}
 	}
 
-	const reports = inputs.length > 0 ? reportPairwise(inputs, pairs, cacheKeyForScope(effectiveScope)) : [];
+	const reports = inputs.length > 0 ? await reportPairwiseAsync(inputs, pairs, cacheKeyForScope(effectiveScope)) : [];
 	const kappaByPair = new Map<string, number | undefined>();
 	for (const r of reports) {
 		const [a, b] = r.pair;

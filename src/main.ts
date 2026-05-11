@@ -1079,6 +1079,14 @@ export default class QualiaCodingPlugin extends Plugin {
 	}
 
 	async onunload() {
+		// Kappa worker dispose — termina worker + revoga Blob URL. Hot-reload sem leak.
+		try {
+			const { disposeKappaWorker } = await import('./core/icr/kappaWorkerClient');
+			disposeKappaWorker();
+		} catch (e) {
+			console.warn("[qualia-coding] kappa worker dispose failed", e);
+		}
+
 		// Hydrator dispose ANTES do duckdb — drena queries inflight via DuckDBRowProvider.dispose
 		// internal lock. Sem isso, hidratação pendente bate em "Missing DB manager".
 		try {

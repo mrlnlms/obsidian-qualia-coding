@@ -17,7 +17,7 @@ import type { CompareCodersViewState, CurrentSelection } from './compareCodersTy
 import type { CoderRegistry } from '../coderRegistry';
 import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
 import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
-import { reportKappa } from '../reporter';
+import { reportKappaAsync } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import { kappaClass } from './overviewSharedRender';
 import { applyCoderInclusion, applyConsensusExclusion } from './coderInclusion';
@@ -87,7 +87,7 @@ export async function renderOverviewTable(
 			return s + (k.markers?.length ?? k.units?.length ?? 0);
 		}, 0);
 		if (totalMarkers === 0) return null;
-		const report = reportKappa(inputs, cacheKeyForScope({ ...effectiveScope, codeIds: [codeId] }));
+		const report = await reportKappaAsync(inputs, cacheKeyForScope({ ...effectiveScope, codeIds: [codeId] }));
 		const cohenValues = Object.values(report.aggregate.cohenKappa);
 		const cohen = N === 2 && cohenValues.length > 0 ? cohenValues[0] : undefined;
 		const fleiss = N >= 3 ? report.aggregate.fleissKappa : undefined;

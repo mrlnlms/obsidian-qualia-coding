@@ -290,3 +290,69 @@ function filterKappaInputToPair(
 		coders: [a, b],
 	};
 }
+
+// ─── Async versions via Web Worker ─────────────────────────
+// Off-main-thread compute pros 5 coefs (cohen/fleiss/alpha/alphaBinary/cuAlpha).
+// Combos não-cacheadas demoravam 400-1900ms na main thread freezando o frame.
+// O worker faz o trabalho em background; main thread fica fluida.
+// Caches main-thread continuam relevantes — checados antes do round-trip ao worker.
+
+import { reportKappaAsync as workerReportKappa, reportPairwiseAsync as workerReportPairwise } from './kappaWorkerClient';
+
+export async function reportKappaAsync(
+	inputs: EngineKappaInput[],
+	cacheKey?: string,
+): Promise<KappaReport> {
+	const idHit = reportKappaCache.get(inputs);
+	if (idHit) return idHit;
+	if (cacheKey) {
+		const keyed = reportKappaKeyCache.get(`${cacheKey}::${reportCacheGen}`);
+		if (keyed) {
+			reportKappaCache.set(inputs, keyed);
+			return keyed;
+		}
+	}
+	const result = await workerReportKappa(inputs);
+	reportKappaCache.set(inputs, result);
+	if (cacheKey) {
+		reportKappaKeyCache.set(`${cacheKey}::${reportCacheGen}`, result);
+		pruneReportCache(reportKappaKeyCache);
+	}
+	return result;
+}
+
+export async function reportPairwiseAsync(
+	inputs: EngineKappaInput[],
+	pairs: [CoderId, CoderId][],
+	cacheKey?: string,
+): Promise<PairwiseReport[]> {
+	const pKey = pairsKey(pairs);
+	let byPairs = reportPairwiseCache.get(inputs);
+	if (byPairs) {
+		const hit = byPairs.get(pKey);
+		if (hit) return hit;
+	}
+	if (cacheKey) {
+		const fullKey = `${cacheKey}::${pKey}::${reportCacheGen}`;
+		const keyed = reportPairwiseKeyCache.get(fullKey);
+		if (keyed) {
+			if (!byPairs) {
+				byPairs = new Map();
+				reportPairwiseCache.set(inputs, byPairs);
+			}
+			byPairs.set(pKey, keyed);
+			return keyed;
+		}
+	}
+	const result = await workerReportPairwise(inputs, pairs);
+	if (!byPairs) {
+		byPairs = new Map();
+		reportPairwiseCache.set(inputs, byPairs);
+	}
+	byPairs.set(pKey, result);
+	if (cacheKey) {
+		reportPairwiseKeyCache.set(`${cacheKey}::${pKey}::${reportCacheGen}`, result);
+		pruneReportCache(reportPairwiseKeyCache);
+	}
+	return result;
+}
