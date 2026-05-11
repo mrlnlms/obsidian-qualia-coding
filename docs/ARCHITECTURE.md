@@ -1780,7 +1780,7 @@ Arquivos novos em `src/core/icr/ui/`:
 - `compareCoderCoefficientsModal.ts` — `extends Modal`. 2 estados toggle no header (single-pair adiciona breakdown per-engine; all-pairs lista C(N,2) aggregates). Diagnóstico narrativo dispara em single-pair quando padrão bate. Export markdown via clipboard com Notice de confirmação. Field renomeado `compareScope` (não `scope`) pra evitar colisão com `Modal.scope` da API Obsidian
 
 Modificações:
-- `overviewMatrix.ts` — lê `state.primaryCoefficient` via `getCoefficientValue` (não mais Cohen hardcoded). Bbox merge avg 50/50 com text-likes quando `primaryCoefficient === 'cohen'`. Aplica `applyCoderInclusion` + `hideAgreementTotal` fade
+- `overviewMatrix.ts` — lê `state.primaryCoefficient` via `getCoefficientValue` (não mais Cohen hardcoded). Bbox entra no `reportPairwise` via param `perPairInputs?: Map<pairKey, EngineKappaInput[]>` (Slice E5b-followup, 2026-05-11) — aggregate weighted por `markers.length` natural, eliminou avg 50/50. Aplica `applyCoderInclusion` + `hideAgreementTotal` fade
 - `filterChips.ts` — adiciona 6 engine chips (markdown / pdf / csv-seg / csv-row / audio / video) + toggles "split bbox engines" + "incluir coders sem markers". Coder chip ganha `is-empty` (cinza claro + tooltip) quando coder não tem markers + filter polish off
 - `compareCodersTypes.ts` — `ComparisonFilters` ganha `visibleEngineIds?` (override scope.engineIds via toggle), `splitBboxEngines?` (default false), `includeCodersWithoutMarkers?` (default false)
 - `scopeExtraction.ts:EngineModelsForExtraction` — adiciona `image?: { getAllMarkers(): ImageMarker[] }` + `pdf.getAllShapes?(): PdfShapeMarker[]`

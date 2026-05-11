@@ -302,6 +302,16 @@ Refactor entregue: `reportPairwise` ganhou param `perPairInputs?: Map<pairKey, E
 
 **Quando atacar:** se reportar virar issue. Opções: empty state "selecione um par primeiro" / pega primeiro par automaticamente / desabilita toggle quando sem pair.
 
+### Drill-down Cards/Workflow não filtra por currentSelection da overview
+
+**Estado:** quando user clica par na matriz Mode A (`{kind:'pair'}`), code na tabela Mode B (`{kind:'code'}`), ou code+engine no heatmap Mode C (`{kind:'codeEngine'}`), só o drill-down Spatial (P1) reage filtrando lanes. **Cards (P2)** só reage a `{kind:'region'}` — escolha de par/código não filtra a lista de regiões contestadas; user tem que scrollar 17 itens pra achar relevante. **Workflow (P3)** ignora selection completamente — sempre mostra a queue completa categorizada por status.
+
+**Por design atual:** Cards/Workflow têm navegação interna (lista de regiões); overview ajuda a escolher onde olhar, mas decisão de reconciliação é region-by-region. Não é bug — é deliberadamente desacoplado.
+
+**Por que valeria mudar:** quando user clica Carla↔Joana na matriz e troca pra Cards/Workflow, faz sentido a lista vir pré-filtrada pra regiões onde os dois coders contestam. Mesma coisa pra code: clica código X na tabela, Cards/Workflow mostra só regiões envolvendo aquele código. Reduz cognitive load no fluxo "overview → decide → reconcilia".
+
+**Implementação:** filter inline em `categorizeRegionsByStatus` (já recebe regions[] + log) — adicionar param `restrictTo?: { coderPair?: [CoderId, CoderId]; codeId?: string }` opcional. Drilldowns leem `state.currentSelection` e passam o filtro. Pequeno (~30 LOC) + tests pra os 3 paths (pair/code/codeEngine).
+
 ---
 
 ## 🔒 Won't-fix (não reabrir)
