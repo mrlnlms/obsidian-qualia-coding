@@ -86,6 +86,29 @@ export class UnifiedCompareCodersView extends ItemView {
 		void this.renderDrilldown();
 	}
 
+	/** Carrega config de um SavedComparison no state, setta `loadedFromSavedId` e re-renderiza.
+	 *  Slice E4. Cache invalidado por mudança de scope. Dirty detection vem no Chunk 3. */
+	loadFromSaved(comparisonId: string): boolean {
+		const saved = this.plugin.comparisonRegistry?.getById(comparisonId);
+		if (!saved) return false;
+		bumpInputsCacheGeneration();
+		this.state = {
+			scope: { ...saved.scope },
+			overviewMode: saved.view.overviewMode,
+			drilldownMode: saved.view.drilldownMode,
+			primaryCoefficient: saved.view.primaryCoefficient,
+			filters: { ...saved.filters },
+			currentSelection: { kind: 'none' },
+			loadedFromSavedId: comparisonId,
+			isDirty: false,
+		};
+		const token = ++this.renderToken;
+		this.renderToolbar();
+		void this.renderOverview(token);
+		void this.renderDrilldown();
+		return true;
+	}
+
 	private renderToolbar(): void {
 		this.toolbarEl.empty();
 		const modeGroup = this.toolbarEl.createSpan({ cls: 'qc-cc-mode-group' });

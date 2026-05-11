@@ -55,6 +55,9 @@ import { SmartCodeRegistry } from './core/smartCodes/smartCodeRegistryApi';
 import { SmartCodeListModal } from './core/smartCodes/smartCodeListModal';
 import { SmartCodeBuilderModal } from './core/smartCodes/builderModal';
 import { ComparisonRegistry } from './core/icr/comparisonRegistry';
+import { CompareComparisonsListModal } from './core/icr/ui/compareComparisonsListModal';
+import { CreateComparisonModal } from './core/icr/ui/createComparisonModal';
+import { openCompareCodersView } from './core/icr/ui/openCompareCodersView';
 import { getMarkerLabel, previewText } from './core/markerResolvers';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
@@ -650,17 +653,39 @@ export default class QualiaCodingPlugin extends Plugin {
 		this.addCommand({
 			id: 'compare-coders-open',
 			name: 'Compare Coders: Open',
-			callback: async () => {
-				const { workspace } = this.app;
-				let leaf = workspace.getLeavesOfType(COMPARE_CODERS_VIEW_TYPE)[0];
-				if (!leaf) {
-					const newLeaf = workspace.getLeaf('tab');
-					if (newLeaf) {
-						await newLeaf.setViewState({ type: COMPARE_CODERS_VIEW_TYPE, active: true });
-						leaf = newLeaf;
-					}
-				}
-				if (leaf) workspace.revealLeaf(leaf);
+			callback: () => { void openCompareCodersView(this); },
+		});
+
+		this.addCommand({
+			id: 'compare-coders-open-hub',
+			name: 'Compare Coders: Open hub',
+			callback: () => {
+				new CompareComparisonsListModal({
+					app: this.app,
+					registry: this.comparisonRegistry,
+					onOpenComparison: (id) => { void openCompareCodersView(this, { loadFromSavedId: id }); },
+					onCreateComparison: () => {
+						new CreateComparisonModal({
+							app: this.app,
+							registry: this.comparisonRegistry,
+							coderRegistry: this.coderRegistry,
+							onCreated: (cmp) => { void openCompareCodersView(this, { loadFromSavedId: cmp.id }); },
+						}).open();
+					},
+				}).open();
+			},
+		});
+
+		this.addCommand({
+			id: 'compare-coders-new',
+			name: 'Compare Coders: New comparison',
+			callback: () => {
+				new CreateComparisonModal({
+					app: this.app,
+					registry: this.comparisonRegistry,
+					coderRegistry: this.coderRegistry,
+					onCreated: (cmp) => { void openCompareCodersView(this, { loadFromSavedId: cmp.id }); },
+				}).open();
 			},
 		});
 

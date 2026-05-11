@@ -6240,6 +6240,29 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-sc-list-row.is-hidden .qc-sc-list-count { opacity: 0.5; }
 .qc-sc-list-row.is-hidden .qc-sc-list-eye { opacity: 0.85; }
 
+/* Saved Comparisons hub (Slice E4) — pattern espelha qc-sc-list. */
+.qc-cmp-list-modal { min-width: 560px; }
+.qc-cmp-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.qc-cmp-list-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 4px;
+}
+.qc-cmp-list-row:hover { background: var(--background-modifier-hover); }
+.qc-cmp-list-main { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qc-cmp-list-name { font-weight: 600; }
+.qc-cmp-list-summary { font-size: 0.85em; color: var(--text-muted); }
+.qc-cmp-list-ts { font-size: 0.8em; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.qc-cmp-list-empty { color: var(--text-muted); padding: 16px; text-align: center; }
+.qc-cmp-list-menu { display: inline-flex; align-items: center; padding: 2px; opacity: 0.4; cursor: pointer; }
+.qc-cmp-list-menu:hover { opacity: 1; }
+.qc-cmp-list-new-btn { width: 100%; }
+
+.qc-cmp-create-modal { min-width: 400px; }
+.qc-cmp-create-hint { font-size: 0.85em; color: var(--text-muted); margin-bottom: 8px; }
+
 /* Smart Codes section dentro do Code Detail (list mode) — colapsável, mesmo layout das rows do hub. */
 .qc-smart-codes-section { display: flex; flex-direction: column; gap: 2px; padding: 4px 0 8px; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 8px; }
 .qc-smart-codes-section-header { display: flex; align-items: center; padding: 4px 6px; font-size: 0.85em; color: var(--text-muted); user-select: none; }
