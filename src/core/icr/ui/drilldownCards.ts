@@ -79,10 +79,11 @@ export function renderDrilldownCards(
 	});
 
 	const regions = collectContestedRegions(state, deps);
+	const resolvedSet = computeResolvedRegionSet(regions, deps.auditLog);
 
 	const sel = state.currentSelection;
 	if (sel.kind !== 'region') {
-		renderRegionPicker(container, regions, cbs);
+		renderRegionPicker(container, regions, resolvedSet, deps.auditLog, cbs);
 		return;
 	}
 
@@ -109,6 +110,8 @@ export function renderDrilldownCards(
 function renderRegionPicker(
 	container: HTMLElement,
 	regions: ContestedRegion[],
+	resolvedSet: Set<string>,
+	auditLog: AuditEntry[],
 	cbs: DrilldownCardsCallbacks,
 ): void {
 	if (regions.length === 0) {
@@ -118,24 +121,52 @@ function renderRegionPicker(
 		});
 		return;
 	}
-	// Ordena: divergência de CODE primeiro (mais útil pra reconciliar), boundary depois, existence por último.
+	// Ordena: unresolved primeiro (code > boundary > existence), depois resolvidas no fim.
+	// Spec §4.3 prevê queue P3 (E3b) — aqui é polish E3a: ao menos sinaliza visualmente o que já foi decidido.
 	const order: Record<DivergenceKind, number> = { code: 0, boundary: 1, existence: 2 };
-	const sorted = regions.slice().sort((a, b) => order[a.divergenceKind] - order[b.divergenceKind]);
+	const sorted = regions.slice().sort((a, b) => {
+		const aResolved = resolvedSet.has(regionKey(a)) ? 1 : 0;
+		const bResolved = resolvedSet.has(regionKey(b)) ? 1 : 0;
+		if (aResolved !== bResolved) return aResolved - bResolved;
+		return order[a.divergenceKind] - order[b.divergenceKind];
+	});
 
+	const resolvedCount = sorted.filter(r => resolvedSet.has(regionKey(r))).length;
 	const list = container.createDiv({ cls: 'qc-cc-region-picker' });
-	list.createEl('h4', { text: `Regiões contestadas (${regions.length})` });
+	const headerText = resolvedCount > 0
+		? `Regiões contestadas (${regions.length}) · ${resolvedCount} resolvida${resolvedCount === 1 ? '' : 's'}`
+		: `Regiões contestadas (${regions.length})`;
+	list.createEl('h4', { text: headerText });
 	for (const region of sorted) {
-		const item = list.createDiv({ cls: `qc-cc-region-item qc-cc-divergence-${region.divergenceKind}` });
+		const isResolved = resolvedSet.has(regionKey(region));
+		const item = list.createDiv({
+			cls: `qc-cc-region-item qc-cc-divergence-${region.divergenceKind}${isResolved ? ' is-resolved' : ''}`,
+		});
 		const header = item.createDiv({ cls: 'qc-cc-region-header' });
 		header.createSpan({ cls: 'qc-cc-region-file', text: region.fileId });
 		header.createSpan({ cls: 'qc-cc-region-engine', text: region.engine });
 		header.createSpan({ cls: 'qc-cc-region-bounds', text: region.displayLabel });
-		// Chip de tipo de divergência — destaque visual + dica do que esperar no dropdown.
-		const tag = header.createSpan({ cls: `qc-cc-divergence-tag is-${region.divergenceKind}` });
-		tag.textContent = divergenceTagLabel(region.divergenceKind);
+		if (isResolved) {
+			const tag = header.createSpan({ cls: 'qc-cc-divergence-tag is-resolved' });
+			tag.textContent = '✓ resolvida';
+		} else {
+			const tag = header.createSpan({ cls: `qc-cc-divergence-tag is-${region.divergenceKind}` });
+			tag.textContent = divergenceTagLabel(region.divergenceKind);
+		}
 		const meta = item.createDiv({ cls: 'qc-cc-region-meta' });
 		const coderNames = region.coderIds.join(', ');
 		meta.createSpan({ text: `${region.coderIds.length} coders: ${coderNames}` });
+		if (isResolved) {
+			const latest = findLatestActiveDecision(region, auditLog);
+			if (latest && latest.type === 'reconciliation_decided') {
+				const kind = latest.decision.kind === 'adopt' ? 'adopt'
+					: latest.decision.kind === 'split' ? 'split'
+					: latest.decision.kind === 'accept-divergence' ? 'manter divergência'
+					: 'rejeitada';
+				const summary = item.createDiv({ cls: 'qc-cc-region-resolved-summary' });
+				summary.createSpan({ text: `decisão: ${kind}` });
+			}
+		}
 		item.onclick = () => cbs.onSetSelection({
 			kind: 'region',
 			value: { fileId: region.fileId, engine: region.engine, bounds: region.bounds, coderIds: region.coderIds },
@@ -323,6 +354,53 @@ function collectCsvRowRegions(
 		});
 	}
 	return out;
+}
+
+// ─── Resolution tracking (E3a polish — antecipa parte do E3b workflow queue) ──
+
+function regionKey(region: ContestedRegion | { fileId: string; engine: EngineId; bounds: ReconciliationBounds }): string {
+	const b = region.bounds;
+	const boundsKey = b.kind === 'text' ? `t:${b.from}-${b.to}`
+		: b.kind === 'csvRow' ? `r:${b.rowIndex}:${b.column ?? ''}`
+		: `m:${b.fromMs}-${b.toMs}`;
+	return `${region.fileId}::${region.engine}::${boundsKey}`;
+}
+
+/** Set de regionKeys com decisão ATIVA (não revertida). Considera última decided + qualquer revert posterior. */
+function computeResolvedRegionSet(regions: ContestedRegion[], log: AuditEntry[]): Set<string> {
+	const resolved = new Set<string>();
+	for (const region of regions) {
+		if (findLatestActiveDecision(region, log)) resolved.add(regionKey(region));
+	}
+	return resolved;
+}
+
+/** Última decisão ainda válida (decided sem revert posterior). null se nunca decidiu OU revertida. */
+function findLatestActiveDecision(
+	region: ContestedRegion | { fileId: string; engine: EngineId; bounds: ReconciliationBounds },
+	log: AuditEntry[],
+): Extract<AuditEntry, { type: 'reconciliation_decided' }> | null {
+	const decisionsForRegion: Extract<AuditEntry, { type: 'reconciliation_decided' }>[] = [];
+	for (const e of log) {
+		if (e.entity !== 'reconciliation') continue;
+		if (e.type !== 'reconciliation_decided') continue;
+		if (e.region.fileId !== region.fileId) continue;
+		if (e.region.engine !== region.engine) continue;
+		if (!sameBounds(e.region.bounds, region.bounds)) continue;
+		decisionsForRegion.push(e);
+	}
+	if (decisionsForRegion.length === 0) return null;
+	// Por ordem cronológica (insertion order do log). Última = mais recente.
+	for (let i = decisionsForRegion.length - 1; i >= 0; i--) {
+		const decided = decisionsForRegion[i]!;
+		const reverted = log.some(e =>
+			e.entity === 'reconciliation' &&
+			e.type === 'reconciliation_reverted' &&
+			e.originalEntryId === decided.id,
+		);
+		if (!reverted) return decided;
+	}
+	return null;
 }
 
 function sameBounds(a: ReconciliationBounds, b: ReconciliationBounds): boolean {
@@ -538,4 +616,7 @@ export const __test__ = {
 	clusterMarkdownMarkers,
 	formatBoundsLabel,
 	sameBounds,
+	computeResolvedRegionSet,
+	findLatestActiveDecision,
+	regionKey,
 };

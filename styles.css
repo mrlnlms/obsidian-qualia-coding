@@ -7333,6 +7333,11 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	color: #fff;
 }
 
+.qc-cc-divergence-tag.is-resolved {
+	background: #2d6a4f;
+	color: #fff;
+}
+
 .qc-cc-region-item.qc-cc-divergence-code {
 	border-left: 3px solid #c1352e;
 }
@@ -7344,6 +7349,23 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-cc-region-item.qc-cc-divergence-existence {
 	border-left: 3px solid #999;
 	opacity: 0.85;
+}
+
+.qc-cc-region-item.is-resolved {
+	border-left-color: #2d6a4f;
+	opacity: 0.65;
+	background: var(--background-primary);
+}
+
+.qc-cc-region-item.is-resolved:hover {
+	opacity: 1;
+}
+
+.qc-cc-region-resolved-summary {
+	margin-top: 4px;
+	font-size: 0.8em;
+	color: var(--text-muted);
+	font-style: italic;
 }
 
 .qc-cc-region-meta {
