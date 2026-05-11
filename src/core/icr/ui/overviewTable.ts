@@ -75,8 +75,8 @@ export async function renderOverviewTable(
 		? { ...filteredScope, engineIds: state.filters.visibleEngineIds }
 		: filteredScope;
 
-	const rows: CodeRow[] = [];
-	for (const codeId of candidateCodeIds) {
+	// Perf fix 2026-05-11: paraleliza extracts + reportKappa por código (antes era sequential await).
+	const rowsRaw = await Promise.all(candidateCodeIds.map(async (codeId) => {
 		const inputs = await extractInputsFromScope(
 			{ ...effectiveScope, codeIds: [codeId] },
 			{ models: deps.engineModels, app: deps.app },
@@ -85,14 +85,12 @@ export async function renderOverviewTable(
 			const k = i.kappaInput as { markers?: unknown[]; units?: unknown[] };
 			return s + (k.markers?.length ?? k.units?.length ?? 0);
 		}, 0);
-		if (totalMarkers === 0) continue;
+		if (totalMarkers === 0) return null;
 		const report = reportKappa(inputs);
 		const cohenValues = Object.values(report.aggregate.cohenKappa);
-		// Cohen "—" pra 3+ coders (não há valor único pareado)
 		const cohen = N === 2 && cohenValues.length > 0 ? cohenValues[0] : undefined;
-		// Fleiss "—" pra 2 coders (use Cohen)
 		const fleiss = N >= 3 ? report.aggregate.fleissKappa : undefined;
-		rows.push({
+		return {
 			codeId,
 			codeName: deps.codeRegistry.getById(codeId)?.name ?? codeId,
 			markerCount: totalMarkers,
@@ -101,8 +99,9 @@ export async function renderOverviewTable(
 			alpha: report.aggregate.alphaNominal,
 			alphaBinary: report.aggregate.alphaBinary,
 			cuAlpha: report.aggregate.cuAlpha,
-		});
-	}
+		} as CodeRow;
+	}));
+	const rows: CodeRow[] = rowsRaw.filter((r): r is CodeRow => r !== null);
 
 	// Sort: pior coeficiente primário (Cohen pra N=2, Fleiss pra N≥3) ascendente; n/a no fim
 	rows.sort((a, b) => {

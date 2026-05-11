@@ -94,9 +94,10 @@ export async function renderOverviewHeatmap(
 		return;
 	}
 
-	// Filtra códigos pra incluir só os com markers no escopo (em qualquer engine)
-	const codesWithMarkers: { codeId: string; codeName: string }[] = [];
-	for (const codeId of candidateCodeIds) {
+	// Perf fix 2026-05-11: paraleliza os filtros has-markers + κ computation
+	// em vez de await sequencial (75+ awaits em série quando heatmap tem ~15 codes × 5 engines
+	// dava ~500ms de delay perceptível mesmo com cache hit per cell).
+	const codeChecks = await Promise.all(candidateCodeIds.map(async (codeId) => {
 		const inputs = await extractInputsFromScope(
 			{ ...state.scope, codeIds: [codeId] },
 			{ models: deps.engineModels, app: deps.app },
@@ -107,15 +108,29 @@ export async function renderOverviewHeatmap(
 		});
 		const hasBbox = pdfShapesAll.some((m: any) => m.codes?.some((c: any) => c.codeId === codeId))
 			|| imageMarkersAll.some((m: any) => m.codes?.some((c: any) => c.codeId === codeId));
-		if (hasText || hasBbox) {
-			codesWithMarkers.push({ codeId, codeName: deps.codeRegistry.getById(codeId)?.name ?? codeId });
-		}
-	}
+		return { codeId, codeName: deps.codeRegistry.getById(codeId)?.name ?? codeId, hasMarkers: hasText || hasBbox };
+	}));
+	const codesWithMarkers = codeChecks.filter(c => c.hasMarkers).map(c => ({ codeId: c.codeId, codeName: c.codeName }));
 
 	if (codesWithMarkers.length === 0) {
 		container.createDiv({ text: 'Nenhum código tem markers no escopo atual', cls: 'qc-cc-empty' });
 		return;
 	}
+
+	// Compute κ pra cada (code, engine) cell em paralelo — então preenche DOM síncrono.
+	type CellResult = { rowIndex: number; col: ColumnId; k: number | undefined };
+	const cellPromises: Promise<CellResult>[] = [];
+	for (let rowIndex = 0; rowIndex < codesWithMarkers.length; rowIndex++) {
+		const row = codesWithMarkers[rowIndex]!;
+		for (const col of visibleColumns) {
+			cellPromises.push(
+				computeKappaForCell(row.codeId, col, state, deps).then(k => ({ rowIndex, col, k })),
+			);
+		}
+	}
+	const cellResults = await Promise.all(cellPromises);
+	const cellMap = new Map<string, number | undefined>();
+	for (const r of cellResults) cellMap.set(`${r.rowIndex}::${r.col}`, r.k);
 
 	const table = container.createEl('table', { cls: 'qc-cc-heatmap' });
 	const thead = table.createEl('thead').createEl('tr');
@@ -126,13 +141,14 @@ export async function renderOverviewHeatmap(
 	}
 
 	const tbody = table.createEl('tbody');
-	for (const row of codesWithMarkers) {
+	for (let rowIndex = 0; rowIndex < codesWithMarkers.length; rowIndex++) {
+		const row = codesWithMarkers[rowIndex]!;
 		const tr = tbody.createEl('tr');
 		tr.createEl('th', { text: row.codeName });
 		for (const col of visibleColumns) {
 			const td = tr.createEl('td');
 			td.dataset.engine = col;
-			const k = await computeKappaForCell(row.codeId, col, state, deps);
+			const k = cellMap.get(`${rowIndex}::${col}`);
 			if (k === undefined || isNaN(k)) {
 				td.textContent = '—';
 				td.addClass('qc-kappa-na');
