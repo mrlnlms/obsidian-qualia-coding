@@ -26,6 +26,10 @@ export class UnifiedCompareCodersView extends ItemView {
 	private toolbarEl!: HTMLElement;
 	private overviewEl!: HTMLElement;
 	private drilldownEl!: HTMLElement;
+	/** Bump a cada updateState — render async checa se o token mudou e aborta escrita stale.
+	 *  Sem isso, 2 updateState próximos disparam 2 renders async; ambos `empty()` o container
+	 *  no início mas escrevem na ordem de resolução do await — concorrência duplica conteúdo. */
+	private renderToken = 0;
 
 	constructor(leaf: WorkspaceLeaf, private plugin: QualiaCodingPlugin) {
 		super(leaf);
@@ -49,7 +53,7 @@ export class UnifiedCompareCodersView extends ItemView {
 		root.createDiv({ cls: 'qc-cc-splitter' });
 		this.drilldownEl = root.createDiv({ cls: 'qc-cc-drilldown' });
 
-		await this.renderOverview();
+		await this.renderOverview(++this.renderToken);
 		await this.renderDrilldown();
 	}
 
@@ -59,8 +63,9 @@ export class UnifiedCompareCodersView extends ItemView {
 	/** Mutate state + re-render. updateState chain é ok pra E1; E2 considera partial re-render. */
 	updateState(partial: Partial<CompareCodersViewState>): void {
 		this.state = { ...this.state, ...partial };
+		const token = ++this.renderToken;
 		this.renderToolbar();
-		void this.renderOverview();
+		void this.renderOverview(token);
 		void this.renderDrilldown();
 	}
 
@@ -148,32 +153,37 @@ export class UnifiedCompareCodersView extends ItemView {
 		}[mode];
 	}
 
-	private async renderOverview(): Promise<void> {
-		this.overviewEl.empty();
+	private async renderOverview(token: number): Promise<void> {
+		// Renderiza num scratch fragment; commit só se o token ainda é o atual.
+		// Sem o token-guard, 2 chamadas async escrevem no mesmo container e duplicam conteúdo.
+		const scratch = document.createDocumentFragment();
+		const wrap = document.createElement('div');
+		scratch.appendChild(wrap);
 		const deps = {
 			coderRegistry: this.plugin.coderRegistry,
 			engineModels: this.engineModels(),
 			app: this.plugin.app,
 		};
 		if (this.state.overviewMode === 'matrix') {
-			await renderOverviewMatrix(this.overviewEl, this.state, deps, sel => this.setSelection(sel));
-			return;
-		}
-		if (this.state.overviewMode === 'table') {
+			await renderOverviewMatrix(wrap, this.state, deps, sel => this.setSelection(sel));
+		} else if (this.state.overviewMode === 'table') {
 			await renderOverviewTable(
-				this.overviewEl,
+				wrap,
 				this.state,
 				{ ...deps, codeRegistry: this.plugin.sharedRegistry },
 				sel => this.setSelection(sel),
 			);
-			return;
+		} else {
+			await renderOverviewHeatmap(
+				wrap,
+				this.state,
+				{ ...deps, codeRegistry: this.plugin.sharedRegistry },
+				sel => this.setSelection(sel),
+			);
 		}
-		await renderOverviewHeatmap(
-			this.overviewEl,
-			this.state,
-			{ ...deps, codeRegistry: this.plugin.sharedRegistry },
-			sel => this.setSelection(sel),
-		);
+		if (token !== this.renderToken) return; // stale — descarta
+		this.overviewEl.empty();
+		while (wrap.firstChild) this.overviewEl.appendChild(wrap.firstChild);
 	}
 
 	private engineModels(): EngineModelsForExtraction {
@@ -218,9 +228,10 @@ export class UnifiedCompareCodersView extends ItemView {
 				},
 				{
 					onSetSelection: sel => this.setSelection(sel),
-					onAfterReconciliation: () => {
-						// re-render pra refletir state pós-decisão (consensus marker novo, audit entry).
-						this.updateState({});
+					onAfterReconciliation: partial => {
+						// Update consolidado: reset seleção + flush state em UM render
+						// (renderOverview é async; 2 chamadas seguidas causaram race + matriz duplicada).
+						this.updateState(partial);
 					},
 				},
 			);

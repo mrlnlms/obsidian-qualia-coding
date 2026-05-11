@@ -1,24 +1,40 @@
 import { describe, it, expect } from 'vitest';
 import { __test__ } from '../../../src/core/icr/ui/drilldownCards';
 
-const { clusterMarkdownMarkers, formatBoundsLabel } = __test__;
+const { clusterMarkdownMarkers, formatBoundsLabel, sameBounds } = __test__;
+
+function mdM(fileId: string, startLine: number, startCh: number, endLine: number, endCh: number, coderId: string, markerId: string, codes: { codeId: string }[] = []) {
+	return { fileId, startLine, startCh, endLine, endCh, coderId, markerId, codes };
+}
 
 describe('drilldownCards — clusterMarkdownMarkers', () => {
-	it('agrupa markers que se sobrepõem em char offsets', () => {
+	it('agrupa markers que se sobrepõem em line/ch (mesma linha)', () => {
 		const markers = [
-			{ fileId: 'F1.md', bounds: { kind: 'text' as const, from: 100, to: 200 }, coderId: 'human:alice', markerId: 'm1' },
-			{ fileId: 'F1.md', bounds: { kind: 'text' as const, from: 150, to: 250 }, coderId: 'human:bob', markerId: 'm2' },
+			mdM('F1.md', 5, 100, 5, 200, 'human:alice', 'm1', [{ codeId: 'c_x' }]),
+			mdM('F1.md', 5, 150, 5, 250, 'human:bob', 'm2', [{ codeId: 'c_y' }]),
 		];
 		const regions = clusterMarkdownMarkers(markers);
 		expect(regions).toHaveLength(1);
 		expect(regions[0]!.coderIds.sort()).toEqual(['human:alice', 'human:bob']);
-		expect(regions[0]!.bounds).toEqual({ kind: 'text', from: 100, to: 250 });
+		expect(regions[0]!.markerRefs).toHaveLength(2);
+		expect(regions[0]!.displayLabel).toMatch(/linha 6:100–6:250/);
+	});
+
+	it('markerRefs preserva codes pra dropdown candidatos', () => {
+		const markers = [
+			mdM('F.md', 0, 0, 0, 50, 'human:alice', 'm1', [{ codeId: 'c_alpha' }]),
+			mdM('F.md', 0, 25, 0, 75, 'human:bob', 'm2', [{ codeId: 'c_beta' }]),
+		];
+		const regions = clusterMarkdownMarkers(markers);
+		const allCodes = new Set<string>();
+		for (const m of regions[0]!.markerRefs) for (const c of m.codes) allCodes.add(c.codeId);
+		expect(Array.from(allCodes).sort()).toEqual(['c_alpha', 'c_beta']);
 	});
 
 	it('separa markers que NÃO se sobrepõem em clusters distintos', () => {
 		const markers = [
-			{ fileId: 'F1.md', bounds: { kind: 'text' as const, from: 100, to: 200 }, coderId: 'human:alice', markerId: 'm1' },
-			{ fileId: 'F1.md', bounds: { kind: 'text' as const, from: 500, to: 600 }, coderId: 'human:bob', markerId: 'm2' },
+			mdM('F1.md', 5, 100, 5, 200, 'human:alice', 'm1'),
+			mdM('F1.md', 20, 500, 20, 600, 'human:bob', 'm2'),
 		];
 		const regions = clusterMarkdownMarkers(markers);
 		expect(regions).toHaveLength(2);
@@ -26,8 +42,8 @@ describe('drilldownCards — clusterMarkdownMarkers', () => {
 
 	it('separa por fileId mesmo com bounds idênticos', () => {
 		const markers = [
-			{ fileId: 'F1.md', bounds: { kind: 'text' as const, from: 100, to: 200 }, coderId: 'human:alice', markerId: 'm1' },
-			{ fileId: 'F2.md', bounds: { kind: 'text' as const, from: 100, to: 200 }, coderId: 'human:bob', markerId: 'm2' },
+			mdM('F1.md', 5, 100, 5, 200, 'human:alice', 'm1'),
+			mdM('F2.md', 5, 100, 5, 200, 'human:bob', 'm2'),
 		];
 		const regions = clusterMarkdownMarkers(markers);
 		expect(regions).toHaveLength(2);
@@ -36,25 +52,42 @@ describe('drilldownCards — clusterMarkdownMarkers', () => {
 
 	it('cluster com 3+ markers transitivamente sobrepostos vira 1 região', () => {
 		const markers = [
-			{ fileId: 'F.md', bounds: { kind: 'text' as const, from: 0, to: 100 }, coderId: 'human:alice', markerId: 'm1' },
-			{ fileId: 'F.md', bounds: { kind: 'text' as const, from: 50, to: 150 }, coderId: 'human:bob', markerId: 'm2' },
-			{ fileId: 'F.md', bounds: { kind: 'text' as const, from: 120, to: 200 }, coderId: 'human:carla', markerId: 'm3' },
+			mdM('F.md', 0, 0, 0, 100, 'human:alice', 'm1'),
+			mdM('F.md', 0, 50, 0, 150, 'human:bob', 'm2'),
+			mdM('F.md', 0, 120, 0, 200, 'human:carla', 'm3'),
 		];
 		const regions = clusterMarkdownMarkers(markers);
 		expect(regions).toHaveLength(1);
 		expect(regions[0]!.coderIds.sort()).toEqual(['human:alice', 'human:bob', 'human:carla']);
-		expect(regions[0]!.bounds).toEqual({ kind: 'text', from: 0, to: 200 });
+		expect(regions[0]!.markerRefs).toHaveLength(3);
 	});
 
 	it('dedup coderIds quando mesmo coder tem múltiplos markers no cluster', () => {
 		const markers = [
-			{ fileId: 'F.md', bounds: { kind: 'text' as const, from: 0, to: 50 }, coderId: 'human:alice', markerId: 'm1' },
-			{ fileId: 'F.md', bounds: { kind: 'text' as const, from: 25, to: 75 }, coderId: 'human:alice', markerId: 'm2' },
-			{ fileId: 'F.md', bounds: { kind: 'text' as const, from: 60, to: 100 }, coderId: 'human:bob', markerId: 'm3' },
+			mdM('F.md', 0, 0, 0, 50, 'human:alice', 'm1'),
+			mdM('F.md', 0, 25, 0, 75, 'human:alice', 'm2'),
+			mdM('F.md', 0, 60, 0, 100, 'human:bob', 'm3'),
 		];
 		const regions = clusterMarkdownMarkers(markers);
 		expect(regions).toHaveLength(1);
 		expect(regions[0]!.coderIds.sort()).toEqual(['human:alice', 'human:bob']);
+		expect(regions[0]!.markerRefs).toHaveLength(3);
+	});
+});
+
+describe('drilldownCards — sameBounds', () => {
+	it('text bounds bate quando from + to iguais', () => {
+		expect(sameBounds({ kind: 'text', from: 10, to: 20 }, { kind: 'text', from: 10, to: 20 })).toBe(true);
+		expect(sameBounds({ kind: 'text', from: 10, to: 20 }, { kind: 'text', from: 10, to: 21 })).toBe(false);
+	});
+
+	it('csvRow bate com column normalizado (undefined ≡ "")', () => {
+		expect(sameBounds({ kind: 'csvRow', rowIndex: 1 }, { kind: 'csvRow', rowIndex: 1, column: '' })).toBe(true);
+		expect(sameBounds({ kind: 'csvRow', rowIndex: 1, column: 'a' }, { kind: 'csvRow', rowIndex: 1, column: 'b' })).toBe(false);
+	});
+
+	it('kinds diferentes nunca batem', () => {
+		expect(sameBounds({ kind: 'text', from: 0, to: 10 }, { kind: 'csvRow', rowIndex: 0 })).toBe(false);
 	});
 });
 
