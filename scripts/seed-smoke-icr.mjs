@@ -319,7 +319,12 @@ const newData = {
 	visibilityOverrides: {},
 	auditLog: [],
 	coders: { coders: CODERS },
-	sourceHashes: {},
+	sourceHashes: Object.fromEntries(
+		Object.keys(FILES).map(fid => {
+			const abs = path.join(VAULT, fid);
+			return [fid, { hash: fileHash(abs), computedAt: NOW, fileSize: fileSize(abs) }];
+		}),
+	),
 	activeCoderId: 'human:default',
 	comparisons: {
 		definitions: { [SAVED_COMPARISON_ID]: savedComparison },
