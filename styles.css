@@ -7338,6 +7338,18 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	margin-top: 12px;
 }
 
+/* ─── Compare Coders P1 (drill-down spatial) — header selection ─────── */
+
+.qc-cc-drilldown-selection-header {
+	padding: 6px 12px;
+	margin: 0 12px 8px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+	font-weight: 500;
+}
+
 /* ─── Compare Coders P2 (drill-down cards) — Slice E3a ────────────────── */
 
 .qc-cc-region-filter-banner {

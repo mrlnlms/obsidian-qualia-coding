@@ -49,6 +49,11 @@ export function renderDrilldownSpatial(
 		return;
 	}
 
+	const headerLabel = describeSpatialSelectionHeader(state, deps);
+	if (headerLabel) {
+		container.createDiv({ cls: 'qc-cc-drilldown-selection-header', text: headerLabel });
+	}
+
 	const relevantFiles = collectRelevantFiles(state, deps);
 	if (relevantFiles.length === 0) {
 		container.createDiv({
@@ -65,6 +70,28 @@ export function renderDrilldownSpatial(
 	}
 }
 
+function describeSpatialSelectionHeader(state: CompareCodersViewState, deps: DrilldownSpatialDeps): string | null {
+	const sel = state.currentSelection;
+	if (sel.kind === 'pair') {
+		const [a, b] = sel.value;
+		const nameA = deps.coderRegistry.getById(a)?.name ?? a;
+		const nameB = deps.coderRegistry.getById(b)?.name ?? b;
+		return `par selecionado: ${nameA} ↔ ${nameB} (files onde AMBOS marcaram)`;
+	}
+	if (sel.kind === 'code') {
+		const name = deps.codeRegistry.getById(sel.value)?.name ?? sel.value;
+		return `código selecionado: ${name}`;
+	}
+	if (sel.kind === 'codeEngine') {
+		const name = deps.codeRegistry.getById(sel.value.codeId)?.name ?? sel.value.codeId;
+		return `código ${name} · engine ${sel.value.engineId}`;
+	}
+	if (sel.kind === 'region') {
+		return `região selecionada em ${sel.value.fileId}`;
+	}
+	return null;
+}
+
 interface RelevantFile {
 	fileId: string;
 	engine: EngineId;
@@ -74,11 +101,25 @@ function collectRelevantFiles(
 	state: CompareCodersViewState,
 	deps: DrilldownSpatialDeps,
 ): RelevantFile[] {
+	const sel = state.currentSelection;
 	const result: RelevantFile[] = [];
 	for (const engine of E1_DRILLDOWN_ENGINES) {
+		// `codeEngine`: restringe à engine selecionada no heatmap. Markers de outras engines com mesmo code não entram.
+		if (sel.kind === 'codeEngine' && sel.value.engineId !== engine) continue;
 		const markers = collectMarkersForEngine(engine, deps);
-		const fileIds = new Set(markers.filter(m => isInSelection(m, state)).map(m => m.fileId));
+		const selected = markers.filter(m => isInSelection(m, state));
+		const fileIds = new Set(selected.map(m => m.fileId));
+
+		// `pair`: intersection — file só entra se AMBOS coders do par têm pelo menos 1 marker.
+		const pairFilter = sel.kind === 'pair' ? (sel.value as [string, string]) : null;
 		for (const fid of fileIds) {
+			if (pairFilter) {
+				const [a, b] = pairFilter;
+				const markersInFile = selected.filter(m => m.fileId === fid);
+				const hasA = markersInFile.some(m => (m as { codedBy?: string }).codedBy === a);
+				const hasB = markersInFile.some(m => (m as { codedBy?: string }).codedBy === b);
+				if (!(hasA && hasB)) continue;
+			}
 			result.push({ fileId: fid, engine });
 		}
 	}
