@@ -33,13 +33,13 @@ export function openCsvCodingPopover(
 	const pos = { x: savedRect.left, y: savedRect.bottom + 4 };
 
 	const getMarker = () => model.findOrCreateRowMarker(file, sourceRowId, column);
-	const existingMarker = model.getRowMarkersForCell(file, sourceRowId, column)[0];
+	const existingMarker = model.getRowMarkerForActiveCoder(file, sourceRowId, column);
 	const isHoverMode = !!existingMarker;
 
 	const adapter: CodingPopoverAdapter = {
 		registry: model.registry,
 		getActiveCodes: () => {
-			const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
+			const current = model.getRowMarkerForActiveCoder(file, sourceRowId, column);
 			if (!current) return [];
 			return current.codes
 				.map(c => model.registry.getById(c.codeId)?.name)
@@ -62,12 +62,12 @@ export function openCsvCodingPopover(
 		getMemo: () => '',
 		setMemo: () => {},
 		getMagnitudeForCode: (codeId) => {
-			const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
+			const current = model.getRowMarkerForActiveCoder(file, sourceRowId, column);
 			if (!current) return undefined;
 			return findCodeApplication(current.codes, codeId)?.magnitude;
 		},
 		setMagnitudeForCode: (codeId, value) => {
-			const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
+			const current = model.getRowMarkerForActiveCoder(file, sourceRowId, column);
 			if (!current) return;
 			current.codes = setMagnitude(current.codes, codeId, value);
 			current.updatedAt = Date.now();
@@ -75,11 +75,11 @@ export function openCsvCodingPopover(
 			gridApi.refreshCells({ force: true });
 		},
 		getRelationsForCode: (codeId) => {
-			const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
+			const current = model.getRowMarkerForActiveCoder(file, sourceRowId, column);
 			return findCodeApplication(current?.codes ?? [], codeId)?.relations ?? [];
 		},
 		setRelationsForCode: (codeId, relations) => {
-			const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
+			const current = model.getRowMarkerForActiveCoder(file, sourceRowId, column);
 			if (!current) return;
 			const ca = findCodeApplication(current.codes, codeId);
 			if (ca) {
