@@ -8,7 +8,7 @@ import type { PendingContribution, ChipId } from './contributionViewTypes';
 const CHIPS: Array<{ id: ChipId; label: string; question: string }> = [
 	{ id: 'overview', label: '▦ Visão geral', question: 'o batch como um todo bate? (resolve divergências, depois apply)' },
 	{ id: 'side-by-side', label: '▤ Lado a lado', question: 'esse marker bate com o que eu codificaria? (accept/skip por marker)' },
-	{ id: 'by-code', label: '▥ Por código', question: 'qual código tá divergindo mais? (revisão temática, til pra LLM batch)' },
+	{ id: 'by-code', label: '▥ Por código', question: 'qual código tá divergindo mais? (revisão temática)' },
 ];
 
 export function renderToolbarContent(
