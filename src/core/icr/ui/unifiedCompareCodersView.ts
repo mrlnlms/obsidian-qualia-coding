@@ -69,9 +69,12 @@ export class UnifiedCompareCodersView extends ItemView {
 		// Slice E4: tenta retomar última config ephemeral (não-saved) persistida no onClose anterior.
 		const last = plugin.dataManager.getDataRef().lastCompareCodersUsed;
 		if (last) {
+			// scope.coderIds sempre vem do registry atual — coders criados após o último save
+			// precisam aparecer como chips. Visibility on/off mora em filters.visibleCoderIds,
+			// não no scope. Outras dimensões do scope (fileIds, codeIds, etc) preservam o snapshot.
 			this.state = {
 				...defaults,
-				scope: { ...last.scope },
+				scope: { ...last.scope, coderIds: allCoderIds },
 				overviewMode: last.view.overviewMode,
 				drilldownMode: last.view.drilldownMode,
 				primaryCoefficient: last.view.primaryCoefficient,
@@ -177,8 +180,9 @@ export class UnifiedCompareCodersView extends ItemView {
 		const saved = this.plugin.comparisonRegistry?.getById(comparisonId);
 		if (!saved) return false;
 		bumpAllIcrCaches();
+		const allCoderIds = this.plugin.coderRegistry.getAll().map(c => c.id);
 		this.state = {
-			scope: { ...saved.scope },
+			scope: { ...saved.scope, coderIds: allCoderIds },
 			overviewMode: saved.view.overviewMode,
 			drilldownMode: saved.view.drilldownMode,
 			primaryCoefficient: saved.view.primaryCoefficient,
