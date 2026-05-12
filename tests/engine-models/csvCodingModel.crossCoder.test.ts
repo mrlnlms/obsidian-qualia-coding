@@ -115,3 +115,45 @@ describe('CSV cross-coder: setCellComment', () => {
 		expect(all[0]?.codedBy).toBe('human:bob');
 	});
 });
+
+describe('CSV cross-coder: addCodeToManyRows', () => {
+	it('opera apenas em markers do active coder, ignora alheios', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', codeIds: ['c1'] });
+		insertRowMarker({ file: 'a.csv', row: 1, column: 'text', coder: 'human:default', codeIds: ['c2'] });
+		registry.create('newCode');
+		const newCodeId = registry.getByName('newCode')!.id;
+		model.addCodeToManyRows('a.csv', [0, 1], 'text', newCodeId);
+		const r0 = model.getRowMarkersForCell('a.csv', 0, 'text');
+		const bobMarker = r0.find(m => m.codedBy === 'human:bob');
+		expect(bobMarker?.codes.map(c => c.codeId)).toEqual(['c1']);
+		const defaultMarker0 = r0.find(m => m.codedBy === 'human:default');
+		expect(defaultMarker0?.codes.map(c => c.codeId)).toEqual([newCodeId]);
+		const r1 = model.getRowMarkersForCell('a.csv', 1, 'text');
+		expect(r1[0]?.codes.map(c => c.codeId).sort()).toEqual(['c2', newCodeId].sort());
+	});
+});
+
+describe('CSV cross-coder: removeAllRowMarkersFromMany', () => {
+	it('deleta apenas markers do active coder', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', codeIds: ['c1'] });
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:default', codeIds: ['c2'] });
+		insertRowMarker({ file: 'a.csv', row: 1, column: 'text', coder: 'human:default', codeIds: ['c3'] });
+		model.removeAllRowMarkersFromMany('a.csv', [0, 1], 'text');
+		const r0 = model.getRowMarkersForCell('a.csv', 0, 'text');
+		expect(r0).toHaveLength(1);
+		expect(r0[0]?.codedBy).toBe('human:bob');
+		const r1 = model.getRowMarkersForCell('a.csv', 1, 'text');
+		expect(r1).toHaveLength(0);
+	});
+});
+
+describe('CSV cross-coder: getCodeIntersectionForRows', () => {
+	it('calcula intersect apenas sobre markers do active coder', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:default', codeIds: ['c1', 'c2'] });
+		insertRowMarker({ file: 'a.csv', row: 1, column: 'text', coder: 'human:default', codeIds: ['c2', 'c3'] });
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', codeIds: ['c1', 'c4'] });
+		insertRowMarker({ file: 'a.csv', row: 1, column: 'text', coder: 'human:bob', codeIds: ['c4', 'c5'] });
+		const intersect = model.getCodeIntersectionForRows('a.csv', [0, 1], 'text');
+		expect([...intersect]).toEqual(['c2']);
+	});
+});

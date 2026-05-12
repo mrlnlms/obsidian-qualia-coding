@@ -290,9 +290,10 @@ export class CsvCodingModel {
 	// from `rowMarkers`, mutate in place, and emit one `notify()` at the end.
 
 	private buildRowMarkerIndex(file: string, column: string): Map<number, RowMarker> {
+		const activeCoder = this.plugin.getActiveCoderId();
 		const idx = new Map<number, RowMarker>();
 		for (const m of this.rowMarkers) {
-			if (m.fileId === file && m.column === column) {
+			if (m.fileId === file && m.column === column && (m.codedBy ?? 'human:default') === activeCoder) {
 				idx.set(m.sourceRowId, m);
 			}
 		}
@@ -373,11 +374,13 @@ export class CsvCodingModel {
 	/** Removes all row markers for the given (file, column, sourceRowId) tuples. */
 	removeAllRowMarkersFromMany(file: string, sourceRowIds: ReadonlyArray<number>, column: string): void {
 		if (sourceRowIds.length === 0) return;
+		const activeCoder = this.plugin.getActiveCoderId();
 		const rowSet = new Set(sourceRowIds);
 		const before = this.rowMarkers.length;
-		const removed = this.rowMarkers.filter(m =>
+		const matches = (m: RowMarker) =>
 			m.fileId === file && m.column === column && rowSet.has(m.sourceRowId)
-		);
+			&& (m.codedBy ?? 'human:default') === activeCoder;
+		const removed = this.rowMarkers.filter(matches);
 		for (const m of removed) {
 			this.markerTextCache.delete(m.id);
 			const codes = m.codes.map(c => c.codeId);
@@ -387,9 +390,7 @@ export class CsvCodingModel {
 				codeIds: codes, marker: undefined,
 			});
 		}
-		this.rowMarkers = this.rowMarkers.filter(m =>
-			!(m.fileId === file && m.column === column && rowSet.has(m.sourceRowId))
-		);
+		this.rowMarkers = this.rowMarkers.filter(m => !matches(m));
 		if (this.rowMarkers.length !== before) this.notify();
 	}
 
@@ -403,9 +404,11 @@ export class CsvCodingModel {
 	 */
 	getCodeIntersectionForRows(file: string, sourceRowIds: ReadonlyArray<number>, column: string): Set<string> {
 		if (sourceRowIds.length === 0) return new Set();
+		const activeCoder = this.plugin.getActiveCoderId();
 		const rowCodes = new Map<number, Set<string>>();
 		for (const m of this.rowMarkers) {
 			if (m.fileId !== file || m.column !== column) continue;
+			if ((m.codedBy ?? 'human:default') !== activeCoder) continue;
 			let set = rowCodes.get(m.sourceRowId);
 			if (!set) { set = new Set(); rowCodes.set(m.sourceRowId, set); }
 			for (const id of getCodeIds(m.codes)) set.add(id);
