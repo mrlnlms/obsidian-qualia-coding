@@ -3,7 +3,7 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-12 (A3/A4 + dedup motor + D resolvidos — só B4 weighting e C set-valued labels permanecem abertos em ICR).
+> Última atualização: 2026-05-12 (A3/A4 + dedup motor + D resolvidos em ICR; LazyTextFilter active indicator restaurado).
 
 ---
 
@@ -20,18 +20,6 @@ Quando aparecer, capturar `data.json` + screenshot + steps na hora — diagnóst
 ---
 
 ## 🪶 Polish curto
-
-### Filter active indicator perdido em `LazyTextFilter` (regressão 0.4.2)
-
-**Sintoma:** AG Grid `agTextColumnFilter` padrão renderiza um dot/badge roxo no header da coluna quando o filtro está ativo. O custom `LazyTextFilter` (`src/csv/duckdb/lazyTextFilter.ts`, introduzido em 0.4.2 pra eliminar flash branco no refresh) perdeu esse indicador. Usuário não tem feedback visual de quais colunas estão filtradas — quebra usabilidade e quebra consistência com colunas não-lazy.
-
-**Severidade:** média. Não impede usar; impede saber que filtro está ativo.
-
-**Investigar:** AG Grid expõe `isFilterActive(): boolean` no contrato do filter component — ele consome essa flag pra decidir mostrar o indicator no header. Verificar se `LazyTextFilter` implementa `isFilterActive` retornando `true` quando há `filterModel`. Possíveis causas:
-- Método não implementado / sempre retorna `false` → indicator nunca aparece
-- AG Grid Community talvez só rendere indicator built-in pra filters nativos; pode precisar render manual via `headerComponent` custom ou CSS targeting `.ag-header-cell-filter-active`
-
-**Caminho rápido:** se for só `isFilterActive` faltando, fix é uma linha. Se AG Grid não rendera pra custom filter, adicionar pseudo-element CSS via `.ag-header-cell-filtered::after` ou hook no `headerComponentParams`.
 
 ### Image engine (sessão dedicada)
 

@@ -226,6 +226,37 @@ export class LazyTextFilter implements IFilter {
 		return this.currentModel !== null;
 	}
 
+	/**
+	 * Sincroniza `column.filterActive` com o estado deste filter.
+	 *
+	 * O header do AG Grid lê `column.filterActive` (não `filter.isFilterActive()`)
+	 * pra decidir aplicar `.ag-header-cell-filtered` (dot/badge roxo do tema Quartz).
+	 * Built-in filters atualizam essa flag indiretamente via `filterChangedCallback()`,
+	 * que dispatcha evento global `filterChanged` — invalidaria o InfiniteCache
+	 * (purga + flash branco que motivou este filter custom existir).
+	 *
+	 * Caminho aqui: setar flag direto + dispatch só do evento da column
+	 * (`filterActiveChanged`), que o header escuta. API pública via `AgColumn`.
+	 */
+	private syncColumnFilterActive(): void {
+		const column = this.params?.column as unknown as {
+			filterActive?: boolean;
+			dispatchColEvent?: (type: string, source: string) => void;
+		} | undefined;
+		if (!column || typeof column.dispatchColEvent !== "function") return;
+		const isActive = this.currentModel !== null;
+		const flagChanged = column.filterActive !== isActive;
+		if (flagChanged) {
+			column.filterActive = isActive;
+			column.dispatchColEvent("filterActiveChanged", "filterChanged");
+		}
+		// O ícone do funil (eFilterButton) escuta "filterChanged" na column (não no
+		// eventSvc global) e aplica/remove `.ag-filter-active`, que renderiza o dot
+		// roxo via `::after` no tema Quartz. Sem este dispatch, header tem a class
+		// `.ag-header-cell-filtered` mas o dot do button continua oculto.
+		column.dispatchColEvent("filterChanged", "filterChanged");
+	}
+
 	doesFilterPass(_params: IDoesFilterPassParams): boolean {
 		// Não chamado em Infinite Row Model (server-side).
 		return true;
@@ -237,6 +268,7 @@ export class LazyTextFilter implements IFilter {
 
 	setModel(model: FilterModel | null): void {
 		this.currentModel = model;
+		this.syncColumnFilterActive();
 		if (!model) {
 			// Reset
 			this.cond1.typeSelect.value = "contains";
@@ -319,6 +351,7 @@ export class LazyTextFilter implements IFilter {
 
 			this.context.applyPrefetched(whereClause, filteredCount);
 			this.currentModel = newModel;
+			this.syncColumnFilterActive();
 
 			gridApi.setRowCount(filteredCount, true);
 			if (filteredCount > 0) gridApi.ensureIndexVisible(0);
