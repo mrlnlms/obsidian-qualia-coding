@@ -157,3 +157,37 @@ describe('CSV cross-coder: getCodeIntersectionForRows', () => {
 		expect([...intersect]).toEqual(['c2']);
 	});
 });
+
+describe('CSV cross-coder: getCellComment', () => {
+	it('retorna comment do active coder, ignora alheio', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', comment: 'bob comment' });
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:default', comment: 'default comment' });
+		activeCoder = 'human:default';
+		expect(model.getCellComment('a.csv', 0, 'text')).toBe('default comment');
+		activeCoder = 'human:bob';
+		expect(model.getCellComment('a.csv', 0, 'text')).toBe('bob comment');
+	});
+
+	it('retorna vazio quando active não tem marker (mas alheio tem comment)', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', comment: 'bob' });
+		activeCoder = 'human:default';
+		expect(model.getCellComment('a.csv', 0, 'text')).toBe('');
+	});
+});
+
+describe('CSV cross-coder: getCodesForCell (branch row)', () => {
+	it('retorna codes do marker do active coder, ignora alheios', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', codeIds: ['c1', 'c2'] });
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:default', codeIds: ['c3'] });
+		activeCoder = 'human:default';
+		expect(model.getCodesForCell('a.csv', 0, 'text', 'row').sort()).toEqual(['c3']);
+		activeCoder = 'human:bob';
+		expect(model.getCodesForCell('a.csv', 0, 'text', 'row').sort()).toEqual(['c1', 'c2'].sort());
+	});
+
+	it('retorna vazio quando active não tem marker mas alheio tem codes', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', codeIds: ['c1'] });
+		activeCoder = 'human:default';
+		expect(model.getCodesForCell('a.csv', 0, 'text', 'row')).toEqual([]);
+	});
+});

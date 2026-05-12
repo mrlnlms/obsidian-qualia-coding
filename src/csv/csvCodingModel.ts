@@ -95,7 +95,11 @@ export class CsvCodingModel {
 	// ── Cell comments (per-cell user annotation, distinto de memo) ──
 
 	getCellComment(file: string, sourceRowId: number, column: string): string {
-		const m = this.rowMarkers.find(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
+		const activeCoder = this.plugin.getActiveCoderId();
+		const m = this.rowMarkers.find(m =>
+			m.fileId === file && m.sourceRowId === sourceRowId && m.column === column
+			&& (m.codedBy ?? 'human:default') === activeCoder
+		);
 		return m?.comment ?? '';
 	}
 
@@ -503,9 +507,13 @@ export class CsvCodingModel {
 	}
 
 	getCodesForCell(file: string, sourceRowId: number, column: string, type: 'segment' | 'row'): string[] {
-		const markers = type === 'segment'
-			? this.getSegmentMarkersForCell(file, sourceRowId, column)
-			: this.getRowMarkersForCell(file, sourceRowId, column);
+		let markers: (SegmentMarker | RowMarker)[];
+		if (type === 'segment') {
+			markers = this.getSegmentMarkersForCell(file, sourceRowId, column);
+		} else {
+			const m = this.getRowMarkerForActiveCoder(file, sourceRowId, column);
+			markers = m ? [m] : [];
+		}
 		const codeIds = new Set<string>();
 		for (const m of markers) for (const id of getCodeIds(m.codes)) codeIds.add(id);
 		return Array.from(codeIds);
