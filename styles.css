@@ -6962,6 +6962,21 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	color: var(--text-warning);
 }
 
+.qc-icr-rail-dup-badge {
+	margin-left: 6px;
+	padding: 1px 6px;
+	background: var(--background-modifier-error);
+	color: var(--text-on-accent);
+	border-radius: 8px;
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-normal);
+	cursor: help;
+}
+
+.qc-icr-rail-item.is-duplicate-coder {
+	border-left: 3px solid var(--text-warning);
+}
+
 .qc-icr-rail-drop {
 	border: 2px dashed var(--background-modifier-border);
 	border-radius: var(--radius-s);

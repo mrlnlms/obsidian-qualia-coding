@@ -18,12 +18,28 @@ export function renderRailContent(
 	const label = container.createDiv({ cls: 'qc-icr-rail-label' });
 	label.setText(`Pending (${pending.length})`);
 
+	// A4: detecta coderIds duplicados na rail (2+ contribuições do mesmo coder).
+	const coderCounts = new Map<string, number>();
+	for (const c of pending) {
+		const id = c.payload.coder.id;
+		coderCounts.set(id, (coderCounts.get(id) ?? 0) + 1);
+	}
+
 	for (const c of pending) {
 		const item = container.createDiv({ cls: 'qc-icr-rail-item' });
 		if (c.id === activeId) item.addClass('is-active');
 
+		const isDuplicateCoder = (coderCounts.get(c.payload.coder.id) ?? 0) > 1;
+		if (isDuplicateCoder) item.addClass('is-duplicate-coder');
+
 		const name = item.createDiv({ cls: 'qc-icr-rail-item-name' });
 		name.setText(c.payload.coder.name);
+
+		if (isDuplicateCoder) {
+			const dupBadge = name.createSpan({ cls: 'qc-icr-rail-dup-badge' });
+			dupBadge.setText('duplicate');
+			dupBadge.title = `${coderCounts.get(c.payload.coder.id)} contribuições do mesmo coder — apply sequencial sobrescreve markers iguais`;
+		}
 
 		const meta = item.createDiv({ cls: 'qc-icr-rail-item-meta' });
 		meta.setText(`${c.mergePreview.added.markers} markers`);
