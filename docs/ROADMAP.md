@@ -84,7 +84,7 @@ Lista única e consolidada. **Quando atacar item desta lista que toque scope/cac
 
 ### Complementar (entra junto da Submissão Community Plugins)
 
-- [ ] **D — Tabular ZIP coder + Kappa snippet**: campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio.
+- [x] **D — Tabular ZIP coder + Kappa snippet** ✅ **FEITO 2026-05-12** (commit d223885) — `segments.csv` ganha coluna `coder`, novo `coders.csv` standalone, README ganha seção "Inter-coder reliability (Cohen κ)" com snippets R (irr::kappa2) + Python (sklearn.cohen_kappa_score). +5 tests.
 
 ### Gated externamente (não atacar agora)
 
