@@ -46,6 +46,20 @@ Hierarchical when you want structure, flat tags when you don't.
 - **Code relations** — theoretical assertions between codes ("Frustration causes Abandonment") plus segment-anchored interpretations. Free-form labels with autocomplete
 - **Memos** — free-text notes on any marker
 
+## Multi-coder & Inter-coder reliability (ICR)
+
+First-class support for teams coding the same corpus — and for individual researchers benchmarking their own consistency or comparing human vs. LLM coding.
+
+- **Active coder picker** in the status bar — every marker created stamps `codedBy`. Switch between humans (Default / Carla / Joana / …) without leaving the editor
+- **Compare Coders view** — matrix / table / heatmap of Cohen κ, Fleiss κ, Krippendorff α, α-binary and cu-α. Covers all 8 annotation engines (markdown, PDF text, PDF shape, image, CSV row, CSV segment, audio, video) via a parametric κ engine over per-engine overlap geometry. Web Worker keeps the UI fluid on large corpora
+- **Drill-down: Spatial / Cards / Workflow** — see lanes per coder over the source, contested regions with type (codes diferentes / boundary disagreement / só 1 coder marcou), and a 4-column reconciliation queue (Open / In discussion / Resolved / Divergence accepted) with full audit trail and revert
+- **Reconciliation actions** — Adopt code X · Split into new code · Accept divergence. Decisions become "consensus" markers (`consensus:default` coder) with κ pre/post available in modal
+- **Saved Comparisons** — recurring scopes (e.g., "Wave 2 - Carla vs Joana") persisted with ribbon + contextual shortcut on any code (`Ver κ deste código entre coders`)
+- **Cross-vault transport** — `ICR: Export my contribution` writes a JSON payload of one coder's markers + codebook fingerprint; `ICR: Open import` ingests payloads from collaborators with cross-vault remap (matches sources by SHA-256, not just path), codebook divergence detection, manual file remap, source skip / trust-local overrides, dedup on re-apply, and a side-by-side / by-code chip for cherry-picking before merge
+- **Provenance audit** — `sourceHashAtCoding` stamped at marker creation; reconciliation events tracked in audit log (`reconciliation_opened` / `_decided` / `_reverted`) and visible in the existing Codebook Timeline
+
+The Tabular CSV zip carries `coder` on every segment plus a `coders.csv` standalone table and an Inter-coder reliability section in the README with R (`irr::kappa2`) and Python (`sklearn.cohen_kappa_score`) snippets — pipelines that prefer external stats tooling work out of the box.
+
 ## Analytics — 20 views
 
 | Category | Views |
@@ -76,7 +90,7 @@ A freeform canvas for synthesis:
 - **Export QDPX** — full project: sources + segments + memos + case variables + groups. Compatible with ATLAS.ti, NVivo, MAXQDA, Dedoose, and any REFI-QDA tool
 - **Export QDC** — codebook only (hierarchy, colors, descriptions)
 - **Import QDPX / QDC** — bring projects from other QDA tools. Source files extracted to the vault, codes and segments mapped to Qualia engines
-- **Tabular CSV zip** — relational flat files (segments, code_applications, codes, case_variables, relations, groups, smart_codes) with an embedded README and R/tidyverse + Python/pandas snippets. For when you want to run stats outside the plugin
+- **Tabular CSV zip** — relational flat files (segments, code_applications, codes, case_variables, relations, groups, smart_codes, coders) with an embedded README and R/tidyverse + Python/pandas snippets — including a full Cohen κ recipe. For when you want to run stats outside the plugin
 - **Enriched Parquet** — export the active Parquet (or CSV) with your codes and comments joined as `<col>__codes_frow` / `<col>__codes_seg` / `<col>__comment` columns. Single-file output, ready for pandas / Polars / DuckDB pipelines
 - **Per-view CSV** — every Analytics view exports its own table
 
@@ -89,7 +103,7 @@ A few technical choices worth knowing about:
 - **CodeMirror 6 native.** Markdown highlights are real CodeMirror decorations, not DOM overlays. The margin panel is a custom `ViewPlugin` with column-resolved label layout — same UX as MAXQDA's
 - **Per-engine viewers, no shared state.** PDF (pdf.js), Image (Fabric.js), Audio/Video (WaveSurfer.js), CSV/Parquet (AG Grid Community + hyparquet WASM eager / DuckDB-Wasm + OPFS lazy above 50 MB). Each engine is self-contained — adding a format doesn't touch the others
 - **Incremental analytics cache.** Dirty flags per engine; analytics modes recompute only the affected slice. Stays fast on large projects
-- **2,750+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, Smart Codes evaluator/cache, lazy Parquet pipeline, and analytics consolidators
+- **3,400+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, Smart Codes evaluator/cache, lazy Parquet pipeline, ICR motor κ + reconciliation + transport, and analytics consolidators
 - **TypeScript strict** end-to-end, with ambient types for Obsidian internals where needed
 - **No build-time secrets, no runtime servers.** The entire plugin is the three files in your `.obsidian/plugins/qualia-coding/` folder
 

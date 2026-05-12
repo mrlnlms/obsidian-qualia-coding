@@ -2706,6 +2706,40 @@ const report = await reportKappaAsync(filteredInputs, cacheKeyForScope(inclusion
 
 ---
 
+## 47. Dedup por markerId em motor de import multi-coder
+
+**Problema latente revelado 2026-05-12 ao expor badge "duplicate coder" na rail da ICR Import:** `mergeCoderContribution` iterava markers do payload e dava `push` direto na lista local sem checagem de id. Apply sequencial de 2 contribuições do mesmo coder (mesmo state re-exportado, ou re-import do mesmo arquivo) **duplicava silenciosamente** markers com id idêntico — corrupção sutil do `data.json`.
+
+**Conserto:** pre-build de `Set<markerId>` por engine **antes** dos loops de inserção:
+
+```ts
+const localMarkdownIds = new Set<string>();
+for (const ms of Object.values(localData.markdown.markers)) {
+    for (const m of ms) localMarkdownIds.add(m.id);
+}
+const localPdfIds = new Set(localData.pdf.markers.map(m => m.id));
+const localCsvSegmentIds = new Set(localData.csv.segmentMarkers.map(m => m.id));
+
+// Dentro do loop de inserção:
+if (localMarkdownIds.has(m.id)) {
+    conflicts.push({ kind: 'marker_already_exists', markerId: m.id, engine: 'markdown', fileId: localFileId });
+    pendingMarkers++;
+    continue;
+}
+// ... insere
+localMarkdownIds.add(m.id);  // cobre re-occurrence dentro do MESMO payload
+```
+
+**Por que pendingMarkers++ importa:** o footer "Apply (X markers — Y ficam fora)" só conta Y a partir de `pendingMarkers`. Sem incrementar aqui, Apply 2× mostrava `(0 markers — 0 ficam fora)` quando todos eram dups, confundindo user sobre por que X=0.
+
+**Por que skip silencioso é a política correta** (vs overwrite ou warn-bloqueante): export multi-coder não é canal authoritativo — é proposta de marker. ID já presente significa "já recebi essa proposta". Overwrite mudaria estado sem audit; bloquear forçaria UX manual onde Apply (0) já é informativo suficiente.
+
+**Quando aplicar este pattern:** qualquer motor de import que aceite payloads idempotentes (transport multi-coder, restore/snapshot, sync). Insert sem dedup só é seguro quando o caller garante unicidade upstream.
+
+**Sítios afetados:** `src/core/icr/transport/mergeCoderContribution.ts:160-230` (3 loops: markdown / pdf / csvSegment) + `ConflictRecord` em `payloadTypes.ts` ganhou `marker_already_exists`.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

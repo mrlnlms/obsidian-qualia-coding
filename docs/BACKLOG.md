@@ -3,7 +3,7 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-12 (cleanup — lista canônica ICR aberto vive em ROADMAP §"ICR — Itens em aberto").
+> Última atualização: 2026-05-12 (A3/A4 + dedup motor + D resolvidos — só B4 weighting e C set-valued labels permanecem abertos em ICR).
 
 ---
 
@@ -116,12 +116,12 @@ Spec + plan arquivados em `obsidian-qualia-coding/plugin-docs/archive/claude_sou
 
 **+72 testes** (3150 → 3222). Smoke roundtrip OK no vault real.
 
-## 🧱 ICR — Fase C P1 — itens restantes (refinements menores)
+## ✅ ICR — Fase C P1 — refinements (TODOS RESOLVIDOS 2026-05-12)
 
-- [ ] Markdown overlap exato no Lado a lado: pre-fetch sourceText via vault.read antes de render do chip, ou switch para sync read (Obsidian API)
-- [ ] Range overlap exato no Por código: substituir aproximação `min(local, incoming)` por overlap real por codeId
-- [ ] "Map manual" em sources problemáticos (atualmente só Skip / Trust local — falta UI de remap manual pra outro fileId local)
-- [ ] Edge case: 2 contribuições do mesmo coderId na rail — atualmente permite, sem badge "duplicate coder"
+- [x] **Markdown overlap exato no Lado a lado** ✅ (commit 9afebc3): `prefetchSourceTexts` via `vault.cachedRead` em `addContribution`/`activeId` change; cache em `state.sourceTextByFileId`.
+- [x] **Range overlap exato no Por código** ✅ (commit 9afebc3): `collectByCodeContext` itera `findOverlappingLocalMarkers` per marker — substitui aproximação `min(local, incoming)` por overlap espacial real.
+- [x] **Map manual em sources problemáticos** ✅ (commit d408c78): botão "Mapear → arquivo local" abre `FuzzySuggestModal` filtrado por extensão; pick grava `{ kind: 'map-manual', localFileId }` em sourceOverrides.
+- [x] **Badge "duplicate coder" na rail** ✅ (commit 0dc768e): `renderRailContent` conta coderIds em pending[]; quando >1, item ganha border-left warning + badge inline com tooltip. Conserto colateral em `mergeCoderContribution` (commit 254f76d): dedup por markerId — apply sequencial não duplica mais (bug latente fechado).
 
 ## ✅ ICR — Slice E3a (Reconciliação P2) — RESOLVIDO 2026-05-11
 
