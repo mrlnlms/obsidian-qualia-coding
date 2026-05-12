@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-12 (cleanup: §Frentes engatilhadas → §Ordem cravada visão 2026-05-08 + §"ICR — Itens em aberto" consolidada).
+> Última atualização: 2026-05-12 (A1-A2-B1-B2-B3 ✅ — 5 fixes ICR mecânicos entregues).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
@@ -61,13 +61,13 @@ Lista única e consolidada. **Quando atacar item desta lista que toque scope/cac
 
 ### Slice próximo (mecânico, sem decisão metodológica pendente)
 
-5 fixes correlatos atacáveis num push:
+✅ **FEITO 2026-05-12** — 5 fixes entregues num push (commits 9afebc3, 7063146, fb7c02b, cc56379, 23c275e). 3450 tests verde, smoke real pendente em vault.
 
-- [ ] **A1 — Markdown overlap exato no chip "Lado a lado"** (ICR Import View): hoje em modo degraded (sem fetch async de sourceText). Pre-fetch via `vault.read` antes de render do chip, ou switch para sync read (Obsidian API).
-- [ ] **A2 — Range overlap exato no chip "Por código"** (ICR Import View): substituir aproximação `min(local, incoming)` por overlap real por codeId.
-- [ ] **B1 — Drill-down Cards/Workflow filtra por currentSelection da overview** (Compare Coders): hoje overview ajuda escolher onde olhar mas Cards/Workflow ignoram selection. ~30 LOC. Filter aplicado em `categorizeRegionsByStatus` via param `restrictTo?` (POS-coleta — não toca scope do extract).
-- [ ] **B2 — Drill-down P1 spatial não responde visualmente a clicks diferentes na matriz** (Compare Coders): falta header "par: X ↔ Y" + filtrar files por intersection (não union) em `collectRelevantFiles`. **Risco perf §46:** confirmar que mudança fica fora do scope do extract antes de tocar.
-- [ ] **B3 — Modal "ver lado a lado" toggle "par único" sem cell selecionada mostra todos pares** (Compare Coders): empty state "selecione um par primeiro" / pega primeiro par automaticamente / desabilita toggle quando sem pair.
+- [x] **A1 — Markdown overlap exato no chip "Lado a lado"** — `prefetchSourceTexts` via `vault.cachedRead` em `addContribution`/`activeId` change. Cache em `state.sourceTextByFileId: Map<string, string>`. `findOverlappingLocalMarkers` resolve via map per fileId.
+- [x] **A2 — Range overlap exato no chip "Por código"** — `collectByCodeContext` substitui `min(local, incoming)` por overlap espacial real (extract*Range + computeOverlap por marker).
+- [x] **B1 — Drill-down Cards/Workflow filtra por currentSelection** — `filterRegionsBySelection` puro em `regionDerivation`. Banner inline + clear button nos 2 drilldowns. Não toca scope do extract (§46 verificado).
+- [x] **B2 — Drill-down P1 spatial responde a cliques diferentes** — header indica seleção atual; `collectRelevantFiles` aplica intersection pra `pair` (era union) + restringe engine pra `codeEngine`. Tests recalibrados pra refletir intersection.
+- [x] **B3 — Modal "ver lado a lado" toggle "par único" disabled sem cell selecionada** — constructor força `state='all-pairs'` quando `options.pair === undefined`. Chip `par único` ganha `is-disabled` + tooltip.
 
 ### Refinements menores (polish — pode ir num polish menor depois)
 
