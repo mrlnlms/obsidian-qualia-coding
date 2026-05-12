@@ -1,6 +1,6 @@
 # CSV row marker — cross-coder Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Execução**: inline na sessão atual (sem subagent-driven-development, sem worktree). Convenção do projeto — ver `feedback_sdd_overkill_for_dev_project.md` e `feedback_no_worktrees.md`. Steps usam checkbox `- [ ]` pra tracking.
 
 **Goal:** Corrigir write-path e read-path do CSV `RowMarker` para respeitar `codedBy` e garantir invariante `1 marker / (file, row, column, codedBy)`. Coders distintos deixam de mutar markers alheios; cell renderer exibe somente o trabalho do active coder fora de compare mode.
 
@@ -892,7 +892,11 @@ if (marker) {
 
 (SegmentMarker branch fica idêntico — decisão deferred no spec §7.3 mantém segments cross-coder agregados.)
 
-Garantir imports no topo do arquivo: `SegmentMarker` e `RowMarker` de `./csvCodingTypes` (provavelmente já estão importados).
+Adicionar imports no topo do arquivo (atualmente linhas 1-7 não os incluem):
+
+```ts
+import type { SegmentMarker, RowMarker } from './csvCodingTypes';
+```
 
 - [ ] **Step 2: Substituir site da linha 97-103 (X-button delete)**
 
