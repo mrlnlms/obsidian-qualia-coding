@@ -72,7 +72,7 @@ Lista única e consolidada. **Quando atacar item desta lista que toque scope/cac
 ### Refinements menores (polish — pode ir num polish menor depois)
 
 - [x] **A3 — Map manual em sources problemáticos** ✅ **FEITO 2026-05-12** (commit d408c78) — botão "Mapear → arquivo local" em cada source conflict abre FuzzySuggestModal com arquivos do vault filtrados por extensão. Pick grava `{ kind: 'map-manual', localFileId }` em sourceOverrides; motor já consumia. Visual: label "→ remapped pra X" + botão vira "Trocar destino". Smoke real verde com `smoke-carla-renamed.json`.
-- [ ] **A4 — Edge case: 2 contribuições do mesmo coderId na rail** (ICR Import View): atualmente permite, sem badge "duplicate coder".
+- [x] **A4 — Edge case: 2 contribuições do mesmo coderId na rail** ✅ **FEITO 2026-05-12** (commit 0dc768e) — `renderRailContent` conta coderIds em pending[]. Quando count > 1, item ganha border-left warning + badge "duplicate" inline com tooltip. Smoke real verde com 2 contribuições da Carla.
 
 ### Decisão metodológica (brainstorm dedicado precede spec)
 
