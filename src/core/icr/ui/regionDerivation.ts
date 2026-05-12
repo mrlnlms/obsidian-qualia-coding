@@ -17,7 +17,7 @@ import type {
 } from '../../types';
 import type { CoderId } from '../coderTypes';
 import type { EngineId } from '../reporter';
-import type { CompareCodersViewState } from './compareCodersTypes';
+import type { CompareCodersViewState, CurrentSelection } from './compareCodersTypes';
 import type { EngineModelsForExtraction } from './scopeExtraction';
 import type { PercentShapeCoords } from '../../shapeTypes';
 import type { Bitmap } from '../bboxRaster';
@@ -226,6 +226,36 @@ export function categorizeRegionsByStatus(
 	return out;
 }
 
+/**
+ * Filtra regiões pela seleção corrente da overview (matriz/tabela/heatmap).
+ * Reduz cognitive load nos drilldowns Cards/Workflow: clicar par/código na overview
+ * pré-filtra a lista. Puro — não toca scope/cache do extract (Compare Coders §46).
+ *
+ * - `none` / `region` → passthrough.
+ * - `pair` → regiões cujos 2 coderIds do par estão ambos em `region.coderIds`.
+ * - `code` → regiões com pelo menos um markerRef contendo o codeId.
+ * - `codeEngine` → mesma regra de `code` + match de engine.
+ */
+export function filterRegionsBySelection(
+	regions: ContestedRegion[],
+	selection: CurrentSelection,
+): ContestedRegion[] {
+	if (selection.kind === 'none' || selection.kind === 'region') return regions;
+	if (selection.kind === 'pair') {
+		const [a, b] = selection.value;
+		return regions.filter(r => r.coderIds.includes(a) && r.coderIds.includes(b));
+	}
+	if (selection.kind === 'code') {
+		const codeId = selection.value;
+		return regions.filter(r => r.markerRefs.some(mr => mr.codes.some(c => c.codeId === codeId)));
+	}
+	if (selection.kind === 'codeEngine') {
+		const { codeId, engineId } = selection.value;
+		return regions.filter(r => r.engine === engineId && r.markerRefs.some(mr => mr.codes.some(c => c.codeId === codeId)));
+	}
+	return regions;
+}
+
 export function formatBoundsLabel(bounds: ReconciliationBounds): string {
 	switch (bounds.kind) {
 		case 'text':
@@ -252,6 +282,32 @@ export function divergenceTagLabel(kind: DivergenceKind): string {
 		case 'boundary': return 'mesma marcação, bounds diferentes';
 		case 'existence': return 'só 1 coder marcou';
 	}
+}
+
+/**
+ * Descreve a seleção atual da overview pra UI (banner de filter nos drilldowns).
+ * Retorna null quando selection não filtra regiões (`none` / `region`).
+ */
+export function describeSelectionFilter(
+	selection: CurrentSelection,
+	coderRegistry: { getById(id: string): { name: string } | null | undefined },
+	codeRegistry: { getById(id: string): { name: string } | null | undefined },
+): string | null {
+	if (selection.kind === 'pair') {
+		const [a, b] = selection.value;
+		const nameA = coderRegistry.getById(a)?.name ?? a;
+		const nameB = coderRegistry.getById(b)?.name ?? b;
+		return `par ${nameA} ↔ ${nameB}`;
+	}
+	if (selection.kind === 'code') {
+		const name = codeRegistry.getById(selection.value)?.name ?? selection.value;
+		return `código ${name}`;
+	}
+	if (selection.kind === 'codeEngine') {
+		const name = codeRegistry.getById(selection.value.codeId)?.name ?? selection.value.codeId;
+		return `código ${name} · engine ${selection.value.engineId}`;
+	}
+	return null;
 }
 
 // ─── Internal: cluster por engine ──────────────────────────────

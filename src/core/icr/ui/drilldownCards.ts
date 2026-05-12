@@ -27,7 +27,9 @@ import { executeReconciliationDecision, openReconciliation } from '../reconcilia
 import { SplitNewCodeModal } from './splitNewCodeModal';
 import {
 	collectContestedRegions,
+	describeSelectionFilter,
 	divergenceTagLabel,
+	filterRegionsBySelection,
 	findLatestActiveDecision,
 	findLatestActiveOpenedEntry,
 	formatBoundsLabel,
@@ -67,17 +69,18 @@ export function renderDrilldownCards(
 		text: '#3 o que cada um leu? · #4 por que diferimos?',
 	});
 
-	const regions = collectContestedRegions(state, deps.engineModels);
-	const resolvedSet = computeResolvedRegionSet(regions, deps.auditLog);
-	const inDiscussionSet = computeInDiscussionRegionSet(regions, deps.auditLog);
+	const allRegions = collectContestedRegions(state, deps.engineModels);
+	const resolvedSet = computeResolvedRegionSet(allRegions, deps.auditLog);
+	const inDiscussionSet = computeInDiscussionRegionSet(allRegions, deps.auditLog);
 
 	const sel = state.currentSelection;
 	if (sel.kind !== 'region') {
-		renderRegionPicker(container, regions, resolvedSet, inDiscussionSet, deps.auditLog, cbs);
+		const filtered = filterRegionsBySelection(allRegions, sel);
+		renderRegionPicker(container, filtered, allRegions.length, sel, resolvedSet, inDiscussionSet, deps.auditLog, deps.coderRegistry, deps.codeRegistry, cbs);
 		return;
 	}
 
-	const matched = regions.find(r =>
+	const matched = allRegions.find(r =>
 		r.fileId === sel.value.fileId
 		&& r.engine === sel.value.engine
 		&& sameBounds(r.bounds, sel.value.bounds),
@@ -117,15 +120,29 @@ function computeInDiscussionRegionSet(regions: ContestedRegion[], log: AuditEntr
 function renderRegionPicker(
 	container: HTMLElement,
 	regions: ContestedRegion[],
+	totalCount: number,
+	selection: CurrentSelection,
 	resolvedSet: Set<string>,
 	inDiscussionSet: Set<string>,
 	auditLog: AuditEntry[],
+	coderRegistry: CoderRegistry,
+	codeRegistry: CodeDefinitionRegistry,
 	cbs: DrilldownCardsCallbacks,
 ): void {
+	const filterLabel = describeSelectionFilter(selection, coderRegistry, codeRegistry);
+	if (filterLabel) {
+		const banner = container.createDiv({ cls: 'qc-cc-region-filter-banner' });
+		banner.createSpan({ text: `filtrado pela seleção da overview: ${filterLabel} · ` });
+		const clear = banner.createSpan({ cls: 'qc-cc-region-filter-clear', text: 'limpar' });
+		clear.onclick = () => cbs.onSetSelection({ kind: 'none' });
+	}
+
 	if (regions.length === 0) {
 		container.createDiv({
 			cls: 'qc-cc-drilldown-empty',
-			text: 'Nenhuma região contestada no escopo (E3a Fase 1: markdown + csv-row). Pelo menos 2 coders devem ter marker em bounds próximos.',
+			text: filterLabel
+				? `Nenhuma região contestada bate com a seleção (${totalCount} total no escopo, 0 após filter).`
+				: 'Nenhuma região contestada no escopo (E3a Fase 1: markdown + csv-row). Pelo menos 2 coders devem ter marker em bounds próximos.',
 		});
 		return;
 	}

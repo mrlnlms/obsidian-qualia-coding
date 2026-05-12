@@ -7340,6 +7340,26 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 
 /* ─── Compare Coders P2 (drill-down cards) — Slice E3a ────────────────── */
 
+.qc-cc-region-filter-banner {
+	padding: 6px 12px;
+	margin: 0 12px 8px;
+	background: var(--background-modifier-cover);
+	border-left: 3px solid var(--interactive-accent);
+	border-radius: 4px;
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.qc-cc-region-filter-clear {
+	cursor: pointer;
+	color: var(--interactive-accent);
+	text-decoration: underline;
+}
+
+.qc-cc-region-filter-clear:hover {
+	color: var(--interactive-accent-hover);
+}
+
 .qc-cc-region-picker {
 	padding: 12px;
 }

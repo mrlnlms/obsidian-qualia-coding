@@ -28,6 +28,8 @@ import { executeReconciliationRevert } from '../reconciliation';
 import {
 	collectContestedRegions,
 	categorizeRegionsByStatus,
+	describeSelectionFilter,
+	filterRegionsBySelection,
 	findLatestActiveDecision,
 	type ContestedRegion,
 	type RegionStatus,
@@ -74,8 +76,17 @@ export function renderDrilldownWorkflow(
 		text: '#5 como reconcilio? · #6 como fica registrado?',
 	});
 
-	const regions = collectContestedRegions(state, deps.engineModels);
+	const allRegions = collectContestedRegions(state, deps.engineModels);
+	const regions = filterRegionsBySelection(allRegions, state.currentSelection);
 	const byStatus = categorizeRegionsByStatus(regions, deps.auditLog);
+
+	const filterLabel = describeSelectionFilter(state.currentSelection, deps.coderRegistry, deps.codeRegistry);
+	if (filterLabel) {
+		const banner = container.createDiv({ cls: 'qc-cc-region-filter-banner' });
+		banner.createSpan({ text: `filtrado pela seleção da overview: ${filterLabel} (${regions.length}/${allRegions.length}) · ` });
+		const clear = banner.createSpan({ cls: 'qc-cc-region-filter-clear', text: 'limpar' });
+		clear.onclick = () => cbs.onSetSelection({ kind: 'none' });
+	}
 
 	const header = container.createDiv({ cls: 'qc-cc-workflow-header' });
 	const totals = `${byStatus.open.length} abertos · ${byStatus.inDiscussion.length} em discussão · ${byStatus.resolved.length} resolvidos · ${byStatus.divergenceAccepted.length} divergências`;
@@ -89,7 +100,9 @@ export function renderDrilldownWorkflow(
 	if (regions.length === 0) {
 		container.createDiv({
 			cls: 'qc-cc-drilldown-empty',
-			text: 'Nenhuma região contestada no escopo (E3a Fase 1: markdown + csv-row).',
+			text: filterLabel
+				? `Nenhuma região bate com a seleção (${allRegions.length} total no escopo, 0 após filter).`
+				: 'Nenhuma região contestada no escopo (E3a Fase 1: markdown + csv-row).',
 		});
 	}
 
