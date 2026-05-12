@@ -36,7 +36,7 @@ Hierarchical when you want structure, flat tags when you don't.
 - **Virtual folders** — purely cosmetic organization, no analytical effect
 - **Visibility toggles** — hide a code globally, or only inside a specific file (without deleting)
 - **Merge codes** — combine N codes with audit trail
-- **Smart Codes** — saved queries that match markers dynamically. Predicates combine codes, case variables, magnitude, folders, groups, engine type, relations, and nested Smart Codes via AND/OR/NOT. First-class in Code Explorer, Analytics, and QDPX export
+- **Smart Codes** — saved queries that match markers dynamically. Predicates combine codes, case variables, magnitude, folders, groups, engine type, relations, marker text (substring search with optional case-sensitive), and nested Smart Codes via AND/OR/NOT. First-class in Code Explorer, Analytics, and QDPX export
 - **Virtual scrolling** — scales to thousands of codes
 
 ## Mixed methods

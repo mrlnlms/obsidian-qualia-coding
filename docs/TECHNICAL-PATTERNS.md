@@ -2281,9 +2281,9 @@ Cache derivado de **declarações** (AST, regra, query) onde mutation pode afeta
 ### Onde está implementado
 
 - `src/core/smartCodes/dependencyExtractor.ts` — extração pura
-- `src/core/smartCodes/cache.ts` — `invalidateForCode/CaseVar/Folder/Group/SmartCode/Engine` + índices reversos
+- `src/core/smartCodes/cache.ts` — `invalidateForCode/CaseVar/Folder/Group/SmartCode/Engine/FileText` + índices reversos. `invalidateForFileText(fileId)` itera deps e invalida só SCs com `needsText=true` (file-level — `textContains` é predicate global, qualquer marker do vault pode passar a casar quando texto muda). Wired no `vault.on('modify')` em `main.ts`: rede de segurança pra mudança de texto que NÃO passe por `MarkerMutationEvent` (edição externa, futuras engines).
 
-Tests: `tests/core/smartCodes/dependencyExtractor.test.ts` (10 leaves, nesting, todas as dimensões).
+Tests: `tests/core/smartCodes/dependencyExtractor.test.ts` (11 leaves incluindo `textContains` com `needsText`, nesting, todas as dimensões).
 
 ### Anti-pattern relacionado
 

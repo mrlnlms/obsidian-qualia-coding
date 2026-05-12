@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-12 (sessão fechou A1-A4 + B1-B3 + D + dedup motor — ICR mecânico zerado).
+> Última atualização: 2026-05-12 (sessão fechou A1-A4 + B1-B3 + D + dedup motor — ICR mecânico zerado; Smart Codes ganham leaf `textContains`).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
@@ -85,10 +85,6 @@ Lista única e consolidada. **Quando atacar item desta lista que toque scope/cac
 ### Complementar (entra junto da Submissão Community Plugins)
 
 - [x] **D — Tabular ZIP coder + Kappa snippet** ✅ **FEITO 2026-05-12** (commit d223885) — `segments.csv` ganha coluna `coder`, novo `coders.csv` standalone, README ganha seção "Inter-coder reliability (Cohen κ)" com snippets R (irr::kappa2) + Python (sklearn.cohen_kappa_score). +5 tests.
-
-### Gated externamente (não atacar agora)
-
-- Smart Code cache hash-based invalidation — gated em adição de leaf `textContains` em Smart Codes (sem leaf de texto hoje → código órfão sem consumer).
 
 ---
 

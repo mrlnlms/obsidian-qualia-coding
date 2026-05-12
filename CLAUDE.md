@@ -288,7 +288,7 @@ Evita regenerar dados sintéticos toda vez. Quando o plugin gera `.bak` novo dur
 - `executeMerge()` — funcao de merge em `mergeModal.ts` (reassigna markers, reparenta filhos, deleta sources)
 - Hierarchy helpers puros em `hierarchyHelpers.ts`: `buildFlatTree`, `buildCountIndex`, `getDirectCount`, `getAggregateCount`
 - `smartCodes` — array de `SmartCodeDefinition` no registry (camada de "saved queries" sobre o codebook). Schema: `{ id: 'sc_*', name, color, predicate: PredicateNode, memo?, paletteIndex, createdAt }`
-- `PredicateNode` — AST union `OpNode | LeafNode`. OpNode = AND/OR/NOT com `children`. LeafNode = 1 dos 10 leaves (`hasCode`, `caseVarEquals`, `caseVarRange`, `magnitudeGte/Lte`, `inFolder`, `inGroup`, `engineType`, `relationExists`, `smartCode` nesting)
+- `PredicateNode` — AST union `OpNode | LeafNode`. OpNode = AND/OR/NOT com `children`. LeafNode = 1 dos 11 leaves (`hasCode`, `caseVarEquals`, `caseVarRange`, `magnitudeGte/Lte`, `inFolder`, `inGroup`, `engineType`, `relationExists`, `textContains`, `smartCode` nesting)
 - `SmartCodeRegistry` — classe stateful em `src/core/smartCodes/smartCodeRegistry.ts` com `addOnMutate(fn)` + cache incremental. Mesmo pattern de `CodeDefinitionRegistry`
 - `SmartCodeCache` — singleton em `src/core/smartCodes/cache.ts` com invalidação granular + chunked compute (100 markers/chunk). Recebe `applyMarkerMutation(event)` pra invalidação cirúrgica
 - `MarkerMutationEvent` — `{ engine, fileId, markerId, prevCodeIds, nextCodeIds, codeIds, marker }` em `src/core/types.ts`

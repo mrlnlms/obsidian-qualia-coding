@@ -3,7 +3,7 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-12 (A3/A4 + dedup motor + D resolvidos em ICR; LazyTextFilter active indicator restaurado).
+> Última atualização: 2026-05-12 (A3/A4 + dedup motor + D resolvidos em ICR; LazyTextFilter active indicator restaurado; Smart Code cache hash-based item resolvido sem hash via leaf `textContains` + `vault.on('modify')`).
 
 ---
 
@@ -51,14 +51,6 @@ Da fila cross-cutting do hardening, 4 frentes atacadas em 2026-05-09 (parseInt v
 
 Slice 2 (planejado 2026-05-09) entrega a **primitiva** de hash por source + 3 consumers iniciais (`markerTextCache` invalidation, `vault.on('rename')`/`('modify')` rename detection, QDPX import dedup). Os consumers abaixo dependem da MESMA primitiva — escopo recortado pra Slice 2 não inflar. Cada um vira slice próprio sobre primitiva já existente.
 
-### Smart Code cache hash-based invalidation
-
-**Estado atual:** invalidação granular via `MarkerMutationEvent` (por marker mutation). Não detecta source mutation externa (ex: tool fora do Obsidian editou arquivo).
-
-**Impacto sem fazer:** predicates Smart Code que dependem de texto do source (ex: `caseVarEquals` cruzado com texto, futuro `textContains` se vier) podem servir matches stale após edição externa. Risco baixo no uso típico (single-user no Obsidian) mas degrada quando workflow inclui pipeline externo.
-
-**Gate técnico (não atacar até passar):** existir leaf de predicate que dependa do texto do source (ex: `textContains`). Os 10 leaves atuais (`hasCode`, `caseVarEquals`, `magnitudeGte/Lte`, `inFolder`, `inGroup`, `engineType`, `relationExists`, `smartCode` nesting) operam sobre `marker.codes` / case variables / hierarquia — nenhum lê texto do source. Implementar invalidação por hash agora vira código órfão sem consumer. Atacar **junto da adição** do primeiro leaf de texto.
-
 ### Provenance audit field nos markers (snapshot do hash) — ✅ FAZER AGORA (Slice 5)
 
 **Estado atual:** markers referenciam fileId (path) sem snapshot do estado do source no momento do coding.
@@ -79,7 +71,7 @@ Slice 2 (planejado 2026-05-09) entrega a **primitiva** de hash por source + 3 co
 
 ### Resumo do impacto cumulativo
 
-Sem esses 4 consumers, a primitiva entregue no Slice 2 cobre os 3 casos mais frequentes (cache invalidation, rename detection, import dedup) mas deixa em aberto: detecção de edição externa pra Smart Codes, integridade temporal dos markers, integridade de backup, e — crucialmente — o pré-requisito de Fase C. Os 3 primeiros são otimizações de robustez progressiva; o último (cross-vault remap) é gating pra próximo grande marco do roadmap ICR.
+Sem esses consumers, a primitiva entregue no Slice 2 cobre os 3 casos mais frequentes (cache invalidation, rename detection, import dedup) mas deixa em aberto: integridade temporal dos markers, integridade de backup, e — crucialmente — o pré-requisito de Fase C. Os 2 primeiros são otimizações de robustez progressiva; o último (cross-vault remap) é gating pra próximo grande marco do roadmap ICR. **Smart Code cache invalidation pra texto** foi resolvida fora desse bloco em 2026-05-12 junto da entrega do leaf `textContains` — invalidação file-level via `vault.on('modify')` sem precisar de hash (ver BACKLOG-HISTORY).
 
 **Atualização 2026-05-09:** cross-vault remap **entra como pedaço de `mergeCoderContribution`** no Slice 3 (Fase C P0). Não vai ficar isolado — é integrado direto no algoritmo de merge multi-coder. Resolve o gating descrito acima.
 

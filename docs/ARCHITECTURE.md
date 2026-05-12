@@ -542,7 +542,7 @@ interface LeafNode {
 }
 ```
 
-10 leaves cobrem dimensões ortogonais: estrutura (`hasCode`, `inFolder`, `inGroup`), metadata (`caseVarEquals`, `caseVarRange`), magnitude (`magnitudeGte/Lte`), engine (`engineType`), relations (`relationExists`), e auto-referência (`smartCode` — nesting). Combinados via OpNode (AND/OR/NOT).
+11 leaves cobrem dimensões ortogonais: estrutura (`hasCode`, `inFolder`, `inGroup`), metadata (`caseVarEquals`, `caseVarRange`), magnitude (`magnitudeGte/Lte`), engine (`engineType`), relations (`relationExists`), texto (`textContains` — substring com opt-in `caseSensitive`), e auto-referência (`smartCode` — nesting). Combinados via OpNode (AND/OR/NOT). `textContains` aciona invalidação file-level via `SmartCodeCache.invalidateForFileText` no `vault.on('modify')` (rede de segurança pra mudança de texto que não passe por `MarkerMutationEvent` — edição externa, futuras engines).
 
 **SmartCodeDefinition** no registry:
 ```ts
