@@ -38,7 +38,7 @@ const baseCb = {
 describe('renderSideBySideChip', () => {
 	it('renderiza marker card com texto + code + accept/skip buttons', () => {
 		const container = document.createElement('div');
-		renderSideBySideChip(container, makeContribWithMarkers(5), { localMarkersByFileId: {} }, baseCb);
+		renderSideBySideChip(container, makeContribWithMarkers(5), { localMarkersByFileId: {}, sourceTextByFileId: new Map() }, baseCb);
 
 		expect(container.querySelector('.qc-icr-marker-card')).toBeTruthy();
 		expect(container.textContent).toMatch(/marker 0/);
@@ -50,14 +50,14 @@ describe('renderSideBySideChip', () => {
 
 	it('header mostra "marker 1/5"', () => {
 		const container = document.createElement('div');
-		renderSideBySideChip(container, makeContribWithMarkers(5), { localMarkersByFileId: {} }, baseCb);
+		renderSideBySideChip(container, makeContribWithMarkers(5), { localMarkersByFileId: {}, sourceTextByFileId: new Map() }, baseCb);
 		expect(container.textContent).toMatch(/marker 1\/5/);
 	});
 
 	it('click Skip invoca onSkipMarker(markerId)', () => {
 		const container = document.createElement('div');
 		const onSkipMarker = vi.fn();
-		renderSideBySideChip(container, makeContribWithMarkers(3), { localMarkersByFileId: {} }, { ...baseCb, currentIndex: 1, onSkipMarker });
+		renderSideBySideChip(container, makeContribWithMarkers(3), { localMarkersByFileId: {}, sourceTextByFileId: new Map() }, { ...baseCb, currentIndex: 1, onSkipMarker });
 		const skipBtn = Array.from(container.querySelectorAll('button')).find(b => /skip/i.test(b.textContent ?? '')) as HTMLElement;
 		skipBtn.click();
 		expect(onSkipMarker).toHaveBeenCalledWith('m1');
@@ -85,7 +85,7 @@ describe('renderSideBySideChip', () => {
 		const localMarkers = {
 			'doc.pdf': [{ id: 'l_local', fileId: 'doc.pdf', page: 0, beginIndex: 150, endIndex: 250, text: 'local pdf', codes: [{ codeId: 'c_test' }] } as any],
 		};
-		renderSideBySideChip(container, contrib, { localMarkersByFileId: localMarkers }, baseCb);
+		renderSideBySideChip(container, contrib, { localMarkersByFileId: localMarkers, sourceTextByFileId: new Map() }, baseCb);
 
 		const local = container.querySelector('.qc-icr-marker-side-local');
 		expect(local).toBeTruthy();
@@ -94,7 +94,7 @@ describe('renderSideBySideChip', () => {
 
 	it('filter chips: 3 chips (todos / só sobrepondo / só novos)', () => {
 		const container = document.createElement('div');
-		renderSideBySideChip(container, makeContribWithMarkers(3), { localMarkersByFileId: {} }, baseCb);
+		renderSideBySideChip(container, makeContribWithMarkers(3), { localMarkersByFileId: {}, sourceTextByFileId: new Map() }, baseCb);
 		const filterChips = container.querySelectorAll('.qc-icr-filter-chip');
 		expect(filterChips.length).toBe(3);
 	});
@@ -102,7 +102,7 @@ describe('renderSideBySideChip', () => {
 	it('filterCodeId: pill "code: cXXX ✕" visível, click invoca onClearCodeFilter', () => {
 		const container = document.createElement('div');
 		const onClearCodeFilter = vi.fn();
-		renderSideBySideChip(container, makeContribWithMarkers(3), { localMarkersByFileId: {} }, { ...baseCb, filterCodeId: 'c_test', onClearCodeFilter });
+		renderSideBySideChip(container, makeContribWithMarkers(3), { localMarkersByFileId: {}, sourceTextByFileId: new Map() }, { ...baseCb, filterCodeId: 'c_test', onClearCodeFilter });
 		const pill = container.querySelector('.qc-icr-filter-pill') as HTMLElement;
 		expect(pill).toBeTruthy();
 		expect(pill.textContent).toMatch(/c_test/);
@@ -115,7 +115,7 @@ describe('renderSideBySideChip', () => {
 		const contrib = makeContribWithMarkers(3);
 		// 1 dos markers tem code diferente
 		(contrib.payload.markers.markdown['src_a']![1] as any).codes = [{ codeId: 'c_other' }];
-		renderSideBySideChip(container, contrib, { localMarkersByFileId: {} }, { ...baseCb, filterCodeId: 'c_test' });
+		renderSideBySideChip(container, contrib, { localMarkersByFileId: {}, sourceTextByFileId: new Map() }, { ...baseCb, filterCodeId: 'c_test' });
 		// Header deve mostrar 2/2 (não 1/3) porque c_other foi filtrado
 		expect(container.textContent).toMatch(/marker 1\/2/);
 	});

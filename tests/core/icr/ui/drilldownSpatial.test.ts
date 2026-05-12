@@ -96,9 +96,12 @@ describe('renderDrilldownSpatial', () => {
 		expect(container.querySelectorAll('.qc-cc-lane').length).toBeGreaterThanOrEqual(2);
 	});
 
-	it('lane vazia mostra "—" quando coder não tem markers naquele file', () => {
+	it('lane vazia mostra "—" quando coder não tem markers naquele file (selection kind="code")', () => {
+		// Pair intersection (B2) só inclui files onde AMBOS coders têm marker, então lane vazia
+		// não aparece com kind:'pair'. Cenário válido pra lane vazia: kind:'code' inclui file
+		// pela presença do code, e lane do coder sem marker fica empty.
 		const allCoders = coderRegistry.getAll().map(c => c.id);
-		const [coderA, coderB] = allCoders;
+		const [coderA] = allCoders;
 		const codeId = codeRegistry.getAll()[0]!.id;
 		const models = emptyEngineModels();
 		models.markdown.getAllMarkers = () => [
@@ -107,7 +110,7 @@ describe('renderDrilldownSpatial', () => {
 		];
 		const state: CompareCodersViewState = {
 			...baseState,
-			currentSelection: { kind: 'pair', value: [coderA, coderB] },
+			currentSelection: { kind: 'code', value: codeId },
 		};
 		renderDrilldownSpatial(container, state, { coderRegistry, codeRegistry, engineModels: models });
 		const empties = container.querySelectorAll('.qc-cc-lane-empty');
@@ -119,11 +122,18 @@ describe('renderDrilldownSpatial', () => {
 		const [coderA, coderB] = allCoders;
 		const codeId = codeRegistry.getAll()[0]!.id;
 		const models = emptyEngineModels();
+		// Pair intersection (B2): file só entra se AMBOS coders marcaram. Fixture cobre os 2.
 		models.csv.getAllMarkers = () => [
 			{
 				markerType: 'csv', id: 'r1', fileId: 'f.csv',
 				sourceRowId: 1, column: 'col1',
 				codes: [{ codeId }], codedBy: coderA,
+				createdAt: 0, updatedAt: 0,
+			},
+			{
+				markerType: 'csv', id: 'r2', fileId: 'f.csv',
+				sourceRowId: 2, column: 'col1',
+				codes: [{ codeId }], codedBy: coderB,
 				createdAt: 0, updatedAt: 0,
 			},
 		];
