@@ -256,7 +256,11 @@ export class CsvCodingModel {
 	}
 
 	findOrCreateRowMarker(file: string, sourceRowId: number, column: string): RowMarker {
-		const existing = this.rowMarkers.find(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
+		const activeCoder = this.plugin.getActiveCoderId();
+		const existing = this.rowMarkers.find(m =>
+			m.fileId === file && m.sourceRowId === sourceRowId && m.column === column
+			&& (m.codedBy ?? 'human:default') === activeCoder
+		);
 		if (existing) return existing;
 		const marker: RowMarker = {
 			markerType: 'csv',

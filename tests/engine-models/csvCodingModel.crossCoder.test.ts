@@ -71,3 +71,24 @@ describe('CSV cross-coder: getRowMarkerForActiveCoder', () => {
 		expect(result?.codes.map(c => c.codeId)).toEqual(['c1']);
 	});
 });
+
+describe('CSV cross-coder: findOrCreateRowMarker', () => {
+	it('cria marker novo do active coder quando alheio existe na cell', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', codeIds: ['c1'] });
+		activeCoder = 'human:default';
+		const m = model.findOrCreateRowMarker('a.csv', 0, 'text');
+		expect(m.codedBy).toBe('human:default');
+		expect(m.codes).toEqual([]);
+		const all = model.getRowMarkersForCell('a.csv', 0, 'text');
+		expect(all).toHaveLength(2);
+	});
+
+	it('retorna marker existente do active coder quando já existe', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:default', codeIds: ['c1'] });
+		const m = model.findOrCreateRowMarker('a.csv', 0, 'text');
+		expect(m.codedBy).toBe('human:default');
+		expect(m.codes.map(c => c.codeId)).toEqual(['c1']);
+		const all = model.getRowMarkersForCell('a.csv', 0, 'text');
+		expect(all).toHaveLength(1);
+	});
+});
