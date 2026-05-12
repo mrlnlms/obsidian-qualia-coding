@@ -11,7 +11,7 @@
 
 Único bloqueador legado: §11 E3 (limitação de formato, won't-fix documentado). Polish ativo abaixo.
 
-**Lista canônica de itens ICR em aberto:** `ROADMAP.md §"🧱 ICR — Itens em aberto"`. As seções abaixo (Fase C P1 itens restantes + Compare Coders polish aberto) preservam o detalhe técnico de cada item; ROADMAP traz a visão consolidada com agrupamento por slice atacável.
+**Lista canônica de itens ICR em aberto:** `ROADMAP.md §"🧱 ICR — Itens em aberto"`. A seção abaixo (Compare Coders polish aberto) preserva o detalhe técnico do único item aberto (B4 weighting cross-engine); ROADMAP traz a visão consolidada com agrupamento por slice atacável.
 
 ### 🔍 Sintomas observados sem repro confiável
 
@@ -254,12 +254,6 @@ Slice 6 fecha as 6 engines do plugin no motor κ (markdown + PDF text + CSV cod 
 
 ## 🧱 ICR — Compare Coders polish (aberto)
 
-### Bbox merge na matriz Mode A usa avg 50/50 (não weighted por #events) ✅ RESOLVIDO 2026-05-11
-
-Refactor entregue: `reportPairwise` ganhou param `perPairInputs?: Map<pairKey, EngineKappaInput[]>` pra inputs já-per-pair (bbox κ via Hungarian é per pair). Matrix Mode A monta `perPairBbox` map só pra Cohen e passa ao reporter — bbox naturalmente entra no aggregate weighted por `markers.length` (mesma regra que já existia entre text-likes). Eliminou avg 50/50.
-
-**Cache:** cacheKey ganha suffix `::bbox` quando perPair não-vazio — preserva reuso entre re-renders no mesmo scope, invalidação via `bumpReportCache` ao mutar markers. WeakMap identity cache bypassed quando perPair set (identity sozinha não diferencia extras).
-
 ### Weighting cross-engine no aggregate — discussão metodológica
 
 **Estado:** reporter aggregate cross-engine usa `weights[engine] = markers.length`. Aplicado consistentemente desde Slice 1 entre text-likes; Slice E5b-followup (2026-05-11) estendeu o mesmo princípio pra bbox.
@@ -273,34 +267,7 @@ Refactor entregue: `reportPairwise` ganhou param `perPairInputs?: Map<pairKey, E
 2. **Unidade analítica natural** — cada engine declara peso (chars text, eventos bbox, rows categorical). Aggregate normaliza por escala intrínseca. Mais princípio, mais metadata schema.
 3. **Matrix Mode A só com 1 engine ativo** — toggle no toolbar (já existe filter chip per-engine); aggregate cross-engine vira opt-in com warning explícito. UI-only fix.
 
-**Por que não entra junto da fix bbox-weighting:** afeta toda a infra de weighting do reporter, não só bbox. Decisão de produto + revisão metodológica antes de spec. Material de repertório em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md` (variantes de weighting já mapeadas em contexto multi-label).
-
-### Drill-down P1 spatial não responde visualmente a clicks diferentes na matriz
-
-**Estado após E2 Chunk 1 smoke (2026-05-10):** clicar em diferentes células off-diagonal na matriz não muda visualmente o conteúdo do drill-down P1. Causa: `collectRelevantFiles` retorna files onde QUALQUER coder do par tem markers (union); no synth corpus a maioria dos files tem markers de quase todos coders, então o conteúdo é parecido entre cliques. Falta também header explícito "par selecionado: X ↔ Y" pra contextualizar.
-
-**Impacto sem fazer:** UX confusa — pesquisador clica diferentes pares e vê mesmas lanes. Não é bug funcional (state.currentSelection muda); é falta de feedback visual.
-
-**Quando atacar:** polish P1 (não bloqueia E2 — drill-down ficou em E1). Atacar quando voltar pro drill-down (E3 entrega P2/P3 e revisita P1). Opções:
-- Header com par/região selecionado
-- Filtrar files pra apenas onde AMBOS coders do par têm markers (intersection, não union) — mais discriminativo
-- Limit visual por marker bounds próximos (highlight regiões contestadas vs concordantes)
-
-### Modal "ver lado a lado" toggle "par único" sem cell selecionada mostra todos pares
-
-**Estado após E2 (2026-05-10):** se user abre modal sem cell selecionada (botão direto do toolbar) e toggla "par único", `options.pair` é undefined → `computeRows` cai no fallback de `allPairs()` mas adiciona breakdown per-engine pra cada par. Resultado funcionalmente útil (vê tudo + breakdown) mas conceitualmente inconsistente (label "par único" mostra 3 pares).
-
-**Quando atacar:** se reportar virar issue. Opções: empty state "selecione um par primeiro" / pega primeiro par automaticamente / desabilita toggle quando sem pair.
-
-### Drill-down Cards/Workflow não filtra por currentSelection da overview
-
-**Estado:** quando user clica par na matriz Mode A (`{kind:'pair'}`), code na tabela Mode B (`{kind:'code'}`), ou code+engine no heatmap Mode C (`{kind:'codeEngine'}`), só o drill-down Spatial (P1) reage filtrando lanes. **Cards (P2)** só reage a `{kind:'region'}` — escolha de par/código não filtra a lista de regiões contestadas; user tem que scrollar 17 itens pra achar relevante. **Workflow (P3)** ignora selection completamente — sempre mostra a queue completa categorizada por status.
-
-**Por design atual:** Cards/Workflow têm navegação interna (lista de regiões); overview ajuda a escolher onde olhar, mas decisão de reconciliação é region-by-region. Não é bug — é deliberadamente desacoplado.
-
-**Por que valeria mudar:** quando user clica Carla↔Joana na matriz e troca pra Cards/Workflow, faz sentido a lista vir pré-filtrada pra regiões onde os dois coders contestam. Mesma coisa pra code: clica código X na tabela, Cards/Workflow mostra só regiões envolvendo aquele código. Reduz cognitive load no fluxo "overview → decide → reconcilia".
-
-**Implementação:** filter inline em `categorizeRegionsByStatus` (já recebe regions[] + log) — adicionar param `restrictTo?: { coderPair?: [CoderId, CoderId]; codeId?: string }` opcional. Drilldowns leem `state.currentSelection` e passam o filtro. Pequeno (~30 LOC) + tests pra os 3 paths (pair/code/codeEngine).
+**Por que decisão metodológica precede spec:** afeta toda a infra de weighting do reporter, não só bbox. Decisão de produto + revisão metodológica antes de spec. Material de repertório em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md` (variantes de weighting já mapeadas em contexto multi-label).
 
 ---
 
