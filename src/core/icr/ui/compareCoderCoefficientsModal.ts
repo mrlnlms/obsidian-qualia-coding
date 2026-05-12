@@ -62,7 +62,9 @@ export class CompareCoderCoefficientsModal extends Modal {
 		private options: ModalOptions,
 	) {
 		super(app);
-		this.state = options.initial;
+		// Sem par selecionado (botão direto do toolbar), force 'all-pairs' — toggle
+		// 'par único' fica disabled ate user clicar em par na overview.
+		this.state = options.pair ? options.initial : 'all-pairs';
 	}
 
 	async onOpen(): Promise<void> {
@@ -104,14 +106,19 @@ export class CompareCoderCoefficientsModal extends Modal {
 		header.createEl('h3', { text: 'Coeficientes ICR · ver lado a lado' });
 		const toggle = header.createDiv({ cls: 'qc-cc-modal-toggle' });
 		for (const s of ['single-pair', 'all-pairs'] as ModalState[]) {
+			const isDisabled = s === 'single-pair' && !this.options.pair;
 			const chip = toggle.createSpan({
-				cls: `qc-cc-mode-chip ${this.state === s ? 'is-active' : ''}`,
+				cls: `qc-cc-mode-chip ${this.state === s ? 'is-active' : ''}${isDisabled ? ' is-disabled' : ''}`,
 				text: s === 'single-pair' ? 'par único' : 'todos os pares',
 			});
-			chip.onclick = () => {
-				this.state = s;
-				void this.refresh();
-			};
+			if (isDisabled) {
+				chip.title = 'Selecione um par na matriz Mode A primeiro pra ativar este modo';
+			} else {
+				chip.onclick = () => {
+					this.state = s;
+					void this.refresh();
+				};
+			}
 		}
 
 		// E3b: toggle pré/pós reconciliação — só aparece quando há consensus no scope.
