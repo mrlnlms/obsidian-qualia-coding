@@ -92,3 +92,26 @@ describe('CSV cross-coder: findOrCreateRowMarker', () => {
 		expect(all).toHaveLength(1);
 	});
 });
+
+describe('CSV cross-coder: setCellComment', () => {
+	it('cria marker novo do active coder quando alheio já tem comment na cell', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', comment: 'bob comment' });
+		activeCoder = 'human:default';
+		model.setCellComment('a.csv', 0, 'text', 'default comment');
+		const all = model.getRowMarkersForCell('a.csv', 0, 'text');
+		expect(all).toHaveLength(2);
+		const defaultMarker = all.find(m => m.codedBy === 'human:default');
+		expect(defaultMarker?.comment).toBe('default comment');
+		const bobMarker = all.find(m => m.codedBy === 'human:bob');
+		expect(bobMarker?.comment).toBe('bob comment');
+	});
+
+	it('GC remove marker do active sem codes e comment vazio (não toca no de outro coder)', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', codeIds: ['c1'] });
+		model.setCellComment('a.csv', 0, 'text', 'default note');
+		model.setCellComment('a.csv', 0, 'text', '');
+		const all = model.getRowMarkersForCell('a.csv', 0, 'text');
+		expect(all).toHaveLength(1);
+		expect(all[0]?.codedBy).toBe('human:bob');
+	});
+});

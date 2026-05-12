@@ -101,7 +101,11 @@ export class CsvCodingModel {
 
 	setCellComment(file: string, sourceRowId: number, column: string, value: string): void {
 		const trimmed = value;  // não trim — preserva intent do user
-		const idx = this.rowMarkers.findIndex(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
+		const activeCoder = this.plugin.getActiveCoderId();
+		const idx = this.rowMarkers.findIndex(m =>
+			m.fileId === file && m.sourceRowId === sourceRowId && m.column === column
+			&& (m.codedBy ?? 'human:default') === activeCoder
+		);
 
 		if (idx === -1) {
 			// Sem RowMarker pra essa célula — só cria se há comment de fato.
