@@ -1,9 +1,11 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-12 (Slice E3b drill-down P3 + revert UI + κ pré/pós + export markdown).
+> Última atualização: 2026-05-12 (Slice CSV row marker cross-coder + Compare Coders fixes/perf).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
+
+> **🧪 Smoke pendente do slice CSV cross-coder (2026-05-12):** ao começar a próxima sessão, abrir Obsidian no workbench e rodar **passo 7 do spec §9.3** (arquivado em `obsidian-qualia-coding/plugin-docs/archive/claude_sources/specs/20260512-csv-row-marker-cross-coder-design.md`). Cenário: (a) active = `human:default`, marca cell A2 com código Z; (b) troca pra `human:bob`, abre popover em A2 — deve aparecer em **modo "create"** (vazio, sem botão "Remove All Codes"); (c) volta pra `human:default`, popover em A2 reabre em **modo edit** com Z visível. Se quebrar = bug no popover não filtrar por active coder na decisão create/edit. Passos 1-6 + 8 já validados em 2026-05-12 (incluindo Compare Coders pós-fixes: chip do bob aparece, toggle filtra tabela, sem lerdeza).
 
 > **📄 Visão integrada de produto (2026-05-08, navegação fragmentada):** entry point é `obsidian-qualia-coding/plugin-docs/research/INDEX-2026-05-08.md`. Docs filhos focados: `ICR-MATERIA-2026-05-08.md` (caminhos materializados), `LLM-MATERIA-2026-05-08.md` (em movimento — não cravado), `RELACOES-ICR-LLM-2026-05-08.md` (interdependências), `QUALIA-CORE-VISION-2026-05-08.md` (vision separada do plugin). Doc original `CONSOLIDACAO-PRODUTO-2026-05-08.md` (138 KB, 1839 linhas) preservado pra detalhe denso. Resumo do que ficou cravado pra produto: ordem **ICR → LLM → Analytics**; pitch **plugin = QDAS standalone**, **plugin + Qualia Core = QDMMAS sério**; LLM continua em movimento. **As "frentes engatilhadas" abaixo precisam ser revisitadas à luz dessa visão** — não foi feito ainda.
 
