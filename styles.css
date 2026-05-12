@@ -7124,6 +7124,12 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	flex: 1;
 }
 
+.qc-icr-source-remap {
+	margin-top: 4px;
+	font-size: var(--font-ui-smaller);
+	color: var(--interactive-accent);
+}
+
 .qc-icr-source-actions {
 	display: flex;
 	gap: 4px;

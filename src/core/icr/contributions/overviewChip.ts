@@ -15,6 +15,8 @@ export interface OverviewChipCallbacks {
 	onApply: () => void;
 	onDiscard: () => void;
 	onOverridesChange: (overrides: ResolutionOverrides) => void;
+	/** A3: caller abre suggest modal pra escolher fileId local; resolve com selected ou null. */
+	onRequestRemap?: (payloadFileId: string) => void;
 }
 
 type CodeOverwrittenConflict = Extract<ConflictRecord, { kind: 'code_overwritten' }>;
@@ -107,6 +109,11 @@ function renderSourcesSection(
 		const fileId = (conf as any).fileId ?? (conf as any).payloadFileId;
 		const row = body.createDiv({ cls: 'qc-icr-source-row' });
 
+		const currentOverride = contrib.overrides.sourceOverrides.get(fileId);
+		const mapManual = currentOverride && typeof currentOverride === 'object' && currentOverride.kind === 'map-manual'
+			? currentOverride.localFileId
+			: null;
+
 		const desc = row.createDiv({ cls: 'qc-icr-source-desc' });
 		if (conf.kind === 'source_hash_mismatch') {
 			desc.setText(`${fileId} — hash mismatch (você editou esse arquivo depois)`);
@@ -114,6 +121,9 @@ function renderSourcesSection(
 			desc.setText(`${fileId} — not found (arquivo não existe local)`);
 		} else {
 			desc.setText(`${fileId} — multiple hash matches (lookup ambíguo)`);
+		}
+		if (mapManual) {
+			desc.createDiv({ cls: 'qc-icr-source-remap', text: `→ remapped pra ${mapManual}` });
 		}
 
 		const actions = row.createDiv({ cls: 'qc-icr-source-actions' });
@@ -125,6 +135,14 @@ function renderSourcesSection(
 				o.sourceOverrides.set(fileId, 'trust-local');
 				cb.onOverridesChange(o);
 			};
+		}
+
+		if (cb.onRequestRemap) {
+			const mapBtn = actions.createEl('button', {
+				cls: 'qc-icr-button outline',
+				text: mapManual ? 'Trocar destino' : 'Mapear → arquivo local',
+			});
+			mapBtn.onclick = () => cb.onRequestRemap!(fileId);
 		}
 
 		const skip = actions.createEl('button', { cls: 'qc-icr-button secondary', text: 'Skip source' });

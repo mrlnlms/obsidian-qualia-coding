@@ -6,7 +6,7 @@
  * Reusa pattern qc-cc-mode-chip do unifiedCompareCodersView.ts.
  */
 
-import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
+import { FuzzySuggestModal, ItemView, Notice, TFile, type WorkspaceLeaf } from 'obsidian';
 import type QualiaCodingPlugin from '../../../main';
 import {
 	createDefaultViewState,
@@ -156,6 +156,33 @@ export class UnifiedIcrImportView extends ItemView {
 	}
 
 	/**
+	 * A3: abre FuzzySuggestModal com arquivos locais do vault que tenham a mesma
+	 * extensão do `payloadFileId`. Pick grava override `{ kind: 'map-manual', localFileId }`
+	 * em `sourceOverrides` e dispara recompute do merge preview.
+	 */
+	private openRemapPicker(contrib: PendingContribution, payloadFileId: string): void {
+		const ext = payloadFileId.split('.').pop()?.toLowerCase() ?? '';
+		const candidates = this.plugin.app.vault.getFiles().filter(f => f.extension.toLowerCase() === ext);
+		if (candidates.length === 0) {
+			new Notice(`Nenhum arquivo .${ext} no vault`);
+			return;
+		}
+		const view = this;
+		class Picker extends FuzzySuggestModal<TFile> {
+			getItems(): TFile[] { return candidates; }
+			getItemText(f: TFile): string { return f.path; }
+			onChooseItem(f: TFile): void {
+				const o = cloneOverrides(contrib.overrides);
+				o.sourceOverrides.set(payloadFileId, { kind: 'map-manual', localFileId: f.path });
+				void view.updateOverrides(contrib.id, o);
+			}
+		}
+		const picker = new Picker(this.plugin.app);
+		picker.setPlaceholder(`Escolha arquivo local pra mapear ${payloadFileId}`);
+		picker.open();
+	}
+
+	/**
 	 * Pré-busca sourceText via vault.cachedRead pra arquivos markdown referenciados
 	 * pela contribuição ativa. Popula `state.sourceTextByFileId` e re-renderiza.
 	 * Markdown overlap (chips Lado a lado + Por código) usa esse cache; sem ele
@@ -208,6 +235,7 @@ export class UnifiedIcrImportView extends ItemView {
 				onApply: () => { void this.applyContribution(active); },
 				onDiscard: () => this.discardContribution(active.id),
 				onOverridesChange: (overrides) => { void this.updateOverrides(active.id, overrides); },
+				onRequestRemap: (payloadFileId) => this.openRemapPicker(active, payloadFileId),
 			});
 		} else if (this.state.activeChip === 'side-by-side') {
 			const localMarkersByFileId = this.collectLocalMarkers(active);
