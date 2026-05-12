@@ -50,5 +50,24 @@ function insertRowMarker(opts: { file: string; row: number; column: string; code
 }
 
 describe('CSV cross-coder: getRowMarkerForActiveCoder', () => {
-	it.todo('placeholder');
+	it('retorna marker do active coder quando cell tem múltiplos coders', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:default', codeIds: ['c1'] });
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', codeIds: ['c2'] });
+		const result = model.getRowMarkerForActiveCoder('a.csv', 0, 'text');
+		expect(result?.codedBy).toBe('human:default');
+		expect(result?.codes.map(c => c.codeId)).toEqual(['c1']);
+	});
+
+	it('retorna undefined quando active não tem marker mas alheio tem', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', codeIds: ['c2'] });
+		const result = model.getRowMarkerForActiveCoder('a.csv', 0, 'text');
+		expect(result).toBeUndefined();
+	});
+
+	it('trata marker legado sem codedBy como human:default (defensive ??)', () => {
+		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: undefined, codeIds: ['c1'] });
+		activeCoder = 'human:default';
+		const result = model.getRowMarkerForActiveCoder('a.csv', 0, 'text');
+		expect(result?.codes.map(c => c.codeId)).toEqual(['c1']);
+	});
 });

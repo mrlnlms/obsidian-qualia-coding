@@ -247,6 +247,14 @@ export class CsvCodingModel {
 		return this.rowMarkers.filter(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
 	}
 
+	getRowMarkerForActiveCoder(file: string, sourceRowId: number, column: string): RowMarker | undefined {
+		const activeCoder = this.plugin.getActiveCoderId();
+		return this.rowMarkers.find(m =>
+			m.fileId === file && m.sourceRowId === sourceRowId && m.column === column
+			&& (m.codedBy ?? 'human:default') === activeCoder
+		);
+	}
+
 	findOrCreateRowMarker(file: string, sourceRowId: number, column: string): RowMarker {
 		const existing = this.rowMarkers.find(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
 		if (existing) return existing;
