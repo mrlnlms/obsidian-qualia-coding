@@ -2,6 +2,22 @@
 
 Plugin Obsidian para analise qualitativa de dados (QDA). Codifica texto, PDF, CSV, imagens, audio e video.
 
+---
+
+## Communication Style
+- This is a personal/solo project — do NOT inject risk analysis, stakeholder concerns, or enterprise-framing unless explicitly asked.
+- Focus on substance, not document length or formatting meta-commentary. The user does not care about doc size.
+- Avoid hedging, excessive jargon, and over-structuring open exploratory discussions into rigid frameworks.
+- When the user wants to brainstorm or align conceptually, do NOT jump to execution or writing new docs.
+
+## Grounding Rules
+- Never fabricate 'decisions', 'risks', or user statements. If you reference something the user said, quote it from the actual transcript or memory.
+- When asked to estimate effort/timeline, ground numbers in actual git history — not gut feel.
+- After context compaction, re-verify recent edits persisted before continuing.
+
+---
+
+
 ## ⛔ TOP PRIORITY — Comportamento exigido (não negociável)
 
 Esta seção fica em primeiro lugar porque, sem ela, todo o resto vira teatro de progresso. Origem: review do user em 2026-05-05 sobre Smart Codes Tier 3 — 17 problemas técnicos que se acumularam por eu otimizar pra "parecer progredir" em vez de "entregar valor". Ler todo turno.
