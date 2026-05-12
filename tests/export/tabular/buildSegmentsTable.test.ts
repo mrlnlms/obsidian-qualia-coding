@@ -33,6 +33,7 @@ describe('buildSegmentsTable', () => {
 			markerType: 'markdown', id: 'md1', fileId: 'x.md',
 			range: { from: { line: 3, ch: 4 }, to: { line: 5, ch: 6 } },
 			color: '#000', codes: [], text: 'hello', memo: '',
+			codedBy: 'human:carla',
 			createdAt: 1700000000000, updatedAt: 1700000001000,
 		}];
 		dm.setSection('markdown', s);
@@ -42,6 +43,7 @@ describe('buildSegmentsTable', () => {
 		const i = (col: string) => rows[0]!.indexOf(col);
 		expect(row[i('engine')]).toBe('markdown');
 		expect(row[i('sourceType')]).toBe('markdown');
+		expect(row[i('coder')]).toBe('human:carla');
 		expect(row[i('text')]).toBe('hello');
 		expect(row[i('line_from')]).toBe(3);
 		expect(row[i('ch_from')]).toBe(4);
@@ -49,6 +51,20 @@ describe('buildSegmentsTable', () => {
 		expect(row[i('ch_to')]).toBe(6);
 		expect(row[i('page')]).toBe('');
 		expect(row[i('createdAt')]).toBe('2023-11-14T22:13:20.000Z');
+	});
+
+	it('marker sem codedBy (legado): coluna coder vazia', () => {
+		const s = dm.section('markdown');
+		s.markers['x.md'] = [{
+			markerType: 'markdown', id: 'md1', fileId: 'x.md',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 1 } },
+			color: '#000', codes: [], text: 'h', memo: '',
+			createdAt: 0, updatedAt: 0,
+		}];
+		dm.setSection('markdown', s);
+		const { rows } = buildSegmentsTable(dm, new Map(), { includeShapeCoords: false });
+		const i = (col: string) => rows[0]!.indexOf(col);
+		expect(rows[1]![i('coder')]).toBe('');
 	});
 
 	it('csv_segment marker: text resolved from csvTexts map', () => {
