@@ -25,7 +25,7 @@ import { reportKappaAsync, type EngineId } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
-import { applyCoderInclusion, applyConsensusExclusion } from './coderInclusion';
+import { applyCoderInclusion, applyConsensusExclusion, applyVisibleCoderFilter } from './coderInclusion';
 import type { App } from 'obsidian';
 import type { CoderId } from '../coderTypes';
 
@@ -55,21 +55,18 @@ export async function renderOverviewHeatmap(
 
 	// Polish E1: filtra coders sem markers no escopo (default off)
 	// E3b: exclui consensus coders quando excludeConsensusCoders=true (toggle κ pré/pós).
-	const inclusionScope = applyConsensusExclusion(
-		applyCoderInclusion(
-			state.scope,
-			deps.engineModels,
-			state.filters.includeCodersWithoutMarkers ?? false,
+	const filteredScope = applyVisibleCoderFilter(
+		applyConsensusExclusion(
+			applyCoderInclusion(
+				state.scope,
+				deps.engineModels,
+				state.filters.includeCodersWithoutMarkers ?? false,
+			),
+			deps.coderRegistry,
+			state.filters.excludeConsensusCoders,
 		),
-		deps.coderRegistry,
-		state.filters.excludeConsensusCoders,
+		state.filters.visibleCoderIds,
 	);
-	// Toggle do chip de coder (visibleCoderIds) também poda a tabela κ — mesmo padrão
-	// de drilldownSpatial.ts:151. Sem isso, chips apagados ainda viravam linhas/colunas.
-	const visibleCoderIds = state.filters.visibleCoderIds;
-	const filteredScope = visibleCoderIds
-		? { ...inclusionScope, coderIds: inclusionScope.coderIds.filter(id => visibleCoderIds.includes(id)) }
-		: inclusionScope;
 	const N = filteredScope.coderIds.length;
 	if (N < 2) {
 		container.createDiv({ text: 'Selecione 2+ coders com markers no escopo (ou habilite "incluir coders sem markers")', cls: 'qc-cc-empty' });

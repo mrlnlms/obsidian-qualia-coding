@@ -124,6 +124,17 @@ export function applyConsensusExclusion(
 	return { ...scope, coderIds: filtered };
 }
 
+/** Aplica o filter visual do toolbar (chips toggleados) ao scope. Centraliza a regra
+ *  pra renderers que pintam tabela κ — overview matrix/table/heatmap e drilldown spatial.
+ *  visibleCoderIds=undefined significa "todos visíveis" (estado default). */
+export function applyVisibleCoderFilter(
+	scope: ComparisonScope,
+	visibleCoderIds: readonly CoderId[] | undefined,
+): ComparisonScope {
+	if (!visibleCoderIds) return scope;
+	return { ...scope, coderIds: scope.coderIds.filter(id => visibleCoderIds.includes(id)) };
+}
+
 /** Lê os ids de coders consensus presentes em um scope — pra view decidir se mostra
  *  o toggle "excluir consensus" e/ou colunas pré/pós no modal lado a lado. */
 export function getConsensusCoderIdsInScope(

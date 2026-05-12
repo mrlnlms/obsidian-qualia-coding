@@ -20,7 +20,7 @@ import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeE
 import { reportKappaAsync } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import { kappaClass } from './overviewSharedRender';
-import { applyCoderInclusion, applyConsensusExclusion } from './coderInclusion';
+import { applyCoderInclusion, applyConsensusExclusion, applyVisibleCoderFilter } from './coderInclusion';
 import type { App } from 'obsidian';
 
 export interface OverviewTableDeps {
@@ -56,14 +56,17 @@ export async function renderOverviewTable(
 
 	// Polish E1: filtra coders sem markers no escopo (default off)
 	// E3b: exclui consensus coders quando excludeConsensusCoders=true (toggle κ pré/pós).
-	const filteredScope = applyConsensusExclusion(
-		applyCoderInclusion(
-			state.scope,
-			deps.engineModels,
-			state.filters.includeCodersWithoutMarkers ?? false,
+	const filteredScope = applyVisibleCoderFilter(
+		applyConsensusExclusion(
+			applyCoderInclusion(
+				state.scope,
+				deps.engineModels,
+				state.filters.includeCodersWithoutMarkers ?? false,
+			),
+			deps.coderRegistry,
+			state.filters.excludeConsensusCoders,
 		),
-		deps.coderRegistry,
-		state.filters.excludeConsensusCoders,
+		state.filters.visibleCoderIds,
 	);
 	const N = filteredScope.coderIds.length;
 	if (N < 2) {

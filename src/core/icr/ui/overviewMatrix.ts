@@ -22,7 +22,7 @@ import type { App } from 'obsidian';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
 import { computeBboxKappaInputsForPair } from './bboxScopeExtraction';
-import { applyCoderInclusion, applyConsensusExclusion } from './coderInclusion';
+import { applyCoderInclusion, applyConsensusExclusion, applyVisibleCoderFilter } from './coderInclusion';
 
 export interface OverviewMatrixDeps {
 	coderRegistry: CoderRegistry;
@@ -40,14 +40,17 @@ export async function renderOverviewMatrix(
 
 	// Polish E1: filtra coders sem markers no escopo (default off — toggle reincluí).
 	// E3b: exclui consensus coders quando excludeConsensusCoders=true (toggle κ pré/pós).
-	const filteredScope = applyConsensusExclusion(
-		applyCoderInclusion(
-			state.scope,
-			deps.engineModels,
-			state.filters.includeCodersWithoutMarkers ?? false,
+	const filteredScope = applyVisibleCoderFilter(
+		applyConsensusExclusion(
+			applyCoderInclusion(
+				state.scope,
+				deps.engineModels,
+				state.filters.includeCodersWithoutMarkers ?? false,
+			),
+			deps.coderRegistry,
+			state.filters.excludeConsensusCoders,
 		),
-		deps.coderRegistry,
-		state.filters.excludeConsensusCoders,
+		state.filters.visibleCoderIds,
 	);
 	const coderIds = filteredScope.coderIds;
 	const N = coderIds.length;
