@@ -218,10 +218,10 @@ Cenário mínimo:
 4. Marcar cell A1 com código Y. Adicionar comment "bob comment". Cell A1 exibe Y + comment "bob".
 5. Trocar active de volta para default. Cell A1 exibe X + comment "default".
 6. Abrir Compare Coders view com ambos coders no scope. Cell A1 deve mostrar stripes (X em uma stripe, Y em outra).
-7. Como bob, abrir popover na cell A1 — deve aparecer em modo "create" (sem botão "Remove All Codes" via affordance, porque pro bob a cell tem o marker dele com Y, mas a affordance é só pra modo "tem marker"... ajustar critério com captura do estado).
-8. Inspeção em `data.json`: 2 RowMarkers distintos para cell A1, um por coder, sem mutation cruzada.
+7. Como default, marcar cell A2 com código Z. Trocar para bob. Abrir popover em A2 — deve aparecer em modo "create" (vazio, sem botão "Remove All Codes"), porque pro bob a A2 está vazia mesmo com Z lá. Voltar pra default — popover em A2 reabre em modo hover/edit com Z visível.
+8. Inspeção em `data.json`: 2 RowMarkers distintos para cell A1 (um por coder), 1 RowMarker para A2 (só do default), sem mutation cruzada.
 
-Critério de "passou": comportamentos 3-6 e 8 batem. Item 7 documenta estado observado (não bloqueia).
+Critério de "passou": comportamentos 3-8 batem integralmente.
 
 ## 10. Arquivos afetados (consolidado)
 
