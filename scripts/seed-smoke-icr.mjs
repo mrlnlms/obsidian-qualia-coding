@@ -274,15 +274,15 @@ const SAVED_COMPARISON_ID = 'cmp_smoke';
 const savedComparison = {
 	id: SAVED_COMPARISON_ID,
 	name: 'Smoke ICR — A1-B3',
-	createdAt: NOW,
-	updatedAt: NOW,
-	state: {
-		scope: { coderIds: ['human:default', 'human:carla', 'human:joana'] },
+	scope: { coderIds: ['human:default', 'human:carla', 'human:joana'] },
+	view: {
 		overviewMode: 'matrix',
 		drilldownMode: 'spatial',
 		primaryCoefficient: 'cohen',
-		filters: {},
 	},
+	filters: {},
+	createdAt: NOW,
+	updatedAt: NOW,
 };
 
 const newData = {
