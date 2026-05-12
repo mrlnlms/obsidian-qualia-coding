@@ -70,6 +70,7 @@ export class CsvCodingView extends FileView {
 	private readyResolve: (() => void) | null = null;
 	private readyPromise: Promise<void> = new Promise(r => { this.readyResolve = r; });
 	private unsubscribeVisibility?: () => void;
+	private unsubscribeActiveCoder?: () => void;
 	private lazyState: LazyState | null = null;
 	/** onChange listener that tops up the marker preview cache when the user
 	 *  codes new rows in lazy mode. Set on lazy load, cleared on unload. */
@@ -279,6 +280,13 @@ export class CsvCodingView extends FileView {
 		// Subscribe to visibility changes
 		this.unsubscribeVisibility?.();
 		this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
+
+		// Subscribe to active coder changes — refresh cells so codes/comments reflect
+		// the active coder's view (other coders' work stays invisible outside compare mode).
+		this.unsubscribeActiveCoder?.();
+		this.unsubscribeActiveCoder = this.plugin.onActiveCoderChange(() => {
+			this.gridApi?.refreshCells({ force: true });
+		});
 
 		// Inject custom header buttons via MutationObserver. Eager mode: source row IDs
 		// for batch coding come from AG Grid's filtered/sorted node iterator (entire
@@ -573,6 +581,12 @@ export class CsvCodingView extends FileView {
 			// Subscribe to visibility changes (same as eager mode).
 			this.unsubscribeVisibility?.();
 			this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
+
+			// Subscribe to active coder changes (same as eager mode).
+			this.unsubscribeActiveCoder?.();
+			this.unsubscribeActiveCoder = this.plugin.onActiveCoderChange(() => {
+				this.gridApi?.refreshCells({ force: true });
+			});
 
 			// Inject custom header buttons via MutationObserver — same coding affordances
 			// (cod-seg/cod-frow tag buttons) as eager mode. Lazy batch coding queries
@@ -934,6 +948,8 @@ export class CsvCodingView extends FileView {
 		this.readyPromise = new Promise(r => { this.readyResolve = r; });
 		this.unsubscribeVisibility?.();
 		this.unsubscribeVisibility = undefined;
+		this.unsubscribeActiveCoder?.();
+		this.unsubscribeActiveCoder = undefined;
 		this.closeSegmentEditor();
 		// Tear down lazy preview cache listener + drop cached previews. Done before
 		// dropping rowDataCache so getMarkersForFile() still finds markers to evict.

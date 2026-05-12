@@ -3,6 +3,7 @@ import type { App } from 'obsidian';
 import type { CsvCodingModel } from './csvCodingModel';
 import type { GridApi } from 'ag-grid-community';
 import type { CsvViewRef } from './columnToggleModal';
+import type { SegmentMarker, RowMarker } from './csvCodingTypes';
 import { openCsvCodingPopover } from './csvCodingMenu';
 import { hasCode } from '../core/codeApplicationHelpers';
 
@@ -64,10 +65,14 @@ export function codingCellRenderer(params: any): HTMLElement {
 				e.stopPropagation();
 				if (!model) return;
 
-				const markers = isFrow
-					? model.getRowMarkersForCell(file, sourceRowId, sourceColumn)
-					: model.getSegmentMarkersForCell(file, sourceRowId, sourceColumn);
-				const marker = markers.find(m => hasCode(m.codes, codeId));
+				let marker: SegmentMarker | RowMarker | undefined;
+				if (isFrow) {
+					const m = model.getRowMarkerForActiveCoder(file, sourceRowId, sourceColumn);
+					marker = m && hasCode(m.codes, codeId) ? m : undefined;
+				} else {
+					marker = model.getSegmentMarkersForCell(file, sourceRowId, sourceColumn)
+						.find(m => hasCode(m.codes, codeId));
+				}
 				if (marker) {
 					// Dispatch detail event for sidebar
 					app?.workspace?.trigger('qualia-csv:detail', {
@@ -94,11 +99,9 @@ export function codingCellRenderer(params: any): HTMLElement {
 				xBtn.textContent = '\u00d7';
 				xBtn.addEventListener('click', (e) => {
 					e.stopPropagation();
-					const markers = model.getRowMarkersForCell(file, sourceRowId, sourceColumn);
-					for (const m of markers) {
-						if (hasCode(m.codes, codeId)) {
-							model.removeCodeFromMarker(m.id, codeId);
-						}
+					const m = model.getRowMarkerForActiveCoder(file, sourceRowId, sourceColumn);
+					if (m && hasCode(m.codes, codeId)) {
+						model.removeCodeFromMarker(m.id, codeId);
 					}
 					gridApi.refreshCells({ force: true });
 				});
