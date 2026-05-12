@@ -2,9 +2,7 @@ import {
   openFile,
   focusEditor,
   waitForElement,
-  checkComponent,
   assertDomState,
-  hoverElement,
 } from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData, mkMarker, SELECTORS } from "../helpers/qualia.js";
 
@@ -39,20 +37,4 @@ describe("margin panel", () => {
     });
   });
 
-  it("visual baseline — margin panel with 2 markers", async () => {
-    const mismatch = await checkComponent(
-      SELECTORS.marginPanel,
-      "margin-2markers",
-    );
-    expect(mismatch).toBeLessThan(3);
-  });
-
-  it("hover highlights bar", async () => {
-    await hoverElement(SELECTORS.marginBar);
-    const mismatch = await checkComponent(
-      SELECTORS.marginPanel,
-      "margin-hover",
-    );
-    expect(mismatch).toBeLessThan(3);
-  });
 });

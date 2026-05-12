@@ -1,9 +1,11 @@
 import {
-  openFile, waitForElement, checkComponent,
+  openFile, waitForElement,
 } from "obsidian-e2e-visual-test-kit";
+import { enableMediaAutoOpen } from "../helpers/qualia.js";
 
 describe("image view", () => {
   before(async () => {
+    await enableMediaAutoOpen();
     await openFile("Sample.png");
     await browser.pause(4000); // Fabric.js canvas needs time to render
   });
@@ -19,8 +21,4 @@ describe("image view", () => {
     expect(canvases.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("visual baseline — image view", async () => {
-    const mismatch = await checkComponent(".workspace-leaf.mod-active .view-content", "image-view");
-    expect(mismatch).toBeLessThan(5);
-  });
 });

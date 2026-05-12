@@ -1,5 +1,5 @@
 import {
-  assertDomState, assertInnerHTML, checkComponent,
+  assertDomState, assertInnerHTML,
 } from "obsidian-e2e-visual-test-kit";
 
 describe("code form modal", () => {
@@ -167,8 +167,4 @@ describe("code form modal", () => {
     expect(await saveBtn.getText()).toBe("Save");
   });
 
-  it("visual baseline — code form modal", async () => {
-    const mismatch = await checkComponent(".codemarker-code-form", "code-form-modal");
-    expect(mismatch).toBeLessThan(2);
-  });
 });

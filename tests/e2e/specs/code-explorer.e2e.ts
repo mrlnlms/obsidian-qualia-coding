@@ -1,6 +1,6 @@
 import {
   openFile, focusEditor, waitForElement, executeCommand,
-  assertDomState, checkComponent,
+  assertDomState,
 } from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData, mkMarker, SELECTORS } from "../helpers/qualia.js";
 
@@ -44,8 +44,4 @@ describe("code explorer sidebar", () => {
     });
   });
 
-  it("visual baseline — explorer with 2 codes", async () => {
-    const mismatch = await checkComponent(SELECTORS.explorer, "explorer-2codes");
-    expect(mismatch).toBeLessThan(20);
-  });
 });

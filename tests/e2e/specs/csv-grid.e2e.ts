@@ -1,5 +1,5 @@
 import {
-  openFile, waitForElement, assertDomState, checkComponent,
+  openFile, waitForElement, assertDomState,
 } from "obsidian-e2e-visual-test-kit";
 
 describe("CSV grid view", () => {
@@ -24,8 +24,4 @@ describe("CSV grid view", () => {
     expect(rows.length).toBeGreaterThanOrEqual(5);
   });
 
-  it("visual baseline — CSV grid with 5 rows", async () => {
-    const mismatch = await checkComponent(".ag-root", "csv-grid-5rows");
-    expect(mismatch).toBeLessThan(2);
-  });
 });

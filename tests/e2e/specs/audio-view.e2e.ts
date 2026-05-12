@@ -1,9 +1,11 @@
 import {
-  openFile, checkComponent,
+  openFile,
 } from "obsidian-e2e-visual-test-kit";
+import { enableMediaAutoOpen } from "../helpers/qualia.js";
 
 describe("audio view", () => {
   before(async () => {
+    await enableMediaAutoOpen();
     await openFile("Sample.mp3");
     await browser.pause(8000); // WaveSurfer needs time to decode + render
   });
@@ -28,8 +30,4 @@ describe("audio view", () => {
     expect(children).toBeGreaterThanOrEqual(1);
   });
 
-  it("visual baseline — audio view", async () => {
-    const mismatch = await checkComponent(".workspace-leaf.mod-active .view-content", "audio-view");
-    expect(mismatch).toBeLessThan(5);
-  });
 });

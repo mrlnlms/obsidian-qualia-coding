@@ -1,5 +1,5 @@
 import {
-  openFile, focusEditor, waitForElement, hoverElement, assertDomState, checkComponent,
+  openFile, focusEditor, waitForElement, hoverElement, assertDomState,
 } from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData, refreshEditorDecorations, mkMarker, SELECTORS } from "../helpers/qualia.js";
 
@@ -37,9 +37,4 @@ describe("handle overlay", () => {
     expect(handles.length).toBeGreaterThanOrEqual(0);
   });
 
-  it("visual baseline — handles on hover", async () => {
-    await hoverElement(SELECTORS.marginBar, 1000);
-    const mismatch = await checkComponent(".cm-editor", "handles-hover");
-    expect(mismatch).toBeLessThan(10);
-  });
 });

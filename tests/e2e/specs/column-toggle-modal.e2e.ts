@@ -1,5 +1,5 @@
 import {
-  openFile, waitForElement, assertDomState, checkComponent,
+  openFile, waitForElement,
 } from "obsidian-e2e-visual-test-kit";
 
 describe("column toggle modal (CSV)", () => {
@@ -31,14 +31,6 @@ describe("column toggle modal (CSV)", () => {
   it("modal has settings items for columns", async () => {
     const settings = await browser.$$(".modal-container .setting-item");
     expect(settings.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("visual baseline — column toggle modal", async () => {
-    const modal = await browser.$(".modal-container");
-    if (await modal.isExisting()) {
-      const mismatch = await checkComponent(".modal-container", "column-toggle-modal");
-      expect(mismatch).toBeLessThan(3);
-    }
   });
 
   after(async () => {

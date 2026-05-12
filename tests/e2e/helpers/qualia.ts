@@ -89,6 +89,25 @@ export async function refreshEditorDecorations(fileIds: string[]): Promise<void>
   await browser.pause(1000);
 }
 
+/**
+ * Liga `autoOpen` em todos os engine models (audio, image, pdf, video). Sem isso, abrir um
+ * `.mp3`/`.png`/`.pdf`/`.mp4` no Obsidian usa a view nativa — não a view custom do plugin,
+ * e os specs e2e não encontram `.codemarker-audio-waveform`/`.codemarker-image-view` etc.
+ *
+ * Chamar no `before()` antes de `openFile(<media>)`.
+ */
+export async function enableMediaAutoOpen(): Promise<void> {
+  await waitForPlugin("qualia-coding");
+  await browser.execute(() => {
+    const plugin = (window as any).app.plugins.plugins["qualia-coding"];
+    for (const key of ["audioModel", "imageModel", "pdfModel", "videoModel"]) {
+      const model = plugin[key];
+      if (model?.settings) model.settings.autoOpen = true;
+    }
+  });
+  await browser.pause(200);
+}
+
 export function mkMarker(
   id: string,
   fromLine: number,

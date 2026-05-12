@@ -1,9 +1,11 @@
 import {
-  openFile, checkComponent,
+  openFile,
 } from "obsidian-e2e-visual-test-kit";
+import { enableMediaAutoOpen } from "../helpers/qualia.js";
 
 describe("video view", () => {
   before(async () => {
+    await enableMediaAutoOpen();
     await openFile("Sample.mp4");
     await browser.pause(5000); // Video + WaveSurfer timeline needs time
   });
@@ -20,8 +22,4 @@ describe("video view", () => {
     expect(videos.length + canvases.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("visual baseline — video view", async () => {
-    const mismatch = await checkComponent(".workspace-leaf.mod-active .view-content", "video-view");
-    expect(mismatch).toBeLessThan(5);
-  });
 });

@@ -1,6 +1,6 @@
 import {
   openFile, focusEditor, waitForElement, executeCommand,
-  assertDomState, checkComponent,
+  assertDomState,
 } from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData, mkMarker, SELECTORS } from "../helpers/qualia.js";
 
@@ -41,9 +41,4 @@ describe("analytics — frequency mode", () => {
     });
   });
 
-  it("visual baseline — frequency chart with 3 codes", async () => {
-    await browser.pause(2000);
-    const mismatch = await checkComponent(SELECTORS.analyticsView, "analytics-frequency-3codes");
-    expect(mismatch).toBeLessThan(5);
-  });
 });

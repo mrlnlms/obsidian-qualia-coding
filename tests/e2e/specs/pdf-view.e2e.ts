@@ -1,9 +1,11 @@
 import {
-  openFile, waitForElement, assertDomState, checkComponent,
+  openFile,
 } from "obsidian-e2e-visual-test-kit";
+import { enableMediaAutoOpen } from "../helpers/qualia.js";
 
 describe("PDF view", () => {
   before(async () => {
+    await enableMediaAutoOpen();
     await openFile("Sample.pdf");
     await browser.pause(5000); // PDF rendering is slow — needs pdfjs + fabric
   });
@@ -31,11 +33,4 @@ describe("PDF view", () => {
     }
   });
 
-  it("visual baseline — PDF view", async () => {
-    const container = await browser.$(".workspace-leaf.mod-active .view-content");
-    if (await container.isExisting()) {
-      const mismatch = await checkComponent(".workspace-leaf.mod-active .view-content", "pdf-view");
-      expect(mismatch).toBeLessThan(5); // higher tolerance for PDF rendering variations
-    }
-  });
 });

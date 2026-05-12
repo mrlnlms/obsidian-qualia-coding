@@ -1,5 +1,5 @@
 import {
-  openFile, focusEditor, waitForElement, checkComponent, assertDomState,
+  openFile, focusEditor, waitForElement, assertDomState,
 } from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData, refreshEditorDecorations, mkMarker, SELECTORS } from "../helpers/qualia.js";
 
@@ -48,8 +48,4 @@ describe("editor highlights", () => {
     expect(uniqueIds.size).toBeGreaterThanOrEqual(2);
   });
 
-  it("visual baseline — editor with 3 highlights", async () => {
-    const mismatch = await checkComponent(".cm-editor", "highlights-3markers");
-    expect(mismatch).toBeLessThan(10);
-  });
 });

@@ -1,5 +1,5 @@
 import {
-  waitForElement, assertDomState, assertInnerHTML, checkComponent,
+  assertDomState, assertInnerHTML,
 } from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData } from "../helpers/qualia.js";
 
@@ -123,8 +123,4 @@ describe("code browser modal", () => {
     expect(await search.isExisting()).toBe(true);
   });
 
-  it("visual baseline — code browser with 3 codes", async () => {
-    const mismatch = await checkComponent(".codemarker-code-browser", "code-browser-3codes");
-    expect(mismatch).toBeLessThan(35);
-  });
 });

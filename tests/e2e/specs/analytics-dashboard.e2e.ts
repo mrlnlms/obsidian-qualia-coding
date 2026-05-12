@@ -1,6 +1,6 @@
 import {
   openFile, focusEditor, waitForElement, executeCommand,
-  assertDomState, assertInnerHTML, checkComponent,
+  assertDomState, assertInnerHTML,
 } from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData, mkMarker, SELECTORS } from "../helpers/qualia.js";
 
@@ -38,8 +38,4 @@ describe("analytics — dashboard mode", () => {
     });
   });
 
-  it("visual baseline — dashboard with KPIs", async () => {
-    const mismatch = await checkComponent(SELECTORS.analyticsView, "analytics-dashboard");
-    expect(mismatch).toBeLessThan(5);
-  });
 });

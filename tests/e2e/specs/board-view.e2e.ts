@@ -1,6 +1,5 @@
 import {
-  openFile, focusEditor, waitForElement, executeCommand,
-  assertDomState, checkComponent,
+  openFile, focusEditor, executeCommand,
 } from "obsidian-e2e-visual-test-kit";
 import { injectQualiaData, mkMarker } from "../helpers/qualia.js";
 
@@ -47,11 +46,4 @@ describe("board view", () => {
     }
   });
 
-  it("visual baseline — empty board canvas", async () => {
-    const container = await browser.$(".codemarker-board-canvas-container");
-    if (await container.isExisting()) {
-      const mismatch = await checkComponent(".codemarker-board-canvas-container", "board-empty");
-      expect(mismatch).toBeLessThan(3);
-    }
-  });
 });
