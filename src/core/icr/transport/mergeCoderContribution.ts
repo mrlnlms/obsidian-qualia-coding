@@ -177,6 +177,7 @@ export async function mergeCoderContribution(
 			}
 			if (localMarkdownIds.has(m.id)) {
 				conflicts.push({ kind: 'marker_already_exists', markerId: m.id, engine: 'markdown', fileId: localFileId });
+				pendingMarkers++;
 				continue;
 			}
 			if (!dryRun) {
@@ -202,6 +203,7 @@ export async function mergeCoderContribution(
 		}
 		if (localPdfIds.has(m.id)) {
 			conflicts.push({ kind: 'marker_already_exists', markerId: m.id, engine: 'pdf', fileId: localFileId });
+			pendingMarkers++;
 			continue;
 		}
 		if (!dryRun) localData.pdf.markers.push({ ...m, fileId: localFileId });
@@ -223,6 +225,7 @@ export async function mergeCoderContribution(
 		}
 		if (localCsvSegmentIds.has(m.id)) {
 			conflicts.push({ kind: 'marker_already_exists', markerId: m.id, engine: 'csvSegment', fileId: localFileId });
+			pendingMarkers++;
 			continue;
 		}
 		if (!dryRun) localData.csv.segmentMarkers.push({ ...m, fileId: localFileId });
