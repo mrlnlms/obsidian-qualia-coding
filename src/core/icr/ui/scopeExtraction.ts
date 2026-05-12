@@ -61,6 +61,48 @@ export function bumpInputsCacheGeneration(): void {
 	engineInputCache.clear();
 }
 
+/**
+ * ⚠️ REGRA DE PERFORMANCE — ler antes de mexer em overview matrix/table/heatmap.
+ *
+ * `state.filters.visibleCoderIds` (toggle de chip) NUNCA deve entrar no scope passado
+ * pra `extractInputsFromScope`. O cache do extract usa `coderIds` na key; meter
+ * visibility no scope invalida o cache a cada toggle e re-extrai markers de TODAS
+ * engines (passo caro: 7 engines × milhares de markers × cada coder).
+ *
+ * Pattern correto:
+ *   1. extract recebe `inclusionScope` (após applyCoderInclusion + applyConsensusExclusion,
+ *      SEM applyVisibleCoderFilter) — cache key estável entre toggles.
+ *   2. Pra filtrar a tabela κ por coders visíveis, use `filterInputsByCoders` no
+ *      resultado do extract, OU monte pairs/grid sobre `coderIds` filtrado e deixe
+ *      o report computar só esses pairs.
+ *   3. Quando passar `cacheKey` pro reportKappa/reportPairwise com inputs filtrados,
+ *      anexe sufixo com visibleCoderIds pro key não colidir com versão "todos coders".
+ *
+ * Já regrediu 4× — última 2026-05-12. Se vc precisa filtrar coders no extract
+ * pra resolver um bug visual, está atacando o problema no lugar errado. Filtre no
+ * consumo do resultado (inputs ou pairs), não na entrada do extract.
+ */
+export function filterInputsByCoders(
+	inputs: EngineKappaInput[],
+	coderIds: readonly string[],
+): EngineKappaInput[] {
+	const set = new Set(coderIds);
+	const out: EngineKappaInput[] = [];
+	for (const input of inputs) {
+		const ki = input.kappaInput;
+		if ('units' in ki) {
+			const units = ki.units.filter(u => set.has(u.coderId));
+			if (units.length === 0) continue;
+			out.push({ engine: input.engine, kappaInput: { units, coders: ki.coders.filter(c => set.has(c)) } });
+		} else {
+			const markers = ki.markers.filter(m => set.has(m.coderId));
+			if (markers.length === 0) continue;
+			out.push({ engine: input.engine, kappaInput: { markers, sources: ki.sources, coders: ki.coders.filter(c => set.has(c)) } });
+		}
+	}
+	return out;
+}
+
 export function cacheKeyForScope(scope: ComparisonScope): string {
 	// Normaliza arrays pra hash estável (ordem não significativa).
 	const norm = (a?: string[]) => a ? [...a].sort() : undefined;

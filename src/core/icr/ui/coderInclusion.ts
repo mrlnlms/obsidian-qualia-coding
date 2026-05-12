@@ -124,9 +124,18 @@ export function applyConsensusExclusion(
 	return { ...scope, coderIds: filtered };
 }
 
-/** Aplica o filter visual do toolbar (chips toggleados) ao scope. Centraliza a regra
- *  pra renderers que pintam tabela κ — overview matrix/table/heatmap e drilldown spatial.
- *  visibleCoderIds=undefined significa "todos visíveis" (estado default). */
+/** Aplica o filter visual do toolbar (chips toggleados) ao scope.
+ *
+ *  ⚠️ NÃO passe o resultado pra `extractInputsFromScope`. Cache do extract usa
+ *  `coderIds` na key — meter visibility no scope invalida o cache em cada toggle
+ *  e re-extrai markers de TODAS engines. Já regrediu 4×.
+ *
+ *  Use o resultado APENAS pra:
+ *    - lista de coders pra renderizar grid/colunas/linhas
+ *    - pairs do reportPairwise (em matrix κ)
+ *    - filtrar inputs pos-extract via `filterInputsByCoders` antes de reportKappa
+ *
+ *  Pattern completo + sítios afetados: TECHNICAL-PATTERNS.md §46. */
 export function applyVisibleCoderFilter(
 	scope: ComparisonScope,
 	visibleCoderIds: readonly CoderId[] | undefined,

@@ -2659,6 +2659,53 @@ export function computeAsync(payload): Promise<Result> {
 
 ---
 
+## 46. ICR Compare Coders — `visibleCoderIds` NUNCA entra no scope do extract
+
+**Regressão recorrente:** 4 sessões consertando a mesma lerdeza em Compare Coders. Padrão: alguém precisa filtrar a tabela κ por coders visíveis (toggle de chip), passa `visibleCoderIds` pra `state.scope.coderIds` ou para o scope que vai pro `extractInputsFromScope` → cache invalida em todo toggle → re-extração de markers de todas engines (passo caro).
+
+**Sintoma:** depois do "fix" o toggle do chip esconde linhas/colunas da tabela κ, mas cada toggle trava a UI por segundos. Carregamento inicial também fica lento. Cache hit rate cai.
+
+**Causa raiz arquitetural:**
+- `cacheKeyForScope(scope)` (`scopeExtraction.ts:64`) inclui `coderIds` (ordenados). Cache key estável depende de scope estável.
+- `getCodersWithMarkersInScope` (`coderInclusion.ts:50`) tem cache equivalente.
+- Cada toggle de chip muda `visibleCoderIds` → se você mete isso no `scope.coderIds` que vai pro extract, cache key muda → re-scan de markers em todas as 7 engines.
+
+**Pattern correto:**
+
+```ts
+// 1. inclusionScope = filtros que afetam universo de markers (estável entre toggles de chip)
+const inclusionScope = applyConsensusExclusion(
+    applyCoderInclusion(state.scope, deps.engineModels, state.filters.includeCodersWithoutMarkers ?? false),
+    deps.coderRegistry,
+    state.filters.excludeConsensusCoders,
+);
+
+// 2. visibleCoderIds = filtro VISUAL/de display (muda em cada toggle de chip)
+const visibleCoderIds = applyVisibleCoderFilter(inclusionScope, state.filters.visibleCoderIds).coderIds;
+
+// 3. extract recebe inclusionScope (cache key estável → hit em toggle)
+const inputs = await extractInputsFromScope(inclusionScope, ctx);
+
+// 4. Filtra inputs por visibility ANTES do reportKappa, cacheKey ganha sufixo de visibility
+const filteredInputs = filterInputsByCoders(inputs, visibleCoderIds);
+const visKey = '::v=' + [...visibleCoderIds].sort().join(',');
+const report = await reportKappaAsync(filteredInputs, cacheKeyForScope(inclusionScope) + visKey);
+
+// 5. Pra matrix (κ pairwise): monte os pairs sobre visibleCoderIds; reportPairwiseAsync já distingue
+//    cache via pKey (hash dos pairs). Inputs podem ficar full — pairs filtram o cálculo.
+```
+
+**Regra dura:**
+- `state.filters.visibleCoderIds` NUNCA entra no `scope.coderIds` passado pra `extractInputsFromScope`.
+- Se você está prestes a fazer `applyVisibleCoderFilter(scope).coderIds` e usar isso como scope do extract, **PARE**. Use só pra display (lista de coders na grid, pairs do reportPairwise).
+- Filter visual = `filterInputsByCoders` nos resultados do extract, não no scope da entrada.
+
+**Sítios afetados:** `overviewMatrix.ts`, `overviewTable.ts`, `overviewHeatmap.ts`, `drilldownSpatial.ts`, `createComparisonModal.ts`, `unifiedCompareCodersView.ts`. Helper público: `applyVisibleCoderFilter` (`coderInclusion.ts`) + `filterInputsByCoders` (`scopeExtraction.ts`).
+
+**Lição:** quando o sintoma é "toggle visual mas perf regrediu", a tentação é meter o filtro o mais cedo possível na pipeline (parece mais limpo). Errado: o filtro mais cedo invalida caches mais amplos. Filtros visuais ficam no fim da pipeline; filtros de universo (inclusion/exclusion) ficam no início.
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

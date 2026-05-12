@@ -19,7 +19,7 @@
 import type { CompareCodersViewState, CurrentSelection } from './compareCodersTypes';
 import type { CoderRegistry } from '../coderRegistry';
 import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
-import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
+import { extractInputsFromScope, filterInputsByCoders, type EngineModelsForExtraction } from './scopeExtraction';
 import { computeBboxKappaForPair } from './bboxScopeExtraction';
 import { reportKappaAsync, type EngineId } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
@@ -55,24 +55,25 @@ export async function renderOverviewHeatmap(
 
 	// Polish E1: filtra coders sem markers no escopo (default off)
 	// E3b: exclui consensus coders quando excludeConsensusCoders=true (toggle κ pré/pós).
-	const filteredScope = applyVisibleCoderFilter(
-		applyConsensusExclusion(
-			applyCoderInclusion(
-				state.scope,
-				deps.engineModels,
-				state.filters.includeCodersWithoutMarkers ?? false,
-			),
-			deps.coderRegistry,
-			state.filters.excludeConsensusCoders,
+	// ⚠️ Perf: visibleCoderIds NÃO entra no scope passado pro extract (ver regra em
+	// scopeExtraction.ts → filterInputsByCoders). Extract usa inclusionScope (estável,
+	// cache hit em toggle); coderIds visíveis filtram inputs antes do reportKappa.
+	const inclusionScope = applyConsensusExclusion(
+		applyCoderInclusion(
+			state.scope,
+			deps.engineModels,
+			state.filters.includeCodersWithoutMarkers ?? false,
 		),
-		state.filters.visibleCoderIds,
+		deps.coderRegistry,
+		state.filters.excludeConsensusCoders,
 	);
-	const N = filteredScope.coderIds.length;
+	const visibleCoderIds = applyVisibleCoderFilter(inclusionScope, state.filters.visibleCoderIds).coderIds;
+	const N = visibleCoderIds.length;
 	if (N < 2) {
 		container.createDiv({ text: 'Selecione 2+ coders com markers no escopo (ou habilite "incluir coders sem markers")', cls: 'qc-cc-empty' });
 		return;
 	}
-	state = { ...state, scope: filteredScope };
+	state = { ...state, scope: inclusionScope };
 
 	const splitBbox = state.filters.splitBboxEngines ?? false;
 	const visibleEngineIds = state.filters.visibleEngineIds ?? NON_BBOX_ENGINES;
@@ -128,7 +129,7 @@ export async function renderOverviewHeatmap(
 		const row = codesWithMarkers[rowIndex]!;
 		for (const col of visibleColumns) {
 			cellPromises.push(
-				computeKappaForCell(row.codeId, col, state, deps).then(k => ({ rowIndex, col, k })),
+				computeKappaForCell(row.codeId, col, state, visibleCoderIds, deps).then(k => ({ rowIndex, col, k })),
 			);
 		}
 	}
@@ -181,24 +182,30 @@ async function computeKappaForCell(
 	codeId: string,
 	col: ColumnId,
 	state: CompareCodersViewState,
+	visibleCoderIds: readonly CoderId[],
 	deps: OverviewHeatmapDeps,
 ): Promise<number | undefined> {
 	if (col === 'spatial-bbox' || col === 'pdfShape' || col === 'image') {
-		return computeBboxAvgPairwise(codeId, col, state, deps);
+		return computeBboxAvgPairwise(codeId, col, state, visibleCoderIds, deps);
 	}
 	// text-likes / temporal / categorical
+	// cellScope usa state.scope (inclusionScope, sem visibility) → cache do extract estável.
 	const cellScope = { ...state.scope, codeIds: [codeId], engineIds: [col] };
 	const inputs = await extractInputsFromScope(cellScope, { models: deps.engineModels, app: deps.app });
 	if (inputs.length === 0) return undefined;
-	const totalMarkers = inputs.reduce((s, i) => {
+	// Filtra inputs por coders visíveis ANTES do report; cache key ganha sufixo de visibility
+	// pra não colidir com versão "todos coders" em outros call sites.
+	const filteredInputs = filterInputsByCoders(inputs, visibleCoderIds);
+	const totalMarkers = filteredInputs.reduce((s, i) => {
 		const k = i.kappaInput as { markers?: unknown[]; units?: unknown[] };
 		return s + (k.markers?.length ?? k.units?.length ?? 0);
 	}, 0);
 	if (totalMarkers === 0) return undefined;
-	const report = await reportKappaAsync(inputs, cacheKeyForScope(cellScope));
-	const N = state.scope.coderIds.length;
+	const visKey = '::v=' + [...visibleCoderIds].sort().join(',');
+	const report = await reportKappaAsync(filteredInputs, cacheKeyForScope(cellScope) + visKey);
+	const N = visibleCoderIds.length;
 	const pair: [CoderId, CoderId] | undefined = N === 2
-		? [state.scope.coderIds[0]!, state.scope.coderIds[1]!]
+		? [visibleCoderIds[0]!, visibleCoderIds[1]!]
 		: undefined;
 	return getCoefficientValue(report, state.primaryCoefficient, pair);
 }
@@ -207,9 +214,10 @@ function computeBboxAvgPairwise(
 	codeId: string,
 	col: 'spatial-bbox' | 'pdfShape' | 'image',
 	state: CompareCodersViewState,
+	visibleCoderIds: readonly CoderId[],
 	deps: OverviewHeatmapDeps,
 ): number | undefined {
-	const ids = state.scope.coderIds;
+	const ids = visibleCoderIds;
 	const mode: 'unified' | 'split' = col === 'spatial-bbox' ? 'unified' : 'split';
 	const pairs: [CoderId, CoderId][] = [];
 	for (let i = 0; i < ids.length; i++)

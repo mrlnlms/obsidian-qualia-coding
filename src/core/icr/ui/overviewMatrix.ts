@@ -40,19 +40,19 @@ export async function renderOverviewMatrix(
 
 	// Polish E1: filtra coders sem markers no escopo (default off — toggle reincluí).
 	// E3b: exclui consensus coders quando excludeConsensusCoders=true (toggle κ pré/pós).
-	const filteredScope = applyVisibleCoderFilter(
-		applyConsensusExclusion(
-			applyCoderInclusion(
-				state.scope,
-				deps.engineModels,
-				state.filters.includeCodersWithoutMarkers ?? false,
-			),
-			deps.coderRegistry,
-			state.filters.excludeConsensusCoders,
+	const inclusionScope = applyConsensusExclusion(
+		applyCoderInclusion(
+			state.scope,
+			deps.engineModels,
+			state.filters.includeCodersWithoutMarkers ?? false,
 		),
-		state.filters.visibleCoderIds,
+		deps.coderRegistry,
+		state.filters.excludeConsensusCoders,
 	);
-	const coderIds = filteredScope.coderIds;
+	// visibleCoderIds (chips toolbar) só poda a lista visível — não entra no scope
+	// passado ao extractInputsFromScope. Mantém cache key do extract estável entre
+	// toggles de chip (extract por coder é o passo caro; pairs/grid filtram depois).
+	const coderIds = applyVisibleCoderFilter(inclusionScope, state.filters.visibleCoderIds).coderIds;
 	const N = coderIds.length;
 	if (N < 2) {
 		container.createDiv({ text: 'Selecione 2+ coders com markers no escopo (ou habilite "incluir coders sem markers")', cls: 'qc-cc-empty' });
@@ -62,8 +62,8 @@ export async function renderOverviewMatrix(
 	// Filter chips no toolbar podem restringir engines via state.filters.visibleEngineIds.
 	// Override scope.engineIds com a interseção quando filtro estiver ativo.
 	const effectiveScope = state.filters.visibleEngineIds
-		? { ...filteredScope, engineIds: state.filters.visibleEngineIds }
-		: filteredScope;
+		? { ...inclusionScope, engineIds: state.filters.visibleEngineIds }
+		: inclusionScope;
 
 	const inputs = await extractInputsFromScope(effectiveScope, {
 		models: deps.engineModels,

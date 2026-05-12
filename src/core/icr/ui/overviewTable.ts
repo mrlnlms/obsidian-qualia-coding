@@ -21,6 +21,7 @@ import { reportKappaAsync } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import { kappaClass } from './overviewSharedRender';
 import { applyCoderInclusion, applyConsensusExclusion, applyVisibleCoderFilter } from './coderInclusion';
+import { filterInputsByCoders } from './scopeExtraction';
 import type { App } from 'obsidian';
 
 export interface OverviewTableDeps {
@@ -56,19 +57,19 @@ export async function renderOverviewTable(
 
 	// Polish E1: filtra coders sem markers no escopo (default off)
 	// E3b: exclui consensus coders quando excludeConsensusCoders=true (toggle κ pré/pós).
-	const filteredScope = applyVisibleCoderFilter(
-		applyConsensusExclusion(
-			applyCoderInclusion(
-				state.scope,
-				deps.engineModels,
-				state.filters.includeCodersWithoutMarkers ?? false,
-			),
-			deps.coderRegistry,
-			state.filters.excludeConsensusCoders,
+	// ⚠️ Perf: visibleCoderIds NÃO entra no scope do extract (ver regra em scopeExtraction.ts
+	// → filterInputsByCoders). inclusionScope é estável entre toggles de chip → cache hit.
+	const inclusionScope = applyConsensusExclusion(
+		applyCoderInclusion(
+			state.scope,
+			deps.engineModels,
+			state.filters.includeCodersWithoutMarkers ?? false,
 		),
-		state.filters.visibleCoderIds,
+		deps.coderRegistry,
+		state.filters.excludeConsensusCoders,
 	);
-	const N = filteredScope.coderIds.length;
+	const visibleCoderIds = applyVisibleCoderFilter(inclusionScope, state.filters.visibleCoderIds).coderIds;
+	const N = visibleCoderIds.length;
 	if (N < 2) {
 		container.createDiv({ text: 'Selecione 2+ coders com markers no escopo (ou habilite "incluir coders sem markers")', cls: 'qc-cc-empty' });
 		return;
@@ -76,8 +77,10 @@ export async function renderOverviewTable(
 
 	// Override scope.engineIds quando há filter chip de engine ativo (mesmo pattern do matrix)
 	const effectiveScope = state.filters.visibleEngineIds
-		? { ...filteredScope, engineIds: state.filters.visibleEngineIds }
-		: filteredScope;
+		? { ...inclusionScope, engineIds: state.filters.visibleEngineIds }
+		: inclusionScope;
+
+	const visKey = '::v=' + [...visibleCoderIds].sort().join(',');
 
 	// Perf fix 2026-05-11: paraleliza extracts + reportKappa por código (antes era sequential await).
 	const rowsRaw = await Promise.all(candidateCodeIds.map(async (codeId) => {
@@ -85,12 +88,13 @@ export async function renderOverviewTable(
 			{ ...effectiveScope, codeIds: [codeId] },
 			{ models: deps.engineModels, app: deps.app },
 		);
-		const totalMarkers = inputs.reduce((s, i) => {
+		const filteredInputs = filterInputsByCoders(inputs, visibleCoderIds);
+		const totalMarkers = filteredInputs.reduce((s, i) => {
 			const k = i.kappaInput as { markers?: unknown[]; units?: unknown[] };
 			return s + (k.markers?.length ?? k.units?.length ?? 0);
 		}, 0);
 		if (totalMarkers === 0) return null;
-		const report = await reportKappaAsync(inputs, cacheKeyForScope({ ...effectiveScope, codeIds: [codeId] }));
+		const report = await reportKappaAsync(filteredInputs, cacheKeyForScope({ ...effectiveScope, codeIds: [codeId] }) + visKey);
 		const cohenValues = Object.values(report.aggregate.cohenKappa);
 		const cohen = N === 2 && cohenValues.length > 0 ? cohenValues[0] : undefined;
 		const fleiss = N >= 3 ? report.aggregate.fleissKappa : undefined;
