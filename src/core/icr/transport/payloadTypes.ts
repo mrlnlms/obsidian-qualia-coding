@@ -50,7 +50,8 @@ export type ConflictRecord =
 	| { kind: 'source_not_found'; fileId: string; payloadHash: string }
 	| { kind: 'multiple_hash_matches'; payloadFileId: string; localFileIds: string[]; chosenFileId: string }
 	| { kind: 'code_overwritten'; codeId: string; field: 'name' | 'color' | 'description' | 'memo'; from: string; to: string }
-	| { kind: 'memo_overwritten'; entityType: 'code' | 'group'; entityId: string; from: string; to: string };
+	| { kind: 'memo_overwritten'; entityType: 'code' | 'group'; entityId: string; from: string; to: string }
+	| { kind: 'marker_already_exists'; markerId: string; engine: 'markdown' | 'pdf' | 'csvSegment'; fileId: string };
 
 export interface ExtractResult {
 	payload: Payload;

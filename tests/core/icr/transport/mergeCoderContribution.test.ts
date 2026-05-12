@@ -145,6 +145,29 @@ describe('mergeCoderContribution', () => {
 		expect(targetData.registry.rootOrder).toContain('c1');
 	});
 
+	it('dedup por markerId: apply 2× mesma contribuição não duplica, emite marker_already_exists', async () => {
+		const { sourceData, targetData, sourceReg, targetReg } = await setup(
+			{ 'shared.md': 'shared' },
+			{ 'shared.md': 'shared' },
+		);
+		sourceData.markdown.markers['shared.md'] = [{
+			markerType: 'markdown', id: 'm_dup', fileId: 'shared.md',
+			range: { from: { line: 0, ch: 0 }, to: { line: 0, ch: 5 } },
+			color: '#fff', codes: [{ codeId: 'c1' }], codedBy: 'human:carla',
+			createdAt: 1, updatedAt: 1, text: 'shar',
+		} as any];
+		const { payload } = await extractCoderContribution(sourceData, 'human:carla', sourceReg);
+
+		const first = await mergeCoderContribution(targetData, payload, targetReg);
+		expect(first.added.markers).toBe(1);
+		expect(targetData.markdown.markers['shared.md']!.length).toBe(1);
+
+		const second = await mergeCoderContribution(targetData, payload, targetReg);
+		expect(second.added.markers).toBe(0);
+		expect(targetData.markdown.markers['shared.md']!.length).toBe(1);
+		expect(second.conflicts.some(c => c.kind === 'marker_already_exists' && c.markerId === 'm_dup')).toBe(true);
+	});
+
 	it('inserts PDF and CSV markers with remap', async () => {
 		const { sourceData, targetData, sourceReg, targetReg } = await setup(
 			{ 'remote/doc.pdf': 'pdf content', 'remote/data.csv': 'csv content' },

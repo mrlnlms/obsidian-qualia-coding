@@ -153,6 +153,15 @@ export async function mergeCoderContribution(
 		conflicts.push({ kind: 'source_not_found', fileId: fid, payloadHash: '(no hash in payload)' });
 	}
 
+	// Dedup por markerId: pre-build sets dos IDs locais por engine. Evita inserção
+	// duplicada quando user faz apply em 2 contribuições do mesmo coder (re-export).
+	const localMarkdownIds = new Set<string>();
+	for (const ms of Object.values(localData.markdown.markers)) {
+		for (const m of ms) localMarkdownIds.add((m as { id: string }).id);
+	}
+	const localPdfIds = new Set(localData.pdf.markers.map(m => (m as { id: string }).id));
+	const localCsvSegmentIds = new Set(localData.csv.segmentMarkers.map(m => (m as { id: string }).id));
+
 	// 7. Marker insertion — markdown (nested Record<fileId, Marker[]>)
 	for (const [payloadFileId, markers] of Object.entries(payload.markers.markdown)) {
 		const localFileId = resolveFileId(payloadFileId);
@@ -166,10 +175,15 @@ export async function mergeCoderContribution(
 				pendingMarkers++;
 				continue;
 			}
+			if (localMarkdownIds.has(m.id)) {
+				conflicts.push({ kind: 'marker_already_exists', markerId: m.id, engine: 'markdown', fileId: localFileId });
+				continue;
+			}
 			if (!dryRun) {
 				if (!localData.markdown.markers[localFileId]) localData.markdown.markers[localFileId] = [];
 				localData.markdown.markers[localFileId]!.push({ ...m, fileId: localFileId });
 			}
+			localMarkdownIds.add(m.id);
 			added.markers++;
 		}
 	}
@@ -186,7 +200,12 @@ export async function mergeCoderContribution(
 			pendingMarkers++;
 			continue;
 		}
+		if (localPdfIds.has(m.id)) {
+			conflicts.push({ kind: 'marker_already_exists', markerId: m.id, engine: 'pdf', fileId: localFileId });
+			continue;
+		}
 		if (!dryRun) localData.pdf.markers.push({ ...m, fileId: localFileId });
+		localPdfIds.add(m.id);
 		added.markers++;
 	}
 
@@ -202,7 +221,12 @@ export async function mergeCoderContribution(
 			pendingMarkers++;
 			continue;
 		}
+		if (localCsvSegmentIds.has(m.id)) {
+			conflicts.push({ kind: 'marker_already_exists', markerId: m.id, engine: 'csvSegment', fileId: localFileId });
+			continue;
+		}
 		if (!dryRun) localData.csv.segmentMarkers.push({ ...m, fileId: localFileId });
+		localCsvSegmentIds.add(m.id);
 		added.markers++;
 	}
 

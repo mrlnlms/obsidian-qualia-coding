@@ -38,7 +38,7 @@ export function renderRailContent(
 		if (isDuplicateCoder) {
 			const dupBadge = name.createSpan({ cls: 'qc-icr-rail-dup-badge' });
 			dupBadge.setText('duplicate');
-			dupBadge.title = `${coderCounts.get(c.payload.coder.id)} contribuições do mesmo coder — apply sequencial sobrescreve markers iguais`;
+			dupBadge.title = `${coderCounts.get(c.payload.coder.id)} contribuições do mesmo coder — apply sequencial ignora markers já aplicados (dedup por id)`;
 		}
 
 		const meta = item.createDiv({ cls: 'qc-icr-rail-item-meta' });
