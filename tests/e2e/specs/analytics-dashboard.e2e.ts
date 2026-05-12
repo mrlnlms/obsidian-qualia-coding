@@ -23,17 +23,7 @@ describe("analytics — dashboard mode", () => {
     await browser.pause(1000);
     await executeCommand("qualia-coding:open-analytics");
     await waitForElement(SELECTORS.analyticsView, 15000);
-
-    // Switch to dashboard mode via toolbar button
-    await browser.execute(() => {
-      const btns = document.querySelectorAll(".codemarker-analytics-toolbar-btn");
-      for (const btn of btns) {
-        if (btn.getAttribute("aria-label")?.toLowerCase().includes("dashboard")) {
-          (btn as HTMLElement).click();
-          break;
-        }
-      }
-    });
+    // `viewMode` default = "dashboard" (analyticsView.ts:20). Sem clique necessário.
     await browser.pause(2000);
   });
 

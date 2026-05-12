@@ -3,6 +3,10 @@ import { waitForPlugin } from "obsidian-e2e-visual-test-kit";
 /**
  * Inject markers and code definitions into the Qualia Coding plugin.
  * Writes directly to dataManager sections, then reloads the markdown model.
+ *
+ * Marker codes podem vir como `string[]` (nomes — resolved via codeDefinitions criadas
+ * imediatamente antes) ou já como `CodeApplication[]` (`[{codeId}]`). Resolução acontece
+ * dentro do `browser.execute` porque IDs são gerados pelo registry no momento da criação.
  */
 export async function injectQualiaData(opts: {
   markers?: Record<string, unknown[]>;
@@ -18,17 +22,31 @@ export async function injectQualiaData(opts: {
     const existingSection = dm.section("markdown");
     dm.setSection("markdown", { ...existingSection, markers: {} });
 
-    // Inject code definitions into registry
+    // Inject code definitions into registry — capture name → codeId mapping
+    const nameToId: Record<string, string> = {};
     if (o.codeDefinitions) {
       for (const def of o.codeDefinitions) {
-        plugin.sharedRegistry.create(def.name, def.color, def.description ?? "");
+        const created = plugin.sharedRegistry.create(def.name, def.color, def.description ?? "");
+        nameToId[def.name] = created.id;
       }
     }
 
-    // Inject markers into markdown section
+    // Inject markers — remap `codes: string[]` (names) para `codes: CodeApplication[]` ({codeId})
     if (o.markers) {
       const mdData = dm.section("markdown");
-      mdData.markers = o.markers;
+      const remapped: Record<string, unknown[]> = {};
+      for (const [fileId, markers] of Object.entries(o.markers)) {
+        remapped[fileId] = (markers as any[]).map(m => ({
+          ...m,
+          codes: (m.codes ?? []).map((c: unknown) => {
+            if (typeof c === 'string') {
+              return { codeId: nameToId[c] ?? c };
+            }
+            return c;  // já é { codeId, ... }
+          }),
+        }));
+      }
+      mdData.markers = remapped;
       dm.setSection("markdown", mdData);
     }
 
