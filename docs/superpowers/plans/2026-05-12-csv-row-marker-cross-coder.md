@@ -98,7 +98,7 @@ git add tests/engine-models/csvCodingModel.crossCoder.test.ts
 ### Task 2: Helper `getRowMarkerForActiveCoder` no model (TDD)
 
 **Files:**
-- Modify: `src/csv/csvCodingModel.ts` (adicionar helper logo após `getRowMarkersForCell` linha 246)
+- Modify: `src/csv/csvCodingModel.ts` — adicionar novo método logo após o `}` de fechamento de `getRowMarkersForCell` (método atualmente em linhas 246-248)
 - Modify: `tests/engine-models/csvCodingModel.crossCoder.test.ts`
 
 - [ ] **Step 1: Escrever 3 tests falhos**
@@ -212,9 +212,9 @@ npx vitest run tests/engine-models/csvCodingModel.crossCoder.test.ts -t "findOrC
 
 Esperado: FAIL no primeiro test (`m.codedBy` é `'human:bob'`, deveria ser `'human:default'`).
 
-- [ ] **Step 3: Mudar `findOrCreateRowMarker` (linha 250)**
+- [ ] **Step 3: Mudar `findOrCreateRowMarker` (método atualmente em linhas 250-267)**
 
-Substituir o body:
+Substituir o body completo:
 
 ```ts
 findOrCreateRowMarker(file: string, sourceRowId: number, column: string): RowMarker {
@@ -225,13 +225,23 @@ findOrCreateRowMarker(file: string, sourceRowId: number, column: string): RowMar
 	);
 	if (existing) return existing;
 	const marker: RowMarker = {
-		// ... resto idêntico ao atual, codedBy: this.plugin.getActiveCoderId() permanece
+		markerType: 'csv',
+		id: this.generateId(),
+		fileId: file, sourceRowId, column,
+		codes: [],
+		codedBy: this.plugin.getActiveCoderId(),
+		createdAt: Date.now(),
+		updatedAt: Date.now(),
 	};
-	// ... resto idêntico
+	this.rowMarkers.push(marker);
+	void attachSourceHashSnapshot(marker, this.plugin.sourceHashRegistry).then(() => {
+		if (marker.sourceHashAtCoding) this.saveMarkers();
+	});
+	return marker;
 }
 ```
 
-(O resto do método — criação do marker novo, push, attachSourceHashSnapshot, notify, emitMarkerMutation — fica idêntico ao código atual.)
+Única mudança em relação ao código atual: adicionar `const activeCoder = this.plugin.getActiveCoderId();` e o predicado `&& (m.codedBy ?? 'human:default') === activeCoder` no `find`.
 
 - [ ] **Step 4: Rodar tests, ver PASS**
 
@@ -295,20 +305,24 @@ describe('CSV cross-coder: setCellComment', () => {
 
 Esperado: FAIL (primeira asserção quebra — o lookup acha o marker do bob e edita o comment dele).
 
-- [ ] **Step 3: Modificar `setCellComment` (linha 102)**
+- [ ] **Step 3: Modificar `setCellComment` (método atualmente em linhas 102-153)**
 
-Substituir o lookup interno (linha 104):
+Única mudança: substituir o `findIndex` da linha 104 por uma versão filtrada por active coder. O resto do método (criação do marker novo, GC, emitMarkerMutation) permanece idêntico.
+
+Substituir:
 
 ```ts
-setCellComment(file: string, sourceRowId: number, column: string, value: string): void {
-	const trimmed = value;
-	const activeCoder = this.plugin.getActiveCoderId();
-	const idx = this.rowMarkers.findIndex(m =>
-		m.fileId === file && m.sourceRowId === sourceRowId && m.column === column
-		&& (m.codedBy ?? 'human:default') === activeCoder
-	);
-	// ... resto idêntico
-}
+const idx = this.rowMarkers.findIndex(m => m.fileId === file && m.sourceRowId === sourceRowId && m.column === column);
+```
+
+Por:
+
+```ts
+const activeCoder = this.plugin.getActiveCoderId();
+const idx = this.rowMarkers.findIndex(m =>
+	m.fileId === file && m.sourceRowId === sourceRowId && m.column === column
+	&& (m.codedBy ?? 'human:default') === activeCoder
+);
 ```
 
 - [ ] **Step 4: Rodar tests, ver PASS**
@@ -340,7 +354,7 @@ git add src/csv/csvCodingModel.ts tests/engine-models/csvCodingModel.crossCoder.
 
 ### Task 5: `buildRowMarkerIndex` filtra por active (TDD via consumer)
 
-`buildRowMarkerIndex` é privado. Test exercita via `addCodeToManyRowMarkers` que o consome.
+`buildRowMarkerIndex` é privado (linha 276). Test exercita via `addCodeToManyRows` (linha 286) que o consome.
 
 **Files:**
 - Modify: `src/csv/csvCodingModel.ts:276-289`
@@ -349,13 +363,13 @@ git add src/csv/csvCodingModel.ts tests/engine-models/csvCodingModel.crossCoder.
 - [ ] **Step 1: Escrever test falho**
 
 ```ts
-describe('CSV cross-coder: addCodeToManyRowMarkers', () => {
+describe('CSV cross-coder: addCodeToManyRows', () => {
 	it('opera apenas em markers do active coder, ignora alheios', () => {
 		insertRowMarker({ file: 'a.csv', row: 0, column: 'text', coder: 'human:bob', codeIds: ['c1'] });
 		insertRowMarker({ file: 'a.csv', row: 1, column: 'text', coder: 'human:default', codeIds: ['c2'] });
 		registry.create('newCode');
 		const newCodeId = registry.getByName('newCode')!.id;
-		model.addCodeToManyRowMarkers('a.csv', [0, 1], 'text', newCodeId);
+		model.addCodeToManyRows('a.csv', [0, 1], 'text', newCodeId);
 		const r0 = model.getRowMarkersForCell('a.csv', 0, 'text');
 		const bobMarker = r0.find(m => m.codedBy === 'human:bob');
 		expect(bobMarker?.codes.map(c => c.codeId)).toEqual(['c1']);
@@ -389,7 +403,7 @@ private buildRowMarkerIndex(file: string, column: string): Map<number, RowMarker
 - [ ] **Step 4: Rodar test, ver PASS**
 
 ```bash
-npx vitest run tests/engine-models/csvCodingModel.crossCoder.test.ts -t "addCodeToManyRowMarkers"
+npx vitest run tests/engine-models/csvCodingModel.crossCoder.test.ts -t "addCodeToManyRows"
 ```
 
 Esperado: PASS.
@@ -499,9 +513,11 @@ describe('CSV cross-coder: getCodeIntersectionForRows', () => {
 
 Esperado: FAIL (intersect inclui c4 das contribuições de bob também).
 
-- [ ] **Step 3: Modificar `getCodeIntersectionForRows` (linha 388)**
+- [ ] **Step 3: Modificar `getCodeIntersectionForRows` (método atualmente em linhas 388-409)**
 
-Adicionar filtro no loop principal (linha 391-396):
+Única mudança: adicionar 1 variável local + 1 linha de filtro no loop principal. O resto do método (cálculo do intersect, early-exit) permanece idêntico.
+
+Substituir o body completo:
 
 ```ts
 getCodeIntersectionForRows(file: string, sourceRowIds: ReadonlyArray<number>, column: string): Set<string> {
@@ -515,7 +531,18 @@ getCodeIntersectionForRows(file: string, sourceRowIds: ReadonlyArray<number>, co
 		if (!set) { set = new Set(); rowCodes.set(m.sourceRowId, set); }
 		for (const id of getCodeIds(m.codes)) set.add(id);
 	}
-	// ... resto idêntico
+	let intersect: Set<string> | null = null;
+	for (const rowId of sourceRowIds) {
+		const codes = rowCodes.get(rowId);
+		if (!codes || codes.size === 0) return new Set();
+		if (intersect === null) {
+			intersect = new Set(codes);
+		} else {
+			for (const id of intersect) if (!codes.has(id)) intersect.delete(id);
+			if (intersect.size === 0) return new Set();
+		}
+	}
+	return intersect ?? new Set();
 }
 ```
 
@@ -743,25 +770,45 @@ git add tests/engine-models/csvCodingModel.invariant.test.ts
 
 ### Task 11: Substituir 6 sites em `csvCodingMenu.ts`
 
-Não é TDD novo — comportamento testado indiretamente via menu integration, mas as 4 funções consumidoras já estão cobertas pelos tests anteriores. Mudança mecânica.
+Não é TDD novo — comportamento testado indiretamente via menu integration, mas as 4 funções consumidoras (`findOrCreateRowMarker`, `addCodeToManyRows`, `getCodesForCell`, etc.) já estão cobertas pelos tests anteriores. Mudança mecânica em 6 sites.
 
 **Files:**
 - Modify: `src/csv/csvCodingMenu.ts:36, 42, 65, 70, 78, 82`
 
-- [ ] **Step 1: Aplicar substituições**
+- [ ] **Step 1: Aplicar substituições nos 6 sites**
 
-Em cada um dos 6 sites, substituir:
+Cada site tem o padrão `model.getRowMarkersForCell(file, sourceRowId, column)[0]` e fica `model.getRowMarkerForActiveCoder(file, sourceRowId, column)`. A semântica é idêntica (`[0]` retornava `RowMarker | undefined`, helper retorna `RowMarker | undefined`).
+
+Sites — listados com a função wrapping pra facilitar verificação ao escanear o arquivo:
+
+| Linha | Variável | Função wrapping |
+|---|---|---|
+| 36 | `existingMarker` | top-level do popover (capturado, reusado em `deleteAction.onDelete` linha 115 e em `isHoverMode` linha 37) |
+| 42 | `current` | adapter `getActiveCodes` |
+| 65 | `current` | adapter `getMagnitudeForCode` |
+| 70 | `current` | adapter `setMagnitudeForCode` |
+| 78 | `current` | adapter `getRelationsForCode` |
+| 82 | `current` | adapter `setRelationsForCode` |
+
+Padrão de substituição uniforme:
 
 ```ts
 // antes
-const X = model.getRowMarkersForCell(file, sourceRowId, column)[0];
+const current = model.getRowMarkersForCell(file, sourceRowId, column)[0];
+
 // depois
-const X = model.getRowMarkerForActiveCoder(file, sourceRowId, column);
+const current = model.getRowMarkerForActiveCoder(file, sourceRowId, column);
 ```
 
-Sites:
-- Linha 36: `const existingMarker = model.getRowMarkersForCell(file, sourceRowId, column)[0];` → `const existingMarker = model.getRowMarkerForActiveCoder(file, sourceRowId, column);`
-- Linha 42, 65, 70, 78, 82: idem com nome `current`.
+E pro site da linha 36 com nome `existingMarker`:
+
+```ts
+// antes
+const existingMarker = model.getRowMarkersForCell(file, sourceRowId, column)[0];
+
+// depois
+const existingMarker = model.getRowMarkerForActiveCoder(file, sourceRowId, column);
+```
 
 - [ ] **Step 2: Typecheck**
 
@@ -800,37 +847,94 @@ git add src/csv/csvCodingMenu.ts
 
 ### Task 12: Substituir 2 sites em `csvCodingCellRenderer.ts`
 
+Cada site lia um array de markers e depois rodava `.find(m => hasCode(m.codes, codeId))` ou iterava com `for (const m of markers)`. Com filtro por active coder, a row sempre retorna no máximo 1 marker — convertemos pra forma single-marker direta.
+
 **Files:**
-- Modify: `src/csv/csvCodingCellRenderer.ts:68, 97`
+- Modify: `src/csv/csvCodingCellRenderer.ts:67-77` (chip click → detail navigation)
+- Modify: `src/csv/csvCodingCellRenderer.ts:97-103` (X-button → delete code from marker)
 
-- [ ] **Step 1: Localizar e substituir**
+- [ ] **Step 1: Substituir site da linha 67-77 (chip click handler)**
 
-Linha 68 (chip click → detail navigation):
+Substituir:
+
 ```ts
-// antes
-? model.getRowMarkersForCell(file, sourceRowId, sourceColumn)
-// depois — depende do uso. Se for pra obter um marker pra navegar, troca pra:
-?  (() => { const m = model.getRowMarkerForActiveCoder(file, sourceRowId, sourceColumn); return m ? [m] : []; })()
+const markers = isFrow
+	? model.getRowMarkersForCell(file, sourceRowId, sourceColumn)
+	: model.getSegmentMarkersForCell(file, sourceRowId, sourceColumn);
+const marker = markers.find(m => hasCode(m.codes, codeId));
+if (marker) {
+	// Dispatch detail event for sidebar
+	app?.workspace?.trigger('qualia-csv:detail', {
+		markerId: marker.id,
+		codeName,
+	});
+}
 ```
 
-Linha 97 (X-button → delete):
-Mesma mudança.
+Por:
 
-**Nota pro implementador:** ler o contexto exato dos 2 sites antes de substituir. Se a lista é usada só pra `[0]` ou `[0]?.id`, simplificar pra `getRowMarkerForActiveCoder(...)`. Se é iterada, manter array via wrapping.
+```ts
+let marker: SegmentMarker | RowMarker | undefined;
+if (isFrow) {
+	const m = model.getRowMarkerForActiveCoder(file, sourceRowId, sourceColumn);
+	marker = m && hasCode(m.codes, codeId) ? m : undefined;
+} else {
+	marker = model.getSegmentMarkersForCell(file, sourceRowId, sourceColumn)
+		.find(m => hasCode(m.codes, codeId));
+}
+if (marker) {
+	app?.workspace?.trigger('qualia-csv:detail', {
+		markerId: marker.id,
+		codeName,
+	});
+}
+```
 
-- [ ] **Step 2: Typecheck**
+(SegmentMarker branch fica idêntico — decisão deferred no spec §7.3 mantém segments cross-coder agregados.)
+
+Garantir imports no topo do arquivo: `SegmentMarker` e `RowMarker` de `./csvCodingTypes` (provavelmente já estão importados).
+
+- [ ] **Step 2: Substituir site da linha 97-103 (X-button delete)**
+
+Substituir:
+
+```ts
+const markers = model.getRowMarkersForCell(file, sourceRowId, sourceColumn);
+for (const m of markers) {
+	if (hasCode(m.codes, codeId)) {
+		model.removeCodeFromMarker(m.id, codeId);
+	}
+}
+gridApi.refreshCells({ force: true });
+```
+
+Por:
+
+```ts
+const m = model.getRowMarkerForActiveCoder(file, sourceRowId, sourceColumn);
+if (m && hasCode(m.codes, codeId)) {
+	model.removeCodeFromMarker(m.id, codeId);
+}
+gridApi.refreshCells({ force: true });
+```
+
+- [ ] **Step 3: Typecheck**
 
 ```bash
 npx tsc --noEmit
 ```
 
-- [ ] **Step 3: Suite completa**
+Esperado: PASS.
+
+- [ ] **Step 4: Suite completa**
 
 ```bash
 npm run test
 ```
 
-- [ ] **Step 4: Commit**
+Esperado: PASS.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/csv/csvCodingCellRenderer.ts
@@ -841,40 +945,50 @@ git add src/csv/csvCodingCellRenderer.ts
 
 ### Task 13: `csvCodingView` subscribe a `onActiveCoderChange`
 
+A view já tem pattern de unsubscribe pronto pra copiar: `unsubscribeVisibility` (declarado linha 72, set/clear nas linhas 280-281, 574-575, 935-936). Reusar o mesmo formato.
+
 **Files:**
 - Modify: `src/csv/csvCodingView.ts`
 
-- [ ] **Step 1: Localizar onde view tem acesso ao gridApi e plugin**
+- [ ] **Step 1: Adicionar field espelhando `unsubscribeVisibility`**
+
+Localizar declaração da linha 72:
+
+```ts
+private unsubscribeVisibility?: () => void;
+```
+
+Adicionar logo abaixo:
+
+```ts
+private unsubscribeActiveCoder?: () => void;
+```
+
+- [ ] **Step 2: Adicionar subscribe junto com `unsubscribeVisibility` set**
+
+`unsubscribeVisibility` é setado em 2 lugares (linhas 280-281 e 574-575). Para `onActiveCoderChange`, basta 1 setup — escolher o local que roda no setup principal do view (linha 280-281 é o `onload`/`onOpen`; linha 574-575 é provavelmente o reload de file). Inspecionar com:
 
 ```bash
-grep -n "this.plugin\|gridApi\|onunload\|onload" src/csv/csvCodingView.ts | head -20
+sed -n '275,285p' src/csv/csvCodingView.ts
+sed -n '570,580p' src/csv/csvCodingView.ts
 ```
 
-Identificar:
-- Onde a view chama `plugin.onActiveCoderChange` durante setup (após gridApi estar disponível).
-- Onde guarda a função de unsubscribe (pra chamar no unload do view).
-
-- [ ] **Step 2: Adicionar field e subscribe**
-
-Adicionar field no class body:
+Adicionar no local de setup principal (junto com a linha 280 ou equivalente):
 
 ```ts
-private unsubActiveCoder: (() => void) | null = null;
-```
-
-No setup do view (após `gridApi` estar inicializado, geralmente em `onGridReady` ou equivalente):
-
-```ts
-this.unsubActiveCoder = this.plugin.onActiveCoderChange(() => {
+this.unsubscribeActiveCoder?.();
+this.unsubscribeActiveCoder = this.plugin.onActiveCoderChange(() => {
 	this.gridApi?.refreshCells({ force: true });
 });
 ```
 
-No `onunload` ou `onClose` do view:
+- [ ] **Step 3: Adicionar cleanup junto com `unsubscribeVisibility` cleanup**
+
+`unsubscribeVisibility` é limpo nas linhas 935-936 (provavelmente em `onunload`/`onClose`). Adicionar logo após:
 
 ```ts
-this.unsubActiveCoder?.();
-this.unsubActiveCoder = null;
+this.unsubscribeActiveCoder?.();
+this.unsubscribeActiveCoder = undefined;
 ```
 
 - [ ] **Step 3: Typecheck**
@@ -943,7 +1057,7 @@ Antes de fechar:
 Conforme CLAUDE.md §"Atualizacao de docs apos feature/fase":
 - `docs/ROADMAP.md`: marcar item "CSV cross-coder row marker" como FEITO + data.
 - `docs/CHANGELOG.md`: entrada de feat/fix.
-- `CLAUDE.md`: atualizar contagem de tests (3435 → 3435 + 13 cases novos).
+- `CLAUDE.md`: atualizar contagem de tests (3435 → 3435 + 15 cases novos distribuídos em 2 arquivos: `csvCodingModel.crossCoder.test.ts` 14 cases + `csvCodingModel.invariant.test.ts` 1 case).
 - `docs/TECHNICAL-PATTERNS.md`: adicionar pattern se descobriu gotcha durante implementação (provavelmente não — slice mecânico).
 
 - [ ] **Step 6: Commit final dos docs**
