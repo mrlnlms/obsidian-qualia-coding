@@ -55,7 +55,7 @@ export async function renderOverviewHeatmap(
 
 	// Polish E1: filtra coders sem markers no escopo (default off)
 	// E3b: exclui consensus coders quando excludeConsensusCoders=true (toggle κ pré/pós).
-	const filteredScope = applyConsensusExclusion(
+	const inclusionScope = applyConsensusExclusion(
 		applyCoderInclusion(
 			state.scope,
 			deps.engineModels,
@@ -64,6 +64,12 @@ export async function renderOverviewHeatmap(
 		deps.coderRegistry,
 		state.filters.excludeConsensusCoders,
 	);
+	// Toggle do chip de coder (visibleCoderIds) também poda a tabela κ — mesmo padrão
+	// de drilldownSpatial.ts:151. Sem isso, chips apagados ainda viravam linhas/colunas.
+	const visibleCoderIds = state.filters.visibleCoderIds;
+	const filteredScope = visibleCoderIds
+		? { ...inclusionScope, coderIds: inclusionScope.coderIds.filter(id => visibleCoderIds.includes(id)) }
+		: inclusionScope;
 	const N = filteredScope.coderIds.length;
 	if (N < 2) {
 		container.createDiv({ text: 'Selecione 2+ coders com markers no escopo (ou habilite "incluir coders sem markers")', cls: 'qc-cc-empty' });
