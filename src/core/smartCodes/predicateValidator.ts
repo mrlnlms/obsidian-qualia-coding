@@ -143,5 +143,10 @@ function walk(
 		}
 		case 'engineType':
 			break;
+		case 'textContains':
+			if (!node.value || node.value.length === 0) {
+				errors.push({ code: 'incomplete-leaf', message: 'Type text to search for', leaf: { kind: node.kind }});
+			}
+			break;
 	}
 }

@@ -17,6 +17,9 @@ export interface CacheConfig {
 	smartCodes: Record<string, SmartCodeDefinition>;
 	caseVars: CaseVarsLookup;
 	codeStruct: CodeStructureLookup;
+	/** Resolve texto pesquisável do marker pra leaf `textContains`. Default = `getMarkerSearchableText`
+	 *  via wire em main.ts. Tests podem injetar stub. */
+	getMarkerText?: (marker: AnyMarker) => string;
 }
 
 /** Composite key pra refByKey — engine:fileId:markerId. Estável dentro de uma sessão. */
@@ -56,11 +59,13 @@ export class SmartCodeCache {
 	private smartCodes: Record<string, SmartCodeDefinition> = {};
 	private caseVars: CaseVarsLookup = { get: () => undefined, allKeys: () => new Set() };
 	private codeStruct: CodeStructureLookup = { codesInFolder: () => [], codesInGroup: () => [] };
+	private getMarkerText: (marker: AnyMarker) => string = () => '';
 
 	configure(opts: CacheConfig): void {
 		this.smartCodes = opts.smartCodes;
 		this.caseVars = opts.caseVars;
 		this.codeStruct = opts.codeStruct;
+		if (opts.getMarkerText) this.getMarkerText = opts.getMarkerText;
 		this.deps.clear();
 		for (const [id, sc] of Object.entries(this.smartCodes)) this.deps.set(id, extractDependencies(sc.predicate));
 		this.matches.clear();
@@ -172,6 +177,25 @@ export class SmartCodeCache {
 		}
 	}
 
+	/**
+	 * Invalida SCs que dependem de texto do source quando o arquivo é modificado
+	 * (vault.on('modify'), inclui edição externa que Obsidian re-percebe).
+	 *
+	 * Granularidade atual: file-level apenas via `deps.needsText`. Não filtramos por
+	 * fileId porque `textContains` é global no predicate — qualquer marker do vault
+	 * pode passar a casar/deixar de casar quando seu texto muda. Recompute itera
+	 * markerByRef e re-avalia; custo aceitável dado que invalidação só dispara em
+	 * `modify` real (não em mutations de marker, que já vão via `applyMarkerMutation`).
+	 *
+	 * Param `fileId` é mantido pra futura otimização (filtrar markerByRef por fileId
+	 * e re-avaliar só esses), sem mudar contrato externo.
+	 */
+	invalidateForFileText(_fileId: string): void {
+		for (const [scId, deps] of this.deps) {
+			if (deps.needsText) this.invalidate(scId);
+		}
+	}
+
 	invalidateForMarker(args: { engine: EngineType; fileId: string; codeIds: string[] }): void {
 		for (const cId of args.codeIds) this.invalidateForCode(cId);
 	}
@@ -234,6 +258,7 @@ export class SmartCodeCache {
 			codesInGroup: this.codeStruct.codesInGroup,
 			smartCodes: { ...this.smartCodes, [stubId]: stubSc },
 			evaluating: new Set([stubId]),
+			getMarkerText: this.getMarkerText,
 		};
 		const out: MarkerRef[] = [];
 		for (const [ref, marker] of this.markerByRef) {
@@ -256,6 +281,7 @@ export class SmartCodeCache {
 			codesInGroup: this.codeStruct.codesInGroup,
 			smartCodes: this.smartCodes,
 			evaluating: new Set([smartCodeId]),
+			getMarkerText: this.getMarkerText,
 		};
 	}
 
@@ -291,6 +317,7 @@ export class SmartCodeCache {
 			codesInGroup: this.codeStruct.codesInGroup,
 			smartCodes: this.smartCodes,
 			evaluating: new Set([smartCodeId]),
+			getMarkerText: this.getMarkerText,
 		};
 		const out: MarkerRef[] = [];
 		for (const [ref, marker] of this.markerByRef) {

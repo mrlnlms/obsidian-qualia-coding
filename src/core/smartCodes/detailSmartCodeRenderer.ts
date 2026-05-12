@@ -182,6 +182,8 @@ function formatLeaf(leaf: LeafNode, registry: CodeDefinitionRegistry, smartCodeR
 			const sc = smartCodeRegistry.getById(leaf.smartCodeId);
 			return `⚡ Smart code "${sc?.name ?? leaf.smartCodeId + ' (deleted)'}"`;
 		}
+		case 'textContains':
+			return `Text contains "${leaf.value}"${leaf.caseSensitive ? ' (case sensitive)' : ''}`;
 	}
 }
 

@@ -9,6 +9,7 @@ export interface Dependencies {
 	smartCodeIds: Set<string>;
 	needsRelations: boolean;
 	needsEngineType: boolean;
+	needsText: boolean;
 }
 
 export function extractDependencies(predicate: PredicateNode): Dependencies {
@@ -20,6 +21,7 @@ export function extractDependencies(predicate: PredicateNode): Dependencies {
 		smartCodeIds: new Set(),
 		needsRelations: false,
 		needsEngineType: false,
+		needsText: false,
 	};
 	walk(predicate, deps);
 	return deps;
@@ -41,6 +43,7 @@ function walk(node: PredicateNode, deps: Dependencies): void {
 		case 'inGroup':         deps.groupIds.add(node.groupId); break;
 		case 'smartCode':       deps.smartCodeIds.add(node.smartCodeId); break;
 		case 'engineType':      deps.needsEngineType = true; break;
+		case 'textContains':    deps.needsText = true; break;
 		case 'relationExists':
 			deps.codeIds.add(node.codeId);
 			if (node.targetCodeId) deps.codeIds.add(node.targetCodeId);

@@ -47,4 +47,25 @@ describe('extractDependencies', () => {
 		expect([...deps.codeIds].sort()).toEqual(['c_a', 'c_b']);
 		expect(deps.needsRelations).toBe(true);
 	});
+
+	it('textContains marca needsText = true', () => {
+		const deps = extractDependencies({ kind: 'textContains', value: 'kappa' });
+		expect(deps.needsText).toBe(true);
+	});
+
+	it('predicate sem textContains tem needsText = false', () => {
+		const deps = extractDependencies({ kind: 'hasCode', codeId: 'c_a' });
+		expect(deps.needsText).toBe(false);
+	});
+
+	it('needsText propaga através de operadores aninhados', () => {
+		const deps = extractDependencies({ op: 'AND', children: [
+			{ kind: 'hasCode', codeId: 'c_a' },
+			{ op: 'OR', children: [
+				{ kind: 'textContains', value: 'x' },
+				{ kind: 'engineType', engine: 'pdf' },
+			]},
+		]});
+		expect(deps.needsText).toBe(true);
+	});
 });

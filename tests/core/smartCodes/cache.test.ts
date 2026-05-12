@@ -294,4 +294,60 @@ describe('SmartCodeCache', () => {
 			expect(cache.isDirty('sc_z')).toBe(true);  // cascade
 		});
 	});
+
+	describe('invalidateForFileText (vault.on(modify) — textContains)', () => {
+		it('invalida apenas SCs com leaf textContains (needsText=true)', () => {
+			data.smartCodes.definitions['sc_text'] = {
+				id: 'sc_text', name: 'Text', color: '#fff', paletteIndex: 0, createdAt: 0,
+				predicate: { kind: 'textContains', value: 'kappa' },
+			};
+			cache.configure({
+				...lookups(data),
+				getMarkerText: () => 'kappa coefficient',
+			});
+			cache.rebuildIndexes(data);
+			cache.getMatches('sc_x');
+			cache.getMatches('sc_text');
+
+			let changed: string[] = [];
+			cache.subscribe(ids => { changed = ids; });
+			cache.invalidateForFileText('any-file.md');
+			cache.__flushPendingForTest();
+
+			expect(changed).toEqual(['sc_text']);
+			expect(cache.isDirty('sc_x')).toBe(false);   // sem leaf textual = não invalidado
+			expect(cache.isDirty('sc_text')).toBe(true);
+		});
+
+		it('no-op quando nenhum SC tem leaf textual', () => {
+			cache.getMatches('sc_x');
+
+			let fired = 0;
+			cache.subscribe(() => { fired++; });
+			cache.invalidateForFileText('any-file.md');
+			cache.__flushPendingForTest();
+
+			expect(fired).toBe(0);
+			expect(cache.isDirty('sc_x')).toBe(false);
+		});
+
+		it('cascade: SC nested via smartCode leaf em SC com textContains também invalida', () => {
+			data.smartCodes.definitions['sc_text'] = {
+				id: 'sc_text', name: 'Text', color: '#fff', paletteIndex: 0, createdAt: 0,
+				predicate: { kind: 'textContains', value: 'kappa' },
+			};
+			data.smartCodes.definitions['sc_wrap'] = {
+				id: 'sc_wrap', name: 'Wrap', color: '#fff', paletteIndex: 0, createdAt: 0,
+				predicate: { kind: 'smartCode', smartCodeId: 'sc_text' },
+			};
+			cache.configure({ ...lookups(data), getMarkerText: () => '' });
+			cache.rebuildIndexes(data);
+			cache.getMatches('sc_text');
+			cache.getMatches('sc_wrap');
+
+			cache.invalidateForFileText('any-file.md');
+			expect(cache.isDirty('sc_text')).toBe(true);
+			expect(cache.isDirty('sc_wrap')).toBe(true);
+		});
+	});
 });

@@ -120,6 +120,41 @@ describe('evaluator', () => {
 		const m = mkMarker();
 		expect(evaluate({ kind: 'smartCode', smartCodeId: 'sc_missing' }, mkRef('pdf', 'f1', 'm1'), m, baseCtx)).toBe(false);
 	});
+
+	describe('textContains', () => {
+		const ctxWith = (text: string): EvaluatorContext => ({ ...baseCtx, getMarkerText: () => text });
+
+		it('match case-insensitive por default', () => {
+			const m = mkMarker();
+			expect(evaluate({ kind: 'textContains', value: 'KAPPA' }, mkRef('pdf', 'f1', 'm1'), m, ctxWith('kappa coefficient'))).toBe(true);
+		});
+
+		it('case-sensitive respeita capitalização', () => {
+			const m = mkMarker();
+			expect(evaluate({ kind: 'textContains', value: 'KAPPA', caseSensitive: true }, mkRef('pdf', 'f1', 'm1'), m, ctxWith('kappa'))).toBe(false);
+			expect(evaluate({ kind: 'textContains', value: 'kappa', caseSensitive: true }, mkRef('pdf', 'f1', 'm1'), m, ctxWith('kappa'))).toBe(true);
+		});
+
+		it('value vazio nunca casa', () => {
+			const m = mkMarker();
+			expect(evaluate({ kind: 'textContains', value: '' }, mkRef('pdf', 'f1', 'm1'), m, ctxWith('anything'))).toBe(false);
+		});
+
+		it('texto vazio do marker não casa', () => {
+			const m = mkMarker();
+			expect(evaluate({ kind: 'textContains', value: 'foo' }, mkRef('pdf', 'f1', 'm1'), m, ctxWith(''))).toBe(false);
+		});
+
+		it('combinável com AND/OR/NOT', () => {
+			const m = mkMarker([{ codeId: 'c_a' }]);
+			const ctx = ctxWith('identidade e pertencimento');
+			expect(evaluate({ op: 'AND', children: [
+				{ kind: 'hasCode', codeId: 'c_a' },
+				{ kind: 'textContains', value: 'identidade' },
+			]}, mkRef('pdf', 'f1', 'm1'), m, ctx)).toBe(true);
+			expect(evaluate({ op: 'NOT', child: { kind: 'textContains', value: 'ausente' }}, mkRef('pdf', 'f1', 'm1'), m, ctx)).toBe(true);
+		});
+	});
 });
 
 // Marker shape coverage cross-engine

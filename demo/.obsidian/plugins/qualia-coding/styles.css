@@ -6240,6 +6240,61 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-sc-list-row.is-hidden .qc-sc-list-count { opacity: 0.5; }
 .qc-sc-list-row.is-hidden .qc-sc-list-eye { opacity: 0.85; }
 
+/* Saved Comparisons hub (Slice E4) — pattern espelha qc-sc-list. */
+.qc-cmp-list-modal { min-width: 560px; }
+.qc-cmp-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.qc-cmp-list-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 4px;
+}
+.qc-cmp-list-row:hover { background: var(--background-modifier-hover); }
+.qc-cmp-list-main { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qc-cmp-list-name { font-weight: 600; }
+.qc-cmp-list-summary { font-size: 0.85em; color: var(--text-muted); }
+.qc-cmp-list-ts { font-size: 0.8em; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.qc-cmp-list-empty { color: var(--text-muted); padding: 16px; text-align: center; }
+.qc-cmp-list-menu { display: inline-flex; align-items: center; padding: 2px; opacity: 0.4; cursor: pointer; }
+.qc-cmp-list-menu:hover { opacity: 1; }
+.qc-cmp-list-new-btn { width: 100%; }
+
+.qc-cmp-create-modal { min-width: 400px; }
+.qc-cmp-create-hint { font-size: 0.85em; color: var(--text-muted); margin-bottom: 8px; }
+
+/* Saved comparison banner no toolbar da Compare Coders View (Slice E4 — Chunk 3) */
+.qc-cc-saved-banner {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 6px 10px;
+	margin-bottom: 8px;
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+}
+.qc-cc-saved-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1;
+	min-width: 0;
+}
+.qc-cc-saved-dirty-dot {
+	color: var(--text-accent);
+	font-size: 1.1em;
+	line-height: 1;
+}
+.qc-cc-saved-name { font-weight: 600; }
+.qc-cc-saved-actions { display: inline-flex; gap: 6px; }
+.qc-cc-saved-btn {
+	padding: 2px 10px;
+	font-size: 0.85em;
+}
+.qc-cc-saved-detach { opacity: 0.6; }
+.qc-cc-saved-detach:hover { opacity: 1; }
+
 /* Smart Codes section dentro do Code Detail (list mode) — colapsável, mesmo layout das rows do hub. */
 .qc-smart-codes-section { display: flex; flex-direction: column; gap: 2px; padding: 4px 0 8px; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 8px; }
 .qc-smart-codes-section-header { display: flex; align-items: center; padding: 4px 6px; font-size: 0.85em; color: var(--text-muted); user-select: none; }
@@ -6656,20 +6711,36 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 
 /* Modal "ver lado a lado" */
 .qc-cc-modal {
-	min-width: 600px;
-	max-width: 90vw;
+	min-width: min(900px, 95vw);
+	max-width: 95vw;
+	max-height: 85vh;
+	overflow-y: auto;
+}
+
+/* Aumenta o modal-bg do Obsidian quando contém este modal — default é 600px. */
+.modal:has(.qc-cc-modal) {
+	width: min(960px, 95vw);
 }
 
 .qc-cc-modal-header {
 	display: flex;
+	flex-wrap: wrap;
 	justify-content: space-between;
 	align-items: center;
+	gap: 12px;
 	margin-bottom: 12px;
+}
+
+.qc-cc-modal-header h3 {
+	margin: 0;
+	flex: 1 1 auto;
+	min-width: 200px;
 }
 
 .qc-cc-modal-toggle {
 	display: flex;
 	gap: 4px;
+	flex-wrap: wrap;
 }
 
 .qc-cc-modal-table {
@@ -6891,6 +6962,21 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	color: var(--text-warning);
 }
 
+.qc-icr-rail-dup-badge {
+	margin-left: 6px;
+	padding: 1px 6px;
+	background: var(--background-modifier-error);
+	color: var(--text-on-accent);
+	border-radius: 8px;
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-normal);
+	cursor: help;
+}
+
+.qc-icr-rail-item.is-duplicate-coder {
+	border-left: 3px solid var(--text-warning);
+}
+
 .qc-icr-rail-drop {
 	border: 2px dashed var(--background-modifier-border);
 	border-radius: var(--radius-s);
@@ -7051,6 +7137,12 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-icr-source-desc {
 	font-size: var(--font-ui-smaller);
 	flex: 1;
+}
+
+.qc-icr-source-remap {
+	margin-top: 4px;
+	font-size: var(--font-ui-smaller);
+	color: var(--interactive-accent);
 }
 
 .qc-icr-source-actions {
@@ -7265,4 +7357,579 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	gap: 8px;
 	justify-content: flex-end;
 	margin-top: 12px;
+}
+
+/* ─── Compare Coders P1 (drill-down spatial) — header selection ─────── */
+
+.qc-cc-drilldown-selection-header {
+	padding: 6px 12px;
+	margin: 0 12px 8px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+	font-weight: 500;
+}
+
+/* ─── Compare Coders P2 (drill-down cards) — Slice E3a ────────────────── */
+
+.qc-cc-region-filter-banner {
+	padding: 6px 12px;
+	margin: 0 12px 8px;
+	background: var(--background-modifier-cover);
+	border-left: 3px solid var(--interactive-accent);
+	border-radius: 4px;
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.qc-cc-region-filter-clear {
+	cursor: pointer;
+	color: var(--interactive-accent);
+	text-decoration: underline;
+}
+
+.qc-cc-region-filter-clear:hover {
+	color: var(--interactive-accent-hover);
+}
+
+.qc-cc-region-picker {
+	padding: 12px;
+}
+
+.qc-cc-region-item {
+	padding: 8px 10px;
+	margin-bottom: 6px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background 120ms ease;
+}
+
+.qc-cc-region-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.qc-cc-region-header {
+	display: flex;
+	gap: 12px;
+	align-items: baseline;
+	font-size: 0.95em;
+}
+
+.qc-cc-region-file {
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.qc-cc-region-engine {
+	color: var(--text-muted);
+	font-size: 0.85em;
+	text-transform: uppercase;
+}
+
+.qc-cc-region-bounds {
+	color: var(--text-faint);
+	font-size: 0.85em;
+}
+
+.qc-cc-divergence-tag {
+	margin-left: auto;
+	font-size: 0.72em;
+	padding: 2px 8px;
+	border-radius: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.qc-cc-divergence-tag.is-code {
+	background: #c1352e;
+	color: #fff;
+}
+
+.qc-cc-divergence-tag.is-boundary {
+	background: #d68c45;
+	color: #fff;
+}
+
+.qc-cc-divergence-tag.is-existence {
+	background: #999;
+	color: #fff;
+}
+
+.qc-cc-divergence-tag.is-resolved {
+	background: #2d6a4f;
+	color: #fff;
+}
+
+.qc-cc-divergence-tag.is-in-discussion {
+	background: #4a6fa5;
+	color: #fff;
+}
+
+.qc-cc-region-item.is-in-discussion {
+	opacity: 0.85;
+	border-left: 3px solid #4a6fa5;
+}
+
+.qc-cc-region-item.qc-cc-divergence-code {
+	border-left: 3px solid #c1352e;
+}
+
+.qc-cc-region-item.qc-cc-divergence-boundary {
+	border-left: 3px solid #d68c45;
+}
+
+.qc-cc-region-item.qc-cc-divergence-existence {
+	border-left: 3px solid #999;
+	opacity: 0.85;
+}
+
+.qc-cc-region-item.is-resolved {
+	border-left-color: #2d6a4f;
+	opacity: 0.65;
+	background: var(--background-primary);
+}
+
+.qc-cc-region-item.is-resolved:hover {
+	opacity: 1;
+}
+
+.qc-cc-region-resolved-summary {
+	margin-top: 4px;
+	font-size: 0.8em;
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.qc-cc-region-meta {
+	margin-top: 4px;
+	color: var(--text-muted);
+	font-size: 0.85em;
+}
+
+.qc-cc-region-active {
+	padding: 10px 12px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	margin-bottom: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.qc-cc-region-active-file {
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.qc-cc-region-active-meta {
+	color: var(--text-muted);
+	font-size: 0.85em;
+}
+
+.qc-cc-region-back {
+	align-self: flex-start;
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 0.85em;
+}
+
+.qc-cc-region-back:hover {
+	background: var(--background-modifier-hover);
+}
+
+.qc-cc-cards-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 10px;
+	margin-bottom: 12px;
+}
+
+.qc-cc-card {
+	background: var(--background-secondary);
+	border-radius: 4px;
+	padding: 8px 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.qc-cc-card-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+}
+
+.qc-cc-card-name {
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+.qc-cc-card-kind {
+	font-size: 0.7em;
+	text-transform: uppercase;
+	padding: 1px 6px;
+	border-radius: 8px;
+	background: var(--background-modifier-border);
+}
+
+.qc-cc-kind-human { background: #e8f1fb; color: #1c4d80; }
+.qc-cc-kind-llm { background: #f3e8fb; color: #5b1c80; }
+.qc-cc-kind-consensus { background: #fbf0e8; color: #804b1c; }
+
+.theme-dark .qc-cc-kind-human { background: #1c2d40; color: #9cc3e8; }
+.theme-dark .qc-cc-kind-llm { background: #2d1c40; color: #c89cea; }
+.theme-dark .qc-cc-kind-consensus { background: #40341c; color: #ecbf9c; }
+
+.qc-cc-card-body {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.qc-cc-card-empty {
+	color: var(--text-faint);
+	font-style: italic;
+	font-size: 0.85em;
+}
+
+.qc-cc-card-code-chip {
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 0.8em;
+	color: #fff;
+	background: var(--text-faint);
+}
+
+.qc-cc-reconciliation-memo {
+	margin-bottom: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.qc-cc-reconciliation-memo label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-cc-memo-input {
+	width: 100%;
+	min-height: 60px;
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-family: var(--font-text);
+	resize: vertical;
+}
+
+.qc-cc-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.qc-cc-action-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+}
+
+.qc-cc-action-select {
+	flex: 1 1 auto;
+	min-width: 120px;
+	padding: 4px 6px;
+}
+
+.qc-cc-action-overwrite {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-cc-action-btn {
+	padding: 4px 12px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: 0;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 0.9em;
+}
+
+.qc-cc-action-btn:hover {
+	background: var(--interactive-accent-hover);
+}
+
+.qc-cc-action-accept .qc-cc-action-btn,
+.qc-cc-action-split .qc-cc-action-btn {
+	background: var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+.qc-cc-action-accept .qc-cc-action-btn:hover,
+.qc-cc-action-split .qc-cc-action-btn:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* Split modal */
+.qc-cc-split-row {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-bottom: 10px;
+}
+
+.qc-cc-split-row label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-cc-split-row input[type="text"] {
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-primary);
+}
+
+.qc-cc-split-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 12px;
+}
+
+/* ─── E3b — Drill-down P3 workflow queue ─── */
+
+.qc-cc-workflow-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 8px 0;
+	margin-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.qc-cc-workflow-totals {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-cc-workflow-export {
+	background: var(--interactive-normal);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 4px 10px;
+	font-size: 0.85em;
+	cursor: pointer;
+}
+
+.qc-cc-workflow-export:hover:not(:disabled) {
+	background: var(--interactive-hover);
+}
+
+.qc-cc-workflow-export:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.qc-cc-workflow-queue {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 12px;
+	min-height: 200px;
+}
+
+.qc-cc-workflow-column {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 8px;
+	min-width: 0;
+}
+
+.qc-cc-workflow-column.qc-cc-status-open {
+	border-top: 3px solid var(--color-red);
+}
+
+.qc-cc-workflow-column.qc-cc-status-inDiscussion {
+	border-top: 3px solid var(--color-orange);
+}
+
+.qc-cc-workflow-column.qc-cc-status-resolved {
+	border-top: 3px solid var(--color-green);
+}
+
+.qc-cc-workflow-column.qc-cc-status-divergenceAccepted {
+	border-top: 3px solid var(--color-purple);
+}
+
+.qc-cc-workflow-column-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 4px 8px 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+.qc-cc-workflow-column-emoji {
+	font-size: 1.1em;
+}
+
+.qc-cc-workflow-column-count {
+	color: var(--text-muted);
+	font-weight: 400;
+	font-size: 0.85em;
+}
+
+.qc-cc-workflow-cards {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	overflow-y: auto;
+	min-height: 0;
+}
+
+.qc-cc-workflow-empty {
+	font-size: 0.8em;
+	color: var(--text-faint);
+	text-align: center;
+	padding: 16px 0;
+}
+
+.qc-cc-workflow-card {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 8px;
+	font-size: 0.85em;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.qc-cc-workflow-card-header {
+	display: flex;
+	gap: 6px;
+	align-items: baseline;
+}
+
+.qc-cc-workflow-card-file {
+	font-weight: 600;
+	font-size: 0.9em;
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.qc-cc-workflow-card-engine {
+	font-size: 0.75em;
+	color: var(--text-muted);
+	background: var(--background-modifier-border);
+	padding: 1px 5px;
+	border-radius: 3px;
+}
+
+.qc-cc-workflow-card-meta {
+	display: flex;
+	gap: 8px;
+	color: var(--text-muted);
+	font-size: 0.8em;
+}
+
+.qc-cc-workflow-card-decision {
+	font-size: 0.85em;
+	color: var(--text-normal);
+	background: var(--background-secondary-alt);
+	padding: 4px 6px;
+	border-radius: 3px;
+}
+
+.qc-cc-workflow-card-memo {
+	font-size: 0.8em;
+	color: var(--text-muted);
+	font-style: italic;
+	padding: 2px 0;
+	max-height: 3em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.qc-cc-workflow-card-actions {
+	display: flex;
+	gap: 6px;
+	margin-top: 2px;
+}
+
+.qc-cc-workflow-card-open,
+.qc-cc-workflow-card-revert {
+	font-size: 0.8em;
+	padding: 3px 8px;
+	border-radius: 3px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--interactive-normal);
+	cursor: pointer;
+}
+
+.qc-cc-workflow-card-open:hover,
+.qc-cc-workflow-card-revert:hover {
+	background: var(--interactive-hover);
+}
+
+.qc-cc-workflow-card-revert {
+	color: var(--text-error);
+}
+
+/* ─── E3b — Modal pré/pós toggle ─── */
+
+.qc-cc-modal-prepost {
+	margin-left: 12px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.qc-cc-modal-toggle-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.qc-cc-modal-prepost-banner {
+	background: var(--background-secondary-alt);
+	border-left: 3px solid var(--color-accent);
+	padding: 6px 10px;
+	margin-bottom: 8px;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+/* ─── E3b — P2 action Marcar pra revisão ─── */
+
+.qc-cc-action-mark-review .qc-cc-action-btn {
+	background: var(--background-secondary);
+	color: var(--text-muted);
+}
+
+.qc-cc-action-mark-review .qc-cc-action-btn:hover {
+	background: var(--interactive-hover);
 }

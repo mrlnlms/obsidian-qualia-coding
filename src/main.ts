@@ -60,7 +60,7 @@ import { CompareComparisonsListModal } from './core/icr/ui/compareComparisonsLis
 import { CreateComparisonModal } from './core/icr/ui/createComparisonModal';
 import { openCompareCodersView } from './core/icr/ui/openCompareCodersView';
 import { mountActiveCoderStatusBar } from './core/icr/activeCoderStatusBar';
-import { getMarkerLabel, previewText } from './core/markerResolvers';
+import { getMarkerLabel, previewText, getMarkerSearchableText } from './core/markerResolvers';
 import type { PdfCodingModel } from './pdf/pdfCodingModel';
 import type { ImageCodingModel } from './image/imageCodingModel';
 import type { CsvCodingModel } from './csv/csvCodingModel';
@@ -203,7 +203,10 @@ export default class QualiaCodingPlugin extends Plugin {
 		}));
 
 		// vault.on('modify') — recompute hash; se mudou, invalida consumers (Task 5: markerTextCache)
+		// + invalida Smart Codes com leaf textContains (texto do source pode ter mudado, inclusive
+		// por edição externa que Obsidian re-percebe). Granularidade file-level via `deps.needsText`.
 		this.registerEvent(this.app.vault.on('modify', async (file) => {
+			this.smartCodeCache?.invalidateForFileText(file.path);
 			if (!this.sourceHashRegistry.getEntry(file.path)) return; // não tracked → no-op
 			const result = await this.sourceHashRegistry.recompute(file.path);
 			if (result.changed) {
@@ -910,6 +913,7 @@ export default class QualiaCodingPlugin extends Plugin {
 				codesInFolder: (folderId) => this.sharedRegistry.getCodesInFolder(folderId).map(c => c.id),
 				codesInGroup: (groupId) => this.sharedRegistry.getCodesInGroup(groupId).map(c => c.id),
 			},
+			getMarkerText: (marker) => getMarkerSearchableText(marker as import('./core/types').BaseMarker),
 		});
 	}
 

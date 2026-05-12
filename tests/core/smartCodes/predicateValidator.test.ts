@@ -78,4 +78,16 @@ describe('validateForSave', () => {
 		const r = validateForSave({ id: 'sc_1', name: 'X' }, { kind: 'caseVarEquals', variable: 'role', value: 'jr' }, emptyRegistry(), new Set(['age']));
 		expect(r.warnings).toContainEqual(expect.objectContaining({ code: 'broken-ref' }));
 	});
+
+	it('rejects textContains com value vazio', () => {
+		const r = validateForSave({ id: 'sc_1', name: 'X' }, { kind: 'textContains', value: '' }, emptyRegistry());
+		expect(r.errors).toContainEqual(expect.objectContaining({ code: 'incomplete-leaf' }));
+		expect(r.valid).toBe(false);
+	});
+
+	it('aceita textContains com value preenchido', () => {
+		const r = validateForSave({ id: 'sc_1', name: 'X' }, { kind: 'textContains', value: 'kappa' }, emptyRegistry());
+		expect(r.errors).toEqual([]);
+		expect(r.valid).toBe(true);
+	});
 });

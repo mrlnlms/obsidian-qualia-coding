@@ -92,6 +92,21 @@ export function getMarkerLabel(marker: BaseMarker, mdModel: CodeMarkerModel | nu
 	}
 }
 
+/**
+ * Texto pesquisável do marker — sem truncar. Usado pelo leaf `textContains` do Smart Code
+ * evaluator. Por engine: markdown/pdf-text usa `marker.text` (cacheado), csv usa
+ * `marker.markerText` (texto da célula/segmento), media/image caem em `markerLabel`/`shapeLabel`
+ * porque não há source-text indexável por marker. Retorna `''` quando não há texto disponível
+ * (engine bbox, marker memo-only) — caller trata como "não casa nada" naturalmente.
+ */
+export function getMarkerSearchableText(marker: BaseMarker): string {
+	if (isPdfMarker(marker)) return marker.text ?? '';
+	if (isImageMarker(marker)) return marker.shapeLabel ?? '';
+	if (isCsvMarker(marker)) return marker.markerText ?? '';
+	if (isAudioMarker(marker) || isVideoMarker(marker)) return marker.markerLabel ?? '';
+	return (marker as Marker).text ?? '';
+}
+
 // ── Path helper ──────────────────────────────────────────────
 
 export function shortenPath(fileId: string): string {

@@ -155,6 +155,7 @@ export class SmartCodeBuilderModal extends Modal {
 			{ kind: 'inFolder', label: 'In folder' },
 			{ kind: 'inGroup', label: 'In group' },
 			{ kind: 'engineType', label: 'Engine =' },
+			{ kind: 'textContains', label: 'Text contains' },
 			{ kind: 'smartCode', label: '⚡ Smart code' },
 		];
 		for (const k of kinds) {
@@ -258,6 +259,22 @@ export class SmartCodeBuilderModal extends Modal {
 				scBtn.onclick = () => this.openSmartCodePicker((smartCodeId) => {
 					this.predicate = replaceLeafAt(this.predicate, path, { kind: 'smartCode', smartCodeId });
 					this.rerender();
+				});
+				return;
+			}
+			case 'textContains': {
+				const valInput = rowEl.createEl('input', { type: 'text', value: leaf.value, placeholder: 'text to find…', cls: 'qc-sc-text-input' });
+				valInput.addEventListener('input', () => {
+					this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, value: valInput.value });
+					this.schedulePreview();
+				});
+				const csLabel = rowEl.createEl('label', { cls: 'qc-sc-case-sensitive-label', title: 'Case sensitive' });
+				const csInput = csLabel.createEl('input', { type: 'checkbox' });
+				csInput.checked = leaf.caseSensitive === true;
+				csLabel.createSpan({ text: 'Aa' });
+				csInput.addEventListener('change', () => {
+					this.predicate = replaceLeafAt(this.predicate, path, { ...leaf, caseSensitive: csInput.checked });
+					this.schedulePreview();
 				});
 				return;
 			}
@@ -503,6 +520,10 @@ function getLeafCompletionError(leaf: LeafNode): string | null {
 			return leaf.smartCodeId ? null : 'Pick a smart code';
 		case 'engineType':
 			return null;  // tem default ('markdown'), nunca incompleto
+		case 'textContains':
+			// Input livre — mesma estratégia de caseVarEquals.value: sem hint inline (não tem como
+			// rerender sem perder foco no input). Save desabilitado pelo validator é o signal.
+			return null;
 	}
 }
 
@@ -518,5 +539,6 @@ function makeDefaultLeaf(kind: LeafNode['kind']): LeafNode {
 		case 'engineType': return { kind: 'engineType', engine: 'markdown' };
 		case 'relationExists': return { kind: 'relationExists', codeId: '' };
 		case 'smartCode': return { kind: 'smartCode', smartCodeId: '' };
+		case 'textContains': return { kind: 'textContains', value: '' };
 	}
 }

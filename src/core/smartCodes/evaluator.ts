@@ -11,6 +11,9 @@ export interface EvaluatorContext {
 	codesInGroup: (groupId: string) => string[];
 	smartCodes: Record<string, SmartCodeDefinition>;
 	evaluating: Set<string>;
+	/** Texto pesquisável do marker pra leaf `textContains`. Resolvido pelo cache via
+	 *  `getMarkerSearchableText` (markerResolvers). Retorna `''` quando não disponível. */
+	getMarkerText: (marker: AnyMarker) => string;
 }
 
 /** Evaluate predicate against a single marker. Pure, recursive, com short-circuit. */
@@ -40,7 +43,14 @@ function evaluateLeaf(node: LeafNode, ref: MarkerRef, marker: AnyMarker, ctx: Ev
 		case 'engineType':      return ref.engine === node.engine;
 		case 'relationExists':  return checkRelation(codes, node);
 		case 'smartCode':       return evaluateNested(node.smartCodeId, ref, marker, ctx);
+		case 'textContains':    return checkTextContains(ctx.getMarkerText(marker), node);
 	}
+}
+
+function checkTextContains(text: string, node: LeafNode & { kind: 'textContains' }): boolean {
+	if (!node.value) return false;  // valor vazio = no-match (validator marca como incomplete)
+	if (node.caseSensitive) return text.includes(node.value);
+	return text.toLowerCase().includes(node.value.toLowerCase());
 }
 
 function magnitudeAsNumber(codes: CodeApplication[], codeId: string, fallback: number): number {

@@ -213,7 +213,8 @@ export type LeafNode =
 	| { kind: 'inGroup';        groupId: string }
 	| { kind: 'engineType';     engine: EngineType }
 	| { kind: 'relationExists'; codeId: string; label?: string; targetCodeId?: string }
-	| { kind: 'smartCode';      smartCodeId: string };
+	| { kind: 'smartCode';      smartCodeId: string }
+	| { kind: 'textContains';   value: string; caseSensitive?: boolean };
 
 export type PredicateNode = OpNode | LeafNode;
 
