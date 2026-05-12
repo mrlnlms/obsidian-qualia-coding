@@ -29,6 +29,9 @@ export interface IcrImportViewState {
 	/** Quando user clica "Revisar 1-a-1 →" no chip Por código, grava codeId aqui pra
 	 * restringir markers visíveis no side-by-side. null = sem filter de code. */
 	sideBySideFilterCodeId: string | null;
+	/** Cache pré-buscado de sourceText por payloadFileId pra markdown overlap exato
+	 * (chips Lado a lado + Por código). Map vazio = fetch ainda não completou (transitório). */
+	sourceTextByFileId: Map<string, string>;
 }
 
 export function createDefaultViewState(): IcrImportViewState {
@@ -39,6 +42,7 @@ export function createDefaultViewState(): IcrImportViewState {
 		sideBySideIndex: 0,
 		sideBySideFilter: 'all',
 		sideBySideFilterCodeId: null,
+		sourceTextByFileId: new Map(),
 	};
 }
 

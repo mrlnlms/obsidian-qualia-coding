@@ -13,8 +13,8 @@ import { findOverlappingLocalMarkers, type EngineForOverlap } from './overlapHel
 export interface SideBySideContext {
 	/** Markers locais por fileId (resolvido após remap). View extrai do plugin. */
 	localMarkersByFileId: Record<string, any[]>;
-	/** Source text pra markdown overlap (opcional, view busca via vault). */
-	sourceText?: string;
+	/** Source text por payloadFileId pra markdown overlap exato. View pré-busca via vault.cachedRead. */
+	sourceTextByFileId: Map<string, string>;
 }
 
 export interface SideBySideCallbacks {
@@ -86,7 +86,7 @@ export function renderSideBySideChip(
 		current.engine,
 		current.marker,
 		ctx.localMarkersByFileId[current.fileId] ?? [],
-		ctx.sourceText,
+		ctx.sourceTextByFileId.get(current.fileId),
 	);
 	if (localOverlapping.length === 0) {
 		const empty = localCell.createSpan({ cls: 'qc-icr-code-tag absent' });
@@ -134,7 +134,7 @@ function flattenMarkers(contrib: PendingContribution): FlatMarker[] {
 function filterMarkers(all: FlatMarker[], ctx: SideBySideContext, filter: SideBySideFilter): FlatMarker[] {
 	if (filter === 'all') return all;
 	return all.filter(fm => {
-		const overlapping = findOverlappingLocalMarkers(fm.engine, fm.marker, ctx.localMarkersByFileId[fm.fileId] ?? [], ctx.sourceText);
+		const overlapping = findOverlappingLocalMarkers(fm.engine, fm.marker, ctx.localMarkersByFileId[fm.fileId] ?? [], ctx.sourceTextByFileId.get(fm.fileId));
 		const hasOverlap = overlapping.length > 0;
 		return filter === 'overlapping' ? hasOverlap : !hasOverlap;
 	});

@@ -25,6 +25,7 @@ import { renderSideBySideChip } from './sideBySideChip';
 import { renderByCodeChip, type ByCodeContext } from './byCodeChip';
 import { parseContribution } from './contributionLoader';
 import { mergeCoderContribution } from '../transport/mergeCoderContribution';
+import { findOverlappingLocalMarkers, type EngineForOverlap } from './overlapHelper';
 
 export const ICR_IMPORT_VIEW_TYPE = 'qc-icr-import';
 
@@ -135,16 +136,47 @@ export class UnifiedIcrImportView extends ItemView {
 	getViewState(): IcrImportViewState { return this.state; }
 
 	updateState(partial: Partial<IcrImportViewState>): void {
+		const prevActiveId = this.state.activeId;
 		this.state = { ...this.state, ...partial };
 		this.renderRail();
 		this.renderMain();
+		if (partial.activeId !== undefined && partial.activeId !== prevActiveId) {
+			const active = this.state.pending.find(c => c.id === this.state.activeId);
+			if (active) void this.prefetchSourceTexts(active);
+		}
 	}
 
 	addContribution(contrib: PendingContribution): void {
 		this.state.pending = [...this.state.pending, contrib];
-		if (!this.state.activeId) this.state.activeId = contrib.id;
+		const becameActive = !this.state.activeId;
+		if (becameActive) this.state.activeId = contrib.id;
 		this.renderRail();
 		this.renderMain();
+		if (becameActive) void this.prefetchSourceTexts(contrib);
+	}
+
+	/**
+	 * Pré-busca sourceText via vault.cachedRead pra arquivos markdown referenciados
+	 * pela contribuição ativa. Popula `state.sourceTextByFileId` e re-renderiza.
+	 * Markdown overlap (chips Lado a lado + Por código) usa esse cache; sem ele
+	 * markdown markers caem em modo degraded (overlap retorna 0).
+	 */
+	private async prefetchSourceTexts(active: PendingContribution): Promise<void> {
+		const map = new Map<string, string>();
+		for (const [payloadFid, localFid] of Object.entries(active.mergePreview.fileIdRemap)) {
+			const file = this.plugin.app.vault.getAbstractFileByPath(localFid);
+			if (file && 'extension' in file && (file as { extension: string }).extension === 'md') {
+				try {
+					const text = await this.plugin.app.vault.cachedRead(file as Parameters<typeof this.plugin.app.vault.cachedRead>[0]);
+					map.set(payloadFid, text);
+				} catch {
+					// File inacessível — pula silenciosamente (markdown overlap fica degraded só pra esse fileId)
+				}
+			}
+		}
+		if (this.state.activeId === active.id) {
+			this.updateState({ sourceTextByFileId: map });
+		}
 	}
 
 	private renderRail(): void {
@@ -179,7 +211,7 @@ export class UnifiedIcrImportView extends ItemView {
 			});
 		} else if (this.state.activeChip === 'side-by-side') {
 			const localMarkersByFileId = this.collectLocalMarkers(active);
-			renderSideBySideChip(this.bodyEl, active, { localMarkersByFileId }, {
+			renderSideBySideChip(this.bodyEl, active, { localMarkersByFileId, sourceTextByFileId: this.state.sourceTextByFileId }, {
 				currentIndex: this.state.sideBySideIndex,
 				filter: this.state.sideBySideFilter,
 				filterCodeId: this.state.sideBySideFilterCodeId,
@@ -245,13 +277,23 @@ export class UnifiedIcrImportView extends ItemView {
 			}
 		}
 
-		// Aproximação: overlap = min(local, incoming) por codeId compartilhado.
-		// Não usa range overlap pra evitar fetch async de sourceText markdown.
-		// Refinement pra range overlap exato fica como follow-up.
-		for (const [codeId, localCount] of Object.entries(localCountByCode)) {
-			const incomingForCode = countIncomingMarkersWithCode(contrib, codeId);
-			if (incomingForCode > 0) {
-				overlapCountByCode[codeId] = Math.min(localCount, incomingForCode);
+		// Overlap real: pra cada incoming marker per fileId, conta 1 por codeId quando há
+		// pelo menos um local com mesmo code sobrepondo espacialmente (extract*Range + computeOverlap).
+		// Markdown depende de sourceTextByFileId pré-buscado; sem ele, markdown overlap = 0 (transitório).
+		const localMarkersByFileId = this.collectLocalMarkers(contrib);
+		for (const im of flattenIncomingMarkers(contrib)) {
+			const overlapping = findOverlappingLocalMarkers(
+				im.engine,
+				im.marker,
+				localMarkersByFileId[im.fileId] ?? [],
+				this.state.sourceTextByFileId.get(im.fileId),
+			);
+			for (const c of (im.marker.codes ?? [])) {
+				const codeId = c.codeId;
+				const hasLocalOverlap = overlapping.some(l => ((l as any).codes ?? []).some((lc: any) => lc.codeId === codeId));
+				if (hasLocalOverlap) {
+					overlapCountByCode[codeId] = (overlapCountByCode[codeId] ?? 0) + 1;
+				}
 			}
 		}
 
@@ -260,7 +302,7 @@ export class UnifiedIcrImportView extends ItemView {
 
 	private collectLocalMarkers(contrib: PendingContribution): Record<string, any[]> {
 		// Pega markers locais (de TODOS coders) por payloadFileId após remap.
-		// Markdown overlap precisaria de sourceText (degradação documentada — sourceText não fetchado).
+		// Markdown overlap consome `state.sourceTextByFileId` (pré-fetched via prefetchSourceTexts).
 		const out: Record<string, any[]> = {};
 		const data = this.plugin.dataManager.getDataRef();
 		for (const [payloadFid, localFid] of Object.entries(contrib.mergePreview.fileIdRemap)) {
@@ -332,12 +374,18 @@ export class UnifiedIcrImportView extends ItemView {
 	}
 }
 
-function countIncomingMarkersWithCode(contrib: PendingContribution, codeId: string): number {
-	let n = 0;
-	for (const ms of Object.values(contrib.payload.markers.markdown)) {
-		n += ms.filter((m: any) => m.codes?.some((c: any) => c.codeId === codeId)).length;
+interface FlatIncomingMarker {
+	engine: EngineForOverlap;
+	marker: any;
+	fileId: string;
+}
+
+function flattenIncomingMarkers(contrib: PendingContribution): FlatIncomingMarker[] {
+	const out: FlatIncomingMarker[] = [];
+	for (const [fid, markers] of Object.entries(contrib.payload.markers.markdown)) {
+		for (const m of markers) out.push({ engine: 'markdown', marker: m, fileId: fid });
 	}
-	n += contrib.payload.markers.pdf.filter((m: any) => m.codes?.some((c: any) => c.codeId === codeId)).length;
-	n += contrib.payload.markers.csvSegment.filter((m: any) => m.codes?.some((c: any) => c.codeId === codeId)).length;
-	return n;
+	for (const m of contrib.payload.markers.pdf) out.push({ engine: 'pdf', marker: m, fileId: (m as any).fileId });
+	for (const m of contrib.payload.markers.csvSegment) out.push({ engine: 'csvSegment', marker: m, fileId: (m as any).fileId });
+	return out;
 }
