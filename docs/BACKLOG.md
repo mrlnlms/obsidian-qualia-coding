@@ -3,13 +3,15 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-12 (Slice E3b drill-down P3 + revert UI + κ pré/pós + export markdown).
+> Última atualização: 2026-05-12 (cleanup — lista canônica ICR aberto vive em ROADMAP §"ICR — Itens em aberto").
 
 ---
 
 ## 🟢 Estado atual
 
 Único bloqueador legado: §11 E3 (limitação de formato, won't-fix documentado). Polish ativo abaixo.
+
+**Lista canônica de itens ICR em aberto:** `ROADMAP.md §"🧱 ICR — Itens em aberto"`. As seções abaixo (Fase C P1 itens restantes + Compare Coders polish aberto) preservam o detalhe técnico de cada item; ROADMAP traz a visão consolidada com agrupamento por slice atacável.
 
 ### 🔍 Sintomas observados sem repro confiável
 

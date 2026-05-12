@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-12 (Slice CSV row marker cross-coder + Compare Coders fixes/perf — smoke completo em vault real).
+> Última atualização: 2026-05-12 (cleanup: §Frentes engatilhadas → §Ordem cravada visão 2026-05-08 + §"ICR — Itens em aberto" consolidada).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
@@ -24,25 +24,71 @@
 - Bundle 14MB → distribuição via Community Plugins viável
 - `mergePolicies` puro → merge LLM batch em codebook existente
 
-**Frentes engatilhadas (ordem cravada com user 2026-05-04, pós-release 0.2.0):**
+**Ordem cravada (visão integrada 2026-05-08): ICR → LLM → Analytics.**
 
-1. ~~**Q-mode gaps que sobraram**~~ ✅ **FEITO 2026-05-04** — Files Dendrogram + File Similarity Ranking + cluster drill-down cross-view (S0+S1+S2+S3, branch `feat/q-mode-gaps`). 4 commits + 2 fixes (papercut cluster IDs/silhouette + banner display). Ground truth do mock (corpus-teste-ia, 8 entrevistas × 16 codes × 6 groups) bate: 3 clusters separam Junior controle / Senior controle / Tratamento. 56 testes Q-mode passando (clusterEngine + distanceMatrix + qModeData). Frente analítica Q-mode 100% coberta — sem gaps abertos.
+Estado das três frentes em 2026-05-12 (atualizado):
 
-2. ~~**Smart Codes (Tier 3 Coding Management)**~~ ✅ **FEITO 2026-05-04** — branch `feat/smart-codes`, 19 commits. Schema completo (PredicateNode AST com 10 leaves + nesting), evaluator puro com short-circuit + cycle detection, SmartCodeCache com invalidação granular + computePreview, SmartCodeApi CRUD + autoRewriteOnMerge + diff helper, builder modal row-based + Smart Code Detail + List hub, command palette (`Smart Codes: Open hub` + `Smart Codes: New`), audit log entity discriminator + 5 sc_* event types, ⚡ icon na Codebook Timeline, export/import QDPX (`qualia:SmartCodes` namespace + 2-pass parse), CSV tabular `smart_codes.csv` + README R/Python snippets. **107 testes novos** (2584 → 2759). Stress: 10k markers + 100 smart codes em <1s. **Phase 2 ✅ FEITO (2026-05-05):** SC1 (analytics modes — frequency/cooccurrence/evolution/codeMetadata/lagSequential/memoView via helper `getSmartCodeViews`) + SC2 (Code Explorer ganha grupo SC top-level com tree SC → file → matches) + SC3 (emit granular MarkerMutation em todos 5 engine models — cache invalidation cirúrgica, dead code removal, cascade fix, hide UX cleanup, clear all completo). Smart Codes Tier 3 100% fechado.
+### Frente 1 — ICR (em fechamento)
 
-3. **Submissão Community Plugins PR** — Release 0.4.2 (2026-05-08) tem o artefato robusto; falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas é grande pra padrão da Community — pode receber pushback no review.
+Motor κ multimodal completo (6 engines × geometria de overlap), Reconciliação UI completa (P2 cards + P3 workflow queue + κ pré/pós + export), Compare Coders View com 3 modes (matriz/tabela/heatmap) e drill-downs, Saved Comparisons hub, coder picker live, transport multi-coder remoto (extract/merge/cross-vault remap + UX layer Visão geral / Lado a lado / Por código), CSV cross-coder isolation. **Itens em aberto** (lista canônica em §"🧱 ICR — Itens em aberto" abaixo): 4 refinements Fase C P1 + 4 polish Compare Coders + 1 decisão metodológica (weighting cross-engine) + 1 refactor grande (set-valued labels). Próximo passo prático = fechar refinements + polish (slice mecânico); decisões metodológicas (weighting + set-valued) vêm depois com brainstorm dedicado.
 
-4. **LLM-assisted coding** — pesquisa de mercado profunda já feita: `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Decisão de produto pendente:** qual escola Qualia subscreve, qual use case primário, qual provider strategy, onde no fluxo entra, qual granularidade de revisão humana. Antes dessas 5 decisões cravadas (1 sessão de brainstorm dedicado), design não rola. Pós-decisão: ~10-15 sessões pra MVP S+M.
+### Frente 2 — LLM-assisted coding (em movimento)
 
-**Frentes em decisão de produto** (sem spec, sem design doc):
-- **Intercoder Reliability + LLM-assisted coding** — duas decisões com possível acoplamento epistemológico (ver §"Intercoder Reliability"). Material de repertório acumulado em `docs/_study/llm-coding/` (40 ferramentas + 5 patterns) + 2 conversas externas com claude_ai (2026-04-26 sobre ICR + 2026-04-28 sobre tensão LLM-as-coder). Os 2 ângulos sobre ICR (clássico Kappa/α vs auditabilidade interpretativa) e as 5 escolas LLM ficam como repertório pra brainstorm — uma perspectiva não anula a outra. Brainstorm dedicado precede design técnico.
-- ~~**Q-mode / P-mode analytics**~~ ✅ **FEITO 2026-05-04** (frente #1). Cobertura completa agora: Files Dendrogram + File Similarity + cluster drill-down + MDS Files + Source Comparison + Code × Metadata. P-mode segue coberto por Temporal + Evolution + Codebook Timeline.
+Pesquisa de mercado profunda concluída em `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Tratada como "em movimento" pela visão 2026-05-08** — releitura gera ideias novas; não cravar à força. Decisão pendente (1 sessão de brainstorm dedicado): qual escola Qualia subscreve, qual use case primário, qual provider strategy, onde no fluxo entra, qual granularidade de revisão humana. Brainstorm precede design — antes disso, design não rola.
+
+### Frente 3 — Analytics (extensões + redesign)
+
+Cobertura atual = 16 modes existentes (Code × File, Code × Code Cooccurrence, Code Evolution, Temporal, Lag Sequential, MCA, Files Dendrogram, File Similarity, MDS Files, Source Comparison, Code × Metadata, Codebook Timeline, Code Stability Timeline, Memo View, frequency, codeMetadata). Q-mode 100% coberto. **Gap aberto:** Routledge Tier 1/2/3 (catalogado em `CONSOLIDACAO-PRODUTO-2026-05-08.md §2.3, §6.2, §6.3`) + redesign UI pesado. Atacar **depois** de ICR fechar + LLM virar decisão de produto.
+
+### Submissão Community Plugins PR
+
+Re-encaixada na sequência: faz sentido **após ICR fechar** (refinements + polish), antes de virar pra LLM. Release 0.4.2 (2026-05-08) tem o artefato. Falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas pode receber pushback no review.
+
+### Outras frentes em decisão de produto
+
 - **Projects + Workspace** — provavelmente reinventa Workspaces nativo. User cravou "reavaliar antes de implementar" — provavelmente passar.
 - **Margin Panel customization** — bloqueado por decisão em plugin externo.
 
-**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0/2/3/4/5 ✅ (2026-05-03/04)** · **Virtual scroll + markerTextCache + label CSV ✅ (2026-05-04, pré-Fase 6)** · **Fase 6 Slices A/B/C/D/E ✅ (2026-05-04)** · **Q-mode gaps S0+S1+S2+S3 ✅ (2026-05-04 — Files Dendrogram + File Similarity + cluster drill-down)** · **Smart Codes Tier 3 ✅ (2026-05-04 — branch `feat/smart-codes`, 19 commits, 107 testes novos, schema + evaluator + cache + UI hub + QDPX round-trip + CSV tabular)**. **Coding Management 100% fechado.**
+**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Tier 3 Smart Codes ✅ (2026-05-04) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0-6 ✅ (2026-05-03/04)** · **Q-mode gaps S0+S1+S2+S3 ✅ (2026-05-04)** · **ICR Slices 1-6 motor κ multimodal ✅ (2026-05-09)** · **ICR Slices E1+E2+E3a+E3b+E4+E5a+E5b ✅ (2026-05-10/11)** · **Fase C P1 UX layer ✅ (2026-05-10)** · **Coder picker live ✅ (2026-05-11)** · **CSV cross-coder ✅ (2026-05-12)**.
 
 **Bloqueadores no `BACKLOG.md`:** zero.
+
+---
+
+## 🧱 ICR — Itens em aberto (canonical list, 2026-05-12)
+
+Lista única e consolidada. **Quando atacar item desta lista que toque scope/cache/extract, releitura obrigatória de TECHNICAL-PATTERNS §35-§46 — ver CLAUDE.md §8.**
+
+### Slice próximo (mecânico, sem decisão metodológica pendente)
+
+5 fixes correlatos atacáveis num push:
+
+- [ ] **A1 — Markdown overlap exato no chip "Lado a lado"** (ICR Import View): hoje em modo degraded (sem fetch async de sourceText). Pre-fetch via `vault.read` antes de render do chip, ou switch para sync read (Obsidian API).
+- [ ] **A2 — Range overlap exato no chip "Por código"** (ICR Import View): substituir aproximação `min(local, incoming)` por overlap real por codeId.
+- [ ] **B1 — Drill-down Cards/Workflow filtra por currentSelection da overview** (Compare Coders): hoje overview ajuda escolher onde olhar mas Cards/Workflow ignoram selection. ~30 LOC. Filter aplicado em `categorizeRegionsByStatus` via param `restrictTo?` (POS-coleta — não toca scope do extract).
+- [ ] **B2 — Drill-down P1 spatial não responde visualmente a clicks diferentes na matriz** (Compare Coders): falta header "par: X ↔ Y" + filtrar files por intersection (não union) em `collectRelevantFiles`. **Risco perf §46:** confirmar que mudança fica fora do scope do extract antes de tocar.
+- [ ] **B3 — Modal "ver lado a lado" toggle "par único" sem cell selecionada mostra todos pares** (Compare Coders): empty state "selecione um par primeiro" / pega primeiro par automaticamente / desabilita toggle quando sem pair.
+
+### Refinements menores (polish — pode ir num polish menor depois)
+
+- [ ] **A3 — Map manual em sources problemáticos** (ICR Import View): atualmente só Skip / Trust local. Falta UI de remap manual pra outro fileId local.
+- [ ] **A4 — Edge case: 2 contribuições do mesmo coderId na rail** (ICR Import View): atualmente permite, sem badge "duplicate coder".
+
+### Decisão metodológica (brainstorm dedicado precede spec)
+
+- [ ] **B4 — Weighting cross-engine no aggregate** (motor κ): `markers.length` é semanticamente heterogêneo entre engines (1 marker pdf-text ≠ 1 marker bbox ≠ 1 marker categorical). 3 alternativas mapeadas em BACKLOG (equal weight per engine / unidade analítica natural / matriz Mode A só com 1 engine ativo). Afeta todas as engines. Material de repertório em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md`.
+
+### Refactor grande (brainstorm dedicado precede spec)
+
+- [ ] **C — Set-valued labels no motor κ**: hoje multi-código por marker reduz a `[0]` alfabético (first-code). Eliminar redução afeta **todas as 8 engines** + recalibra muitos tests existentes. Repertório metodológico consolidado em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md` (Jaccard / MASI / variantes Cohen multi-label / Krippendorff α paramétrico com δ customizado).
+
+### Complementar (entra junto da Submissão Community Plugins)
+
+- [ ] **D — Tabular ZIP coder + Kappa snippet**: campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio.
+
+### Gated externamente (não atacar agora)
+
+- Smart Code cache hash-based invalidation — gated em adição de leaf `textContains` em Smart Codes (sem leaf de texto hoje → código órfão sem consumer).
 
 ---
 
@@ -228,12 +274,9 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [ ] Markdown overlap exato no chip Lado a lado (atualmente degradado: requer fetch async de sourceText pra reativar predicate `extractMarkdownRange + computeOverlap`). PDF + CSV funcionam normalmente.
   - [ ] Range overlap exato no chip Por código (atualmente aproximação `min(local, incoming)` por codeId compartilhado)
 
-  **Resumo da sessão 2026-05-09 → 2026-05-11:** **9 slices entregues** (1-6 motor + E1 + E2 UI + **E3a reconciliação P2**) + **Fase C P1 UX layer**, +467 testes ICR (2814 → 3303). Compare Coders View completa pra workflow real de reconciliação multi-coder: pesquisador vê matriz/tabela/heatmap, abre drill-down Cards, escolhe região contestada (com tag de divergência), decide entre adopt/split/manter-divergência, decisão fica audit-trailed reversível. Audit log estendido com 3 types `reconciliation_*` aparecendo na Code Stability Timeline existente (anchor codeId). Reconciliação multimodal arquitetural — IcrMarkerOps é façade per-engine que aceita extensão pra pdf/audio/vídeo/image em slice futura sem refactor do orquestrador.
+  **Resumo cumulativo 2026-05-09 → 2026-05-12:** **13 slices entregues** (1-6 motor + E1 + E2 UI + E3a reconciliação P2 + E3b workflow queue + E4 saved comparisons + E5a IcrMarkerOps cross-engine + E5b bbox spatial reconciliação) + Fase C P1 UX layer + coder picker live + CSV cross-coder isolation. +640 testes ICR (2814 → 3450). Compare Coders View completa pra workflow real de reconciliação multi-coder: matriz/tabela/heatmap, drill-down Cards (P2) com tag de divergência, drill-down Workflow Queue (P3) com 4 colunas (em discussão / resolvidos / divergência aceita / inativos), Saved Comparisons hub (ribbon + atalho contextual no codebook), κ pré/pós consensus, export relatório clipboard. IcrMarkerOps cobre 8 das 8 engines (markdown + pdf-text + pdfShape + csvSegment + csvRow + audio + video + image). `attachSourceHashSnapshot` wired em todos os 5 engine models.
 
-  **Próximo passo (gated em você):**
-  - **IcrMarkerOps extensão** pra pdf-text + csv-segment + audio + video (requer bounds engine-specific — design em BACKLOG)
-  - Refactor motor κ pra set-valued labels (eliminar redução first-code alfabético — afeta TODAS as engines). **Material de repertório metodológico em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md`** — leitura obrigatória antes do brainstorm: cobre Jaccard vs MASI, variantes Cohen multi-label (binary-per-label / Rosenberg augmented / weighted), generalização Krippendorff α com δ customizado, riscos no refactor de tests existentes.
-  - Wire mechanical de `attachSourceHashSnapshot` em outros 5 engines
+  **Itens ICR ainda em aberto:** consolidados na §"🧱 ICR — Itens em aberto" no topo deste documento.
 
   **Docs companion** (todos em `obsidian-qualia-coding/plugin-docs/research/`):
   - [[ICR — Cenários cobertos e descobertos]] — cenários cobertos vs descobertos, sequência B/C, ICR multimodal

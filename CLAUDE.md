@@ -93,6 +93,32 @@ Esta seção é resultado disso. Quando aparecer review crítico futuro:
 3. Atualizar este CLAUDE.md com a regra operacional resultante
 4. Só depois discutir fix do código
 
+### 8. Antes de tocar cache/scope/algoritmo central — LER `TECHNICAL-PATTERNS.md §35-§46` ANTES do primeiro edit
+
+Padrão recorrente (4+ sessões em 2026-05): mexo em ICR/Smart Codes/Analytics, perf cai, user descobre, conserto, próxima sessão regride de novo. O furo NÃO é falta de documentação — `TECHNICAL-PATTERNS.md` tem §35-§46 cravadas sobre caches derivados, invalidação cirúrgica, Web Worker inline, e a regressão de scope/cache em Compare Coders (§46, registrada após 4 fixes da mesma lerdeza). O furo é eu não ler antes de editar.
+
+**§46 é a regra cara:** `state.filters.visibleCoderIds` NUNCA entra no `scope.coderIds` que vai pra `extractInputsFromScope`. Filtros visuais aplicam DEPOIS do extract (via `filterInputsByCoders`); filtros de universo (inclusion/exclusion) aplicam ANTES.
+
+**Regra operacional — antes de tocar qualquer um destes símbolos, releitura obrigatória das §§ relevantes:**
+
+| Vou mexer em… | Releitura obrigatória |
+|---|---|
+| `extractInputsFromScope`, `cacheKeyForScope`, `reportKappa(Async)`, `reportPairwiseAsync` | §46 (scope/cache) + §45 (Web Worker pattern) |
+| `collectContestedRegions`, `categorizeRegionsByStatus`, `regionDerivation.*` | §46 (cache module-level) + §40 (motor adapter) |
+| `MarkerMutationEvent`, `addOnMutate`, `applyMarkerMutation` | §37 (canal granular) + §39 (dependencyExtractor) |
+| `SmartCodeCache`, `dependencyExtractor`, leaves de predicate | §38 (cycle detection) + §39 (índices reversos) |
+| `markerTextCache`, `populateMarkerTextCacheForFile`, `RowProvider.batchGetMarkerText` | §35 (notifyListenersOnly) + §36 (cascade async) |
+| `bboxAdapter`, `bboxKappaInput`, `bboxMatcher`, Hungarian | §40 (motor adapter) + §42 (Hungarian retangular) |
+| Qualquer cache derivado novo | §39 (índices reversos) + §35 (notifyListenersOnly) |
+
+**Checklist antes do commit que toca algoritmo central:**
+1. **Filtro visual NÃO contamina cache key.** Se editou cache key, conferir que só inclusion/exclusion entra.
+2. **Cache invalidation cirúrgica.** Se editou mutation site, conferir que invalida só dependentes via `dependencyExtractor`/`MarkerMutationEvent` — nunca rebuild full.
+3. **Compute pesado fora da main thread.** Se editou função síncrona que itera markers grandes, conferir que tem path async via Worker (§45).
+4. **Smoke real com corpus de tamanho real** (não só synth ICR-test/) — toggle de chip, troca de coefficient, troca de mode. Se trava 100ms+ = regrediu.
+
+**Sintoma de recaída:** "vou só meter este filtro aqui pra deixar mais limpo" — STOP, é EXATAMENTE o caminho da regressão §46.
+
 ---
 
 ## STATUS: EM DESENVOLVIMENTO — ZERO USUÁRIOS
