@@ -3,17 +3,26 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-13 (release 0.6.0 — B4 Camada 1 entregue, bloco ICR fechado por inteiro; pesquisa metodológica subida pro repo em `docs/_research/`).
+> Última atualização: 2026-05-13 (release 0.6.1 — gaps intra-modality + bugfix metodológico α δ²; smoke 2026-05-13 pegou bug crítico cache distance + 3 UX gaps).
 
 ---
 
 ## 🟢 Estado atual
 
-**Bloco ICR fechado** (release 0.6.0 — 2026-05-13). Zero itens em aberto no ICR canônico. Camadas 2 e 3 do framework multifaceta viraram peças do bloco LLM/Framework Unificado (ver `ROADMAP.md §"Framework Unificado ICR + LLM"`) — não atacam-se isoladamente, entram com LLM coding.
+**Bloco ICR fechado por inteiro** (releases 0.6.0–0.6.1, 2026-05-13). Inclui:
+- Camada 1 per-modality enforcement (banner multimodal + per-engine table)
+- 3/4 gaps intra-modality: Gap #2 (resolução temporal parametrizável) + Gap #3 (validação canônica α nominal + migração δ² Jaccard/MASI) + Gap #4 (fromMs/from rename)
+- Gap #1 parcial (infra `SourceSizeProvider` + media provider audio/video). PDF (1c) e CSV segment (1d) pendentes — podem ser absorvidos por Camada 2 BHM.
+- **Smoke real completo 2026-05-13** com seed sintético cravado em 4 engines (`scripts/seed-icr-test.mjs`, 37 markers em 17 cenários) — pegou bug crítico (cache distance stale, fixado) + 3 UX gaps.
+
+Camadas 2 e 3 do framework multifaceta viraram peças do bloco LLM/Framework Unificado (ver `ROADMAP.md §"Framework Unificado ICR + LLM"`) — não atacam-se isoladamente, entram com LLM coding.
 
 **Único bloqueador legado:** §11 E3 (limitação de formato, won't-fix documentado).
 
-**Polish ativo:** Image engine (8 itens, sessão dedicada) + 2 frentes cross-cutting + 4 gaps descobertos em revisão de docs methodology (totalUnits inflated, resolução temporal, fórmula α, fromMs nominal).
+**Polish ICR aberto (não bloqueante):**
+- Gap #1c (PDF SourceSizeProvider) + Gap #1d (CSV segment SourceSizeProvider) — potencialmente obsoletos por Camada 2 BHM
+- 3 UX gaps do smoke 2026-05-13 (chip Default, picker δ sem Nominal, state.distance persiste)
+- Image engine (4/8 items pendentes, sessão dedicada) + 2 cross-cutting (`!important` cluster, `cooccurrenceMode` async)
 
 **Próxima frente prática (não-ICR):** LLM-assisted coding com Camada 2 Bayesian annotation como par natural. Precede brainstorm dedicado — ver `ROADMAP.md §"Frente 2"` e `docs/ICR-MULTIMODAL-METHODOLOGY.md` pra fundamentação metodológica.
 
@@ -179,14 +188,40 @@ Detectados pelo subagente que produziu `ICR-LINEAR-METHODOLOGY.md` + `ICR-TEMPOR
   - [ ] **1c. PDF provider (page char count via pdf.js)** — pendente. Requer pdfjs dynamic load + getPage(n).getTextContent() per page. Cache `Map<${fileId}|page:N, chars>`. **Pode virar obsoleto se Camada 2 BHM (Bayesian annotation model) modelar background via prior — ver ROADMAP "Framework Unificado ICR + LLM".**
   - [ ] **1d. CSV segment provider (cell text via DuckDB)** — pendente. `RowProvider.batchGetMarkerText` já existe; criar `CsvSegmentSourceSize` que parsea locator `row:R|col:C` e lê length. **Mesma janela de absorção potencial por Camada 2.**
 
-- [ ] **Resolução temporal travada em 1 segundo (sub-second disagreement invisível).** `extractMediaRange` usa `Math.floor`/`Math.ceil` em segundos float pra audio/video — units menores que 1s não geram disagreement. Justificativa no código: "alinhado com ATLAS.ti 25" (decisão de design, não bug). **Decisão a revisitar:** se pesquisador quiser análise mais fina (ex: turn-taking em conversation analysis, prosody, micro-eventos), oferecer resolução configurável (100ms? 10ms?). **Effort:** baixo — tornar resolution parametrizável em `extractMediaRange` + UI pra setar.
+- [x] **Resolução temporal parametrizável (1s/100ms/10ms)** ✅ FEITO 2026-05-13 (commit `29dfad9`). `extractMediaRange(m, resolution)` aceita resolution em segundos por tick. `ComparisonScope.temporalResolution?` persiste em SavedComparison. UI: chip group `[1s][100ms][10ms]` no toolbar do Compare Coders, visível só com audio/video no escopo. Snap-to-int (epsilon=1e-9) absorve ruído FP. Cache keys do extract incluem resolution.
 
 - [x] **Validação canônica do α nominal contra Krippendorff (2018) cap. 11** ✅ FEITO 2026-05-13. Adicionada bateria de 5 testes canônicos em `tests/core/icr/coefficients/krippendorffAlpha.test.ts` com α calculado à mão pela fórmula canônica Krippendorff 2011 "Computing α": (1) 2 coders binário oposto α=-0.75; (2) 3 coders/2-cat mid-strength α=7/18; (3) 4 coders/3-cat α=1-45/79; (4) 2 coders/5-cat permutação cíclica α=-1/8; (5) empty-set como categoria unitization-α. Conclusão pra **δ_nominal**: impl ≡ canônica — fórmula difere por constante multiplicativa n em Do e em De que cancela no ratio; pra δ_nominal δ=δ² (0²=0, 1²=1).
   - **Caveat metodológico descoberto na expansão (2026-05-13):** pra **δ_jaccard / δ_MASI** com marginais não-uniformes, impl (δ linear) DIVERGE da canônica Krippendorff 2018 cap. 11 (que prescreve δ²). Caso assimétrico calculado à mão: Jaccard α_impl = -8/17 ≈ -0.4706 vs α_canon_δ² = -6/11 ≈ -0.5455; MASI α_impl = -28/67 vs α_canon = -192/413. Tests characterization em `krippendorffAlpha.test.ts` documentam valores impl atuais. Header de `krippendorffAlpha.ts` documenta a divergência.
 
 - [x] **Migração α Jaccard/MASI pra δ² canônica (Krippendorff 2018 cap. 11)** ✅ FEITO 2026-05-13. Decisão metodológica: migrar pra δ² (Opção 2). Aplicado em `krippendorffAlpha.ts` (Do e De) + `krippendorffAlphaCategorical.ts` (idem); cu-α/fleissKappa parametrizados herdam via delegate. Tests characterization recalibrados pros novos valores: Jaccard α = -6/11 (caso assimétrico), MASI α = -192/413. Header de `krippendorffAlpha.ts` documenta histórico (δ linear → δ²) + referência Krippendorff 2018 cap. 11. ICR-MULTIMODAL-METHODOLOGY.md §"Convenção da fórmula" adicionado. **Valores publicados em 0.5.0/0.6.0 com δ_jaccard ou δ_MASI divergem ≈0.05-0.08 deste**; sem usuários reais afetados (zero usuários no plugin), mas registro mantido por precedente metodológico. 3580 tests pass.
 
-- [ ] **Discrepância nominal `fromMs`/`from` em spec Compare Coders vs implementação.** Spec ICR Fase 2 cita campos `fromMs: number, toMs: number`; implementação usa `from`/`to` em segundos float. Não é bug funcional, só inconsistência de nomenclatura entre doc e código. Resolução: alinhar a doc com código (segundos), OU renomear código pra match doc (Ms). Como segundos float é mais legível e funciona corretamente, recomendo: atualizar spec/doc pra `from`/`to` em segundos.
+- [x] **Discrepância `fromMs`/`from` em spec Compare Coders** ✅ FEITO 2026-05-13 (commit `211d078`). Renomeado `fromMs`/`toMs` → `from`/`to` em `ReconciliationBounds.temporal` (valor sempre foi segundos, nunca millisegundos). Display label `'1.5s–3.2s'` em vez de `'1500ms–3200ms'`. `formatMs` consertado (não divide segundos por 1000).
+
+---
+
+## 🧱 ICR — Smoke completo 2026-05-13 (bug fix + UX gaps detectados)
+
+Smoke real do Compare Coders em corpus sintético (37 markers em 4 engines via `scripts/seed-icr-test.mjs`). Validou todos os 5 coeficientes + 3 distâncias. Achados:
+
+### Bug crítico resolvido
+
+- [x] **Cache identity stale entre distance toggles** ✅ FEITO 2026-05-13 (commit `827f860`). `reportKappaCache` e `reportPairwiseCache` (WeakMap por `inputs` ref) NÃO incluíam distance na chave. `scopeExtraction` cacheia `inputs` por scope → trocar chip Jaccard ↔ MASI no mesmo scope retornava resultado da chamada anterior (mesmo `inputs` ref, distance diferente, cache HIT). **Impacto:** valores α/Fleiss/cu-α em Compare Coders ficavam stale ao trocar δ desde release 0.5.0 (quando δ pluggable foi introduzido). Fix: distance vira segunda chave Map dentro do WeakMap (`Map<distKey, result>`). Tests recalibrados pra display 4 casas.
+
+- [x] **Display κ/α de 2 → 4 casas decimais** ✅ FEITO 2026-05-13 (commit `7704a59`). `toFixed(2)` → `toFixed(4)` em 7 arquivos UI (`overviewMatrix`, `overviewTable`, `overviewHeatmap`, `overviewPerEngineTable`, `drilldownCards`, `reconciliationReport`, `compareCoderCoefficientsModal`). Diferenças sub-percentuais entre δ_jaccard/δ_MASI agora visíveis sem inflacionar corpus.
+
+### UX gaps abertos
+
+- [ ] **Chip "Default" da saved comparison se confunde com chip δ.** No toolbar do Compare Coders, o chip cinza "Default" (à esquerda dos chips de Coder) é o seletor da saved comparison padrão — mas visualmente colado nos chips δ/Coder induz usuário a clicar achando que é outra coisa. **Fix proposto:** separação visual mais clara (separador, ou mover pra outra linha, ou label explícito "saved:").
+
+- [ ] **Picker δ não tem opção `Nominal` explícita em escopo multi-label.** UI só oferece chips `Jaccard` e `MASI`. Quando usuário quer comparar contra δ_nominal (canon Krippendorff), não há jeito direto na UI — precisa trocar pra Cohen κ ou α-binary (que usam nominal por design, mas testam coisas diferentes). **Fix proposto:** adicionar chip `Nominal` ao picker δ. Em escopo single-label puro Jaccard/MASI degeneram ao nominal — já está OK; o problema é só em escopo multi-label.
+
+- [ ] **`state.distance` persiste após selecionar primary insensível a δ (Cohen/α-binary).** Quando user troca primary pra Cohen κ ou α-binary, os chips Jaccard/MASI ficam disabled (cinza, não clicáveis), MAS `state.distance` interno mantém o último valor (ex: MASI). Per-engine table re-calcula Fleiss/α/cu-α com δ "fantasma" — usuário vê valores MASI mesmo achando que está em Jaccard. **Fix proposto:** (a) destacar visualmente qual δ está "memorizado" mesmo com chips disabled (border tracejado ou label "δ memorizado: MASI"); ou (b) resetar `state.distance` pra `'jaccard'` quando primary é Cohen/α-binary.
+
+- [ ] **Cohen κ é insensível a resolução temporal — documentar.** Smoke mostrou: troca de chip `[1s][100ms][10ms]` NÃO muda Cohen κ. Por design: Cohen κ caminho A é binary-per-label (presença/ausência por marker), não usa unit space. Não é bug, mas pode confundir usuário que espera "todos coeficientes respondem à resolução". **Fix proposto:** tooltip no chip resolução temporal indicando "afeta α / α-binary / cu-α / Fleiss em multi-label; NÃO afeta Cohen κ".
+
+### Não bugs (apenas confirmação)
+
+- **Diferença δ_jaccard vs δ_MASI é matemática e proporcional ao multi-label content do corpus.** Smoke validou ambos. Em corpus com 19% multi-label e cenários lateral overlap, diferença α visível em 4 casas decimais.
 
 ---
 
