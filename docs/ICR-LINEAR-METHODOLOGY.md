@@ -6,7 +6,7 @@
 >
 > **Spec autoritativo:** `docs/superpowers/specs/2026-05-09-icr-compare-coders-design.md` (Fase 1 — texto-likes)
 >
-> **Companion docs:** `docs/ICR-METHODOLOGY.md` (bbox 2D), `docs/ICR-SET-VALUED-METHODOLOGY.md` (multi-código por região), `docs/ICR-TEMPORAL-METHODOLOGY.md` (audio/video), `docs/ICR-CATEGORICAL-METHODOLOGY.md` (CSV cod row).
+> **Companion docs:** `docs/ICR-MULTIMODAL-METHODOLOGY.md` (framework cross-modalidade — agregação, LLM como faceta, camadas 1/2/3), `docs/ICR-METHODOLOGY.md` (bbox 2D), `docs/ICR-SET-VALUED-METHODOLOGY.md` (multi-código por região), `docs/ICR-TEMPORAL-METHODOLOGY.md` (audio/video), `docs/ICR-CATEGORICAL-METHODOLOGY.md` (CSV cod row).
 
 ---
 

@@ -327,6 +327,14 @@ Docs operacionais (repo — usados no trabalho diario):
 - `docs/ROADMAP.md` — features planejadas por prioridade (com secao "⚡ Status atual" no topo — leitura obrigatoria pra proxima sessao)
 - `docs/BACKLOG.md` — divida tecnica e oportunidades de refactor
 
+Docs de methodology user-facing (audiência: pesquisador citando o plugin em paper):
+- `docs/ICR-MULTIMODAL-METHODOLOGY.md` — framework cross-modalidade (Camada 1/2/3, agregação, LLM como faceta). **Entry point pra entender posicionamento metodológico do plugin.**
+- `docs/ICR-METHODOLOGY.md` — ICR pra coding espacial 2D (bbox)
+- `docs/ICR-LINEAR-METHODOLOGY.md` — texto (markdown + PDF text + CSV segment)
+- `docs/ICR-TEMPORAL-METHODOLOGY.md` — áudio + vídeo
+- `docs/ICR-CATEGORICAL-METHODOLOGY.md` — CSV row
+- `docs/ICR-SET-VALUED-METHODOLOGY.md` — multi-código por marker (transversal)
+
 Docs de design/pesquisa (consultar antes de iniciar sessoes em features grandes):
 - `docs/parquet-lazy-design.md` — design doc autoritativo Parquet/CSV lazy loading (DuckDB-Wasm + OPFS, 7 fases, 13-15 sessões). Revisado por Codex+Gemini. **Sempre consultar antes de virar spec/plan.**
 - `docs/_study/llm-coding/` — pesquisa de mercado profunda (40 ferramentas + 5 patterns, 41 arquivos). Pontos de entrada: `index.md` (TOC), `comparison.md` (sintese cross-tool), `qualia-fit.md` (cruzamento arquitetura Qualia × patterns mercado), `methodology.md`. **Consultar antes de qualquer brainstorm sobre LLM.**

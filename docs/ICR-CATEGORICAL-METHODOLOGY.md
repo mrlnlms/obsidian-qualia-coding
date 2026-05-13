@@ -6,7 +6,7 @@
 >
 > **Spec autoritativo:** `docs/superpowers/specs/2026-05-12-csv-row-marker-cross-coder-design.md`
 >
-> **Companion docs:** `docs/ICR-METHODOLOGY.md` (bbox 2D), `docs/ICR-SET-VALUED-METHODOLOGY.md` (multi-código por região), `docs/ICR-LINEAR-METHODOLOGY.md` (markdown/PDF/CSV segment), `docs/ICR-TEMPORAL-METHODOLOGY.md` (audio/video).
+> **Companion docs:** `docs/ICR-MULTIMODAL-METHODOLOGY.md` (framework cross-modalidade — agregação, LLM como faceta, camadas 1/2/3), `docs/ICR-METHODOLOGY.md` (bbox 2D), `docs/ICR-SET-VALUED-METHODOLOGY.md` (multi-código por região), `docs/ICR-LINEAR-METHODOLOGY.md` (markdown/PDF/CSV segment), `docs/ICR-TEMPORAL-METHODOLOGY.md` (audio/video).
 
 ---
 

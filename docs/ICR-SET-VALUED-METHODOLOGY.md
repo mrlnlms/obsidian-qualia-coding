@@ -8,7 +8,12 @@
 >
 > **Plan de implementação:** `docs/superpowers/plans/2026-05-12-icr-set-valued-labels.md`
 >
-> **Companion doc:** `docs/ICR-METHODOLOGY.md` (ICR pra coding espacial 2D — bbox)
+> **Companion docs:**
+> - `docs/ICR-MULTIMODAL-METHODOLOGY.md` — framework cross-modalidade (Camada 1/2/3, agregação, LLM como faceta)
+> - `docs/ICR-METHODOLOGY.md` — ICR pra coding espacial 2D (bbox)
+> - `docs/ICR-LINEAR-METHODOLOGY.md` — texto (markdown + PDF text + CSV segment)
+> - `docs/ICR-TEMPORAL-METHODOLOGY.md` — áudio + vídeo
+> - `docs/ICR-CATEGORICAL-METHODOLOGY.md` — CSV row
 
 ---
 

@@ -5,6 +5,8 @@
 > **Status:** stable, refletindo implementação Slice 6 (2026-05-09).
 >
 > **Spec autoritativo:** `obsidian-qualia-coding/plugin-docs/superpowers/specs/2026-05-09-icr-bbox-adapter-design.md`
+>
+> **Companion docs:** `docs/ICR-MULTIMODAL-METHODOLOGY.md` (framework cross-modalidade — agregação, LLM como faceta, camadas 1/2/3), `docs/ICR-SET-VALUED-METHODOLOGY.md` (multi-código por região), `docs/ICR-LINEAR-METHODOLOGY.md` (markdown/PDF text/CSV segment), `docs/ICR-TEMPORAL-METHODOLOGY.md` (audio/video), `docs/ICR-CATEGORICAL-METHODOLOGY.md` (CSV cod row).
 
 ---
 
