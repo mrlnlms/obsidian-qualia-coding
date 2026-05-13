@@ -417,13 +417,22 @@ function performSeed(data) {
 	});
 
 	videoFile.markers.push(
-		// V1 — Full agreement
-		mkVideo('v1_a', 1.0, 3.0, CODER_A, [CODE_A]),
-		mkVideo('v1_b', 1.0, 3.0, CODER_B, [CODE_A]),
+		// V1 — Full agreement (tema A, azul)
+		mkVideo('v1_a', 1.0, 2.5, CODER_A, [CODE_A]),
+		mkVideo('v1_b', 1.0, 2.5, CODER_B, [CODE_A]),
 
-		// V3 — Sub-segundo
-		mkVideo('v3_a', 9.0, 9.5, CODER_A, [CODE_A]),
-		mkVideo('v3_b', 9.6, 10.0, CODER_B, [CODE_A]),
+		// V2 — Partial overlap (tema B, laranja) — 1s common em 2s spans
+		mkVideo('v2_a', 3.0, 5.0, CODER_A, [CODE_B]),
+		mkVideo('v2_b', 4.0, 6.0, CODER_B, [CODE_B]),
+
+		// V3 — Sub-segundo disagreement (tema A) — 300ms gap em ticks
+		mkVideo('v3_a', 6.5, 6.8, CODER_A, [CODE_A]),
+		mkVideo('v3_b', 6.9, 7.2, CODER_B, [CODE_A]),
+
+		// V4 — Fleiss N=3 code disagreement (tema C/D/C) — verde/roxo/verde
+		mkVideo('v4_a', 7.5, 9.0, CODER_A, [CODE_C]),
+		mkVideo('v4_b', 7.5, 9.0, CODER_B, [CODE_D]),
+		mkVideo('v4_c', 7.5, 9.0, CODER_C, [CODE_C]),
 	);
 }
 
@@ -481,7 +490,7 @@ if (!clean && !dryRun) {
 	console.log('  2. Open _icr-test/transcript.md → 9 markdown markers (4 cenários)');
 	console.log('  3. Open _icr-test/survey.csv → 4 CSV markers (2 cenários)');
 	console.log('  4. Open _icr-test/audio-sample.mp3 → 12 audio markers (6 cenários)');
-	console.log('  5. Open _icr-test/video-sample.mp4 → 4 video markers (2 cenários)');
+	console.log('  5. Open _icr-test/video-sample.mp4 → 9 video markers (4 cenários)');
 	console.log('  6. Open Compare Coders (palette: "Open Compare Coders view")');
 	console.log('  7. Default scope: 3 coders + 4 codes + 4 engines');
 	console.log('  8. Toggle "resolução temporal" chip [1s][100ms][10ms] — α deve DIMINUIR');
