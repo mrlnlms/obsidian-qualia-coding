@@ -23,6 +23,7 @@ import { renderFilterChips } from './filterChips';
 import { appendEntry } from '../../auditLog';
 import type { AuditEntry } from '../../types';
 import { renderCoefficientPicker } from './coefficientPicker';
+import { renderTemporalResolutionPicker, isTemporalInScope } from './temporalResolutionPicker';
 import { getCodersWithMarkersInScope, multiLabelDensityInScope } from './coderInclusion';
 import { CompareCoderCoefficientsModal } from './compareCoderCoefficientsModal';
 import type { EngineModelsForExtraction } from './scopeExtraction';
@@ -304,6 +305,17 @@ export class UnifiedCompareCodersView extends ItemView {
 
 		const exportBtn = pickerHolder.createEl('button', { cls: 'qc-cc-side-btn', text: '↗ exportar contribuição' });
 		exportBtn.onclick = () => { void runExportTrigger(this.plugin); };
+
+		if (isTemporalInScope(enginesInScope)) {
+			const temporalHolder = this.toolbarEl.createDiv({ cls: 'qc-cc-temporal-row' });
+			renderTemporalResolutionPicker(
+				temporalHolder,
+				this.state.scope.temporalResolution ?? 1,
+				resolution => this.updateState({
+					scope: { ...this.state.scope, temporalResolution: resolution },
+				}),
+			);
+		}
 
 		const chipsHolder = this.toolbarEl.createDiv();
 		const codersWithMarkers = new Set(getCodersWithMarkersInScope(this.state.scope, this.engineModels()));

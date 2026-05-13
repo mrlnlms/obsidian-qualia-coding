@@ -24,6 +24,11 @@ export interface ComparisonScope {
 	folderIds?: string[];
 	engineIds?: EngineId[];
 	fileIds?: string[];
+	/** Resolução temporal em segundos por tick (audio/video). Default `1` (1s, alinhado
+	 *  com ATLAS.ti 25). Valores aceitos: 1, 0.1 (100ms), 0.01 (10ms). Granularidades
+	 *  menores expõem sub-segundo disagreement (turn-taking, prosody, micro-events) ao
+	 *  custo linear em unit space. Sem efeito em engines não-temporais. */
+	temporalResolution?: number;
 }
 
 export interface ComparisonFilters {

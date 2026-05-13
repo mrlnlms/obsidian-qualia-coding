@@ -113,6 +113,7 @@ export function cacheKeyForScope(scope: ComparisonScope): string {
 		folderIds: norm(scope.folderIds),
 		engineIds: norm(scope.engineIds),
 		fileIds: norm(scope.fileIds),
+		temporalResolution: scope.temporalResolution ?? 1,
 	});
 }
 
@@ -162,12 +163,14 @@ export async function extractInputsFromScope(
 
 function engineCacheKey(engine: EngineId, scope: ComparisonScope): string {
 	const norm = (a?: string[]) => a ? [...a].sort() : undefined;
+	// temporalResolution só afeta audio/video — incluir sempre é OK (inocuo pros outros engines).
 	return `${engine}::${JSON.stringify({
 		coderIds: norm(scope.coderIds),
 		codeIds: norm(scope.codeIds),
 		groupIds: norm(scope.groupIds),
 		folderIds: norm(scope.folderIds),
 		fileIds: norm(scope.fileIds),
+		temporalResolution: scope.temporalResolution ?? 1,
 	})}`;
 }
 
@@ -194,7 +197,7 @@ async function getEngineInput(
 			const input = buildCategoricalInput(filtered as RowMarker[], scope.coderIds);
 			return input.units.length > 0 ? { engine, kappaInput: input } : null;
 		}
-		const input = await buildPerCharInput(engine, filtered, ctx.app, scope.coderIds);
+		const input = await buildPerCharInput(engine, filtered, ctx.app, scope.coderIds, scope.temporalResolution);
 		return input.markers.length > 0 ? { engine, kappaInput: input } : null;
 	})();
 	engineInputCache.set(key, { gen: cacheGeneration, promise });
@@ -254,6 +257,7 @@ async function buildPerCharInput(
 	markers: AnyEngineMarker[],
 	app: App,
 	coders: string[],
+	temporalResolution: number = 1,
 ): Promise<KappaInput> {
 	const codedMarkers: CodedMarker[] = [];
 	const sourceTotals = new Map<string, { fileId: string; locator: string; totalUnits: number }>();
@@ -289,7 +293,7 @@ async function buildPerCharInput(
 				}
 				case 'audio':
 				case 'video': {
-					range = extractMediaRange(m as MediaMarker);
+					range = extractMediaRange(m as MediaMarker, temporalResolution);
 					updateSourceTotal(sourceTotals, m.fileId, range.locator, Math.max(getCurrentTotal(sourceTotals, m.fileId, range.locator), range.to));
 					break;
 				}

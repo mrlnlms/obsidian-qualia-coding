@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { extractInputsFromScope, type EngineModelsForExtraction } from '../../../../src/core/icr/ui/scopeExtraction';
+import { extractInputsFromScope, bumpInputsCacheGeneration, type EngineModelsForExtraction } from '../../../../src/core/icr/ui/scopeExtraction';
 import type { Marker } from '../../../../src/markdown/models/codeMarkerModel';
 import type { RowMarker, SegmentMarker } from '../../../../src/csv/csvCodingTypes';
+import type { MediaMarker } from '../../../../src/media/mediaTypes';
 
 const noopApp: any = {
 	vault: {
@@ -158,5 +159,47 @@ describe('extractInputsFromScope', () => {
 			{ models: emptyModels(), app: noopApp },
 		);
 		expect(result).toEqual([]);
+	});
+
+	it('temporalResolution propaga até extractMediaRange — sub-segundo agreement varia entre 1s e 100ms', async () => {
+		// Gap #2 (intra-modality): resolução temporal parametrizável.
+		// Coders A e B marcam segmentos disjuntos por 600ms (A: 0-0.5s, B: 0.6-1.0s).
+		// Em resolution=1: ambos viram [0,1) → falso agreement total no unit space.
+		// Em resolution=0.1: A vira [0,5) e B vira [6,10) → disagreement visível.
+		const audioMarkers: MediaMarker[] = [
+			{ markerType: 'audio', id: 'm1', fileId: 'sample.mp3', from: 0.0, to: 0.5, codes: [{ codeId: 'c1' }], codedBy: 'human:a', createdAt: 1, updatedAt: 1 },
+			{ markerType: 'audio', id: 'm2', fileId: 'sample.mp3', from: 0.6, to: 1.0, codes: [{ codeId: 'c1' }], codedBy: 'human:b', createdAt: 1, updatedAt: 1 },
+		];
+		const models: EngineModelsForExtraction = {
+			...emptyModels(),
+			audio: { getAllMarkers: () => audioMarkers },
+		};
+
+		// Cache pode estar quente de tests anteriores rodando no mesmo arquivo — bump pra garantir miss.
+		bumpInputsCacheGeneration();
+		const at1s = await extractInputsFromScope(
+			{ coderIds: ['human:a', 'human:b'], engineIds: ['audio'], temporalResolution: 1 },
+			{ models, app: noopApp },
+		);
+		const audioInput1s = at1s.find(r => r.engine === 'audio');
+		expect(audioInput1s).toBeTruthy();
+		const markers1s = (audioInput1s!.kappaInput as { markers: { range: { from: number; to: number } }[] }).markers;
+		// Cada marker [0,1) — overlap total no unit space
+		expect(markers1s).toHaveLength(2);
+		expect(markers1s.every(m => m.range.from === 0 && m.range.to === 1)).toBe(true);
+
+		bumpInputsCacheGeneration();
+		const at100ms = await extractInputsFromScope(
+			{ coderIds: ['human:a', 'human:b'], engineIds: ['audio'], temporalResolution: 0.1 },
+			{ models, app: noopApp },
+		);
+		const audioInput100ms = at100ms.find(r => r.engine === 'audio');
+		const markers100ms = (audioInput100ms!.kappaInput as { markers: { range: { from: number; to: number } }[] }).markers;
+		expect(markers100ms).toHaveLength(2);
+		// A: [0,5), B: [6,10) — disjuntos
+		const sortedFroms = markers100ms.map(m => m.range.from).sort((a, b) => a - b);
+		const sortedTos = markers100ms.map(m => m.range.to).sort((a, b) => a - b);
+		expect(sortedFroms).toEqual([0, 6]);
+		expect(sortedTos).toEqual([5, 10]);
 	});
 });
