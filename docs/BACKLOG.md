@@ -185,8 +185,59 @@ Detectados pelo subagente que produziu `ICR-LINEAR-METHODOLOGY.md` + `ICR-TEMPOR
 - **`totalUnits` inflated em PDF/CSV/temporal — Po artificial.** Sub-items (dividido 2026-05-13):
   - [x] **1a. Infra `SourceSizeProvider`** ✅ FEITO 2026-05-13. Interface em `src/core/icr/ui/scopeExtraction.ts` (campo opcional em `ExtractionContext`). `buildPerCharInput` consulta provider após loop; provider null/throw → fallback `max(range.to)`. 3 integration tests validando propagation.
   - [x] **1b. Media provider (audio/video) via HTMLMediaElement.duration** ✅ FEITO 2026-05-13. `MediaSourceSize` em `src/core/icr/sourceSize/mediaSourceSize.ts` — carrega element `<audio>`/`<video>` detached com `preload=metadata`, espera `loadedmetadata`, lê `duration`. Cache per-fileId. Wired no `UnifiedCompareCodersView` constructor; deps propagadas via Matrix/Table/Heatmap. Timeout 5s fallback pra null.
-  - [ ] **1c. PDF provider (page char count via pdf.js)** — pendente. Requer pdfjs dynamic load + getPage(n).getTextContent() per page. Cache `Map<${fileId}|page:N, chars>`. **Pode virar obsoleto se Camada 2 BHM (Bayesian annotation model) modelar background via prior — ver ROADMAP "Framework Unificado ICR + LLM".**
-  - [ ] **1d. CSV segment provider (cell text via DuckDB)** — pendente. `RowProvider.batchGetMarkerText` já existe; criar `CsvSegmentSourceSize` que parsea locator `row:R|col:C` e lê length. **Mesma janela de absorção potencial por Camada 2.**
+  - [ ] **1c. PDF provider (page char count via pdf.js)** — pendente. **Pode virar obsoleto se Camada 2 BHM (Bayesian annotation model) modelar background via prior — ver ROADMAP "Framework Unificado ICR + LLM".**
+    - **Caminho técnico:**
+      - Criar `src/core/icr/sourceSize/pdfSourceSize.ts` implementando `SourceSizeProvider`
+      - Dependência: `pdfjs-dist` (já no `package.json` via `obsidian.embed.PDFView` interno). Em runtime do plugin, lazy-load via `import('pdfjs-dist')` (custoso, ~500KB)
+      - Pseudo-code:
+        ```typescript
+        async getSourceSize(engine, fileId, locator, _resolution) {
+          if (engine !== 'pdf') return null;
+          if (!locator.startsWith('page:')) return null;
+          const page = parseInt(locator.slice(5), 10);
+          const cacheKey = `${fileId}|${locator}`;
+          if (this.cache.has(cacheKey)) return this.cache.get(cacheKey)!;
+          const doc = await this.loadDoc(fileId); // pdfjs.getDocument(arrayBuffer)
+          if (!doc || page > doc.numPages) return null;
+          const pageObj = await doc.getPage(page);
+          const content = await pageObj.getTextContent();
+          const text = content.items.map(i => (i.str ?? '').trim()).filter(Boolean).join(' ');
+          this.cache.set(cacheKey, text.length);
+          return text.length;
+        }
+        ```
+      - Cache `Map<${fileId}|page:N, chars>` per-fileId+page (PDFs grandes têm múltiplas páginas)
+      - Wiring: instanciar em `UnifiedCompareCodersView` constructor (parallel ao `MediaSourceSize`). Combinar via `CompositeSourceSizeProvider` que delega por engine.
+    - **Testes:** mock pdfjs `getDocument`/`getPage` em `tests/core/icr/sourceSize/pdfSourceSize.test.ts`. Integration test em `scopeExtraction.test.ts` (mesmo padrão dos 3 testes media já existentes).
+    - **Cuidados:** pdfjs worker setup pode ser complexo no Obsidian runtime (já existe pattern em `src/pdf/` — reusar). Caching de `doc` object pra não re-parsear PDF inteiro pra cada page.
+  - [ ] **1d. CSV segment provider (cell text via DuckDB)** — pendente. **Mesma janela de absorção potencial por Camada 2.**
+    - **Caminho técnico:**
+      - Criar `src/core/icr/sourceSize/csvSegmentSourceSize.ts` implementando `SourceSizeProvider`
+      - Dependência: `RowProvider` (já existe em `src/csv/duckdb/rowProvider.ts`). View do CSV instancia + registra lazy provider via `csvCodingModel.registerLazyProvider(fileId, provider)`.
+      - Pseudo-code:
+        ```typescript
+        async getSourceSize(engine, fileId, locator, _resolution) {
+          if (engine !== 'csvSegment') return null;
+          // locator format: 'row:R|col:C'
+          const match = locator.match(/^row:(\d+)\|col:(.+)$/);
+          if (!match) return null;
+          const sourceRowId = parseInt(match[1], 10);
+          const column = match[2];
+          const cacheKey = `${fileId}|${locator}`;
+          if (this.cache.has(cacheKey)) return this.cache.get(cacheKey)!;
+          const provider = this.csvModel.getLazyProvider(fileId);
+          if (!provider) return null; // CSV file não está aberto no plugin
+          const text = await provider.getMarkerText({ sourceRowId, column });
+          if (text == null) return null;
+          this.cache.set(cacheKey, text.length);
+          return text.length;
+        }
+        ```
+      - Cache `Map<${fileId}|row:R|col:C, chars>` per-cell
+      - Wiring: idem PDF, instanciar em `UnifiedCompareCodersView` + combinar via composite
+      - **Limitação:** `RowProvider` só existe quando CSV está aberto no plugin (lazy mode active). Pra arquivo CSV fechado, fallback pra `max(range.to)`. Aceita-se essa limitação (CSV grande exige plugin aberto pra ler row text pesado de qualquer jeito).
+    - **Testes:** mock `RowProvider.getMarkerText`. Integration test idem media.
+    - **Cuidados:** garantir que provider é re-fetched cada query (pode ter sido disposed se user fechou tab). Wrap em try/catch — provider throw → fallback pra max(range.to).
 
 - [x] **Resolução temporal parametrizável (1s/100ms/10ms)** ✅ FEITO 2026-05-13 (commit `29dfad9`). `extractMediaRange(m, resolution)` aceita resolution em segundos por tick. `ComparisonScope.temporalResolution?` persiste em SavedComparison. UI: chip group `[1s][100ms][10ms]` no toolbar do Compare Coders, visível só com audio/video no escopo. Snap-to-int (epsilon=1e-9) absorve ruído FP. Cache keys do extract incluem resolution.
 
@@ -211,13 +262,26 @@ Smoke real do Compare Coders em corpus sintético (37 markers em 4 engines via `
 
 ### UX gaps abertos
 
-- [ ] **Chip "Default" da saved comparison se confunde com chip δ.** No toolbar do Compare Coders, o chip cinza "Default" (à esquerda dos chips de Coder) é o seletor da saved comparison padrão — mas visualmente colado nos chips δ/Coder induz usuário a clicar achando que é outra coisa. **Fix proposto:** separação visual mais clara (separador, ou mover pra outra linha, ou label explícito "saved:").
+- [ ] **Chip "Default" da saved comparison se confunde com chip δ.** No toolbar do Compare Coders, o chip cinza "Default" (à esquerda dos chips de Coder) é o seletor da saved comparison padrão — mas visualmente colado nos chips δ/Coder induz usuário a clicar achando que é outra coisa.
+  - **Localização:** `src/core/icr/ui/unifiedCompareCodersView.ts` renderiza o chip via `renderSavedBanner` ou função correlata no toolbar. Procurar onde `qc-cc-saved-chip` ou similar é criado. CSS provavelmente em `styles.css` linha onde `.qc-cc-saved-default-chip` está definida.
+  - **Fix proposto:**
+    1. **Separação visual** (low-risk): adicionar separator vertical entre o chip Default e os chips Coder (CSS `border-left: 1px solid var(--background-modifier-border); margin-left: 8px; padding-left: 8px`)
+    2. **Label explícito** (clarity): prefixar com texto "saved:" antes do chip ("saved: Default" / "saved: Comparison X")
+    3. **Mover pra linha separada** (mais limpo, mais espaço): destacar a row de saved comparisons do row de scope (coders + engines + filters)
+  - Recomendação: combinar #1 + #2 (separator + label) em iteração pequena. #3 é refactor visual maior.
 
-- [ ] **Picker δ não tem opção `Nominal` explícita em escopo multi-label.** UI só oferece chips `Jaccard` e `MASI`. Quando usuário quer comparar contra δ_nominal (canon Krippendorff), não há jeito direto na UI — precisa trocar pra Cohen κ ou α-binary (que usam nominal por design, mas testam coisas diferentes). **Fix proposto:** adicionar chip `Nominal` ao picker δ. Em escopo single-label puro Jaccard/MASI degeneram ao nominal — já está OK; o problema é só em escopo multi-label.
+- [x] **Picker δ tem opção `Nominal` explícita** ✅ FEITO 2026-05-13 (commit pendente). Adicionado chip `Nominal` ao `coefficientPicker.ts` (já existia em `DistanceName` e `resolveDistance` — só não estava exposto na UI). Ordem: `Nominal` → `Jaccard` → `MASI`. Disabled logic é idêntica aos outros (disabled quando coef é Cohen/α-binary OU multi-label=0). Tooltip atualizado pra explicar diferença entre Nominal/Jaccard/MASI. Test recalibrado pra esperar 3 chips em vez de 2.
 
-- [ ] **`state.distance` persiste após selecionar primary insensível a δ (Cohen/α-binary).** Quando user troca primary pra Cohen κ ou α-binary, os chips Jaccard/MASI ficam disabled (cinza, não clicáveis), MAS `state.distance` interno mantém o último valor (ex: MASI). Per-engine table re-calcula Fleiss/α/cu-α com δ "fantasma" — usuário vê valores MASI mesmo achando que está em Jaccard. **Fix proposto:** (a) destacar visualmente qual δ está "memorizado" mesmo com chips disabled (border tracejado ou label "δ memorizado: MASI"); ou (b) resetar `state.distance` pra `'jaccard'` quando primary é Cohen/α-binary.
+- [ ] **`state.distance` persiste após selecionar primary insensível a δ (Cohen/α-binary).** Quando user troca primary pra Cohen κ ou α-binary, os chips Jaccard/MASI/Nominal ficam disabled (cinza, não clicáveis), MAS `state.distance` interno mantém o último valor (ex: MASI). Per-engine table re-calcula Fleiss/α/cu-α com δ "fantasma" — usuário vê valores MASI mesmo achando que está em Jaccard.
+  - **Localização:** state.distance é definido em `CompareCodersViewState` (em `compareCodersTypes.ts:59`). Read em `coefficientPicker.ts:70` (`activeDistance = state.distance ?? 'jaccard'`). Write em `unifiedCompareCodersView.ts:299` (`distance => this.updateState({ distance })`).
+  - **Disabled logic:** `isDistanceDisabled` em `coefficientPicker.ts:96-103`. Atualmente: disabled se `coef === 'cohen' || 'alpha-binary'` OU `multiLabel.multi === 0`. Quando disabled, `chip.onclick` não é set — usuário não consegue mudar.
+  - **Fix proposto** (escolher 1):
+    1. **(a) Destacar δ "memorizado" mesmo com chips disabled** — mostrar qual chip está como `state.distance` atual com border tracejado / opacity 0.6 / label "memorizado: MASI" abaixo dos chips. User sabe que se trocar primary de volta pra α, vai voltar pra MASI. Low-risk.
+    2. **(b) Resetar `state.distance` pra `'jaccard'` quando primary é Cohen/α-binary** — em `updateState`, quando `partial.primaryCoefficient ∈ {cohen, alpha-binary}`, força `partial.distance = 'jaccard'`. Limpa confusão visual mas perde memória da preferência (user terá que re-selecionar MASI ao voltar pra α).
+    3. **(c) Manter δ "indefinido" enquanto primary insensível** — `state.distance` vira `undefined` ao trocar pra Cohen, e a per-engine table calcula Fleiss/α/cu-α com `Jaccard` default explícito. Volta ao último escolhido se user trocar primary pra α de novo.
+  - Recomendação: **(a)** é mais conservador (preserva preferência) + ergonomic-only. **(b)** é mais drástico mas elimina o caso de uso obscuro. Decisão de produto.
 
-- [ ] **Cohen κ é insensível a resolução temporal — documentar.** Smoke mostrou: troca de chip `[1s][100ms][10ms]` NÃO muda Cohen κ. Por design: Cohen κ caminho A é binary-per-label (presença/ausência por marker), não usa unit space. Não é bug, mas pode confundir usuário que espera "todos coeficientes respondem à resolução". **Fix proposto:** tooltip no chip resolução temporal indicando "afeta α / α-binary / cu-α / Fleiss em multi-label; NÃO afeta Cohen κ".
+- [x] **Cohen κ é insensível a resolução temporal — documentado** ✅ FEITO 2026-05-13 (commit pendente). Tooltip do label `resolução temporal:` em `temporalResolutionPicker.ts` atualizado: "Afeta α / α-binary / cu-α / Fleiss em multi-label. NÃO afeta Cohen κ (caminho A é binary-per-label, sempre invariante a resolução)." Header comment do arquivo também atualizado com a nota.
 
 ### Não bugs (apenas confirmação)
 

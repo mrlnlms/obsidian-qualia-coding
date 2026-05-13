@@ -1,7 +1,11 @@
 /**
  * Temporal resolution picker — chip group `[1s][100ms][10ms]` visível no toolbar
  * quando audio/video estão no escopo. Controla o tick size do unit space temporal
- * usado pelos coeficientes (Cohen κ caminho A, Fleiss, α, α-binary, cu-α).
+ * usado pelos coeficientes que operam em unit space: α, α-binary, cu-α, e Fleiss
+ * em escopo multi-label.
+ *
+ * **NÃO afeta Cohen κ** (caminho A é binary-per-label: conta presença/ausência por
+ * marker, não por tick). Cohen κ permanece invariante a qualquer resolução escolhida.
  *
  * Default 1s (alinhado ATLAS.ti 25). 100ms expõe turn-taking; 10ms expõe prosody.
  */
@@ -26,7 +30,7 @@ export function renderTemporalResolutionPicker(
 	container.empty();
 	container.addClass('qc-cc-temporal-picker');
 	const label = container.createSpan({ cls: 'qc-cc-temporal-label', text: 'resolução temporal:' });
-	label.title = 'Tick size do unit space pra audio/video. Granularidades menores expõem disagreement sub-segundo ao custo de unit space maior.';
+	label.title = 'Tick size do unit space pra audio/video. Granularidades menores expõem disagreement sub-segundo ao custo de unit space maior. Afeta α / α-binary / cu-α / Fleiss em multi-label. NÃO afeta Cohen κ (caminho A é binary-per-label, sempre invariante a resolução).';
 	for (const { key, label: chipLabel, tooltip } of RESOLUTIONS) {
 		const active = currentResolution === key;
 		const chip = container.createSpan({

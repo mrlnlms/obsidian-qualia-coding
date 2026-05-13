@@ -24,6 +24,7 @@ const COEFFICIENTS: { key: CoefficientKey; label: string }[] = [
 ];
 
 const DISTANCES: { key: DistanceName; label: string }[] = [
+	{ key: 'nominal', label: 'Nominal' },
 	{ key: 'jaccard', label: 'Jaccard' },
 	{ key: 'masi',    label: 'MASI' },
 ];
@@ -111,7 +112,7 @@ function distanceTooltipText(state: CompareCodersViewState, deps: CoefficientPic
 		return 'δ não se aplica a α-binary (mede só presença/ausência binária, sem códigos).';
 	}
 	if (deps.multiLabel.multi === 0) {
-		return 'Todos markers no escopo são single-label. Jaccard e MASI produzem resultado idêntico ao nominal.';
+		return 'Todos markers no escopo são single-label. Jaccard e MASI produzem resultado idêntico ao Nominal.';
 	}
-	return 'Jaccard penaliza overlap parcial proporcional à interseção. MASI adiciona fator de monotonicidade (subset vs lateral).';
+	return 'Nominal: reduz multi-label a first-code alfabético (baseline canônico). Jaccard: penaliza overlap parcial proporcional à interseção. MASI: adiciona fator de monotonicidade (subset vs lateral).';
 }

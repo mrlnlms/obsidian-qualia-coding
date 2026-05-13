@@ -76,13 +76,13 @@ describe('renderCoefficientPicker — coef chips', () => {
 });
 
 describe('renderCoefficientPicker — chip Distance', () => {
-	it('renderiza Jaccard + MASI chips', () => {
+	it('renderiza Nominal + Jaccard + MASI chips', () => {
 		const container = document.createElement('div');
 		const state = createDefaultViewState(['human:a', 'human:b', 'human:c']);
 		renderCoefficientPicker(container, state, { enginesInScope: ['markdown'], multiLabel: withMulti }, noop, noop);
 		const chips = container.querySelectorAll('.qc-cc-distance-chip');
-		expect(chips.length).toBe(2);
-		expect([...chips].map(c => (c as HTMLElement).dataset.distance)).toEqual(['jaccard', 'masi']);
+		expect(chips.length).toBe(3);
+		expect([...chips].map(c => (c as HTMLElement).dataset.distance)).toEqual(['nominal', 'jaccard', 'masi']);
 	});
 
 	it('default Jaccard ativo + α coef + multi-label presente', () => {
