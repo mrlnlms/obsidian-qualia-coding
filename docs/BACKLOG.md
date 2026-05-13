@@ -51,7 +51,18 @@ Da fila cross-cutting do hardening, 4 frentes atacadas em 2026-05-09 (parseInt v
 
 ---
 
-## 🧱 ICR — Hash consumers fora do Slice 2
+## ✅ ICR — Hash consumers fora do Slice 2 (TODOS RESOLVIDOS 2026-05-11)
+
+Slice 2 entregou primitiva de hash por source + 3 consumers iniciais. Os consumers adicionais que dependiam dela foram entregues em slices subsequentes:
+
+- ✅ **Provenance audit (sourceHashSnapshot)** — entregue em Slice 5. `src/core/icr/provenance/attachSourceHashSnapshot.ts` stampado em todos os 8 engines de coding (markdown/pdf-text/pdfShape/csvRow/csvSegment/audio/video/image). Marker carrega snapshot do hash do source no momento do coding.
+- ✅ **Cross-vault remap** — entregue em Slice 3 (Fase C P0) como peça de `mergeCoderContribution`. Função pura em `src/core/icr/transport/crossVaultRemap.ts`; integrada ao algoritmo de merge multi-coder, não vive isolada.
+
+Conteúdo histórico abaixo preservado pra audit trail de decisão original.
+
+---
+
+### Histórico (resolvido — preservado pra audit)
 
 Slice 2 (planejado 2026-05-09) entrega a **primitiva** de hash por source + 3 consumers iniciais (`markerTextCache` invalidation, `vault.on('rename')`/`('modify')` rename detection, QDPX import dedup). Os consumers abaixo dependem da MESMA primitiva — escopo recortado pra Slice 2 não inflar. Cada um vira slice próprio sobre primitiva já existente.
 
