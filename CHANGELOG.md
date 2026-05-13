@@ -15,7 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Detecção de famílias modais:** `activeFamiliesFromModels(scope, models)` varre engines respeitando filters de scope (coderIds/codeIds/fileIds/engineIds); discrimina csvSegment (text-like) de csvRow (categorical) via presença de `from`. CSV bbox (pdfShape, image) detectado via canal separado (`computeBboxKappaForPair`). **Motor κ intocado** — `KappaReport.aggregate` e `KappaReport.aggregateWarnings` permanecem; UI só recategoriza apresentação.
 
-**+25 testes** (multimodalBanner.test.ts: 19 cenários de detecção; overviewPerEngineTable.test.ts: 6 cenários de render — Cohen médio dos pares, bbox unified vs split, fallback empty, título). Zero regressão na suite (3537 → 3562 verde). CSS novo: `.qc-cc-multimodal-banner`, `.qc-cc-per-engine-{wrap,title,table}`, `.qc-cc-aggregate-label`. Layer 2 (Bayesian annotation model) e Layer 3 (G-theory/MFRM) ficam fora do escopo — Layer 2 entra junto com LLM-assisted coding (Framework Unificado ICR + LLM, ver ROADMAP).
+**Vacuous coefficient handling per row:** α-binary e cu-α são definidos sobre engines com boundary (char-range, temporal, spatial). Em `csvRow` puro (categorical sem boundary), o reporter retorna `1` como sentinel "não aplicável" — apresentação correta na per-engine table é `—`, não `1.00` verde sólido. `BOUNDED_ENGINES` cravado em `overviewPerEngineTable.ts` (espelha lógica de `coefficientResolver.isCoefficientApplicable`).
+
+**+27 testes** (multimodalBanner.test.ts: 19 cenários de detecção; overviewPerEngineTable.test.ts: 8 cenários — Cohen médio dos pares, bbox unified vs split, fallback empty, título, csvRow vacuous handling, markdown boundary). Zero regressão na suite. CSS novo: `.qc-cc-multimodal-banner`, `.qc-cc-per-engine-{wrap,title,table}`, `.qc-cc-aggregate-label`. Layer 2 (Bayesian annotation model) e Layer 3 (G-theory/MFRM) ficam fora do escopo — Layer 2 entra junto com LLM-assisted coding (Framework Unificado ICR + LLM, ver ROADMAP).
 
 ## [0.5.0] - 2026-05-13
 
