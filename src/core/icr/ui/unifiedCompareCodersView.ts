@@ -22,7 +22,7 @@ import { renderFilterChips } from './filterChips';
 import { appendEntry } from '../../auditLog';
 import type { AuditEntry } from '../../types';
 import { renderCoefficientPicker } from './coefficientPicker';
-import { getCodersWithMarkersInScope } from './coderInclusion';
+import { getCodersWithMarkersInScope, multiLabelDensityInScope } from './coderInclusion';
 import { CompareCoderCoefficientsModal } from './compareCoderCoefficientsModal';
 import type { EngineModelsForExtraction } from './scopeExtraction';
 import { bumpInputsCacheGeneration } from './scopeExtraction';
@@ -289,11 +289,13 @@ export class UnifiedCompareCodersView extends ItemView {
 		const enginesInScope = this.state.filters.visibleEngineIds
 			?? this.state.scope.engineIds
 			?? ALL_ENGINES;
+		const multiLabel = multiLabelDensityInScope(this.state.scope, this.engineModels());
 		renderCoefficientPicker(
 			pickerHolder,
 			this.state,
-			{ enginesInScope },
+			{ enginesInScope, multiLabel },
 			coefficient => this.updateState({ primaryCoefficient: coefficient }),
+			distance => this.updateState({ distance }),
 		);
 
 		const sideBtn = pickerHolder.createEl('button', { cls: 'qc-cc-side-btn', text: '↗ ver lado a lado' });

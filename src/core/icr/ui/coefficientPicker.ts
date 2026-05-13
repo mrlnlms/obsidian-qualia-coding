@@ -1,14 +1,19 @@
 /**
- * Coefficient picker — 5 chips no toolbar (Cohen / Fleiss / α / α-binary / cu-α).
+ * Coefficient picker — 5 chips no toolbar (Cohen / Fleiss / α / α-binary / cu-α)
+ * + chip Distance [Jaccard][MASI] (δ pluggable) + badge densidade multi-label.
  *
- * Mesmo pattern dos mode chips em `unifiedCompareCodersView.renderToolbar`.
- * Chip disabled quando `isCoefficientApplicable` retorna false (Fleiss com 2
- * coders, α-binary/cu-α em csvRow puro).
+ * Chip Distance fica cinza condicionalmente:
+ * - Coef = Cohen κ (caminho A binary-per-label) ou α-binary: δ não tem efeito (no-op).
+ * - Densidade multi-label = 0: Jaccard/MASI dão valor idêntico ao nominal.
+ *
+ * Badge densidade `N/Total markers multi-label (X%)` sempre presente — comunica
+ * magnitude do efeito potencial da escolha de δ.
  */
 
 import type { CompareCodersViewState, CoefficientKey } from './compareCodersTypes';
 import { isCoefficientApplicable } from './coefficientResolver';
 import type { EngineId } from '../reporter';
+import type { DistanceName } from '../distances';
 
 const COEFFICIENTS: { key: CoefficientKey; label: string }[] = [
 	{ key: 'cohen',        label: 'Cohen κ' },
@@ -18,15 +23,22 @@ const COEFFICIENTS: { key: CoefficientKey; label: string }[] = [
 	{ key: 'cu-alpha',     label: 'cu-α' },
 ];
 
+const DISTANCES: { key: DistanceName; label: string }[] = [
+	{ key: 'jaccard', label: 'Jaccard' },
+	{ key: 'masi',    label: 'MASI' },
+];
+
 export interface CoefficientPickerDeps {
 	enginesInScope: EngineId[];
+	multiLabel: { multi: number; total: number; pct: number };
 }
 
 export function renderCoefficientPicker(
 	container: HTMLElement,
 	state: CompareCodersViewState,
 	deps: CoefficientPickerDeps,
-	onSelect: (coefficient: CoefficientKey) => void,
+	onSelectCoefficient: (coefficient: CoefficientKey) => void,
+	onSelectDistance: (distance: DistanceName) => void,
 ): void {
 	container.empty();
 	container.addClass('qc-cc-coefficient-picker');
@@ -44,7 +56,62 @@ export function renderCoefficientPicker(
 				? 'Fleiss κ requer 3+ coders'
 				: 'α-binary / cu-α requerem engine com boundary (não aplicável a csvRow puro)';
 		} else {
-			chip.onclick = () => onSelect(key);
+			chip.onclick = () => onSelectCoefficient(key);
 		}
 	}
+
+	// Separator + Distance group
+	container.createSpan({ cls: 'qc-cc-coef-sep', text: '·' });
+	const distanceLabel = container.createSpan({ cls: 'qc-cc-distance-label', text: 'δ:' });
+	distanceLabel.title = 'Família de distância usada por α / cu-α / Fleiss em escopo multi-label';
+
+	const distanceDisabled = isDistanceDisabled(state, deps);
+	const distanceTooltip = distanceTooltipText(state, deps);
+	const activeDistance = state.distance ?? 'jaccard';
+	for (const { key, label } of DISTANCES) {
+		const active = activeDistance === key && !distanceDisabled;
+		const chip = container.createSpan({
+			cls: `qc-cc-distance-chip ${active ? 'is-active' : ''} ${distanceDisabled ? 'is-disabled' : ''}`.trim(),
+			text: label,
+		});
+		chip.dataset.distance = key;
+		chip.title = distanceTooltip;
+		if (!distanceDisabled) {
+			chip.onclick = () => onSelectDistance(key);
+		}
+	}
+
+	// Badge densidade
+	const badge = container.createSpan({ cls: 'qc-cc-multilabel-badge' });
+	const { multi, total, pct } = deps.multiLabel;
+	badge.setText(total > 0
+		? `${multi}/${total} markers multi-label (${pct.toFixed(0)}%)`
+		: '0 markers no escopo');
+	badge.title = multi > 0
+		? `${multi} markers no escopo têm 2+ codes aplicados. δ_jaccard e δ_MASI diferenciam acordo parcial — δ_nominal infla agreement reduzindo a first-code.`
+		: 'Nenhum marker no escopo tem 2+ codes aplicados. Jaccard e MASI produzem resultado idêntico ao nominal pra escopo single-label puro.';
+}
+
+function isDistanceDisabled(state: CompareCodersViewState, deps: CoefficientPickerDeps): boolean {
+	const coef = state.primaryCoefficient;
+	// Cohen κ caminho A + α-binary: δ não tem efeito (Cohen é binary-per-label; α-binary é presença/ausência binária).
+	const coefAcceptsDistance = coef === 'alpha' || coef === 'cu-alpha' || coef === 'fleiss';
+	if (!coefAcceptsDistance) return true;
+	// Sem multi-label no escopo: Jaccard/MASI degeneram ao nominal.
+	if (deps.multiLabel.multi === 0) return true;
+	return false;
+}
+
+function distanceTooltipText(state: CompareCodersViewState, deps: CoefficientPickerDeps): string {
+	const coef = state.primaryCoefficient;
+	if (coef === 'cohen') {
+		return 'δ não se aplica ao Cohen κ caminho A (binary-per-label). Use α / cu-α / Fleiss pra escolher δ.';
+	}
+	if (coef === 'alpha-binary') {
+		return 'δ não se aplica a α-binary (mede só presença/ausência binária, sem códigos).';
+	}
+	if (deps.multiLabel.multi === 0) {
+		return 'Todos markers no escopo são single-label. Jaccard e MASI produzem resultado idêntico ao nominal.';
+	}
+	return 'Jaccard penaliza overlap parcial proporcional à interseção. MASI adiciona fator de monotonicidade (subset vs lateral).';
 }

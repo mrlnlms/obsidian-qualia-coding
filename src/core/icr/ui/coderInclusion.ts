@@ -100,6 +100,56 @@ export function getCodersWithMarkersInScope(
 	return result;
 }
 
+/** Conta markers no escopo (total) + markers multi-label (codes.length > 1).
+ *  Usado pelo chip Distance + badge densidade no toolbar do Compare Coders. */
+export function multiLabelDensityInScope(
+	scope: ComparisonScope,
+	models: EngineModelsForExtraction,
+): { multi: number; total: number; pct: number } {
+	let multi = 0;
+	let total = 0;
+	const scopeCoderSet = new Set(scope.coderIds);
+	const scopeCodeSet = scope.codeIds ? new Set(scope.codeIds) : null;
+	const scopeFileSet = scope.fileIds ? new Set(scope.fileIds) : null;
+	const scopeEngineSet = scope.engineIds ? new Set(scope.engineIds) : null;
+
+	const scan = (markers: { codedBy?: string; codes?: { codeId: string }[]; fileId: string }[]) => {
+		for (const m of markers) {
+			if (!m.codedBy) continue;
+			if (!scopeCoderSet.has(m.codedBy)) continue;
+			if (scopeFileSet && !scopeFileSet.has(m.fileId)) continue;
+			const codes = m.codes ?? [];
+			if (scopeCodeSet) {
+				let hit = false;
+				for (const c of codes) {
+					if (scopeCodeSet.has(c.codeId)) { hit = true; break; }
+				}
+				if (!hit) continue;
+			}
+			total++;
+			if (codes.length > 1) multi++;
+		}
+	};
+
+	if (models.markdown && (!scopeEngineSet || scopeEngineSet.has('markdown'))) scan(models.markdown.getAllMarkers() as never);
+	if (models.pdf) {
+		if (!scopeEngineSet || scopeEngineSet.has('pdf')) scan(models.pdf.getAllMarkers() as never);
+		if (!scopeEngineSet || scopeEngineSet.has('pdfShape')) {
+			const shapes = (models.pdf as { getAllShapes?: () => unknown[] }).getAllShapes?.();
+			if (shapes) scan(shapes as never);
+		}
+	}
+	if (models.csv && (!scopeEngineSet || scopeEngineSet.has('csvSegment') || scopeEngineSet.has('csvRow'))) {
+		scan(models.csv.getAllMarkers() as never);
+	}
+	if (models.audio && (!scopeEngineSet || scopeEngineSet.has('audio'))) scan(models.audio.getAllMarkers() as never);
+	if (models.video && (!scopeEngineSet || scopeEngineSet.has('video'))) scan(models.video.getAllMarkers() as never);
+	if (models.image && (!scopeEngineSet || scopeEngineSet.has('image'))) scan(models.image.getAllMarkers() as never);
+
+	const pct = total > 0 ? (multi / total) * 100 : 0;
+	return { multi, total, pct };
+}
+
 export function applyCoderInclusion(
 	scope: ComparisonScope,
 	models: EngineModelsForExtraction,

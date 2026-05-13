@@ -6491,6 +6491,7 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-cc-coefficient-picker {
 	display: flex;
 	gap: 4px;
+	align-items: center;
 }
 
 .qc-cc-coef-chip {
@@ -6512,6 +6513,49 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-cc-coef-chip.is-disabled {
 	opacity: 0.4;
 	cursor: not-allowed;
+}
+
+.qc-cc-coef-sep {
+	color: var(--text-muted);
+	margin: 0 4px;
+	user-select: none;
+}
+
+.qc-cc-distance-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-right: 2px;
+}
+
+.qc-cc-distance-chip {
+	padding: 2px 8px;
+	border-radius: 14px;
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	user-select: none;
+}
+
+.qc-cc-distance-chip.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.qc-cc-distance-chip.is-disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.qc-cc-multilabel-badge {
+	margin-left: 8px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	padding: 2px 8px;
+	background: var(--background-secondary);
+	border-radius: 10px;
+	user-select: none;
 }
 
 .qc-cc-filter-chips {
