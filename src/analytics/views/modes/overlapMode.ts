@@ -3,20 +3,15 @@ import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { FilterConfig, CooccurrenceResult, OverlapResult } from "../../data/dataTypes";
 import { calculateOverlap } from "../../data/statsEngine";
 import { heatmapColor, isLightColor, computeDisplayMatrix , downloadCsv } from "../shared/chartHelpers";
-import { reorderCooccurrence } from "./cooccurrenceMode";
+import { reorderCooccurrenceSync, reorderCooccurrenceCluster } from "./cooccurrenceMode";
 
-export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {
+function paintOverlapMatrix(
+  ctx: AnalyticsViewContext,
+  asCooc: CooccurrenceResult,
+  result: OverlapResult,
+  filters: FilterConfig,
+): void {
   if (!ctx.chartContainer || !ctx.data) return;
-
-  const result = calculateOverlap(ctx.data, filters);
-
-  if (result.codes.length < 2) {
-    ctx.chartContainer.createDiv({
-      cls: "codemarker-analytics-empty",
-      text: "Need at least 2 codes with positional data for overlap analysis.",
-    });
-    return;
-  }
 
   // Skipped sources notice
   if (result.skippedSources.length > 0) {
@@ -32,15 +27,6 @@ export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterCo
     m.codes.some((c) => enabledCodes.has(c))
   ).map((m) => m.fileId)).size;
   meta.textContent = `${result.totalPairsChecked} marker pairs checked across ${fileCount} files`;
-
-  // Reorder using co-occurrence sort logic (same interface)
-  const asCooc: CooccurrenceResult = {
-    codes: [...result.codes],
-    colors: [...result.colors],
-    matrix: result.matrix.map((r) => [...r]),
-    maxValue: result.maxValue,
-  };
-  reorderCooccurrence(ctx, asCooc);
 
   const n = asCooc.codes.length;
   const cellSize = n > 25 ? 35 : n > 15 ? Math.max(35, Math.floor(500 / n)) : 60;
@@ -114,7 +100,7 @@ export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterCo
   for (let i = 0; i < n; i++) {
     const y = labelSpace + i * cellSize + cellSize / 2;
     const label = asCooc.codes[i]!.length > 15
-      ? asCooc.codes[i]!.slice(0, 14) + "\u2026"
+      ? asCooc.codes[i]!.slice(0, 14) + "…"
       : asCooc.codes[i];
     canvasCtx.fillText(label!, labelSpace - 6, y);
   }
@@ -129,7 +115,7 @@ export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterCo
     canvasCtx.translate(x, labelSpace - 6);
     canvasCtx.rotate(-Math.PI / 4);
     const label = asCooc.codes[j]!.length > 15
-      ? asCooc.codes[j]!.slice(0, 14) + "\u2026"
+      ? asCooc.codes[j]!.slice(0, 14) + "…"
       : asCooc.codes[j];
     canvasCtx.fillText(label!, 0, 0);
     canvasCtx.restore();
@@ -155,9 +141,9 @@ export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterCo
       if (row === col) {
         dispText = `${asCooc.codes[row]}: ${val} markers`;
       } else if (isNormalized) {
-        dispText = `${asCooc.codes[row]} \u2229 ${asCooc.codes[col]}: ${dispVal!.toFixed(2)} overlap`;
+        dispText = `${asCooc.codes[row]} ∩ ${asCooc.codes[col]}: ${dispVal!.toFixed(2)} overlap`;
       } else {
-        dispText = `${asCooc.codes[row]} \u2229 ${asCooc.codes[col]}: ${dispVal}${suffix} overlaps`;
+        dispText = `${asCooc.codes[row]} ∩ ${asCooc.codes[col]}: ${dispVal}${suffix} overlaps`;
       }
       tooltip.textContent = dispText;
       tooltip.style.display = "";
@@ -170,6 +156,51 @@ export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterCo
 
   canvas.addEventListener("mouseleave", () => {
     tooltip.style.display = "none";
+  });
+}
+
+export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {
+  if (!ctx.chartContainer || !ctx.data) return;
+
+  const result = calculateOverlap(ctx.data, filters);
+
+  if (result.codes.length < 2) {
+    ctx.chartContainer.createDiv({
+      cls: "codemarker-analytics-empty",
+      text: "Need at least 2 codes with positional data for overlap analysis.",
+    });
+    return;
+  }
+
+  // Reorder usa o sort do co-occurrence (mesma interface): copia matriz pra estrutura
+  // compartilhada e aplica reorder in-place.
+  const asCooc: CooccurrenceResult = {
+    codes: [...result.codes],
+    colors: [...result.colors],
+    matrix: result.matrix.map((r) => [...r]),
+    maxValue: result.maxValue,
+  };
+
+  // Fast path: alpha/frequency são instantâneos
+  if (ctx.cooccSortMode !== "cluster") {
+    reorderCooccurrenceSync(ctx, asCooc);
+    paintOverlapMatrix(ctx, asCooc, result, filters);
+    return;
+  }
+
+  // Slow path: cluster via Worker — loading + fire-and-forget + generation guard
+  const loadingEl = ctx.chartContainer.createDiv({
+    cls: "codemarker-overlap-loading",
+    text: "Clustering codes…",
+  });
+  const gen = ctx.renderGeneration;
+  void reorderCooccurrenceCluster(asCooc).then(() => {
+    if (!ctx.isRenderCurrent(gen)) return;
+    loadingEl.remove();
+    paintOverlapMatrix(ctx, asCooc, result, filters);
+  }).catch((err) => {
+    if (!ctx.isRenderCurrent(gen)) return;
+    loadingEl.textContent = `Cluster failed: ${err instanceof Error ? err.message : String(err)}`;
   });
 }
 

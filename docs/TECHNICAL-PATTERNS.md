@@ -2647,9 +2647,37 @@ export function computeAsync(payload): Promise<Result> {
 }
 ```
 
-**Pattern já existente no projeto** pro DuckDB-Wasm (`duckdbWorkerInlinePlugin` no esbuild config + `duckdbBootstrap.ts` cria Blob URL). Diferença: DuckDB worker vem pré-buildado do npm package; nosso worker próprio precisa do esbuild plugin custom que builda em build-time.
+**Pattern já existente no projeto** pro DuckDB-Wasm (`duckdbWorkerInlinePlugin` no esbuild config + `duckdbBootstrap.ts` cria Blob URL). Diferença: DuckDB worker vem pré-buildado do npm package; nossos workers próprios precisam do esbuild plugin custom que builda em build-time.
 
-**Trade-off:** main.js cresce (~14KB pelo bundle do kappa.worker). Aceitável vs. alternativa de UI freeze.
+**Workers ativos no projeto** (2026-05-13):
+- `src/core/icr/kappa.worker.ts` — 5 coeficientes ICR (Slice perf 2026-05-11). Disposed via `disposeKappaWorker()` no `onunload`.
+- `src/analytics/data/cluster.worker.ts` — `hierarchicalCluster` + `computeClusterArtifacts` pra Cooccurrence/Overlap/Dendrogram/Files-Dendrogram (2026-05-13). Disposed via `disposeClusterWorker()`.
+
+**Trade-off:** main.js cresce (~14KB pelo kappa.worker, ~10KB pelo cluster.worker). Aceitável vs. alternativa de UI freeze.
+
+**Pattern de entry fire-and-forget pra Analytics modes pesados** (`wordCloudMode`, `mdsMode`, `acmMode`, `cooccurrenceMode`, `overlapMode`, `dendrogramMode`, `filesDendrogramMode`):
+
+```ts
+export function renderXxx(ctx: AnalyticsViewContext, filters: FilterConfig): void {
+  if (!ctx.chartContainer || !ctx.data) return;
+  // ... checks que decidem se vai pro path async (caro) ou sync (barato)
+
+  // Loading inline + capture generation antes de disparar
+  const loadingEl = ctx.chartContainer.createDiv({ cls: "...-loading", text: "Computing…" });
+  const gen = ctx.renderGeneration;
+
+  void computeAsync(...).then((result) => {
+    if (!ctx.isRenderCurrent(gen)) return; // race guard — render foi superseded
+    loadingEl.remove();
+    paintArtifacts(ctx, result);
+  }).catch((err) => {
+    if (!ctx.isRenderCurrent(gen)) return;
+    loadingEl.textContent = `Failed: ${err instanceof Error ? err.message : String(err)}`;
+  });
+}
+```
+
+**O contrato `ModeEntry.render` permanece `void`** (`modeRegistry.ts:35-37`). Não precisa mudar pra `void | Promise<void>` — o generation guard via `renderGeneration` (`analyticsView.ts:33,476,515`) já cobre o race com `savedData` restoration. Análises de BACKLOG que sugerem mudar contrato pra acomodar modo pesado: confirmar primeiro se o pattern fire-and-forget já não resolve.
 
 **Caches main-thread permanecem** mesmo com worker — async wrapper checa caches primeiro (WeakMap identity + Map por chave), defer pro worker em miss, popula caches no resolve. Resultado: cache hits ficam instantâneos sem round-trip; cache misses não travam UI.
 

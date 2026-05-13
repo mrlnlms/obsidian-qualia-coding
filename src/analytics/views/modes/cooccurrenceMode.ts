@@ -1,7 +1,7 @@
 
 import type { FilterConfig, CooccurrenceResult } from "../../data/dataTypes";
 import { calculateCooccurrence } from "../../data/statsEngine";
-import { hierarchicalCluster } from "../../data/clusterEngine";
+import { hierarchicalClusterAsync } from "../../data/clusterWorkerClient";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import { heatmapColor, isLightColor, computeDisplayMatrix , downloadCsv } from "../shared/chartHelpers";
 
@@ -65,43 +65,30 @@ export function renderCooccSortSection(ctx: AnalyticsViewContext): void {
   }
 }
 
-/**
- * Reorder co-occurrence matrix in place based on cooccSortMode.
- */
-export function reorderCooccurrence(ctx: AnalyticsViewContext, result: CooccurrenceResult): void {
+/** Build Jaccard distance matrix from a co-occurrence matrix — shared by cooccurrence/overlap cluster reorder. */
+function buildJaccardDistMatrix(result: CooccurrenceResult): number[][] {
   const n = result.codes.length;
-  if (n < 2 || ctx.cooccSortMode === "alpha") return; // already alpha-sorted
-
-  let order: number[];
-
-  if (ctx.cooccSortMode === "frequency") {
-    // Sort by diagonal (frequency) descending
-    const indices = Array.from({ length: n }, (_, i) => i);
-    indices.sort((a, b) => result.matrix[b]![b]! - result.matrix[a]![a]!);
-    order = indices;
-  } else {
-    // Cluster: build Jaccard distance matrix from co-occurrence, then hierarchical cluster
-    const distMatrix: number[][] = [];
-    for (let i = 0; i < n; i++) {
-      const row: number[] = [];
-      for (let j = 0; j < n; j++) {
-        if (i === j) {
-          row.push(0);
-        } else {
-          const freqI = result.matrix[i]![i]!;
-          const freqJ = result.matrix[j]![j]!;
-          const coij = result.matrix[i]![j]!;
-          const union = freqI! + freqJ! - coij!;
-          row.push(union > 0 ? 1 - coij! / union : 1);
-        }
+  const distMatrix: number[][] = [];
+  for (let i = 0; i < n; i++) {
+    const row: number[] = [];
+    for (let j = 0; j < n; j++) {
+      if (i === j) {
+        row.push(0);
+      } else {
+        const freqI = result.matrix[i]![i]!;
+        const freqJ = result.matrix[j]![j]!;
+        const coij = result.matrix[i]![j]!;
+        const union = freqI + freqJ - coij;
+        row.push(union > 0 ? 1 - coij / union : 1);
       }
-      distMatrix.push(row);
     }
-    const clusterResult = hierarchicalCluster(distMatrix);
-    order = clusterResult.indices;
+    distMatrix.push(row);
   }
+  return distMatrix;
+}
 
-  // Apply reordering
+/** Apply leaf order in-place to codes/colors/matrix; recompute maxValue. */
+export function applyCooccurrenceOrder(result: CooccurrenceResult, order: number[]): void {
   const newCodes = order.map((i) => result.codes[i]);
   const newColors = order.map((i) => result.colors[i]);
   const newIsSmart = result.isSmart ? order.map((i) => result.isSmart![i]!) : undefined;
@@ -113,12 +100,10 @@ export function reorderCooccurrence(ctx: AnalyticsViewContext, result: Cooccurre
     }
     newMatrix.push(row);
   }
-
   result.codes = newCodes as string[];
   result.colors = newColors as string[];
   result.matrix = newMatrix;
   if (newIsSmart) result.isSmart = newIsSmart;
-  // Recompute maxValue
   let maxValue = 0;
   for (const row of newMatrix) {
     for (const v of row) {
@@ -126,6 +111,32 @@ export function reorderCooccurrence(ctx: AnalyticsViewContext, result: Cooccurre
     }
   }
   result.maxValue = maxValue;
+}
+
+/**
+ * Synchronous reorder — alpha (noop) ou frequency. Cluster sort precisa
+ * de `reorderCooccurrenceCluster` (async, via Worker).
+ */
+export function reorderCooccurrenceSync(ctx: AnalyticsViewContext, result: CooccurrenceResult): void {
+  const n = result.codes.length;
+  if (n < 2 || ctx.cooccSortMode !== "frequency") return; // alpha (noop), cluster (handled async)
+
+  const indices = Array.from({ length: n }, (_, i) => i);
+  indices.sort((a, b) => result.matrix[b]![b]! - result.matrix[a]![a]!);
+  applyCooccurrenceOrder(result, indices);
+}
+
+/**
+ * Cluster reorder via Web Worker (hierarchicalClusterAsync). Trava UI evitada
+ * em codebooks grandes onde o linkage O(n³) é pesado. Chamado pelo fire-and-forget
+ * path em `renderCooccurrenceMatrix` / `renderOverlapMatrix`.
+ */
+export async function reorderCooccurrenceCluster(result: CooccurrenceResult): Promise<void> {
+  const n = result.codes.length;
+  if (n < 2) return;
+  const distMatrix = buildJaccardDistMatrix(result);
+  const clusterResult = await hierarchicalClusterAsync(distMatrix);
+  applyCooccurrenceOrder(result, clusterResult.indices);
 }
 
 export function buildCooccurrenceRows(ctx: AnalyticsViewContext): string[][] | null {
@@ -149,24 +160,8 @@ export function exportCooccurrenceCSV(ctx: AnalyticsViewContext, date: string): 
   downloadCsv(rows, `codemarker-cooccurrence-${date}.csv`);
 }
 
-export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {
-  if (!ctx.chartContainer || !ctx.data) return;
-
-  const result = calculateCooccurrence(ctx.data, filters, {
-    cache: ctx.plugin.smartCodeCache,
-    registry: ctx.plugin.smartCodeRegistry,
-  }, ctx.plugin.caseVariablesRegistry);
-
-  if (result.codes.length < 2) {
-    ctx.chartContainer.createDiv({
-      cls: "codemarker-analytics-empty",
-      text: "Need at least 2 codes for co-occurrence matrix.",
-    });
-    return;
-  }
-
-  // Apply sort reordering
-  reorderCooccurrence(ctx, result);
+function paintCooccurrenceMatrix(ctx: AnalyticsViewContext, result: CooccurrenceResult): void {
+  if (!ctx.chartContainer) return;
 
   const n = result.codes.length;
   const cellSize = n > 25 ? 35 : n > 15 ? Math.max(35, Math.floor(500 / n)) : 60;
@@ -238,13 +233,13 @@ export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: Fil
     }
   }
 
-  // Helper: prefixa \u26a1 pra SC labels antes de truncar (mant\u00e9m \u00edcone vis\u00edvel mesmo quando trunca).
+  // Helper: prefixa ⚡ pra SC labels antes de truncar (mantém ícone visível mesmo quando trunca).
   const formatLabel = (i: number): string => {
     const isSC = result.isSmart?.[i] === true;
     const raw = result.codes[i]!;
-    const prefix = isSC ? "\u26a1 " : "";
+    const prefix = isSC ? "⚡ " : "";
     const maxLen = 15;
-    return prefix + (raw.length > maxLen ? raw.slice(0, maxLen - 1) + "\u2026" : raw);
+    return prefix + (raw.length > maxLen ? raw.slice(0, maxLen - 1) + "…" : raw);
   };
 
   // Draw left labels
@@ -286,15 +281,15 @@ export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: Fil
       const val = result.matrix[row]![col]!;
       const dispVal = displayMatrix[row]![col]!;
       const suffix = ctx.displayMode === "percentage" && row !== col ? "%" : "";
-      const labelRow = (result.isSmart?.[row] ? "\u26a1 " : "") + result.codes[row]!;
-      const labelCol = (result.isSmart?.[col] ? "\u26a1 " : "") + result.codes[col]!;
+      const labelRow = (result.isSmart?.[row] ? "⚡ " : "") + result.codes[row]!;
+      const labelCol = (result.isSmart?.[col] ? "⚡ " : "") + result.codes[col]!;
       let dispText: string;
       if (row === col) {
         dispText = `${labelRow}: ${val} total`;
       } else if (isNormalized) {
-        dispText = `${labelRow} \u00d7 ${labelCol}: ${dispVal!.toFixed(2)}`;
+        dispText = `${labelRow} × ${labelCol}: ${dispVal!.toFixed(2)}`;
       } else {
-        dispText = `${labelRow} \u00d7 ${labelCol}: ${dispVal}${suffix}`;
+        dispText = `${labelRow} × ${labelCol}: ${dispVal}${suffix}`;
       }
       const text = dispText;
       tooltip.textContent = text;
@@ -308,5 +303,44 @@ export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: Fil
 
   canvas.addEventListener("mouseleave", () => {
     tooltip.style.display = "none";
+  });
+}
+
+export function renderCooccurrenceMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {
+  if (!ctx.chartContainer || !ctx.data) return;
+
+  const result = calculateCooccurrence(ctx.data, filters, {
+    cache: ctx.plugin.smartCodeCache,
+    registry: ctx.plugin.smartCodeRegistry,
+  }, ctx.plugin.caseVariablesRegistry);
+
+  if (result.codes.length < 2) {
+    ctx.chartContainer.createDiv({
+      cls: "codemarker-analytics-empty",
+      text: "Need at least 2 codes for co-occurrence matrix.",
+    });
+    return;
+  }
+
+  // Fast path: alpha (noop) e frequency (sort O(n log n)) são instantâneos.
+  if (ctx.cooccSortMode !== "cluster") {
+    reorderCooccurrenceSync(ctx, result);
+    paintCooccurrenceMatrix(ctx, result);
+    return;
+  }
+
+  // Slow path: cluster vai pro Worker. Loading inline + fire-and-forget + generation guard.
+  const loadingEl = ctx.chartContainer.createDiv({
+    cls: "codemarker-cooc-loading",
+    text: "Clustering codes…",
+  });
+  const gen = ctx.renderGeneration;
+  void reorderCooccurrenceCluster(result).then(() => {
+    if (!ctx.isRenderCurrent(gen)) return;
+    loadingEl.remove();
+    paintCooccurrenceMatrix(ctx, result);
+  }).catch((err) => {
+    if (!ctx.isRenderCurrent(gen)) return;
+    loadingEl.textContent = `Cluster failed: ${err instanceof Error ? err.message : String(err)}`;
   });
 }

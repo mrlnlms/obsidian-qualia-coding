@@ -22,7 +22,7 @@ Camadas 2 e 3 do framework multifaceta viraram peças do bloco LLM/Framework Uni
 **Polish ICR aberto (não bloqueante):**
 - Gap #1c (PDF SourceSizeProvider) + Gap #1d (CSV segment SourceSizeProvider) — potencialmente obsoletos por Camada 2 BHM
 - 3 UX gaps do smoke 2026-05-13 (chip Default, picker δ sem Nominal, state.distance persiste)
-- Image engine (4/8 items pendentes, sessão dedicada) + 2 cross-cutting (`!important` cluster, `cooccurrenceMode` async)
+- Image engine (4/8 items pendentes, sessão dedicada) + 1 cross-cutting (`!important` cluster)
 
 **Próxima frente prática (não-ICR):** LLM-assisted coding com Camada 2 Bayesian annotation como par natural. Precede brainstorm dedicado — ver `ROADMAP.md §"Frente 2"` e `docs/ICR-MULTIMODAL-METHODOLOGY.md` pra fundamentação metodológica.
 
@@ -51,12 +51,14 @@ Quando aparecer, capturar `data.json` + screenshot + steps na hora — diagnóst
 
 ### Cross-cutting pendente (pós-rodada 2026-05-09)
 
-Da fila cross-cutting do hardening, 4 frentes atacadas em 2026-05-09 (parseInt validation, CI e2e suite completa, χ² walk recursivo, dendrogram cluster preview). 2 ficaram pendentes:
+Da fila cross-cutting do hardening, 4 frentes atacadas em 2026-05-09 (parseInt validation, CI e2e suite completa, χ² walk recursivo, dendrogram cluster preview). 2 ficaram pendentes; 1 resolvida em 2026-05-13. Resta:
 
 | Item | Por que não couber em rodada mecânica |
 |------|----------------------------------------|
 | **`styles.css` 68 `!important`** — clusters em 833-863 (handles SVG drag), 870-987 (mais handles), 1239-1287 (csv-comment-cell + csv-cod-seg-cell `display: flex` overrides) | Cada `!important` é override defensivo de defaults AG Grid (especificidade alta dos selectors `.ag-cell *`). Auditar exige testar runtime cada um — remover sem teste quebra render. Trabalho pra hardening real com vault aberto, não diff de código. |
-| **`cooccurrenceMode.ts:82-100` reorder async** | Ataca trava de UI em codebooks grandes durante hierarchical cluster. Refactor exige tornar `ModeEntry.render` `void \| Promise<void>` (contrato compartilhado por 25 modes) + `analyticsView.ts:506` await + race com `savedData` restoration. Refactor invasivo, não cabe em mecânico leve. |
+| **Code Explorer não refresha em tempo real após criar code via popover** — `registry.create` dispara `onMutate` → `qualia:registry-changed` dispatch → `baseCodeExplorerView:107` listener → `scheduleRefresh` (rAF). Pipeline existe e está conectada, mas race timing entre o create e o re-render: codes recém-criados não aparecem na sidebar até user sair/voltar. Detectado em image popover na sessão 2026-05-13 mas o caminho é compartilhado (`codingPopover.ts` + Explorer), provavelmente afeta outros engines também. | **debug runtime + cross-cutting**. Repro fácil: criar code via popover (image rect + Enter, ou Add New Code modal) e olhar sidebar. Provável fix: garantir que o `scheduleRefresh` rAF flush antes do popover rebuild rAF (não competir). Tem que validar que markdown não regrede. |
+
+**Resolvido 2026-05-13** — `cooccurrenceMode` async via Worker. A análise original do BACKLOG estava errada: descrevia como "refactor invasivo do contrato dos 25 modes". Solução real seguiu pattern fire-and-forget já estabelecido em `wordCloudMode`/`mdsMode`/`acmMode` (`renderGeneration` + `isRenderCurrent`). Worker inline pro `hierarchicalCluster` (`src/analytics/data/cluster.worker.ts` + Client + sync fallback, pattern §45) resolve 4 consumidores de uma vez: Cooccurrence, Overlap, Dendrogram, Files-Dendrogram. `boardClusters` segue síncrono (fora do escopo declarado).
 
 ---
 

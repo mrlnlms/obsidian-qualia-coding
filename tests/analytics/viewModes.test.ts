@@ -3,7 +3,7 @@ import type { CooccurrenceResult, ConsolidatedData, FilterConfig, UnifiedMarker,
 import type { AnalyticsViewContext, ViewMode, SortMode, GroupMode, DisplayMode, CooccSortMode } from '../../src/analytics/views/analyticsViewContext';
 import type { ExtractedSegment } from '../../src/analytics/data/textExtractor';
 
-import { reorderCooccurrence, renderDisplaySection, renderCooccSortSection } from '../../src/analytics/views/modes/cooccurrenceMode';
+import { reorderCooccurrenceSync, reorderCooccurrenceCluster, renderDisplaySection, renderCooccSortSection } from '../../src/analytics/views/modes/cooccurrenceMode';
 import { renderSortSection, renderGroupSection } from '../../src/analytics/views/modes/frequencyMode';
 
 // ── Helpers (from statsEngine.test.ts pattern) ──
@@ -124,7 +124,7 @@ describe('reorderCooccurrence', () => {
 				],
 			);
 			const ctx = createMockCtx({ cooccSortMode: 'alpha' });
-			reorderCooccurrence(ctx, result);
+			reorderCooccurrenceSync(ctx, result);
 			expect(result.codes).toEqual(['A', 'B', 'C']);
 			expect(result.matrix[0]).toEqual([3, 1, 0]);
 		});
@@ -132,7 +132,7 @@ describe('reorderCooccurrence', () => {
 		it('does not modify result with a single code', () => {
 			const result = makeCooccResult(['A'], ['#a'], [[5]]);
 			const ctx = createMockCtx({ cooccSortMode: 'frequency' });
-			reorderCooccurrence(ctx, result);
+			reorderCooccurrenceSync(ctx, result);
 			expect(result.codes).toEqual(['A']);
 			expect(result.matrix).toEqual([[5]]);
 		});
@@ -140,7 +140,7 @@ describe('reorderCooccurrence', () => {
 		it('does not modify empty result', () => {
 			const result = makeCooccResult([], [], []);
 			const ctx = createMockCtx({ cooccSortMode: 'frequency' });
-			reorderCooccurrence(ctx, result);
+			reorderCooccurrenceSync(ctx, result);
 			expect(result.codes).toEqual([]);
 			expect(result.matrix).toEqual([]);
 		});
@@ -159,7 +159,7 @@ describe('reorderCooccurrence', () => {
 				],
 			);
 			const ctx = createMockCtx({ cooccSortMode: 'frequency' });
-			reorderCooccurrence(ctx, result);
+			reorderCooccurrenceSync(ctx, result);
 			expect(result.codes).toEqual(['B', 'A', 'C']);
 			expect(result.colors).toEqual(['#b', '#a', '#c']);
 			// Diagonal should now be [10, 3, 1]
@@ -179,7 +179,7 @@ describe('reorderCooccurrence', () => {
 				],
 			);
 			const ctx = createMockCtx({ cooccSortMode: 'frequency' });
-			reorderCooccurrence(ctx, result);
+			reorderCooccurrenceSync(ctx, result);
 			// B first (freq 5), then A (freq 2)
 			expect(result.codes).toEqual(['B', 'A']);
 			// B-A cooccurrence = 1
@@ -197,7 +197,7 @@ describe('reorderCooccurrence', () => {
 				],
 			);
 			const ctx = createMockCtx({ cooccSortMode: 'frequency' });
-			reorderCooccurrence(ctx, result);
+			reorderCooccurrenceSync(ctx, result);
 			expect(result.maxValue).toBe(8);
 		});
 
@@ -212,7 +212,7 @@ describe('reorderCooccurrence', () => {
 				],
 			);
 			const ctx = createMockCtx({ cooccSortMode: 'frequency' });
-			reorderCooccurrence(ctx, result);
+			reorderCooccurrenceSync(ctx, result);
 			// All have freq 5 — exact order depends on sort stability
 			// Just verify diagonals are all 5
 			expect(result.matrix[0]![0]).toBe(5);
@@ -234,14 +234,14 @@ describe('reorderCooccurrence', () => {
 				],
 			);
 			const ctx = createMockCtx({ cooccSortMode: 'frequency' });
-			reorderCooccurrence(ctx, result);
+			reorderCooccurrenceSync(ctx, result);
 			expect(result.codes).toEqual(['D', 'C', 'B', 'A']);
 			expect(result.colors).toEqual(['#d', '#c', '#b', '#a']);
 		});
 	});
 
 	describe('cluster mode', () => {
-		it('clusters similar codes together', () => {
+		it('clusters similar codes together', async () => {
 			// A and B co-occur heavily, C is separate
 			const result = makeCooccResult(
 				['A', 'B', 'C'],
@@ -252,15 +252,14 @@ describe('reorderCooccurrence', () => {
 					[1, 1, 10],
 				],
 			);
-			const ctx = createMockCtx({ cooccSortMode: 'cluster' });
-			reorderCooccurrence(ctx, result);
+			await reorderCooccurrenceCluster(result);
 			// A and B should be adjacent after clustering
 			const idxA = result.codes.indexOf('A');
 			const idxB = result.codes.indexOf('B');
 			expect(Math.abs(idxA - idxB)).toBe(1);
 		});
 
-		it('handles 2-code matrix in cluster mode', () => {
+		it('handles 2-code matrix in cluster mode', async () => {
 			const result = makeCooccResult(
 				['A', 'B'],
 				['#a', '#b'],
@@ -269,14 +268,13 @@ describe('reorderCooccurrence', () => {
 					[2, 5],
 				],
 			);
-			const ctx = createMockCtx({ cooccSortMode: 'cluster' });
-			reorderCooccurrence(ctx, result);
+			await reorderCooccurrenceCluster(result);
 			expect(result.codes).toHaveLength(2);
 			expect(result.codes).toContain('A');
 			expect(result.codes).toContain('B');
 		});
 
-		it('preserves matrix symmetry after cluster reorder', () => {
+		it('preserves matrix symmetry after cluster reorder', async () => {
 			const result = makeCooccResult(
 				['A', 'B', 'C'],
 				['#a', '#b', '#c'],
@@ -286,8 +284,7 @@ describe('reorderCooccurrence', () => {
 					[1, 2, 5],
 				],
 			);
-			const ctx = createMockCtx({ cooccSortMode: 'cluster' });
-			reorderCooccurrence(ctx, result);
+			await reorderCooccurrenceCluster(result);
 			const n = result.codes.length;
 			for (let i = 0; i < n; i++) {
 				for (let j = 0; j < n; j++) {
@@ -296,7 +293,7 @@ describe('reorderCooccurrence', () => {
 			}
 		});
 
-		it('handles zero co-occurrence (all diagonal)', () => {
+		it('handles zero co-occurrence (all diagonal)', async () => {
 			const result = makeCooccResult(
 				['A', 'B', 'C'],
 				['#a', '#b', '#c'],
@@ -306,14 +303,13 @@ describe('reorderCooccurrence', () => {
 					[0, 0, 8],
 				],
 			);
-			const ctx = createMockCtx({ cooccSortMode: 'cluster' });
-			reorderCooccurrence(ctx, result);
+			await reorderCooccurrenceCluster(result);
 			// Should not throw, codes still present
 			expect(result.codes).toHaveLength(3);
 			expect(result.matrix).toHaveLength(3);
 		});
 
-		it('updates maxValue after cluster reorder', () => {
+		it('updates maxValue after cluster reorder', async () => {
 			const result = makeCooccResult(
 				['A', 'B', 'C'],
 				['#a', '#b', '#c'],
@@ -323,8 +319,7 @@ describe('reorderCooccurrence', () => {
 					[0, 2, 4],
 				],
 			);
-			const ctx = createMockCtx({ cooccSortMode: 'cluster' });
-			reorderCooccurrence(ctx, result);
+			await reorderCooccurrenceCluster(result);
 			expect(result.maxValue).toBe(9);
 		});
 	});
@@ -644,13 +639,13 @@ describe('reorderCooccurrence integration', () => {
 			],
 		);
 		const ctx = createMockCtx({ cooccSortMode: 'frequency' });
-		reorderCooccurrence(ctx, result);
+		reorderCooccurrenceSync(ctx, result);
 		// Common (20) should come first
 		expect(result.codes[0]).toBe('Common');
 		expect(result.matrix[0]![0]).toBe(20);
 	});
 
-	it('cluster mode groups strongly co-occurring codes', () => {
+	it('cluster mode groups strongly co-occurring codes', async () => {
 		// Group1: X, Y (co-occur 9 times)
 		// Group2: P, Q (co-occur 8 times)
 		// Cross-group co-occurrence is low
@@ -664,8 +659,7 @@ describe('reorderCooccurrence integration', () => {
 				[1, 9, 1, 10],
 			],
 		);
-		const ctx = createMockCtx({ cooccSortMode: 'cluster' });
-		reorderCooccurrence(ctx, result);
+		await reorderCooccurrenceCluster(result);
 		// P and Q should be adjacent, X and Y should be adjacent
 		const idxP = result.codes.indexOf('P');
 		const idxQ = result.codes.indexOf('Q');
@@ -683,12 +677,12 @@ describe('reorderCooccurrence integration', () => {
 		);
 		const result = makeCooccResult([...original], [...colors], matrix.map((r) => [...r]));
 		const ctx = createMockCtx({ cooccSortMode: 'frequency' });
-		reorderCooccurrence(ctx, result);
+		reorderCooccurrenceSync(ctx, result);
 		expect(result.codes.sort()).toEqual([...original].sort());
 		expect(result.colors).toHaveLength(5);
 	});
 
-	it('reorder does not lose any codes in cluster mode', () => {
+	it('reorder does not lose any codes in cluster mode', async () => {
 		const original = ['Alpha', 'Beta', 'Gamma'];
 		const colors = ['#1', '#2', '#3'];
 		const matrix = [
@@ -697,8 +691,7 @@ describe('reorderCooccurrence integration', () => {
 			[1, 3, 5],
 		];
 		const result = makeCooccResult([...original], [...colors], matrix.map((r) => [...r]));
-		const ctx = createMockCtx({ cooccSortMode: 'cluster' });
-		reorderCooccurrence(ctx, result);
+		await reorderCooccurrenceCluster(result);
 		expect(result.codes.sort()).toEqual([...original].sort());
 	});
 });

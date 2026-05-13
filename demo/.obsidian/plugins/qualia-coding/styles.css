@@ -6491,6 +6491,7 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-cc-coefficient-picker {
 	display: flex;
 	gap: 4px;
+	align-items: center;
 }
 
 .qc-cc-coef-chip {
@@ -6512,6 +6513,135 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 .qc-cc-coef-chip.is-disabled {
 	opacity: 0.4;
 	cursor: not-allowed;
+}
+
+.qc-cc-coef-sep {
+	color: var(--text-muted);
+	margin: 0 4px;
+	user-select: none;
+}
+
+.qc-cc-distance-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-right: 2px;
+}
+
+.qc-cc-distance-chip {
+	padding: 2px 8px;
+	border-radius: 14px;
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	user-select: none;
+}
+
+.qc-cc-distance-chip.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.qc-cc-distance-chip.is-disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.qc-cc-multilabel-badge {
+	margin-left: 8px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	padding: 2px 8px;
+	background: var(--background-secondary);
+	border-radius: 10px;
+	user-select: none;
+}
+
+.qc-cc-temporal-row {
+	margin-top: 6px;
+}
+
+.qc-cc-temporal-picker {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.qc-cc-temporal-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-right: 2px;
+}
+
+.qc-cc-temporal-chip {
+	padding: 2px 8px;
+	border-radius: 14px;
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	user-select: none;
+}
+
+.qc-cc-temporal-chip.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+	cursor: default;
+}
+
+.qc-cc-percode-card {
+	background: var(--background-secondary);
+	border-radius: 6px;
+	padding: 10px 14px;
+	margin-bottom: 12px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.qc-cc-percode-header {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-bottom: 8px;
+}
+
+.qc-cc-percode-title {
+	font-weight: var(--font-semibold);
+	font-size: var(--font-ui-medium);
+}
+
+.qc-cc-percode-subtitle {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+.qc-cc-percode-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.qc-cc-percode-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 4px 8px;
+	background: var(--background-primary);
+	border-radius: 4px;
+}
+
+.qc-cc-percode-name {
+	font-size: var(--font-ui-small);
+}
+
+.qc-cc-percode-value {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
 }
 
 .qc-cc-filter-chips {
@@ -6564,6 +6694,73 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	overflow: auto;
 	padding: 12px;
 	min-height: 200px;
+}
+
+/* Camada 1 (B4, 2026-05-13) — banner + per-engine table + aggregate label
+   pra escopo multimodal (2+ famílias modais). Pesquisa em
+   `obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md`. */
+.qc-cc-multimodal-banner {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 8px 12px;
+	margin-bottom: 12px;
+	background: var(--background-modifier-cover, rgba(255, 200, 0, 0.08));
+	border-left: 3px solid var(--text-warning, #c89000);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	cursor: help;
+}
+.qc-cc-multimodal-icon {
+	color: var(--text-warning, #c89000);
+	font-weight: 700;
+	flex-shrink: 0;
+}
+.qc-cc-multimodal-msg {
+	color: var(--text-normal);
+}
+.qc-cc-multimodal-detail {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.qc-cc-per-engine-wrap {
+	margin-bottom: 16px;
+}
+.qc-cc-per-engine-title {
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	color: var(--text-normal);
+	margin-bottom: 6px;
+}
+.qc-cc-per-engine-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--font-ui-smaller);
+}
+.qc-cc-per-engine-table th,
+.qc-cc-per-engine-table td {
+	padding: 5px 10px;
+	text-align: center;
+	border-bottom: 1px solid var(--background-modifier-border);
+	min-width: 60px;
+}
+.qc-cc-per-engine-table th {
+	background: var(--background-secondary);
+	font-weight: 600;
+}
+.qc-cc-per-engine-table td.col-modality {
+	text-align: left;
+	font-weight: 500;
+	font-family: var(--font-monospace);
+}
+
+.qc-cc-aggregate-label {
+	margin: 12px 0 6px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	font-style: italic;
+	cursor: help;
 }
 
 .qc-cc-empty,

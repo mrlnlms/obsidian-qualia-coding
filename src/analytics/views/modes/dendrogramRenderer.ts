@@ -14,6 +14,7 @@ import {
   type DendrogramNode,
   type SilhouetteResult,
 } from "../../data/clusterEngine";
+import { computeClusterArtifactsAsync } from "../../data/clusterWorkerClient";
 
 export interface DendrogramRenderResult {
   root: DendrogramNode | null;
@@ -76,9 +77,22 @@ export function computeClusterArtifacts(
 }
 
 export function renderDendrogramFull(opts: DendrogramFullOptions): DendrogramRenderResult {
-  const { container, distMatrix, names, colors, cutDistance, isDark, textColor, onClusterClick, selectedCluster } = opts;
+  const artifacts = computeClusterArtifacts(opts.distMatrix, opts.names, opts.colors, opts.cutDistance);
+  return paintDendrogramArtifacts(opts, artifacts);
+}
 
-  const artifacts = computeClusterArtifacts(distMatrix, names, colors, cutDistance);
+/**
+ * Async variant — computa cluster artifacts via Worker (não trava UI em codebooks
+ * grandes). Mesmo paint final que `renderDendrogramFull`. Caller deve mostrar
+ * loading inline e descartar resultado se a render geração mudou (generation guard).
+ */
+export async function renderDendrogramFullAsync(opts: DendrogramFullOptions): Promise<DendrogramRenderResult> {
+  const artifacts = await computeClusterArtifactsAsync(opts.distMatrix, opts.names, opts.colors, opts.cutDistance);
+  return paintDendrogramArtifacts(opts, artifacts);
+}
+
+function paintDendrogramArtifacts(opts: DendrogramFullOptions, artifacts: DendrogramRenderResult): DendrogramRenderResult {
+  const { container, cutDistance, isDark, textColor, onClusterClick, selectedCluster } = opts;
   if (!artifacts.root || !artifacts.silhouette) return artifacts;
 
   const wrapper = container.createDiv();

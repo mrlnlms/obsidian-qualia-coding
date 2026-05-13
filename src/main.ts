@@ -1091,6 +1091,14 @@ export default class QualiaCodingPlugin extends Plugin {
 			console.warn("[qualia-coding] kappa worker dispose failed", e);
 		}
 
+		// Cluster worker dispose — mesmo lifecycle do kappa, evita leak em hot-reload.
+		try {
+			const { disposeClusterWorker } = await import('./analytics/data/clusterWorkerClient');
+			disposeClusterWorker();
+		} catch (e) {
+			console.warn("[qualia-coding] cluster worker dispose failed", e);
+		}
+
 		// Hydrator dispose ANTES do duckdb — drena queries inflight via DuckDBRowProvider.dispose
 		// internal lock. Sem isso, hidratação pendente bate em "Missing DB manager".
 		try {

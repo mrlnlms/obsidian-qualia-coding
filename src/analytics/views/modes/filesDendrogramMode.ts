@@ -3,7 +3,7 @@ import type { FilterConfig } from "../../data/dataTypes";
 import { buildFileQModeData, preFilterMarkersForQMode } from "../../data/qModeData";
 import { buildJaccardDistanceMatrix } from "../../data/distanceMatrix";
 import {
-  renderDendrogramFull,
+  renderDendrogramFullAsync,
   renderDendrogramMini as renderMiniFromRenderer,
   buildDendrogramExportRows,
 } from "./dendrogramRenderer";
@@ -81,7 +81,13 @@ export function renderFilesDendrogramView(ctx: AnalyticsViewContext, _filters: F
   guidance.style.marginBottom = "8px";
   guidance.textContent = "Click a cluster swatch (left column) to filter all Analytics views by that cluster.";
 
-  renderDendrogramFull({
+  // Cluster compute pesado vai pro Worker. Loading inline + fire-and-forget + generation guard.
+  const loadingEl = ctx.chartContainer.createDiv({
+    cls: "codemarker-dendrogram-loading",
+    text: "Clustering files…",
+  });
+  const gen = ctx.renderGeneration;
+  void renderDendrogramFullAsync({
     container: ctx.chartContainer,
     distMatrix,
     names: qData.fileNames,
@@ -100,6 +106,12 @@ export function renderFilesDendrogramView(ctx: AnalyticsViewContext, _filters: F
       }
       ctx.scheduleUpdate();
     },
+  }).then(() => {
+    if (!ctx.isRenderCurrent(gen)) return;
+    loadingEl.remove();
+  }).catch((err) => {
+    if (!ctx.isRenderCurrent(gen)) return;
+    loadingEl.textContent = `Cluster failed: ${err instanceof Error ? err.message : String(err)}`;
   });
 }
 

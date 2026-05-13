@@ -4,7 +4,7 @@ import { calculateCooccurrence } from "../../data/statsEngine";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import { downloadCsv } from "../shared/chartHelpers";
 import {
-  renderDendrogramFull,
+  renderDendrogramFullAsync,
   renderDendrogramMini as renderMiniFromRenderer,
   buildDendrogramExportRows,
 } from "./dendrogramRenderer";
@@ -69,7 +69,14 @@ export function renderDendrogramView(ctx: AnalyticsViewContext, filters: FilterC
   const styles = getComputedStyle(document.body);
   const textColor = styles.getPropertyValue("--text-normal").trim() || (isDark ? "#dcddde" : "#1a1a1a");
 
-  const renderResult = renderDendrogramFull({
+  // Cluster compute pesado vai pro Worker (hierarchicalCluster O(n³)).
+  // Loading inline + fire-and-forget + generation guard pra descartar resultado obsoleto.
+  const loadingEl = ctx.chartContainer.createDiv({
+    cls: "codemarker-dendrogram-loading",
+    text: "Clustering codes…",
+  });
+  const gen = ctx.renderGeneration;
+  void renderDendrogramFullAsync({
     container: ctx.chartContainer,
     distMatrix,
     names: result.codes,
@@ -77,13 +84,18 @@ export function renderDendrogramView(ctx: AnalyticsViewContext, filters: FilterC
     cutDistance: ctx.dendrogramCutDistance,
     isDark,
     textColor,
+  }).then((renderResult) => {
+    if (!ctx.isRenderCurrent(gen)) return;
+    loadingEl.remove();
+    // Surface cluster count on the slider title (post-render, since computing K up-front
+    // during drag would re-run linkage at every keystroke).
+    ctx.lastDendrogramClusterCount = renderResult.clusterToLeaves.length;
+    const titleEl = ctx.configPanelEl?.querySelector(".codemarker-dendrogram-cut-title");
+    if (titleEl) titleEl.textContent = dendrogramCutTitleText(ctx);
+  }).catch((err) => {
+    if (!ctx.isRenderCurrent(gen)) return;
+    loadingEl.textContent = `Cluster failed: ${err instanceof Error ? err.message : String(err)}`;
   });
-
-  // Surface cluster count on the slider title (post-render, since computing K up-front
-  // during drag would re-run linkage at every keystroke).
-  ctx.lastDendrogramClusterCount = renderResult.clusterToLeaves.length;
-  const titleEl = ctx.configPanelEl?.querySelector(".codemarker-dendrogram-cut-title");
-  if (titleEl) titleEl.textContent = dendrogramCutTitleText(ctx);
 }
 
 export function renderMiniDendrogram(ctx: AnalyticsViewContext, canvas: HTMLCanvasElement, filters: FilterConfig): void {
