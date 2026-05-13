@@ -204,6 +204,13 @@ async function computeKappaForCell(
 	const visKey = '::v=' + [...visibleCoderIds].sort().join(',');
 	const report = await reportKappaAsync(filteredInputs, cacheKeyForScope(cellScope) + visKey);
 	const N = visibleCoderIds.length;
+	// Cohen κ é per-par; pra N>2, média dos C(N,2) pares (mesmo pattern do bbox em
+	// `computeBboxAvgPairwise`). Outros coefs (Fleiss/α/cu-α/α-binary) são cohort-level.
+	if (state.primaryCoefficient === 'cohen' && N > 2) {
+		const values = Object.values(report.aggregate.cohenKappa);
+		if (values.length === 0) return undefined;
+		return values.reduce((s, k) => s + k, 0) / values.length;
+	}
 	const pair: [CoderId, CoderId] | undefined = N === 2
 		? [visibleCoderIds[0]!, visibleCoderIds[1]!]
 		: undefined;
