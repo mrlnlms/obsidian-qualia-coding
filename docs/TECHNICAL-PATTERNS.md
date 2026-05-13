@@ -2784,6 +2784,33 @@ localMarkdownIds.add(m.id);  // cobre re-occurrence dentro do MESMO payload
 
 ---
 
+## 48. SourceSizeProvider — composite eager→lazy pra eliminar Po artificial (Slice ICR Gap #1, 2026-05-13)
+
+**Problema:** motor α nominal (Krippendorff) calcula P_o sobre `totalUnits` = max(range.to) por marker. Em coding esparso (marker cobre poucos chars de uma página inteira), totalUnits subestima — P_o vira artificial. Resolução metodológica: cada engine precisa expor "tamanho real" do source (chars da célula, chars da página, duration do media) — algo que só conhece quem tem acesso ao runtime do arquivo.
+
+**Padrão:** interface `SourceSizeProvider.getSourceSize(engine, fileId, locator, temporalResolution): Promise<number | null>` — null = "não sei, use fallback". Implementações concretas por engine; composite delega por engine.
+
+**Hierarquia atual:**
+- `MediaSourceSize` (audio/video) — `HTMLMediaElement.duration` via `<audio>`/`<video>` detached + `preload=metadata` + `loadedmetadata` event. Cache per-fileId.
+- `PdfSourceSize` (pdf) — `window.pdfjsLib.getDocument(buffer).getPage(n).getTextContent()` → chars. Lazy load do doc (cache per fileId); chars cached per (fileId, page). **Não force-loadeamos pdfjsLib em background** — sem PDF aberto na sessão = null fallback. Pattern espelha `pdfExportData.ts` mas sem abrir tab oculta (background task ≠ user-triggered).
+- `CsvSegmentSourceSize` (csvSegment) — **eager-then-lazy:**
+  1. **Eager** (CSV pequeno): `csvModel.rowDataCache.get(fileId)?.[sourceRowId]?.[column]` — sync, lê direto do Map em memória populado quando arquivo abriu em eager mode.
+  2. **Lazy** (CSV/parquet >100MB): `csvModel.getLazyProvider(fileId).getMarkerText({ sourceRowId, column })` — async via DuckDB.
+  3. Sem nenhum dos dois (arquivo fechado): null → fallback `max(range.to)`.
+- `CompositeSourceSize` — array de providers; primeiro `result !== null` vence. Wired no `UnifiedCompareCodersView` constructor.
+
+**Por que eager-then-lazy em vez de só lazy?** O caminho lazy só ativa pra arquivo >100MB — eager cobre CSV pequeno (caso mais comum). Sem o caminho eager, o provider sempre retornava null pra CSV pequeno, mesmo aberto. Aprendizado registrado em smoke 2026-05-13: assumi "RowProvider só existe em lazy" e implementei só esse caminho; quebrou em runtime pra CSV pequeno; fix foi adicionar eager primeiro.
+
+**Janela de absorção potencial:** se Camada 2 BHM (Bayesian annotation model, bloco LLM/Framework Unificado) for implementada, ela modela background via prior — `totalUnits` exato vira irrelevante. Os 3 providers (PDF/CSV segment/Media) viram redundantes nesse momento. **Re-avaliar relação quando tocar BHM.** Documentado nos headers dos providers.
+
+**Onde está implementado:**
+- Interface + integration: `src/core/icr/ui/scopeExtraction.ts` (`SourceSizeProvider`, `ExtractionContext.sourceSizeProvider`, `buildPerCharInput` consulta provider)
+- Providers concretos: `src/core/icr/sourceSize/{mediaSourceSize,pdfSourceSize,csvSegmentSourceSize,compositeSourceSize}.ts`
+- Wiring: `src/core/icr/ui/unifiedCompareCodersView.ts` constructor (composite com `[Media, Pdf, CsvSegment]`)
+- Smoke runtime: `scripts/seed-icr-lazy.mjs` popula CSV 120MB + parquet existente com 2 coders pra exercitar caminho lazy
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse

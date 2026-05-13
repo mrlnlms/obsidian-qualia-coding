@@ -17,6 +17,9 @@ import { bumpReportCache } from '../reporter';
 import { applyConsensusExclusion, getConsensusCoderIdsInScope } from './coderInclusion';
 import { extractInputsFromScope, type SourceSizeProvider } from './scopeExtraction';
 import { MediaSourceSize } from '../sourceSize/mediaSourceSize';
+import { PdfSourceSize } from '../sourceSize/pdfSourceSize';
+import { CsvSegmentSourceSize } from '../sourceSize/csvSegmentSourceSize';
+import { CompositeSourceSize } from '../sourceSize/compositeSourceSize';
 import { reportPairwise, reportPairwiseAsync } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import type { CoderId } from '../coderTypes';
@@ -62,13 +65,20 @@ export class UnifiedCompareCodersView extends ItemView {
 	 *  pelo event loop — UI trava sob load. Token-guard descarta o trabalho stale ao final. */
 	private renderQueue: Promise<void> = Promise.resolve();
 	/** Gap #1 (intra-modality): provider de tamanho real do source per engine. Substitui o
-	 *  fallback `max(range.to)` que infla P_o em coding esparso. Wired pra audio/video via
-	 *  HTMLMediaElement.duration; PDF e CSV segment ficam abertos (sub-items 1c/1d no BACKLOG). */
+	 *  fallback `max(range.to)` que infla P_o em coding esparso. Composite delega por engine:
+	 *  audio/video (HTMLMediaElement.duration), PDF (pdfjs page text), CSV segment (RowProvider).
+	 *  Re-avaliar relação com Camada 2 BHM quando o framework LLM for tocado — BHM pode tornar
+	 *  esses providers redundantes (modela background via prior). */
 	private sourceSizeProvider: SourceSizeProvider;
 
 	constructor(leaf: WorkspaceLeaf, private plugin: QualiaCodingPlugin) {
 		super(leaf);
-		this.sourceSizeProvider = new MediaSourceSize(plugin.app);
+		const providers: SourceSizeProvider[] = [
+			new MediaSourceSize(plugin.app),
+			new PdfSourceSize(plugin.app),
+		];
+		if (plugin.csvModel) providers.push(new CsvSegmentSourceSize(plugin.csvModel));
+		this.sourceSizeProvider = new CompositeSourceSize(providers);
 		// Default scope inclui TODOS coders (humanos + consensus). `applyCoderInclusion` remove
 		// automaticamente coders sem markers (consensus pré-reconciliação cai aí). Chip "excluir
 		// consensus" no toolbar permite ver κ pré (sem consensus) quando consensus tem markers.

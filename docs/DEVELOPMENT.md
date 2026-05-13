@@ -27,6 +27,14 @@ node scripts/smoke-icr-bbox.mjs <fileId>  # seed 15 PdfShapeMarkers + 2 coders n
                                     # pra smoke test do ICR bbox adapter (Slice 6) em vault real
                                     # ex: node scripts/smoke-icr-bbox.mjs ICR-test/ICR-entrevista-1.pdf
                                     # consumir via console: plugin.__icrSmoke.bboxAdapter / cohenKappa
+node scripts/seed-icr-test.mjs      # HARD RESET + popula 37 markers em 4 engines (md/csv/audio/video)
+                                    # 13 cenários cravados — α/κ ground-truth pra smoke completo
+                                    # do Compare Coders (Obsidian fechado).
+node scripts/seed-icr-lazy.mjs      # gera CSV 120MB + popula 20 markers no CSV + 20 markers no
+                                    # parquet existente, distribuídos entre 2 coders (Lazy A/B).
+                                    # Exercita caminho LAZY (RowProvider via DuckDB) do
+                                    # CsvSegmentSourceSize em runtime real (sem isso, só o caminho
+                                    # eager é exercitado em smoke).
 ```
 
 ### Output

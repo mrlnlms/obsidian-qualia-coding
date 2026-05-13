@@ -1505,6 +1505,11 @@ src/
         cohenKappaCategorical.ts — Cohen κ sobre unit-level decisions (cod row)
         fleissKappaCategorical.ts — Fleiss κ categórico
         krippendorffAlphaCategorical.ts — Krippendorff α nominal categórico
+      sourceSize/            — providers de tamanho real do source per engine (substitui fallback `max(range.to)` que infla P_o em coding esparso)
+        mediaSourceSize.ts   — duration de audio/video via HTMLMediaElement.duration (preload metadata, detached)
+        pdfSourceSize.ts     — chars por página via `window.pdfjsLib` (caller fallback se PDF não foi aberto na sessão — não force-loadeamos em background)
+        csvSegmentSourceSize.ts — chars da célula: eager (rowDataCache, CSV pequeno) → lazy (RowProvider via DuckDB, CSV/parquet >100MB)
+        compositeSourceSize.ts — delega por engine entre providers concretos; primeiro non-null vence
       transport/
         payloadTypes.ts      — PayloadV1, ConflictRecord, ExtractResult, MergeResult
         computeCodebookHash.ts — SHA-256 determinístico do codebook (sort por id, ignora createdAt/updatedAt)
@@ -1607,6 +1612,10 @@ src/
       codeMetadata.ts        — calculateCodeMetadata + chi²
       memoView.ts            — aggregateMemos pura
       codebookTimelineEngine.ts — Codebook Timeline helpers
+      clusterEngine.ts       — hierarchicalCluster + buildDendrogram + cutDendrogram + calculateSilhouette (puro, sync)
+      cluster.worker.ts      — Worker inline pro hierarchicalCluster + computeClusterArtifacts (off-main-thread, evita UI freeze em codebook grande)
+      clusterWorkerClient.ts — Promise-based client; `hierarchicalClusterAsync` / `computeClusterArtifactsAsync` consumidos por cooccurrence/overlap/dendrogram (fire-and-forget + isRenderCurrent guard)
+      clusterSyncFallback.ts — fallback sync pra jsdom em tests (sem Worker)
     board/                   — Research Board (Fabric.js)
     views/
       analyticsView.ts       — classe AnalyticsView
