@@ -77,10 +77,21 @@ const FILES = {
 		'',
 		'Outra linha de F4 marcada so pela Carla.',        // line 2, 40 chars
 	].join('\n') + '\n',
+	'smoke-icr-fixes/F5-multilabel.md': [
+		'Trecho identico multi-label entre coders.',       // line 0, 41 chars — caso 1: identico
+		'',
+		'Trecho com subset coder mais granular.',          // line 2, 38 chars — caso 2: subset
+		'',
+		'Trecho com overlap lateral entre coders.',        // line 4, 40 chars — caso 3: overlap lateral
+		'',
+		'Trecho com sets completamente disjuntos.',        // line 6, 40 chars — caso 4: disjoint
+		'',
+		'Trecho de controle single-label puro.',           // line 8, 37 chars — controle
+	].join('\n') + '\n',
 };
 
 // ─── Markers (distribuídos pra cobrir todos os smoke cases) ──
-// Helper pra criar marker
+// Helper pra criar marker single-label
 const mkMarker = (idSuffix, fileId, line, ch_to, codeId, codedBy, text) => ({
 	markerType: 'markdown',
 	id: `m_${idSuffix}`,
@@ -88,6 +99,20 @@ const mkMarker = (idSuffix, fileId, line, ch_to, codeId, codedBy, text) => ({
 	range: { from: { line, ch: 0 }, to: { line, ch: ch_to } },
 	color: CODES.find(c => c.id === codeId).color,
 	codes: [{ codeId }],
+	codedBy,
+	createdAt: NOW,
+	updatedAt: NOW,
+	text,
+});
+
+// Helper pra criar marker multi-label (set de codes na mesma região)
+const mkMulti = (idSuffix, fileId, line, ch_to, codeIds, codedBy, text) => ({
+	markerType: 'markdown',
+	id: `m_${idSuffix}`,
+	fileId,
+	range: { from: { line, ch: 0 }, to: { line, ch: ch_to } },
+	color: CODES.find(c => c.id === codeIds[0]).color,
+	codes: codeIds.map(codeId => ({ codeId })),
 	codedBy,
 	createdAt: NOW,
 	updatedAt: NOW,
@@ -134,6 +159,37 @@ const MARKERS_BY_FILE = {
 		mkMarker('f4_c_a', 'smoke-icr-fixes/F4.md', 0, 30, 'c_temaA', 'human:carla', 'F4 marcado so pela Carla aqui.'),
 		mkMarker('f4_c_b', 'smoke-icr-fixes/F4.md', 2, 40, 'c_temaB', 'human:carla', 'Outra linha de F4 marcada so pela Carla.'),
 	],
+	// ─── F5 multi-label: demonstra os 4 casos canônicos pra refactor C (Jaccard/MASI) ──
+	'smoke-icr-fixes/F5-multilabel.md': [
+		// L0 idêntico: 3 coders mesmo set {A,B}. Jaccard=0, MASI=0, motor atual=agree. Sem diferença.
+		mkMulti('f5_d_l0', 'smoke-icr-fixes/F5-multilabel.md', 0, 41, ['c_temaA', 'c_temaB'], 'human:default', 'Trecho identico multi-label entre coders.'),
+		mkMulti('f5_c_l0', 'smoke-icr-fixes/F5-multilabel.md', 0, 41, ['c_temaA', 'c_temaB'], 'human:carla',   'Trecho identico multi-label entre coders.'),
+		mkMulti('f5_j_l0', 'smoke-icr-fixes/F5-multilabel.md', 0, 41, ['c_temaA', 'c_temaB'], 'human:joana',   'Trecho identico multi-label entre coders.'),
+
+		// L2 subset: default={A,B}, carla={A,B,C}, joana={A,B}.
+		// Motor atual reduz tudo a 'A' → agreement total (FALSO).
+		// Jaccard d(default,carla)=0.333, d(carla,joana)=0.333. MASI=0.555 (penaliza subset mais leve que lateral).
+		mkMulti('f5_d_l2', 'smoke-icr-fixes/F5-multilabel.md', 2, 38, ['c_temaA', 'c_temaB'], 'human:default',           'Trecho com subset coder mais granular.'),
+		mkMulti('f5_c_l2', 'smoke-icr-fixes/F5-multilabel.md', 2, 38, ['c_temaA', 'c_temaB', 'c_temaC'], 'human:carla', 'Trecho com subset coder mais granular.'),
+		mkMulti('f5_j_l2', 'smoke-icr-fixes/F5-multilabel.md', 2, 38, ['c_temaA', 'c_temaB'], 'human:joana',             'Trecho com subset coder mais granular.'),
+
+		// L4 overlap lateral: default={A,B}, carla={A,C}, joana={A,D}.
+		// Motor atual reduz tudo a 'A' → agreement total (FALSO).
+		// Jaccard d=0.667, MASI=0.889 (penaliza mais que subset).
+		mkMulti('f5_d_l4', 'smoke-icr-fixes/F5-multilabel.md', 4, 40, ['c_temaA', 'c_temaB'], 'human:default', 'Trecho com overlap lateral entre coders.'),
+		mkMulti('f5_c_l4', 'smoke-icr-fixes/F5-multilabel.md', 4, 40, ['c_temaA', 'c_temaC'], 'human:carla',   'Trecho com overlap lateral entre coders.'),
+		mkMulti('f5_j_l4', 'smoke-icr-fixes/F5-multilabel.md', 4, 40, ['c_temaA', 'c_temaD'], 'human:joana',   'Trecho com overlap lateral entre coders.'),
+
+		// L6 disjoint: default={A,B}, joana={C,D}. Motor atual: default→'A', joana→'C' → disagree.
+		// Jaccard=1, MASI=1, motor atual=disagree. Sem diferença (caso onde first-code "acerta por acaso").
+		mkMulti('f5_d_l6', 'smoke-icr-fixes/F5-multilabel.md', 6, 40, ['c_temaA', 'c_temaB'], 'human:default', 'Trecho com sets completamente disjuntos.'),
+		mkMulti('f5_j_l6', 'smoke-icr-fixes/F5-multilabel.md', 6, 40, ['c_temaC', 'c_temaD'], 'human:joana',   'Trecho com sets completamente disjuntos.'),
+
+		// L8 controle single-label: default={A}, carla={A}, joana={A}. Sem diferença em nenhuma distância.
+		mkMarker('f5_d_l8', 'smoke-icr-fixes/F5-multilabel.md', 8, 37, 'c_temaA', 'human:default', 'Trecho de controle single-label puro.'),
+		mkMarker('f5_c_l8', 'smoke-icr-fixes/F5-multilabel.md', 8, 37, 'c_temaA', 'human:carla',   'Trecho de controle single-label puro.'),
+		mkMarker('f5_j_l8', 'smoke-icr-fixes/F5-multilabel.md', 8, 37, 'c_temaA', 'human:joana',   'Trecho de controle single-label puro.'),
+	],
 };
 
 // ─── 1. Pasta + arquivos markdown ────────────────────────────
@@ -171,6 +227,27 @@ Tema A · Tema B · Tema C · Tema D · Tema E
 | F3   | 2     | E       | —     | D     | divergence code (default↔joana) |
 | F4   | 0     | —       | A     | —     | existence (só carla) |
 | F4   | 2     | —       | B     | —     | existence (só carla) |
+| F5   | 0     | {A,B}   | {A,B} | {A,B} | **multi-label idêntico** (Jaccard=0, MASI=0) |
+| F5   | 2     | {A,B}   | {A,B,C} | {A,B} | **multi-label subset** (Jaccard=0.333, MASI=0.555) |
+| F5   | 4     | {A,B}   | {A,C} | {A,D} | **multi-label overlap lateral** (Jaccard=0.667, MASI=0.889) |
+| F5   | 6     | {A,B}   | —     | {C,D} | **multi-label disjoint** (Jaccard=1, MASI=1) |
+| F5   | 8     | A       | A     | A     | controle single-label puro |
+
+## Cenário F5 — multi-label pra discutir refactor C (Jaccard/MASI)
+
+Motor κ atual reduz multi-código a **first-code alfabético** (\`Array.from(set).sort()[0]\`). Resultado: nos casos **subset** (F5 line 2) e **overlap lateral** (F5 line 4), o motor reporta **agreement total** (κ inflado), porque ambos os coders reduzem ao mesmo first-code 'A'. A realidade semântica é agreement parcial.
+
+Esse é o bug que o refactor C resolve. Cenário F5 demonstra concretamente:
+
+| Linha | Comportamento atual do motor | Comportamento correto (Jaccard) | Comportamento correto (MASI) |
+|-------|------------------------------|----------------------------------|-------------------------------|
+| L0 idêntico | agree | d=0 (agree) | d=0 (agree) |
+| L2 subset | **agree (FALSO)** | d=0.333 (parcial) | d=0.555 (parcial mais leve) |
+| L4 overlap lateral | **agree (FALSO)** | d=0.667 (parcial forte) | d=0.889 (penaliza mais) |
+| L6 disjoint | disagree (acerta por sorte) | d=1 | d=1 |
+| L8 single-label | agree | d=0 | d=0 |
+
+Abre o Compare Coders pós-seed: matriz Mode A entre Default/Carla/Joana vai mostrar κ inflado por causa do F5 L2/L4. Esse é o ponto de discussão pra UI do toggle Jaccard/MASI.
 
 ## Comportamento esperado por fix
 

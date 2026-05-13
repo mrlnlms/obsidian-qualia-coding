@@ -154,6 +154,20 @@ Spec original em `obsidian-qualia-coding/plugin-docs/archive/claude_sources/spec
 
 ---
 
+## 🧱 ICR — Gaps descobertos em revisão de docs methodology (2026-05-12)
+
+Detectados pelo subagente que produziu `ICR-LINEAR-METHODOLOGY.md` + `ICR-TEMPORAL-METHODOLOGY.md` + `ICR-CATEGORICAL-METHODOLOGY.md` em 2026-05-12. **Não bloqueiam o refactor C (set-valued labels);** atacar separadamente quando virar dor real ou em refactor de motor κ futuro.
+
+- [ ] **`totalUnits` inflated em PDF/CSV/temporal — Po artificial.** `updateSourceTotal` em `src/core/icr/ui/scopeExtraction.ts:282-293` usa `max(range.to)` como ceiling do unit space (chars/segundos), em vez do tamanho real do source. Só markdown lê arquivo via `vault.cachedRead`. Em audio/video com coding esparso, segundos após o último marker simplesmente não entram no universo de comparação — P_o (proportion observed agreement) fica artificialmente alto porque o "background" de não-agreement não é contado. Em PDF, idem por página. **Impacto:** κ infla pra cima em corpora não-markdown com baixa densidade de coding. Resolução: descobrir tamanho real do source (PDF: total chars da página; audio/video: duração via metadata; CSV: row count) e usar como ceiling. **Effort:** médio — exige path por engine pra ler tamanho.
+
+- [ ] **Resolução temporal travada em 1 segundo (sub-second disagreement invisível).** `extractMediaRange` usa `Math.floor`/`Math.ceil` em segundos float pra audio/video — units menores que 1s não geram disagreement. Justificativa no código: "alinhado com ATLAS.ti 25" (decisão de design, não bug). **Decisão a revisitar:** se pesquisador quiser análise mais fina (ex: turn-taking em conversation analysis, prosody, micro-eventos), oferecer resolução configurável (100ms? 10ms?). **Effort:** baixo — tornar resolution parametrizável em `extractMediaRange` + UI pra setar.
+
+- [ ] **`TODO revisitar com fórmula da literatura` no header de `krippendorffAlpha.ts`.** Sinal de incerteza interna sobre canonicalidade dos edge cases. Plano: validar contra implementação de referência (R `irr::kripp.alpha` ou Python `krippendorff` package) numa bateria de casos canônicos da paper. Atacar **junto com C1.5** (refactor de α paramétrico em δ) — boa hora pra revisitar.
+
+- [ ] **Discrepância nominal `fromMs`/`from` em spec Compare Coders vs implementação.** Spec ICR Fase 2 cita campos `fromMs: number, toMs: number`; implementação usa `from`/`to` em segundos float. Não é bug funcional, só inconsistência de nomenclatura entre doc e código. Resolução: alinhar a doc com código (segundos), OU renomear código pra match doc (Ms). Como segundos float é mais legível e funciona corretamente, recomendo: atualizar spec/doc pra `from`/`to` em segundos.
+
+---
+
 ## 🧱 OBSOLETO (mantido pra histórico de decisão)
 
 ### ICR — Fase C P1 (UX layer, fora do Slice 3) — original
