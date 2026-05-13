@@ -79,7 +79,7 @@ describe('codebookTreeRenderer stress + recycling', () => {
 		// Kick a scroll event so the renderer reads the stubbed clientHeight
 		setScroll(scrollEl, 0);
 
-		const spacer = scrollEl.querySelector('.codebook-tree-spacer') as HTMLElement;
+		const spacer = scrollEl.querySelector('.qualia-virtual-list-spacer') as HTMLElement;
 		// Visible rows at scroll=0 with 500px viewport and 30px rows =
 		// ~17 visible + 10 buffer = ~27 rows. Well under 5000.
 		expect(spacer.children.length).toBeLessThan(50);
@@ -109,11 +109,12 @@ describe('codebookTreeRenderer stress + recycling', () => {
 
 		// First render at scroll=0
 		setScroll(scrollEl, 0);
-		const spacer = scrollEl.querySelector('.codebook-tree-spacer') as HTMLElement;
+		const spacer = scrollEl.querySelector('.qualia-virtual-list-spacer') as HTMLElement;
 		// Snapshot which row elements exist for which indexes.
+		// virtualList aplica --qc-row-top via CSS var em vez de style.top inline.
 		const snapshotByIndex = new Map<number, Element>();
 		for (const el of Array.from(spacer.children)) {
-			const top = parseInt((el as HTMLElement).style.top);
+			const top = parseInt((el as HTMLElement).style.getPropertyValue('--qc-row-top'));
 			const idx = top / 30; // ROW_HEIGHT = 30
 			snapshotByIndex.set(idx, el);
 		}
@@ -127,7 +128,7 @@ describe('codebookTreeRenderer stress + recycling', () => {
 		let totalCurrent = 0;
 		for (const el of Array.from(spacer.children)) {
 			totalCurrent++;
-			const top = parseInt((el as HTMLElement).style.top);
+			const top = parseInt((el as HTMLElement).style.getPropertyValue('--qc-row-top'));
 			const idx = top / 30;
 			if (snapshotByIndex.get(idx) === el) reusedCount++;
 		}
@@ -149,7 +150,7 @@ describe('codebookTreeRenderer stress + recycling', () => {
 		// Jump to scroll position far away (code #2000 = 2000 * 30 = 60000px)
 		setScroll(scrollEl, 60000);
 
-		const spacer = scrollEl.querySelector('.codebook-tree-spacer') as HTMLElement;
+		const spacer = scrollEl.querySelector('.qualia-virtual-list-spacer') as HTMLElement;
 		// Still only ~30 rows visible, not accumulating.
 		expect(spacer.children.length).toBeLessThan(50);
 	});
@@ -169,7 +170,7 @@ describe('codebookTreeRenderer stress + recycling', () => {
 		}
 		const ms = performance.now() - start;
 
-		const spacer = scrollEl.querySelector('.codebook-tree-spacer') as HTMLElement;
+		const spacer = scrollEl.querySelector('.qualia-virtual-list-spacer') as HTMLElement;
 		expect(spacer.children.length).toBeLessThan(50);
 		expect(ms).toBeLessThan(500); // 100 scroll events in under 500ms
 	});

@@ -2,13 +2,16 @@
  * codebookTreeRenderer — Renders a virtual-scrolled hierarchical tree of codes.
  *
  * Uses buildFlatTree + buildCountIndex from hierarchyHelpers for data.
- * Virtual scroll: only rows in viewport (+buffer) are rendered as DOM nodes.
+ * Virtual scroll mechanics delegadas pra createVirtualList (pattern unificado
+ * com baseCodeExplorerView, detailCodeRenderer, detailRelationRenderer).
+ * Tree-specific concerns (folders, depth, selected state) ficam no renderRow.
  */
 
 import { setIcon } from 'obsidian';
 import type { SidebarModelInterface } from './types';
 import type { CodeDefinitionRegistry } from './codeDefinitionRegistry';
 import { buildFlatTree, buildCountIndex, type FlatTreeNode, type FlatCodeNode, type FlatFolderNode, type CountIndex, type ExpandedState } from './hierarchyHelpers';
+import { createVirtualList } from './virtualList';
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -49,67 +52,30 @@ export function renderCodebookTree(
 
 	const nodes = buildFlatTree(model.registry, state.expanded, state.searchQuery);
 	const counts = buildCountIndex(model.registry, model.getAllMarkers());
-	const totalHeight = nodes.length * ROW_HEIGHT;
 
-	// Scroll container
+	// scrollEl preserva classe pro layout CSS (.codebook-tree-scroll: flex: 1; overflow-y: auto).
+	// Virtual scroll mechanics (rowPool diff, scroll listener, RAF fallback pra clientHeight=0)
+	// delegadas pra createVirtualList. Tree-specific concerns (folders, depth, selected state)
+	// ficam no renderRow callback.
 	const scrollEl = container.createDiv({ cls: 'codebook-tree-scroll' });
 
-	// Spacer for total virtual height
-	const spacer = scrollEl.createDiv({ cls: 'codebook-tree-spacer' });
-	spacer.style.height = `${totalHeight}px`;
-	spacer.style.position = 'relative';
+	const list = createVirtualList<FlatTreeNode>({
+		container: scrollEl,
+		rowHeight: ROW_HEIGHT,
+		buffer: BUFFER_ROWS,
+		renderRow: (node, index) => renderRow(
+			node,
+			counts,
+			index,
+			callbacks,
+			model.registry,
+			state.selectedGroupId,
+			state.selectedCodeIds,
+		),
+	});
+	list.setItems(nodes);
 
-	let lastStart = -1;
-	let lastEnd = -1;
-	// Row pool keyed by node index — rows that stay in view across scroll
-	// events are preserved (no remove+recreate churn). Only newly-entering
-	// indexes are rendered; only newly-leaving ones are removed.
-	const rowPool = new Map<number, HTMLElement>();
-
-	const renderVisibleRows = () => {
-		const scrollTop = scrollEl.scrollTop;
-		const viewportHeight = scrollEl.clientHeight;
-
-		const startIdx = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS);
-		const endIdx = Math.min(nodes.length, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + BUFFER_ROWS);
-
-		if (startIdx === lastStart && endIdx === lastEnd) return;
-		lastStart = startIdx;
-		lastEnd = endIdx;
-
-		// Remove rows that left the visible range
-		for (const [idx, el] of rowPool) {
-			if (idx < startIdx || idx >= endIdx) {
-				el.remove();
-				rowPool.delete(idx);
-			}
-		}
-
-		// Add rows that entered the visible range (skip rows already rendered)
-		for (let i = startIdx; i < endIdx; i++) {
-			if (rowPool.has(i)) continue;
-			const node = nodes[i]!;
-			const rowEl = renderRow(node, counts, i, callbacks, model.registry, state.selectedGroupId, state.selectedCodeIds);
-			spacer.appendChild(rowEl);
-			rowPool.set(i, rowEl);
-		}
-	};
-
-	// Render síncrono (caso layout já esteja settled) + defer via RAF como fallback:
-	// quando esse renderer é montado dentro do mesmo tick em que o painel é criado
-	// (Code Detail list mode após reload, ou re-render após criar code via popover),
-	// `scrollEl.clientHeight` ainda é 0 — o browser não recalculou layout. endIdx fica
-	// limitado a BUFFER_ROWS (10), cortando a lista. RAF garante recheck após paint.
-	// Mesmo pattern do virtualList.ts:115-116.
-	renderVisibleRows();
-	requestAnimationFrame(renderVisibleRows);
-	scrollEl.addEventListener('scroll', renderVisibleRows, { passive: true });
-
-	const cleanup = () => {
-		scrollEl.removeEventListener('scroll', renderVisibleRows);
-	};
-
-	return { cleanup };
+	return { cleanup: () => list.cleanup() };
 }
 
 // ─── Row renderer ────────────────────────────────────────
@@ -131,15 +97,13 @@ function renderRow(
 
 function renderFolderRow(
 	node: FlatFolderNode,
-	index: number,
+	_index: number,
 	callbacks: CodebookTreeCallbacks,
 ): HTMLElement {
 	const row = document.createElement('div');
 	row.className = 'codebook-tree-row codebook-folder-row';
-	row.style.position = 'absolute';
-	row.style.top = `${index * ROW_HEIGHT}px`;
-	row.style.height = `${ROW_HEIGHT}px`;
-	row.style.width = '100%';
+	// position/top/height/width vêm de .qc-vlist-row (aplicado pelo virtualList) +
+	// CSS vars --qc-row-top/--qc-row-height. paddingLeft fica inline porque varia por depth.
 	row.style.paddingLeft = `${node.depth * INDENT_PX}px`;
 	row.draggable = true;
 	row.dataset.folderId = node.folderId;
@@ -193,7 +157,7 @@ function renderFolderRow(
 function renderCodeRow(
 	node: FlatCodeNode,
 	counts: CountIndex,
-	index: number,
+	_index: number,
 	callbacks: CodebookTreeCallbacks,
 	registry: CodeDefinitionRegistry,
 	selectedGroupId: string | null,
@@ -201,10 +165,8 @@ function renderCodeRow(
 ): HTMLElement {
 	const row = document.createElement('div');
 	row.className = 'codebook-tree-row';
-	row.style.position = 'absolute';
-	row.style.top = `${index * ROW_HEIGHT}px`;
-	row.style.height = `${ROW_HEIGHT}px`;
-	row.style.width = '100%';
+	// position/top/height/width vêm de .qc-vlist-row (aplicado pelo virtualList) +
+	// CSS vars --qc-row-top/--qc-row-height. paddingLeft fica inline porque varia por depth.
 	row.style.paddingLeft = `${node.depth * INDENT_PX}px`;
 	row.draggable = true;
 	row.dataset.codeId = node.def.id;
