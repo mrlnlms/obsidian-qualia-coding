@@ -16,7 +16,8 @@ import { bumpCoderInclusionCacheGeneration } from './coderInclusion';
 import { bumpReportCache } from '../reporter';
 import { applyConsensusExclusion, getConsensusCoderIdsInScope } from './coderInclusion';
 import { extractInputsFromScope } from './scopeExtraction';
-import { reportPairwise } from '../reporter';
+import { reportPairwise, reportPairwiseAsync } from '../reporter';
+import { cacheKeyForScope } from './scopeExtraction';
 import type { CoderId } from '../coderTypes';
 import { renderFilterChips } from './filterChips';
 import { appendEntry } from '../../auditLog';
@@ -348,18 +349,14 @@ export class UnifiedCompareCodersView extends ItemView {
 			scratch.appendChild(wrap);
 			const deps = {
 				coderRegistry: this.plugin.coderRegistry,
+				codeRegistry: this.plugin.sharedRegistry,
 				engineModels: this.engineModels(),
 				app: this.plugin.app,
 			};
 			if (this.state.overviewMode === 'matrix') {
 				await renderOverviewMatrix(wrap, this.state, deps, sel => this.setSelection(sel));
 			} else if (this.state.overviewMode === 'table') {
-				await renderOverviewTable(
-					wrap,
-					this.state,
-					{ ...deps, codeRegistry: this.plugin.sharedRegistry },
-					sel => this.setSelection(sel),
-				);
+				await renderOverviewTable(wrap, this.state, deps, sel => this.setSelection(sel));
 			} else {
 				await renderOverviewHeatmap(
 					wrap,
@@ -403,6 +400,7 @@ export class UnifiedCompareCodersView extends ItemView {
 				return;
 			}
 			const auditLog = (this.plugin.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+			const cohenPerCode = await this.computeCohenPerCodeForCurrentPair();
 			renderDrilldownCards(
 				this.drilldownEl,
 				this.state,
@@ -414,6 +412,7 @@ export class UnifiedCompareCodersView extends ItemView {
 					auditLog,
 					persistAuditLog: log => this.plugin.dataManager.setSection('auditLog', log),
 					app: this.plugin.app,
+					cohenPerCode,
 				},
 				{
 					onSetSelection: sel => this.setSelection(sel),
@@ -522,6 +521,24 @@ export class UnifiedCompareCodersView extends ItemView {
 	setSelection(sel: CurrentSelection): void {
 		this.state = { ...this.state, currentSelection: sel };
 		void this.renderDrilldown();
+	}
+
+	/** Pré-computa Cohen κ perCode pro par atualmente selecionado (currentSelection.kind === 'pair').
+	 *  Usado pelo drill-down Cards pra renderizar breakdown no topo quando coef = Cohen κ.
+	 *  Hit cache do reportPairwise quando matrix já fez chamada equivalente (mesmo scope+δ). */
+	private async computeCohenPerCodeForCurrentPair(): Promise<Record<string, number> | undefined> {
+		if (this.state.primaryCoefficient !== 'cohen') return undefined;
+		const sel = this.state.currentSelection;
+		if (sel.kind !== 'pair') return undefined;
+		const [a, b] = sel.value;
+		const inputs = await extractInputsFromScope(this.state.scope, { models: this.engineModels(), app: this.plugin.app });
+		if (inputs.length === 0) return undefined;
+		const distance = this.state.distance ?? 'jaccard';
+		const cacheKey = cacheKeyForScope(this.state.scope) + `::δ-${distance}`;
+		const reports = await reportPairwiseAsync(inputs, [[a, b]], cacheKey, undefined, distance);
+		const r = reports[0]?.report.aggregate.cohenKappa[`${a}|${b}`]
+			?? reports[0]?.report.aggregate.cohenKappa[`${b}|${a}`];
+		return r?.perCode;
 	}
 
 	private openSideBySideModal(): void {
