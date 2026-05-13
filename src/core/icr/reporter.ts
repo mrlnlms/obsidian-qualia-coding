@@ -20,6 +20,7 @@ import { cuAlpha } from './coefficients/cuAlpha';
 import { cohenKappaCategorical } from './coefficients/cohenKappaCategorical';
 import { fleissKappaCategorical } from './coefficients/fleissKappaCategorical';
 import { krippendorffAlphaCategoricalNominal } from './coefficients/krippendorffAlphaCategorical';
+import { resolveDistance, type DistanceFunction, type DistanceName } from './distances';
 
 export type EngineId = 'markdown' | 'pdf' | 'csvSegment' | 'csvRow' | 'audio' | 'video' | 'pdfShape' | 'image';
 
@@ -88,8 +89,15 @@ function pairsKey(pairs: [CoderId, CoderId][]): string {
 	return pairs.map(p => (p[0] < p[1] ? `${p[0]}|${p[1]}` : `${p[1]}|${p[0]}`)).sort().join(';');
 }
 
-export function reportKappa(inputs: EngineKappaInput[], cacheKey?: string): KappaReport {
+export function reportKappa(
+	inputs: EngineKappaInput[],
+	cacheKey?: string,
+	distance?: DistanceName,
+): KappaReport {
 	// Fast path: identidade (mesmo array ref → mesmo report)
+	// Atenção: distance NÃO entra na chave do WeakMap — assumimos que arrays criados pelo
+	// caller pra distance diferente são refs distintas. UI callsites cravam ::δ-${name} no
+	// cacheKey pra garantir distinção no cache slow path.
 	const idHit = reportKappaCache.get(inputs);
 	if (idHit) return idHit;
 	// Slow path: cache key explícita (arrays diferentes mas conteúdo logicamente igual)
@@ -101,10 +109,11 @@ export function reportKappa(inputs: EngineKappaInput[], cacheKey?: string): Kapp
 		}
 	}
 
+	const δ: DistanceFunction | undefined = distance ? resolveDistance(distance) : undefined;
 	const byEngine: Partial<Record<EngineId, CoefficientReport>> = {};
 	const weights: Partial<Record<EngineId, number>> = {};
 	for (const { engine, kappaInput } of inputs) {
-		byEngine[engine] = computeAll(kappaInput);
+		byEngine[engine] = computeAll(kappaInput, δ);
 		weights[engine] = isCategorical(kappaInput) ? kappaInput.units.length : kappaInput.markers.length;
 	}
 	const aggregate = aggregateReports(byEngine, weights);
@@ -134,7 +143,11 @@ export function reportKappa(inputs: EngineKappaInput[], cacheKey?: string): Kapp
 	return result;
 }
 
-function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientReport {
+function computeAll(
+	input: KappaInput | CategoricalKappaInput,
+	distance?: DistanceFunction,
+): CoefficientReport {
+	const alphaOptions = distance ? { distance } : undefined;
 	if (isCategorical(input)) {
 		const cohenK: Record<string, number> = {};
 		for (let i = 0; i < input.coders.length; i++) {
@@ -146,7 +159,7 @@ function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientRepor
 		return {
 			cohenKappa: cohenK,
 			fleissKappa: fleissKappaCategorical(input),
-			alphaNominal: krippendorffAlphaCategoricalNominal(input),
+			alphaNominal: krippendorffAlphaCategoricalNominal(input, alphaOptions),
 			// alphaBinary e cuAlpha não-aplicáveis pra categorical (não tem boundary disagreement).
 			// Retorna 1 (vacuous) pra preservar shape do CoefficientReport.
 			alphaBinary: 1,
@@ -164,9 +177,9 @@ function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientRepor
 	return {
 		cohenKappa: cohenK,
 		fleissKappa: fleissKappa(input),
-		alphaNominal: krippendorffAlphaNominal(input),
+		alphaNominal: krippendorffAlphaNominal(input, alphaOptions),
 		alphaBinary: alphaBinary(input),
-		cuAlpha: cuAlpha(input),
+		cuAlpha: cuAlpha(input, alphaOptions),
 	};
 }
 
@@ -243,6 +256,7 @@ export function reportPairwise(
 	 *  (ex: `::bbox-on` quando bbox markers presentes vs `::bbox-off` sem) — WeakMap
 	 *  identity cache é skipado porque map ref muda toda render. */
 	perPairInputs?: Map<string, EngineKappaInput[]>,
+	distance?: DistanceName,
 ): PairwiseReport[] {
 	const hasPerPair = perPairInputs !== undefined && perPairInputs.size > 0;
 	const pKey = pairsKey(pairs);
@@ -267,7 +281,7 @@ export function reportPairwise(
 		}));
 		const extras = perPairInputs?.get(pairKey(pair)) ?? [];
 		const combined = extras.length > 0 ? [...filteredInputs, ...extras] : filteredInputs;
-		const report = reportKappa(combined);
+		const report = reportKappa(combined, undefined, distance);
 		return { pair, report };
 	});
 	if (cacheKey) {
@@ -315,6 +329,7 @@ import { reportKappaAsync as workerReportKappa, reportPairwiseAsync as workerRep
 export async function reportKappaAsync(
 	inputs: EngineKappaInput[],
 	cacheKey?: string,
+	distance?: DistanceName,
 ): Promise<KappaReport> {
 	const idHit = reportKappaCache.get(inputs);
 	if (idHit) return idHit;
@@ -325,7 +340,7 @@ export async function reportKappaAsync(
 			return keyed;
 		}
 	}
-	const result = await workerReportKappa(inputs);
+	const result = await workerReportKappa(inputs, distance);
 	reportKappaCache.set(inputs, result);
 	if (cacheKey) {
 		reportKappaKeyCache.set(`${cacheKey}::${reportCacheGen}`, result);
@@ -339,6 +354,7 @@ export async function reportPairwiseAsync(
 	pairs: [CoderId, CoderId][],
 	cacheKey?: string,
 	perPairInputs?: Map<string, EngineKappaInput[]>,
+	distance?: DistanceName,
 ): Promise<PairwiseReport[]> {
 	const hasPerPair = perPairInputs !== undefined && perPairInputs.size > 0;
 	const pKey = pairsKey(pairs);
@@ -356,7 +372,7 @@ export async function reportPairwiseAsync(
 		const keyed = reportPairwiseKeyCache.get(fullKey);
 		if (keyed) return keyed;
 	}
-	const result = await workerReportPairwise(inputs, pairs, perPairInputs);
+	const result = await workerReportPairwise(inputs, pairs, perPairInputs, distance);
 	if (cacheKey) {
 		reportPairwiseKeyCache.set(`${cacheKey}::${pKey}::${reportCacheGen}`, result);
 		pruneReportCache(reportPairwiseKeyCache);

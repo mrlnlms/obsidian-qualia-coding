@@ -17,6 +17,7 @@ import { krippendorffAlphaNominal } from './coefficients/krippendorffAlpha';
 import { krippendorffAlphaCategoricalNominal } from './coefficients/krippendorffAlphaCategorical';
 import { alphaBinary } from './coefficients/alphaBinary';
 import { cuAlpha } from './coefficients/cuAlpha';
+import { resolveDistance, type DistanceFunction, type DistanceName } from './distances';
 import type { KappaInput } from './kappaInput';
 import type { CategoricalKappaInput } from './categoricalKappaInput';
 import type { CoderId } from './coderTypes';
@@ -63,7 +64,11 @@ function isCategorical(input: KappaInput | CategoricalKappaInput): input is Cate
 	return 'units' in input;
 }
 
-function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientReport {
+function computeAll(
+	input: KappaInput | CategoricalKappaInput,
+	distance?: DistanceFunction,
+): CoefficientReport {
+	const alphaOptions = distance ? { distance } : undefined;
 	if (isCategorical(input)) {
 		const cohenK: Record<string, number> = {};
 		for (let i = 0; i < input.coders.length; i++) {
@@ -74,7 +79,7 @@ function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientRepor
 		return {
 			cohenKappa: cohenK,
 			fleissKappa: fleissKappaCategorical(input),
-			alphaNominal: krippendorffAlphaCategoricalNominal(input),
+			alphaNominal: krippendorffAlphaCategoricalNominal(input, alphaOptions),
 			alphaBinary: 1,
 			cuAlpha: 1,
 		};
@@ -88,9 +93,9 @@ function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientRepor
 	return {
 		cohenKappa: cohenK,
 		fleissKappa: fleissKappa(input),
-		alphaNominal: krippendorffAlphaNominal(input),
+		alphaNominal: krippendorffAlphaNominal(input, alphaOptions),
 		alphaBinary: alphaBinary(input),
-		cuAlpha: cuAlpha(input),
+		cuAlpha: cuAlpha(input, alphaOptions),
 	};
 }
 
@@ -131,11 +136,15 @@ function aggregateReports(
 	};
 }
 
-function reportKappaCore(inputs: EngineKappaInput[]): KappaReport {
+function reportKappaCore(
+	inputs: EngineKappaInput[],
+	distance?: DistanceName,
+): KappaReport {
+	const δ: DistanceFunction | undefined = distance ? resolveDistance(distance) : undefined;
 	const byEngine: Partial<Record<EngineId, CoefficientReport>> = {};
 	const weights: Partial<Record<EngineId, number>> = {};
 	for (const { engine, kappaInput } of inputs) {
-		byEngine[engine] = computeAll(kappaInput);
+		byEngine[engine] = computeAll(kappaInput, δ);
 		weights[engine] = isCategorical(kappaInput) ? kappaInput.units.length : kappaInput.markers.length;
 	}
 	const aggregate = aggregateReports(byEngine, weights);
@@ -177,6 +186,7 @@ function reportPairwiseCore(
 	inputs: EngineKappaInput[],
 	pairs: [CoderId, CoderId][],
 	perPairInputs?: Map<string, EngineKappaInput[]>,
+	distance?: DistanceName,
 ): PairwiseReport[] {
 	return pairs.map(pair => {
 		const filtered: EngineKappaInput[] = inputs.map(input => ({
@@ -185,15 +195,15 @@ function reportPairwiseCore(
 		}));
 		const extras = perPairInputs?.get(pairKeyLocal(pair)) ?? [];
 		const combined = extras.length > 0 ? [...filtered, ...extras] : filtered;
-		return { pair, report: reportKappaCore(combined) };
+		return { pair, report: reportKappaCore(combined, distance) };
 	});
 }
 
 // ─── Message protocol ──────────────────────────────────────
 
 type Request =
-	| { id: number; op: 'reportKappa'; inputs: EngineKappaInput[] }
-	| { id: number; op: 'reportPairwise'; inputs: EngineKappaInput[]; pairs: [CoderId, CoderId][]; perPairEntries?: Array<[string, EngineKappaInput[]]> };
+	| { id: number; op: 'reportKappa'; inputs: EngineKappaInput[]; distance?: DistanceName }
+	| { id: number; op: 'reportPairwise'; inputs: EngineKappaInput[]; pairs: [CoderId, CoderId][]; perPairEntries?: Array<[string, EngineKappaInput[]]>; distance?: DistanceName };
 
 type Response =
 	| { id: number; ok: true; op: 'reportKappa'; result: KappaReport }
@@ -207,12 +217,12 @@ ctx.addEventListener('message', (ev: MessageEvent<Request>) => {
 	const req = ev.data;
 	try {
 		if (req.op === 'reportKappa') {
-			const result = reportKappaCore(req.inputs);
+			const result = reportKappaCore(req.inputs, req.distance);
 			const resp: Response = { id: req.id, ok: true, op: 'reportKappa', result };
 			ctx.postMessage(resp);
 		} else if (req.op === 'reportPairwise') {
 			const perPairMap = req.perPairEntries ? new Map(req.perPairEntries) : undefined;
-			const result = reportPairwiseCore(req.inputs, req.pairs, perPairMap);
+			const result = reportPairwiseCore(req.inputs, req.pairs, perPairMap, req.distance);
 			const resp: Response = { id: req.id, ok: true, op: 'reportPairwise', result };
 			ctx.postMessage(resp);
 		}
