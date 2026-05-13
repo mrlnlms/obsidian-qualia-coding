@@ -78,6 +78,16 @@ Da fila cross-cutting do hardening, 4 frentes atacadas em 2026-05-09 (parseInt v
 
 **Resolvido 2026-05-13** — `cooccurrenceMode` async via Worker. A análise original do BACKLOG estava errada: descrevia como "refactor invasivo do contrato dos 25 modes". Solução real seguiu pattern fire-and-forget já estabelecido em `wordCloudMode`/`mdsMode`/`acmMode` (`renderGeneration` + `isRenderCurrent`). Worker inline pro `hierarchicalCluster` (`src/analytics/data/cluster.worker.ts` + Client + sync fallback, pattern §45) resolve 4 consumidores de uma vez: Cooccurrence, Overlap, Dendrogram, Files-Dendrogram. `boardClusters` segue síncrono (fora do escopo declarado).
 
+### Bugs descobertos 2026-05-13 (sessão canvas refresh cor cross-engine)
+
+- [ ] **Color override per-marker NÃO refresha cross-engine** — quando user muda `colorOverride` no Marker Detail (não cor do code no Code Detail), o `model.updateMarkerFields({ colorOverride })` dispara `model.onChange` mas NÃO `qualia:registry-changed`. Image já cobre via `model.onChange` listener. PDF/markdown/csv/audio/video não — fix da sessão atual cobre só cor de code (registry), não color override (per-marker). Pattern idêntico: adicionar `model.onChange` subscribe em cada engine além do `qualia:registry-changed`. 5 sites mecânicos.
+
+- [ ] **`Uncaught TypeError: t.filter is not a function` em `doRenderCodeDetail`** — stack: `qb` (1076:1422) → `TP` (1212:28713) → `M$` (1212:14941) → `bE.doRenderCodeDetail` (1232:7008). 3 reproduções confirmadas na sessão 2026-05-13 (canvas refresh cross-engine):
+  - **Via showCodeDetail** (clicar back de Marker Detail → Code Detail)
+  - **Via refreshCurrentMode** chamado pelo color picker `onHueSliderMouseDown_` → update → scheduleRefresh
+  - **Via refreshCurrentMode** chamado pelo `markerPreviewHydrator` → `notifyListenersOnly` → scheduleRefresh → `onFileRendered`
+  - Bug pré-existente (independente do fix canvas refresh — `doRenderCodeDetail` não foi tocado). Stack minificada; reconstrução: build sem minify ou source map pra identificar a função `qb` e onde `t` chega undefined/objeto em vez de array. Suspeitos: `getMarkersForCode` / `buildFlatTree` / `filterByCode` retornam null em algum estado transitório. Não bloqueia uso (erro apenas no console; render continua), mas polui dev console e pode mascarar bugs reais.
+
 ---
 
 ## ✅ ICR — Hash consumers fora do Slice 2 (TODOS RESOLVIDOS 2026-05-11)

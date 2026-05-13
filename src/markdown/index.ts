@@ -250,10 +250,38 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 		onRename: (oldPath, newPath) => model.migrateFilePath(oldPath, newPath),
 	});
 
+	// Re-decorate when code color/name changes on shared registry. CM6 markerStateField lê
+	// `registry.getById()` no render mas só re-decora em `updateFileMarkersEffect`, que normalmente
+	// dispara em mutações de marker (não de registry). Pattern espelha imageView (Image canvas).
+	// rAF coalesce evita repaint flood em rajadas.
+	let registryChangeRafId: number | null = null;
+	const onRegistryChange = () => {
+		if (registryChangeRafId !== null) return;
+		registryChangeRafId = requestAnimationFrame(() => {
+			registryChangeRafId = null;
+			const leaves = plugin.app.workspace.getLeavesOfType('markdown');
+			for (const leaf of leaves) {
+				const view = leaf.view;
+				if (view instanceof MarkdownView && view.file) {
+					const editorView = view.editor?.cm;
+					if (editorView) {
+						editorView.dispatch({ effects: updateFileMarkersEffect.of({ fileId: view.file.path }) });
+					}
+				}
+			}
+		});
+	};
+	document.addEventListener('qualia:registry-changed', onRegistryChange);
+
 	// Cleanup (label-click and code-click cleanup now in main.ts via this.register())
 	return {
 		cleanup: () => {
 			document.removeEventListener(SELECTION_EVENT, onSelectionEvent);
+			document.removeEventListener('qualia:registry-changed', onRegistryChange);
+			if (registryChangeRafId !== null) {
+				cancelAnimationFrame(registryChangeRafId);
+				registryChangeRafId = null;
+			}
 			model.flushPendingSave();
 		},
 		model: {

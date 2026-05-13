@@ -90,6 +90,11 @@ export class CsvCodingView extends FileView {
 		coderColors: Map<string, string>;
 	} | null = null;
 
+	/** Re-render quando code color/name muda na registry. AG Grid cellRenderer lê cor
+	 *  via getCodeColor mas só re-aplica em refreshCells. Pattern espelha imageView. */
+	private registryChangeListener: (() => void) | null = null;
+	private registryChangeRafId: number | null = null;
+
 	get markdownModel() { return this.plugin.markdownModel!; }
 
 	/** Nome SQL da temp table de markers (lazy mode). null em eager. Pra callers de export. */
@@ -143,6 +148,20 @@ export class CsvCodingView extends FileView {
 	async onLoadFile(file: TFile): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
+
+		// Re-render cells quando code color/name muda na registry (idempotente entre
+		// load/unload chains: removeEventListener se já tem). rAF coalesce evita repaint flood.
+		if (this.registryChangeListener) {
+			document.removeEventListener('qualia:registry-changed', this.registryChangeListener);
+		}
+		this.registryChangeListener = () => {
+			if (this.registryChangeRafId !== null) return;
+			this.registryChangeRafId = requestAnimationFrame(() => {
+				this.registryChangeRafId = null;
+				this.gridApi?.refreshCells({ force: true });
+			});
+		};
+		document.addEventListener('qualia:registry-changed', this.registryChangeListener);
 
 		// Size threshold: above this, the file opens in lazy mode (DuckDB + OPFS);
 		// below, eager mode (full materialization). Defaults calibrados em bench
@@ -946,6 +965,14 @@ export class CsvCodingView extends FileView {
 	async onUnloadFile(): Promise<void> {
 		// Reset readiness for next file load
 		this.readyPromise = new Promise(r => { this.readyResolve = r; });
+		if (this.registryChangeListener) {
+			document.removeEventListener('qualia:registry-changed', this.registryChangeListener);
+			this.registryChangeListener = null;
+		}
+		if (this.registryChangeRafId !== null) {
+			cancelAnimationFrame(this.registryChangeRafId);
+			this.registryChangeRafId = null;
+		}
 		this.unsubscribeVisibility?.();
 		this.unsubscribeVisibility = undefined;
 		this.unsubscribeActiveCoder?.();

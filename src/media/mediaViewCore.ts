@@ -43,6 +43,12 @@ export class MediaViewCore {
   private changeListener: (() => void) | null = null;
   private cssChangeRef: EventRef | null = null;
   private unsubscribeVisibility: (() => void) | undefined = undefined;
+  // Re-render regions quando code color/name muda na shared registry.
+  // WaveSurfer regions são criadas com cor no momento — sem trigger de re-render,
+  // mudança de cor via Code Detail só aparece após reabrir arquivo. Pattern espelha
+  // imageView. rAF coalesce evita repaint flood.
+  private registryChangeListener: (() => void) | null = null;
+  private registryChangeRafId: number | null = null;
 
   constructor(
     private app: App,
@@ -194,6 +200,18 @@ export class MediaViewCore {
     });
     this.regionRenderer.subscribeToHover();
     this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
+
+    // Refresh regions on registry change (cor de code mudou via Code Detail).
+    this.registryChangeListener = () => {
+      if (this.registryChangeRafId !== null) return;
+      this.registryChangeRafId = requestAnimationFrame(() => {
+        this.registryChangeRafId = null;
+        if (this.loadedFile && this.regionRenderer) {
+          this.regionRenderer.restoreRegions(this.loadedFile.path);
+        }
+      });
+    };
+    document.addEventListener('qualia:registry-changed', this.registryChangeListener);
 
     // When ready, restore regions, zoom, and update display
     this.renderer.on('ready', () => {
@@ -356,6 +374,14 @@ export class MediaViewCore {
     if (this.changeListener) {
       this.model.offChange(this.changeListener);
       this.changeListener = null;
+    }
+    if (this.registryChangeListener) {
+      document.removeEventListener('qualia:registry-changed', this.registryChangeListener);
+      this.registryChangeListener = null;
+    }
+    if (this.registryChangeRafId !== null) {
+      cancelAnimationFrame(this.registryChangeRafId);
+      this.registryChangeRafId = null;
     }
     if (this.regionRenderer) {
       this.regionRenderer.unsubscribeFromHover();
