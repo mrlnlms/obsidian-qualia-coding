@@ -190,6 +190,36 @@ describe('renderOverviewHeatmap', () => {
 		expect(calls[0].value).toMatchObject({ codeId: codeFrust, engineId: 'markdown' });
 	});
 
+	it('Cohen κ com N=3 coders mostra média dos C(N,2) pares (não vira —)', async () => {
+		// Antes: heatmap retornava undefined pra Cohen κ quando N>2 (par indefinido)
+		// → todas as cells viravam '—'. Agora: média dos C(N,2) pares, consistente com bbox.
+		coderRegistry.createHuman('C');
+		const allCoders = coderRegistry.getAll().filter(c => c.id !== 'human:default').map(c => c.id);
+		const [coderA, coderB, coderC] = allCoders;
+		const [codeFrust] = codeRegistry.getAll().map(c => c.id);
+		const mds = [
+			makeMd({ id: 'm1', coderId: coderA, codeId: codeFrust }),
+			makeMd({ id: 'm2', coderId: coderB, codeId: codeFrust }),
+			makeMd({ id: 'm3', coderId: coderC, codeId: codeFrust }),
+		];
+		const state = {
+			...createDefaultViewState(allCoders),
+			primaryCoefficient: 'cohen' as const,
+		};
+		await renderOverviewHeatmap(container, state, {
+			coderRegistry, codeRegistry, ...modelsWith({ mds }),
+		}, () => {});
+		// Cell markdown deve ter valor numérico (não '—')
+		const mdCell = container.querySelector('tbody td[data-engine="markdown"]') as HTMLElement;
+		expect(mdCell).toBeTruthy();
+		expect(mdCell.classList.contains('qc-kappa-na')).toBe(false);
+		expect(mdCell.textContent).not.toBe('—');
+		// Valor entre 0 e 1 (3 coders concordando no mesmo trecho)
+		const value = parseFloat(mdCell.textContent ?? '');
+		expect(value).toBeGreaterThan(0);
+		expect(value).toBeLessThanOrEqual(1);
+	});
+
 	it('respeita visibleEngineIds do filter (esconde engine off)', async () => {
 		const allCoders = coderRegistry.getAll().filter(c => c.id !== 'human:default').map(c => c.id);
 		const [coderA, coderB] = allCoders;

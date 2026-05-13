@@ -12,7 +12,7 @@
 import type { KappaInput, CodedMarker } from './kappaInput';
 import type { CategoricalKappaInput } from './categoricalKappaInput';
 import type { CoderId } from './coderTypes';
-import { cohenKappa } from './coefficients/cohenKappa';
+import { cohenKappa, type CohenKappaReport } from './coefficients/cohenKappa';
 import { fleissKappa } from './coefficients/fleissKappa';
 import { krippendorffAlphaNominal } from './coefficients/krippendorffAlpha';
 import { alphaBinary } from './coefficients/alphaBinary';
@@ -20,6 +20,7 @@ import { cuAlpha } from './coefficients/cuAlpha';
 import { cohenKappaCategorical } from './coefficients/cohenKappaCategorical';
 import { fleissKappaCategorical } from './coefficients/fleissKappaCategorical';
 import { krippendorffAlphaCategoricalNominal } from './coefficients/krippendorffAlphaCategorical';
+import { resolveDistance, type DistanceFunction, type DistanceName } from './distances';
 
 export type EngineId = 'markdown' | 'pdf' | 'csvSegment' | 'csvRow' | 'audio' | 'video' | 'pdfShape' | 'image';
 
@@ -38,12 +39,15 @@ function isCategorical(input: KappaInput | CategoricalKappaInput): input is Cate
 }
 
 export interface CoefficientReport {
-	cohenKappa: Record<string, number>;  // 'coderA|coderB' → κ
+	/** 'coderA|coderB' → {value, perCode}. perCode = breakdown binary-per-label (caminho A). */
+	cohenKappa: Record<string, CohenKappaReport>;
 	fleissKappa: number;
 	alphaNominal: number;
 	alphaBinary: number;
 	cuAlpha: number;
 }
+
+export type { CohenKappaReport } from './coefficients/cohenKappa';
 
 export interface KappaReport {
 	byEngine: Partial<Record<EngineId, CoefficientReport>>;
@@ -88,8 +92,15 @@ function pairsKey(pairs: [CoderId, CoderId][]): string {
 	return pairs.map(p => (p[0] < p[1] ? `${p[0]}|${p[1]}` : `${p[1]}|${p[0]}`)).sort().join(';');
 }
 
-export function reportKappa(inputs: EngineKappaInput[], cacheKey?: string): KappaReport {
+export function reportKappa(
+	inputs: EngineKappaInput[],
+	cacheKey?: string,
+	distance?: DistanceName,
+): KappaReport {
 	// Fast path: identidade (mesmo array ref → mesmo report)
+	// Atenção: distance NÃO entra na chave do WeakMap — assumimos que arrays criados pelo
+	// caller pra distance diferente são refs distintas. UI callsites cravam ::δ-${name} no
+	// cacheKey pra garantir distinção no cache slow path.
 	const idHit = reportKappaCache.get(inputs);
 	if (idHit) return idHit;
 	// Slow path: cache key explícita (arrays diferentes mas conteúdo logicamente igual)
@@ -101,10 +112,11 @@ export function reportKappa(inputs: EngineKappaInput[], cacheKey?: string): Kapp
 		}
 	}
 
+	const δ: DistanceFunction | undefined = distance ? resolveDistance(distance) : undefined;
 	const byEngine: Partial<Record<EngineId, CoefficientReport>> = {};
 	const weights: Partial<Record<EngineId, number>> = {};
 	for (const { engine, kappaInput } of inputs) {
-		byEngine[engine] = computeAll(kappaInput);
+		byEngine[engine] = computeAll(kappaInput, δ);
 		weights[engine] = isCategorical(kappaInput) ? kappaInput.units.length : kappaInput.markers.length;
 	}
 	const aggregate = aggregateReports(byEngine, weights);
@@ -134,9 +146,13 @@ export function reportKappa(inputs: EngineKappaInput[], cacheKey?: string): Kapp
 	return result;
 }
 
-function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientReport {
+function computeAll(
+	input: KappaInput | CategoricalKappaInput,
+	distance?: DistanceFunction,
+): CoefficientReport {
+	const alphaOptions = distance ? { distance } : undefined;
 	if (isCategorical(input)) {
-		const cohenK: Record<string, number> = {};
+		const cohenK: Record<string, CohenKappaReport> = {};
 		for (let i = 0; i < input.coders.length; i++) {
 			for (let j = i + 1; j < input.coders.length; j++) {
 				const key = `${input.coders[i]}|${input.coders[j]}`;
@@ -145,8 +161,8 @@ function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientRepor
 		}
 		return {
 			cohenKappa: cohenK,
-			fleissKappa: fleissKappaCategorical(input),
-			alphaNominal: krippendorffAlphaCategoricalNominal(input),
+			fleissKappa: fleissKappaCategorical(input, alphaOptions),
+			alphaNominal: krippendorffAlphaCategoricalNominal(input, alphaOptions),
 			// alphaBinary e cuAlpha não-aplicáveis pra categorical (não tem boundary disagreement).
 			// Retorna 1 (vacuous) pra preservar shape do CoefficientReport.
 			alphaBinary: 1,
@@ -154,7 +170,7 @@ function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientRepor
 		};
 	}
 
-	const cohenK: Record<string, number> = {};
+	const cohenK: Record<string, CohenKappaReport> = {};
 	for (let i = 0; i < input.coders.length; i++) {
 		for (let j = i + 1; j < input.coders.length; j++) {
 			const key = `${input.coders[i]}|${input.coders[j]}`;
@@ -163,10 +179,10 @@ function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientRepor
 	}
 	return {
 		cohenKappa: cohenK,
-		fleissKappa: fleissKappa(input),
-		alphaNominal: krippendorffAlphaNominal(input),
+		fleissKappa: fleissKappa(input, alphaOptions),
+		alphaNominal: krippendorffAlphaNominal(input, alphaOptions),
 		alphaBinary: alphaBinary(input),
-		cuAlpha: cuAlpha(input),
+		cuAlpha: cuAlpha(input, alphaOptions),
 	};
 }
 
@@ -181,24 +197,37 @@ function aggregateReports(
 		return { cohenKappa: {}, fleissKappa: 1, alphaNominal: 1, alphaBinary: 1, cuAlpha: 1 };
 	}
 
-	// Cohen aggregate por par de coders
+	// Cohen aggregate por par de coders — agrega value (weighted avg) + perCode (weighted avg per code).
 	const allCohenKeys = new Set<string>();
 	for (const e of engines) {
 		for (const k of Object.keys(byEngine[e]!.cohenKappa)) allCohenKeys.add(k);
 	}
-	const cohenAgg: Record<string, number> = {};
+	const cohenAgg: Record<string, CohenKappaReport> = {};
 	for (const key of allCohenKeys) {
-		let sum = 0;
-		let used = 0;
+		let sumValue = 0;
+		let usedValue = 0;
+		const perCodeAccum: Record<string, { sum: number; weight: number }> = {};
 		for (const e of engines) {
-			const v = byEngine[e]!.cohenKappa[key];
+			const r = byEngine[e]!.cohenKappa[key];
 			const w = weights[e] ?? 0;
-			if (v !== undefined) {
-				sum += v * w;
-				used += w;
+			if (r !== undefined) {
+				sumValue += r.value * w;
+				usedValue += w;
+				for (const [codeId, kappa] of Object.entries(r.perCode)) {
+					if (!perCodeAccum[codeId]) perCodeAccum[codeId] = { sum: 0, weight: 0 };
+					perCodeAccum[codeId].sum += kappa * w;
+					perCodeAccum[codeId].weight += w;
+				}
 			}
 		}
-		cohenAgg[key] = used > 0 ? sum / used : 0;
+		const perCode: Record<string, number> = {};
+		for (const [codeId, acc] of Object.entries(perCodeAccum)) {
+			if (acc.weight > 0) perCode[codeId] = acc.sum / acc.weight;
+		}
+		cohenAgg[key] = {
+			value: usedValue > 0 ? sumValue / usedValue : 0,
+			perCode,
+		};
 	}
 
 	const wavg = (key: 'fleissKappa' | 'alphaNominal' | 'alphaBinary' | 'cuAlpha'): number => {
@@ -243,6 +272,7 @@ export function reportPairwise(
 	 *  (ex: `::bbox-on` quando bbox markers presentes vs `::bbox-off` sem) — WeakMap
 	 *  identity cache é skipado porque map ref muda toda render. */
 	perPairInputs?: Map<string, EngineKappaInput[]>,
+	distance?: DistanceName,
 ): PairwiseReport[] {
 	const hasPerPair = perPairInputs !== undefined && perPairInputs.size > 0;
 	const pKey = pairsKey(pairs);
@@ -267,7 +297,7 @@ export function reportPairwise(
 		}));
 		const extras = perPairInputs?.get(pairKey(pair)) ?? [];
 		const combined = extras.length > 0 ? [...filteredInputs, ...extras] : filteredInputs;
-		const report = reportKappa(combined);
+		const report = reportKappa(combined, undefined, distance);
 		return { pair, report };
 	});
 	if (cacheKey) {
@@ -315,6 +345,7 @@ import { reportKappaAsync as workerReportKappa, reportPairwiseAsync as workerRep
 export async function reportKappaAsync(
 	inputs: EngineKappaInput[],
 	cacheKey?: string,
+	distance?: DistanceName,
 ): Promise<KappaReport> {
 	const idHit = reportKappaCache.get(inputs);
 	if (idHit) return idHit;
@@ -325,7 +356,7 @@ export async function reportKappaAsync(
 			return keyed;
 		}
 	}
-	const result = await workerReportKappa(inputs);
+	const result = await workerReportKappa(inputs, distance);
 	reportKappaCache.set(inputs, result);
 	if (cacheKey) {
 		reportKappaKeyCache.set(`${cacheKey}::${reportCacheGen}`, result);
@@ -339,6 +370,7 @@ export async function reportPairwiseAsync(
 	pairs: [CoderId, CoderId][],
 	cacheKey?: string,
 	perPairInputs?: Map<string, EngineKappaInput[]>,
+	distance?: DistanceName,
 ): Promise<PairwiseReport[]> {
 	const hasPerPair = perPairInputs !== undefined && perPairInputs.size > 0;
 	const pKey = pairsKey(pairs);
@@ -356,7 +388,7 @@ export async function reportPairwiseAsync(
 		const keyed = reportPairwiseKeyCache.get(fullKey);
 		if (keyed) return keyed;
 	}
-	const result = await workerReportPairwise(inputs, pairs, perPairInputs);
+	const result = await workerReportPairwise(inputs, pairs, perPairInputs, distance);
 	if (cacheKey) {
 		reportPairwiseKeyCache.set(`${cacheKey}::${pKey}::${reportCacheGen}`, result);
 		pruneReportCache(reportPairwiseKeyCache);

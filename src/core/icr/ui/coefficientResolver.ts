@@ -26,7 +26,8 @@ export function getCoefficientValue(
 		if (!pair) return undefined;
 		const [a, b] = pair;
 		const table = report.aggregate.cohenKappa;
-		return table[`${a}|${b}`] ?? table[`${b}|${a}`];
+		const entry = table[`${a}|${b}`] ?? table[`${b}|${a}`];
+		return entry?.value;
 	}
 	switch (coefficient) {
 		case 'fleiss':       return report.aggregate.fleissKappa;

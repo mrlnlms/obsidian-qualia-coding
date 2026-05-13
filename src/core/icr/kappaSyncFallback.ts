@@ -12,15 +12,20 @@
 import { reportKappa, reportPairwise } from './reporter';
 import type { EngineKappaInput, KappaReport, PairwiseReport } from './reporter';
 import type { CoderId } from './coderTypes';
+import type { DistanceName } from './distances';
 
-export function __syncReportKappa(inputs: EngineKappaInput[]): KappaReport {
-	return reportKappa(inputs);
+export function __syncReportKappa(
+	inputs: EngineKappaInput[],
+	distance?: DistanceName,
+): KappaReport {
+	return reportKappa(inputs, undefined, distance);
 }
 
 export function __syncReportPairwise(
 	inputs: EngineKappaInput[],
 	pairs: [CoderId, CoderId][],
 	perPairInputs?: Map<string, EngineKappaInput[]>,
+	distance?: DistanceName,
 ): PairwiseReport[] {
-	return reportPairwise(inputs, pairs, undefined, perPairInputs);
+	return reportPairwise(inputs, pairs, undefined, perPairInputs, distance);
 }

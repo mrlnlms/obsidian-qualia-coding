@@ -18,6 +18,7 @@
 import { App, Modal, Notice } from 'obsidian';
 import type { ComparisonScope } from './compareCodersTypes';
 import type { CoderId } from '../coderTypes';
+import type { DistanceName } from '../distances';
 import type { CoderRegistry } from '../coderRegistry';
 import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
 import { reportPairwise, type EngineId, type CoefficientReport } from '../reporter';
@@ -60,6 +61,7 @@ export class CompareCoderCoefficientsModal extends Modal {
 		private compareScope: ComparisonScope,
 		private ctx: ModalCtx,
 		private options: ModalOptions,
+		private distance: DistanceName = 'jaccard',
 	) {
 		super(app);
 		// Sem par selecionado (botão direto do toolbar), force 'all-pairs' — toggle
@@ -160,13 +162,13 @@ export class CompareCoderCoefficientsModal extends Modal {
 		if (pairs.length === 0) return;
 		const inputs = await extractInputsFromScope(scope, { models: this.ctx.models, app: this.ctx.app });
 		if (inputs.length === 0) return;
-		const reports = reportPairwise(inputs, pairs);
+		const reports = reportPairwise(inputs, pairs, undefined, undefined, this.distance);
 		for (const r of reports) {
 			const cohenK = r.report.aggregate.cohenKappa[`${r.pair[0]}|${r.pair[1]}`]
 				?? r.report.aggregate.cohenKappa[`${r.pair[1]}|${r.pair[0]}`];
 			this.rows.push({
 				pair: r.pair, engine: 'aggregate',
-				cohen: cohenK,
+				cohen: cohenK?.value,
 				fleiss: r.report.aggregate.fleissKappa,
 				alpha: r.report.aggregate.alphaNominal,
 				alphaBinary: r.report.aggregate.alphaBinary,
@@ -179,7 +181,7 @@ export class CompareCoderCoefficientsModal extends Modal {
 					const ck = c.cohenKappa[`${r.pair[0]}|${r.pair[1]}`] ?? c.cohenKappa[`${r.pair[1]}|${r.pair[0]}`];
 					this.rows.push({
 						pair: r.pair, engine: engineKey as EngineId,
-						cohen: ck,
+						cohen: ck?.value,
 						fleiss: c.fleissKappa,
 						alpha: c.alphaNominal,
 						alphaBinary: c.alphaBinary,

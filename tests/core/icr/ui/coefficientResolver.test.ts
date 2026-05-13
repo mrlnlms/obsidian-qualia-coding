@@ -3,7 +3,7 @@ import { getCoefficientValue, isCoefficientApplicable } from '../../../../src/co
 import type { KappaReport, EngineId } from '../../../../src/core/icr/reporter';
 
 const baseAggregate = {
-	cohenKappa: { 'human:a|human:b': 0.5 },
+	cohenKappa: { 'human:a|human:b': { value: 0.5, perCode: {} } },
 	fleissKappa: 0.6,
 	alphaNominal: 0.7,
 	alphaBinary: 0.8,

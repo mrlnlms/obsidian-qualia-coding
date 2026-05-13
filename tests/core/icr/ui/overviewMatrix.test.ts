@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { renderOverviewMatrix } from '../../../../src/core/icr/ui/overviewMatrix';
 import { createDefaultViewState } from '../../../../src/core/icr/ui/compareCodersTypes';
 import { CoderRegistry } from '../../../../src/core/icr/coderRegistry';
+import { CodeDefinitionRegistry } from '../../../../src/core/codeDefinitionRegistry';
 import { bumpCoderInclusionCacheGeneration } from '../../../../src/core/icr/ui/coderInclusion';
 
 // Module-level caches (coderInclusion) — invalida antes de cada test.
@@ -45,7 +46,7 @@ describe('renderOverviewMatrix', () => {
 
 	it('renderiza grade N×N (N=4 com default coder + 3 humanos = 16 cells)', async () => {
 		await renderOverviewMatrix(container, stateAllCoders(), {
-			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
+			coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels: emptyEngineModels(), app: noopApp,
 		}, () => {});
 		const cells = container.querySelectorAll('.qc-cc-matrix-cell');
 		const N = coderRegistry.getAll().length;
@@ -54,7 +55,7 @@ describe('renderOverviewMatrix', () => {
 
 	it('diagonal renderiza is-diagonal com "—"', async () => {
 		await renderOverviewMatrix(container, stateAllCoders(), {
-			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
+			coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels: emptyEngineModels(), app: noopApp,
 		}, () => {});
 		const diagonal = container.querySelectorAll('.qc-cc-matrix-cell.is-diagonal');
 		const N = coderRegistry.getAll().length;
@@ -64,7 +65,7 @@ describe('renderOverviewMatrix', () => {
 
 	it('cells off-diagonal sem markers viram qc-kappa-na', async () => {
 		await renderOverviewMatrix(container, stateAllCoders(), {
-			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
+			coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels: emptyEngineModels(), app: noopApp,
 		}, () => {});
 		const offDiag = container.querySelectorAll('.qc-cc-matrix-cell:not(.is-diagonal)');
 		offDiag.forEach(cell => {
@@ -75,7 +76,7 @@ describe('renderOverviewMatrix', () => {
 	it('click em célula off-diagonal dispara onSelect com par', async () => {
 		let captured: any = null;
 		await renderOverviewMatrix(container, stateAllCoders(), {
-			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
+			coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels: emptyEngineModels(), app: noopApp,
 		}, sel => {
 			captured = sel;
 		});
@@ -89,7 +90,7 @@ describe('renderOverviewMatrix', () => {
 		// Sem markers nenhum coder qualifica → empty state mostra
 		const state = createDefaultViewState(coderRegistry.getAll().map(c => c.id));
 		await renderOverviewMatrix(container, state, {
-			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
+			coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels: emptyEngineModels(), app: noopApp,
 		}, () => {});
 		expect(container.querySelector('.qc-cc-empty')).toBeTruthy();
 		expect(container.querySelector('.qc-cc-matrix')).toBeFalsy();
@@ -110,7 +111,7 @@ describe('renderOverviewMatrix', () => {
 		const app: any = { vault: { getAbstractFileByPath: () => ({ extension: 'md' }), cachedRead: async () => 'Hello world' } };
 		const base = createDefaultViewState(allCoders);
 		const state = { ...base, filters: { ...base.filters, hideAgreementTotal: true } };
-		await renderOverviewMatrix(container, state, { coderRegistry, engineModels, app }, () => {});
+		await renderOverviewMatrix(container, state, { coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels, app }, () => {});
 		const fadedCells = container.querySelectorAll('.qc-cc-matrix-cell.qc-cc-fade');
 		// Concordância 100% (κ=1) deve passar 0.8 e ganhar fade
 		expect(fadedCells.length).toBeGreaterThan(0);
@@ -119,7 +120,7 @@ describe('renderOverviewMatrix', () => {
 	it('escopo com 1 coder mostra prompt "Selecione 2+ coders"', async () => {
 		const state = createDefaultViewState(['human:default']);
 		await renderOverviewMatrix(container, state, {
-			coderRegistry, engineModels: emptyEngineModels(), app: noopApp,
+			coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels: emptyEngineModels(), app: noopApp,
 		}, () => {});
 		expect(container.querySelector('.qc-cc-empty')).toBeTruthy();
 	});
@@ -142,7 +143,7 @@ describe('renderOverviewMatrix', () => {
 		const app: any = { vault: { getAbstractFileByPath: () => ({ extension: 'md' }), cachedRead: async () => 'Hello world' } };
 		// Default state usa Cohen — render OK
 		const stateCohen = createDefaultViewState(allCoders);
-		await renderOverviewMatrix(container, stateCohen, { coderRegistry, engineModels, app }, () => {});
+		await renderOverviewMatrix(container, stateCohen, { coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels, app }, () => {});
 		const cohenCells = Array.from(container.querySelectorAll('.qc-cc-matrix-cell:not(.is-diagonal)'));
 		const cohenHigh = cohenCells.filter(c => c.classList.contains('qc-kappa-high'));
 		expect(cohenHigh.length).toBeGreaterThan(0);
@@ -150,7 +151,7 @@ describe('renderOverviewMatrix', () => {
 		// Switch pra Fleiss → todas off-diagonal devem mostrar mesmo valor (Fleiss é cohort scalar)
 		container.empty();
 		const stateFleiss = { ...stateCohen, primaryCoefficient: 'fleiss' as const };
-		await renderOverviewMatrix(container, stateFleiss, { coderRegistry, engineModels, app }, () => {});
+		await renderOverviewMatrix(container, stateFleiss, { coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels, app }, () => {});
 		const fleissCells = Array.from(container.querySelectorAll('.qc-cc-matrix-cell:not(.is-diagonal)')) as HTMLElement[];
 		const distinctValues = new Set(fleissCells.map(c => c.textContent));
 		// Pra Fleiss restrito ao par (via reportPairwise), com 3 coders concordantes 100%, todos os pares dão Fleiss=1.
@@ -177,7 +178,7 @@ describe('renderOverviewMatrix', () => {
 			image: { getAllMarkers: () => [] },
 		};
 		const state = createDefaultViewState([coderA, coderB]);
-		await renderOverviewMatrix(container, state, { coderRegistry, engineModels, app: noopApp }, () => {});
+		await renderOverviewMatrix(container, state, { coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels, app: noopApp }, () => {});
 		const cell = container.querySelector('.qc-cc-matrix-cell:not(.is-diagonal):not(.qc-kappa-na)');
 		// Concordância 100% → cell deveria mostrar 1.00 (não n/a)
 		expect(cell).not.toBeNull();
@@ -215,7 +216,7 @@ describe('renderOverviewMatrix', () => {
 			},
 		};
 
-		await renderOverviewMatrix(container, state, { coderRegistry, engineModels, app }, () => {});
+		await renderOverviewMatrix(container, state, { coderRegistry, codeRegistry: new CodeDefinitionRegistry(), engineModels, app }, () => {});
 
 		// Procura célula do par (coderA, coderB) — deve ter cor de high agreement
 		const cells = Array.from(container.querySelectorAll('.qc-cc-matrix-cell:not(.is-diagonal)'));

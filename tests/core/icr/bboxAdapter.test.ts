@@ -117,7 +117,7 @@ describe('bboxAdapter — integration scenarios', () => {
 			coders: { a: 'coder:x', b: 'coder:y' },
 			theta: 0.5,
 		});
-		const k = cohenKappa(result, 'coder:x', 'coder:y');
+		const k = cohenKappa(result, 'coder:x', 'coder:y').value;
 		expect(k).toBeCloseTo(1, 5);
 	});
 
@@ -133,7 +133,7 @@ describe('bboxAdapter — integration scenarios', () => {
 			coders: { a: 'coder:x', b: 'coder:y' },
 			theta: 0.5,
 		});
-		const k = cohenKappa(result, 'coder:x', 'coder:y');
+		const k = cohenKappa(result, 'coder:x', 'coder:y').value;
 		expect(k).toBeLessThan(0.1);
 	});
 
@@ -149,7 +149,7 @@ describe('bboxAdapter — integration scenarios', () => {
 			coders: { a: 'coder:x', b: 'coder:y' },
 			theta: 0.5,
 		});
-		const k = cohenKappa(result, 'coder:x', 'coder:y');
+		const k = cohenKappa(result, 'coder:x', 'coder:y').value;
 		expect(k).toBeLessThan(0.1);
 	});
 
@@ -164,7 +164,7 @@ describe('bboxAdapter — integration scenarios', () => {
 			theta: 0.5,
 		});
 		expect(result.sources).toHaveLength(2);
-		const k = cohenKappa(result, 'coder:x', 'coder:y');
+		const k = cohenKappa(result, 'coder:x', 'coder:y').value;
 		expect(k).toBeLessThan(0.1);
 	});
 
@@ -188,7 +188,7 @@ describe('bboxAdapter — integration scenarios', () => {
 			coders: { a: 'coder:x', b: 'coder:y' },
 			theta: 0.5,
 		});
-		const k = cohenKappa(result, 'coder:x', 'coder:y');
+		const k = cohenKappa(result, 'coder:x', 'coder:y').value;
 		expect(k).toBeCloseTo(1, 0);
 	});
 
@@ -236,7 +236,7 @@ describe('bboxAdapter — integration scenarios', () => {
 			theta: 0.5,
 		});
 		expect(result.sources[0]!.locator).toMatch(/bbox:pic\.png:/);
-		const k = cohenKappa(result, 'coder:x', 'coder:y');
+		const k = cohenKappa(result, 'coder:x', 'coder:y').value;
 		expect(k).toBeCloseTo(1, 5);
 	});
 });

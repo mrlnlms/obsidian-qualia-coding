@@ -16,13 +16,14 @@ import { bumpCoderInclusionCacheGeneration } from './coderInclusion';
 import { bumpReportCache } from '../reporter';
 import { applyConsensusExclusion, getConsensusCoderIdsInScope } from './coderInclusion';
 import { extractInputsFromScope } from './scopeExtraction';
-import { reportPairwise } from '../reporter';
+import { reportPairwise, reportPairwiseAsync } from '../reporter';
+import { cacheKeyForScope } from './scopeExtraction';
 import type { CoderId } from '../coderTypes';
 import { renderFilterChips } from './filterChips';
 import { appendEntry } from '../../auditLog';
 import type { AuditEntry } from '../../types';
 import { renderCoefficientPicker } from './coefficientPicker';
-import { getCodersWithMarkersInScope } from './coderInclusion';
+import { getCodersWithMarkersInScope, multiLabelDensityInScope } from './coderInclusion';
 import { CompareCoderCoefficientsModal } from './compareCoderCoefficientsModal';
 import type { EngineModelsForExtraction } from './scopeExtraction';
 import { bumpInputsCacheGeneration } from './scopeExtraction';
@@ -78,6 +79,7 @@ export class UnifiedCompareCodersView extends ItemView {
 				overviewMode: last.view.overviewMode,
 				drilldownMode: last.view.drilldownMode,
 				primaryCoefficient: last.view.primaryCoefficient,
+				distance: last.view.distance ?? 'jaccard',
 				filters: { ...last.filters },
 			};
 		} else {
@@ -159,6 +161,7 @@ export class UnifiedCompareCodersView extends ItemView {
 			overviewMode: 'table',
 			drilldownMode: 'spatial',
 			primaryCoefficient: 'cohen',
+			distance: 'jaccard',
 			filters: {
 				hideAgreementTotal: false,
 				highlightConflicts: false,
@@ -186,6 +189,7 @@ export class UnifiedCompareCodersView extends ItemView {
 			overviewMode: saved.view.overviewMode,
 			drilldownMode: saved.view.drilldownMode,
 			primaryCoefficient: saved.view.primaryCoefficient,
+			distance: saved.view.distance ?? 'jaccard',
 			filters: { ...saved.filters },
 			currentSelection: { kind: 'none' },
 			loadedFromSavedId: comparisonId,
@@ -286,11 +290,13 @@ export class UnifiedCompareCodersView extends ItemView {
 		const enginesInScope = this.state.filters.visibleEngineIds
 			?? this.state.scope.engineIds
 			?? ALL_ENGINES;
+		const multiLabel = multiLabelDensityInScope(this.state.scope, this.engineModels());
 		renderCoefficientPicker(
 			pickerHolder,
 			this.state,
-			{ enginesInScope },
+			{ enginesInScope, multiLabel },
 			coefficient => this.updateState({ primaryCoefficient: coefficient }),
+			distance => this.updateState({ distance }),
 		);
 
 		const sideBtn = pickerHolder.createEl('button', { cls: 'qc-cc-side-btn', text: '↗ ver lado a lado' });
@@ -343,18 +349,14 @@ export class UnifiedCompareCodersView extends ItemView {
 			scratch.appendChild(wrap);
 			const deps = {
 				coderRegistry: this.plugin.coderRegistry,
+				codeRegistry: this.plugin.sharedRegistry,
 				engineModels: this.engineModels(),
 				app: this.plugin.app,
 			};
 			if (this.state.overviewMode === 'matrix') {
 				await renderOverviewMatrix(wrap, this.state, deps, sel => this.setSelection(sel));
 			} else if (this.state.overviewMode === 'table') {
-				await renderOverviewTable(
-					wrap,
-					this.state,
-					{ ...deps, codeRegistry: this.plugin.sharedRegistry },
-					sel => this.setSelection(sel),
-				);
+				await renderOverviewTable(wrap, this.state, deps, sel => this.setSelection(sel));
 			} else {
 				await renderOverviewHeatmap(
 					wrap,
@@ -398,6 +400,7 @@ export class UnifiedCompareCodersView extends ItemView {
 				return;
 			}
 			const auditLog = (this.plugin.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
+			const cohenPerCode = await this.computeCohenPerCodeForCurrentPair();
 			renderDrilldownCards(
 				this.drilldownEl,
 				this.state,
@@ -409,6 +412,7 @@ export class UnifiedCompareCodersView extends ItemView {
 					auditLog,
 					persistAuditLog: log => this.plugin.dataManager.setSection('auditLog', log),
 					app: this.plugin.app,
+					cohenPerCode,
 				},
 				{
 					onSetSelection: sel => this.setSelection(sel),
@@ -475,7 +479,8 @@ export class UnifiedCompareCodersView extends ItemView {
 			for (const r of reports) {
 				const [a, b] = r.pair;
 				const key = a < b ? `${a}|${b}` : `${b}|${a}`;
-				byPair[key] = r.report.aggregate.cohenKappa[`${a}|${b}`] ?? r.report.aggregate.cohenKappa[`${b}|${a}`];
+				const entry = r.report.aggregate.cohenKappa[`${a}|${b}`] ?? r.report.aggregate.cohenKappa[`${b}|${a}`];
+				byPair[key] = entry?.value;
 			}
 			return { byPair };
 		};
@@ -518,6 +523,24 @@ export class UnifiedCompareCodersView extends ItemView {
 		void this.renderDrilldown();
 	}
 
+	/** Pré-computa Cohen κ perCode pro par atualmente selecionado (currentSelection.kind === 'pair').
+	 *  Usado pelo drill-down Cards pra renderizar breakdown no topo quando coef = Cohen κ.
+	 *  Hit cache do reportPairwise quando matrix já fez chamada equivalente (mesmo scope+δ). */
+	private async computeCohenPerCodeForCurrentPair(): Promise<Record<string, number> | undefined> {
+		if (this.state.primaryCoefficient !== 'cohen') return undefined;
+		const sel = this.state.currentSelection;
+		if (sel.kind !== 'pair') return undefined;
+		const [a, b] = sel.value;
+		const inputs = await extractInputsFromScope(this.state.scope, { models: this.engineModels(), app: this.plugin.app });
+		if (inputs.length === 0) return undefined;
+		const distance = this.state.distance ?? 'jaccard';
+		const cacheKey = cacheKeyForScope(this.state.scope) + `::δ-${distance}`;
+		const reports = await reportPairwiseAsync(inputs, [[a, b]], cacheKey, undefined, distance);
+		const r = reports[0]?.report.aggregate.cohenKappa[`${a}|${b}`]
+			?? reports[0]?.report.aggregate.cohenKappa[`${b}|${a}`];
+		return r?.perCode;
+	}
+
 	private openSideBySideModal(): void {
 		const sel = this.state.currentSelection;
 		const isPair = sel.kind === 'pair';
@@ -535,6 +558,7 @@ export class UnifiedCompareCodersView extends ItemView {
 				initial: isPair ? 'single-pair' : 'all-pairs',
 				pair: isPair ? sel.value : undefined,
 			},
+			this.state.distance ?? 'jaccard',
 		).open();
 	}
 }

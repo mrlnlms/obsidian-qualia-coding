@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { cuAlpha } from '../../../../src/core/icr/coefficients/cuAlpha';
+import { distanceJaccard, distanceNominal } from '../../../../src/core/icr/distances';
 import type { KappaInput } from '../../../../src/core/icr/kappaInput';
 
 describe('cuAlpha', () => {
@@ -51,5 +52,32 @@ describe('cuAlpha', () => {
 			coders: ['a', 'b'],
 		};
 		expect(cuAlpha(input)).toBeCloseTo(1.0, 3);
+	});
+});
+
+describe('cuAlpha — paramétrico em distance', () => {
+	// Multi-label nos boundaries compartilhados (0..10): coder A multi-label fixo {a,b};
+	// coder B varia entre subset/lateral/identical sob mesmas boundaries.
+	const inputMultiLabel: KappaInput = {
+		markers: [
+			{ coderId: 'a', range: { fileId: 'f1', locator: '', from: 0, to: 10 }, codeIds: ['a', 'b'] },
+			{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 0, to: 3 }, codeIds: ['a', 'b'] },
+			{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 3, to: 7 }, codeIds: ['a', 'b', 'c'] },
+			{ coderId: 'b', range: { fileId: 'f1', locator: '', from: 7, to: 10 }, codeIds: ['a', 'c'] },
+		],
+		sources: [{ fileId: 'f1', locator: '', totalUnits: 20 }],
+		coders: ['a', 'b'],
+	};
+
+	it('default = δ_nominal (backwards compat)', () => {
+		const α_default = cuAlpha(inputMultiLabel);
+		const α_explicit = cuAlpha(inputMultiLabel, { distance: distanceNominal });
+		expect(α_default).toBeCloseTo(α_explicit, 6);
+	});
+
+	it('cu-α propaga distance pra α subjacente — Jaccard penaliza overlap parcial', () => {
+		const α_nominal = cuAlpha(inputMultiLabel);
+		const α_jaccard = cuAlpha(inputMultiLabel, { distance: distanceJaccard });
+		expect(α_jaccard).toBeLessThan(α_nominal);
 	});
 });

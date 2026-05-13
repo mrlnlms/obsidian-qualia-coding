@@ -30,6 +30,7 @@ export function snapshotSavable(state: CompareCodersViewState): CompareCodersSav
 			overviewMode: state.overviewMode,
 			drilldownMode: state.drilldownMode,
 			primaryCoefficient: state.primaryCoefficient,
+			distance: state.distance,
 		},
 		filters: state.filters,
 	};
@@ -47,6 +48,7 @@ export function equalSavable(a: CompareCodersSavable, b: CompareCodersSavable): 
 	if (a.view.overviewMode !== b.view.overviewMode) return false;
 	if (a.view.drilldownMode !== b.view.drilldownMode) return false;
 	if (a.view.primaryCoefficient !== b.view.primaryCoefficient) return false;
+	if ((a.view.distance ?? 'jaccard') !== (b.view.distance ?? 'jaccard')) return false;
 	if (!equalFilters(a.filters, b.filters)) return false;
 	return true;
 }

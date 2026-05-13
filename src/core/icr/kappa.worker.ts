@@ -9,7 +9,7 @@
  * tipos + os coeficientes puros.
  */
 
-import { cohenKappa } from './coefficients/cohenKappa';
+import { cohenKappa, type CohenKappaReport } from './coefficients/cohenKappa';
 import { cohenKappaCategorical } from './coefficients/cohenKappaCategorical';
 import { fleissKappa } from './coefficients/fleissKappa';
 import { fleissKappaCategorical } from './coefficients/fleissKappaCategorical';
@@ -17,6 +17,7 @@ import { krippendorffAlphaNominal } from './coefficients/krippendorffAlpha';
 import { krippendorffAlphaCategoricalNominal } from './coefficients/krippendorffAlphaCategorical';
 import { alphaBinary } from './coefficients/alphaBinary';
 import { cuAlpha } from './coefficients/cuAlpha';
+import { resolveDistance, type DistanceFunction, type DistanceName } from './distances';
 import type { KappaInput } from './kappaInput';
 import type { CategoricalKappaInput } from './categoricalKappaInput';
 import type { CoderId } from './coderTypes';
@@ -35,7 +36,7 @@ interface EngineKappaInput {
 }
 
 interface CoefficientReport {
-	cohenKappa: Record<string, number>;
+	cohenKappa: Record<string, CohenKappaReport>;
 	fleissKappa: number;
 	alphaNominal: number;
 	alphaBinary: number;
@@ -63,9 +64,13 @@ function isCategorical(input: KappaInput | CategoricalKappaInput): input is Cate
 	return 'units' in input;
 }
 
-function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientReport {
+function computeAll(
+	input: KappaInput | CategoricalKappaInput,
+	distance?: DistanceFunction,
+): CoefficientReport {
+	const alphaOptions = distance ? { distance } : undefined;
 	if (isCategorical(input)) {
-		const cohenK: Record<string, number> = {};
+		const cohenK: Record<string, CohenKappaReport> = {};
 		for (let i = 0; i < input.coders.length; i++) {
 			for (let j = i + 1; j < input.coders.length; j++) {
 				cohenK[`${input.coders[i]}|${input.coders[j]}`] = cohenKappaCategorical(input, input.coders[i]!, input.coders[j]!);
@@ -73,13 +78,13 @@ function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientRepor
 		}
 		return {
 			cohenKappa: cohenK,
-			fleissKappa: fleissKappaCategorical(input),
-			alphaNominal: krippendorffAlphaCategoricalNominal(input),
+			fleissKappa: fleissKappaCategorical(input, alphaOptions),
+			alphaNominal: krippendorffAlphaCategoricalNominal(input, alphaOptions),
 			alphaBinary: 1,
 			cuAlpha: 1,
 		};
 	}
-	const cohenK: Record<string, number> = {};
+	const cohenK: Record<string, CohenKappaReport> = {};
 	for (let i = 0; i < input.coders.length; i++) {
 		for (let j = i + 1; j < input.coders.length; j++) {
 			cohenK[`${input.coders[i]}|${input.coders[j]}`] = cohenKappa(input, input.coders[i]!, input.coders[j]!);
@@ -87,10 +92,10 @@ function computeAll(input: KappaInput | CategoricalKappaInput): CoefficientRepor
 	}
 	return {
 		cohenKappa: cohenK,
-		fleissKappa: fleissKappa(input),
-		alphaNominal: krippendorffAlphaNominal(input),
+		fleissKappa: fleissKappa(input, alphaOptions),
+		alphaNominal: krippendorffAlphaNominal(input, alphaOptions),
 		alphaBinary: alphaBinary(input),
-		cuAlpha: cuAlpha(input),
+		cuAlpha: cuAlpha(input, alphaOptions),
 	};
 }
 
@@ -106,16 +111,32 @@ function aggregateReports(
 	}
 	const allCohenKeys = new Set<string>();
 	for (const e of engines) for (const k of Object.keys(byEngine[e]!.cohenKappa)) allCohenKeys.add(k);
-	const cohenAgg: Record<string, number> = {};
+	const cohenAgg: Record<string, CohenKappaReport> = {};
 	for (const key of allCohenKeys) {
-		let sum = 0;
-		let used = 0;
+		let sumValue = 0;
+		let usedValue = 0;
+		const perCodeAccum: Record<string, { sum: number; weight: number }> = {};
 		for (const e of engines) {
-			const v = byEngine[e]!.cohenKappa[key];
+			const r = byEngine[e]!.cohenKappa[key];
 			const w = weights[e] ?? 0;
-			if (v !== undefined) { sum += v * w; used += w; }
+			if (r !== undefined) {
+				sumValue += r.value * w;
+				usedValue += w;
+				for (const [codeId, kappa] of Object.entries(r.perCode)) {
+					if (!perCodeAccum[codeId]) perCodeAccum[codeId] = { sum: 0, weight: 0 };
+					perCodeAccum[codeId].sum += kappa * w;
+					perCodeAccum[codeId].weight += w;
+				}
+			}
 		}
-		cohenAgg[key] = used > 0 ? sum / used : 0;
+		const perCode: Record<string, number> = {};
+		for (const [codeId, acc] of Object.entries(perCodeAccum)) {
+			if (acc.weight > 0) perCode[codeId] = acc.sum / acc.weight;
+		}
+		cohenAgg[key] = {
+			value: usedValue > 0 ? sumValue / usedValue : 0,
+			perCode,
+		};
 	}
 	const wavg = (key: 'fleissKappa' | 'alphaNominal' | 'alphaBinary' | 'cuAlpha'): number => {
 		let sum = 0;
@@ -131,11 +152,15 @@ function aggregateReports(
 	};
 }
 
-function reportKappaCore(inputs: EngineKappaInput[]): KappaReport {
+function reportKappaCore(
+	inputs: EngineKappaInput[],
+	distance?: DistanceName,
+): KappaReport {
+	const δ: DistanceFunction | undefined = distance ? resolveDistance(distance) : undefined;
 	const byEngine: Partial<Record<EngineId, CoefficientReport>> = {};
 	const weights: Partial<Record<EngineId, number>> = {};
 	for (const { engine, kappaInput } of inputs) {
-		byEngine[engine] = computeAll(kappaInput);
+		byEngine[engine] = computeAll(kappaInput, δ);
 		weights[engine] = isCategorical(kappaInput) ? kappaInput.units.length : kappaInput.markers.length;
 	}
 	const aggregate = aggregateReports(byEngine, weights);
@@ -177,6 +202,7 @@ function reportPairwiseCore(
 	inputs: EngineKappaInput[],
 	pairs: [CoderId, CoderId][],
 	perPairInputs?: Map<string, EngineKappaInput[]>,
+	distance?: DistanceName,
 ): PairwiseReport[] {
 	return pairs.map(pair => {
 		const filtered: EngineKappaInput[] = inputs.map(input => ({
@@ -185,15 +211,15 @@ function reportPairwiseCore(
 		}));
 		const extras = perPairInputs?.get(pairKeyLocal(pair)) ?? [];
 		const combined = extras.length > 0 ? [...filtered, ...extras] : filtered;
-		return { pair, report: reportKappaCore(combined) };
+		return { pair, report: reportKappaCore(combined, distance) };
 	});
 }
 
 // ─── Message protocol ──────────────────────────────────────
 
 type Request =
-	| { id: number; op: 'reportKappa'; inputs: EngineKappaInput[] }
-	| { id: number; op: 'reportPairwise'; inputs: EngineKappaInput[]; pairs: [CoderId, CoderId][]; perPairEntries?: Array<[string, EngineKappaInput[]]> };
+	| { id: number; op: 'reportKappa'; inputs: EngineKappaInput[]; distance?: DistanceName }
+	| { id: number; op: 'reportPairwise'; inputs: EngineKappaInput[]; pairs: [CoderId, CoderId][]; perPairEntries?: Array<[string, EngineKappaInput[]]>; distance?: DistanceName };
 
 type Response =
 	| { id: number; ok: true; op: 'reportKappa'; result: KappaReport }
@@ -207,12 +233,12 @@ ctx.addEventListener('message', (ev: MessageEvent<Request>) => {
 	const req = ev.data;
 	try {
 		if (req.op === 'reportKappa') {
-			const result = reportKappaCore(req.inputs);
+			const result = reportKappaCore(req.inputs, req.distance);
 			const resp: Response = { id: req.id, ok: true, op: 'reportKappa', result };
 			ctx.postMessage(resp);
 		} else if (req.op === 'reportPairwise') {
 			const perPairMap = req.perPairEntries ? new Map(req.perPairEntries) : undefined;
-			const result = reportPairwiseCore(req.inputs, req.pairs, perPairMap);
+			const result = reportPairwiseCore(req.inputs, req.pairs, perPairMap, req.distance);
 			const resp: Response = { id: req.id, ok: true, op: 'reportPairwise', result };
 			ctx.postMessage(resp);
 		}

@@ -47,6 +47,9 @@ export interface DrilldownCardsDeps {
 	auditLog: AuditEntry[];
 	persistAuditLog: (log: AuditEntry[]) => void;
 	app?: App;
+	/** Breakdown Cohen κ caminho A (binary-per-label) do par atualmente selecionado.
+	 *  Renderizado como card no topo do drill-down. undefined = card oculto. */
+	cohenPerCode?: Record<string, number>;
 }
 
 export interface DrilldownCardsCallbacks {
@@ -68,6 +71,11 @@ export function renderDrilldownCards(
 		cls: 'qc-cc-perspective-question',
 		text: '#3 o que cada um leu? · #4 por que diferimos?',
 	});
+
+	// perCode card no topo quando Cohen κ ativo (caminho A binary-per-label).
+	if (state.primaryCoefficient === 'cohen' && deps.cohenPerCode) {
+		renderCohenPerCodeCard(container, deps.cohenPerCode, deps.codeRegistry);
+	}
 
 	const allRegions = collectContestedRegions(state, deps.engineModels);
 	const resolvedSet = computeResolvedRegionSet(allRegions, deps.auditLog);
@@ -95,6 +103,35 @@ export function renderDrilldownCards(
 		divergenceKind: 'existence',
 	};
 	renderRegionView(container, activeRegion, deps, cbs);
+}
+
+function renderCohenPerCodeCard(
+	container: HTMLElement,
+	perCode: Record<string, number>,
+	codeRegistry: CodeDefinitionRegistry,
+): void {
+	const entries = Object.entries(perCode);
+	if (entries.length === 0) return;
+	const card = container.createDiv({ cls: 'qc-cc-percode-card' });
+	const header = card.createDiv({ cls: 'qc-cc-percode-header' });
+	header.createSpan({ cls: 'qc-cc-percode-title', text: 'Decomposição por código' });
+	header.createSpan({
+		cls: 'qc-cc-percode-subtitle',
+		text: 'Cohen κ caminho A — macro-average sobre presença/ausência por código',
+	});
+	const list = card.createEl('ul', { cls: 'qc-cc-percode-list' });
+	const sorted = entries.sort(([, a], [, b]) => a - b);
+	for (const [codeId, kappa] of sorted) {
+		const li = list.createEl('li', { cls: 'qc-cc-percode-item' });
+		const name = codeRegistry.getById(codeId)?.name ?? codeId;
+		li.createSpan({ cls: 'qc-cc-percode-name', text: name });
+		const valEl = li.createSpan({ cls: 'qc-cc-percode-value', text: kappa.toFixed(2) });
+		// Cor por faixa (alinha com kappaClass dos overviews)
+		if (kappa < 0.4) valEl.addClass('qc-kappa-low');
+		else if (kappa < 0.6) valEl.addClass('qc-kappa-mid');
+		else if (kappa < 0.8) valEl.addClass('qc-kappa-good');
+		else valEl.addClass('qc-kappa-high');
+	}
 }
 
 function computeResolvedRegionSet(regions: ContestedRegion[], log: AuditEntry[]): Set<string> {

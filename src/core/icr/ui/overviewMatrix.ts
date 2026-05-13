@@ -18,6 +18,7 @@ import { reportPairwiseAsync, pairKey, type EngineKappaInput } from '../reporter
 import { cacheKeyForScope } from './scopeExtraction';
 import type { CoderId } from '../coderTypes';
 import type { CoderRegistry } from '../coderRegistry';
+import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
 import type { App } from 'obsidian';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
@@ -26,6 +27,7 @@ import { applyCoderInclusion, applyConsensusExclusion, applyVisibleCoderFilter }
 
 export interface OverviewMatrixDeps {
 	coderRegistry: CoderRegistry;
+	codeRegistry: CodeDefinitionRegistry;
 	engineModels: EngineModelsForExtraction;
 	app: App;
 }
@@ -99,18 +101,28 @@ export async function renderOverviewMatrix(
 	}
 
 	const hasAnyInput = inputs.length > 0 || perPairBbox.size > 0;
-	// Suffix bbox no cacheKey: distingue render Cohen-com-bbox de Fleiss/α-sem-bbox.
-	// bumpReportCache (em mutações de marker) invalida o cache normalmente.
-	const reportCacheKey = cacheKeyForScope(effectiveScope) + (perPairBbox.size > 0 ? '::bbox' : '');
+	// Suffix bbox + δ no cacheKey: distingue render Cohen-com-bbox de Fleiss/α-sem-bbox, e
+	// renders δ_jaccard de δ_MASI/nominal. §46: δ é parâmetro de comportamento, não scope.
+	const distance = state.distance ?? 'jaccard';
+	const reportCacheKey = cacheKeyForScope(effectiveScope)
+		+ (perPairBbox.size > 0 ? '::bbox' : '')
+		+ `::δ-${distance}`;
 	const reports = hasAnyInput
-		? await reportPairwiseAsync(inputs, pairs, reportCacheKey, perPairBbox)
+		? await reportPairwiseAsync(inputs, pairs, reportCacheKey, perPairBbox, distance)
 		: [];
 	const kappaByPair = new Map<string, number | undefined>();
+	const cohenPerCodeByPair = new Map<string, Record<string, number>>();
 	for (const r of reports) {
 		const [a, b] = r.pair;
 		const value = getCoefficientValue(r.report, state.primaryCoefficient, [a, b]);
 		const normalKey = a < b ? `${a}|${b}` : `${b}|${a}`;
 		kappaByPair.set(normalKey, value);
+		if (state.primaryCoefficient === 'cohen') {
+			const cohen = r.report.aggregate.cohenKappa[`${a}|${b}`] ?? r.report.aggregate.cohenKappa[`${b}|${a}`];
+			if (cohen?.perCode && Object.keys(cohen.perCode).length > 0) {
+				cohenPerCodeByPair.set(normalKey, cohen.perCode);
+			}
+		}
 	}
 
 	const grid = container.createEl('table', { cls: 'qc-cc-matrix' });
@@ -139,6 +151,16 @@ export async function renderOverviewMatrix(
 				cell.addClass(kappaClass(k));
 				cell.textContent = k.toFixed(2);
 				if (state.filters.hideAgreementTotal && k > 0.8) cell.addClass('qc-cc-fade');
+				// Tooltip perCode breakdown quando Cohen κ ativo (caminho A binary-per-label)
+				const perCode = cohenPerCodeByPair.get(key);
+				if (perCode) {
+					const sorted = Object.entries(perCode).sort(([, a], [, b]) => a - b);
+					const lines = sorted.map(([codeId, κ]) => {
+						const name = deps.codeRegistry.getById(codeId)?.name ?? codeId;
+						return `  ${name}: ${κ.toFixed(2)}`;
+					});
+					cell.title = `Decomposição Cohen κ (caminho A):\n${lines.join('\n')}`;
+				}
 			}
 			cell.onclick = () => onSelect({ kind: 'pair', value: [rowId, colId] });
 		}
