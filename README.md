@@ -4,6 +4,8 @@ Mixed-methods qualitative data analysis, inside Obsidian. Code text, PDFs, image
 
 For researchers, UX professionals, students, and anyone who'd rather not pay $600/year for a desktop CAQDAS that locks data inside a proprietary container.
 
+> **Avaliando o projeto em profundidade?** Comece por [`docs/PROJECT-OVERVIEW.md`](docs/PROJECT-OVERVIEW.md) — tour cravado por 3 camadas (produto, método, implementação) com ordem de leitura prescrita pra análises externas.
+
 ## Why Qualia Coding
 
 - **6 formats, one codebook.** Highlight a markdown paragraph, draw a region on a PDF, mark a 12-second video clip, and tag a CSV row — all with the same code. Cross-format analytics work out of the box.
