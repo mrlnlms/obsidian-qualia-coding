@@ -258,30 +258,20 @@ Slice 6 fecha as 6 engines do plugin no motor κ (markdown + PDF text + CSV cod 
 
 ---
 
-## 🧱 ICR — Compare Coders polish (aberto)
+## 🧱 ICR — Compare Coders polish (resolvido)
 
-### B4 — Camada 1: per-modality enforcement (correção pequena, sem brainstorm)
+### B4 — Camada 1: per-modality enforcement ✅ FEITO 2026-05-13
 
-**Estado:** reporter aggregate cross-engine usa `weights[engine] = markers.length`. Pesquisa 2026-05-13 (`obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md`) cravou que essa agregação é **unsupported** na literatura. Cada UoA exige sua própria δ; pool entre δ heterogêneas não é definido (Krippendorff 2018, Artstein & Poesio 2008, Mathet et al. 2015). Convergência empírica em AMI/MUMIN/ELAN/NEUROGES é reportar per-modality.
+Entregue na branch `b4-camada-1-per-modality`. UI ajustada sem mexer no motor κ:
 
-**As 3 alternativas que antes pareciam decisão metodológica resolvem assim:**
-- Equal weight per engine — **descartada** (ponderação artificial sem suporte literatura)
-- Unidade analítica natural — **descartada** (sem proposta publicada cross-modality)
-- Matrix Mode A só com 1 engine ativo — **caminho 1 da literatura, adotada** (convergência empírica)
+- **Banner discreto** no topo do Overview (Modes A e B) quando escopo cruza 2+ famílias modais (text-like / temporal / categorical / spatial-bbox). Tooltip cita Krippendorff 2018, Artstein & Poesio 2008, Mathet et al. 2015 + path da pesquisa.
+- **Mode A (Matrix):** per-engine table (linha = modalidade, coluna = 5 coeficientes) renderiza antes da matriz coder × coder em escopo multimodal. Matriz continua, mas com label descritivo + tooltip.
+- **Mode B (Table)** e **Mode C (Heatmap):** heatmap já era per-engine; table ganha o banner mas mantém estrutura por código.
+- **Single-engine inalterado.**
 
-**Correção mecânica:**
-1. Aggregate cross-engine nunca renderiza como **métrica primária** no Compare Coders (matriz, tabela, heatmap)
-2. Per-engine vira fonte de verdade — chip per-engine no toolbar (já existe) é o eixo principal
-3. Se aggregate aparecer (por compatibilidade descritiva), marcar **"descritivo, não inferencial"** com tooltip explicando incomensurabilidade entre δ
-4. Tabela κ separada por linha (engine) — opcional, mas é o pattern AMI/MUMIN
-5. Sem refactor de motor — só UI + texto explicativo
+Detecção via `activeFamiliesFromModels(scope, models)` em `src/core/icr/ui/multimodalBanner.ts` (varre engines respeitando filters; csvSegment vs csvRow via presença de `from`). Per-engine table em `src/core/icr/ui/overviewPerEngineTable.ts` consome `report.byEngine` que `reportPairwise` já calcula — zero custo extra.
 
-**Não atacar nesta tarefa (escopo Camada 1):**
-- Bayesian annotation model — Camada 2, entra junto com LLM
-- G-theory / MFRM — Camada 3, opt-in research-grade
-- Refactor de weighting do reporter — não precisa mudar, só esconder/marcar o aggregate
-
-**Tamanho:** ~1 sessão. Sem TDD pesado — mudança em camada de apresentação + texto. Smoke real obrigatório: confirmar que tela do Compare Coders sobre escopo multi-engine não vende κ pooled como "o número" do escopo.
+**+25 testes** unit (multimodalBanner + overviewPerEngineTable). Zero regressão na suite. **Layers 2 e 3** (Bayesian annotation model + G-theory/MFRM) fora do escopo — viram peças do bloco LLM/Framework Unificado (ver ROADMAP §"Framework Unificado ICR + LLM").
 
 ---
 

@@ -6663,6 +6663,73 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	min-height: 200px;
 }
 
+/* Camada 1 (B4, 2026-05-13) — banner + per-engine table + aggregate label
+   pra escopo multimodal (2+ famílias modais). Pesquisa em
+   `obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md`. */
+.qc-cc-multimodal-banner {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 8px 12px;
+	margin-bottom: 12px;
+	background: var(--background-modifier-cover, rgba(255, 200, 0, 0.08));
+	border-left: 3px solid var(--text-warning, #c89000);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	cursor: help;
+}
+.qc-cc-multimodal-icon {
+	color: var(--text-warning, #c89000);
+	font-weight: 700;
+	flex-shrink: 0;
+}
+.qc-cc-multimodal-msg {
+	color: var(--text-normal);
+}
+.qc-cc-multimodal-detail {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.qc-cc-per-engine-wrap {
+	margin-bottom: 16px;
+}
+.qc-cc-per-engine-title {
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	color: var(--text-normal);
+	margin-bottom: 6px;
+}
+.qc-cc-per-engine-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--font-ui-smaller);
+}
+.qc-cc-per-engine-table th,
+.qc-cc-per-engine-table td {
+	padding: 5px 10px;
+	text-align: center;
+	border-bottom: 1px solid var(--background-modifier-border);
+	min-width: 60px;
+}
+.qc-cc-per-engine-table th {
+	background: var(--background-secondary);
+	font-weight: 600;
+}
+.qc-cc-per-engine-table td.col-modality {
+	text-align: left;
+	font-weight: 500;
+	font-family: var(--font-monospace);
+}
+
+.qc-cc-aggregate-label {
+	margin: 12px 0 6px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	font-style: italic;
+	cursor: help;
+}
+
 .qc-cc-empty,
 .qc-cc-stub {
 	opacity: 0.6;

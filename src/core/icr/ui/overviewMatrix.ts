@@ -12,7 +12,7 @@
  * (offsets line/ch precisam de source text pra converter em char absoluto).
  */
 
-import type { CompareCodersViewState, CurrentSelection } from './compareCodersTypes';
+import type { CompareCodersViewState, ComparisonScope, CurrentSelection } from './compareCodersTypes';
 import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
 import { reportPairwiseAsync, pairKey, type EngineKappaInput } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
@@ -22,8 +22,10 @@ import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
 import type { App } from 'obsidian';
 import { getCoefficientValue } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
-import { computeBboxKappaInputsForPair } from './bboxScopeExtraction';
+import { computeBboxKappaInputsForPair, computeBboxKappaForPair } from './bboxScopeExtraction';
 import { applyCoderInclusion, applyConsensusExclusion, applyVisibleCoderFilter } from './coderInclusion';
+import { activeFamilies, renderMultimodalBanner } from './multimodalBanner';
+import { renderPerEngineTable, type BboxByPair } from './overviewPerEngineTable';
 
 export interface OverviewMatrixDeps {
 	coderRegistry: CoderRegistry;
@@ -110,6 +112,29 @@ export async function renderOverviewMatrix(
 	const reports = hasAnyInput
 		? await reportPairwiseAsync(inputs, pairs, reportCacheKey, perPairBbox, distance)
 		: [];
+
+	// Camada 1 (B4, 2026-05-13): escopo multimodal → banner discreto + per-engine table
+	// como apresentação primária. Matriz cohort-aggregate continua, marcada como descritiva.
+	const families = activeFamilies(inputs, perPairBbox.size > 0);
+	const isMultimodal = families.size >= 2;
+	if (isMultimodal) {
+		renderMultimodalBanner(container, families);
+		const bboxByPair: BboxByPair | undefined = perPairBbox.size > 0
+			? buildBboxByPair(pairs, effectiveScope, deps, state.filters.splitBboxEngines ?? false)
+			: undefined;
+		renderPerEngineTable(container, reports, bboxByPair);
+		const matrixLabel = container.createDiv({
+			cls: 'qc-cc-aggregate-label',
+			text: 'Matriz coder × coder (descritivo — agrega modalidades, não usar como métrica inferencial)',
+		});
+		matrixLabel.title = [
+			'A matriz abaixo combina markers de modalidades diferentes via média ponderada por #markers.',
+			'Cada modalidade tem sua própria δ — o pooled κ não está definido na literatura.',
+			'Use a tabela "κ por modalidade" acima como fonte de verdade.',
+			'',
+			'Detalhe em: obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md',
+		].join('\n');
+	}
 	const kappaByPair = new Map<string, number | undefined>();
 	const cohenPerCodeByPair = new Map<string, Record<string, number>>();
 	for (const r of reports) {
@@ -167,3 +192,25 @@ export async function renderOverviewMatrix(
 	}
 }
 
+/** Coleta κ bbox por par pra alimentar a per-engine table (Camada 1, B4).
+ *  Reusa `computeBboxKappaForPair` que já tem cache interno via reportKappa. */
+function buildBboxByPair(
+	pairs: [CoderId, CoderId][],
+	scope: ComparisonScope,
+	deps: OverviewMatrixDeps,
+	splitBbox: boolean,
+): BboxByPair {
+	const mode: 'unified' | 'split' = splitBbox ? 'split' : 'unified';
+	const valuesByPair = new Map<string, { spatialBbox?: number; pdfShape?: number; image?: number }>();
+	for (const pair of pairs) {
+		const r = computeBboxKappaForPair({
+			models: { pdf: deps.engineModels.pdf, image: deps.engineModels.image },
+			scope,
+			pair,
+			mode,
+			theta: 0.5,
+		});
+		valuesByPair.set(pairKey(pair), r);
+	}
+	return { mode, valuesByPair };
+}

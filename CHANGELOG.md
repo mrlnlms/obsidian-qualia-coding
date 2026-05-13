@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**ICR B4 — Camada 1: per-modality enforcement no Compare Coders (2026-05-13)** — branch `b4-camada-1-per-modality`. Pesquisa em `obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md` cravou que aggregate κ/α cross-modality por #markers é **unsupported** na literatura (Krippendorff 2018; Artstein & Poesio 2008; Mathet et al. 2015 — cada UoA exige sua própria δ; pool entre δ heterogêneas não está definido). Convergência empírica (AMI, MUMIN, ELAN, NEUROGES) é reportar per-modality. **UI ajustada** sem mexer no motor κ:
+- **Banner discreto** no topo do Overview (Modes A e B) quando escopo cruza 2+ famílias modais (text-like / temporal / categorical / spatial-bbox). Texto: "κ/α são definidos sobre uma única modalidade — comparar valores entre modalidades requer cautela (δ heterogêneas)". Tooltip cita as 3 referências + path da pesquisa.
+- **Mode A (Matrix)**: per-engine table (linha = modalidade, coluna = 5 coeficientes) renderiza **antes** da matriz coder × coder quando o escopo é multimodal. Matriz continua, mas com label descritivo: "Matriz coder × coder (descritivo — agrega modalidades, não usar como métrica inferencial)" + tooltip explicativo.
+- **Mode B (Table)** e **Mode C (Heatmap)**: heatmap já é per-engine (sem mudança); table ganha o banner mas mantém estrutura por código.
+- **Single-engine inalterado**: nada muda quando o escopo tem só 1 família modal.
+
+**Detecção de famílias modais:** `activeFamiliesFromModels(scope, models)` varre engines respeitando filters de scope (coderIds/codeIds/fileIds/engineIds); discrimina csvSegment (text-like) de csvRow (categorical) via presença de `from`. CSV bbox (pdfShape, image) detectado via canal separado (`computeBboxKappaForPair`). **Motor κ intocado** — `KappaReport.aggregate` e `KappaReport.aggregateWarnings` permanecem; UI só recategoriza apresentação.
+
+**+25 testes** (multimodalBanner.test.ts: 19 cenários de detecção; overviewPerEngineTable.test.ts: 6 cenários de render — Cohen médio dos pares, bbox unified vs split, fallback empty, título). Zero regressão na suite (3537 → 3562 verde). CSS novo: `.qc-cc-multimodal-banner`, `.qc-cc-per-engine-{wrap,title,table}`, `.qc-cc-aggregate-label`. Layer 2 (Bayesian annotation model) e Layer 3 (G-theory/MFRM) ficam fora do escopo — Layer 2 entra junto com LLM-assisted coding (Framework Unificado ICR + LLM, ver ROADMAP).
+
 ## [0.5.0] - 2026-05-13
 
 **ICR Refactor C completo — Set-valued labels no motor κ.** 3 chunks (C1 distâncias + α/cu-α paramétricos, C2 Cohen caminho A + Fleiss fallback, C3 UI + perCode rendering). Resolve a redução first-code alfabético que inflava agreement em escopo multi-label.

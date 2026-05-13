@@ -22,6 +22,7 @@ import { cacheKeyForScope } from './scopeExtraction';
 import { kappaClass } from './overviewSharedRender';
 import { applyCoderInclusion, applyConsensusExclusion, applyVisibleCoderFilter } from './coderInclusion';
 import { filterInputsByCoders } from './scopeExtraction';
+import { activeFamiliesFromModels, renderMultimodalBanner } from './multimodalBanner';
 import type { App } from 'obsidian';
 
 export interface OverviewTableDeps {
@@ -79,6 +80,11 @@ export async function renderOverviewTable(
 	const effectiveScope = state.filters.visibleEngineIds
 		? { ...inclusionScope, engineIds: state.filters.visibleEngineIds }
 		: inclusionScope;
+
+	// Camada 1 (B4, 2026-05-13): banner discreto quando escopo cruza 2+ famílias
+	// modais. Tabela continua per-code, mas aviso explícito sobre incomensurabilidade.
+	const families = activeFamiliesFromModels(effectiveScope, deps.engineModels);
+	renderMultimodalBanner(container, families);
 
 	const visKey = '::v=' + [...visibleCoderIds].sort().join(',');
 	const distance = state.distance ?? 'jaccard';
