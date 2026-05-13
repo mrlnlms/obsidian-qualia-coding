@@ -7,7 +7,9 @@
 
 > **✅ ICR — bloco mecânico fechado (2026-05-12):** 9 itens entregues e validados no vault workbench numa única sessão (todos os smokes em vault real, não só tests). **A1+A2** overlap markdown exato (chips "Lado a lado" + "Por código" do ICR Import via prefetch `vault.cachedRead`); **B1** drilldowns Cards/Workflow filtram por currentSelection da overview; **B2** Spatial responde a cliques diferentes (intersection pra pair, header informativo); **B3** modal "ver lado a lado" desabilita chip "par único" sem cell selecionada; **A3** Map manual de sources problemáticos (FuzzySuggestModal pra remap pra outro fileId local); **A4** badge "duplicate coder" na rail da ICR Import; **dedup motor** (`mergeCoderContribution` agora skip por markerId — corrigiu bug latente de duplicação silenciosa em apply sequencial); **D** Tabular ZIP ganhou coluna `coder` em segments.csv + `coders.csv` standalone + seção "Inter-coder reliability (Cohen κ)" no README com snippet R (`irr::kappa2`) + Python (`sklearn.cohen_kappa_score`). **Governance** cravada nesta sessão: CLAUDE.md §8 — antes de tocar cache/scope/algoritmo central, releitura obrigatória de `TECHNICAL-PATTERNS.md §35-§46` (regra de perf que regrediu 4× em Compare Coders). Seed `scripts/seed-smoke-icr.mjs` deixa cenário reproduzível em `smoke-icr-fixes/` + `icr-exports/`. 3456 tests verde (+11 nesta sessão).
 
-> **🧱 ICR — itens em aberto:** só **B4** (weighting cross-engine — decisão metodológica) — **C** (set-valued labels) entregue 2026-05-13 em release 0.5.0. Lista canônica completa abaixo em §"🧱 ICR — Itens em aberto". Próximo passo prático = **Submissão Community Plugins PR** (release 0.4.2 robusto, falta README + screenshots) ou virar pra **LLM-assisted coding** (5 decisões pendentes — brainstorm dedicado precede).
+> **🧱 ICR — itens em aberto:** só **B4** redefinido como **Camada 1 — per-modality enforcement** (correção mecânica pequena, pesquisa 2026-05-13 fechou o eixo conceitual). Lista canônica em §"🧱 ICR — Itens em aberto". **C** (set-valued labels) entregue 2026-05-13 em release 0.5.0.
+
+> **🔬 Virada conceitual 2026-05-13 — Framework Unificado ICR Multifaceta + LLM:** pesquisa em `obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md` cravou: heterogeneidade de modalidade (B4 original) e heterogeneidade de coder (humano vs LLMs) **são o mesmo problema estrutural** — facetas no desenho de medida. Frame matemático único cobre os dois (G-theory multivariate, MFRM, Bayesian hierarchical annotation). **Implicação direta:** ordem do roadmap muda. LLM-assisted coding entra **junto com ICR Camada 2** (Bayesian annotation model — Dawid-Skene/MACE/Paun et al. 2018). Sem Camada 2, LLM no plugin vira "auto-code button" sem fundamento. Com Camada 2, plugin vira bench de avaliação rigorosa de LLM como coder em QDA multimodal — categoria que não existe no mercado. Detalhe em §"Framework Unificado ICR + LLM" abaixo. Inverte sugestão anterior de ordenar gerador de código/segmento por último — agora é **primeiro item LLM** porque cobre mais partes do produto e exercita o framework de ponta a ponta.
 
 > **📄 Visão integrada de produto (2026-05-08, navegação fragmentada):** entry point é `obsidian-qualia-coding/plugin-docs/research/INDEX-2026-05-08.md`. Docs filhos focados: `ICR-MATERIA-2026-05-08.md` (caminhos materializados), `LLM-MATERIA-2026-05-08.md` (em movimento — não cravado), `RELACOES-ICR-LLM-2026-05-08.md` (interdependências), `QUALIA-CORE-VISION-2026-05-08.md` (vision separada do plugin). Ordem cravada: **ICR → LLM → Analytics**; pitch **plugin = QDAS standalone**, **plugin + Qualia Core = QDMMAS sério**.
 
@@ -76,7 +78,7 @@ Lista única e consolidada. **Quando atacar item desta lista que toque scope/cac
 
 ### Decisão metodológica (brainstorm dedicado precede spec)
 
-- [ ] **B4 — Weighting cross-engine no aggregate** (motor κ): `markers.length` é semanticamente heterogêneo entre engines (1 marker pdf-text ≠ 1 marker bbox ≠ 1 marker categorical). 3 alternativas mapeadas em BACKLOG (equal weight per engine / unidade analítica natural / matriz Mode A só com 1 engine ativo). Afeta todas as engines. Material de repertório em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md`.
+- [ ] **B4 — Camada 1: per-modality enforcement** (motor κ + UI): pesquisa 2026-05-13 (`obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md`) cravou que agregação cross-modality por contagem de markers é **unsupported** na literatura (Krippendorff 2018, Artstein & Poesio 2008, Mathet et al. 2015 — cada UoA exige sua própria δ; pool entre δ heterogêneas não é definido). Convergência empírica em AMI/MUMIN/ELAN/NEUROGES: reportar por camada/tier/dimensão separadamente. **Correção pequena, sem brainstorm metodológico** (literatura responde). Implementação: nunca renderizar aggregate cross-engine como métrica primária; per-engine vira fonte de verdade; se aggregate aparecer, marcar **descritivo, não inferencial** com tooltip explicando incomensurabilidade. **Camadas 2 e 3** (Bayesian annotation model + G-theory multivariate) deixam de pertencer a B4 — viram peças do bloco LLM/Framework Unificado, ver §"Framework Unificado ICR + LLM".
 
 ### Refactor grande (brainstorm dedicado precede spec)
 
@@ -417,8 +419,36 @@ Mitigação atual (size guard #28, 2026-04-28) já cobre crash via banner "Load 
 
 **Pontos cegos validados:** Web Worker em plugin Obsidian ✅ · CSP `wasm-unsafe-eval` ✅ · OPFS cleanup em camadas ✅ · cross-platform ✅ · hot-reload + WASM gerenciável ✅ · 2GB ceiling do WASM 32-bit (documentar como limitação) · sem precedente público de DuckDB-Wasm em plugin Obsidian (risco de integração, não componente).
 
+### Framework Unificado ICR + LLM (cravado 2026-05-13)
+
+**Origem:** pesquisa em `obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md`. Heterogeneidade de modalidade e heterogeneidade de coder são o mesmo problema estrutural — facetas no desenho de medida. Frame matemático único (G-theory multivariate; MFRM; Bayesian hierarchical annotation models) cobre ambos.
+
+**Camadas, em ordem de adoção:**
+
+1. **Camada 1 — per-modality enforcement** (B4, correção pequena, hoje sem LLM): nunca pooled cross-engine como métrica primária. Tabela κ/α por modalidade é fonte de verdade. Já tem chip per-engine; falta enforce explícito.
+
+2. **Camada 2 — Bayesian annotation model** (Dawid-Skene 1979, MACE 2013, Paun et al. 2018): entra **JUNTO** com a primeira implementação de LLM. Razão cravada: LLM sem Camada 2 é "auto-code button" sem fundamento — exatamente o uso que rebaixa o plugin a commodity AI. Com Camada 2, LLM vira coder com competência estimada, identificação de spammer/hallucination via fit statistics, e comparação rigorosa humano vs LLM. **Não-negociável: LLM coding não entra no plugin sem Camada 2.**
+
+3. **Camada 3 — G-theory multivariate ou MFRM** (Brennan 2001 cap. 9; Eckes 2015): refactor sério, opt-in research-grade. Decomposição completa de variância em facetas (rater, modalidade, tipo de coder, item). Diagnóstico — não só métrica. Atacar quando houver corpus real com humano + N LLMs + 2+ modalidades pra exercitar.
+
+**Posicionamento de produto que isso destrava:** plugin não compete com NVivo/ATLAS.ti via "tem AI também" (commodity em 12-24 meses). Compete via **rigor metodológico pra estudar AI em coding** — categoria que não existe no mercado. Audiência ampliada: pesquisador QDA mixed methods + comunidade NLP de LLM evaluation (campo crescente 2023+).
+
+**Ordem do roadmap LLM invertida vs versão anterior:** gerador de código/segmento (era item por último) **vira primeiro**. Razão: feature mais transversal — exercita motor de coding em texto/PDF/CSV/audio, gera output que passa por todo o pipeline (popover → registry → analytics → ICR Compare Coders), e dá massa real pra Camada 2 (sem LLM rodando, Bayesian annotation model não tem corpus pra treinar). Sub-features mais pontuais (memo-as-prompt, sugestão inline, etc.) ficam depois.
+
+**Referências centrais** (todas em `obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md`):
+- Dawid & Skene (1979) — EM iterativo pra estimar competência por anotador
+- Hovy et al. (2013) MACE — Bayesiano, identifica spammers
+- Paun et al. (2018) — survey comparando Dawid-Skene/MACE/multinomial/hierarchical (leitura de entrada)
+- Vispoel et al. (2018) — Bayesian G-theory explícito
+- Brennan (2001) — G-theory frequentista, cap. 9 multivariate
+- Eckes (2015) — MFRM intro com modalidade como faceta
+
+---
+
 ### LLM-assisted coding
 
+> **📄 Atualizado 2026-05-13:** ordem invertida + Camada 2 ICR não-negociável (ver §"Framework Unificado ICR + LLM"). Primeiro item LLM = **gerador de código/segmento** (era último). Pesquisa 2026-05-08 abaixo preservada como repertório, mas escolha de "escola filosófica" agora subordinada à decisão de framework.
+>
 > **📄 Atualizado 2026-05-08 (fragmentado, EM MOVIMENTO):** entry point cirúrgico em `plugin-docs/research/LLM-MATERIA-2026-05-08.md` — **LLM-assisted coding NÃO está cravado**, releitura gera ideias novas, não tratar como fechado. Pra detalhe denso ver `CONSOLIDACAO-PRODUTO-2026-05-08.md` §2.2, §3.1 (5 escolas vs operações primitivas), §3.2 (5 operações de coding + 8 adjacentes), §3.5 (multi-LLM literatura). Pesquisa de mercado original (`docs/_study/llm-coding/`) preservada como base.
 >
 > **📄 Pesquisa autoritativa: `docs/_study/llm-coding/`** (41 arquivos). Pontos de entrada:

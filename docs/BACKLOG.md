@@ -260,20 +260,28 @@ Slice 6 fecha as 6 engines do plugin no motor κ (markdown + PDF text + CSV cod 
 
 ## 🧱 ICR — Compare Coders polish (aberto)
 
-### Weighting cross-engine no aggregate — discussão metodológica
+### B4 — Camada 1: per-modality enforcement (correção pequena, sem brainstorm)
 
-**Estado:** reporter aggregate cross-engine usa `weights[engine] = markers.length`. Aplicado consistentemente desde Slice 1 entre text-likes; Slice E5b-followup (2026-05-11) estendeu o mesmo princípio pra bbox.
+**Estado:** reporter aggregate cross-engine usa `weights[engine] = markers.length`. Pesquisa 2026-05-13 (`obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md`) cravou que essa agregação é **unsupported** na literatura. Cada UoA exige sua própria δ; pool entre δ heterogêneas não é definido (Krippendorff 2018, Artstein & Poesio 2008, Mathet et al. 2015). Convergência empírica em AMI/MUMIN/ELAN/NEUROGES é reportar per-modality.
 
-**Limitação conhecida:** `markers.length` é semanticamente heterogêneo entre engines — 1 marker pdf-text = 1 região codificada (pode ter dezenas de chars); 1 marker bbox = 1 evento Hungarian (matched event = 2 markers no input). Quando uma engine tem N markers vs outra com 10×N, a primeira é dominada no aggregate.
+**As 3 alternativas que antes pareciam decisão metodológica resolvem assim:**
+- Equal weight per engine — **descartada** (ponderação artificial sem suporte literatura)
+- Unidade analítica natural — **descartada** (sem proposta publicada cross-modality)
+- Matrix Mode A só com 1 engine ativo — **caminho 1 da literatura, adotada** (convergência empírica)
 
-**Cenário onde escala importa:** Carla+Joana com 10 markers pdf-text + 7 markers bbox (image+pdfShape): pdf-text pesa 10/17 ≈ 59% do aggregate. Se bbox κ ≈ 0.9 e pdf-text κ ≈ 0.5, aggregate ≈ 0.66 — pdf-text "ganha" porque tem mais markers, não porque é mais relevante analiticamente.
+**Correção mecânica:**
+1. Aggregate cross-engine nunca renderiza como **métrica primária** no Compare Coders (matriz, tabela, heatmap)
+2. Per-engine vira fonte de verdade — chip per-engine no toolbar (já existe) é o eixo principal
+3. Se aggregate aparecer (por compatibilidade descritiva), marcar **"descritivo, não inferencial"** com tooltip explicando incomensurabilidade entre δ
+4. Tabela κ separada por linha (engine) — opcional, mas é o pattern AMI/MUMIN
+5. Sem refactor de motor — só UI + texto explicativo
 
-**Alternativas metodológicas (atacar como decisão separada, afeta todas as engines):**
-1. **Equal weight per engine** (1 por engine) — anula viés magnitude, todas engines pesam igual. Mais "democrático" entre tipos de análise, menos sensível a escala. Equivalente conceitual ao avg 50/50 original mas generalizado.
-2. **Unidade analítica natural** — cada engine declara peso (chars text, eventos bbox, rows categorical). Aggregate normaliza por escala intrínseca. Mais princípio, mais metadata schema.
-3. **Matrix Mode A só com 1 engine ativo** — toggle no toolbar (já existe filter chip per-engine); aggregate cross-engine vira opt-in com warning explícito. UI-only fix.
+**Não atacar nesta tarefa (escopo Camada 1):**
+- Bayesian annotation model — Camada 2, entra junto com LLM
+- G-theory / MFRM — Camada 3, opt-in research-grade
+- Refactor de weighting do reporter — não precisa mudar, só esconder/marcar o aggregate
 
-**Por que decisão metodológica precede spec:** afeta toda a infra de weighting do reporter, não só bbox. Decisão de produto + revisão metodológica antes de spec. Material de repertório em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md` (variantes de weighting já mapeadas em contexto multi-label).
+**Tamanho:** ~1 sessão. Sem TDD pesado — mudança em camada de apresentação + texto. Smoke real obrigatório: confirmar que tela do Compare Coders sobre escopo multi-engine não vende κ pooled como "o número" do escopo.
 
 ---
 
