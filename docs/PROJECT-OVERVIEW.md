@@ -104,8 +104,9 @@ Esta sequência leva 30-45 min de leitura cuidadosa. Pular passos = análise sup
 7. **`docs/TECHNICAL-PATTERNS.md`** — §35-§46 é onde estão os gotchas caros (4 regressões consecutivas viraram regra cravada)
 8. **`docs/BACKLOG.md`** — dívida técnica organizada por tema, gaps reconhecidos
 9. **Methodology docs específicos** (na ordem que o caso de análise exigir): `ICR-METHODOLOGY.md` (bbox), `ICR-SET-VALUED-METHODOLOGY.md`, `ICR-LINEAR-METHODOLOGY.md`, `ICR-TEMPORAL-METHODOLOGY.md`, `ICR-CATEGORICAL-METHODOLOGY.md`
-10. **`docs/_study/llm-coding/comparison.md` + `qualia-fit.md`** — pesquisa de mercado profunda (40 ferramentas + 5 patterns), só se for análise de produto/posicionamento
-11. **`CHANGELOG.md`** — historiografia dos releases, contexto do que entregou quando
+10. **`docs/_research/icr-multimodal-heterogeneous-units.md`** — **pesquisa bruta** que cravou a virada conceitual; 30+ refs, análise das tradições importadas, unificação multimodal × multi-coder. Leitura obrigatória pra análise metodológica profunda
+11. **`docs/_study/llm-coding/comparison.md` + `qualia-fit.md`** — pesquisa de mercado profunda (40 ferramentas + 5 patterns), só se for análise de produto/posicionamento
+12. **`CHANGELOG.md`** — historiografia dos releases, contexto do que entregou quando
 
 ## Anti-padrões em análise externa (o que evitar)
 
@@ -115,11 +116,13 @@ Esta sequência leva 30-45 min de leitura cuidadosa. Pular passos = análise sup
 - **Confundir "MVP de UI" com "produto imaturo".** UI é MVP por escolha deliberada — capability tá completa, refactor de design é fase dedicada futura.
 - **Tratar LLM coding como feature pendente isolada.** É par natural com ICR Camada 2 — análise que ignora essa relação propõe direções que o projeto já descartou explicitamente.
 
-## Material fora do GitHub (gap importante de avisar)
+## Material complementar (workspace externo, gap parcial)
 
-Workspace externo `obsidian-qualia-coding/` (fora do repo público) contém:
-- `Research/ICR Multimodal - Unidades Heterogeneas.md` (35KB) — **pesquisa que cravou a virada conceitual de 2026-05-13**, com 30+ refs e análise completa. Síntese está em `docs/ICR-MULTIMODAL-METHODOLOGY.md` (no repo), mas a pesquisa bruta tem profundidade que análise séria deveria ter.
-- `plugin-docs/research/CONSOLIDACAO-PRODUTO-2026-05-08.md` — visão consolidada de produto
+A pesquisa bruta que cravou a virada conceitual de 2026-05-13 agora está no repo público: [`docs/_research/icr-multimodal-heterogeneous-units.md`](_research/icr-multimodal-heterogeneous-units.md). 395 linhas com 30+ referências bibliográficas, análise crítica das tradições importadas, unificação multimodal × multi-coder, cubo 3D cenário × modalidade × indicador, e caminho operacional de 3 camadas. **Leitura obrigatória pra análise metodológica profunda.**
+
+Continuam fora do repo público (workspace externo `obsidian-qualia-coding/`):
+- `plugin-docs/research/CONSOLIDACAO-PRODUTO-2026-05-08.md` — visão consolidada de produto (Routledge Tier 1/2/3, gaps universais)
 - `plugin-docs/archive/` — specs e plans arquivados pós-release
+- `plugin-docs/research/INDEX-2026-05-08.md` — entry point pra pesquisa fragmentada
 
-Se a análise precisar de profundidade nestes pontos, esses arquivos devem ser fornecidos separadamente (não estão no repo público).
+Se a análise precisar dessas peças, devem ser fornecidas separadamente.

@@ -7,7 +7,7 @@
 > - **Camada 2 (Bayesian annotation model com LLM como faceta)** — planejada; entra junto com a primeira implementação de LLM coding
 > - **Camada 3 (G-theory multivariate / MFRM)** — research-grade opcional, sem timeline cravada
 >
-> **Spec autoritativo da virada conceitual:** `obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md` (pesquisa 2026-05-13)
+> **Spec autoritativo da virada conceitual:** `docs/_research/icr-multimodal-heterogeneous-units.md` (pesquisa 2026-05-13 — agora no repo público; 395 linhas, 30+ refs)
 >
 > **Companion docs (methodology por modalidade):**
 > - `docs/ICR-LINEAR-METHODOLOGY.md` — texto (markdown + PDF text + CSV segment)
