@@ -95,7 +95,14 @@ export function renderCodebookTree(
 		}
 	};
 
+	// Render síncrono (caso layout já esteja settled) + defer via RAF como fallback:
+	// quando esse renderer é montado dentro do mesmo tick em que o painel é criado
+	// (Code Detail list mode após reload, ou re-render após criar code via popover),
+	// `scrollEl.clientHeight` ainda é 0 — o browser não recalculou layout. endIdx fica
+	// limitado a BUFFER_ROWS (10), cortando a lista. RAF garante recheck após paint.
+	// Mesmo pattern do virtualList.ts:115-116.
 	renderVisibleRows();
+	requestAnimationFrame(renderVisibleRows);
 	scrollEl.addEventListener('scroll', renderVisibleRows, { passive: true });
 
 	const cleanup = () => {
