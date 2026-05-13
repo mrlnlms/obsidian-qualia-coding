@@ -42,7 +42,7 @@ node scripts/seed-icr-test.mjs --dry-run
 - `audio-sample.mp3` — cópia de `notes-for-anything/smoke/song-renamed.mp3` (359s)
 - `video-sample.mp4` — cópia de `notes-for-anything/smoke/clip.mp4` (11s)
 
-### 34 markers em 15 cenários
+### 37 markers em 17 cenários
 
 #### Markdown — 9 markers (4 cenários) em `transcript.md`
 
@@ -71,7 +71,7 @@ node scripts/seed-icr-test.mjs --dry-run
 | **C5** code diff | A, B | [180.0, 200.0) | A / **D** | overlap espacial perfeito, códigos diferentes; ativa Tema D |
 | **C6** **sparse coding** | A, B | [300.0, 305.0) | A / A | **gap #1b**: 5s coded em 359s — MediaSourceSize provider testa P_o real |
 
-#### Video — 9 markers (4 cenários) em `video-sample.mp4` (11.82s)
+#### Video — 12 markers (6 cenários) em `video-sample.mp4` (11.82s)
 
 | Cenário | Coders | Posição (s) | Códigos | O que valida |
 |---------|--------|-------------|---------|--------------|
@@ -79,6 +79,8 @@ node scripts/seed-icr-test.mjs --dry-run
 | **V2** partial overlap | A, B | A: [3.0, 5.0)<br>B: [4.0, 6.0) | **B / B** | overlap parcial 1s em 2s spans (laranja) |
 | **V3** sub-segundo | A, B | A: [6.5, 6.8)<br>B: [6.9, 7.2) | A / A | gap #2 — visível ≥100ms |
 | **V4** Fleiss N=3 code diff | A, B, C | [7.5, 9.0) | **C / D / C** | Fleiss κ temporal com discordante (verde/roxo/verde) |
+| **V5** multi-label | A, B | [9.5, 10.5) | **{A, C} / {C}** | δ_jaccard temporal vs nominal (multi-set assimétrico) |
+| **V6** presence/absence | A só | [11.0, 11.5) | A | α-binary / cu-α — A marca, B silencioso (sparse semântica) |
 
 ## Cobertura de coeficientes × distâncias
 
@@ -87,9 +89,9 @@ node scripts/seed-icr-test.mjs --dry-run
 | **Cohen κ** | M1, M2, CSV1, CSV2, C1, C2, C5, V1, V2, V3 |
 | **Fleiss κ N=3** | **M3** (markdown) + **V4** (video) |
 | **α nominal** | todos N≥2 |
-| **α com δ_jaccard / δ_MASI** | **M4** (multi-label markdown) |
-| **α-binary** | M2 (boundary), C2/C3/C4 (sub-segundo), C6 (sparse) |
-| **cu-α** | M2, C2 (regiões boundary, intersection coders) |
+| **α com δ_jaccard / δ_MASI** | **M4** (markdown) + **V5** (video) |
+| **α-binary** | M2 (boundary), C2/C3/C4 (sub-segundo), C6 (sparse), **V6** (presence/absence explícita) |
+| **cu-α** | M2, C2 (regiões boundary), **V6** (intersection of coders sparse) |
 
 ## Smoke step-by-step
 

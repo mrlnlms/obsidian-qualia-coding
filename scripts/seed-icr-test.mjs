@@ -433,6 +433,18 @@ function performSeed(data) {
 		mkVideo('v4_a', 7.5, 9.0, CODER_A, [CODE_C]),
 		mkVideo('v4_b', 7.5, 9.0, CODER_B, [CODE_D]),
 		mkVideo('v4_c', 7.5, 9.0, CODER_C, [CODE_C]),
+
+		// V5 — Multi-label (Jaccard temporal): A={A,C}, B={C}
+		//   Jaccard δ = 1 - |{C}|/|{A,C}| = 0.5
+		//   Nominal δ = 1 (reduz a first-code alfabético: A vs C → diff)
+		//   MASI δ = 1 - 0.5 × 2/3 (subset) ≈ 0.667
+		mkVideo('v5_a', 9.5, 10.5, CODER_A, [CODE_A, CODE_C]),
+		mkVideo('v5_b', 9.5, 10.5, CODER_B, [CODE_C]),
+
+		// V6 — Presence/absence (sparse semântica): só A marca, B silencioso
+		//   α-binary captura: A "presente" tema-A em [11.0, 11.5), B "ausente"
+		//   Outros coders não marcam essa região → disagreement isolado no fim
+		mkVideo('v6_a', 11.0, 11.5, CODER_A, [CODE_A]),
 	);
 }
 
@@ -490,7 +502,7 @@ if (!clean && !dryRun) {
 	console.log('  2. Open _icr-test/transcript.md → 9 markdown markers (4 cenários)');
 	console.log('  3. Open _icr-test/survey.csv → 4 CSV markers (2 cenários)');
 	console.log('  4. Open _icr-test/audio-sample.mp3 → 12 audio markers (6 cenários)');
-	console.log('  5. Open _icr-test/video-sample.mp4 → 9 video markers (4 cenários)');
+	console.log('  5. Open _icr-test/video-sample.mp4 → 12 video markers (6 cenários)');
 	console.log('  6. Open Compare Coders (palette: "Open Compare Coders view")');
 	console.log('  7. Default scope: 3 coders + 4 codes + 4 engines');
 	console.log('  8. Toggle "resolução temporal" chip [1s][100ms][10ms] — α deve DIMINUIR');
