@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-13
+
+Minor release fechando o **bloco Image engine** por inteiro + **ICR Gap #1c/1d** (PDF + CSV segment SourceSizeProvider) + **3 UX gaps** do smoke ICR + **canvas refresh cor cross-engine** (cor de code + colorOverride per-marker) + **cluster.worker** pra cooccurrence/overlap/dendrogram async. Última frente de polish ICR / cross-engine zerada antes da próxima frente prática (LLM coding + Camada 2 BHM).
+
+### Added — cluster.worker inline pra hierarchicalCluster
+
+**`feat(analytics)` — Worker inline off-main-thread pro `hierarchicalCluster`, eliminando UI freeze em codebook grande.** Pattern espelha kappa.worker (§45 TECHNICAL-PATTERNS). 4 consumidores via fire-and-forget + `isRenderCurrent` generation guard: cooccurrence sort cluster, overlap sort cluster, dendrogram, files-dendrogram. Cor de code refresha live via `qualia:registry-changed` listener + rAF coalesce. Arquivos: `src/analytics/data/cluster.worker.ts` + `clusterWorkerClient.ts` + `clusterSyncFallback.ts`. main.js cresce ~10KB. `disposeClusterWorker()` no `onunload`.
+
+### Added — SourceSizeProvider PDF + CSV segment (eager→lazy) — fecha Gap #1c/1d
+
+**`feat(icr)` — PdfSourceSize via `window.pdfjsLib` + CsvSegmentSourceSize via rowDataCache (eager, CSV pequeno) → RowProvider DuckDB (lazy, parquet/CSV grande).** Completa infra Gap #1 (Camada 1 enforcement). Composite delega por engine. PDF sem PDF aberto na sessão → null fallback (sem auto-load de tab oculto em background). CSV segment cobre eager **e** lazy — eager via `csvModel.rowDataCache` instantâneo; lazy via `RowProvider.getMarkerText` async. Smoke runtime confirmou ambos via `scripts/seed-icr-lazy.mjs` (CSV 120MB + parquet 296MB com markers de 2 coders). **Nota:** se Camada 2 BHM (Bayesian annotation model do bloco LLM/Framework Unificado) for implementada, esses providers viram redundantes — BHM modela background via prior. Headers documentam relação pra re-avaliar quando tocar BHM. 20 unit tests novos.
+
+### Added — δ memorizado visual quando primary é Cohen/α-binary
+
+**`feat(icr)` — chip δ memorizado fica visualmente distinto** (border tracejado + opacity 0.7) quando primary coefficient não usa δ (Cohen κ caminho A, α-binary). Resolve "δ fantasma": user trocava primary pra Cohen, chips δ ficavam disabled, mas `state.distance` continuava em uso pela per-engine table (feature emergente — α/cu-α/Fleiss em modalidade multi-label usam δ memorizada). Hint inline `δ: MASI (inativa)` + tooltip explicativo. Outros chips disabled em opacity 0.3 — hierarquia visual clara. Quando disabled é por single-label (não por coef), memorized NÃO aplica (toda δ degenera ao nominal).
+
+### Added — Chip coder sem markers distinto no toolbar
+
+**`feat(icr)` — `is-no-markers` class (italic persistente) separa do `is-empty` (bloqueado pelo filter polish).** Diagnóstico do gap original estava errado (era sobre saved-comparison banner). Re-categorizado: chip "Default" no toolbar é o coder `human:default` criado por `seedDefault()` em `coderRegistry.ts`. Distinção visual: italic + opacity 0.5 sempre que coder não tem markers no escopo; sufixo "· 0" apenas quando bloqueado pelo filter OFF; tooltip dinâmico explica estado.
+
+### Added — Picker δ Nominal explícito + tooltip Cohen κ
+
+**`feat(icr)` — chip `Nominal` adicionado ao `coefficientPicker.ts`** (já existia em `DistanceName`/`resolveDistance`, só não exposto). Ordem: Nominal → Jaccard → MASI. Tooltip do `resolução temporal:` agora documenta que Cohen κ caminho A é insensível a resolução (binary-per-label invariante).
+
+### Added — Canvas refresh cor cross-engine (cor de code + colorOverride per-marker)
+
+**`feat(engines)` — quando cor de code muda na shared registry OU `colorOverride` muda no marker, todas as views afetadas refresham em tempo real.** Antes apenas image refrescava; markdown/pdf/csv/audio/video precisavam fechar e reabrir o arquivo. Pattern unificado:
+- Subscribe `qualia:registry-changed` (cor de code) no view/engine init
+- Subscribe `model.onChange` (colorOverride + outros field updates) em paralelo
+- rAF coalesce evita repaint flood
+
+Renderers que agora respeitam `marker.colorOverride` com precedência sobre cor do code:
+- Markdown: `markerStateField` + `marginPanelExtension` (handleOverlayRenderer já tinha)
+- PDF: `drawLayer` (shapes) + `marginPanelRenderer` (highlightRenderer já tinha)
+
+CSV cellRenderer não usa colorOverride (chip é per-code, mapping ambíguo per-marker → per-code — decisão consciente).
+
+### Added — Image engine hardening (8 originais + 8 extras)
+
+**`feat(image)` — bloco Image engine fechado por inteiro em sessão dedicada.** 8 items do raio-x 2026-05-08 (rAF coalesce em onRebuild/refreshAll/selection:cleared, colorOverride wirado em getStyleForMarker, cleanupForShape em 3 sites, threshold padronizado w<3 OR h<3) + 8 extras descobertos durante smoke (popover position via mouse coord, auto-focus explícito, data.json auditLog format normalize, Esc preserva shape sem code, Add New Code ordem onBeforeModal antes de close, Delete/Backspace gate por activeLeaf, canvas refresh subscribe model.onChange + `qualia:registry-changed`). Único item descartado: refactor de UI de labels (decisão user, vai ser refeita).
+
+### Fixed — color override per-marker cross-engine
+
+**`fix(engines)` — descoberto em smoke pós-fix de canvas refresh:** color override per-marker (`model.updateMarkerFields({ colorOverride })`) não disparava `qualia:registry-changed` (só `model.onChange`). Image+media já cobriam; markdown/pdf precisavam (1) ler `marker.colorOverride` com precedência nos renderers e (2) subscribe `model.onChange` paralelo. CSV cellRenderer descrito acima.
+
+### Fixed — audit log defensive get + seed format antigo
+
+**`fix(core)` — `getLog()` em `main.ts:519` agora normaliza ao ler.** Cast `as AuditEntry[]` mentia pra `data.json` legacy com `auditLog: { entries: [] }` (formato antigo) — `.filter` em `getEntriesForCode` crashava cada vez que Code Detail renderizava (back navigation, color picker drag, hydrator notify). Defensive: aceita array ou `{ entries: [...] }` legacy. Bug pattern já registrado no CLAUDE.md global ("Enter precisava 2x na primeira interação"). Seed `seed-icr-test.mjs:248` corrigido — escrevia formato antigo, agora `[]`.
+
+### Fixed — virtual scrolling render inicial cortando lista
+
+**`fix(codebook-tree)` — `requestAnimationFrame` fallback no virtual scrolling do `codebookTreeRenderer`.** Render inicial com `clientHeight=0` calculava `endIdx` limitado a `BUFFER_ROWS` (10), cortando codebook grande no Code Detail list mode. Pattern já estabelecido em `virtualList.ts:111-116` (commit f96ab4c, 2026-05-06) mas não copiado pra impl paralela do `codebookTreeRenderer`. Counter "(N)" no header sempre esteve correto — registry sabia, só o renderer cortava.
+
+### Changed — codebookTreeRenderer consome createVirtualList helper
+
+**`refactor(codebook-tree)` — pattern duplicado de virtual scroll eliminado.** Próximo bug de virtual scroll fica em 1 lugar só. Tag `pre-codebooktree-virtuallist-baseline` marca estado anterior.
+
+### Removed — n/a
+
+---
+
 ## [0.6.1] - 2026-05-13
 
 Patch release fechando 3 dos 4 gaps intra-modality ICR detectados em revisão de docs methodology (2026-05-12), mais bugfix metodológico em α paramétrico.

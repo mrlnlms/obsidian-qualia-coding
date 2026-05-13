@@ -3,7 +3,7 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-13 (release 0.6.1 — gaps intra-modality + bugfix metodológico α δ²; smoke 2026-05-13 pegou bug crítico cache distance + 3 UX gaps; bloco Image engine fechado mesma data, 8 itens originais + 8 extras descobertos no smoke).
+> Última atualização: 2026-05-13 (release **0.7.0** — bloco Image engine fechado + Gap #1c/1d + 3 UX gaps + cluster.worker async + canvas refresh cor cross-engine + colorOverride cross-engine + audit log defensive fix). Bloco ICR + Image + canvas refresh cor zerados antes da próxima frente prática (LLM coding + Camada 2 BHM).
 
 ---
 
@@ -19,10 +19,15 @@ Camadas 2 e 3 do framework multifaceta viraram peças do bloco LLM/Framework Uni
 
 **Único bloqueador legado:** §11 E3 (limitação de formato, won't-fix documentado).
 
-**Polish ICR aberto (não bloqueante):**
-- ~~Gap #1c/1d (PDF + CSV segment SourceSizeProvider)~~ ✅ ambos fechados 2026-05-13. Janela de absorção por Camada 2 BHM documentada nos headers.
-- ~~3 UX gaps do smoke 2026-05-13~~ ✅ todos fechados 2026-05-13 (chip Default coder sem markers, picker δ Nominal, δ fantasma com `is-memorized`)
-- Cross-cutting: 1 CSS (`!important` cluster) + canvas refresh cor de code nos outros engines (pdf-shape/markdown/csv/audio/video — pattern image já estabelecido). ~~§37 doc desatualizada~~ ✅ corrigida 2026-05-13.
+**Polish ICR — TODOS RESOLVIDOS 2026-05-13 (release 0.7.0):**
+- ~~Gap #1c/1d (PDF + CSV segment SourceSizeProvider)~~ ✅. Janela de absorção por Camada 2 BHM documentada nos headers.
+- ~~3 UX gaps do smoke 2026-05-13~~ ✅ (chip Default coder sem markers, picker δ Nominal, δ fantasma com `is-memorized`)
+- ~~§37 doc desatualizada~~ ✅
+- ~~Canvas refresh cor de code cross-engine~~ ✅ (markdown, pdf text+shape+margin, csv, audio/video — pattern image)
+- ~~Color override per-marker cross-engine~~ ✅ (markdown + pdf — image/media já cobriam; CSV chip per-code, mapping ambíguo, decisão consciente)
+- ~~Bug `t.filter` em renderHistorySection~~ ✅ (audit log defensive get + seed format antigo corrigido)
+
+**Cross-cutting remanescente:** 1 CSS cosmético (`!important` cluster, hardening real com vault aberto — não bloqueante).
 
 **Próxima frente prática (não-ICR):** LLM-assisted coding com Camada 2 Bayesian annotation como par natural. Precede brainstorm dedicado — ver `ROADMAP.md §"Frente 2"` e `docs/ICR-MULTIMODAL-METHODOLOGY.md` pra fundamentação metodológica.
 
