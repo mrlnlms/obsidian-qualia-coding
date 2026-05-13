@@ -279,3 +279,100 @@ describe('krippendorffAlphaNominal — validação contra valores canônicos Kri
 		expect(krippendorffAlphaNominal(input)).toBeCloseTo(1.0, 6);
 	});
 });
+
+/**
+ * Characterization tests pra δ_jaccard e δ_MASI — registram divergência conhecida vs
+ * canônica Krippendorff (2018, cap. 11).
+ *
+ * Convenção canônica (Krippendorff 2018, cap. 11): pra distance functions custom (não-nominal),
+ * α usa δ² em Do e De — preserva propriedade variance-like da fórmula.
+ *
+ * Convenção da impl atual: usa δ linear em Do e De. Pra δ_nominal (onde δ ∈ {0,1}, δ² = δ),
+ * impl é IDÊNTICA à canônica (validado nos 5 casos canônicos acima). Pra δ_jaccard e δ_MASI
+ * (valores fracionários em [0,1]), impl ≠ canônica quando marginais não-uniformes.
+ *
+ * Cálculo paralelo manual (caso assimétrico, 3 chars, 2 coders, marginais {a,b}=2/{a}=3/{a,b,c}=1):
+ *
+ *   Jaccard δ linear (impl):  α = 1 − (10/3)/(34/15) = -8/17  ≈ -0.4706
+ *   Jaccard δ² (canon):       α = 1 − (17/54)/(11/54) = -6/11 ≈ -0.5455
+ *   Δ ≈ 0.075 em magnitude
+ *
+ *   MASI δ linear (impl):     α = 1 − (38/9)/(134/45) = -28/67   ≈ -0.4179
+ *   MASI δ² (canon):          α = 1 − (121/243)/(413/1215) = -192/413 ≈ -0.4649
+ *   Δ ≈ 0.047
+ *
+ * Os tests abaixo REGISTRAM os valores impl atuais. Se a decisão metodológica for migrar
+ * pra δ² (canônica Krippendorff 2018), estes tests precisam ser RECALIBRADOS junto com a
+ * mudança no motor. Bug? Não — é divergência da convenção principal. Há literatura
+ * usando δ linear pra distâncias custom (Passonneau 2006 originalmente, várias impls).
+ *
+ * Decisão pendente: aguarda feedback metodológico do user. Trade-off:
+ *   - Manter δ linear: simplicidade, valores publicados em release 0.5.0 ficam estáveis.
+ *   - Migrar pra δ²: alinhamento canônico estrito Krippendorff 2018, MAS afeta valores
+ *     publicados (precisa release de bugfix + nota metodológica).
+ */
+describe('krippendorffAlphaNominal — characterization δ_jaccard / δ_MASI (vs canônica δ²)', () => {
+	// Caso assimétrico: marginais não-uniformes onde δ vs δ² diverge.
+	// char 0: A={a,b}, B={a}
+	// char 1: A={a,b}, B={a}
+	// char 2: A={a,b,c}, B={a}
+	const inputAsymmetric: KappaInput = {
+		markers: [
+			{ coderId: 'A', range: { fileId: 'f', locator: '', from: 0, to: 1 }, codeIds: ['a', 'b'] },
+			{ coderId: 'B', range: { fileId: 'f', locator: '', from: 0, to: 1 }, codeIds: ['a'] },
+			{ coderId: 'A', range: { fileId: 'f', locator: '', from: 1, to: 2 }, codeIds: ['a', 'b'] },
+			{ coderId: 'B', range: { fileId: 'f', locator: '', from: 1, to: 2 }, codeIds: ['a'] },
+			{ coderId: 'A', range: { fileId: 'f', locator: '', from: 2, to: 3 }, codeIds: ['a', 'b', 'c'] },
+			{ coderId: 'B', range: { fileId: 'f', locator: '', from: 2, to: 3 }, codeIds: ['a'] },
+		],
+		sources: [{ fileId: 'f', locator: '', totalUnits: 3 }],
+		coders: ['A', 'B'],
+	};
+
+	it('Jaccard linear: α_impl = -8/17 ≈ -0.4706 (DIVERGE da canônica δ² = -6/11)', () => {
+		// Cálculo manual Jaccard δ:
+		//   δ_J({a,b},{a}) = 1/2, δ_J({a,b,c},{a}) = 2/3, δ_J({a,b},{a,b,c}) = 1/3
+		//   Do_impl = char0(2×0.5) + char1(2×0.5) + char2(2×2/3) = 10/3
+		//   marginais: {a,b}=2, {a}=3, {a,b,c}=1, N=6
+		//   De_impl pairs sum = 34/3, /(N-1)=5 → 34/15
+		//   α = 1 − (10/3)/(34/15) = 1 − 50/34 = -8/17
+		const α = krippendorffAlphaNominal(inputAsymmetric, { distance: distanceJaccard });
+		expect(α).toBeCloseTo(-8 / 17, 6);
+	});
+
+	it('MASI linear: α_impl = -28/67 ≈ -0.4179 (DIVERGE da canônica δ² = -192/413)', () => {
+		// Cálculo manual MASI δ (Passonneau 2006):
+		//   δ_M({a,b},{a}) = 2/3 [subset: M=2/3, J=1/2]
+		//   δ_M({a,b,c},{a}) = 7/9 [subset: M=2/3, J=1/3]
+		//   δ_M({a,b},{a,b,c}) = 5/9 [subset: M=2/3, J=2/3]
+		//   Do_impl = 4/3 + 4/3 + 14/9 = 38/9
+		//   De_impl pairs sum = 134/9, /5 → 134/45
+		//   α = 1 − (38/9)/(134/45) = 1 − 1710/1206 = -28/67
+		const α = krippendorffAlphaNominal(inputAsymmetric, { distance: distanceMASI });
+		expect(α).toBeCloseTo(-28 / 67, 6);
+	});
+
+	it('Marginais uniformes: Jaccard linear e Jaccard² coincidem (caso da equivalência)', () => {
+		// Quando marginais e estrutura de pares são simétricos, ratio Do/De cancela δ vs δ².
+		// Exemplo trivial: 2 chars, 2 coders, ambos com mesma estrutura.
+		// char 0: A={a,b}, B={a,c}
+		// char 1: A={a,b}, B={a,b}
+		const input: KappaInput = {
+			markers: [
+				{ coderId: 'A', range: { fileId: 'f', locator: '', from: 0, to: 1 }, codeIds: ['a', 'b'] },
+				{ coderId: 'B', range: { fileId: 'f', locator: '', from: 0, to: 1 }, codeIds: ['a', 'c'] },
+				{ coderId: 'A', range: { fileId: 'f', locator: '', from: 1, to: 2 }, codeIds: ['a', 'b'] },
+				{ coderId: 'B', range: { fileId: 'f', locator: '', from: 1, to: 2 }, codeIds: ['a', 'b'] },
+			],
+			sources: [{ fileId: 'f', locator: '', totalUnits: 2 }],
+			coders: ['A', 'B'],
+		};
+		// Marginais: {a,b}=3, {a,c}=1, N=4
+		// δ_J({a,b},{a,c}) = 2/3, δ² = 4/9
+		// Impl: Do = 2×2/3 = 4/3, De = 2×(3×1×2/3)/3 = 4/3, α = 0
+		// Canon: Do = (1/4)×(2×4/9) = 2/9, De = (1/(4×3))×(2×3×4/9) = 2/9, α = 0
+		// AMBOS = 0 (ratio idêntico). Caso EQUIVALENTE pra δ vs δ².
+		const α = krippendorffAlphaNominal(input, { distance: distanceJaccard });
+		expect(α).toBeCloseTo(0, 6);
+	});
+});
