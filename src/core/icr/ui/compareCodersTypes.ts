@@ -8,6 +8,7 @@
 
 import type { CoderId } from '../coderTypes';
 import type { EngineId } from '../reporter';
+import type { DistanceName } from '../distances';
 import type { ReconciliationBounds } from '../../types';
 
 export type { ReconciliationBounds };
@@ -53,6 +54,9 @@ export interface CompareCodersViewState {
 	overviewMode: OverviewMode;
 	drilldownMode: DrilldownMode;
 	primaryCoefficient: CoefficientKey;
+	/** Família δ pluggable usada por α / cu-α / Fleiss em escopo multi-label. Default 'jaccard'
+	 *  (decisão D1 spec set-valued-labels). Cohen κ (caminho A) e α-binary ignoram. */
+	distance: DistanceName;
 	filters: ComparisonFilters;
 	currentSelection: CurrentSelection;
 	loadedFromSavedId?: string;
@@ -65,6 +69,7 @@ export function createDefaultViewState(allCoderIds: CoderId[]): CompareCodersVie
 		overviewMode: 'matrix',
 		drilldownMode: 'spatial',
 		primaryCoefficient: 'cohen',
+		distance: 'jaccard',
 		filters: {
 			hideAgreementTotal: false,
 			highlightConflicts: false,
@@ -85,6 +90,8 @@ export interface SavedComparisonView {
 	overviewMode: OverviewMode;
 	drilldownMode: DrilldownMode;
 	primaryCoefficient: CoefficientKey;
+	/** δ pluggable. Quando SavedComparison legada não tem o campo, defaultar 'jaccard' na leitura. */
+	distance?: DistanceName;
 }
 
 /** Schema do saved comparison persistido em data.json. */

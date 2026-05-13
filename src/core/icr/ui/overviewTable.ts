@@ -81,6 +81,7 @@ export async function renderOverviewTable(
 		: inclusionScope;
 
 	const visKey = '::v=' + [...visibleCoderIds].sort().join(',');
+	const distance = state.distance ?? 'jaccard';
 
 	// Perf fix 2026-05-11: paraleliza extracts + reportKappa por código (antes era sequential await).
 	const rowsRaw = await Promise.all(candidateCodeIds.map(async (codeId) => {
@@ -94,7 +95,11 @@ export async function renderOverviewTable(
 			return s + (k.markers?.length ?? k.units?.length ?? 0);
 		}, 0);
 		if (totalMarkers === 0) return null;
-		const report = await reportKappaAsync(filteredInputs, cacheKeyForScope({ ...effectiveScope, codeIds: [codeId] }) + visKey);
+		const report = await reportKappaAsync(
+			filteredInputs,
+			cacheKeyForScope({ ...effectiveScope, codeIds: [codeId] }) + visKey + `::δ-${distance}`,
+			distance,
+		);
 		const cohenValues = Object.values(report.aggregate.cohenKappa);
 		const cohen = N === 2 && cohenValues.length > 0 ? cohenValues[0]?.value : undefined;
 		const fleiss = N >= 3 ? report.aggregate.fleissKappa : undefined;

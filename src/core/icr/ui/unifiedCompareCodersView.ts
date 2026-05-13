@@ -78,6 +78,7 @@ export class UnifiedCompareCodersView extends ItemView {
 				overviewMode: last.view.overviewMode,
 				drilldownMode: last.view.drilldownMode,
 				primaryCoefficient: last.view.primaryCoefficient,
+				distance: last.view.distance ?? 'jaccard',
 				filters: { ...last.filters },
 			};
 		} else {
@@ -159,6 +160,7 @@ export class UnifiedCompareCodersView extends ItemView {
 			overviewMode: 'table',
 			drilldownMode: 'spatial',
 			primaryCoefficient: 'cohen',
+			distance: 'jaccard',
 			filters: {
 				hideAgreementTotal: false,
 				highlightConflicts: false,
@@ -186,6 +188,7 @@ export class UnifiedCompareCodersView extends ItemView {
 			overviewMode: saved.view.overviewMode,
 			drilldownMode: saved.view.drilldownMode,
 			primaryCoefficient: saved.view.primaryCoefficient,
+			distance: saved.view.distance ?? 'jaccard',
 			filters: { ...saved.filters },
 			currentSelection: { kind: 'none' },
 			loadedFromSavedId: comparisonId,
@@ -536,6 +539,7 @@ export class UnifiedCompareCodersView extends ItemView {
 				initial: isPair ? 'single-pair' : 'all-pairs',
 				pair: isPair ? sel.value : undefined,
 			},
+			this.state.distance ?? 'jaccard',
 		).open();
 	}
 }

@@ -99,11 +99,14 @@ export async function renderOverviewMatrix(
 	}
 
 	const hasAnyInput = inputs.length > 0 || perPairBbox.size > 0;
-	// Suffix bbox no cacheKey: distingue render Cohen-com-bbox de Fleiss/α-sem-bbox.
-	// bumpReportCache (em mutações de marker) invalida o cache normalmente.
-	const reportCacheKey = cacheKeyForScope(effectiveScope) + (perPairBbox.size > 0 ? '::bbox' : '');
+	// Suffix bbox + δ no cacheKey: distingue render Cohen-com-bbox de Fleiss/α-sem-bbox, e
+	// renders δ_jaccard de δ_MASI/nominal. §46: δ é parâmetro de comportamento, não scope.
+	const distance = state.distance ?? 'jaccard';
+	const reportCacheKey = cacheKeyForScope(effectiveScope)
+		+ (perPairBbox.size > 0 ? '::bbox' : '')
+		+ `::δ-${distance}`;
 	const reports = hasAnyInput
-		? await reportPairwiseAsync(inputs, pairs, reportCacheKey, perPairBbox)
+		? await reportPairwiseAsync(inputs, pairs, reportCacheKey, perPairBbox, distance)
 		: [];
 	const kappaByPair = new Map<string, number | undefined>();
 	for (const r of reports) {
