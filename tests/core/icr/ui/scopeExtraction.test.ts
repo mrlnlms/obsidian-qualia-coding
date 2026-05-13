@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractInputsFromScope, bumpInputsCacheGeneration, type EngineModelsForExtraction } from '../../../../src/core/icr/ui/scopeExtraction';
+import { extractInputsFromScope, bumpInputsCacheGeneration, type EngineModelsForExtraction, type SourceSizeProvider } from '../../../../src/core/icr/ui/scopeExtraction';
 import type { Marker } from '../../../../src/markdown/models/codeMarkerModel';
 import type { RowMarker, SegmentMarker } from '../../../../src/csv/csvCodingTypes';
 import type { MediaMarker } from '../../../../src/media/mediaTypes';
@@ -159,6 +159,79 @@ describe('extractInputsFromScope', () => {
 			{ models: emptyModels(), app: noopApp },
 		);
 		expect(result).toEqual([]);
+	});
+
+	it('sourceSizeProvider override: audio com coding esparso usa duração real, não max(range.to)', async () => {
+		// Gap #1 (intra-modality): coder marca só 0-10s de audio de 300s (5min).
+		// Sem provider: totalUnits = 10 (max range.to) → 100% do unit space "coded" → P_o inflado.
+		// Com provider: totalUnits = 300 → 290s de background não-coded entram como agreement em ∅.
+		const audioMarkers: MediaMarker[] = [
+			{ markerType: 'audio', id: 'm1', fileId: 'long.mp3', from: 0, to: 5, codes: [{ codeId: 'c1' }], codedBy: 'human:a', createdAt: 1, updatedAt: 1 },
+			{ markerType: 'audio', id: 'm2', fileId: 'long.mp3', from: 5, to: 10, codes: [{ codeId: 'c1' }], codedBy: 'human:b', createdAt: 1, updatedAt: 1 },
+		];
+		const models: EngineModelsForExtraction = {
+			...emptyModels(),
+			audio: { getAllMarkers: () => audioMarkers },
+		};
+		const provider: SourceSizeProvider = {
+			async getSourceSize(engine, fileId, _locator, _resolution) {
+				if (engine === 'audio' && fileId === 'long.mp3') return 300; // 5 min em resolution=1
+				return null;
+			},
+		};
+
+		bumpInputsCacheGeneration();
+		const result = await extractInputsFromScope(
+			{ coderIds: ['human:a', 'human:b'], engineIds: ['audio'] },
+			{ models, app: noopApp, sourceSizeProvider: provider },
+		);
+		const audioInput = result.find(r => r.engine === 'audio');
+		expect(audioInput).toBeTruthy();
+		const sources = (audioInput!.kappaInput as { sources: { totalUnits: number }[] }).sources;
+		expect(sources).toHaveLength(1);
+		expect(sources[0]!.totalUnits).toBe(300);
+	});
+
+	it('sourceSizeProvider retorna null: caller mantém fallback max(range.to)', async () => {
+		const audioMarkers: MediaMarker[] = [
+			{ markerType: 'audio', id: 'm1', fileId: 'unknown.mp3', from: 0, to: 7, codes: [{ codeId: 'c1' }], codedBy: 'human:a', createdAt: 1, updatedAt: 1 },
+		];
+		const models: EngineModelsForExtraction = {
+			...emptyModels(),
+			audio: { getAllMarkers: () => audioMarkers },
+		};
+		const provider: SourceSizeProvider = {
+			async getSourceSize() { return null; },
+		};
+
+		bumpInputsCacheGeneration();
+		const result = await extractInputsFromScope(
+			{ coderIds: ['human:a', 'human:b'], engineIds: ['audio'] },
+			{ models, app: noopApp, sourceSizeProvider: provider },
+		);
+		const sources = (result[0]!.kappaInput as { sources: { totalUnits: number }[] }).sources;
+		expect(sources[0]!.totalUnits).toBe(7); // fallback max(range.to)
+	});
+
+	it('sourceSizeProvider throw: caller mantém fallback (não crasha)', async () => {
+		const audioMarkers: MediaMarker[] = [
+			{ markerType: 'audio', id: 'm1', fileId: 'flaky.mp3', from: 0, to: 4, codes: [{ codeId: 'c1' }], codedBy: 'human:a', createdAt: 1, updatedAt: 1 },
+		];
+		const models: EngineModelsForExtraction = {
+			...emptyModels(),
+			audio: { getAllMarkers: () => audioMarkers },
+		};
+		const provider: SourceSizeProvider = {
+			async getSourceSize() { throw new Error('IO fail'); },
+		};
+
+		bumpInputsCacheGeneration();
+		const result = await extractInputsFromScope(
+			{ coderIds: ['human:a'], engineIds: ['audio'] },
+			{ models, app: noopApp, sourceSizeProvider: provider },
+		);
+		const sources = (result[0]!.kappaInput as { sources: { totalUnits: number }[] }).sources;
+		expect(sources[0]!.totalUnits).toBe(4);
 	});
 
 	it('temporalResolution propaga até extractMediaRange — sub-segundo agreement varia entre 1s e 100ms', async () => {

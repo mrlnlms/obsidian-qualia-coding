@@ -19,7 +19,7 @@
 import type { CompareCodersViewState, CurrentSelection } from './compareCodersTypes';
 import type { CoderRegistry } from '../coderRegistry';
 import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
-import { extractInputsFromScope, filterInputsByCoders, type EngineModelsForExtraction } from './scopeExtraction';
+import { extractInputsFromScope, filterInputsByCoders, type EngineModelsForExtraction, type SourceSizeProvider } from './scopeExtraction';
 import { computeBboxKappaForPair } from './bboxScopeExtraction';
 import { reportKappaAsync, type EngineId } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
@@ -34,6 +34,7 @@ export interface OverviewHeatmapDeps {
 	codeRegistry: CodeDefinitionRegistry;
 	engineModels: EngineModelsForExtraction;
 	app: App;
+	sourceSizeProvider?: SourceSizeProvider;
 }
 
 const NON_BBOX_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment', 'csvRow', 'audio', 'video'];
@@ -105,7 +106,7 @@ export async function renderOverviewHeatmap(
 	const codeChecks = await Promise.all(candidateCodeIds.map(async (codeId) => {
 		const inputs = await extractInputsFromScope(
 			{ ...state.scope, codeIds: [codeId] },
-			{ models: deps.engineModels, app: deps.app },
+			{ models: deps.engineModels, app: deps.app, sourceSizeProvider: deps.sourceSizeProvider },
 		);
 		const hasText = inputs.some(i => {
 			const k = i.kappaInput as { markers?: unknown[]; units?: unknown[] };
@@ -197,7 +198,7 @@ async function computeKappaForCell(
 	// text-likes / temporal / categorical
 	// cellScope usa state.scope (inclusionScope, sem visibility) → cache do extract estável.
 	const cellScope = { ...state.scope, codeIds: [codeId], engineIds: [col] };
-	const inputs = await extractInputsFromScope(cellScope, { models: deps.engineModels, app: deps.app });
+	const inputs = await extractInputsFromScope(cellScope, { models: deps.engineModels, app: deps.app, sourceSizeProvider: deps.sourceSizeProvider });
 	if (inputs.length === 0) return undefined;
 	// Filtra inputs por coders visíveis ANTES do report; cache key ganha sufixo de visibility
 	// pra não colidir com versão "todos coders" em outros call sites.

@@ -138,9 +138,31 @@ export interface EngineModelsForExtraction {
 	image?: { getAllMarkers(): ImageMarker[] };
 }
 
+/**
+ * Provider de tamanho real do source por (engine, fileId, locator) — corrige inflação
+ * de P_o quando coding é esparso. Sem provider: caller cai em `max(range.to)` (totalUnits
+ * inflado, baseline artificial).
+ *
+ * Convenção de unidade:
+ *  - text-likes (markdown, pdf, csvSegment): chars
+ *  - temporal (audio, video): ticks no unit space, considerando `temporalResolution`
+ *
+ * Retorna `null` se desconhecido — caller mantém fallback. Implementação pode cachear
+ * internamente (loadedmetadata pra audio/video é one-shot per file).
+ */
+export interface SourceSizeProvider {
+	getSourceSize(
+		engine: EngineId,
+		fileId: string,
+		locator: string,
+		temporalResolution: number,
+	): Promise<number | null>;
+}
+
 export interface ExtractionContext {
 	models: EngineModelsForExtraction;
 	app: App;
+	sourceSizeProvider?: SourceSizeProvider;
 }
 
 export async function extractInputsFromScope(
@@ -197,7 +219,14 @@ async function getEngineInput(
 			const input = buildCategoricalInput(filtered as RowMarker[], scope.coderIds);
 			return input.units.length > 0 ? { engine, kappaInput: input } : null;
 		}
-		const input = await buildPerCharInput(engine, filtered, ctx.app, scope.coderIds, scope.temporalResolution);
+		const input = await buildPerCharInput(
+			engine,
+			filtered,
+			ctx.app,
+			scope.coderIds,
+			scope.temporalResolution,
+			ctx.sourceSizeProvider,
+		);
 		return input.markers.length > 0 ? { engine, kappaInput: input } : null;
 	})();
 	engineInputCache.set(key, { gen: cacheGeneration, promise });
@@ -258,6 +287,7 @@ async function buildPerCharInput(
 	app: App,
 	coders: string[],
 	temporalResolution: number = 1,
+	sourceSizeProvider?: SourceSizeProvider,
 ): Promise<KappaInput> {
 	const codedMarkers: CodedMarker[] = [];
 	const sourceTotals = new Map<string, { fileId: string; locator: string; totalUnits: number }>();
@@ -309,6 +339,22 @@ async function buildPerCharInput(
 			// Marker malformado — pula
 			continue;
 		}
+	}
+
+	// Gap #1 (intra-modality): se há provider, query tamanho real do source pra
+	// substituir o fallback max(range.to). Preserva max como floor pra nunca cortar
+	// abaixo do que markers cobrem (defensive: provider stale > markers atuais).
+	if (sourceSizeProvider) {
+		await Promise.all(Array.from(sourceTotals.values()).map(async entry => {
+			try {
+				const real = await sourceSizeProvider.getSourceSize(engine, entry.fileId, entry.locator, temporalResolution);
+				if (real !== null && real > entry.totalUnits) {
+					entry.totalUnits = real;
+				}
+			} catch {
+				// Provider falhou (file inacessível, parse error) — mantém fallback.
+			}
+		}));
 	}
 
 	const sources: SourceMeta[] = Array.from(sourceTotals.values());

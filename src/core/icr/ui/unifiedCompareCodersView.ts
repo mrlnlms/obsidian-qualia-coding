@@ -15,7 +15,8 @@ import { collectContestedRegions, categorizeRegionsByStatus, bumpRegionsCacheGen
 import { bumpCoderInclusionCacheGeneration } from './coderInclusion';
 import { bumpReportCache } from '../reporter';
 import { applyConsensusExclusion, getConsensusCoderIdsInScope } from './coderInclusion';
-import { extractInputsFromScope } from './scopeExtraction';
+import { extractInputsFromScope, type SourceSizeProvider } from './scopeExtraction';
+import { MediaSourceSize } from '../sourceSize/mediaSourceSize';
 import { reportPairwise, reportPairwiseAsync } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import type { CoderId } from '../coderTypes';
@@ -60,9 +61,14 @@ export class UnifiedCompareCodersView extends ItemView {
 	 *  faz vault.cachedRead caro pra cada md). Sem isso, N clicks viram N renders paralelos competindo
 	 *  pelo event loop — UI trava sob load. Token-guard descarta o trabalho stale ao final. */
 	private renderQueue: Promise<void> = Promise.resolve();
+	/** Gap #1 (intra-modality): provider de tamanho real do source per engine. Substitui o
+	 *  fallback `max(range.to)` que infla P_o em coding esparso. Wired pra audio/video via
+	 *  HTMLMediaElement.duration; PDF e CSV segment ficam abertos (sub-items 1c/1d no BACKLOG). */
+	private sourceSizeProvider: SourceSizeProvider;
 
 	constructor(leaf: WorkspaceLeaf, private plugin: QualiaCodingPlugin) {
 		super(leaf);
+		this.sourceSizeProvider = new MediaSourceSize(plugin.app);
 		// Default scope inclui TODOS coders (humanos + consensus). `applyCoderInclusion` remove
 		// automaticamente coders sem markers (consensus pré-reconciliação cai aí). Chip "excluir
 		// consensus" no toolbar permite ver κ pré (sem consensus) quando consensus tem markers.
@@ -364,6 +370,7 @@ export class UnifiedCompareCodersView extends ItemView {
 				codeRegistry: this.plugin.sharedRegistry,
 				engineModels: this.engineModels(),
 				app: this.plugin.app,
+				sourceSizeProvider: this.sourceSizeProvider,
 			};
 			if (this.state.overviewMode === 'matrix') {
 				await renderOverviewMatrix(wrap, this.state, deps, sel => this.setSelection(sel));
@@ -479,7 +486,7 @@ export class UnifiedCompareCodersView extends ItemView {
 
 		const computeKappa = async (scope: typeof this.state.scope): Promise<{ byPair: Record<string, number | undefined> } | undefined> => {
 			if (scope.coderIds.length < 2) return undefined;
-			const inputs = await extractInputsFromScope(scope, { models: this.engineModels(), app: this.plugin.app });
+			const inputs = await extractInputsFromScope(scope, { models: this.engineModels(), app: this.plugin.app, sourceSizeProvider: this.sourceSizeProvider });
 			if (inputs.length === 0) return undefined;
 			const pairs: [CoderId, CoderId][] = [];
 			for (let i = 0; i < scope.coderIds.length; i++)
@@ -543,7 +550,7 @@ export class UnifiedCompareCodersView extends ItemView {
 		const sel = this.state.currentSelection;
 		if (sel.kind !== 'pair') return undefined;
 		const [a, b] = sel.value;
-		const inputs = await extractInputsFromScope(this.state.scope, { models: this.engineModels(), app: this.plugin.app });
+		const inputs = await extractInputsFromScope(this.state.scope, { models: this.engineModels(), app: this.plugin.app, sourceSizeProvider: this.sourceSizeProvider });
 		if (inputs.length === 0) return undefined;
 		const distance = this.state.distance ?? 'jaccard';
 		const cacheKey = cacheKeyForScope(this.state.scope) + `::δ-${distance}`;
