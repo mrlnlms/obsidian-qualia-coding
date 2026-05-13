@@ -125,7 +125,7 @@ function renderCohenPerCodeCard(
 		const li = list.createEl('li', { cls: 'qc-cc-percode-item' });
 		const name = codeRegistry.getById(codeId)?.name ?? codeId;
 		li.createSpan({ cls: 'qc-cc-percode-name', text: name });
-		const valEl = li.createSpan({ cls: 'qc-cc-percode-value', text: kappa.toFixed(2) });
+		const valEl = li.createSpan({ cls: 'qc-cc-percode-value', text: kappa.toFixed(4) });
 		// Cor por faixa (alinha com kappaClass dos overviews)
 		if (kappa < 0.4) valEl.addClass('qc-kappa-low');
 		else if (kappa < 0.6) valEl.addClass('qc-kappa-mid');

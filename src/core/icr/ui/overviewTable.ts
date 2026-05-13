@@ -174,7 +174,7 @@ function appendCell(row: HTMLElement, cls: string, value: number | undefined): v
 		td.textContent = '—';
 		td.addClass('qc-kappa-na');
 	} else {
-		td.textContent = value.toFixed(2);
+		td.textContent = value.toFixed(4);
 		td.addClass(kappaClass(value));
 	}
 }

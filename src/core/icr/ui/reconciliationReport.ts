@@ -130,7 +130,7 @@ function formatDecision(decision: ReconciliationDecision, codeRegistry: CodeDefi
 }
 
 function fmtNum(v: number | undefined): string {
-	return v !== undefined && !isNaN(v) ? v.toFixed(2) : '—';
+	return v !== undefined && !isNaN(v) ? v.toFixed(4) : '—';
 }
 
 function collectPairKeys(

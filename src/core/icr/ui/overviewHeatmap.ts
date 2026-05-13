@@ -159,7 +159,7 @@ export async function renderOverviewHeatmap(
 				td.textContent = '—';
 				td.addClass('qc-kappa-na');
 			} else {
-				td.textContent = k.toFixed(2);
+				td.textContent = k.toFixed(4);
 				td.addClass(kappaClass(k));
 				if (state.filters.hideAgreementTotal && k > 0.8) td.addClass('qc-cc-fade');
 				const targetEngine: EngineId = col === 'spatial-bbox' ? 'pdfShape' : col;

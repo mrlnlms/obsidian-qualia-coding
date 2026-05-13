@@ -304,14 +304,19 @@ function performSeed(data) {
 		mkMd('m2_a', 8, 3, 100, CODER_A, [CODE_A]),
 		mkMd('m2_b', 8, 20, 90, CODER_B, [CODE_A]),
 
-		// M3 — Code disagreement 3-way na R3 (linha 12) — Fleiss N=3
-		mkMd('m3_a', 12, 3, 80, CODER_A, [CODE_B]),
-		mkMd('m3_b', 12, 3, 80, CODER_B, [CODE_C]),
-		mkMd('m3_c', 12, 3, 80, CODER_C, [CODE_B]),
+		// M3 — Multi-label N=3 com lateral overlap (Fleiss + Jaccard/MASI strong)
+		//   A={B,C}, B={C,D}, C={B,D} — pares com 1 elemento em comum, lateral (sem subset)
+		//   δ_jaccard pares: 2/3 cada (|∩|=1, |∪|=3)
+		//   δ_MASI pares: 8/9 cada (J=1/3, M=1/3 lateral)
+		//   Diferença δ² ≈ 0.35 por par × 3 pares × 77 chars = MUITO disagreement weighted
+		mkMd('m3_a', 12, 3, 80, CODER_A, [CODE_B, CODE_C]),
+		mkMd('m3_b', 12, 3, 80, CODER_B, [CODE_C, CODE_D]),
+		mkMd('m3_c', 12, 3, 80, CODER_C, [CODE_B, CODE_D]),
 
-		// M4 — Multi-label na R4 (linha 16): A = {tema-A, tema-B}, B = {tema-A}
+		// M4 — Multi-label lateral na R4 (linha 16): A={tema-A,tema-B}, B={tema-A,tema-C}
+		//   Lateral overlap em vez de subset → δ_jaccard²=4/9, δ_MASI²=64/81 (diff ~0.35)
 		mkMd('m4_a', 16, 3, 60, CODER_A, [CODE_A, CODE_B]),
-		mkMd('m4_b', 16, 3, 60, CODER_B, [CODE_A]),
+		mkMd('m4_b', 16, 3, 60, CODER_B, [CODE_A, CODE_C]),
 	);
 	data.markdown.markers[TRANSCRIPT_PATH] = mdMarkers;
 
@@ -434,12 +439,10 @@ function performSeed(data) {
 		mkVideo('v4_b', 7.5, 9.0, CODER_B, [CODE_D]),
 		mkVideo('v4_c', 7.5, 9.0, CODER_C, [CODE_C]),
 
-		// V5 — Multi-label (Jaccard temporal): A={A,C}, B={C}
-		//   Jaccard δ = 1 - |{C}|/|{A,C}| = 0.5
-		//   Nominal δ = 1 (reduz a first-code alfabético: A vs C → diff)
-		//   MASI δ = 1 - 0.5 × 2/3 (subset) ≈ 0.667
+		// V5 — Multi-label lateral (Jaccard temporal): A={A,C}, B={B,C}
+		//   Lateral em vez de subset → δ_jaccard²=4/9, δ_MASI²=64/81 (diff ~0.35)
 		mkVideo('v5_a', 9.5, 10.5, CODER_A, [CODE_A, CODE_C]),
-		mkVideo('v5_b', 9.5, 10.5, CODER_B, [CODE_C]),
+		mkVideo('v5_b', 9.5, 10.5, CODER_B, [CODE_B, CODE_C]),
 
 		// V6 — Presence/absence (sparse semântica): só A marca, B silencioso
 		//   α-binary captura: A "presente" tema-A em [11.0, 11.5), B "ausente"

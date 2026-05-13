@@ -235,7 +235,7 @@ export class CompareCoderCoefficientsModal extends Modal {
 				: `↳ ${r.engine}`;
 			tr.createEl('td', { text: label });
 			[r.cohen, r.fleiss, r.alpha, r.alphaBinary, r.cuAlpha].forEach(v => {
-				tr.createEl('td', { text: v !== undefined && !isNaN(v) ? v.toFixed(2) : '—' });
+				tr.createEl('td', { text: v !== undefined && !isNaN(v) ? v.toFixed(4) : '—' });
 			});
 		}
 	}

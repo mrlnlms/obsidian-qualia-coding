@@ -176,7 +176,7 @@ export async function renderOverviewMatrix(
 				cell.textContent = '—';
 			} else {
 				cell.addClass(kappaClass(k));
-				cell.textContent = k.toFixed(2);
+				cell.textContent = k.toFixed(4);
 				if (state.filters.hideAgreementTotal && k > 0.8) cell.addClass('qc-cc-fade');
 				// Tooltip perCode breakdown quando Cohen κ ativo (caminho A binary-per-label)
 				const perCode = cohenPerCodeByPair.get(key);
@@ -184,7 +184,7 @@ export async function renderOverviewMatrix(
 					const sorted = Object.entries(perCode).sort(([, a], [, b]) => a - b);
 					const lines = sorted.map(([codeId, κ]) => {
 						const name = deps.codeRegistry.getById(codeId)?.name ?? codeId;
-						return `  ${name}: ${κ.toFixed(2)}`;
+						return `  ${name}: ${κ.toFixed(4)}`;
 					});
 					cell.title = `Decomposição Cohen κ (caminho A):\n${lines.join('\n')}`;
 				}
