@@ -39,13 +39,21 @@ export function renderFilterChips(
 		const coder = deps.coderRegistry.getById(coderId);
 		const visible = !state.filters.visibleCoderIds || state.filters.visibleCoderIds.includes(coderId);
 		const hasMarkers = !deps.codersWithMarkers || deps.codersWithMarkers.has(coderId);
-		// Coder sem markers + filter polish OFF = chip cinza claro com tooltip explicativo
+		// Estados separados:
+		//   is-no-markers — coder sem markers no escopo (info persistente; italic sempre que aplicável)
+		//   is-empty      — coder sem markers + filter polish OFF = bloqueado (italic + opacity + "· 0")
+		// Filter ON com coder sem markers: só is-no-markers (italic, clicável, sem "· 0").
+		// Caso real: coder human:default criado por seedDefault() em coderRegistry.ts aparece sem markers
+		// no escopo do seed; user precisa distinguir do coder ativo mesmo quando o filter ON.
 		const isInactive = !hasMarkers && !includeEmpty;
-		const cls = `qc-cc-filter-chip qc-cc-coder-chip ${visible && !isInactive ? 'is-active' : ''}${isInactive ? ' is-empty' : ''}`;
-		const chip = container.createSpan({ cls: cls.trim(), text: coder?.name ?? coderId });
+		const cls = `qc-cc-filter-chip qc-cc-coder-chip ${visible && !isInactive ? 'is-active' : ''}${isInactive ? ' is-empty' : ''}${!hasMarkers ? ' is-no-markers' : ''}`;
+		const text = (coder?.name ?? coderId) + (isInactive ? ' · 0' : '');
+		const chip = container.createSpan({ cls: cls.trim(), text });
 		chip.dataset.coderId = coderId;
-		if (isInactive) {
-			chip.title = 'Sem markers no escopo — habilite "incluir coders sem markers" pra incluir mesmo assim';
+		if (!hasMarkers) {
+			chip.title = isInactive
+				? 'Coder sem markers no escopo atual. Habilite o filter "incluir coders sem markers" pra incluir em escopos onde tem contribuição.'
+				: 'Coder sem markers no escopo atual (mas incluído pelo filter).';
 		}
 		chip.onclick = () => {
 			const cur = state.filters.visibleCoderIds ?? [...state.scope.coderIds];

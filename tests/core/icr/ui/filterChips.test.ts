@@ -104,4 +104,50 @@ describe('renderFilterChips', () => {
 		chip.click();
 		expect(updates[0]!.filters!.includeCodersWithoutMarkers).toBe(true);
 	});
+
+	it('coder sem markers + filter off → is-empty + is-no-markers + sufixo "· 0"', () => {
+		const coderA = baseState.scope.coderIds[0]!;
+		const coderB = baseState.scope.coderIds[1]!;
+		const codersWithMarkers = new Set([coderA]);
+		renderFilterChips(container, baseState, { coderRegistry, codersWithMarkers }, () => {});
+
+		const chipB = container.querySelector(`[data-coder-id="${coderB}"]`) as HTMLElement;
+		expect(chipB.classList.contains('is-empty')).toBe(true);
+		expect(chipB.classList.contains('is-no-markers')).toBe(true);
+		expect(chipB.textContent).toContain('· 0');
+		expect(chipB.title).toContain('Habilite o filter');
+
+		const chipA = container.querySelector(`[data-coder-id="${coderA}"]`) as HTMLElement;
+		expect(chipA.classList.contains('is-empty')).toBe(false);
+		expect(chipA.classList.contains('is-no-markers')).toBe(false);
+		expect(chipA.textContent).not.toContain('· 0');
+	});
+
+	it('coder sem markers + filter on → is-no-markers sem is-empty, sem sufixo "· 0"', () => {
+		const coderB = baseState.scope.coderIds[1]!;
+		const codersWithMarkers = new Set([baseState.scope.coderIds[0]!]);
+		const stateWithFilter: CompareCodersViewState = {
+			...baseState,
+			filters: { ...baseState.filters, includeCodersWithoutMarkers: true },
+		};
+		renderFilterChips(container, stateWithFilter, { coderRegistry, codersWithMarkers }, () => {});
+
+		const chipB = container.querySelector(`[data-coder-id="${coderB}"]`) as HTMLElement;
+		expect(chipB.classList.contains('is-empty')).toBe(false);
+		expect(chipB.classList.contains('is-no-markers')).toBe(true);
+		expect(chipB.textContent).not.toContain('· 0');
+		expect(chipB.title).toContain('incluído pelo filter');
+	});
+
+	it('coder com markers → sem is-empty nem is-no-markers, sem sufixo', () => {
+		const coderA = baseState.scope.coderIds[0]!;
+		const codersWithMarkers = new Set([coderA, baseState.scope.coderIds[1]!]);
+		renderFilterChips(container, baseState, { coderRegistry, codersWithMarkers }, () => {});
+
+		const chipA = container.querySelector(`[data-coder-id="${coderA}"]`) as HTMLElement;
+		expect(chipA.classList.contains('is-empty')).toBe(false);
+		expect(chipA.classList.contains('is-no-markers')).toBe(false);
+		expect(chipA.textContent).not.toContain('· 0');
+		expect(chipA.title).toBe('');
+	});
 });

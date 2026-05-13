@@ -282,13 +282,7 @@ Smoke real do Compare Coders em corpus sintético (37 markers em 4 engines via `
 
 ### UX gaps abertos
 
-- [ ] **Chip "Default" (coder sem markers) se confunde com coders ativos no toolbar.** **Diagnóstico correto (2026-05-13 — gap original mal-categorizado):** o chip "Default" que confunde NÃO é seletor de saved comparison; é o coder `human:default` criado automaticamente por `seedDefault()` em `coderRegistry.ts:22-26` (idempotente em construct e em `fromJSON` — sobrevive a hard-reset do seed). Aparece junto dos coders reais (ex: Coder A/B/C do seed) sem distinção visual mesmo sem markers no escopo. Já tem `is-empty` class + tooltip "Sem markers no escopo", mas isso não chega — visual fica colado com os coders ativos. Tentativa de fix mirou banner saved-comparison (que só aparece com saved carregada via modal); revertida.
-  - **Localização:** `src/core/icr/ui/filterChips.ts:38-50` itera `state.scope.coderIds` e renderiza chip por coder. `is-empty` CSS já existe (`.qc-cc-coder-chip.is-empty` em `styles.css`). `coderRegistry.ts:22-26` é onde o `seedDefault()` cria o coder.
-  - **Fix proposto (escolher 1):**
-    1. **(a) Distinguir visualmente coder sem markers** — italic + label sufixo "(0 markers)" + opacity 0.5. Mantém chip visível mas claramente diferenciado.
-    2. **(b) Ocultar coder sem markers por default** — só renderiza no `renderFilterChips` se `hasMarkers || includeEmpty`. User ativa "incluir coders sem markers" pra ver. Confirmar se essa lógica já existe e por que não está cobrindo.
-    3. **(c) Tooltip + ícone explicativo** — mantém chip como está, mas adiciona ícone discreto (⚠ ou ø) antes do nome pra sinalizar "sem markers".
-  - Recomendação pendente — decisão de produto. **(b)** elimina o ruído visual; **(a)/(c)** preservam visibilidade.
+- [x] **Chip "Default" (coder sem markers) se confunde com coders ativos no toolbar** ✅ FEITO 2026-05-13. Diagnóstico correto: chip "Default" é coder `human:default` criado por `seedDefault()` em `coderRegistry.ts:22-26` (idempotente em construct/fromJSON — sobrevive hard-reset). Fix aplicado em `filterChips.ts` + `styles.css` separando 2 conceitos: `is-no-markers` (italic sempre que `!hasMarkers`, info persistente) vs `is-empty` (adiciona opacity 0.5 + sufixo "· 0" quando bloqueado pelo filter OFF). Tooltip dinâmico explica estado. 3 tests cobrindo os estados (filter off, filter on com sem markers, com markers).
 
 - [x] **Picker δ tem opção `Nominal` explícita** ✅ FEITO 2026-05-13 (commit pendente). Adicionado chip `Nominal` ao `coefficientPicker.ts` (já existia em `DistanceName` e `resolveDistance` — só não estava exposto na UI). Ordem: `Nominal` → `Jaccard` → `MASI`. Disabled logic é idêntica aos outros (disabled quando coef é Cohen/α-binary OU multi-label=0). Tooltip atualizado pra explicar diferença entre Nominal/Jaccard/MASI. Test recalibrado pra esperar 3 chips em vez de 2.
 

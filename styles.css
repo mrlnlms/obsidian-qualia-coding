@@ -6703,6 +6703,16 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	opacity: 0.5;
 }
 
+/* Coder sem markers no escopo — info persistente (italic) independente do filter.
+   `is-no-markers` aplica sempre que !hasMarkers; `is-empty` adiciona opacity reduzida
+   quando filter "incluir coders sem markers" está OFF (chip bloqueado, não clicável). */
+.qc-cc-coder-chip.is-no-markers {
+	font-style: italic;
+}
+.qc-cc-coder-chip.is-empty {
+	opacity: 0.5;
+}
+
 /* Overview matrix */
 
 .qc-cc-overview {
