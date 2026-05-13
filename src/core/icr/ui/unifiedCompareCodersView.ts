@@ -475,7 +475,8 @@ export class UnifiedCompareCodersView extends ItemView {
 			for (const r of reports) {
 				const [a, b] = r.pair;
 				const key = a < b ? `${a}|${b}` : `${b}|${a}`;
-				byPair[key] = r.report.aggregate.cohenKappa[`${a}|${b}`] ?? r.report.aggregate.cohenKappa[`${b}|${a}`];
+				const entry = r.report.aggregate.cohenKappa[`${a}|${b}`] ?? r.report.aggregate.cohenKappa[`${b}|${a}`];
+				byPair[key] = entry?.value;
 			}
 			return { byPair };
 		};

@@ -36,7 +36,7 @@ describe('reportPairwise', () => {
 		const inputs = [makeMarkdownInput(['human:a', 'human:b'])];
 		const result = reportPairwise(inputs, [['human:a', 'human:b']]);
 		const cohenTable = result[0]!.report.aggregate.cohenKappa;
-		const value = cohenTable['human:a|human:b'] ?? cohenTable['human:b|human:a'];
+		const value = (cohenTable['human:a|human:b'] ?? cohenTable['human:b|human:a'])?.value;
 		expect(value).toBeCloseTo(1.0);
 	});
 
@@ -62,7 +62,8 @@ describe('reportPairwise', () => {
 		};
 		const result = reportPairwise([input], [['human:a', 'human:b']]);
 		const cohenTable = result[0]!.report.aggregate.cohenKappa;
-		const value = cohenTable['human:a|human:b'] ?? cohenTable['human:b|human:a'];
+		const entry = cohenTable['human:a|human:b'] ?? cohenTable['human:b|human:a'];
+		const value = entry?.value;
 		expect(value === undefined || value <= 0.5).toBe(true);
 	});
 
@@ -86,7 +87,7 @@ describe('reportPairwise', () => {
 		const result = reportPairwise([input], [['human:a', 'human:b']]);
 		// a e b concordam → κ alto. c (que diverge) não entra no input filtrado do par.
 		const cohenTable = result[0]!.report.aggregate.cohenKappa;
-		const value = cohenTable['human:a|human:b'] ?? cohenTable['human:b|human:a'];
+		const value = (cohenTable['human:a|human:b'] ?? cohenTable['human:b|human:a'])?.value;
 		expect(value).toBeCloseTo(1.0);
 	});
 
@@ -118,8 +119,8 @@ describe('reportPairwise', () => {
 			const result = reportPairwise([textInput], [['human:a', 'human:b']], undefined, perPair);
 
 			// Ambos engines tem κ=1; aggregate weighted = 1.
-			const cohen = result[0]!.report.aggregate.cohenKappa['human:a|human:b']
-				?? result[0]!.report.aggregate.cohenKappa['human:b|human:a'];
+			const cohen = (result[0]!.report.aggregate.cohenKappa['human:a|human:b']
+				?? result[0]!.report.aggregate.cohenKappa['human:b|human:a'])?.value;
 			expect(cohen).toBeCloseTo(1.0);
 
 			// Confirma que AMBOS engines aparecem em byEngine.
@@ -156,8 +157,8 @@ describe('reportPairwise', () => {
 			const perPair = new Map<string, EngineKappaInput[]>([['human:a|human:b', [bboxInput]]]);
 			const result = reportPairwise([textInput], [['human:a', 'human:b']], undefined, perPair);
 
-			const cohen = result[0]!.report.aggregate.cohenKappa['human:a|human:b']
-				?? result[0]!.report.aggregate.cohenKappa['human:b|human:a'];
+			const cohen = (result[0]!.report.aggregate.cohenKappa['human:a|human:b']
+				?? result[0]!.report.aggregate.cohenKappa['human:b|human:a'])?.value;
 
 			// Avg 50/50 antigo daria (1 + 0) / 2 = 0.5
 			// Weighted: text=1000 markers κ=1; bbox=4 markers κ≈0; (1*1000 + 0*4) / 1004 ≈ 0.996

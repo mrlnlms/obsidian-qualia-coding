@@ -13,7 +13,7 @@ describe('cohenKappaCategorical', () => {
 			],
 			coders: ['a', 'b'],
 		};
-		expect(cohenKappaCategorical(input, 'a', 'b')).toBeCloseTo(1.0, 3);
+		expect(cohenKappaCategorical(input, 'a', 'b').value).toBeCloseTo(1.0, 3);
 	});
 
 	it('returns ≤0 when coders systematically disagree', () => {
@@ -24,7 +24,7 @@ describe('cohenKappaCategorical', () => {
 			],
 			coders: ['a', 'b'],
 		};
-		expect(cohenKappaCategorical(input, 'a', 'b')).toBeLessThanOrEqual(0);
+		expect(cohenKappaCategorical(input, 'a', 'b').value).toBeLessThanOrEqual(0);
 	});
 
 	it('handles missing data with κ>0 when agreement majority offsets non-trivially from chance', () => {
@@ -46,13 +46,32 @@ describe('cohenKappaCategorical', () => {
 			],
 			coders: ['a', 'b'],
 		};
-		const k = cohenKappaCategorical(input, 'a', 'b');
+		const k = cohenKappaCategorical(input, 'a', 'b').value;
 		expect(k).toBeGreaterThan(0);
 		expect(k).toBeLessThan(1);
 	});
 
 	it('returns 1 for empty input (vacuous)', () => {
 		const input: CategoricalKappaInput = { units: [], coders: ['a', 'b'] };
-		expect(cohenKappaCategorical(input, 'a', 'b')).toBe(1);
+		const r = cohenKappaCategorical(input, 'a', 'b');
+		expect(r.value).toBe(1);
+		expect(r.perCode).toEqual({});
+	});
+
+	it('perCode breakdown disponível pra multi-label categorical', () => {
+		const input: CategoricalKappaInput = {
+			units: [
+				{ fileId: 'd.csv', sourceRowId: 0, column: 'r', codeIds: ['a', 'b'], coderId: 'cA' },
+				{ fileId: 'd.csv', sourceRowId: 0, column: 'r', codeIds: ['a', 'b'], coderId: 'cB' },
+				{ fileId: 'd.csv', sourceRowId: 1, column: 'r', codeIds: ['a', 'b'], coderId: 'cA' },
+				{ fileId: 'd.csv', sourceRowId: 1, column: 'r', codeIds: ['a', 'c'], coderId: 'cB' },
+			],
+			coders: ['cA', 'cB'],
+		};
+		const r = cohenKappaCategorical(input, 'cA', 'cB');
+		expect(r.perCode).toHaveProperty('a');
+		expect(r.perCode).toHaveProperty('b');
+		expect(r.perCode).toHaveProperty('c');
+		expect(r.perCode.a).toBeCloseTo(1.0, 3);  // both coders sempre marcam 'a'
 	});
 });

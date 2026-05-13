@@ -55,10 +55,10 @@ describe('Slice 4 multi-engine smoke', () => {
 
 		const r = reportKappa(inputs);
 
-		// Per-engine: cada engine teve perfect agreement → cohenKappa['a|b'] === 1.0
-		expect(r.byEngine.markdown?.cohenKappa['a|b']).toBeCloseTo(1.0, 2);
-		expect(r.byEngine.audio?.cohenKappa['a|b']).toBeCloseTo(1.0, 2);
-		expect(r.byEngine.csvRow?.cohenKappa['a|b']).toBeCloseTo(1.0, 2);
+		// Per-engine: cada engine teve perfect agreement → cohenKappa['a|b'].value === 1.0
+		expect(r.byEngine.markdown?.cohenKappa['a|b']?.value).toBeCloseTo(1.0, 2);
+		expect(r.byEngine.audio?.cohenKappa['a|b']?.value).toBeCloseTo(1.0, 2);
+		expect(r.byEngine.csvRow?.cohenKappa['a|b']?.value).toBeCloseTo(1.0, 2);
 
 		// Categorical engine: alphaBinary/cuAlpha = 1 (vacuous)
 		expect(r.byEngine.csvRow?.alphaBinary).toBe(1);
@@ -69,7 +69,7 @@ describe('Slice 4 multi-engine smoke', () => {
 		expect(r.aggregateWarnings[0]).toContain('incomparable units');
 
 		// Aggregate Cohen κ funciona (todos 1, peso ponderado dá 1)
-		expect(r.aggregate.cohenKappa['a|b']).toBeCloseTo(1.0, 2);
+		expect(r.aggregate.cohenKappa['a|b']?.value).toBeCloseTo(1.0, 2);
 
 		// Weights refletem nº de markers (text-likes/temporal) ou nº de units (categorical)
 		expect(r.weights.markdown).toBe(2);
@@ -94,7 +94,7 @@ describe('Slice 4 multi-engine smoke', () => {
 		];
 		const r = reportKappa(inputs);
 		// Boundary disagreement → κ < 1 mas > 0
-		expect(r.byEngine.audio?.cohenKappa['a|b']).toBeLessThan(1);
+		expect(r.byEngine.audio?.cohenKappa['a|b']?.value).toBeLessThan(1);
 		// α-binary: chars marked vs not — A marca 10s, B marca 10s, overlap 5s
 		expect(r.byEngine.audio?.alphaBinary).toBeLessThan(1);
 	});

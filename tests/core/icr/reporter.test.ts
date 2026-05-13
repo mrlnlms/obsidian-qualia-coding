@@ -29,11 +29,11 @@ describe('reportKappa', () => {
 		];
 
 		const r = reportKappa(inputs);
-		expect(r.byEngine.markdown?.cohenKappa['a|b']).toBeCloseTo(1.0, 3);
-		expect(r.byEngine.pdf?.cohenKappa['a|b']).toBeLessThan(0.5);
+		expect(r.byEngine.markdown?.cohenKappa['a|b']?.value).toBeCloseTo(1.0, 3);
+		expect(r.byEngine.pdf?.cohenKappa['a|b']?.value).toBeLessThan(0.5);
 		// Aggregate: weighted average por #markers (markdown=2, pdf=2 — média simples)
-		expect(r.aggregate.cohenKappa['a|b']).toBeGreaterThan(0);
-		expect(r.aggregate.cohenKappa['a|b']).toBeLessThan(1);
+		expect(r.aggregate.cohenKappa['a|b']?.value).toBeGreaterThan(0);
+		expect(r.aggregate.cohenKappa['a|b']?.value).toBeLessThan(1);
 	});
 
 	it('weights array reflects markers per engine', () => {

@@ -90,8 +90,9 @@ function computePair(
 	});
 	if (input.markers.length === 0) return undefined;
 	const report = reportKappa([{ engine: 'pdfShape', kappaInput: input }]);
-	return report.aggregate.cohenKappa[`${pair[0]}|${pair[1]}`]
+	const entry = report.aggregate.cohenKappa[`${pair[0]}|${pair[1]}`]
 		?? report.aggregate.cohenKappa[`${pair[1]}|${pair[0]}`];
+	return entry?.value;
 }
 
 /** Constrói EngineKappaInput[] per-pair pra matriz Mode A — bbox entra no pipeline

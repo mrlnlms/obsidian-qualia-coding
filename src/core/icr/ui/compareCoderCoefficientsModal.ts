@@ -166,7 +166,7 @@ export class CompareCoderCoefficientsModal extends Modal {
 				?? r.report.aggregate.cohenKappa[`${r.pair[1]}|${r.pair[0]}`];
 			this.rows.push({
 				pair: r.pair, engine: 'aggregate',
-				cohen: cohenK,
+				cohen: cohenK?.value,
 				fleiss: r.report.aggregate.fleissKappa,
 				alpha: r.report.aggregate.alphaNominal,
 				alphaBinary: r.report.aggregate.alphaBinary,
@@ -179,7 +179,7 @@ export class CompareCoderCoefficientsModal extends Modal {
 					const ck = c.cohenKappa[`${r.pair[0]}|${r.pair[1]}`] ?? c.cohenKappa[`${r.pair[1]}|${r.pair[0]}`];
 					this.rows.push({
 						pair: r.pair, engine: engineKey as EngineId,
-						cohen: ck,
+						cohen: ck?.value,
 						fleiss: c.fleissKappa,
 						alpha: c.alphaNominal,
 						alphaBinary: c.alphaBinary,

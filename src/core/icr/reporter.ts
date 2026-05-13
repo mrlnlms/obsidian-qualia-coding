@@ -12,7 +12,7 @@
 import type { KappaInput, CodedMarker } from './kappaInput';
 import type { CategoricalKappaInput } from './categoricalKappaInput';
 import type { CoderId } from './coderTypes';
-import { cohenKappa } from './coefficients/cohenKappa';
+import { cohenKappa, type CohenKappaReport } from './coefficients/cohenKappa';
 import { fleissKappa } from './coefficients/fleissKappa';
 import { krippendorffAlphaNominal } from './coefficients/krippendorffAlpha';
 import { alphaBinary } from './coefficients/alphaBinary';
@@ -39,12 +39,15 @@ function isCategorical(input: KappaInput | CategoricalKappaInput): input is Cate
 }
 
 export interface CoefficientReport {
-	cohenKappa: Record<string, number>;  // 'coderA|coderB' → κ
+	/** 'coderA|coderB' → {value, perCode}. perCode = breakdown binary-per-label (caminho A). */
+	cohenKappa: Record<string, CohenKappaReport>;
 	fleissKappa: number;
 	alphaNominal: number;
 	alphaBinary: number;
 	cuAlpha: number;
 }
+
+export type { CohenKappaReport } from './coefficients/cohenKappa';
 
 export interface KappaReport {
 	byEngine: Partial<Record<EngineId, CoefficientReport>>;
@@ -149,7 +152,7 @@ function computeAll(
 ): CoefficientReport {
 	const alphaOptions = distance ? { distance } : undefined;
 	if (isCategorical(input)) {
-		const cohenK: Record<string, number> = {};
+		const cohenK: Record<string, CohenKappaReport> = {};
 		for (let i = 0; i < input.coders.length; i++) {
 			for (let j = i + 1; j < input.coders.length; j++) {
 				const key = `${input.coders[i]}|${input.coders[j]}`;
@@ -167,7 +170,7 @@ function computeAll(
 		};
 	}
 
-	const cohenK: Record<string, number> = {};
+	const cohenK: Record<string, CohenKappaReport> = {};
 	for (let i = 0; i < input.coders.length; i++) {
 		for (let j = i + 1; j < input.coders.length; j++) {
 			const key = `${input.coders[i]}|${input.coders[j]}`;
@@ -194,24 +197,37 @@ function aggregateReports(
 		return { cohenKappa: {}, fleissKappa: 1, alphaNominal: 1, alphaBinary: 1, cuAlpha: 1 };
 	}
 
-	// Cohen aggregate por par de coders
+	// Cohen aggregate por par de coders — agrega value (weighted avg) + perCode (weighted avg per code).
 	const allCohenKeys = new Set<string>();
 	for (const e of engines) {
 		for (const k of Object.keys(byEngine[e]!.cohenKappa)) allCohenKeys.add(k);
 	}
-	const cohenAgg: Record<string, number> = {};
+	const cohenAgg: Record<string, CohenKappaReport> = {};
 	for (const key of allCohenKeys) {
-		let sum = 0;
-		let used = 0;
+		let sumValue = 0;
+		let usedValue = 0;
+		const perCodeAccum: Record<string, { sum: number; weight: number }> = {};
 		for (const e of engines) {
-			const v = byEngine[e]!.cohenKappa[key];
+			const r = byEngine[e]!.cohenKappa[key];
 			const w = weights[e] ?? 0;
-			if (v !== undefined) {
-				sum += v * w;
-				used += w;
+			if (r !== undefined) {
+				sumValue += r.value * w;
+				usedValue += w;
+				for (const [codeId, kappa] of Object.entries(r.perCode)) {
+					if (!perCodeAccum[codeId]) perCodeAccum[codeId] = { sum: 0, weight: 0 };
+					perCodeAccum[codeId].sum += kappa * w;
+					perCodeAccum[codeId].weight += w;
+				}
 			}
 		}
-		cohenAgg[key] = used > 0 ? sum / used : 0;
+		const perCode: Record<string, number> = {};
+		for (const [codeId, acc] of Object.entries(perCodeAccum)) {
+			if (acc.weight > 0) perCode[codeId] = acc.sum / acc.weight;
+		}
+		cohenAgg[key] = {
+			value: usedValue > 0 ? sumValue / usedValue : 0,
+			perCode,
+		};
 	}
 
 	const wavg = (key: 'fleissKappa' | 'alphaNominal' | 'alphaBinary' | 'cuAlpha'): number => {

@@ -96,7 +96,7 @@ export async function renderOverviewTable(
 		if (totalMarkers === 0) return null;
 		const report = await reportKappaAsync(filteredInputs, cacheKeyForScope({ ...effectiveScope, codeIds: [codeId] }) + visKey);
 		const cohenValues = Object.values(report.aggregate.cohenKappa);
-		const cohen = N === 2 && cohenValues.length > 0 ? cohenValues[0] : undefined;
+		const cohen = N === 2 && cohenValues.length > 0 ? cohenValues[0]?.value : undefined;
 		const fleiss = N >= 3 ? report.aggregate.fleissKappa : undefined;
 		return {
 			codeId,
