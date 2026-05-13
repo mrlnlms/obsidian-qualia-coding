@@ -157,6 +157,14 @@ Listagem por módulo + responsabilidade vive em `docs/ARCHITECTURE.md` §18 (Fil
 
 ## Release
 
+**⛔ NUNCA fazer release sem confirmação literal do user.** Decisão de release (bump version + tag + push) é prerrogativa do user — sempre. Mesmo quando o plano cravado mencionar "bump versão / tag / push" como passo de finalização, PARAR antes de executar e perguntar: "fechar 0.X.Y agora?" com diff de mudanças. Custo de perguntar = 1 turno; custo de release prematuro = changelog publicado errado + tag que vira histórico imutável + BRAT puxando coisa não-pronta.
+
+Sintoma de recaída: estou prestes a rodar `git tag X.Y.Z` ou alterar `manifest.json` version sem ter pergunta explícita "fechar release agora?" respondida. STOP. Mesmo em sessão "automática" pós-task. Mesmo se o user listou release no plano dele — plano é roteiro, não autorização de execução.
+
+Origem da regra: sessão 2026-05-13 emitiu release 0.6.1 sem perguntar (user havia listado bump/tag/push como passo final do plano, eu interpretei como autorização). User: "não era pra virar 0.6.0, mas ok". Decisão metodológica de release fica na conta do user, não em automação.
+
+### Mecânica (quando autorizado)
+
 - Workflow automatizado em `.github/workflows/release.yml` — push de tag `X.Y.Z` (sem `v` prefix) dispara build + criação de GitHub Release com `main.js`, `manifest.json`, `styles.css` anexados.
 - Bump version em 3 arquivos: `manifest.json`, `versions.json`, `package.json`. Atualizar `CHANGELOG.md`. Commit. Push tag.
 - Detalhes completos em `docs/DEVELOPMENT.md` §9.
