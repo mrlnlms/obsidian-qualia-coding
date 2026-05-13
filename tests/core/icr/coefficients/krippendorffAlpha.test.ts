@@ -281,37 +281,25 @@ describe('krippendorffAlphaNominal — validação contra valores canônicos Kri
 });
 
 /**
- * Characterization tests pra δ_jaccard e δ_MASI — registram divergência conhecida vs
- * canônica Krippendorff (2018, cap. 11).
+ * Validação δ² canônica pra δ_jaccard e δ_MASI — alinhamento Krippendorff 2018 cap. 11.
  *
  * Convenção canônica (Krippendorff 2018, cap. 11): pra distance functions custom (não-nominal),
  * α usa δ² em Do e De — preserva propriedade variance-like da fórmula.
  *
- * Convenção da impl atual: usa δ linear em Do e De. Pra δ_nominal (onde δ ∈ {0,1}, δ² = δ),
- * impl é IDÊNTICA à canônica (validado nos 5 casos canônicos acima). Pra δ_jaccard e δ_MASI
- * (valores fracionários em [0,1]), impl ≠ canônica quando marginais não-uniformes.
+ * Histórico (release 0.5.0/0.6.0): impl usou δ linear (não-squared) em Jaccard/MASI por
+ * inadvertência. Detectado em 2026-05-13 via cálculo paralelo canônico mostrando divergência
+ * em marginais assimétricas. Migrado pra δ² em 0.6.1 como bugfix metodológico — valores
+ * publicados pré-0.6.1 com Jaccard/MASI divergem deste; sem usuários reais afetados.
  *
  * Cálculo paralelo manual (caso assimétrico, 3 chars, 2 coders, marginais {a,b}=2/{a}=3/{a,b,c}=1):
  *
- *   Jaccard δ linear (impl):  α = 1 − (10/3)/(34/15) = -8/17  ≈ -0.4706
- *   Jaccard δ² (canon):       α = 1 − (17/54)/(11/54) = -6/11 ≈ -0.5455
- *   Δ ≈ 0.075 em magnitude
+ *   Jaccard δ²: Do_canon = (17/54), De_canon = (11/54), α = 1 − 17/11 = -6/11 ≈ -0.5455
+ *   MASI δ²:    Do_canon = (121/243), De_canon = (413/1215), α = 1 − 605/413 = -192/413 ≈ -0.4649
  *
- *   MASI δ linear (impl):     α = 1 − (38/9)/(134/45) = -28/67   ≈ -0.4179
- *   MASI δ² (canon):          α = 1 − (121/243)/(413/1215) = -192/413 ≈ -0.4649
- *   Δ ≈ 0.047
- *
- * Os tests abaixo REGISTRAM os valores impl atuais. Se a decisão metodológica for migrar
- * pra δ² (canônica Krippendorff 2018), estes tests precisam ser RECALIBRADOS junto com a
- * mudança no motor. Bug? Não — é divergência da convenção principal. Há literatura
- * usando δ linear pra distâncias custom (Passonneau 2006 originalmente, várias impls).
- *
- * Decisão pendente: aguarda feedback metodológico do user. Trade-off:
- *   - Manter δ linear: simplicidade, valores publicados em release 0.5.0 ficam estáveis.
- *   - Migrar pra δ²: alinhamento canônico estrito Krippendorff 2018, MAS afeta valores
- *     publicados (precisa release de bugfix + nota metodológica).
+ * Pra referência histórica (δ linear que estava em 0.5.0/0.6.0): Jaccard = -8/17 (Δ ≈ 0.075),
+ * MASI = -28/67 (Δ ≈ 0.047). Valores foram migrados pra δ² em 0.6.1.
  */
-describe('krippendorffAlphaNominal — characterization δ_jaccard / δ_MASI (vs canônica δ²)', () => {
+describe('krippendorffAlphaNominal — validação δ² canônica (Jaccard / MASI)', () => {
 	// Caso assimétrico: marginais não-uniformes onde δ vs δ² diverge.
 	// char 0: A={a,b}, B={a}
 	// char 1: A={a,b}, B={a}
@@ -329,34 +317,47 @@ describe('krippendorffAlphaNominal — characterization δ_jaccard / δ_MASI (vs
 		coders: ['A', 'B'],
 	};
 
-	it('Jaccard linear: α_impl = -8/17 ≈ -0.4706 (DIVERGE da canônica δ² = -6/11)', () => {
-		// Cálculo manual Jaccard δ:
-		//   δ_J({a,b},{a}) = 1/2, δ_J({a,b,c},{a}) = 2/3, δ_J({a,b},{a,b,c}) = 1/3
-		//   Do_impl = char0(2×0.5) + char1(2×0.5) + char2(2×2/3) = 10/3
-		//   marginais: {a,b}=2, {a}=3, {a,b,c}=1, N=6
-		//   De_impl pairs sum = 34/3, /(N-1)=5 → 34/15
-		//   α = 1 − (10/3)/(34/15) = 1 − 50/34 = -8/17
+	it('Jaccard δ²: α = -6/11 ≈ -0.5455 (canon Krippendorff 2018 cap. 11)', () => {
+		// Cálculo manual com δ² Jaccard:
+		//   δ_J({a,b},{a}) = 1/2 → δ² = 1/4
+		//   δ_J({a,b,c},{a}) = 2/3 → δ² = 4/9
+		//   δ_J({a,b},{a,b,c}) = 1/3 → δ² = 1/9
+		//   Do (form impl/(n-1) factor): char0(2×1/4) + char1(2×1/4) + char2(2×4/9) = 1 + 8/9 = 17/9
+		//   De (form impl/(N-1)): pairs sum × δ² / 5
+		//     n=({a,b},{a},{a,b,c})=(2,3,1), N=6
+		//     ({a,b},{a}): 2×3×1/4 = 3/2, both directions = 3
+		//     ({a,b,c},{a}): 1×3×4/9 = 4/3, both = 8/3
+		//     ({a,b},{a,b,c}): 2×1×1/9 = 2/9, both = 4/9
+		//     sum = 3 + 8/3 + 4/9 = 27/9 + 24/9 + 4/9 = 55/9, / 5 = 11/9
+		//   α = 1 − (17/9)/(11/9) = 1 − 17/11 = -6/11
 		const α = krippendorffAlphaNominal(inputAsymmetric, { distance: distanceJaccard });
-		expect(α).toBeCloseTo(-8 / 17, 6);
+		expect(α).toBeCloseTo(-6 / 11, 6);
 	});
 
-	it('MASI linear: α_impl = -28/67 ≈ -0.4179 (DIVERGE da canônica δ² = -192/413)', () => {
-		// Cálculo manual MASI δ (Passonneau 2006):
-		//   δ_M({a,b},{a}) = 2/3 [subset: M=2/3, J=1/2]
-		//   δ_M({a,b,c},{a}) = 7/9 [subset: M=2/3, J=1/3]
-		//   δ_M({a,b},{a,b,c}) = 5/9 [subset: M=2/3, J=2/3]
-		//   Do_impl = 4/3 + 4/3 + 14/9 = 38/9
-		//   De_impl pairs sum = 134/9, /5 → 134/45
-		//   α = 1 − (38/9)/(134/45) = 1 − 1710/1206 = -28/67
+	it('MASI δ²: α = -192/413 ≈ -0.4649 (canon Krippendorff 2018 cap. 11)', () => {
+		// Cálculo manual com δ² MASI (Passonneau 2006 distance, squared per Krippendorff convention):
+		//   δ_M({a,b},{a}) = 2/3 → δ² = 4/9
+		//   δ_M({a,b,c},{a}) = 7/9 → δ² = 49/81
+		//   δ_M({a,b},{a,b,c}) = 5/9 → δ² = 25/81
+		//   Do: 2×4/9 + 2×4/9 + 2×49/81 = 16/9 + 98/81 = 144/81 + 98/81 = 242/81
+		//   De pairs:
+		//     ({a,b},{a}): 6×4/9 = 24/9, both = 48/9 = 432/81
+		//     ({a,b,c},{a}): 3×49/81 = 147/81, both = 294/81
+		//     ({a,b},{a,b,c}): 2×25/81 = 50/81, both = 100/81
+		//     sum = 432/81 + 294/81 + 100/81 = 826/81, /5 = 826/405
+		//   α = 1 − (242/81)/(826/405) = 1 − (242×405)/(81×826) = 1 − 605/413 = -192/413
 		const α = krippendorffAlphaNominal(inputAsymmetric, { distance: distanceMASI });
-		expect(α).toBeCloseTo(-28 / 67, 6);
+		expect(α).toBeCloseTo(-192 / 413, 6);
 	});
 
-	it('Marginais uniformes: Jaccard linear e Jaccard² coincidem (caso da equivalência)', () => {
-		// Quando marginais e estrutura de pares são simétricos, ratio Do/De cancela δ vs δ².
-		// Exemplo trivial: 2 chars, 2 coders, ambos com mesma estrutura.
-		// char 0: A={a,b}, B={a,c}
-		// char 1: A={a,b}, B={a,b}
+	it('Marginais uniformes: Jaccard δ² preserva α = 0 (caso onde δ vs δ² coincide algebricamente)', () => {
+		// 2 chars, 2 coders. char 0: A={a,b}, B={a,c}; char 1: A={a,b}, B={a,b}.
+		// Marginais: {a,b}=3, {a,c}=1, N=4.
+		// δ_J({a,b},{a,c}) = 2/3, δ² = 4/9.
+		// Canon: Do = (1/N) Σ δ² = (1/4)×(2×4/9) = 2/9
+		//        De = (1/(N(N-1))) Σ n_k1 n_k2 δ² = (1/12)×(2×3×1×4/9) = 24/108 = 2/9
+		//        α = 1 − 2/9 / 2/9 = 0
+		// Impl form (n cancels in ratio): mesmo resultado.
 		const input: KappaInput = {
 			markers: [
 				{ coderId: 'A', range: { fileId: 'f', locator: '', from: 0, to: 1 }, codeIds: ['a', 'b'] },
@@ -367,11 +368,6 @@ describe('krippendorffAlphaNominal — characterization δ_jaccard / δ_MASI (vs
 			sources: [{ fileId: 'f', locator: '', totalUnits: 2 }],
 			coders: ['A', 'B'],
 		};
-		// Marginais: {a,b}=3, {a,c}=1, N=4
-		// δ_J({a,b},{a,c}) = 2/3, δ² = 4/9
-		// Impl: Do = 2×2/3 = 4/3, De = 2×(3×1×2/3)/3 = 4/3, α = 0
-		// Canon: Do = (1/4)×(2×4/9) = 2/9, De = (1/(4×3))×(2×3×4/9) = 2/9, α = 0
-		// AMBOS = 0 (ratio idêntico). Caso EQUIVALENTE pra δ vs δ².
 		const α = krippendorffAlphaNominal(input, { distance: distanceJaccard });
 		expect(α).toBeCloseTo(0, 6);
 	});

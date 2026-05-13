@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-05-13
+
+Patch release fechando 3 dos 4 gaps intra-modality ICR detectados em revisão de docs methodology (2026-05-12), mais bugfix metodológico em α paramétrico.
+
+### Fixed — bugfix metodológico α com δ_jaccard / δ_MASI
+
+**`fix(icr)` — α paramétrico passa a usar δ² (canon Krippendorff 2018 cap. 11) em vez de δ linear.** Detectado em validação canônica (Gap #3): pra distance functions custom fracionárias (Jaccard, MASI), a forma canônica de Krippendorff α prescreve δ² em Do e De pra preservar propriedade variance-like. Releases 0.5.0 e 0.6.0 usaram δ linear (não-squared) por inadvertência. Cálculo paralelo manual mostrou divergência ≈0.05-0.08 em magnitude de α (caso assimétrico com marginais não-uniformes). **Valores publicados em 0.5.0/0.6.0 com α Jaccard ou α MASI divergem deste release**; sem usuários reais afetados (ZERO usuários no plugin), mas registro mantido por precedente metodológico. Pra δ_nominal: sem diferença numérica (δ ∈ {0,1}, δ² = δ). Aplicado em `krippendorffAlpha.ts` + `krippendorffAlphaCategorical.ts`; cu-α/fleissKappa parametrizados herdam via delegate. Header de `krippendorffAlpha.ts` documenta histórico + referência Krippendorff 2018 cap. 11. ICR-MULTIMODAL-METHODOLOGY.md ganha §"Convenção da fórmula".
+
+### Added — Gap #3 expansion: validação canônica α
+
+**`fix(icr)` — bateria de validação numérica do α nominal contra valores canônicos Krippendorff.** 5 casos calculados à mão pela fórmula canônica Krippendorff 2011 "Computing α" + 3 cases δ² Jaccard/MASI (Krippendorff 2018 cap. 11) em `tests/core/icr/coefficients/krippendorffAlpha.test.ts`. Validação numérica que faltava — agora qualquer regressão futura no motor α é detectada por divergência de valor.
+
+### Added — Gap #2: resolução temporal parametrizável (audio/video)
+
+**`feat(icr)` — `extractMediaRange(m, resolution)` aceita resolution em segundos por tick** (default `1`, opcional `0.1` = 100ms, `0.01` = 10ms). Pra resolução `1s` (alinhado ATLAS.ti 25), sub-segundo é invisível — coders marcando 0-0.5s vs 0.6-1.0s aparecem como agreement total no unit space. Pra `100ms`, disagreement sub-segundo entra (turn-taking em conversation analysis). Pra `10ms`, prosody/micro-events. Granularidades menores expandem unit space linearmente — caso de uso forte. UI mínima: chip group `[1s][100ms][10ms]` no toolbar do Compare Coders, visível só quando audio/video no escopo. Snap-to-int (epsilon=1e-9) absorve ruído FP de `value/resolution`. `ComparisonScope.temporalResolution?` persiste em SavedComparison. Cache keys do extract incluem resolution.
+
+### Added — Gap #1 (parcial): SourceSizeProvider infra + audio/video
+
+**`feat(icr)` — infra `SourceSizeProvider` corrige inflação de P_o quando coding é esparso.** `updateSourceTotal` em `scopeExtraction.ts` previamente usava `max(range.to)` como ceiling do unit space — em audio de 5min onde coders marcaram só 10s, totalUnits ficava 10 (100% "coded"), inflando P_o. Provider opcional consulta tamanho real do source per `(engine, fileId, locator)`; null/throw → fallback `max(range.to)`. `MediaSourceSize` (audio/video) carrega `<audio>`/`<video>` element detached com `preload=metadata`, lê `duration`, cache per-fileId. Wired no `UnifiedCompareCodersView` constructor; deps propagadas via Matrix/Table/Heatmap. PDF (sub-item 1c) e CSV segment (1d) ficam abertos no BACKLOG — potencialmente absorvidos por Camada 2 BHM no Framework Unificado ICR + LLM.
+
+### Fixed — Gap #4 (commit pre-sessão 211d078)
+
+**`fix(icr)` — rename `fromMs/toMs` → `from/to` em `ReconciliationBounds.temporal`** (valor sempre foi segundos, nunca millisegundos) + display label `'1.5s–3.2s'` em vez de `'1500ms–3200ms'` enganoso + corrige `formatMs` que dividia segundos por 1000.
+
+### Image engine polish parcial (commit pre-sessão 461398c)
+
+**`fix(image)` — 4 dos 8 items do raio-x recuperados:** menu rAF debounce (#2), colorOverride wired em getStyleForMarker (#3), refreshAll rAF coalescing (#6), threshold w<3 OR h<3 (#8). 4 items pendentes (image engine polish) ficam pra sessão dedicada.
+
+### Estado conhecido
+
+- **Gap #1c/1d (PDF / CSV segment SourceSizeProvider):** abertos. PDF requer pdfjs dynamic load; CSV via DuckDB query. Pode virar obsoleto se Camada 2 BHM (Bayesian annotation model) modelar background via prior — ver ROADMAP §"Framework Unificado ICR + LLM".
+
 ## [0.6.0] - 2026-05-13
 
 **ICR fechado** — Camada 1 per-modality enforcement entrega a última peça do bloco ICR. Pesquisa cravou em paralelo (`obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md`) que aggregate κ/α cross-modality por #markers é unsupported na literatura; UI passa a refletir isso. Layers 2 e 3 (Bayesian annotation model + G-theory) ficam fora — viram peças do bloco LLM/Framework Unificado, ver `docs/ROADMAP.md §"Framework Unificado ICR + LLM"`.
