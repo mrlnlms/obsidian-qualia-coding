@@ -23,7 +23,7 @@ import { extractInputsFromScope, filterInputsByCoders, type EngineModelsForExtra
 import { computeBboxKappaForPair } from './bboxScopeExtraction';
 import { reportKappaAsync, type EngineId } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
-import { getCoefficientValue } from './coefficientResolver';
+import { getCoefficientValue, isCoefficientApplicable } from './coefficientResolver';
 import { kappaClass } from './overviewSharedRender';
 import { applyCoderInclusion, applyConsensusExclusion, applyVisibleCoderFilter } from './coderInclusion';
 import type { App } from 'obsidian';
@@ -187,6 +187,12 @@ async function computeKappaForCell(
 ): Promise<number | undefined> {
 	if (col === 'spatial-bbox' || col === 'pdfShape' || col === 'image') {
 		return computeBboxAvgPairwise(codeId, col, state, visibleCoderIds, deps);
+	}
+	// α-binary e cu-α são vacuous (reporter retorna 1 sentinel) em engines sem
+	// boundary — csvRow é o único entre os não-bbox. Mostra "—" via undefined,
+	// não 1.00 verde sólido (B4 Camada 1).
+	if (!isCoefficientApplicable(state.primaryCoefficient, visibleCoderIds.length, [col])) {
+		return undefined;
 	}
 	// text-likes / temporal / categorical
 	// cellScope usa state.scope (inclusionScope, sem visibility) → cache do extract estável.
