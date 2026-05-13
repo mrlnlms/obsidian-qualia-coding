@@ -2074,7 +2074,7 @@ Qualquer recurso que tem dispose async + é referenciado por handlers que dispar
 
 ### Problema
 
-Render path que itera N markers e cria 1 `<div>` + listeners por item trava UI thread quando N cresce. Vault de teste com 665k markers em parquet (batch coding em todo o dataset, 661k num único code) congelava Code Explorer / Code Detail / evidence list por dezenas de segundos. `codebookTreeRenderer` já tinha virtual scroll pra árvore de codes — faltava equivalente pra listas planas.
+Render path que itera N markers e cria 1 `<div>` + listeners por item trava UI thread quando N cresce. Vault de teste com 665k markers em parquet (batch coding em todo o dataset, 661k num único code) congelava Code Explorer / Code Detail / evidence list por dezenas de segundos. `codebookTreeRenderer` já tinha virtual scroll bespoke pra árvore de codes — `virtualList.ts` extraiu a mecânica em 2026-05-04 (4e9a9cd) pra cobrir listas planas. O renderer da árvore migrou pra consumir o mesmo helper em 2026-05-13 (ca68dbf) — pattern unificado entre listas planas e árvore hierárquica.
 
 ### Solução
 
@@ -2098,11 +2098,12 @@ list.setItems(markers);
 ### Onde está implementado
 
 - `src/core/virtualList.ts` — helper
+- `src/core/codebookTreeRenderer.ts` — árvore hierárquica de codes (folders + nested); tree-specific concerns vivem no `renderRow` callback
 - `src/core/baseCodeExplorerView.ts` — file expansion children
 - `src/core/detailCodeRenderer.ts` — markers list + segments by file
 - `src/core/detailRelationRenderer.ts` — evidence list
 
-Tests: `tests/core/virtualList.test.ts` (7 specs) — viewport mount/unmount, spacer height, scroll diff, setItems replace, cleanup idempotente.
+Tests: `tests/core/virtualList.test.ts` (8 specs) — viewport mount/unmount, spacer height, scroll diff, setItems replace, cleanup idempotente, RAF fallback. `tests/core/codebookTreeRenderer.stress.test.ts` (5 specs) — stress 5000 codes + row recycling cross-scroll (lê `--qc-row-top` CSS var aplicada pelo helper).
 
 ---
 
@@ -2186,9 +2187,24 @@ interface MarkerMutationEvent {
 }
 ```
 
-Cada mutation site emite com codeIds afetados. Sites cobertos: `addCode`, `removeCode`, `removeMarker`, `updateMarker`, `updateMarkerFields`, `createShape`, `deleteShape`, `addCodeToShape`, `removeCodeFromShape`, `addCodeToManyRows`, `removeCodeFromManyRows`, `removeAllRowMarkersFromMany`, `migrateFilePath`, `clearAllMarkers`.
+Cada mutation site emite com codeIds afetados. Sites cobertos:
+- **Universais (todos engines):** `addCode`, `removeCode`, `removeMarker`, `updateMarker`, `migrateFilePath`, `clearAllMarkers`
+- **Spatial (pdfShape, image):** `createShape`, `deleteShape`, `addCodeToShape`, `removeCodeFromShape`
+- **Tabular (csvRow):** `addCodeToManyRows`, `removeCodeFromManyRows`, `removeAllRowMarkersFromMany`
 
 Cache consumer faz `applyMarkerMutation(event)` — atualiza `markerByRef` incremental + invalida só SCs que dependem dos codeIds em `event.codeIds`.
+
+### Sites NÃO cobertos (atenção)
+
+**`updateMarkerFields` (memo, colorOverride)** — assimétrico entre engines:
+- **Markdown:** `CodeMarkerModel.updateMarkerFields` (no model) emite `MarkerMutationEvent` com `codeIds: []` (memo/color não afetam predicate eval, mas marker value mudou — `markerByRef` atualiza).
+- **PDF / Image / CSV / Media:** o caminho real (chamado por `detailMarkerRenderer`) usa `BaseSidebarAdapter.updateMarkerFields` (em `src/core/baseSidebarAdapter.ts:109-116`), que só chama `notifyAfterFieldUpdate()` → `model.notify()` (canal `onChange` sem payload). **Não emite `MarkerMutationEvent`.**
+
+**Implicação pra cache reativo:** se cache derivado depender do payload `marker` em si pra reflect memo/color (raro — predicate eval normalmente não lê memo/color), **não recebe atualização** em pdf/image/csv/media via esse caminho. Caches que dependem só de `codeIds` ficam intactos (semântica preservada). Para alinhar, ou:
+1. Adicionar `updateMarkerFields` aos models de pdf/image/csv/media com `emitMarkerMutation({ codeIds: [] })` igual markdown (blast radius médio — 4 models)
+2. Ou consumer faz refresh coarse via `onChange` quando precisar do payload novo (workaround per-caso)
+
+Doc atualizada 2026-05-13 após descoberta no smoke ICR.
 
 ### Quando aplicar
 

@@ -318,7 +318,7 @@ A hierarquia `parentId` NÃO é só organização estrutural — ela **É** o me
 
 **Codebook Panel (UI):**
 - `hierarchyHelpers.ts`: `buildFlatTree` (virtual scroll com FlatCodeNode | FlatFolderNode), `buildCountIndex` (contagem direta + agregada)
-- `codebookTreeRenderer.ts`: virtual scrolling, folder rows (icone) vs code rows (chevron + swatch)
+- `codebookTreeRenderer.ts`: árvore hierárquica via `createVirtualList` helper (pattern unificado com listas planas, ver §17/§34); folder rows (icone) vs code rows (chevron + swatch)
 - `codebookDragDrop.ts`: reparent, merge, move-to-folder
 - `codebookContextMenu.ts`: Rename, Add child, Move to folder, Merge, Delete (codigos) + Rename, Delete (pastas)
 - `mergeModal.ts`: FuzzySuggestModal com preview de impacto e destino configuravel
@@ -1388,7 +1388,7 @@ Usos: `csvCodingView` chama após `rowDataCache.set` no eager path e após `popu
 
 **Helper genérico**: viewport rendering com row pool diff. Itens fora do viewport (+ buffer) NÃO ficam no DOM. Scroll mounta novos, evicta os que saíram.
 
-**Por que existe.** `baseCodeExplorerView`, `detailCodeRenderer` (markers list + segments by file) e `detailRelationRenderer` (evidence list) iteravam todos os markers e criavam 1 `<div>` + listeners por marker. Vault de teste com batch coding em parquet (665k row markers, 661k num único code) travava o UI thread por segundos quando o user expandia a sidebar. `codebookTreeRenderer` já usava virtual scroll pra árvore de codes — `virtualList.ts` extrai a mecânica pra listas planas reusáveis.
+**Por que existe.** `baseCodeExplorerView`, `detailCodeRenderer` (markers list + segments by file) e `detailRelationRenderer` (evidence list) iteravam todos os markers e criavam 1 `<div>` + listeners por marker. Vault de teste com batch coding em parquet (665k row markers, 661k num único code) travava o UI thread por segundos quando o user expandia a sidebar. `codebookTreeRenderer` já tinha virtual scroll bespoke pra árvore de codes — `virtualList.ts` extraiu a mecânica em 2026-05-04 (4e9a9cd). Em 2026-05-13 (ca68dbf) o renderer da árvore foi migrado pra também consumir o helper, eliminando o pattern duplicado; tree-specific concerns (folders, depth, drag-drop dataset attrs, selected state, group filter) seguem no `renderRow` callback do consumer.
 
 **API:**
 ```ts
@@ -1428,8 +1428,8 @@ src/
     relationUI.ts            — renderAddRelationRow compartilhado (popover, detail, marker detail)
     relationHelpers.ts       — collectAllLabels, buildRelationEdges (funcoes puras)
     hierarchyHelpers.ts      — buildFlatTree, buildCountIndex, getDirectCount, getAggregateCount
-    codebookTreeRenderer.ts  — virtual scrolling tree com hierarquia e pastas
-    virtualList.ts           — helper genérico de virtual scroll pra listas planas (rowPool diff)
+    codebookTreeRenderer.ts  — árvore hierárquica com pastas; delega virtual scroll pra createVirtualList
+    virtualList.ts           — helper genérico de virtual scroll (rowPool diff + RAF fallback); consumed por codebookTreeRenderer, baseCodeExplorerView, detailCodeRenderer, detailRelationRenderer
     codebookContextMenu.ts   — context menu codigos + pastas (Rename, Delete, Move to folder)
     codebookDragDrop.ts      — drag-drop lifecycle: reparent, merge, move to folder
     detailListRenderer.ts    — "All Codes" list mode + toolbar + opcionalmente Smart Codes section integration

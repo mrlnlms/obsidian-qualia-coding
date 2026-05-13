@@ -75,7 +75,7 @@ src/
 │   ├── detailMarkerRenderer.ts   # Renderer modo marker do detail view (+ relations per code)
 │   ├── settingTab.ts        # Settings (magnitude + relations toggles)
 │   ├── hierarchyHelpers.ts        # buildFlatTree, buildCountIndex, getDirectCount, getAggregateCount
-│   ├── codebookTreeRenderer.ts    # Codebook tree com hierarquia e pastas
+│   ├── codebookTreeRenderer.ts    # Codebook tree com hierarquia e pastas (consome createVirtualList helper)
 │   ├── codebookContextMenu.ts     # Context menu do codebook
 │   ├── codebookDragDrop.ts        # Drag-drop no codebook (reorganize + merge)
 │   └── mergeModal.ts              # Modal de merge de codigos

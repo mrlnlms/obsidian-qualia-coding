@@ -12,7 +12,7 @@
 **Bloco ICR fechado por inteiro** (releases 0.6.0–0.6.1, 2026-05-13). Inclui:
 - Camada 1 per-modality enforcement (banner multimodal + per-engine table)
 - 3/4 gaps intra-modality: Gap #2 (resolução temporal parametrizável) + Gap #3 (validação canônica α nominal + migração δ² Jaccard/MASI) + Gap #4 (fromMs/from rename)
-- Gap #1 parcial (infra `SourceSizeProvider` + media provider audio/video). PDF (1c) e CSV segment (1d) pendentes — podem ser absorvidos por Camada 2 BHM.
+- Gap #1 ✅ FEITO 2026-05-13: infra `SourceSizeProvider` + Media (audio/video) + PDF (1c) + CSV segment (1d). Providers podem virar redundantes se Camada 2 BHM for implementada — relação documentada nos headers.
 - **Smoke real completo 2026-05-13** com seed sintético cravado em 4 engines (`scripts/seed-icr-test.mjs`, 37 markers em 17 cenários) — pegou bug crítico (cache distance stale, fixado) + 3 UX gaps.
 
 Camadas 2 e 3 do framework multifaceta viraram peças do bloco LLM/Framework Unificado (ver `ROADMAP.md §"Framework Unificado ICR + LLM"`) — não atacam-se isoladamente, entram com LLM coding.
@@ -20,9 +20,9 @@ Camadas 2 e 3 do framework multifaceta viraram peças do bloco LLM/Framework Uni
 **Único bloqueador legado:** §11 E3 (limitação de formato, won't-fix documentado).
 
 **Polish ICR aberto (não bloqueante):**
-- Gap #1c (PDF SourceSizeProvider) + Gap #1d (CSV segment SourceSizeProvider) — potencialmente obsoletos por Camada 2 BHM
-- 3 UX gaps do smoke 2026-05-13 (chip Default, picker δ sem Nominal, state.distance persiste)
-- 1 cross-cutting (`!important` cluster) + 3 itens descobertos no smoke Image 2026-05-13 (Code Explorer refresh em 2 cenários, doc §37 desatualizada)
+- ~~Gap #1c/1d (PDF + CSV segment SourceSizeProvider)~~ ✅ ambos fechados 2026-05-13. Janela de absorção por Camada 2 BHM documentada nos headers.
+- ~~3 UX gaps do smoke 2026-05-13~~ ✅ todos fechados 2026-05-13 (chip Default coder sem markers, picker δ Nominal, δ fantasma com `is-memorized`)
+- Cross-cutting: 1 CSS (`!important` cluster) + canvas refresh cor de code nos outros engines (pdf-shape/markdown/csv/audio/video — pattern image já estabelecido). ~~§37 doc desatualizada~~ ✅ corrigida 2026-05-13.
 
 **Próxima frente prática (não-ICR):** LLM-assisted coding com Camada 2 Bayesian annotation como par natural. Precede brainstorm dedicado — ver `ROADMAP.md §"Frente 2"` e `docs/ICR-MULTIMODAL-METHODOLOGY.md` pra fundamentação metodológica.
 
@@ -73,7 +73,7 @@ Da fila cross-cutting do hardening, 4 frentes atacadas em 2026-05-09 (parseInt v
 | **`styles.css` 68 `!important`** — clusters em 833-863 (handles SVG drag), 870-987 (mais handles), 1239-1287 (csv-comment-cell + csv-cod-seg-cell `display: flex` overrides) | Cada `!important` é override defensivo de defaults AG Grid (especificidade alta dos selectors `.ag-cell *`). Auditar exige testar runtime cada um — remover sem teste quebra render. Trabalho pra hardening real com vault aberto, não diff de código. |
 | ~~**Code Explorer não refresha em tempo real após criar code via popover**~~ ✅ **RESOLVIDO 2026-05-13** — raiz era virtual scrolling no `codebookTreeRenderer.ts` (Code Detail list mode, não Explorer) renderizar com `clientHeight=0` no mesmo tick → `endIdx` limitado a `BUFFER_ROWS` (10). Mesma raiz do bug "render inicial incompleto". Fix 1-liner: `requestAnimationFrame(renderVisibleRows)` após render síncrono — pattern já estabelecido em `virtualList.ts:111-116` (commit f96ab4c, 2026-05-06) mas não copiado pra impl paralela do `codebookTreeRenderer`. Note: Code Explorer (`baseCodeExplorerView`) usa loop direto sem virtual scrolling, nunca teve esse bug. |
 | **Canvas (~~image~~ outros engines) não refresha cor quando cor do code muda** — ✅ **Image resolvido 2026-05-13** (`imageView` subscribe `qualia:registry-changed` → `scheduleCanvasRefresh` reusa pipeline já criada pro colorOverride). PDF-shape (mesmo canvas pattern) provavelmente tem mesmo bug — não testado. Markdown/csv/audio/video usam DOM rendering com paths próprios, verificar individualmente. | **mecânico + cross-engine**. Pattern image documentado: subscribe `qualia:registry-changed` document event + `model.onChange`, ambos disparando `scheduleCanvasRefresh` (rAF coalesce). Replicar em pdf-shape primeiro (próximo candidato). |
-| ~~**Code Detail list mode: render inicial incompleto após reload**~~ ✅ **RESOLVIDO 2026-05-13** — mesma raiz do item acima (virtual scrolling sem rAF fallback). Bug afetava só o Code Detail em list mode (que usa `codebookTreeRenderer`), não o Code Explorer (`baseCodeExplorerView` usa loop direto). Counter "(15)" no header sempre esteve correto — registry sabia, só o renderer cortava por `endIdx` calculado com `clientHeight=0`. |
+| ~~**Code Detail list mode: render inicial incompleto após reload**~~ ✅ **RESOLVIDO 2026-05-13** — mesma raiz do item acima (virtual scrolling sem rAF fallback). Bug afetava só o Code Detail em list mode (que usa `codebookTreeRenderer`), não o Code Explorer (`baseCodeExplorerView` usa loop direto). Counter "(15)" no header sempre esteve correto — registry sabia, só o renderer cortava por `endIdx` calculado com `clientHeight=0`. **Follow-up mesma data (ca68dbf):** `codebookTreeRenderer` migrou pra consumir `createVirtualList` helper — pattern duplicado eliminado (próximo bug de virtual scroll fica em 1 lugar só). Tag `pre-codebooktree-virtuallist-baseline` marca estado anterior. Smoke real validou drag-drop, multi-select, eye toggle, group filter e search com codebook stress de 1000 codes. |
 | **§37 doc desatualizada** — `TECHNICAL-PATTERNS.md` linha 2189 lista `updateMarkerFields` entre os mutation sites cobertos por `MarkerMutationEvent`. Realidade: `updateMarkerFields` vive em `BaseSidebarAdapter` (não no model), só chama `notifyAfterFieldUpdate` → `model.notify()` (canal `onChange`, sem payload). Não emite mutation event. Doc atual induz cache reativo a assumir cobertura inexistente. | **doc-only**. Editar §37 corrigindo a lista de sites. Ou mover updateMarkerFields pro model com emit (refactor maior, blast radius alto). Doc fix é o caminho honesto. |
 
 **Resolvido 2026-05-13** — `cooccurrenceMode` async via Worker. A análise original do BACKLOG estava errada: descrevia como "refactor invasivo do contrato dos 25 modes". Solução real seguiu pattern fire-and-forget já estabelecido em `wordCloudMode`/`mdsMode`/`acmMode` (`renderGeneration` + `isRenderCurrent`). Worker inline pro `hierarchicalCluster` (`src/analytics/data/cluster.worker.ts` + Client + sync fallback, pattern §45) resolve 4 consumidores de uma vez: Cooccurrence, Overlap, Dendrogram, Files-Dendrogram. `boardClusters` segue síncrono (fora do escopo declarado).
@@ -205,59 +205,9 @@ Detectados pelo subagente que produziu `ICR-LINEAR-METHODOLOGY.md` + `ICR-TEMPOR
 - **`totalUnits` inflated em PDF/CSV/temporal — Po artificial.** Sub-items (dividido 2026-05-13):
   - [x] **1a. Infra `SourceSizeProvider`** ✅ FEITO 2026-05-13. Interface em `src/core/icr/ui/scopeExtraction.ts` (campo opcional em `ExtractionContext`). `buildPerCharInput` consulta provider após loop; provider null/throw → fallback `max(range.to)`. 3 integration tests validando propagation.
   - [x] **1b. Media provider (audio/video) via HTMLMediaElement.duration** ✅ FEITO 2026-05-13. `MediaSourceSize` em `src/core/icr/sourceSize/mediaSourceSize.ts` — carrega element `<audio>`/`<video>` detached com `preload=metadata`, espera `loadedmetadata`, lê `duration`. Cache per-fileId. Wired no `UnifiedCompareCodersView` constructor; deps propagadas via Matrix/Table/Heatmap. Timeout 5s fallback pra null.
-  - [ ] **1c. PDF provider (page char count via pdf.js)** — pendente. **Pode virar obsoleto se Camada 2 BHM (Bayesian annotation model) modelar background via prior — ver ROADMAP "Framework Unificado ICR + LLM".**
-    - **Caminho técnico:**
-      - Criar `src/core/icr/sourceSize/pdfSourceSize.ts` implementando `SourceSizeProvider`
-      - Dependência: `pdfjs-dist` (já no `package.json` via `obsidian.embed.PDFView` interno). Em runtime do plugin, lazy-load via `import('pdfjs-dist')` (custoso, ~500KB)
-      - Pseudo-code:
-        ```typescript
-        async getSourceSize(engine, fileId, locator, _resolution) {
-          if (engine !== 'pdf') return null;
-          if (!locator.startsWith('page:')) return null;
-          const page = parseInt(locator.slice(5), 10);
-          const cacheKey = `${fileId}|${locator}`;
-          if (this.cache.has(cacheKey)) return this.cache.get(cacheKey)!;
-          const doc = await this.loadDoc(fileId); // pdfjs.getDocument(arrayBuffer)
-          if (!doc || page > doc.numPages) return null;
-          const pageObj = await doc.getPage(page);
-          const content = await pageObj.getTextContent();
-          const text = content.items.map(i => (i.str ?? '').trim()).filter(Boolean).join(' ');
-          this.cache.set(cacheKey, text.length);
-          return text.length;
-        }
-        ```
-      - Cache `Map<${fileId}|page:N, chars>` per-fileId+page (PDFs grandes têm múltiplas páginas)
-      - Wiring: instanciar em `UnifiedCompareCodersView` constructor (parallel ao `MediaSourceSize`). Combinar via `CompositeSourceSizeProvider` que delega por engine.
-    - **Testes:** mock pdfjs `getDocument`/`getPage` em `tests/core/icr/sourceSize/pdfSourceSize.test.ts`. Integration test em `scopeExtraction.test.ts` (mesmo padrão dos 3 testes media já existentes).
-    - **Cuidados:** pdfjs worker setup pode ser complexo no Obsidian runtime (já existe pattern em `src/pdf/` — reusar). Caching de `doc` object pra não re-parsear PDF inteiro pra cada page.
-  - [ ] **1d. CSV segment provider (cell text via DuckDB)** — pendente. **Mesma janela de absorção potencial por Camada 2.**
-    - **Caminho técnico:**
-      - Criar `src/core/icr/sourceSize/csvSegmentSourceSize.ts` implementando `SourceSizeProvider`
-      - Dependência: `RowProvider` (já existe em `src/csv/duckdb/rowProvider.ts`). View do CSV instancia + registra lazy provider via `csvCodingModel.registerLazyProvider(fileId, provider)`.
-      - Pseudo-code:
-        ```typescript
-        async getSourceSize(engine, fileId, locator, _resolution) {
-          if (engine !== 'csvSegment') return null;
-          // locator format: 'row:R|col:C'
-          const match = locator.match(/^row:(\d+)\|col:(.+)$/);
-          if (!match) return null;
-          const sourceRowId = parseInt(match[1], 10);
-          const column = match[2];
-          const cacheKey = `${fileId}|${locator}`;
-          if (this.cache.has(cacheKey)) return this.cache.get(cacheKey)!;
-          const provider = this.csvModel.getLazyProvider(fileId);
-          if (!provider) return null; // CSV file não está aberto no plugin
-          const text = await provider.getMarkerText({ sourceRowId, column });
-          if (text == null) return null;
-          this.cache.set(cacheKey, text.length);
-          return text.length;
-        }
-        ```
-      - Cache `Map<${fileId}|row:R|col:C, chars>` per-cell
-      - Wiring: idem PDF, instanciar em `UnifiedCompareCodersView` + combinar via composite
-      - **Limitação:** `RowProvider` só existe quando CSV está aberto no plugin (lazy mode active). Pra arquivo CSV fechado, fallback pra `max(range.to)`. Aceita-se essa limitação (CSV grande exige plugin aberto pra ler row text pesado de qualquer jeito).
-    - **Testes:** mock `RowProvider.getMarkerText`. Integration test idem media.
-    - **Cuidados:** garantir que provider é re-fetched cada query (pode ter sido disposed se user fechou tab). Wrap em try/catch — provider throw → fallback pra max(range.to).
+  - [x] **1c. PDF provider (page char count via pdf.js)** ✅ FEITO 2026-05-13. `src/core/icr/sourceSize/pdfSourceSize.ts` via `window.pdfjsLib` (exposto pelo core Obsidian após primeiro PDF aberto na sessão). Sem PDF aberto → retorna null (caller cai no fallback). Cache por `(fileId, page)` + cache de `doc` parseado. 7 unit tests. **Nota Camada 2 BHM:** se BHM for implementado, este provider vira redundante — re-avaliar relação então (header do arquivo + commit message documentam).
+  - [x] **1d. CSV segment provider (cell text via DuckDB)** ✅ FEITO 2026-05-13. `src/core/icr/sourceSize/csvSegmentSourceSize.ts` via `csvModel.getLazyProvider(fileId).getMarkerText({ sourceRowId, column })`. CSV fechado → retorna null. Cache por `(fileId, row, col)`. 7 unit tests. **Mesma janela de absorção por Camada 2 BHM.**
+  - **Wiring:** `CompositeSourceSize` em `src/core/icr/sourceSize/compositeSourceSize.ts` delega por engine; instanciado em `UnifiedCompareCodersView` constructor com `[MediaSourceSize, PdfSourceSize, CsvSegmentSourceSize]`. 4 tests do composite.
 
 - [x] **Resolução temporal parametrizável (1s/100ms/10ms)** ✅ FEITO 2026-05-13 (commit `29dfad9`). `extractMediaRange(m, resolution)` aceita resolution em segundos por tick. `ComparisonScope.temporalResolution?` persiste em SavedComparison. UI: chip group `[1s][100ms][10ms]` no toolbar do Compare Coders, visível só com audio/video no escopo. Snap-to-int (epsilon=1e-9) absorve ruído FP. Cache keys do extract incluem resolution.
 
@@ -286,14 +236,7 @@ Smoke real do Compare Coders em corpus sintético (37 markers em 4 engines via `
 
 - [x] **Picker δ tem opção `Nominal` explícita** ✅ FEITO 2026-05-13 (commit pendente). Adicionado chip `Nominal` ao `coefficientPicker.ts` (já existia em `DistanceName` e `resolveDistance` — só não estava exposto na UI). Ordem: `Nominal` → `Jaccard` → `MASI`. Disabled logic é idêntica aos outros (disabled quando coef é Cohen/α-binary OU multi-label=0). Tooltip atualizado pra explicar diferença entre Nominal/Jaccard/MASI. Test recalibrado pra esperar 3 chips em vez de 2.
 
-- [ ] **`state.distance` persiste após selecionar primary insensível a δ (Cohen/α-binary).** Quando user troca primary pra Cohen κ ou α-binary, os chips Jaccard/MASI/Nominal ficam disabled (cinza, não clicáveis), MAS `state.distance` interno mantém o último valor (ex: MASI). Per-engine table re-calcula Fleiss/α/cu-α com δ "fantasma" — usuário vê valores MASI mesmo achando que está em Jaccard.
-  - **Localização:** state.distance é definido em `CompareCodersViewState` (em `compareCodersTypes.ts:59`). Read em `coefficientPicker.ts:70` (`activeDistance = state.distance ?? 'jaccard'`). Write em `unifiedCompareCodersView.ts:299` (`distance => this.updateState({ distance })`).
-  - **Disabled logic:** `isDistanceDisabled` em `coefficientPicker.ts:96-103`. Atualmente: disabled se `coef === 'cohen' || 'alpha-binary'` OU `multiLabel.multi === 0`. Quando disabled, `chip.onclick` não é set — usuário não consegue mudar.
-  - **Fix proposto** (escolher 1):
-    1. **(a) Destacar δ "memorizado" mesmo com chips disabled** — mostrar qual chip está como `state.distance` atual com border tracejado / opacity 0.6 / label "memorizado: MASI" abaixo dos chips. User sabe que se trocar primary de volta pra α, vai voltar pra MASI. Low-risk.
-    2. **(b) Resetar `state.distance` pra `'jaccard'` quando primary é Cohen/α-binary** — em `updateState`, quando `partial.primaryCoefficient ∈ {cohen, alpha-binary}`, força `partial.distance = 'jaccard'`. Limpa confusão visual mas perde memória da preferência (user terá que re-selecionar MASI ao voltar pra α).
-    3. **(c) Manter δ "indefinido" enquanto primary insensível** — `state.distance` vira `undefined` ao trocar pra Cohen, e a per-engine table calcula Fleiss/α/cu-α com `Jaccard` default explícito. Volta ao último escolhido se user trocar primary pra α de novo.
-  - Recomendação: **(a)** é mais conservador (preserva preferência) + ergonomic-only. **(b)** é mais drástico mas elimina o caso de uso obscuro. Decisão de produto.
+- [x] **`state.distance` persiste após selecionar primary insensível a δ — δ fantasma** ✅ FEITO 2026-05-13 (commit `addfc20`). Decisão de produto: opção (a) — preservar preferência com visual distinto. Fix em `coefficientPicker.ts`: quando `distanceDisabled` por coef insensível (Cohen/α-binary), o chip que casa com `state.distance` ganha class `is-memorized` (border tracejado + opacity 0.7, distinto dos outros disabled em 0.3) + hint inline `δ: {label} (inativa)` + tooltip explicativo. Per-engine table consome `state.distance` mesmo com primary insensível (feature emergente — α/cu-α/Fleiss em modalidade multi-label usam δ memorizada). Quando disabled é por `multi-label=0` (não por coef), memorized NÃO aplica (toda δ degenera ao nominal, sem memória útil). Tests cobrem ambos cenários.
 
 - [x] **Cohen κ é insensível a resolução temporal — documentado** ✅ FEITO 2026-05-13 (commit pendente). Tooltip do label `resolução temporal:` em `temporalResolutionPicker.ts` atualizado: "Afeta α / α-binary / cu-α / Fleiss em multi-label. NÃO afeta Cohen κ (caminho A é binary-per-label, sempre invariante a resolução)." Header comment do arquivo também atualizado com a nota.
 
