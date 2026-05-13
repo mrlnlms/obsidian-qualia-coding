@@ -10,9 +10,9 @@
 
 import type { KappaInput, SourceMeta, CodedMarker } from '../kappaInput';
 import { explodeMarkersToCharLabels } from '../kappaInput';
-import { krippendorffAlphaNominal } from './krippendorffAlpha';
+import { krippendorffAlphaNominal, type KrippendorffAlphaOptions } from './krippendorffAlpha';
 
-export function cuAlpha(input: KappaInput): number {
+export function cuAlpha(input: KappaInput, options: KrippendorffAlphaOptions = {}): number {
 	const charMap = explodeMarkersToCharLabels(input.markers);
 	// Set de (sourceKey → set of pos string) onde TODOS coders marcaram
 	const sharedChars = new Map<string, Set<number>>();
@@ -73,5 +73,5 @@ export function cuAlpha(input: KappaInput): number {
 		markers: filteredMarkers,
 		sources: newSources,
 		coders: input.coders,
-	});
+	}, options);
 }
