@@ -3,15 +3,19 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-12 (A3/A4 + dedup motor + D resolvidos em ICR; LazyTextFilter active indicator restaurado; Smart Code cache hash-based item resolvido sem hash via leaf `textContains` + `vault.on('modify')`).
+> Última atualização: 2026-05-13 (release 0.6.0 — B4 Camada 1 entregue, bloco ICR fechado por inteiro; pesquisa metodológica subida pro repo em `docs/_research/`).
 
 ---
 
 ## 🟢 Estado atual
 
-Único bloqueador legado: §11 E3 (limitação de formato, won't-fix documentado). Polish ativo abaixo.
+**Bloco ICR fechado** (release 0.6.0 — 2026-05-13). Zero itens em aberto no ICR canônico. Camadas 2 e 3 do framework multifaceta viraram peças do bloco LLM/Framework Unificado (ver `ROADMAP.md §"Framework Unificado ICR + LLM"`) — não atacam-se isoladamente, entram com LLM coding.
 
-**Lista canônica de itens ICR em aberto:** `ROADMAP.md §"🧱 ICR — Itens em aberto"`. A seção abaixo (Compare Coders polish aberto) preserva o detalhe técnico do único item aberto (B4 weighting cross-engine); ROADMAP traz a visão consolidada com agrupamento por slice atacável.
+**Único bloqueador legado:** §11 E3 (limitação de formato, won't-fix documentado).
+
+**Polish ativo:** Image engine (8 itens, sessão dedicada) + 2 frentes cross-cutting + 4 gaps descobertos em revisão de docs methodology (totalUnits inflated, resolução temporal, fórmula α, fromMs nominal).
+
+**Próxima frente prática (não-ICR):** LLM-assisted coding com Camada 2 Bayesian annotation como par natural. Precede brainstorm dedicado — ver `ROADMAP.md §"Frente 2"` e `docs/ICR-MULTIMODAL-METHODOLOGY.md` pra fundamentação metodológica.
 
 ### 🔍 Sintomas observados sem repro confiável
 
@@ -162,7 +166,7 @@ Detectados pelo subagente que produziu `ICR-LINEAR-METHODOLOGY.md` + `ICR-TEMPOR
 
 - [ ] **Resolução temporal travada em 1 segundo (sub-second disagreement invisível).** `extractMediaRange` usa `Math.floor`/`Math.ceil` em segundos float pra audio/video — units menores que 1s não geram disagreement. Justificativa no código: "alinhado com ATLAS.ti 25" (decisão de design, não bug). **Decisão a revisitar:** se pesquisador quiser análise mais fina (ex: turn-taking em conversation analysis, prosody, micro-eventos), oferecer resolução configurável (100ms? 10ms?). **Effort:** baixo — tornar resolution parametrizável em `extractMediaRange` + UI pra setar.
 
-- [ ] **`TODO revisitar com fórmula da literatura` no header de `krippendorffAlpha.ts`.** Sinal de incerteza interna sobre canonicalidade dos edge cases. Plano: validar contra implementação de referência (R `irr::kripp.alpha` ou Python `krippendorff` package) numa bateria de casos canônicos da paper. Atacar **junto com C1.5** (refactor de α paramétrico em δ) — boa hora pra revisitar.
+- [ ] **`TODO revisitar com fórmula da literatura` no header de `krippendorffAlpha.ts`.** Sinal de incerteza interna sobre canonicalidade dos edge cases. Plano: validar contra implementação de referência (R `irr::kripp.alpha` ou Python `krippendorff` package) numa bateria de casos canônicos da paper. **Não foi atacado em C1.5** (refactor de α paramétrico em δ — release 0.5.0); fica em aberto pra quando houver dor real de validação cruzada com implementação externa.
 
 - [ ] **Discrepância nominal `fromMs`/`from` em spec Compare Coders vs implementação.** Spec ICR Fase 2 cita campos `fromMs: number, toMs: number`; implementação usa `from`/`to` em segundos float. Não é bug funcional, só inconsistência de nomenclatura entre doc e código. Resolução: alinhar a doc com código (segundos), OU renomear código pra match doc (Ms). Como segundos float é mais legível e funciona corretamente, recomendo: atualizar spec/doc pra `from`/`to` em segundos.
 

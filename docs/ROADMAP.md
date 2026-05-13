@@ -1,21 +1,23 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-12 (sessão fechou A1-A4 + B1-B3 + D + dedup motor — ICR mecânico zerado; Smart Codes ganham leaf `textContains`).
+> Última atualização: 2026-05-13 (release 0.6.0 — ICR Camada 1 entregue; bloco ICR fechado por inteiro; próxima frente = LLM coding + ICR Camada 2 como par natural).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 
-> **✅ ICR — bloco mecânico fechado (2026-05-12):** 9 itens entregues e validados no vault workbench numa única sessão (todos os smokes em vault real, não só tests). **A1+A2** overlap markdown exato (chips "Lado a lado" + "Por código" do ICR Import via prefetch `vault.cachedRead`); **B1** drilldowns Cards/Workflow filtram por currentSelection da overview; **B2** Spatial responde a cliques diferentes (intersection pra pair, header informativo); **B3** modal "ver lado a lado" desabilita chip "par único" sem cell selecionada; **A3** Map manual de sources problemáticos (FuzzySuggestModal pra remap pra outro fileId local); **A4** badge "duplicate coder" na rail da ICR Import; **dedup motor** (`mergeCoderContribution` agora skip por markerId — corrigiu bug latente de duplicação silenciosa em apply sequencial); **D** Tabular ZIP ganhou coluna `coder` em segments.csv + `coders.csv` standalone + seção "Inter-coder reliability (Cohen κ)" no README com snippet R (`irr::kappa2`) + Python (`sklearn.cohen_kappa_score`). **Governance** cravada nesta sessão: CLAUDE.md §8 — antes de tocar cache/scope/algoritmo central, releitura obrigatória de `TECHNICAL-PATTERNS.md §35-§46` (regra de perf que regrediu 4× em Compare Coders). Seed `scripts/seed-smoke-icr.mjs` deixa cenário reproduzível em `smoke-icr-fixes/` + `icr-exports/`. 3456 tests verde (+11 nesta sessão).
+> **🎯 BLOCO ICR FECHADO POR INTEIRO (release 0.6.0, 2026-05-13).** Não há item ICR em aberto. Motor κ multimodal (6 engines × geometria de overlap), Reconciliação UI (P2 cards + P3 workflow queue), Compare Coders (3 modes + drill-downs + perCode breakdown), Saved Comparisons hub, coder picker live, transport multi-coder remoto, CSV cross-coder isolation, set-valued labels (Jaccard/MASI), per-modality enforcement (Camada 1). Total: ICR Slices 1-6 + E1-E5b + Fase C P0/P1 + refactor C + B4 Camada 1 entregues entre 2026-05-08 e 2026-05-13. 3537+ tests verde. **Camadas 2 e 3** do framework ICR multifaceta (Bayesian annotation model + G-theory/MFRM) movidas pro bloco LLM — são peças do Framework Unificado ICR + LLM, não fazem sentido sem LLM coding ativo no plugin.
 
-> **🧱 ICR — bloco fechado (2026-05-13):** **B4 Camada 1** (per-modality enforcement) entregue na mesma data da pesquisa que cravou o eixo conceitual. Banner discreto + per-engine table no Mode A quando escopo cruza 2+ famílias modais; aggregate vira descritivo. Layers 2 e 3 (Bayesian annotation model + G-theory) ficam fora — viram peças do bloco LLM/Framework Unificado. **C** (set-valued labels) entregue 2026-05-13 em release 0.5.0.
+> **▶️ PRÓXIMO PASSO PRÁTICO** (não atacar sem brainstorm dedicado precedendo): **LLM-assisted coding com Camada 2 ICR como par natural**. Ordem cravada (ver §"Framework Unificado ICR + LLM" abaixo): primeiro item LLM = **gerador de código/segmento** (era último, foi invertido — feature mais transversal exercita motor de ponta a ponta e gera massa pra Camada 2 treinar). LLM coding **não entra sem Camada 2** (Bayesian annotation model — Dawid-Skene/MACE/Paun et al. 2018). Decisão metodológica não-negociável documentada em `docs/ICR-MULTIMODAL-METHODOLOGY.md` (user-facing) e Research em `docs/_research/icr-multimodal-heterogeneous-units.md` (pesquisa autoritativa).
 
-> **🔬 Virada conceitual 2026-05-13 — Framework Unificado ICR Multifaceta + LLM:** pesquisa em `obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md` cravou: heterogeneidade de modalidade (B4 original) e heterogeneidade de coder (humano vs LLMs) **são o mesmo problema estrutural** — facetas no desenho de medida. Frame matemático único cobre os dois (G-theory multivariate, MFRM, Bayesian hierarchical annotation). **Implicação direta:** ordem do roadmap muda. LLM-assisted coding entra **junto com ICR Camada 2** (Bayesian annotation model — Dawid-Skene/MACE/Paun et al. 2018). Sem Camada 2, LLM no plugin vira "auto-code button" sem fundamento. Com Camada 2, plugin vira bench de avaliação rigorosa de LLM como coder em QDA multimodal — categoria que não existe no mercado. Detalhe em §"Framework Unificado ICR + LLM" abaixo. Inverte sugestão anterior de ordenar gerador de código/segmento por último — agora é **primeiro item LLM** porque cobre mais partes do produto e exercita o framework de ponta a ponta.
+> **🔬 Virada conceitual 2026-05-13 — Framework Unificado ICR Multifaceta + LLM:** heterogeneidade de modalidade (B4 original) e heterogeneidade de coder (humano vs LLMs) **são o mesmo problema estrutural** — facetas no desenho de medida. Frame matemático único cobre os dois (G-theory multivariate, MFRM, Bayesian hierarchical annotation). Plugin posiciona-se como **bench de avaliação rigorosa de LLM como coder em QDA multimodal** — categoria que não existe no mercado. Pesquisa autoritativa em `docs/_research/icr-multimodal-heterogeneous-units.md` (395 linhas, 30+ refs); síntese user-facing em `docs/ICR-MULTIMODAL-METHODOLOGY.md`. Detalhe operacional em §"Framework Unificado ICR + LLM" abaixo.
+
+> **📘 Entry point pra análise externa:** `docs/PROJECT-OVERVIEW.md` — tour profundo por 3 camadas (produto, método, implementação) com ordem de leitura prescrita. Criado 2026-05-13 pra evitar análise superficial de LLMs externas via GitHub.
 
 > **📄 Visão integrada de produto (2026-05-08, navegação fragmentada):** entry point é `obsidian-qualia-coding/plugin-docs/research/INDEX-2026-05-08.md`. Docs filhos focados: `ICR-MATERIA-2026-05-08.md` (caminhos materializados), `LLM-MATERIA-2026-05-08.md` (em movimento — não cravado), `RELACOES-ICR-LLM-2026-05-08.md` (interdependências), `QUALIA-CORE-VISION-2026-05-08.md` (vision separada do plugin). Ordem cravada: **ICR → LLM → Analytics**; pitch **plugin = QDAS standalone**, **plugin + Qualia Core = QDMMAS sério**.
 
 > **🔧 Infra compartilhada — caminhos cravados (2026-05-09):** ICR é **infra compartilhada primeiro** — base estrutural que destrava simultaneamente ICR multi-coder, merge de projetos, multi-coder live, handoff com procedência, audit estruturado. Decisões cravadas: schema híbrido `Coder` + `CoderRun`; hash por source como primitiva arquitetural transversal; ICR multimodal **como destino arquitetural** (função pura κ paramétrica por geometria de overlap — recebe adapters por engine sem refactor); sequência **Fase B (in-plugin) → Fase C (P2 transport remoto)**. Detalhe completo em §"Decisões de produto abertas" abaixo.
 
-**Versão:** 0.4.2 (2026-05-08). LazyTextFilter custom em todas colunas (real + virtual) elimina flash branco no filter de parquet/CSV lazy via `refreshInfiniteCache`. Bug latente do MCA Biplot corrigido (signature `calculateMCA` separa codeIds matching de codeNames display). Trade-off conhecido: ms-pequeno de delay no swap visual das cells virtuais durante refresh — efeito direto do mecanismo que elimina o flash. **Versão anterior:** 0.4.1 (Code Explorer perf 30s→13s + Export Parquet multi-file fallback + modal info dinâmica).
+**Versão:** **0.6.0** (2026-05-13) — ICR fechado (B4 Camada 1 per-modality + vacuous fixes). **0.5.0** (2026-05-13) — Refactor C set-valued labels (Jaccard/MASI + Cohen caminho A + Fleiss fallback). **0.4.2** (2026-05-08) — LazyTextFilter sem flash branco + MCA Biplot fix.
 
 **Infra que a Fase 6 estabeleceu (não é só "abrir parquet grande"):**
 - DuckDB-Wasm + Worker + Blob URLs → reusável pra LLM provider (Ollama/OpenAI/Anthropic) e Whisper transcription
@@ -26,40 +28,47 @@
 - Bundle 14MB → distribuição via Community Plugins viável
 - `mergePolicies` puro → merge LLM batch em codebook existente
 
-**Ordem cravada (visão integrada 2026-05-08): ICR → LLM → Analytics.**
+**Ordem cravada (visão integrada 2026-05-13): ICR ✅ → LLM (+ ICR Camada 2 par natural) → Analytics.**
 
-Estado das três frentes em 2026-05-12 (atualizado):
+Estado das três frentes em 2026-05-13 (release 0.6.0):
 
-### Frente 1 — ICR (em fechamento)
+### Frente 1 — ICR ✅ FECHADA (2026-05-13, release 0.6.0)
 
-Motor κ multimodal completo (6 engines × geometria de overlap), Reconciliação UI completa (P2 cards + P3 workflow queue + κ pré/pós + export), Compare Coders View com 3 modes (matriz/tabela/heatmap) e drill-downs, Saved Comparisons hub, coder picker live, transport multi-coder remoto (extract/merge/cross-vault remap + UX layer Visão geral / Lado a lado / Por código), CSV cross-coder isolation. **Itens em aberto** (lista canônica em §"🧱 ICR — Itens em aberto" abaixo): 4 refinements Fase C P1 + 4 polish Compare Coders + 1 decisão metodológica (weighting cross-engine) + 1 refactor grande (set-valued labels). Próximo passo prático = fechar refinements + polish (slice mecânico); decisões metodológicas (weighting + set-valued) vêm depois com brainstorm dedicado.
+Motor κ multimodal (6 engines × geometria de overlap), Reconciliação UI (P2 cards + P3 workflow queue + κ pré/pós + export), Compare Coders View (3 modes + drill-downs + perCode breakdown), Saved Comparisons hub, coder picker live, transport multi-coder remoto, CSV cross-coder isolation, set-valued labels (Jaccard/MASI distance + Cohen κ caminho A + Fleiss fallback), per-modality enforcement (Camada 1 framework multifaceta). **Zero itens em aberto.** Lista canônica abaixo (§"🧱 ICR — Itens em aberto") tem todos os items marcados ✅. **Camadas 2 e 3 do framework multifaceta** (Bayesian annotation model + G-theory/MFRM) movidas pro bloco Framework Unificado ICR + LLM — fazem sentido só quando LLM coding entrar.
 
-### Frente 2 — LLM-assisted coding (em movimento)
+### Frente 2 — LLM-assisted coding ▶ PRÓXIMA PRIORIDADE (com ICR Camada 2 como par natural)
 
-Pesquisa de mercado profunda concluída em `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados em 41 arquivos; síntese em `comparison.md`; cruzamento arquitetura×market em `qualia-fit.md`). **5 escolas filosóficas mapeadas** (§3 do comparison.md). **Tratada como "em movimento" pela visão 2026-05-08** — releitura gera ideias novas; não cravar à força. Decisão pendente (1 sessão de brainstorm dedicado): qual escola Qualia subscreve, qual use case primário, qual provider strategy, onde no fluxo entra, qual granularidade de revisão humana. Brainstorm precede design — antes disso, design não rola.
+Pesquisa de mercado profunda em `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados, 41 arquivos). 5 escolas filosóficas mapeadas. **Pesquisa metodológica complementar** em `docs/_research/icr-multimodal-heterogeneous-units.md` (2026-05-13, 30+ refs) cravou que LLM como coder = problema de heterogeneidade de coder, idêntico estruturalmente à heterogeneidade de modalidade — Bayesian annotation model (Dawid-Skene 1979 / MACE / Paun et al. 2018) é a tradição matemática que resolve.
+
+**Decisões cravadas (2026-05-13):**
+- **Ordem invertida:** gerador de código/segmento = primeiro item (era último). Feature mais transversal, exercita motor de coding em texto/PDF/CSV/audio, gera massa real pra Camada 2.
+- **Camada 2 ICR (Bayesian annotation model) não-negociável:** LLM coding não entra no plugin sem Camada 2. Sem fundamento Bayesiano, LLM vira "auto-code button" comoditizado.
+- **Restantes 5 decisões de produto** (qual escola filosófica, use case primário, provider strategy, onde no fluxo, granularidade de revisão humana) ficam pra brainstorm dedicado — pesquisa de mercado em `qualia-fit.md` informa, mas decisão precede design.
 
 ### Frente 3 — Analytics (extensões + redesign)
 
-Cobertura atual = 16 modes existentes (Code × File, Code × Code Cooccurrence, Code Evolution, Temporal, Lag Sequential, MCA, Files Dendrogram, File Similarity, MDS Files, Source Comparison, Code × Metadata, Codebook Timeline, Code Stability Timeline, Memo View, frequency, codeMetadata). Q-mode 100% coberto. **Gap aberto:** Routledge Tier 1/2/3 (catalogado em `CONSOLIDACAO-PRODUTO-2026-05-08.md §2.3, §6.2, §6.3`) + redesign UI pesado. Atacar **depois** de ICR fechar + LLM virar decisão de produto.
+Cobertura atual = 16 modes existentes (Code × File, Cooccurrence, Code Evolution, Temporal, Lag Sequential, MCA, Files Dendrogram, File Similarity, MDS Files, Source Comparison, Code × Metadata, Codebook Timeline, Code Stability Timeline, Memo View, frequency, codeMetadata). Q-mode 100% coberto. **Gap aberto:** Routledge Tier 1/2/3 (catalogado em `CONSOLIDACAO-PRODUTO-2026-05-08.md §2.3, §6.2, §6.3`) + redesign UI pesado. Atacar **depois** de LLM coding (que vai exercitar Analytics como consumer de markers gerados).
 
 ### Submissão Community Plugins PR
 
-Re-encaixada na sequência: faz sentido **após ICR fechar** (refinements + polish), antes de virar pra LLM. Release 0.4.2 (2026-05-08) tem o artefato. Falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas pode receber pushback no review.
+Re-encaixada na sequência: ICR fechado, faz sentido **antes ou em paralelo a LLM coding**. Release 0.6.0 tem o artefato robusto. Falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas pode receber pushback no review. User cravou explicitamente que **não vai publicar antes de Camada 2** (ver `docs/ICR-MULTIMODAL-METHODOLOGY.md`) pra positioning inicial não comoditizar como "QDA tool com AI".
 
 ### Outras frentes em decisão de produto
 
 - **Projects + Workspace** — provavelmente reinventa Workspaces nativo. User cravou "reavaliar antes de implementar" — provavelmente passar.
 - **Margin Panel customization** — bloqueado por decisão em plugin externo.
 
-**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Tier 3 Smart Codes ✅ (2026-05-04) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0-6 ✅ (2026-05-03/04)** · **Q-mode gaps S0+S1+S2+S3 ✅ (2026-05-04)** · **ICR Slices 1-6 motor κ multimodal ✅ (2026-05-09)** · **ICR Slices E1+E2+E3a+E3b+E4+E5a+E5b ✅ (2026-05-10/11)** · **Fase C P1 UX layer ✅ (2026-05-10)** · **Coder picker live ✅ (2026-05-11)** · **CSV cross-coder ✅ (2026-05-12)**.
+**Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Tier 3 Smart Codes ✅ (2026-05-04) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0-6 ✅ (2026-05-03/04)** · **Q-mode gaps S0+S1+S2+S3 ✅ (2026-05-04)** · **ICR Slices 1-6 motor κ multimodal ✅ (2026-05-09)** · **ICR Slices E1+E2+E3a+E3b+E4+E5a+E5b ✅ (2026-05-10/11)** · **Fase C P1 UX layer ✅ (2026-05-10)** · **Coder picker live ✅ (2026-05-11)** · **CSV cross-coder ✅ (2026-05-12)** · **ICR mecânico (A1-A4 + B1-B3 + D + dedup motor) ✅ (2026-05-12)** · **Smart Codes leaf `textContains` ✅ (2026-05-12)** · **Refactor C set-valued labels ✅ release 0.5.0 (2026-05-13)** · **B4 Camada 1 per-modality enforcement ✅ release 0.6.0 (2026-05-13)**.
 
 **Bloqueadores no `BACKLOG.md`:** zero.
 
 ---
 
-## 🧱 ICR — Itens em aberto (canonical list, 2026-05-12)
+## 🧱 ICR — Itens em aberto (canonical list — ZERADA 2026-05-13)
 
-Lista única e consolidada. **Quando atacar item desta lista que toque scope/cache/extract, releitura obrigatória de TECHNICAL-PATTERNS §35-§46 — ver CLAUDE.md §8.**
+**Lista zerada — todos os itens entregues entre 2026-05-12 e 2026-05-13.** Preservada abaixo como historiografia de execução. Próximas frentes ICR (Camada 2 Bayesian annotation + Camada 3 G-theory) viraram peças do bloco LLM/Framework Unificado — ver §"Framework Unificado ICR + LLM" abaixo.
+
+**Quando atacar item futuro que toque scope/cache/extract, releitura obrigatória de TECHNICAL-PATTERNS §35-§46 — ver CLAUDE.md §8.**
 
 ### Slice próximo (mecânico, sem decisão metodológica pendente)
 
