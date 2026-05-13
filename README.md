@@ -105,7 +105,8 @@ A few technical choices worth knowing about:
 - **CodeMirror 6 native.** Markdown highlights are real CodeMirror decorations, not DOM overlays. The margin panel is a custom `ViewPlugin` with column-resolved label layout — same UX as MAXQDA's
 - **Per-engine viewers, no shared state.** PDF (pdf.js), Image (Fabric.js), Audio/Video (WaveSurfer.js), CSV/Parquet (AG Grid Community + hyparquet WASM eager / DuckDB-Wasm + OPFS lazy above 50 MB). Each engine is self-contained — adding a format doesn't touch the others
 - **Incremental analytics cache.** Dirty flags per engine; analytics modes recompute only the affected slice. Stays fast on large projects
-- **3,400+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, Smart Codes evaluator/cache, lazy Parquet pipeline, ICR motor κ + reconciliation + transport, and analytics consolidators
+- **3,600+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, Smart Codes evaluator/cache, lazy Parquet pipeline, ICR motor κ + reconciliation + transport, source size providers (PDF + CSV segment + media), and analytics consolidators
+- **Two inline Web Workers** keep UI fluid on heavy compute: `kappa.worker` (5 ICR coefficients off-main-thread for any cohort size) and `cluster.worker` (`hierarchicalCluster` for cooccurrence sort, overlap sort, dendrogram and files-dendrogram views — no UI freeze on 100+ codes)
 - **TypeScript strict** end-to-end, with ambient types for Obsidian internals where needed
 - **No build-time secrets, no runtime servers.** The entire plugin is the three files in your `.obsidian/plugins/qualia-coding/` folder
 
@@ -170,7 +171,7 @@ Once approved, **Settings → Community plugins → Browse → Qualia Coding →
 
 ## In development
 
-- **LLM-assisted coding** — under product design. 40 tools and 5 patterns surveyed (`docs/_study/llm-coding/`); local-first stance and review granularity decisions pending before implementation begins.
+- **LLM-assisted coding + ICR Camada 2 (Bayesian Hierarchical Annotation Model)** — next practical front, paired by design. 40 tools and 5 patterns surveyed (`docs/_study/llm-coding/`); methodology framework cravado em `docs/ICR-MULTIMODAL-METHODOLOGY.md`. The framing: heterogeneity of modality (cross-engine aggregation) and heterogeneity of coder (humans vs LLMs) are the same structural problem — facets in measurement design. Plugin positions as **rigorous evaluation bench for LLM as coder in multimodal QDA** — a category that doesn't exist on the market. Brainstorm dedicado precede primeira spec.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full feature roadmap.
 
