@@ -265,11 +265,18 @@ function buildDecorationsForFile(
 			// Marker is fully hidden — skip decoration
 			if (visibleCodes.length === 0) continue;
 
-			// Resolve colors for each visible code on this marker
+			// Resolve colors. `marker.colorOverride` (per-marker color via Marker Detail) tem
+			// precedência: pattern espelha image (regionManager.getStyleForMarker) e media
+			// (regionRenderer:46). Override aplica como single-color independente de quantos
+			// codes o marker tem — cor é explícita do usuário.
 			const codeColors: string[] = [];
-			for (const codeApp of visibleCodes) {
-				const def = model.registry.getById(codeApp.codeId);
-				if (def) codeColors.push(def.color);
+			if (marker.colorOverride) {
+				codeColors.push(marker.colorOverride);
+			} else {
+				for (const codeApp of visibleCodes) {
+					const def = model.registry.getById(codeApp.codeId);
+					if (def) codeColors.push(def.color);
+				}
 			}
 
 			// Fallback: marker.color or default

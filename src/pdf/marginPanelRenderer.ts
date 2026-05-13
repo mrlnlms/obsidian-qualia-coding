@@ -93,7 +93,9 @@ export function renderMarginPanelForPage(
 
 			for (const ca of marker.codes) {
 				const def = registry.getById(ca.codeId);
-				const color = def?.color ?? '#FFEB3B';
+				// `marker.colorOverride` (per-marker via Marker Detail) tem precedência.
+				// Pattern espelha image/media/highlightRenderer.
+				const color = marker.colorOverride ?? def?.color ?? '#FFEB3B';
 				bars.push({
 					markerId: marker.id,
 					codeName: def?.name ?? ca.codeId,
@@ -116,7 +118,7 @@ export function renderMarginPanelForPage(
 
 			for (const ca of shape.codes) {
 				const def = registry.getById(ca.codeId);
-				const color = def?.color ?? '#FFEB3B';
+				const color = shape.colorOverride ?? def?.color ?? '#FFEB3B';
 				bars.push({
 					markerId: shape.id,
 					codeName: def?.name ?? ca.codeId,

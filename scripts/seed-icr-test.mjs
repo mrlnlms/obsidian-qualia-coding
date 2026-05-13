@@ -245,7 +245,7 @@ function hardReset(data) {
 	delete data.lastCompareCodersUsed;
 
 	// Audit log → reset (limpa ruído de operações antigas)
-	data.auditLog = { entries: [] };
+	data.auditLog = [];
 
 	// Visibility overrides → reset
 	data.visibilityOverrides = {};

@@ -516,7 +516,17 @@ export default class QualiaCodingPlugin extends Plugin {
 
 		// Audit log accessor injetado nas views — encapsula leitura/escrita do log central + export.
 		const auditAccess = {
-			getLog: (): AuditEntry[] => (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [],
+			getLog: (): AuditEntry[] => {
+				// Defensive: data.json legacy tem `auditLog: { entries: [] }`. Cast `as AuditEntry[]`
+				// mente — `.filter` em getEntriesForCode crasha. Normaliza ao ler. Origem do bug:
+				// seed scripts antigos ou data.json migrado sem normalize. Ver CLAUDE.md §"furos sistemáticos".
+				const raw = this.dataManager.section('auditLog');
+				if (Array.isArray(raw)) return raw as AuditEntry[];
+				if (raw && typeof raw === 'object' && Array.isArray((raw as { entries?: unknown }).entries)) {
+					return (raw as { entries: AuditEntry[] }).entries;
+				}
+				return [];
+			},
 			hideEntry: (id: string) => {
 				const log = (this.dataManager.section('auditLog') as AuditEntry[] | undefined) ?? [];
 				const e = log.find(x => x.id === id);

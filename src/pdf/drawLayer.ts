@@ -63,7 +63,11 @@ export function renderDrawLayerForPage(
 	svg.style.overflow = 'visible';
 
 	for (const shape of shapes) {
-		const color = registry.getColorForCodeIds(getCodeIds(shape.codes)) ?? '#FFEB3B';
+		// `shape.colorOverride` (per-shape via Marker Detail) tem precedência sobre cor do code.
+		// Pattern espelha image (regionManager.getStyleForMarker) + media (regionRenderer:46).
+		const color = shape.colorOverride
+			?? registry.getColorForCodeIds(getCodeIds(shape.codes))
+			?? '#FFEB3B';
 		const el = createShapeSVG(shape.coords, color);
 		if (!el) continue;
 

@@ -427,11 +427,14 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 		onRename: (oldPath, newPath) => model.migrateFilePath(oldPath, newPath),
 	});
 
-	// Re-render highlights + shapes quando code color/name muda na shared registry.
-	// PdfPageObserver.refreshAll itera páginas loaded e re-pinta highlights + shapes —
-	// re-lê cor via registry.getById no path normal. Pattern espelha imageView.
+	// Re-render highlights + shapes em duas mudanças:
+	//   (1) `qualia:registry-changed`: cor de code muda na shared registry
+	//   (2) `model.onChange`: marker fields mudam (colorOverride, memo) ou markers
+	//       são adicionados/removidos (mutation indirect path)
+	// PdfPageObserver.refreshAll itera páginas loaded e re-pinta highlights + shapes,
+	// re-lendo `marker.colorOverride` + cor do code. Pattern espelha imageView.
 	let registryChangeRafId: number | null = null;
-	const onRegistryChange = () => {
+	const scheduleRefresh = () => {
 		if (registryChangeRafId !== null) return;
 		registryChangeRafId = requestAnimationFrame(() => {
 			registryChangeRafId = null;
@@ -440,14 +443,16 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			}
 		});
 	};
-	document.addEventListener('qualia:registry-changed', onRegistryChange);
+	document.addEventListener('qualia:registry-changed', scheduleRefresh);
+	model.onChange(scheduleRefresh);
 
 	// ── Return cleanup function ──
 
 	return {
 		cleanup: () => {
 			document.removeEventListener('visibilitychange', visibilityHandler);
-			document.removeEventListener('qualia:registry-changed', onRegistryChange);
+			document.removeEventListener('qualia:registry-changed', scheduleRefresh);
+			model.offChange(scheduleRefresh);
 			if (registryChangeRafId !== null) {
 				cancelAnimationFrame(registryChangeRafId);
 				registryChangeRafId = null;

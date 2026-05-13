@@ -90,9 +90,11 @@ export class CsvCodingView extends FileView {
 		coderColors: Map<string, string>;
 	} | null = null;
 
-	/** Re-render quando code color/name muda na registry. AG Grid cellRenderer lê cor
-	 *  via getCodeColor mas só re-aplica em refreshCells. Pattern espelha imageView. */
+	/** Re-render quando code color/name muda na registry OU marker fields mudam.
+	 *  AG Grid cellRenderer lê cor via getCodeColor mas só re-aplica em refreshCells.
+	 *  Pattern espelha imageView (subscribe a 2 fontes — registry + model). */
 	private registryChangeListener: (() => void) | null = null;
+	private modelChangeListener: (() => void) | null = null;
 	private registryChangeRafId: number | null = null;
 
 	get markdownModel() { return this.plugin.markdownModel!; }
@@ -149,19 +151,28 @@ export class CsvCodingView extends FileView {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		// Re-render cells quando code color/name muda na registry (idempotente entre
-		// load/unload chains: removeEventListener se já tem). rAF coalesce evita repaint flood.
-		if (this.registryChangeListener) {
-			document.removeEventListener('qualia:registry-changed', this.registryChangeListener);
-		}
-		this.registryChangeListener = () => {
+		// Re-render cells em 2 caminhos:
+		//   (1) qualia:registry-changed: cor de code muda na registry
+		//   (2) model.onChange: marker fields mudam (colorOverride, memo) ou markers
+		//       são adicionados/removidos
+		// rAF coalesce evita repaint flood. Idempotente entre load/unload chains.
+		const scheduleCellRefresh = () => {
 			if (this.registryChangeRafId !== null) return;
 			this.registryChangeRafId = requestAnimationFrame(() => {
 				this.registryChangeRafId = null;
 				this.gridApi?.refreshCells({ force: true });
 			});
 		};
+		if (this.registryChangeListener) {
+			document.removeEventListener('qualia:registry-changed', this.registryChangeListener);
+		}
+		if (this.modelChangeListener) {
+			this.csvModel.offChange(this.modelChangeListener);
+		}
+		this.registryChangeListener = scheduleCellRefresh;
+		this.modelChangeListener = scheduleCellRefresh;
 		document.addEventListener('qualia:registry-changed', this.registryChangeListener);
+		this.csvModel.onChange(this.modelChangeListener);
 
 		// Size threshold: above this, the file opens in lazy mode (DuckDB + OPFS);
 		// below, eager mode (full materialization). Defaults calibrados em bench
@@ -968,6 +979,10 @@ export class CsvCodingView extends FileView {
 		if (this.registryChangeListener) {
 			document.removeEventListener('qualia:registry-changed', this.registryChangeListener);
 			this.registryChangeListener = null;
+		}
+		if (this.modelChangeListener) {
+			this.csvModel.offChange(this.modelChangeListener);
+			this.modelChangeListener = null;
 		}
 		if (this.registryChangeRafId !== null) {
 			cancelAnimationFrame(this.registryChangeRafId);

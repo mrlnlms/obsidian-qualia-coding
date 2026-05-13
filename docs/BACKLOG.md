@@ -78,15 +78,16 @@ Da fila cross-cutting do hardening, 4 frentes atacadas em 2026-05-09 (parseInt v
 
 **Resolvido 2026-05-13** — `cooccurrenceMode` async via Worker. A análise original do BACKLOG estava errada: descrevia como "refactor invasivo do contrato dos 25 modes". Solução real seguiu pattern fire-and-forget já estabelecido em `wordCloudMode`/`mdsMode`/`acmMode` (`renderGeneration` + `isRenderCurrent`). Worker inline pro `hierarchicalCluster` (`src/analytics/data/cluster.worker.ts` + Client + sync fallback, pattern §45) resolve 4 consumidores de uma vez: Cooccurrence, Overlap, Dendrogram, Files-Dendrogram. `boardClusters` segue síncrono (fora do escopo declarado).
 
-### Bugs descobertos 2026-05-13 (sessão canvas refresh cor cross-engine)
+### Bugs descobertos 2026-05-13 (sessão canvas refresh cor cross-engine) — todos resolvidos
 
-- [ ] **Color override per-marker NÃO refresha cross-engine** — quando user muda `colorOverride` no Marker Detail (não cor do code no Code Detail), o `model.updateMarkerFields({ colorOverride })` dispara `model.onChange` mas NÃO `qualia:registry-changed`. Image já cobre via `model.onChange` listener. PDF/markdown/csv/audio/video não — fix da sessão atual cobre só cor de code (registry), não color override (per-marker). Pattern idêntico: adicionar `model.onChange` subscribe em cada engine além do `qualia:registry-changed`. 5 sites mecânicos.
+- [x] **Color override per-marker cross-engine** ✅ FEITO 2026-05-13. Diagnóstico atualizado: cobertura era assimétrica. Image+media já cobriam (subscribe model.onChange + renderer respeita colorOverride). Markdown+PDF não cobriam. Fix:
+  - **Markdown** (`markerStateField.ts` + `marginPanelExtension.ts`): adicionada leitura de `marker.colorOverride` com precedência sobre cor do code. handleOverlayRenderer já lia.
+  - **PDF** (`drawLayer.ts` + `marginPanelRenderer.ts`): idem. highlightRenderer já lia. Subscribe `model.onChange` em `pdf/index.ts` paralelo ao `qualia:registry-changed`.
+  - **CSV** (`csvCodingView.ts`): subscribe `model.onChange` adicionado pra cobrir mutations futuras. cellRenderer chip é per-code, não per-marker — colorOverride não tem mapping visual claro; decisão consciente de não expor.
 
-- [ ] **`Uncaught TypeError: t.filter is not a function` em `doRenderCodeDetail`** — stack: `qb` (1076:1422) → `TP` (1212:28713) → `M$` (1212:14941) → `bE.doRenderCodeDetail` (1232:7008). 3 reproduções confirmadas na sessão 2026-05-13 (canvas refresh cross-engine):
-  - **Via showCodeDetail** (clicar back de Marker Detail → Code Detail)
-  - **Via refreshCurrentMode** chamado pelo color picker `onHueSliderMouseDown_` → update → scheduleRefresh
-  - **Via refreshCurrentMode** chamado pelo `markerPreviewHydrator` → `notifyListenersOnly` → scheduleRefresh → `onFileRendered`
-  - Bug pré-existente (independente do fix canvas refresh — `doRenderCodeDetail` não foi tocado). Stack minificada; reconstrução: build sem minify ou source map pra identificar a função `qb` e onde `t` chega undefined/objeto em vez de array. Suspeitos: `getMarkersForCode` / `buildFlatTree` / `filterByCode` retornam null em algum estado transitório. Não bloqueia uso (erro apenas no console; render continua), mas polui dev console e pode mascarar bugs reais.
+- [x] **`TypeError: log.filter is not a function` em `renderHistorySection`** ✅ FEITO 2026-05-13. Stack desminified (via dev build) revelou: `getEntriesForCode` (audit log) recebia `log` não-array. Raiz: `data.json` legacy tinha `auditLog: { entries: [] }` (formato antigo) em vez de `auditLog: []`. Cast `as AuditEntry[]` em `main.ts:519` mentia. **Mesmo bug pattern já registrado no CLAUDE.md global** ("Enter precisava 2x na primeira interação"). Fix 2-camadas:
+  - **Defensive em `main.ts:519`** — `getLog()` agora normaliza ao ler: aceita array OU `{ entries: [] }` legacy.
+  - **Seed `seed-icr-test.mjs:248` corrigido** — escrevia `{ entries: [] }`, agora escreve `[]`. Vault atual normalizado one-shot.
 
 ---
 

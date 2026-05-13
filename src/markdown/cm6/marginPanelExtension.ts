@@ -326,7 +326,9 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 
 					for (const codeApp of marker.codes) {
 						const def = model.registry.getById(codeApp.codeId);
-						const color = def?.color ?? marker.color;
+						// `marker.colorOverride` (per-marker via Marker Detail) tem precedência
+						// sobre cor do code — pattern espelha image/media/markerStateField.
+						const color = marker.colorOverride ?? def?.color ?? marker.color;
 						const codeName = def?.name ?? codeApp.codeId;
 
 						brackets.push({
