@@ -100,8 +100,17 @@ export async function renderOverviewTable(
 			cacheKeyForScope({ ...effectiveScope, codeIds: [codeId] }) + visKey + `::δ-${distance}`,
 			distance,
 		);
-		const cohenValues = Object.values(report.aggregate.cohenKappa);
-		const cohen = N === 2 && cohenValues.length > 0 ? cohenValues[0]?.value : undefined;
+		// Cohen κ pra esse code-filtrado. Pós-refactor C (caminho A binary-per-label),
+		// value já reflete Cohen κ daquele code (universe interno = {code} no escopo filtrado).
+		// N=2: 1 par direto; N≥3: média dos C(N,2) pares (mesmo pattern do heatmap, commit 2b894dd).
+		const cohenReports = Object.values(report.aggregate.cohenKappa);
+		let cohen: number | undefined;
+		if (N >= 2 && cohenReports.length > 0) {
+			const valid = cohenReports.map(r => r.value).filter(v => Number.isFinite(v));
+			if (valid.length > 0) {
+				cohen = valid.reduce((s, v) => s + v, 0) / valid.length;
+			}
+		}
 		const fleiss = N >= 3 ? report.aggregate.fleissKappa : undefined;
 		return {
 			codeId,

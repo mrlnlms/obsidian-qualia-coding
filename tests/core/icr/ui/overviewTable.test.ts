@@ -108,7 +108,9 @@ describe('renderOverviewTable', () => {
 		expect(fleissCell?.textContent).toBe('—');
 	});
 
-	it('com 3+ coders, Cohen "—" e Fleiss aparece', async () => {
+	it('com 3+ coders, Cohen κ mostra média dos C(N,2) pares (pós-C2: binary-per-label naturalmente agregável)', async () => {
+		// Pré-C2 era '—' (auto-switch). Pós-C2 Cohen κ caminho A retorna value escalar por par;
+		// média dos pares pra N≥3 é o pattern usado em heatmap/matrix (commit 2b894dd).
 		coderRegistry.createHuman('C');
 		const allCoders = coderRegistry.getAll().filter(c => c.id !== 'human:default').map(c => c.id);
 		const [coderA, coderB, coderC] = allCoders;
@@ -124,7 +126,11 @@ describe('renderOverviewTable', () => {
 		}, () => {});
 		const cohenCell = container.querySelector('tbody tr td.col-cohen');
 		const fleissCell = container.querySelector('tbody tr td.col-fleiss');
-		expect(cohenCell?.textContent).toBe('—');
+		expect(cohenCell?.textContent).not.toBe('—');
+		// 3 coders concordando no mesmo trecho → Cohen κ entre cada par ≈ 1 → média ≈ 1
+		const cohenValue = parseFloat(cohenCell?.textContent ?? '');
+		expect(cohenValue).toBeGreaterThan(0);
+		expect(cohenValue).toBeLessThanOrEqual(1);
 		expect(fleissCell?.textContent).not.toBe('—');
 	});
 
