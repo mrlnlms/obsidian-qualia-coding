@@ -78,7 +78,7 @@ function computeAll(
 		}
 		return {
 			cohenKappa: cohenK,
-			fleissKappa: fleissKappaCategorical(input),
+			fleissKappa: fleissKappaCategorical(input, alphaOptions),
 			alphaNominal: krippendorffAlphaCategoricalNominal(input, alphaOptions),
 			alphaBinary: 1,
 			cuAlpha: 1,
@@ -92,7 +92,7 @@ function computeAll(
 	}
 	return {
 		cohenKappa: cohenK,
-		fleissKappa: fleissKappa(input),
+		fleissKappa: fleissKappa(input, alphaOptions),
 		alphaNominal: krippendorffAlphaNominal(input, alphaOptions),
 		alphaBinary: alphaBinary(input),
 		cuAlpha: cuAlpha(input, alphaOptions),

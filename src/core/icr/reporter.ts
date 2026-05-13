@@ -161,7 +161,7 @@ function computeAll(
 		}
 		return {
 			cohenKappa: cohenK,
-			fleissKappa: fleissKappaCategorical(input),
+			fleissKappa: fleissKappaCategorical(input, alphaOptions),
 			alphaNominal: krippendorffAlphaCategoricalNominal(input, alphaOptions),
 			// alphaBinary e cuAlpha não-aplicáveis pra categorical (não tem boundary disagreement).
 			// Retorna 1 (vacuous) pra preservar shape do CoefficientReport.
@@ -179,7 +179,7 @@ function computeAll(
 	}
 	return {
 		cohenKappa: cohenK,
-		fleissKappa: fleissKappa(input),
+		fleissKappa: fleissKappa(input, alphaOptions),
 		alphaNominal: krippendorffAlphaNominal(input, alphaOptions),
 		alphaBinary: alphaBinary(input),
 		cuAlpha: cuAlpha(input, alphaOptions),

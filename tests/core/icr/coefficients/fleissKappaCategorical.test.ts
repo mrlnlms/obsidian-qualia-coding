@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { fleissKappaCategorical } from '../../../../src/core/icr/coefficients/fleissKappaCategorical';
+import { krippendorffAlphaCategoricalNominal } from '../../../../src/core/icr/coefficients/krippendorffAlphaCategorical';
+import { distanceJaccard } from '../../../../src/core/icr/distances';
 import type { CategoricalKappaInput } from '../../../../src/core/icr/categoricalKappaInput';
 
 describe('fleissKappaCategorical', () => {
@@ -36,5 +38,37 @@ describe('fleissKappaCategorical', () => {
 			coders: ['a', 'b'],
 		};
 		expect(fleissKappaCategorical(input)).toBeLessThanOrEqual(0);
+	});
+});
+
+describe('fleissKappaCategorical — fallback automático pra α em multi-label', () => {
+	it('escopo com algum unit multi-label: delega pra krippendorffAlphaCategoricalNominal', () => {
+		const inputMulti: CategoricalKappaInput = {
+			units: [
+				{ fileId: 'd.csv', sourceRowId: 0, column: 'r', codeIds: ['x', 'y'], coderId: 'a' },
+				{ fileId: 'd.csv', sourceRowId: 0, column: 'r', codeIds: ['x', 'y'], coderId: 'b' },
+				{ fileId: 'd.csv', sourceRowId: 1, column: 'r', codeIds: ['x', 'y'], coderId: 'a' },
+				{ fileId: 'd.csv', sourceRowId: 1, column: 'r', codeIds: ['x', 'y', 'z'], coderId: 'b' },
+			],
+			coders: ['a', 'b'],
+		};
+		const fleissResult = fleissKappaCategorical(inputMulti, { distance: distanceJaccard });
+		const alphaResult = krippendorffAlphaCategoricalNominal(inputMulti, { distance: distanceJaccard });
+		expect(fleissResult).toBeCloseTo(alphaResult, 6);
+	});
+
+	it('single-label puro mantém Fleiss clássico (options ignorada)', () => {
+		const inputSingle: CategoricalKappaInput = {
+			units: [
+				{ fileId: 'd.csv', sourceRowId: 0, column: 'r', codeIds: ['c1'], coderId: 'a' },
+				{ fileId: 'd.csv', sourceRowId: 0, column: 'r', codeIds: ['c1'], coderId: 'b' },
+				{ fileId: 'd.csv', sourceRowId: 1, column: 'r', codeIds: ['c2'], coderId: 'a' },
+				{ fileId: 'd.csv', sourceRowId: 1, column: 'r', codeIds: ['c2'], coderId: 'b' },
+			],
+			coders: ['a', 'b'],
+		};
+		const withoutDistance = fleissKappaCategorical(inputSingle);
+		const withDistance = fleissKappaCategorical(inputSingle, { distance: distanceJaccard });
+		expect(withDistance).toBeCloseTo(withoutDistance, 6);
 	});
 });
