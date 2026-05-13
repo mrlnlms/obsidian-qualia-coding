@@ -95,14 +95,14 @@ describe('auditLog reconciliation entries', () => {
 			expect(renderEntryMarkdown(entry)).toMatch(/row 42 · response/);
 		});
 
-		it('formata bounds temporal', () => {
+		it('formata bounds temporal em segundos', () => {
 			const entry: AuditEntry = {
 				id: 'a1', codeId: 'c_x', at: 0, entity: 'reconciliation', type: 'reconciliation_opened',
-				region: { fileId: 'F1', engine: 'audio', bounds: { kind: 'temporal', fromMs: 1500, toMs: 3200 } },
+				region: { fileId: 'F1', engine: 'audio', bounds: { kind: 'temporal', from: 1.5, to: 3.2 } },
 				coderIds: ['human:alice'],
 				candidateCodeIds: [],
 			};
-			expect(renderEntryMarkdown(entry)).toMatch(/1500ms.*3200ms/);
+			expect(renderEntryMarkdown(entry)).toMatch(/1\.5s.*3\.2s/);
 		});
 	});
 

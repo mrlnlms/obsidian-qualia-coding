@@ -158,7 +158,7 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 			const all = model.getMarkersForFile(region.fileId);
 			const out: { markerId: string; codedBy: CoderId; codes: CodeApplication[] }[] = [];
 			for (const m of all) {
-				if (m.codedBy && rangesOverlap1D(m.from, m.to, region.bounds.fromMs, region.bounds.toMs)) {
+				if (m.codedBy && rangesOverlap1D(m.from, m.to, region.bounds.from, region.bounds.to)) {
 					out.push({ markerId: m.id, codedBy: m.codedBy, codes: m.codes });
 				}
 			}
@@ -387,8 +387,8 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 		const id = `${kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 		const marker: MediaMarker = {
 			markerType: kind, id, fileId: spec.fileId,
-			from: spec.bounds.fromMs,
-			to: spec.bounds.toMs,
+			from: spec.bounds.from,
+			to: spec.bounds.to,
 			codes: spec.codeIds.map(codeId => ({ codeId })),
 			codedBy: spec.codedBy,
 			createdAt: Date.now(), updatedAt: Date.now(),

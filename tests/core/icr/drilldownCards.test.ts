@@ -139,8 +139,8 @@ describe('drilldownCards — formatBoundsLabel', () => {
 		expect(formatBoundsLabel({ kind: 'csvRow', rowIndex: 42 })).toBe('row 42');
 	});
 
-	it('temporal bounds → fromMs–toMs', () => {
-		expect(formatBoundsLabel({ kind: 'temporal', fromMs: 1500, toMs: 3200 })).toBe('1500ms–3200ms');
+	it('temporal bounds → from–to em segundos', () => {
+		expect(formatBoundsLabel({ kind: 'temporal', from: 1.5, to: 3.2 })).toBe('1.5s–3.2s');
 	});
 });
 

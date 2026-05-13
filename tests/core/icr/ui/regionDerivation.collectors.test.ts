@@ -146,7 +146,7 @@ describe('collectTemporalRegions', () => {
 		const regions = collectContestedRegions(state, { audio: audioModel as any });
 		expect(regions).toHaveLength(1);
 		expect(regions[0]!.engine).toBe('audio');
-		expect(regions[0]!.bounds).toEqual({ kind: 'temporal', fromMs: 1000, toMs: 7000 });
+		expect(regions[0]!.bounds).toEqual({ kind: 'temporal', from: 1000, to: 7000 });
 	});
 
 	it('engine="video" quando passado pelo model video', () => {
@@ -173,11 +173,11 @@ describe('collectTemporalRegions', () => {
 		expect(regions).toHaveLength(0);
 	});
 
-	it('displayLabel formata MM:SS humano', () => {
+	it('displayLabel formata MM:SS humano (valores em segundos)', () => {
 		const audioModel = {
 			getAllMarkers: () => [
-				{ id: 'a1', fileId: 'song.mp3', from: 65000, to: 75000, codes: codes('c_x'), codedBy: A, markerType: 'audio' as const, createdAt: 0, updatedAt: 0 },
-				{ id: 'a2', fileId: 'song.mp3', from: 70000, to: 80000, codes: codes('c_y'), codedBy: B, markerType: 'audio' as const, createdAt: 0, updatedAt: 0 },
+				{ id: 'a1', fileId: 'song.mp3', from: 65, to: 75, codes: codes('c_x'), codedBy: A, markerType: 'audio' as const, createdAt: 0, updatedAt: 0 },
+				{ id: 'a2', fileId: 'song.mp3', from: 70, to: 80, codes: codes('c_y'), codedBy: B, markerType: 'audio' as const, createdAt: 0, updatedAt: 0 },
 			],
 		};
 		const state = createDefaultViewState([A, B]);
