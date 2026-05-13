@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-13
+
+**ICR fechado** — Camada 1 per-modality enforcement entrega a última peça do bloco ICR. Pesquisa cravou em paralelo (`obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md`) que aggregate κ/α cross-modality por #markers é unsupported na literatura; UI passa a refletir isso. Layers 2 e 3 (Bayesian annotation model + G-theory) ficam fora — viram peças do bloco LLM/Framework Unificado, ver `docs/ROADMAP.md §"Framework Unificado ICR + LLM"`.
+
 **ICR B4 — Camada 1: per-modality enforcement no Compare Coders (2026-05-13)** — branch `b4-camada-1-per-modality`. Pesquisa em `obsidian-qualia-coding/Research/ICR Multimodal - Unidades Heterogeneas.md` cravou que aggregate κ/α cross-modality por #markers é **unsupported** na literatura (Krippendorff 2018; Artstein & Poesio 2008; Mathet et al. 2015 — cada UoA exige sua própria δ; pool entre δ heterogêneas não está definido). Convergência empírica (AMI, MUMIN, ELAN, NEUROGES) é reportar per-modality. **UI ajustada** sem mexer no motor κ:
 - **Banner discreto** no topo do Overview (Modes A e B) quando escopo cruza 2+ famílias modais (text-like / temporal / categorical / spatial-bbox). Texto: "κ/α são definidos sobre uma única modalidade — comparar valores entre modalidades requer cautela (δ heterogêneas)". Tooltip cita as 3 referências + path da pesquisa.
 - **Mode A (Matrix)**: per-engine table (linha = modalidade, coluna = 5 coeficientes) renderiza **antes** da matriz coder × coder quando o escopo é multimodal. Matriz continua, mas com label descritivo: "Matriz coder × coder (descritivo — agrega modalidades, não usar como métrica inferencial)" + tooltip explicativo.

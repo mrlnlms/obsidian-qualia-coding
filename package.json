@@ -1,6 +1,6 @@
 {
   "name": "qualia-coding",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Qualitative data analysis for Obsidian",
   "main": "main.js",
   "engines": {
