@@ -65,7 +65,7 @@ describe('renderPerEngineTable', () => {
 		const tds = container.querySelectorAll('.qc-cc-per-engine-table tbody tr td');
 		// linha markdown: [label, cohen, fleiss, alpha, alphaBinary, cuAlpha]
 		expect(tds[0]?.textContent).toBe('markdown');
-		expect(tds[1]?.textContent).toBe('0.60'); // média (0.8 + 0.4) / 2
+		expect(tds[1]?.textContent).toBe('0.6000'); // média (0.8 + 0.4) / 2
 	});
 
 	it('bbox unified linha "spatial-bbox" agregando spatialBbox values', () => {
@@ -81,7 +81,7 @@ describe('renderPerEngineTable', () => {
 		expect(rows.length).toBe(1);
 		const tds = rows[0]?.querySelectorAll('td');
 		expect(tds?.[0]?.textContent).toBe('spatial-bbox');
-		expect(tds?.[1]?.textContent).toBe('0.50');
+		expect(tds?.[1]?.textContent).toBe('0.5000');
 	});
 
 	it('bbox split: linhas separadas pdfShape + image', () => {
@@ -120,9 +120,9 @@ describe('renderPerEngineTable', () => {
 		const tds = container.querySelectorAll('.qc-cc-per-engine-table tbody tr td');
 		// linha csv-row: [label, cohen, fleiss, alpha, alphaBinary, cuAlpha]
 		expect(tds[0]?.textContent).toBe('csv-row');
-		expect(tds[1]?.textContent).toBe('0.50');   // cohen
-		expect(tds[2]?.textContent).toBe('0.50');   // fleiss
-		expect(tds[3]?.textContent).toBe('0.50');   // alpha
+		expect(tds[1]?.textContent).toBe('0.5000');   // cohen
+		expect(tds[2]?.textContent).toBe('0.5000');   // fleiss
+		expect(tds[3]?.textContent).toBe('0.5000');   // alpha
 		expect(tds[4]?.textContent).toBe('—');      // alphaBinary vacuous
 		expect(tds[5]?.textContent).toBe('—');      // cuAlpha vacuous
 		expect(tds[4]?.classList.contains('qc-kappa-na')).toBe(true);
@@ -142,8 +142,8 @@ describe('renderPerEngineTable', () => {
 		renderPerEngineTable(container, reports);
 
 		const tds = container.querySelectorAll('.qc-cc-per-engine-table tbody tr td');
-		expect(tds[4]?.textContent).toBe('0.80'); // alphaBinary
-		expect(tds[5]?.textContent).toBe('0.90'); // cuAlpha
+		expect(tds[4]?.textContent).toBe('0.8000'); // alphaBinary
+		expect(tds[5]?.textContent).toBe('0.9000'); // cuAlpha
 	});
 
 	it('título indica "fonte de verdade"', () => {

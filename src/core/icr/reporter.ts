@@ -66,8 +66,13 @@ export interface KappaReport {
 // - Map por (cacheKey + pairs) (slow path: filter chip cria array novo mesmo com conteúdo igual)
 // Cache key explícita vem do caller (renderOverview*) — geralmente scope hash + engineIds. Bumpado
 // via bumpReportCache quando markers mudam.
-const reportKappaCache = new WeakMap<EngineKappaInput[], KappaReport>();
-const reportPairwiseCache = new WeakMap<EngineKappaInput[], Map<string, PairwiseReport[]>>();
+// WeakMap identity cache agora chaveado por (inputs, distance) — distance é segunda chave Map
+// dentro do WeakMap. Bug 2026-05-13: assumption antiga era que caller passava arrays distintos
+// pra distance diferentes; mas scopeExtraction cacheia `inputs` por scope e reusa ref entre
+// chamadas com Jaccard/MASI/nominal → cache identity retornava resultado errado da chamada
+// anterior. Fix: distance vira segunda chave (sentinel '_' pra distance=undefined).
+const reportKappaCache = new WeakMap<EngineKappaInput[], Map<string, KappaReport>>();
+const reportPairwiseCache = new WeakMap<EngineKappaInput[], Map<string, Map<string, PairwiseReport[]>>>();
 
 const reportKappaKeyCache = new Map<string, KappaReport>();
 const reportPairwiseKeyCache = new Map<string, PairwiseReport[]>();
@@ -97,17 +102,19 @@ export function reportKappa(
 	cacheKey?: string,
 	distance?: DistanceName,
 ): KappaReport {
-	// Fast path: identidade (mesmo array ref → mesmo report)
-	// Atenção: distance NÃO entra na chave do WeakMap — assumimos que arrays criados pelo
-	// caller pra distance diferente são refs distintas. UI callsites cravam ::δ-${name} no
-	// cacheKey pra garantir distinção no cache slow path.
-	const idHit = reportKappaCache.get(inputs);
+	// Fast path: identidade (mesmo array ref + mesma distance → mesmo report)
+	const distKey = distance ?? '_';
+	const byDist = reportKappaCache.get(inputs);
+	const idHit = byDist?.get(distKey);
 	if (idHit) return idHit;
 	// Slow path: cache key explícita (arrays diferentes mas conteúdo logicamente igual)
 	if (cacheKey) {
 		const keyed = reportKappaKeyCache.get(`${cacheKey}::${reportCacheGen}`);
 		if (keyed) {
-			reportKappaCache.set(inputs, keyed); // popula fast cache pra próximas com mesma ref
+			// popula fast cache pra próximas com mesma ref + distance
+			let m = reportKappaCache.get(inputs);
+			if (!m) { m = new Map(); reportKappaCache.set(inputs, m); }
+			m.set(distKey, keyed);
 			return keyed;
 		}
 	}
@@ -138,7 +145,9 @@ export function reportKappa(
 	}
 
 	const result: KappaReport = { byEngine, aggregate, weights, aggregateWarnings };
-	reportKappaCache.set(inputs, result);
+	let m = reportKappaCache.get(inputs);
+	if (!m) { m = new Map(); reportKappaCache.set(inputs, m); }
+	m.set(distKey, result);
 	if (cacheKey) {
 		reportKappaKeyCache.set(`${cacheKey}::${reportCacheGen}`, result);
 		pruneReportCache(reportKappaKeyCache);
@@ -276,9 +285,12 @@ export function reportPairwise(
 ): PairwiseReport[] {
 	const hasPerPair = perPairInputs !== undefined && perPairInputs.size > 0;
 	const pKey = pairsKey(pairs);
-	// WeakMap identity cache só sem perPair (inputs ref não diferencia extras).
+	const distKey = distance ?? '_';
+	// WeakMap identity cache só sem perPair (inputs ref não diferencia extras). Distance vira
+	// segunda chave Map pra não retornar cache stale entre Jaccard/MASI/nominal.
 	if (!hasPerPair) {
-		const byPairs = reportPairwiseCache.get(inputs);
+		const byDist = reportPairwiseCache.get(inputs);
+		const byPairs = byDist?.get(distKey);
 		if (byPairs) {
 			const hit = byPairs.get(pKey);
 			if (hit) return hit;
@@ -306,10 +318,12 @@ export function reportPairwise(
 	}
 	// WeakMap identity store só sem perPair.
 	if (!hasPerPair) {
-		let byPairs = reportPairwiseCache.get(inputs);
+		let byDist = reportPairwiseCache.get(inputs);
+		if (!byDist) { byDist = new Map(); reportPairwiseCache.set(inputs, byDist); }
+		let byPairs = byDist.get(distKey);
 		if (!byPairs) {
 			byPairs = new Map();
-			reportPairwiseCache.set(inputs, byPairs);
+			byDist.set(distKey, byPairs);
 		}
 		byPairs.set(pKey, result);
 	}
@@ -347,17 +361,23 @@ export async function reportKappaAsync(
 	cacheKey?: string,
 	distance?: DistanceName,
 ): Promise<KappaReport> {
-	const idHit = reportKappaCache.get(inputs);
+	const distKey = distance ?? '_';
+	const byDist = reportKappaCache.get(inputs);
+	const idHit = byDist?.get(distKey);
 	if (idHit) return idHit;
 	if (cacheKey) {
 		const keyed = reportKappaKeyCache.get(`${cacheKey}::${reportCacheGen}`);
 		if (keyed) {
-			reportKappaCache.set(inputs, keyed);
+			let m = reportKappaCache.get(inputs);
+			if (!m) { m = new Map(); reportKappaCache.set(inputs, m); }
+			m.set(distKey, keyed);
 			return keyed;
 		}
 	}
 	const result = await workerReportKappa(inputs, distance);
-	reportKappaCache.set(inputs, result);
+	let m = reportKappaCache.get(inputs);
+	if (!m) { m = new Map(); reportKappaCache.set(inputs, m); }
+	m.set(distKey, result);
 	if (cacheKey) {
 		reportKappaKeyCache.set(`${cacheKey}::${reportCacheGen}`, result);
 		pruneReportCache(reportKappaKeyCache);
@@ -374,9 +394,13 @@ export async function reportPairwiseAsync(
 ): Promise<PairwiseReport[]> {
 	const hasPerPair = perPairInputs !== undefined && perPairInputs.size > 0;
 	const pKey = pairsKey(pairs);
-	// WeakMap identity cache só sem perPair (inputs ref não diferencia extras).
+	const distKey = distance ?? '_';
+	// WeakMap identity cache só sem perPair. Distance vira segunda chave Map (bug 2026-05-13:
+	// scopeExtraction reusa `inputs` ref; sem distance no key, cache retornava resultado da
+	// chamada anterior com δ diferente).
 	if (!hasPerPair) {
-		const byPairs = reportPairwiseCache.get(inputs);
+		const byDist = reportPairwiseCache.get(inputs);
+		const byPairs = byDist?.get(distKey);
 		if (byPairs) {
 			const hit = byPairs.get(pKey);
 			if (hit) return hit;
@@ -394,10 +418,12 @@ export async function reportPairwiseAsync(
 		pruneReportCache(reportPairwiseKeyCache);
 	}
 	if (!hasPerPair) {
-		let byPairs = reportPairwiseCache.get(inputs);
+		let byDist = reportPairwiseCache.get(inputs);
+		if (!byDist) { byDist = new Map(); reportPairwiseCache.set(inputs, byDist); }
+		let byPairs = byDist.get(distKey);
 		if (!byPairs) {
 			byPairs = new Map();
-			reportPairwiseCache.set(inputs, byPairs);
+			byDist.set(distKey, byPairs);
 		}
 		byPairs.set(pKey, result);
 	}

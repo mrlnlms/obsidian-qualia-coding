@@ -182,7 +182,7 @@ describe('renderOverviewMatrix', () => {
 		const cell = container.querySelector('.qc-cc-matrix-cell:not(.is-diagonal):not(.qc-kappa-na)');
 		// Concordância 100% → cell deveria mostrar 1.00 (não n/a)
 		expect(cell).not.toBeNull();
-		expect(cell?.textContent).toBe('1.00');
+		expect(cell?.textContent).toBe('1.0000');
 	});
 
 	it('com markers de markdown, célula do par concordante mostra κ alto', async () => {
