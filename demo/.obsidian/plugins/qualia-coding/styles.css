@@ -6544,8 +6544,24 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 }
 
 .qc-cc-distance-chip.is-disabled {
-	opacity: 0.4;
+	opacity: 0.3;
 	cursor: not-allowed;
+}
+
+/* δ memorizado: chip que casa com state.distance enquanto primary é Cohen/α-binary.
+   Hierarquia visual: outros disabled em 0.3 (apagados), memorizado em 0.7 + border
+   tracejado pra sinalizar "valor preservado, não ativo". Aplicado junto com .is-disabled. */
+.qc-cc-distance-chip.is-memorized {
+	opacity: 0.7;
+	border-style: dashed;
+	border-color: var(--text-muted);
+}
+
+.qc-cc-distance-memorized-hint {
+	margin-left: 8px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	font-style: italic;
 }
 
 .qc-cc-multilabel-badge {

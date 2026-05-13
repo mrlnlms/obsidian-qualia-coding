@@ -1,10 +1,17 @@
 /**
  * Coefficient picker — 5 chips no toolbar (Cohen / Fleiss / α / α-binary / cu-α)
- * + chip Distance [Jaccard][MASI] (δ pluggable) + badge densidade multi-label.
+ * + chip Distance [Nominal][Jaccard][MASI] (δ pluggable) + badge densidade multi-label.
  *
  * Chip Distance fica cinza condicionalmente:
  * - Coef = Cohen κ (caminho A binary-per-label) ou α-binary: δ não tem efeito (no-op).
  * - Densidade multi-label = 0: Jaccard/MASI dão valor idêntico ao nominal.
+ *
+ * δ memorizado (quando disabled): `state.distance` continua preservado e a per-engine
+ * table consome esse valor pros coeficientes que respeitam δ (α / cu-α / Fleiss em
+ * multi-label) — mesmo enquanto o primary é Cohen/α-binary. Chip que casa com
+ * `state.distance` ganha `is-memorized` (border tracejado, opacity intermediária)
+ * pra sinalizar "valor preservado pra retorno". Hint `δ: {label} (inativa)` aparece
+ * inline depois dos chips quando disabled.
  *
  * Badge densidade `N/Total markers multi-label (X%)` sempre presente — comunica
  * magnitude do efeito potencial da escolha de δ.
@@ -69,17 +76,32 @@ export function renderCoefficientPicker(
 	const distanceDisabled = isDistanceDisabled(state, deps);
 	const distanceTooltip = distanceTooltipText(state, deps);
 	const activeDistance = state.distance ?? 'jaccard';
+	// Memorized só faz sentido quando disabled é por coef insensível (Cohen/α-binary):
+	// δ continua aplicada via per-engine table em α/cu-α/Fleiss. Quando disabled é por
+	// multi-label = 0, todas δ degeneram pro nominal — não há memória útil pra preservar.
+	const memorizedByCoef = distanceDisabled && (state.primaryCoefficient === 'cohen' || state.primaryCoefficient === 'alpha-binary');
 	for (const { key, label } of DISTANCES) {
 		const active = activeDistance === key && !distanceDisabled;
+		const memorized = memorizedByCoef && activeDistance === key;
 		const chip = container.createSpan({
-			cls: `qc-cc-distance-chip ${active ? 'is-active' : ''} ${distanceDisabled ? 'is-disabled' : ''}`.trim(),
+			cls: `qc-cc-distance-chip ${active ? 'is-active' : ''} ${distanceDisabled ? 'is-disabled' : ''} ${memorized ? 'is-memorized' : ''}`.trim(),
 			text: label,
 		});
 		chip.dataset.distance = key;
-		chip.title = distanceTooltip;
+		chip.title = memorized
+			? `${state.primaryCoefficient === 'cohen' ? 'Cohen κ caminho A' : 'α-binary'} não usa δ — métrica não se aplica. δ preservada pra retorno a α/cu-α/Fleiss em multi-label.`
+			: distanceTooltip;
 		if (!distanceDisabled) {
 			chip.onclick = () => onSelectDistance(key);
 		}
+	}
+	if (memorizedByCoef) {
+		const memorizedLabel = DISTANCES.find(d => d.key === activeDistance)?.label ?? 'Jaccard';
+		const memorizedHint = container.createSpan({
+			cls: 'qc-cc-distance-memorized-hint',
+			text: `δ: ${memorizedLabel} (inativa)`,
+		});
+		memorizedHint.title = 'δ preservada em state — per-engine table aplica a α/cu-α/Fleiss em multi-label desta modalidade, mesmo enquanto primary é Cohen/α-binary.';
 	}
 
 	// Badge densidade
