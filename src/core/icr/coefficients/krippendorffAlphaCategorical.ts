@@ -1,17 +1,42 @@
 /**
- * Krippendorff α nominal — N coders sobre unit-level decisions (cod row).
+ * Krippendorff α categorical — N coders sobre unit-level decisions (CSV row × column).
  *
- * α = 1 − (Do / De). Coincidence matrix sobre unit-level ratings.
- * Robust to missing data (coders que não marcaram uma unit).
+ * Mesmo padrão de cálculo do krippendorffAlpha.ts (per-char), mas a unit é
+ * `(fileId, sourceRowId, column)` em vez de char position. Cada coder dá UM set de codes
+ * por unit; sets podem ter |S| > 1 (multi-label).
+ *
+ * α = 1 − (Do / De), com δ pluggable.
+ *
+ * Edge cases:
+ * - Empty input → 1
+ * - De == 0 → 1 if Do==0 else 0
+ *
+ * δ default = distanceNominal (preserva comportamento histórico — reduz multi-label a
+ * first-code alfabético antes de comparar; singletons batem clássico).
  */
 
 import type { CategoricalKappaInput } from '../categoricalKappaInput';
 import { makeCategoricalUnitKey } from '../categoricalKappaInput';
+import type { DistanceFunction } from '../distances';
+import { distanceNominal } from '../distances';
+import type { KrippendorffAlphaOptions } from './krippendorffAlpha';
 
-const NONE = '__none__';
+const EMPTY_KEY = '__none__';
+const SET_SEP = ' ';
 
-export function krippendorffAlphaCategoricalNominal(input: CategoricalKappaInput): number {
-	const unitMap = new Map<string, Map<string, string>>();
+function canonKey(s: ReadonlySet<string>): string {
+	if (s.size === 0) return EMPTY_KEY;
+	return [...s].sort().join(SET_SEP);
+}
+
+export function krippendorffAlphaCategoricalNominal(
+	input: CategoricalKappaInput,
+	options: KrippendorffAlphaOptions = {},
+): number {
+	const δ: DistanceFunction = options.distance ?? distanceNominal;
+
+	// Group entries by unit key → coder → set of codeIds
+	const unitMap = new Map<string, Map<string, ReadonlySet<string>>>();
 	for (const u of input.units) {
 		const key = makeCategoricalUnitKey(u.fileId, u.sourceRowId, u.column);
 		let coderMap = unitMap.get(key);
@@ -19,73 +44,60 @@ export function krippendorffAlphaCategoricalNominal(input: CategoricalKappaInput
 			coderMap = new Map();
 			unitMap.set(key, coderMap);
 		}
-		const code = u.codeIds.length > 0 ? [...u.codeIds].sort()[0]! : NONE;
-		coderMap.set(u.coderId, code);
+		coderMap.set(u.coderId, new Set(u.codeIds));
 	}
 
 	if (unitMap.size === 0) return 1;
 
-	// Build units: each unit → coder → category (NONE pra ausentes)
-	const units: Array<Map<string, string>> = [];
+	// Pra cada unit, list de sets (1 por coder; ausentes = empty)
+	const units: Array<Array<ReadonlySet<string>>> = [];
 	for (const coderMap of unitMap.values()) {
-		const unit = new Map<string, string>();
+		const unitRatings: Array<ReadonlySet<string>> = [];
 		for (const coder of input.coders) {
-			unit.set(coder, coderMap.get(coder) ?? NONE);
+			unitRatings.push(coderMap.get(coder) ?? new Set<string>());
 		}
-		units.push(unit);
+		units.push(unitRatings);
 	}
 
-	// Coincidence matrix
-	const coincidence = new Map<string, Map<string, number>>();
-	for (const unit of units) {
-		const ratings = Array.from(unit.values());
-		const n = ratings.length;
+	// Marginais globais + representante por chave
+	const marginal = new Map<string, number>();
+	const keyToSet = new Map<string, ReadonlySet<string>>();
+
+	// Do
+	let Do = 0;
+	for (const unitRatings of units) {
+		const n = unitRatings.length;
 		if (n < 2) continue;
-
-		const catCounts = new Map<string, number>();
-		for (const r of ratings) catCounts.set(r, (catCounts.get(r) ?? 0) + 1);
-
-		for (const [c1, n1] of catCounts) {
-			let row = coincidence.get(c1);
-			if (!row) { row = new Map(); coincidence.set(c1, row); }
-			for (const [c2, n2] of catCounts) {
-				const contrib = c1 === c2 ? (n1 * (n1 - 1)) / (n - 1) : (n1 * n2) / (n - 1);
-				row.set(c2, (row.get(c2) ?? 0) + contrib);
+		for (let i = 0; i < n; i++) {
+			const set_i = unitRatings[i]!;
+			const k_i = canonKey(set_i);
+			if (!keyToSet.has(k_i)) keyToSet.set(k_i, set_i);
+			marginal.set(k_i, (marginal.get(k_i) ?? 0) + 1);
+			for (let j = 0; j < n; j++) {
+				if (i === j) continue;
+				Do += δ(set_i, unitRatings[j]!) / (n - 1);
 			}
 		}
 	}
 
-	if (coincidence.size === 0) return 1;
+	if (marginal.size === 0) return 1;
 
-	// Marginais
-	const nc = new Map<string, number>();
-	for (const [c1, row] of coincidence) {
-		let sum = 0;
-		for (const v of row.values()) sum += v;
-		nc.set(c1, sum);
-	}
-	let n = 0;
-	for (const v of nc.values()) n += v;
-
-	if (n === 0) return 1;
-
-	// Do
-	let Do = 0;
-	for (const [c1, row] of coincidence) {
-		for (const [c2, v] of row) {
-			if (c1 !== c2) Do += v;
-		}
-	}
+	let N = 0;
+	for (const v of marginal.values()) N += v;
+	if (N < 2) return 1;
 
 	// De
 	let De = 0;
-	const cats = Array.from(nc.keys());
-	for (let i = 0; i < cats.length; i++) {
-		for (let j = 0; j < cats.length; j++) {
+	const keys = [...marginal.keys()];
+	for (let i = 0; i < keys.length; i++) {
+		for (let j = 0; j < keys.length; j++) {
 			if (i === j) continue;
-			const ni = nc.get(cats[i]!)!;
-			const nj = nc.get(cats[j]!)!;
-			De += (ni * nj) / (n - 1 || 1);
+			const k1 = keys[i]!;
+			const k2 = keys[j]!;
+			const n1 = marginal.get(k1)!;
+			const n2 = marginal.get(k2)!;
+			const d = δ(keyToSet.get(k1)!, keyToSet.get(k2)!);
+			De += (n1 * n2 * d) / (N - 1);
 		}
 	}
 
