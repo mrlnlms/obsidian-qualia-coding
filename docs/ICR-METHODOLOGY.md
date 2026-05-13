@@ -21,14 +21,14 @@ Quando você roda Compare Coders sobre PDF shape ou Image markers de 2 codificad
 
 O output é um valor de κ que combina **concordância espacial** (concordamos que esta região existe?) e **concordância de código** (concordamos sobre o que esta região representa?).
 
-> **Limitação importante a saber antes de citar resultados em paper:** quando uma região carrega múltiplos códigos (ex: A marca uma região com `{cor, raiva}`, B marca a mesma região com `{cor, frustração}`), o motor κ atual **reduz cada região ao primeiro código em ordem alfabética**. Nesse exemplo, ambos viram `cor` na comparação → κ trata como concordância total, mesmo discordando em `raiva` vs `frustração`. Esta limitação é herdada do motor κ existente (afeta também todas as outras engines do plugin), não é específica do bbox adapter. Está documentada no Appendix A do spec design e é trabalho conhecido pra um refactor futuro do motor (suporte a set-valued labels via distância de Jaccard ou similar). Quem cite κ deste plugin em paper deve mencionar essa propriedade explicitamente, ou restringir o coding a 1 código por região onde isso for crítico.
+> **Multi-código por região — comportamento documentado em doc separado:** quando uma região carrega múltiplos códigos (ex: A marca com `{cor, raiva}`, B marca com `{cor, frustração}`), o motor κ trata o conjunto como unidade analítica indivisível usando distância entre conjuntos (Jaccard por default, MASI como opt-in). Comportamento e referências bibliográficas em `docs/ICR-SET-VALUED-METHODOLOGY.md` — leitura obrigatória pra quem cita κ multi-código em paper. Spec autoritativo: `docs/superpowers/specs/2026-05-12-icr-set-valued-labels-design.md` (refactor C).
 
 ## Por que esta formulação (e não outras)
 
 A escolha foi entre 3 formulações principais:
 
 **Bbox-as-unit binário com matching IoU + κ pareado (escolhida)**
-Cada região é uma unidade indivisível de análise. O matching espacial (Hungarian + threshold IoU) encapsula o problema 2D numa única etapa; a etapa de κ é então o κ pareado clássico que o NVivo Coding Comparison já usa pra texto e regiões. Essa separação é importante: a parte 2D fica auto-contida e defendável (alinhada com COCO/computer vision); a parte κ usa fórmula clássica sem necessidade de derivações novas. *Caveat herdada do motor κ atual:* multi-código por região é reduzido a first-code alfabético — ver "Limitações conhecidas" abaixo.
+Cada região é uma unidade indivisível de análise. O matching espacial (Hungarian + threshold IoU) encapsula o problema 2D numa única etapa; a etapa de κ é então o κ pareado clássico que o NVivo Coding Comparison já usa pra texto e regiões. Essa separação é importante: a parte 2D fica auto-contida e defendável (alinhada com COCO/computer vision); a parte κ usa fórmula clássica sem necessidade de derivações novas. *Tratamento de multi-código por região:* coberto pelo motor κ via distância entre conjuntos (Jaccard/MASI) — ver `docs/ICR-SET-VALUED-METHODOLOGY.md`.
 
 **cu-α de Krippendorff com IoU como peso contínuo (rejeitada neste slice — ver "Trabalho futuro")**
 Não exigiria threshold; o IoU contínuo entraria diretamente como métrica de distância. Mais "honesto" matematicamente, mas exigiria derivação formal de chance agreement pra geometria 2D — não há precedent QDA. Linha de pesquisa publicável, registrada como trabalho futuro.
@@ -109,7 +109,7 @@ O relatório de κ pra bbox sempre inclui:
 
 ## Limitações conhecidas
 
-1. **Multi-código reduzido a first-code alfabético** (limitação herdada do motor κ existente — afeta TODAS as engines do plugin, não só bbox). Quando uma região tem `codes: [a, b]`, a comparação κ usa apenas o código alfabeticamente primeiro. Mencione explicitamente em métodos se citar κ deste plugin, ou restrinja coding a 1 código por região no estudo.
+1. **Multi-código por região — tratamento documentado em doc separado.** O motor κ trata `codes: [a, b]` como conjunto indivisível usando distância Jaccard (default) ou MASI (Passonneau 2006) entre conjuntos — ver `docs/ICR-SET-VALUED-METHODOLOGY.md` pra fórmulas, casos de uso e referências bibliográficas. Pesquisador que cita κ multi-código em paper deve mencionar a distância usada.
 
 2. **Receita nova sem corpus de validação cross-vault.** O algoritmo bbox-as-unit + Hungarian + κ pareado não tem precedent direto na literatura QDA. Está alinhado com práticas de visão computacional (IoU, Hungarian) e com práticas QDA pra texto (Cohen κ), mas a combinação específica é nova. Estudos devem citar este documento e documentar os parâmetros.
 
@@ -121,7 +121,6 @@ O relatório de κ pra bbox sempre inclui:
 
 ## Trabalho futuro
 
-- **Set-valued labels no motor κ:** suporte propriamente a multi-código via distância de Jaccard (ou similar) entre code-sets, eliminando a redução first-code. Refactor do motor κ — afeta todas as engines do plugin.
 - **cu-α com IoU contínuo:** eliminaria o threshold; respeitaria continuidade da sobreposição. Linha de pesquisa publicável; exige derivação formal de chance agreement 2D.
 - **Multi-codificador via clustering N-way:** alternativa à matriz pair-wise; daria um número único pra N>2 codificadores. Exige design de algoritmo de clustering bbox.
 - **Sub-cell precisão analítica:** pra estudos com regiões sub-pixel, fórmulas analíticas exatas substituiriam raster.

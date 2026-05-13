@@ -80,7 +80,7 @@ Lista única e consolidada. **Quando atacar item desta lista que toque scope/cac
 
 ### Refactor grande (brainstorm dedicado precede spec)
 
-- [ ] **C — Set-valued labels no motor κ**: hoje multi-código por marker reduz a `[0]` alfabético (first-code). Eliminar redução afeta **todas as 8 engines** + recalibra muitos tests existentes. Repertório metodológico consolidado em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md` (Jaccard / MASI / variantes Cohen multi-label / Krippendorff α paramétrico com δ customizado).
+- [ ] **C — Set-valued labels no motor κ**: hoje multi-código por marker reduz a `[0]` alfabético (first-code). Eliminar redução afeta **todas as 8 engines** + recalibra muitos tests existentes. Repertório metodológico consolidado em `obsidian-qualia-coding/plugin-docs/research/multi-label-kappa-2026-05-09.md`. **Spec design pronto** (2026-05-12): `docs/superpowers/specs/2026-05-12-icr-set-valued-labels-design.md` cobre arquitetura (3 módulos novos em `src/core/icr/distances/`, 7 sites a modificar em `coefficients/`, Cohen κ caminho A binary-per-label, Fleiss κ fallback automático pra α), UI (toggle Jaccard/MASI ortogonal, badge densidade, drill-down reusa padrão existente), 3-slice plan (C1 distâncias+α paramétrico → C2 Cohen redesenhado → C3 UI+methodology). Methodology user-facing em `docs/ICR-SET-VALUED-METHODOLOGY.md`. Próximo passo: writing-plans pra virar em plan executável.
 
 ### Complementar (entra junto da Submissão Community Plugins)
 
