@@ -20,6 +20,7 @@ export class RegionLabels {
   private model: ImageCodingModel;
   private regionManager: RegionManager;
   private labels: Map<string, FabricText> = new Map(); // markerId → label
+  private refreshAllRafId: number | null = null;
 
   constructor(canvas: Canvas, model: ImageCodingModel, regionManager: RegionManager) {
     this.canvas = canvas;
@@ -71,17 +72,24 @@ export class RegionLabels {
     this.canvas.requestRenderAll();
   }
 
-  /** Reposition all labels (e.g. after shape move) */
+  /**
+   * Reposition all labels (e.g. after shape move).
+   * Coalesced via rAF: many calls in a single pan/zoom tick collapse to one paint.
+   */
   refreshAll(): void {
-    for (const [markerId, label] of this.labels) {
-      const shape = this.regionManager.getShapeForMarker(markerId);
-      if (!shape) {
-        this.removeLabel(markerId);
-        continue;
+    if (this.refreshAllRafId !== null) return;
+    this.refreshAllRafId = requestAnimationFrame(() => {
+      this.refreshAllRafId = null;
+      for (const [markerId, label] of this.labels) {
+        const shape = this.regionManager.getShapeForMarker(markerId);
+        if (!shape) {
+          this.removeLabel(markerId);
+          continue;
+        }
+        this.positionLabel(label, shape);
       }
-      this.positionLabel(label, shape);
-    }
-    this.canvas.requestRenderAll();
+      this.canvas.requestRenderAll();
+    });
   }
 
   /** Update a specific label after shape was moved/resized */
@@ -138,6 +146,10 @@ export class RegionLabels {
   }
 
   destroy(): void {
+    if (this.refreshAllRafId !== null) {
+      cancelAnimationFrame(this.refreshAllRafId);
+      this.refreshAllRafId = null;
+    }
     this.clearAll();
   }
 }

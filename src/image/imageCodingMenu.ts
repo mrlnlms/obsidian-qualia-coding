@@ -24,6 +24,7 @@ export class CodingMenu {
 	private model: ImageCodingModel;
 	private callbacks: CodingMenuCallbacks;
 	private handle: CodingPopoverHandle | null = null;
+	private rebuildRafId: number | null = null;
 
 	constructor(app: App, model: ImageCodingModel, callbacks: CodingMenuCallbacks) {
 		this.app = app;
@@ -33,6 +34,14 @@ export class CodingMenu {
 
 	isOpen(): boolean {
 		return this.handle !== null;
+	}
+
+	private scheduleRebuild(markerId: string, x: number, y: number): void {
+		if (this.rebuildRafId !== null) return;
+		this.rebuildRafId = requestAnimationFrame(() => {
+			this.rebuildRafId = null;
+			this.open(markerId, x, y);
+		});
 	}
 
 	open(markerId: string, x: number, y: number): void {
@@ -124,13 +133,17 @@ export class CodingMenu {
 				},
 			},
 			onClose: () => { this.handle = null; },
-			onRebuild: () => this.open(markerId, x, y),
+			onRebuild: () => this.scheduleRebuild(markerId, x, y),
 		};
 
 		this.handle = openCodingPopover(adapter, options);
 	}
 
 	close(): void {
+		if (this.rebuildRafId !== null) {
+			cancelAnimationFrame(this.rebuildRafId);
+			this.rebuildRafId = null;
+		}
 		if (this.handle) {
 			this.handle.close();
 			this.handle = null;
