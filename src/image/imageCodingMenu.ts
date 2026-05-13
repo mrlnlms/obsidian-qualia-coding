@@ -25,6 +25,11 @@ export class CodingMenu {
 	private callbacks: CodingMenuCallbacks;
 	private handle: CodingPopoverHandle | null = null;
 	private rebuildRafId: number | null = null;
+	private isRebuilding = false;
+	// True while CodeFormModal is open from "Add New Code". The popover closes to make
+	// room for the modal, but the marker must survive (it still has zero codes until
+	// the modal commits) — otherwise the just-drawn region vanishes mid-flow.
+	private openingModal = false;
 
 	constructor(app: App, model: ImageCodingModel, callbacks: CodingMenuCallbacks) {
 		this.app = app;
@@ -36,19 +41,23 @@ export class CodingMenu {
 		return this.handle !== null;
 	}
 
-	private scheduleRebuild(markerId: string, x: number, y: number): void {
+	private scheduleRebuild(markerId: string, x: number, y: number, isNew: boolean): void {
 		if (this.rebuildRafId !== null) return;
 		this.rebuildRafId = requestAnimationFrame(() => {
 			this.rebuildRafId = null;
-			this.open(markerId, x, y);
+			this.open(markerId, x, y, isNew);
 		});
 	}
 
-	open(markerId: string, x: number, y: number): void {
+	open(markerId: string, x: number, y: number, isNew = false): void {
 		const marker = this.model.findMarkerById(markerId);
 		if (!marker) return;
 
+		// Re-opening on top of an existing handle (rebuild after register-change, code created, etc).
+		// onClose fires for the old handle but it's not a real user-driven close — skip auto-delete.
+		this.isRebuilding = this.handle !== null;
 		this.close();
+		this.isRebuilding = false;
 
 		const adapter: CodingPopoverAdapter = {
 			registry: this.model.registry,
@@ -122,6 +131,9 @@ export class CodingMenu {
 			pos: { x, y },
 			app: this.app,
 			isHoverMode: true,
+			// Image popovers always come from intentional clicks (shape-created or selection),
+			// never passive hover, so force focus regardless of isHoverMode default.
+			autoFocus: true,
 			showMagnitudeSection: this.model.dataManager.section('general').showMagnitudeInPopover,
 			showRelationsSection: this.model.dataManager.section('general').showRelationsInPopover,
 			className: 'codemarker-popover',
@@ -132,8 +144,25 @@ export class CodingMenu {
 					this.callbacks.onRegionDeleted(markerId);
 				},
 			},
-			onClose: () => { this.handle = null; },
-			onRebuild: () => this.scheduleRebuild(markerId, x, y),
+			onClose: () => {
+				const skipVanish = this.isRebuilding || this.openingModal;
+				this.handle = null;
+				if (skipVanish) return;
+				// A shape with zero codes is a ghost — user dismissed the popover without
+				// committing to a code, so drop the region too.
+				const m = this.model.findMarkerById(markerId);
+				if (m && m.codes.length === 0) {
+					this.callbacks.onRegionDeleted(markerId);
+				}
+			},
+			onRebuild: () => this.scheduleRebuild(markerId, x, y, isNew),
+			onBeforeModal: () => { this.openingModal = true; },
+			onModalClose: () => {
+				this.openingModal = false;
+				// Reopen popover so user sees the new code already applied
+				// (Add New Code calls adapter.addCode on submit before this fires).
+				this.scheduleRebuild(markerId, x, y, isNew);
+			},
 		};
 
 		this.handle = openCodingPopover(adapter, options);

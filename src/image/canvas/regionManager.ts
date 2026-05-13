@@ -274,6 +274,22 @@ export class RegionManager {
 		this.canvas.requestRenderAll();
 	}
 
+	/** Re-apply style to every shape currently on the canvas.
+	 *  Called when an external mutation (e.g. colorOverride change via Marker Detail)
+	 *  invalidates the cached visual but doesn't go through addCode/removeCode. */
+	refreshAllStyles(): void {
+		for (const [markerId, shape] of this.markerToShape) {
+			const marker = this.model.findMarkerById(markerId);
+			if (marker) this.applyStyle(shape, marker);
+		}
+		this.canvas.requestRenderAll();
+	}
+
+	/** Iterable of marker IDs currently bound to canvas shapes. */
+	getActiveMarkerIds(): IterableIterator<string> {
+		return this.markerToShape.keys();
+	}
+
 	// ─── Cleanup ───
 
 	clear(): void {

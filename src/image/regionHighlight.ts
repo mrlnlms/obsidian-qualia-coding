@@ -22,6 +22,8 @@ export interface RegionHighlightState {
   highlightMarker(markerId: string): void;
   /** Clear programmatic highlight */
   clearHighlight(): void;
+  /** Drop any hover/highlight state attached to a shape that is being removed. */
+  cleanupForShape(shape: FabricObject): void;
   destroy(): void;
 }
 
@@ -149,9 +151,22 @@ export function setupRegionHighlight(
     }
   }
 
+  function cleanupForShape(shape: FabricObject): void {
+    if (hoveredShape === shape) {
+      removeHoverEffect(shape);
+      hoveredShape = null;
+    }
+    if (highlightedShape === shape) {
+      removeHoverEffect(shape);
+      highlightedShape = null;
+    }
+    origValues.delete(shape);
+  }
+
   return {
     highlightMarker,
     clearHighlight,
+    cleanupForShape,
     destroy() {
       canvas.off("mouse:over", onMouseOver);
       canvas.off("mouse:out", onMouseOut);

@@ -377,8 +377,11 @@ export function openCodingPopover(
 		const defaultColor = options.modalDefaultColor ?? adapter.registry.peekNextPaletteColor();
 		container.appendChild(
 			createActionItem('Add New Code', 'plus-circle', () => {
-				close();
+				// Fire onBeforeModal BEFORE close() so engines can set state (e.g. image
+				// flags "modal opening — don't auto-delete the zero-code marker") before
+				// onClose runs. Reversed order silently deleted just-drawn image regions.
 				options.onBeforeModal?.();
+				close();
 				new CodeFormModal(app, defaultColor, (name, color, description) => {
 					adapter.registry.create(name, color, description);
 					adapter.addCode(name);

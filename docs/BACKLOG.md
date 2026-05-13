@@ -3,7 +3,7 @@
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
 > Won't-fix mantém razão pra não reabrir.
-> Última atualização: 2026-05-13 (release 0.6.1 — gaps intra-modality + bugfix metodológico α δ²; smoke 2026-05-13 pegou bug crítico cache distance + 3 UX gaps).
+> Última atualização: 2026-05-13 (release 0.6.1 — gaps intra-modality + bugfix metodológico α δ²; smoke 2026-05-13 pegou bug crítico cache distance + 3 UX gaps; bloco Image engine fechado mesma data, 8 itens originais + 8 extras descobertos no smoke).
 
 ---
 
@@ -22,7 +22,7 @@ Camadas 2 e 3 do framework multifaceta viraram peças do bloco LLM/Framework Uni
 **Polish ICR aberto (não bloqueante):**
 - Gap #1c (PDF SourceSizeProvider) + Gap #1d (CSV segment SourceSizeProvider) — potencialmente obsoletos por Camada 2 BHM
 - 3 UX gaps do smoke 2026-05-13 (chip Default, picker δ sem Nominal, state.distance persiste)
-- Image engine (4/8 items pendentes, sessão dedicada) + 1 cross-cutting (`!important` cluster)
+- 1 cross-cutting (`!important` cluster) + 3 itens descobertos no smoke Image 2026-05-13 (Code Explorer refresh em 2 cenários, doc §37 desatualizada)
 
 **Próxima frente prática (não-ICR):** LLM-assisted coding com Camada 2 Bayesian annotation como par natural. Precede brainstorm dedicado — ver `ROADMAP.md §"Frente 2"` e `docs/ICR-MULTIMODAL-METHODOLOGY.md` pra fundamentação metodológica.
 
@@ -34,20 +34,35 @@ Quando aparecer, capturar `data.json` + screenshot + steps na hora — diagnóst
 
 ## 🪶 Polish curto
 
-### Image engine (sessão dedicada)
+### Image engine — resolvido 2026-05-13 (sessão dedicada)
 
-8 itens do raio-x de hardening 2026-05-08. **Atacar como sessão dedicada com vault aberto** — image é o engine menos polido do plugin (construído por dor, não design coeso). Mistura mecânico, refactor, UX call e debug runtime; ataque pontual fora da sessão fica caro/arriscado. Decisão B (`colorOverride`) é a única explicitamente deferida pelo user em 2026-05-08.
+8 itens originais do raio-x 2026-05-08 + 8 extras descobertos durante smoke (popover position/focus/Enter, Add New Code vanish, Delete key, canvas refresh, etc). Fechado em sessão dedicada com vault aberto. Bugs cross-cutting descobertos no caminho foram registrados em §Cross-cutting pendente pra atacar fora do scope Image.
 
-| # | Path:linha | Sintoma | Tipo |
-|---|-----------|---------|------|
-| 1 | `src/image/regionLabels.ts:120-126` | Labels desacoplam de regions em pan/zoom (transform inversion na fórmula de viewport) | **debug runtime** — exige reproduzir em vault real |
-| 2 | `src/image/imageCodingMenu.ts:127` | Menu pisca/reposiciona em rajada quando codes editados rápido — `onRebuild` re-chama `open()` sem debounce | **mecânico c/ risco** — debounce ~150ms muda timing de interaction patterns; valida com smoke |
-| 3 | `src/image/canvas/regionManager.ts:114-128` | `marker.colorOverride` no schema sem callsite — `getStyleForMarker()` ignora silenciosamente | **decisão B deferida** (2026-05-08) — wirar (~10 linhas) ou remover do `BaseMarker` type |
-| 4 | `src/image/regionHighlight.ts:37-40` | `suppressModelHover` frágil (bidirectional sync com canvas hover) + WeakMap `origValues` sem cleanup pós-delete | **refactor** — rever sync canvas↔model hover state |
-| 5 | `src/image/views/imageView.ts:144-146` | Menu auto-close em `selection:cleared` sem validação de multi-select rápido — popover fecha antes de permitir code assignment em 2 shapes | **decisão UX** — fechar em 2 selects ou esperar click fora? |
-| 6 | `src/image/views/imageView.ts:156,169` | `refreshAll()` em todo `viewChanged` (zoom, pan) — em imagens com 100+ regions, cada pan dispara 100+ label repaint cycles | **mecânico c/ risco** — debounce/rAF; valida que não atrasa pan/zoom visivelmente |
-| 7 | `src/image/views/imageView.ts:252-266` | Visibility toggle aplica `obj.visible = anyVisible` mas não hidra fill/stroke opacity — região fica visível mas "ghost-like" se código invisível | **decisão visual** — como deve parecer região com código invisível? |
-| 8 | `src/image/canvas/regionDrawing.ts:139,155` | Threshold mínimo assimétrico (rect: w<3 AND h<3; ellipse: rx<2 AND ry<2). User pode criar shapes 1px intencionais → fantasmas no canvas | **mecânico** — padronizar threshold + validação pré-criação |
+**Itens originais (raio-x 2026-05-08):**
+
+| # | Path:linha | Resolução |
+|---|-----------|-----------|
+| 1 | `src/image/regionLabels.ts:120-126` | ❌ **Descartado** — UI de labels vai ser refeita (decisão user 2026-05-13). Fix de transform inversion seria gasto duplicado. |
+| 2 | `src/image/imageCodingMenu.ts:127` | ✅ rAF coalesce em `onRebuild` + cancel em close (`scheduleRebuild`). |
+| 3 | `src/image/canvas/regionManager.ts:114-128` | ✅ Wirado (decisão B: override > code color). `getStyleForMarker` checa `marker.colorOverride` primeiro. Label também (paridade visual). |
+| 4 | `src/image/regionHighlight.ts:37-40` | ✅ `cleanupForShape(shape)` exposto no `RegionHighlightState`, chamado nos 3 sites de delete (popover Remove Region, toolbar Delete, drawing onShapeDeleted). WeakMap fica naturalmente clean. |
+| 5 | `src/image/views/imageView.ts:144-146` | ✅ rAF coalesce em `selection:cleared`. `selection:created/updated` cancela pending close (transição sem flash). |
+| 6 | `src/image/views/imageView.ts:156,169` | ✅ rAF coalesce em `RegionLabels.refreshAll`. Não validado em smoke por estar no escopo do refactor descartado de #1. |
+| 7 | `src/image/views/imageView.ts:252-266` | ✅ Cor reflete só codes visíveis (`getStyleForMarker` filtra `isCodeVisibleInFile`). `refreshVisibility` chama `refreshStyle` quando anyVisible muda. |
+| 8 | `src/image/canvas/regionDrawing.ts:139,155` | ✅ Threshold padronizado: `w<3 OR h<3` (rect), `rx<2 OR ry<2` (ellipse). Qualquer dimensão pequena dropa. |
+
+**Extras descobertos no smoke 2026-05-13 (todos resolvidos):**
+
+| Sintoma | Fix |
+|---|-----|
+| Popover abria no canto inferior esquerdo da tela em vez de junto da shape | `openMenuForMarker` agora usa coord do mouse (mouseup/click) com fallback bbox+canvasRect.offset. Anchored igual CM6 markdown. |
+| Input do popover sem auto-focus | `autoFocus: true` explícito (image sempre é click intentional, nunca hover passivo). |
+| Enter precisava 2x na primeira interação | Raiz: `data.json` tinha `auditLog: { entries: [] }` (formato antigo) em vez de `auditLog: []`. Cast `as AuditEntry[]` mentia, `log.push` crashava no primeiro Enter. Data.json do vault normalizado. |
+| Shape sem code persistia após Esc | `onClose` checa se marker tem 0 codes (e não está em rebuild) → `onRegionDeleted`. |
+| "Add New Code" deletava shape recém-desenhada | Ordem invertida em `codingPopover.ts:380`: `onBeforeModal` agora dispara ANTES de `close()`, permitindo flag `openingModal` bloquear o vanish. Markdown não regrede (effect dispatcado é idempotente). |
+| Delete/Backspace não deletava shape selecionada | `registerDomEvent(document, 'keydown', ...)` com gate `activeLeaf === this.leaf`. Filtros: pula se popover aberto, foco em input, ou sem shape ativa. |
+| Canvas não refleta `colorOverride` setado via Marker Detail | `imageView` subscribe `model.onChange` → `scheduleCanvasRefresh` (rAF) → `regionManager.refreshAllStyles` + `regionLabels.updateLabel` em todos shapes do file atual. |
+| Canvas não reflete mudança de cor do code via Code Detail | `imageView` subscribe `qualia:registry-changed` → mesma pipeline `scheduleCanvasRefresh`. Cobre cor + nome (label text) + delete + merge. |
 
 ### Cross-cutting pendente (pós-rodada 2026-05-09)
 
@@ -57,6 +72,9 @@ Da fila cross-cutting do hardening, 4 frentes atacadas em 2026-05-09 (parseInt v
 |------|----------------------------------------|
 | **`styles.css` 68 `!important`** — clusters em 833-863 (handles SVG drag), 870-987 (mais handles), 1239-1287 (csv-comment-cell + csv-cod-seg-cell `display: flex` overrides) | Cada `!important` é override defensivo de defaults AG Grid (especificidade alta dos selectors `.ag-cell *`). Auditar exige testar runtime cada um — remover sem teste quebra render. Trabalho pra hardening real com vault aberto, não diff de código. |
 | **Code Explorer não refresha em tempo real após criar code via popover** — `registry.create` dispara `onMutate` → `qualia:registry-changed` dispatch → `baseCodeExplorerView:107` listener → `scheduleRefresh` (rAF). Pipeline existe e está conectada, mas race timing entre o create e o re-render: codes recém-criados não aparecem na sidebar até user sair/voltar. Detectado em image popover na sessão 2026-05-13 mas o caminho é compartilhado (`codingPopover.ts` + Explorer), provavelmente afeta outros engines também. | **debug runtime + cross-cutting**. Repro fácil: criar code via popover (image rect + Enter, ou Add New Code modal) e olhar sidebar. Provável fix: garantir que o `scheduleRefresh` rAF flush antes do popover rebuild rAF (não competir). Tem que validar que markdown não regrede. |
+| **Canvas (~~image~~ outros engines) não refresha cor quando cor do code muda** — ✅ **Image resolvido 2026-05-13** (`imageView` subscribe `qualia:registry-changed` → `scheduleCanvasRefresh` reusa pipeline já criada pro colorOverride). PDF-shape (mesmo canvas pattern) provavelmente tem mesmo bug — não testado. Markdown/csv/audio/video usam DOM rendering com paths próprios, verificar individualmente. | **mecânico + cross-engine**. Pattern image documentado: subscribe `qualia:registry-changed` document event + `model.onChange`, ambos disparando `scheduleCanvasRefresh` (rAF coalesce). Replicar em pdf-shape primeiro (próximo candidato). |
+| **Code Explorer render inicial incompleto após reload** — Após `Cmd+P → Reload app without saving`, o Explorer abre mostrando apenas parte dos codes (10 de 15 detectados 2026-05-13). Counter "(15)" prova que registry conhece todos — falha é só na renderização inicial. Workaround user: navegar pra outro code e voltar → renderiza completo. Hipótese: race na hidratação (Explorer chama `renderTree()` antes do `sharedRegistry.fromJSON` terminar) OU cache stale em `buildCodeIndex`. | **debug runtime**. Repro: reload com >10 codes no registry. Investigar timing em `main.ts:onload` vs Explorer `onOpen`. Provável fix: Explorer aguardar promise de hidratação OU disparar `qualia:registry-changed` no fim do onload. |
+| **§37 doc desatualizada** — `TECHNICAL-PATTERNS.md` linha 2189 lista `updateMarkerFields` entre os mutation sites cobertos por `MarkerMutationEvent`. Realidade: `updateMarkerFields` vive em `BaseSidebarAdapter` (não no model), só chama `notifyAfterFieldUpdate` → `model.notify()` (canal `onChange`, sem payload). Não emite mutation event. Doc atual induz cache reativo a assumir cobertura inexistente. | **doc-only**. Editar §37 corrigindo a lista de sites. Ou mover updateMarkerFields pro model com emit (refactor maior, blast radius alto). Doc fix é o caminho honesto. |
 
 **Resolvido 2026-05-13** — `cooccurrenceMode` async via Worker. A análise original do BACKLOG estava errada: descrevia como "refactor invasivo do contrato dos 25 modes". Solução real seguiu pattern fire-and-forget já estabelecido em `wordCloudMode`/`mdsMode`/`acmMode` (`renderGeneration` + `isRenderCurrent`). Worker inline pro `hierarchicalCluster` (`src/analytics/data/cluster.worker.ts` + Client + sync fallback, pattern §45) resolve 4 consumidores de uma vez: Cooccurrence, Overlap, Dendrogram, Files-Dendrogram. `boardClusters` segue síncrono (fora do escopo declarado).
 

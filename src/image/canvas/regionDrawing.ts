@@ -9,7 +9,10 @@ const REGION_STROKE = "rgba(59, 130, 246, 0.8)";
 const REGION_STROKE_WIDTH = 2;
 
 export interface RegionDrawingCallbacks {
-  onShapeCreated?: (shape: FabricObject) => void;
+  /** mousePos is the screen-space coords of the final pointer (mouseup / last click).
+   *  imageView uses it to anchor the popover near the user's cursor instead of the
+   *  shape's bounding box (which is far away for large rectangles/polygons). */
+  onShapeCreated?: (shape: FabricObject, mousePos?: { x: number; y: number }) => void;
   onShapeDeleted?: (shape: FabricObject) => void;
   onShapeModified?: (shape: FabricObject) => void;
 }
@@ -36,6 +39,10 @@ export function setupRegionDrawing(
   let polyPoints: Point[] = [];
   let polyLines: FabricObject[] = [];
   let polyDots: FabricObject[] = [];
+
+  // Last pointer position in window coords — captured on each mouseUp/click so
+  // shape-created callback can place the popover near where the user actually clicked.
+  let lastPointerScreen: { x: number; y: number } | null = null;
 
   function toCanvasCoords(canvas: Canvas, e: MouseEvent): Point {
     const rect = canvas.upperCanvasEl.getBoundingClientRect();
@@ -123,9 +130,11 @@ export function setupRegionDrawing(
     canvas.requestRenderAll();
   }
 
-  function onMouseUp(_opt: any): void {
+  function onMouseUp(opt: any): void {
     if (!isDrawing || !previewShape) return;
     isDrawing = false;
+    const e = opt.e as MouseEvent | undefined;
+    if (e) lastPointerScreen = { x: e.clientX, y: e.clientY };
 
     // Read final geometry from preview
     const left = previewShape.left ?? 0;
@@ -174,7 +183,7 @@ export function setupRegionDrawing(
       canvas.add(finalShape);
       canvas.setActiveObject(finalShape);
       canvas.requestRenderAll();
-      callbacks.onShapeCreated?.(finalShape);
+      callbacks.onShapeCreated?.(finalShape, lastPointerScreen ?? undefined);
     }
   }
 
@@ -239,7 +248,7 @@ export function setupRegionDrawing(
     canvas.add(polygon);
     canvas.setActiveObject(polygon);
     canvas.requestRenderAll();
-    callbacks.onShapeCreated?.(polygon);
+    callbacks.onShapeCreated?.(polygon, lastPointerScreen ?? undefined);
     polyPoints = [];
   }
 
@@ -247,6 +256,7 @@ export function setupRegionDrawing(
     if (mode !== "freeform") return;
     if (opt.e?.button !== 0) return;
 
+    lastPointerScreen = { x: opt.e.clientX, y: opt.e.clientY };
     const pointer = toCanvasCoords(canvas, opt.e);
 
     // Close polygon: click near first point

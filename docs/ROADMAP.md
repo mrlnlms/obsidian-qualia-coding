@@ -1,7 +1,7 @@
 # Qualia Coding — Roadmap
 
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-13 (release 0.6.0 — ICR Camada 1 entregue; bloco ICR fechado por inteiro; próxima frente = LLM coding + ICR Camada 2 como par natural).
+> Última atualização: 2026-05-13 (release 0.6.0 — ICR Camada 1 entregue; bloco ICR fechado por inteiro; bloco Image engine fechado mesma data — 8 itens originais + 8 extras descobertos no smoke, ver `BACKLOG.md §"Image engine — resolvido"`; próxima frente = LLM coding + ICR Camada 2 como par natural).
 
 ## ⚡ Status atual (próxima sessão lê isso primeiro)
 

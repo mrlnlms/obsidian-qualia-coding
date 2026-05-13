@@ -43,18 +43,26 @@ export class RegionLabels {
     }
 
     const text = marker.codes.map(c => this.model.registry.getById(c.codeId)?.name ?? c.codeId).join(", ");
-    // Fallback color (when none of the applied codes have a registry color):
-    // mid gray works in both light and dark themes. Fabric.js cannot consume CSS vars,
-    // so a literal value is required.
-    const color = this.model.registry.getColorForCodeIds(getCodeIds(marker.codes)) || "#888";
+    // Mirror regionManager.getStyleForMarker:
+    //  1) per-marker override wins over per-code blending,
+    //  2) otherwise blend only over codes currently visible in this file,
+    //  3) fallback mid gray works on both themes (Fabric can't consume CSS vars).
+    let color: string | null | undefined = marker.colorOverride;
+    if (!color) {
+      const visibleIds = getCodeIds(marker.codes).filter(
+        codeId => this.model.registry.isCodeVisibleInFile(codeId, marker.fileId),
+      );
+      color = this.model.registry.getColorForCodeIds(visibleIds);
+    }
+    const finalColor = color || "#888";
 
     let label = this.labels.get(markerId);
     if (label) {
-      label.set({ text, fill: color });
+      label.set({ text, fill: finalColor });
     } else {
       label = new FabricText(text, {
         fontSize: 12,
-        fill: color,
+        fill: finalColor,
         fontWeight: "bold",
         fontFamily: "sans-serif",
         backgroundColor: "rgba(255,255,255,0.85)",
