@@ -6558,6 +6558,39 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	user-select: none;
 }
 
+.qc-cc-temporal-row {
+	margin-top: 6px;
+}
+
+.qc-cc-temporal-picker {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.qc-cc-temporal-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-right: 2px;
+}
+
+.qc-cc-temporal-chip {
+	padding: 2px 8px;
+	border-radius: 14px;
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	user-select: none;
+}
+
+.qc-cc-temporal-chip.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+	cursor: default;
+}
+
 .qc-cc-percode-card {
 	background: var(--background-secondary);
 	border-radius: 6px;

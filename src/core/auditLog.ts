@@ -183,7 +183,7 @@ function formatBoundsShort(bounds: import('./types').ReconciliationBounds): stri
 		case 'pdfText':
 			return `page ${bounds.page} · chars ${bounds.from}–${bounds.to}`;
 		case 'temporal':
-			return `${bounds.fromMs}ms–${bounds.toMs}ms`;
+			return `${bounds.from.toFixed(1)}s–${bounds.to.toFixed(1)}s`;
 		case 'bbox': {
 			const pct = (v: number) => (v * 100).toFixed(1);
 			const prefix = bounds.page !== undefined ? `p${bounds.page} ` : '';

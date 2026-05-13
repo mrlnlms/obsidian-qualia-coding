@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { extractInputsFromScope, type EngineModelsForExtraction } from '../../../../src/core/icr/ui/scopeExtraction';
+import { extractInputsFromScope, bumpInputsCacheGeneration, type EngineModelsForExtraction, type SourceSizeProvider } from '../../../../src/core/icr/ui/scopeExtraction';
 import type { Marker } from '../../../../src/markdown/models/codeMarkerModel';
 import type { RowMarker, SegmentMarker } from '../../../../src/csv/csvCodingTypes';
+import type { MediaMarker } from '../../../../src/media/mediaTypes';
 
 const noopApp: any = {
 	vault: {
@@ -158,5 +159,120 @@ describe('extractInputsFromScope', () => {
 			{ models: emptyModels(), app: noopApp },
 		);
 		expect(result).toEqual([]);
+	});
+
+	it('sourceSizeProvider override: audio com coding esparso usa duração real, não max(range.to)', async () => {
+		// Gap #1 (intra-modality): coder marca só 0-10s de audio de 300s (5min).
+		// Sem provider: totalUnits = 10 (max range.to) → 100% do unit space "coded" → P_o inflado.
+		// Com provider: totalUnits = 300 → 290s de background não-coded entram como agreement em ∅.
+		const audioMarkers: MediaMarker[] = [
+			{ markerType: 'audio', id: 'm1', fileId: 'long.mp3', from: 0, to: 5, codes: [{ codeId: 'c1' }], codedBy: 'human:a', createdAt: 1, updatedAt: 1 },
+			{ markerType: 'audio', id: 'm2', fileId: 'long.mp3', from: 5, to: 10, codes: [{ codeId: 'c1' }], codedBy: 'human:b', createdAt: 1, updatedAt: 1 },
+		];
+		const models: EngineModelsForExtraction = {
+			...emptyModels(),
+			audio: { getAllMarkers: () => audioMarkers },
+		};
+		const provider: SourceSizeProvider = {
+			async getSourceSize(engine, fileId, _locator, _resolution) {
+				if (engine === 'audio' && fileId === 'long.mp3') return 300; // 5 min em resolution=1
+				return null;
+			},
+		};
+
+		bumpInputsCacheGeneration();
+		const result = await extractInputsFromScope(
+			{ coderIds: ['human:a', 'human:b'], engineIds: ['audio'] },
+			{ models, app: noopApp, sourceSizeProvider: provider },
+		);
+		const audioInput = result.find(r => r.engine === 'audio');
+		expect(audioInput).toBeTruthy();
+		const sources = (audioInput!.kappaInput as { sources: { totalUnits: number }[] }).sources;
+		expect(sources).toHaveLength(1);
+		expect(sources[0]!.totalUnits).toBe(300);
+	});
+
+	it('sourceSizeProvider retorna null: caller mantém fallback max(range.to)', async () => {
+		const audioMarkers: MediaMarker[] = [
+			{ markerType: 'audio', id: 'm1', fileId: 'unknown.mp3', from: 0, to: 7, codes: [{ codeId: 'c1' }], codedBy: 'human:a', createdAt: 1, updatedAt: 1 },
+		];
+		const models: EngineModelsForExtraction = {
+			...emptyModels(),
+			audio: { getAllMarkers: () => audioMarkers },
+		};
+		const provider: SourceSizeProvider = {
+			async getSourceSize() { return null; },
+		};
+
+		bumpInputsCacheGeneration();
+		const result = await extractInputsFromScope(
+			{ coderIds: ['human:a', 'human:b'], engineIds: ['audio'] },
+			{ models, app: noopApp, sourceSizeProvider: provider },
+		);
+		const sources = (result[0]!.kappaInput as { sources: { totalUnits: number }[] }).sources;
+		expect(sources[0]!.totalUnits).toBe(7); // fallback max(range.to)
+	});
+
+	it('sourceSizeProvider throw: caller mantém fallback (não crasha)', async () => {
+		const audioMarkers: MediaMarker[] = [
+			{ markerType: 'audio', id: 'm1', fileId: 'flaky.mp3', from: 0, to: 4, codes: [{ codeId: 'c1' }], codedBy: 'human:a', createdAt: 1, updatedAt: 1 },
+		];
+		const models: EngineModelsForExtraction = {
+			...emptyModels(),
+			audio: { getAllMarkers: () => audioMarkers },
+		};
+		const provider: SourceSizeProvider = {
+			async getSourceSize() { throw new Error('IO fail'); },
+		};
+
+		bumpInputsCacheGeneration();
+		const result = await extractInputsFromScope(
+			{ coderIds: ['human:a'], engineIds: ['audio'] },
+			{ models, app: noopApp, sourceSizeProvider: provider },
+		);
+		const sources = (result[0]!.kappaInput as { sources: { totalUnits: number }[] }).sources;
+		expect(sources[0]!.totalUnits).toBe(4);
+	});
+
+	it('temporalResolution propaga até extractMediaRange — sub-segundo agreement varia entre 1s e 100ms', async () => {
+		// Gap #2 (intra-modality): resolução temporal parametrizável.
+		// Coders A e B marcam segmentos disjuntos por 600ms (A: 0-0.5s, B: 0.6-1.0s).
+		// Em resolution=1: ambos viram [0,1) → falso agreement total no unit space.
+		// Em resolution=0.1: A vira [0,5) e B vira [6,10) → disagreement visível.
+		const audioMarkers: MediaMarker[] = [
+			{ markerType: 'audio', id: 'm1', fileId: 'sample.mp3', from: 0.0, to: 0.5, codes: [{ codeId: 'c1' }], codedBy: 'human:a', createdAt: 1, updatedAt: 1 },
+			{ markerType: 'audio', id: 'm2', fileId: 'sample.mp3', from: 0.6, to: 1.0, codes: [{ codeId: 'c1' }], codedBy: 'human:b', createdAt: 1, updatedAt: 1 },
+		];
+		const models: EngineModelsForExtraction = {
+			...emptyModels(),
+			audio: { getAllMarkers: () => audioMarkers },
+		};
+
+		// Cache pode estar quente de tests anteriores rodando no mesmo arquivo — bump pra garantir miss.
+		bumpInputsCacheGeneration();
+		const at1s = await extractInputsFromScope(
+			{ coderIds: ['human:a', 'human:b'], engineIds: ['audio'], temporalResolution: 1 },
+			{ models, app: noopApp },
+		);
+		const audioInput1s = at1s.find(r => r.engine === 'audio');
+		expect(audioInput1s).toBeTruthy();
+		const markers1s = (audioInput1s!.kappaInput as { markers: { range: { from: number; to: number } }[] }).markers;
+		// Cada marker [0,1) — overlap total no unit space
+		expect(markers1s).toHaveLength(2);
+		expect(markers1s.every(m => m.range.from === 0 && m.range.to === 1)).toBe(true);
+
+		bumpInputsCacheGeneration();
+		const at100ms = await extractInputsFromScope(
+			{ coderIds: ['human:a', 'human:b'], engineIds: ['audio'], temporalResolution: 0.1 },
+			{ models, app: noopApp },
+		);
+		const audioInput100ms = at100ms.find(r => r.engine === 'audio');
+		const markers100ms = (audioInput100ms!.kappaInput as { markers: { range: { from: number; to: number } }[] }).markers;
+		expect(markers100ms).toHaveLength(2);
+		// A: [0,5), B: [6,10) — disjuntos
+		const sortedFroms = markers100ms.map(m => m.range.from).sort((a, b) => a - b);
+		const sortedTos = markers100ms.map(m => m.range.to).sort((a, b) => a - b);
+		expect(sortedFroms).toEqual([0, 6]);
+		expect(sortedTos).toEqual([5, 10]);
 	});
 });

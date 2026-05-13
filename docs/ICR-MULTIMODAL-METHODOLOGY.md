@@ -53,6 +53,20 @@ Cada modalidade tem seu coeficiente com a δ apropriada:
 - **Audio/Vídeo**: δ temporal por segundo (ver `ICR-TEMPORAL-METHODOLOGY.md`)
 - **CSV row**: δ nominal categórica (ver `ICR-CATEGORICAL-METHODOLOGY.md`)
 
+### Convenção da fórmula (release 0.6.1+)
+
+O motor implementa α de Krippendorff em sua forma canônica de Krippendorff (2018, cap. 11):
+
+```
+α = 1 − Do/De
+Do = (1/n) Σ_c Σ_k o_ck δ²_ck
+De = (1/(n(n-1))) Σ_c Σ_k n_c n_k δ²_ck
+```
+
+**Distance squared (δ²)** preserva propriedade variance-like — essencial pra distâncias fracionárias custom (Jaccard, MASI). Pra δ_nominal (δ ∈ {0,1}), δ² = δ — sem diferença numérica.
+
+Releases 0.5.0 e 0.6.0 usaram δ linear (não-squared) em Jaccard/MASI por inadvertência. Migrado pra δ² em 0.6.1 como bugfix metodológico (CHANGELOG e header de `src/core/icr/coefficients/krippendorffAlpha.ts`). Valores publicados pré-0.6.1 com δ_jaccard ou δ_MASI divergem ≈0.05-0.08 do canônico; sem usuários reais afetados, mas registro mantido por precedente.
+
 Quando o plugin oferece um valor agregado, ele aparece **marcado como descritivo, não inferencial**, com tooltip apontando pra este documento. Pesquisador que cita um número agregado em paper sem esse caveat está usando o plugin contra a recomendação da literatura.
 
 ## Como reportar em paper (Camada 1)

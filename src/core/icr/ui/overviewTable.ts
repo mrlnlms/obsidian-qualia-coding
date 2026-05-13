@@ -16,7 +16,7 @@
 import type { CompareCodersViewState, CurrentSelection } from './compareCodersTypes';
 import type { CoderRegistry } from '../coderRegistry';
 import type { CodeDefinitionRegistry } from '../../codeDefinitionRegistry';
-import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
+import { extractInputsFromScope, type EngineModelsForExtraction, type SourceSizeProvider } from './scopeExtraction';
 import { reportKappaAsync } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import { kappaClass } from './overviewSharedRender';
@@ -30,6 +30,7 @@ export interface OverviewTableDeps {
 	codeRegistry: CodeDefinitionRegistry;
 	engineModels: EngineModelsForExtraction;
 	app: App;
+	sourceSizeProvider?: SourceSizeProvider;
 }
 
 interface CodeRow {
@@ -93,7 +94,7 @@ export async function renderOverviewTable(
 	const rowsRaw = await Promise.all(candidateCodeIds.map(async (codeId) => {
 		const inputs = await extractInputsFromScope(
 			{ ...effectiveScope, codeIds: [codeId] },
-			{ models: deps.engineModels, app: deps.app },
+			{ models: deps.engineModels, app: deps.app, sourceSizeProvider: deps.sourceSizeProvider },
 		);
 		const filteredInputs = filterInputsByCoders(inputs, visibleCoderIds);
 		const totalMarkers = filteredInputs.reduce((s, i) => {

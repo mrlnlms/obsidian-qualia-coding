@@ -112,7 +112,16 @@ export class RegionManager {
 	// ─── Style ───
 
 	private getStyleForMarker(marker: ImageMarker): { fill: string; stroke: string } {
-		const color = this.model.registry.getColorForCodeIds(getCodeIds(marker.codes));
+		// Per-marker override bypasses per-code blending — single color wins.
+		// Otherwise blend only over codes currently visible in this file
+		// (so toggling a code off via the eye icon recolors the shape).
+		let color: string | null | undefined = marker.colorOverride;
+		if (!color) {
+			const visibleIds = getCodeIds(marker.codes).filter(
+				codeId => this.model.registry.isCodeVisibleInFile(codeId, marker.fileId),
+			);
+			color = this.model.registry.getColorForCodeIds(visibleIds);
+		}
 		if (color) {
 			return {
 				fill: color + '33', // ~20% opacity

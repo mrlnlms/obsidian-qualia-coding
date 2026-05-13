@@ -367,19 +367,19 @@ describe('IcrMarkerOpsImpl — csvSegment (E5a)', () => {
 });
 
 describe('IcrMarkerOpsImpl — audio/video (E5a)', () => {
-	it('audio createMarker insere via audioModel.insertMarkerRaw com fromMs/toMs', () => {
+	it('audio createMarker insere via audioModel.insertMarkerRaw com from/to (segundos)', () => {
 		const audioModel = makeFakeMediaModel('audio');
 		const opsLocal = new IcrMarkerOpsImpl({ audioModel, app: {} } as never);
 		const r = opsLocal.createMarker('audio', {
 			fileId: 'song.mp3',
-			bounds: { kind: 'temporal', fromMs: 1000, toMs: 5000 },
+			bounds: { kind: 'temporal', from: 1, to: 5 },
 			codeIds: ['c_x'],
 			codedBy: 'human:alice',
 		});
 		expect(audioModel.insertMarkerRaw).toHaveBeenCalledTimes(1);
 		const inserted = audioModel.store.get(r.markerId)!;
-		expect(inserted.from).toBe(1000);
-		expect(inserted.to).toBe(5000);
+		expect(inserted.from).toBe(1);
+		expect(inserted.to).toBe(5);
 		expect(inserted.markerType).toBe('audio');
 	});
 
@@ -388,7 +388,7 @@ describe('IcrMarkerOpsImpl — audio/video (E5a)', () => {
 		const opsLocal = new IcrMarkerOpsImpl({ videoModel, app: {} } as never);
 		const r = opsLocal.createMarker('video', {
 			fileId: 'clip.mp4',
-			bounds: { kind: 'temporal', fromMs: 0, toMs: 2000 },
+			bounds: { kind: 'temporal', from: 0, to: 2 },
 			codeIds: ['c_x'],
 			codedBy: 'human:bob',
 		});
@@ -412,12 +412,12 @@ describe('IcrMarkerOpsImpl — audio/video (E5a)', () => {
 	it('findMarkersInRegion filtra por overlap temporal', () => {
 		const audioModel = makeFakeMediaModel('audio');
 		const opsLocal = new IcrMarkerOpsImpl({ audioModel, app: {} } as never);
-		audioModel.store.set('a1', { id: 'a1', fileId: 'song.mp3', from: 1000, to: 3000, codes: [], codedBy: 'human:alice', markerType: 'audio', createdAt: 0, updatedAt: 0 } as MediaMarker);
-		audioModel.store.set('a2', { id: 'a2', fileId: 'song.mp3', from: 5000, to: 7000, codes: [], codedBy: 'human:bob', markerType: 'audio', createdAt: 0, updatedAt: 0 } as MediaMarker);
+		audioModel.store.set('a1', { id: 'a1', fileId: 'song.mp3', from: 1, to: 3, codes: [], codedBy: 'human:alice', markerType: 'audio', createdAt: 0, updatedAt: 0 } as MediaMarker);
+		audioModel.store.set('a2', { id: 'a2', fileId: 'song.mp3', from: 5, to: 7, codes: [], codedBy: 'human:bob', markerType: 'audio', createdAt: 0, updatedAt: 0 } as MediaMarker);
 
 		const found = opsLocal.findMarkersInRegion({
 			fileId: 'song.mp3', engine: 'audio',
-			bounds: { kind: 'temporal', fromMs: 2000, toMs: 4000 },
+			bounds: { kind: 'temporal', from: 2, to: 4 },
 		});
 		expect(found.map(m => m.markerId)).toEqual(['a1']);
 	});

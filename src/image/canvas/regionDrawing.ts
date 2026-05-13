@@ -136,7 +136,7 @@ export function setupRegionDrawing(
     if (mode === "rect") {
       const w = (previewShape as Rect).width ?? 0;
       const h = (previewShape as Rect).height ?? 0;
-      if (w < 3 && h < 3) { removePreview(); return; }
+      if (w < 3 || h < 3) { removePreview(); return; }
 
       finalShape = new Rect({
         left, top, width: w, height: h,
@@ -152,7 +152,7 @@ export function setupRegionDrawing(
     } else if (mode === "ellipse") {
       const rx = (previewShape as Ellipse).rx ?? 0;
       const ry = (previewShape as Ellipse).ry ?? 0;
-      if (rx < 2 && ry < 2) { removePreview(); return; }
+      if (rx < 2 || ry < 2) { removePreview(); return; }
 
       finalShape = new Ellipse({
         left, top, rx, ry,

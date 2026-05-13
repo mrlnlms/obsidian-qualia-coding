@@ -62,7 +62,7 @@ function isValidBounds(b: ReconciliationBounds): boolean {
 		case 'pdfText':
 			return b.page >= 0 && b.from >= 0 && b.to >= b.from;
 		case 'temporal':
-			return b.fromMs >= 0 && b.toMs >= b.fromMs;
+			return b.from >= 0 && b.to >= b.from;
 		case 'bbox':
 			return (
 				(b.page === undefined || b.page >= 0)
@@ -91,14 +91,14 @@ function unionOfBounds(bounds: ReconciliationBounds[], fallback: ReconciliationB
 		return { kind: 'text', from: min, to: max };
 	}
 	if (first.kind === 'temporal') {
-		let min = first.fromMs;
-		let max = first.toMs;
+		let min = first.from;
+		let max = first.to;
 		for (const b of bounds) {
 			if (b.kind !== 'temporal') continue;
-			if (b.fromMs < min) min = b.fromMs;
-			if (b.toMs > max) max = b.toMs;
+			if (b.from < min) min = b.from;
+			if (b.to > max) max = b.to;
 		}
-		return { kind: 'temporal', fromMs: min, toMs: max };
+		return { kind: 'temporal', from: min, to: max };
 	}
 	if (first.kind === 'pdfText') {
 		let min = first.from;

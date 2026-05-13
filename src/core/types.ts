@@ -359,7 +359,7 @@ export type ReconciliationBounds =
 	| { kind: 'csvRow'; rowIndex: number; column?: string }
 	| { kind: 'csvSegment'; rowIndex: number; column: string; from: number; to: number }
 	| { kind: 'pdfText'; page: number; from: number; to: number }
-	| { kind: 'temporal'; fromMs: number; toMs: number }
+	| { kind: 'temporal'; from: number; to: number }
 	| { kind: 'bbox'; page?: number; x: number; y: number; w: number; h: number };
 
 /** Snapshot serializável de marker pré-mutação — pra revert de overwrite-originals. */

@@ -13,7 +13,7 @@
  */
 
 import type { CompareCodersViewState, ComparisonScope, CurrentSelection } from './compareCodersTypes';
-import { extractInputsFromScope, type EngineModelsForExtraction } from './scopeExtraction';
+import { extractInputsFromScope, type EngineModelsForExtraction, type SourceSizeProvider } from './scopeExtraction';
 import { reportPairwiseAsync, pairKey, type EngineKappaInput } from '../reporter';
 import { cacheKeyForScope } from './scopeExtraction';
 import type { CoderId } from '../coderTypes';
@@ -32,6 +32,7 @@ export interface OverviewMatrixDeps {
 	codeRegistry: CodeDefinitionRegistry;
 	engineModels: EngineModelsForExtraction;
 	app: App;
+	sourceSizeProvider?: SourceSizeProvider;
 }
 
 export async function renderOverviewMatrix(
@@ -72,6 +73,7 @@ export async function renderOverviewMatrix(
 	const inputs = await extractInputsFromScope(effectiveScope, {
 		models: deps.engineModels,
 		app: deps.app,
+		sourceSizeProvider: deps.sourceSizeProvider,
 	});
 
 	const pairs: [CoderId, CoderId][] = [];

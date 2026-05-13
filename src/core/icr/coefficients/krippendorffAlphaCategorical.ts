@@ -75,7 +75,8 @@ export function krippendorffAlphaCategoricalNominal(
 			marginal.set(k_i, (marginal.get(k_i) ?? 0) + 1);
 			for (let j = 0; j < n; j++) {
 				if (i === j) continue;
-				Do += δ(set_i, unitRatings[j]!) / (n - 1);
+				const d = δ(set_i, unitRatings[j]!);
+				Do += (d * d) / (n - 1);
 			}
 		}
 	}
@@ -97,7 +98,7 @@ export function krippendorffAlphaCategoricalNominal(
 			const n1 = marginal.get(k1)!;
 			const n2 = marginal.get(k2)!;
 			const d = δ(keyToSet.get(k1)!, keyToSet.get(k2)!);
-			De += (n1 * n2 * d) / (N - 1);
+			De += (n1 * n2 * d * d) / (N - 1);
 		}
 	}
 

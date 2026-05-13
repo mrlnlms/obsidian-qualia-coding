@@ -140,7 +140,7 @@ export function regionKey(
 		b.kind === 'csvSegment' ? `cs:${b.rowIndex}:${b.column}:${b.from}-${b.to}` :
 		b.kind === 'pdfText' ? `pt:${b.page}:${b.from}-${b.to}` :
 		b.kind === 'bbox' ? `bb:${b.page ?? '_'}:${b.x.toFixed(6)},${b.y.toFixed(6)},${b.w.toFixed(6)},${b.h.toFixed(6)}` :
-		`m:${b.fromMs}-${b.toMs}`;
+		`m:${b.from}-${b.to}`;
 	return `${region.fileId}::${region.engine}::${boundsKey}`;
 }
 
@@ -150,7 +150,7 @@ export function sameBounds(a: ReconciliationBounds, b: ReconciliationBounds): bo
 	if (a.kind === 'csvRow' && b.kind === 'csvRow') return a.rowIndex === b.rowIndex && (a.column ?? '') === (b.column ?? '');
 	if (a.kind === 'csvSegment' && b.kind === 'csvSegment') return a.rowIndex === b.rowIndex && a.column === b.column && a.from === b.from && a.to === b.to;
 	if (a.kind === 'pdfText' && b.kind === 'pdfText') return a.page === b.page && a.from === b.from && a.to === b.to;
-	if (a.kind === 'temporal' && b.kind === 'temporal') return a.fromMs === b.fromMs && a.toMs === b.toMs;
+	if (a.kind === 'temporal' && b.kind === 'temporal') return a.from === b.from && a.to === b.to;
 	if (a.kind === 'bbox' && b.kind === 'bbox') return (a.page ?? -1) === (b.page ?? -1) && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 	return false;
 }
@@ -267,7 +267,7 @@ export function formatBoundsLabel(bounds: ReconciliationBounds): string {
 		case 'pdfText':
 			return `page ${bounds.page} · chars ${bounds.from}–${bounds.to}`;
 		case 'temporal':
-			return `${bounds.fromMs}ms–${bounds.toMs}ms`;
+			return `${bounds.from.toFixed(1)}s–${bounds.to.toFixed(1)}s`;
 		case 'bbox': {
 			const pct = (v: number) => (v * 100).toFixed(1);
 			const prefix = bounds.page !== undefined ? `page ${bounds.page} · ` : '';
@@ -636,8 +636,8 @@ function buildCsvSegmentRegionFromCluster(cluster: CsvSegmentMarkerInScope[]): C
 
 interface TemporalMarkerInScope {
 	fileId: string;
-	fromMs: number;
-	toMs: number;
+	from: number;  // segundos (alinhado com MediaMarker.from)
+	to: number;    // segundos
 	coderId: CoderId;
 	markerId: string;
 	codes: CodeApplication[];
@@ -653,8 +653,8 @@ function collectTemporalRegions(
 		if (!m.codedBy || !scopeCoders.has(m.codedBy)) continue;
 		inScope.push({
 			fileId: m.fileId,
-			fromMs: m.from,
-			toMs: m.to,
+			from: m.from,
+			to: m.to,
 			coderId: m.codedBy,
 			markerId: m.id,
 			codes: m.codes,
@@ -669,20 +669,20 @@ function collectTemporalRegions(
 	}
 	const out: ContestedRegion[] = [];
 	for (const [, list] of byFile) {
-		const sorted = list.slice().sort((a, b) => a.fromMs - b.fromMs);
+		const sorted = list.slice().sort((a, b) => a.from - b.from);
 		let cluster: TemporalMarkerInScope[] = [];
 		let clusterEnd = -Infinity;
 		for (const m of sorted) {
-			if (m.fromMs <= clusterEnd && cluster.length > 0) {
+			if (m.from <= clusterEnd && cluster.length > 0) {
 				cluster.push(m);
-				clusterEnd = Math.max(clusterEnd, m.toMs);
+				clusterEnd = Math.max(clusterEnd, m.to);
 			} else {
 				if (cluster.length > 0) {
 					const region = buildTemporalRegionFromCluster(cluster, engine);
 					if (region.coderIds.length >= 2) out.push(region);
 				}
 				cluster = [m];
-				clusterEnd = m.toMs;
+				clusterEnd = m.to;
 			}
 		}
 		if (cluster.length > 0) {
@@ -695,29 +695,30 @@ function collectTemporalRegions(
 
 function buildTemporalRegionFromCluster(cluster: TemporalMarkerInScope[], engine: 'audio' | 'video'): ContestedRegion {
 	const first = cluster[0]!;
-	let fromMs = first.fromMs;
-	let toMs = first.toMs;
+	let from = first.from;
+	let to = first.to;
 	const coderIds = new Set<CoderId>();
 	const markerRefs: MarkerRef[] = [];
 	for (const m of cluster) {
-		if (m.fromMs < fromMs) fromMs = m.fromMs;
-		if (m.toMs > toMs) toMs = m.toMs;
+		if (m.from < from) from = m.from;
+		if (m.to > to) to = m.to;
 		coderIds.add(m.coderId);
 		markerRefs.push({ markerId: m.markerId, codedBy: m.coderId, codes: m.codes });
 	}
 	return {
 		fileId: first.fileId,
 		engine,
-		bounds: { kind: 'temporal', fromMs, toMs },
+		bounds: { kind: 'temporal', from, to },
 		coderIds: Array.from(coderIds),
-		displayLabel: `${formatMs(fromMs)}–${formatMs(toMs)}`,
+		displayLabel: `${formatTimecode(from)}–${formatTimecode(to)}`,
 		markerRefs,
 		divergenceKind: classifyDivergence(markerRefs, Array.from(coderIds)),
 	};
 }
 
-function formatMs(ms: number): string {
-	const totalSec = Math.floor(ms / 1000);
+/** Formata segundos float como mm:ss (alinhado com audio/video player UI). */
+function formatTimecode(sec: number): string {
+	const totalSec = Math.floor(sec);
 	const mm = Math.floor(totalSec / 60);
 	const ss = totalSec % 60;
 	return `${mm}:${ss.toString().padStart(2, '0')}`;
