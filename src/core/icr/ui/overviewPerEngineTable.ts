@@ -27,6 +27,11 @@ const ENGINE_LABEL: Partial<Record<EngineId, string>> = {
 
 const ORDERED_ENGINES: EngineId[] = ['markdown', 'pdf', 'csvSegment', 'csvRow', 'audio', 'video'];
 
+/** α-binary e cu-α precisam de boundary (char-range / temporal / spatial). Em
+ *  csvRow puro (categorical sem boundary), reporter retorna 1 como sentinel
+ *  "não aplicável" — mostrar 1.00 verde sólido é enganoso. */
+const BOUNDED_ENGINES = new Set<EngineId>(['markdown', 'pdf', 'csvSegment', 'audio', 'video', 'pdfShape', 'image']);
+
 export interface BboxByPair {
 	mode: 'unified' | 'split';
 	valuesByPair: Map<string, { spatialBbox?: number; pdfShape?: number; image?: number }>;
@@ -62,7 +67,7 @@ export function renderPerEngineTable(
 	const rows: Row[] = [];
 	for (const engine of ORDERED_ENGINES) {
 		if (!enginesPresent.has(engine)) continue;
-		rows.push(buildRowFromByEngine(ENGINE_LABEL[engine] ?? engine, reports, engine));
+		rows.push(buildRowFromByEngine(ENGINE_LABEL[engine] ?? engine, reports, engine, BOUNDED_ENGINES.has(engine)));
 	}
 
 	if (bboxByPair && bboxByPair.valuesByPair.size > 0) {
@@ -97,7 +102,7 @@ export function renderPerEngineTable(
 	}
 }
 
-function buildRowFromByEngine(label: string, reports: PairwiseReport[], engine: EngineId): Row {
+function buildRowFromByEngine(label: string, reports: PairwiseReport[], engine: EngineId, hasBoundary: boolean): Row {
 	const cohens: number[] = [];
 	const fleiss: number[] = [];
 	const alpha: number[] = [];
@@ -119,8 +124,10 @@ function buildRowFromByEngine(label: string, reports: PairwiseReport[], engine: 
 		cohen:       cohens.length > 0 ? mean(cohens) : undefined,
 		fleiss:      fleiss.length > 0 ? mean(fleiss) : undefined,
 		alpha:       alpha.length > 0 ? mean(alpha) : undefined,
-		alphaBinary: alphaBin.length > 0 ? mean(alphaBin) : undefined,
-		cuAlpha:     cuA.length > 0 ? mean(cuA) : undefined,
+		// α-binary e cu-α só fazem sentido em engines com boundary; categorical (csvRow)
+		// retorna 1 como sentinel "não aplicável" — apresentação correta é "—", não 1.00.
+		alphaBinary: hasBoundary && alphaBin.length > 0 ? mean(alphaBin) : undefined,
+		cuAlpha:     hasBoundary && cuA.length > 0 ? mean(cuA) : undefined,
 	};
 }
 

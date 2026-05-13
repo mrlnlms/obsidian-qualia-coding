@@ -103,6 +103,49 @@ describe('renderPerEngineTable', () => {
 		expect(container.querySelector('.qc-cc-empty')?.textContent).toContain('Sem dados');
 	});
 
+	it('csvRow: α-binary e cu-α viram "—" (vacuous em categorical sem boundary)', () => {
+		const reports: PairwiseReport[] = [
+			makeReport({
+				csvRow: {
+					cohenKappa: { 'c1|c2': { value: 0.5, perCode: {} } },
+					fleissKappa: 0.5, alphaNominal: 0.5,
+					alphaBinary: 1, // sentinel "não aplicável"
+					cuAlpha: 1,     // sentinel "não aplicável"
+				},
+			}),
+		];
+
+		renderPerEngineTable(container, reports);
+
+		const tds = container.querySelectorAll('.qc-cc-per-engine-table tbody tr td');
+		// linha csv-row: [label, cohen, fleiss, alpha, alphaBinary, cuAlpha]
+		expect(tds[0]?.textContent).toBe('csv-row');
+		expect(tds[1]?.textContent).toBe('0.50');   // cohen
+		expect(tds[2]?.textContent).toBe('0.50');   // fleiss
+		expect(tds[3]?.textContent).toBe('0.50');   // alpha
+		expect(tds[4]?.textContent).toBe('—');      // alphaBinary vacuous
+		expect(tds[5]?.textContent).toBe('—');      // cuAlpha vacuous
+		expect(tds[4]?.classList.contains('qc-kappa-na')).toBe(true);
+		expect(tds[5]?.classList.contains('qc-kappa-na')).toBe(true);
+	});
+
+	it('markdown: α-binary e cu-α renderizam valor (boundary engine)', () => {
+		const reports: PairwiseReport[] = [
+			makeReport({
+				markdown: {
+					cohenKappa: { 'c1|c2': { value: 0.7, perCode: {} } },
+					fleissKappa: 0.7, alphaNominal: 0.7, alphaBinary: 0.8, cuAlpha: 0.9,
+				},
+			}),
+		];
+
+		renderPerEngineTable(container, reports);
+
+		const tds = container.querySelectorAll('.qc-cc-per-engine-table tbody tr td');
+		expect(tds[4]?.textContent).toBe('0.80'); // alphaBinary
+		expect(tds[5]?.textContent).toBe('0.90'); // cuAlpha
+	});
+
 	it('título indica "fonte de verdade"', () => {
 		renderPerEngineTable(container, [makeReport({
 			markdown: {
