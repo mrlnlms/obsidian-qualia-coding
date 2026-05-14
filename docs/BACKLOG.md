@@ -9,7 +9,7 @@
 
 ## 🟢 Estado atual
 
-**Bloco ICR fechado por inteiro** (releases 0.6.0–0.6.1, 2026-05-13). Inclui:
+**Bloco ICR fechado por inteiro** (releases 0.6.0 arquitetura + 0.7.0 gaps intra-modality, 2026-05-13). Inclui:
 - Camada 1 per-modality enforcement (banner multimodal + per-engine table)
 - 3/4 gaps intra-modality: Gap #2 (resolução temporal parametrizável) + Gap #3 (validação canônica α nominal + migração δ² Jaccard/MASI) + Gap #4 (fromMs/from rename)
 - Gap #1 ✅ FEITO 2026-05-13: infra `SourceSizeProvider` + Media (audio/video) + PDF (1c) + CSV segment (1d). Providers podem virar redundantes se Camada 2 BHM for implementada — relação documentada nos headers.

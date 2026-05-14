@@ -25,7 +25,7 @@
 
 > **🔧 Infra compartilhada — caminhos cravados (2026-05-09):** ICR é **infra compartilhada primeiro** — base estrutural que destrava simultaneamente ICR multi-coder, merge de projetos, multi-coder live, handoff com procedência, audit estruturado. Decisões cravadas: schema híbrido `Coder` + `CoderRun`; hash por source como primitiva arquitetural transversal; ICR multimodal **como destino arquitetural** (função pura κ paramétrica por geometria de overlap — recebe adapters por engine sem refactor); sequência **Fase B (in-plugin) → Fase C (P2 transport remoto)**. Detalhe completo em §"Decisões de produto abertas" abaixo.
 
-**Versão:** **0.6.0** (2026-05-13) — ICR fechado (B4 Camada 1 per-modality + vacuous fixes). **0.5.0** (2026-05-13) — Refactor C set-valued labels (Jaccard/MASI + Cohen caminho A + Fleiss fallback). **0.4.2** (2026-05-08) — LazyTextFilter sem flash branco + MCA Biplot fix.
+**Versão atual:** **0.7.0** (2026-05-13) — bloco Image engine fechado + 4 gaps intra-modality ICR + canvas refresh cor cross-engine + cluster.worker async + `!important` podado 68→46. **0.6.0** (2026-05-13) — ICR fechado arquiteturalmente (B4 Camada 1 per-modality + vacuous fixes). **0.5.0** (2026-05-13) — Refactor C set-valued labels (Jaccard/MASI + Cohen caminho A + Fleiss fallback). **0.4.2** (2026-05-08) — LazyTextFilter sem flash branco + MCA Biplot fix.
 
 **Infra que a Fase 6 estabeleceu (não é só "abrir parquet grande"):**
 - DuckDB-Wasm + Worker + Blob URLs → reusável pra LLM provider (Ollama/OpenAI/Anthropic) e Whisper transcription
@@ -38,9 +38,9 @@
 
 **Ordem cravada (visão integrada 2026-05-13): ICR ✅ → LLM (+ ICR Camada 2 par natural) → Analytics.**
 
-Estado das três frentes em 2026-05-13 (release 0.6.0):
+Estado das três frentes em 2026-05-13 (release 0.7.0):
 
-### Frente 1 — ICR ✅ FECHADA (2026-05-13, release 0.6.0)
+### Frente 1 — ICR ✅ FECHADA (2026-05-13, release 0.6.0 arquitetura + 0.7.0 gaps intra-modality)
 
 Motor κ multimodal (6 engines × geometria de overlap), Reconciliação UI (P2 cards + P3 workflow queue + κ pré/pós + export), Compare Coders View (3 modes + drill-downs + perCode breakdown), Saved Comparisons hub, coder picker live, transport multi-coder remoto, CSV cross-coder isolation, set-valued labels (Jaccard/MASI distance + Cohen κ caminho A + Fleiss fallback), per-modality enforcement (Camada 1 framework multifaceta). **Zero itens em aberto.** Lista canônica abaixo (§"🧱 ICR — Itens em aberto") tem todos os items marcados ✅. **Camadas 2 e 3 do framework multifaceta** (Bayesian annotation model + G-theory/MFRM) movidas pro bloco Framework Unificado ICR + LLM — fazem sentido só quando LLM coding entrar.
 
@@ -78,7 +78,7 @@ Cobertura atual = **25 modes ativos** em `src/analytics/views/modes/` (frequênc
 
 ### Submissão Community Plugins PR
 
-Re-encaixada na sequência: ICR fechado, faz sentido **antes ou em paralelo a LLM coding**. Release 0.6.0 tem o artefato robusto. Falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas pode receber pushback no review. User cravou explicitamente que **não vai publicar antes de Camada 2** (ver `docs/ICR-MULTIMODAL-METHODOLOGY.md`) pra positioning inicial não comoditizar como "QDA tool com AI".
+Re-encaixada na sequência: ICR fechado, faz sentido **antes ou em paralelo a LLM coding**. Release 0.7.0 tem o artefato robusto. Falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas pode receber pushback no review. User cravou explicitamente que **não vai publicar antes de Camada 2** (ver `docs/ICR-MULTIMODAL-METHODOLOGY.md`) pra positioning inicial não comoditizar como "QDA tool com AI".
 
 ### Outras frentes em decisão de produto
 
