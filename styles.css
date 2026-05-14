@@ -771,9 +771,9 @@ body.codemarker-pdf-drawing .codemarker-pdf-draw-layer {
   transform-origin: center;
 }
 
-/* Stroke for contrast — width set proportionally in JS */
+/* Stroke for contrast — width set proportionally in JS. Beats inline stroke="white" attribute via CSS specificity. */
 .codemarker-pdf-handle circle {
-  stroke: var(--text-normal) !important;
+  stroke: var(--text-normal);
 }
 
 /* Hover effects */
@@ -984,7 +984,7 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 }
 
 .codemarker-circle {
-	stroke: var(--text-normal) !important;
+	stroke: var(--text-normal);
 }
 
 /* ========================================
@@ -1228,46 +1228,43 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   padding: 0;
 }
 
-/* Subtle accent on coding column headers */
-.csv-coding-header-seg {
-  background-color: color-mix(in srgb, var(--interactive-accent) 10%, transparent) !important;
+/* Subtle accent on coding column headers. Prefixed with .ag-theme-quartz to beat AG Grid header background defaults via specificity. */
+.ag-theme-quartz .ag-header-cell.csv-coding-header-seg {
+  background-color: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
   font-style: italic;
   font-size: calc(var(--ag-font-size, 14px) + 1px);
 }
 
-.csv-coding-header-frow {
-  background-color: color-mix(in srgb, var(--text-muted) 5%, transparent) !important;
+.ag-theme-quartz .ag-header-cell.csv-coding-header-frow {
+  background-color: color-mix(in srgb, var(--text-muted) 5%, transparent);
 }
 
-.csv-coding-header-comment {
-  background-color: color-mix(in srgb, var(--text-muted) 5%, transparent) !important;
+.ag-theme-quartz .ag-header-cell.csv-coding-header-comment {
+  background-color: color-mix(in srgb, var(--text-muted) 5%, transparent);
 }
 
-.csv-comment-cell {
-  line-height: 1.4 !important;
-  white-space: pre-wrap !important;
-  word-break: break-word !important;
-  padding-top: 4px !important;
-  padding-bottom: 4px !important;
+.ag-theme-quartz .ag-cell.csv-comment-cell {
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
-.csv-comment-cell-nowrap {
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  line-height: 1.4 !important;
+.ag-theme-quartz .ag-cell.csv-comment-cell-nowrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
 }
 
-.ag-cell.csv-comment-cell-nowrap {
-  display: flex !important;
-  align-items: center !important;
-}
-
-.ag-cell.csv-comment-cell-nowrap .ag-cell-wrapper,
-.ag-cell.csv-comment-cell-nowrap .ag-cell-value {
-  width: 100% !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+.ag-theme-quartz .ag-cell.csv-comment-cell-nowrap .ag-cell-wrapper,
+.ag-theme-quartz .ag-cell.csv-comment-cell-nowrap .ag-cell-value {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .csv-comment-editor {
@@ -1282,17 +1279,17 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
   background: transparent;
 }
 
-/* Cod-seg cell — force full-width chain through AG Grid wrappers */
-.ag-cell:has(.csv-cod-seg-cell) {
-  display: flex !important;
+/* Cod-seg cell — force full-width chain through AG Grid wrappers. Prefixed with .ag-theme-quartz to beat AG Grid cell defaults via specificity. */
+.ag-theme-quartz .ag-cell:has(.csv-cod-seg-cell) {
+  display: flex;
   align-items: center;
 }
 
-.ag-cell:has(.csv-cod-seg-cell) .ag-cell-wrapper {
+.ag-theme-quartz .ag-cell:has(.csv-cod-seg-cell) .ag-cell-wrapper {
   width: 100%;
 }
 
-.ag-cell:has(.csv-cod-seg-cell) .ag-cell-value {
+.ag-theme-quartz .ag-cell:has(.csv-cod-seg-cell) .ag-cell-value {
   width: 100%;
 }
 
@@ -3473,8 +3470,8 @@ body.codemarker-dragging .codemarker-handle-svg:not(:hover) {
 .codemarker-kpi-card:hover .codemarker-kpi-board-btn {
   opacity: 0.5;
 }
-.codemarker-kpi-board-btn:hover {
-  opacity: 1 !important;
+.codemarker-kpi-card:hover .codemarker-kpi-board-btn:hover {
+  opacity: 1;
   color: var(--text-accent);
 }
 .codemarker-kpi-board-btn svg {
@@ -5650,9 +5647,9 @@ body.codebook-dragging .codebook-tree-row.qc-code-row-hidden {
 	flex: 1;
 	margin-top: 0;
 }
-.codebook-groups-memo-convert-btn {
+.codebook-groups-memo-wrap .codebook-groups-memo-convert-btn {
 	flex-shrink: 0;
-	margin-top: 0 !important;
+	margin-top: 0;
 }
 
 /* Materialized card no panel de groups — variant compacta */

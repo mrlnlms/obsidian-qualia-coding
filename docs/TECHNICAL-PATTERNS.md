@@ -2811,6 +2811,49 @@ localMarkdownIds.add(m.id);  // cobre re-occurrence dentro do MESMO payload
 
 ---
 
+## 49. AG Grid CSS specificity — `.ag-theme-quartz` prefix vence sem `!important` (poda 2026-05-13)
+
+**Problema:** AG Grid Community injeta CSS no head com seletores `.ag-theme-quartz .ag-cell { ... }` e `.ag-theme-quartz .ag-header-cell { ... }` (specificity 0-2-0). Quando o plugin aplica classes custom (`.csv-comment-cell`, `.csv-coding-header-seg`) via `cellClass`/`headerClass` na ColDef, AG Grid as adiciona ao `.ag-cell`/`.ag-header-cell` mas o background-color/padding/line-height/etc do AG Grid continuam vencendo por specificity. Solução histórica: `!important` em massa (15+ ocorrências em `styles.css:1233-1287`).
+
+**Padrão limpo:** prefixar seletor custom com `.ag-theme-quartz` pra subir specificity acima dos defaults AG Grid, eliminando `!important`.
+
+```css
+/* Antes — especificidade 0-1-0, perdo pra .ag-theme-quartz .ag-cell (0-2-0) */
+.csv-comment-cell {
+  line-height: 1.4 !important;
+  white-space: pre-wrap !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+/* Depois — especificidade 0-3-0, vence sem !important */
+.ag-theme-quartz .ag-cell.csv-comment-cell {
+  line-height: 1.4;
+  white-space: pre-wrap;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+```
+
+**Sub-pattern — atributo SVG inline vs CSS:** atributos de presentation no SVG (ex: `circle.setAttribute("stroke", "white")`) têm a **menor** specificity de todas — qualquer regra CSS vence sem `!important`. Quando vir `!important` em propriedades SVG (`stroke`, `fill`) competindo com inline attribute, é redundante. Linhas 776 + 987 do styles.css tinham esse pattern errado (`stroke: var(--text-normal) !important`) — removidas em 2026-05-13.
+
+**Quando aplicar:**
+- Toda nova regra custom que toca `.ag-cell` ou `.ag-header-cell` direto ou indireto
+- Toda regra que sobreescreve `background-color`, `line-height`, `padding`, `display` em cells/headers AG Grid
+- Toda regra que aplica em `<circle>` / `<rect>` SVG com `stroke`/`fill` quando os atributos inline já existem
+
+**Quando NÃO aplicar:**
+- Regras que vivem em `body.*-dragging *` (cursor overrides) — uso canônico de `!important` pra pisar em cursor: pointer de sub-elementos
+- Regras que disputam com background herdado em chain de descendant inline (caso dos `.codemarker-highlight` com handles SVG dentro) — re-arquitetura possível mas exige refazer hierarquia
+
+**Onde está implementado:**
+- `styles.css:1231-1297` — bloco AG Grid custom prefixado com `.ag-theme-quartz`
+- `styles.css:776 + 987` — SVG stroke sem `!important` (vence atributo inline)
+
+**Resultado:** poda 68 → 46 `!important` em styles.css (22 removidos: 18 AG Grid cells + 2 SVG stroke + 2 isolados via specificity normal). Restantes 46 são defesa legítima: 7 cursor body overrides (§Permanente, uso canônico) + 39 handles SVG transparency (defesa contra `.codemarker-highlight` background inline, §Permanente).
+
+---
+
 ## Fontes
 
 - `memory/obsidian-plugins.md` — aprendizados de AG Grid, CM6, esbuild, PapaParse
