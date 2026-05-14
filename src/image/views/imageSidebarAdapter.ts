@@ -27,7 +27,7 @@ function markerToBase(m: ImageMarker, model: ImageCodingModel): ImageBaseMarker 
 	};
 }
 
-export class ImageSidebarAdapter extends BaseSidebarAdapter {
+export class ImageSidebarAdapter extends BaseSidebarAdapter implements SidebarModelInterface {
 	protected declare readonly model: ImageCodingModel;
 
 	constructor(model: ImageCodingModel) {
@@ -65,6 +65,11 @@ export class ImageSidebarAdapter extends BaseSidebarAdapter {
 	}
 
 	removeMarker(markerId: string): boolean {
+		return this.model.removeMarker(markerId);
+	}
+
+}
+Marker(markerId: string): boolean {
 		return this.model.removeMarker(markerId);
 	}
 

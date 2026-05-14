@@ -4,6 +4,7 @@ import { calculateTextStats } from "../../data/statsEngine";
 import { TextExtractor } from "../../data/textExtractor";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import { downloadCsv } from "../shared/chartHelpers";
+import { getSmartCodeViews, smartCodePassesCodesFilter } from "../../data/smartCodeAnalytics";
 
 export function renderTextStats(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;

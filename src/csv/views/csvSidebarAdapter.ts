@@ -6,6 +6,8 @@ import type { BaseMarker } from '../../core/types';
 import type { CsvCodingModel } from '../csvCodingModel';
 import type { CsvMarker } from '../csvCodingTypes';
 import { BaseSidebarAdapter } from '../../core/baseSidebarAdapter';
+import type { SidebarModelInterface } from '../../core/types';
+import type { MemoRecord } from '../../core/memoTypes';
 
 export interface CsvBaseMarker extends BaseMarker {
 	rowIndex: number;

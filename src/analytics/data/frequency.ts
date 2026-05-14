@@ -2,6 +2,7 @@
 import type {
   ConsolidatedData, FilterConfig, FrequencyResult,
   DocCodeMatrixResult, SourceType, SourceComparisonResult, SourceComparisonEntry,
+  UnifiedMarker,
 } from "./dataTypes";
 import { applyFilters } from "./statsHelpers";
 import type { CaseVariablesRegistry } from "../../core/caseVariables/caseVariablesRegistry";
