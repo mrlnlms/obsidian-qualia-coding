@@ -81,7 +81,7 @@
 - Q-mode analytics 100% cobertura ✅
 - B4 Camada 1 em implementação ativa (branch `b4-camada-1-per-modality`)
 
-**Dívida técnica conhecida (`docs/BACKLOG.md`).** Polish image engine (8 itens raio-x), 2 frentes cross-cutting (CSS `!important` clusters + cooccurrence async), 4 gaps descobertos em revisão de docs methodology (totalUnits inflated, resolução temporal 1s, TODO de fórmula α, discrepância fromMs/from). Nenhum bloqueia release.
+**Dívida técnica conhecida (`docs/BACKLOG.md`).** Bloco ICR + Image + canvas refresh cor + `!important` poda — todos zerados em 2026-05-13 (release 0.7.0). BACKLOG hoje só tem won't-fix documentado + itens permanentes. Histórico de dívida resolvida em `docs/BACKLOG-HISTORY.md`. Nenhum bloqueador aberto.
 
 **Filosofia operacional (CLAUDE.md do projeto).**
 - "Expor funcionalidade primeiro, design de interação forte depois" — UI MVP por escolha, refactor de design fica pra fase dedicada quando capability estiver completa
@@ -98,7 +98,7 @@ Esta sequência leva 30-45 min de leitura cuidadosa. Pular passos = análise sup
 1. **`README.md`** — pitch externo, diferenciadores em uma página
 2. **Este doc (`PROJECT-OVERVIEW.md`)** — você já leu até aqui ✓
 3. **`CLAUDE.md`** — regras operacionais, status de produção zero usuários, princípios cravados (top priority section é leitura obrigatória)
-4. **`docs/ROADMAP.md`** — ⚡ status atual no topo + §"Framework Unificado ICR + LLM" (a virada de hoje) + §"ICR Itens em aberto" + §"LLM-assisted coding" (ordem invertida)
+4. **`docs/ROADMAP.md`** — ⚡ status atual no topo + §"Framework Unificado ICR + LLM" (a virada de 2026-05-13) + Frentes 1/2/3. Doc enxuto (309 linhas); arqueologia em `docs/ROADMAP-HISTORY.md`
 5. **`docs/ICR-MULTIMODAL-METHODOLOGY.md`** — virada conceitual completa, Camadas 1/2/3, frase pronta pra paper, 30+ refs bibliográficas
 6. **`docs/ARCHITECTURE.md`** — visão técnica, módulos, decisões arquiteturais
 7. **`docs/TECHNICAL-PATTERNS.md`** — §35-§46 é onde estão os gotchas caros (4 regressões consecutivas viraram regra cravada)
