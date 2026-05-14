@@ -15,7 +15,7 @@
 >
 > **Status técnico real do bloco ICR:** arquitetura completa + apresentação correta + agregação metodologicamente fundamentada + cálculo interno alinhado à literatura canônica. Pronto pra Camada 2.
 
-> **▶️ PRÓXIMO PASSO PRÁTICO** (não atacar sem brainstorm dedicado precedendo): **LLM-assisted coding com Camada 2 ICR como par natural**. Ordem cravada (ver §"Framework Unificado ICR + LLM" abaixo): primeiro item LLM = **gerador de código/segmento** (era último, foi invertido — feature mais transversal exercita motor de ponta a ponta e gera massa pra Camada 2 treinar). LLM coding **não entra sem Camada 2** (Bayesian annotation model — Dawid-Skene/MACE/Paun et al. 2018). Decisão metodológica não-negociável documentada em `docs/ICR-MULTIMODAL-METHODOLOGY.md` (user-facing) e Research em `docs/_research/icr-multimodal-heterogeneous-units.md` (pesquisa autoritativa).
+> **▶️ PRÓXIMO PASSO PRÁTICO** (não atacar sem brainstorm dedicado precedendo): **LLM-assisted coding com Camada 2 ICR como par natural**. Ordem cravada (ver §"Framework Unificado ICR + LLM" abaixo): primeiro item LLM = **`generateCodebook`** (era último, foi invertido — feature mais transversal exercita motor de ponta a ponta e gera massa pra Camada 2 treinar). LLM coding **não entra sem Camada 2** (Bayesian annotation model — Dawid-Skene/MACE/Paun et al. 2018). Decisão metodológica não-negociável documentada em `docs/ICR-MULTIMODAL-METHODOLOGY.md` (user-facing) e Research em `docs/_research/icr-multimodal-heterogeneous-units.md` (pesquisa autoritativa).
 
 > **🔬 Virada conceitual 2026-05-13 — Framework Unificado ICR Multifaceta + LLM:** heterogeneidade de modalidade (B4 original) e heterogeneidade de coder (humano vs LLMs) **são o mesmo problema estrutural** — facetas no desenho de medida. Frame matemático único cobre os dois (G-theory multivariate, MFRM, Bayesian hierarchical annotation). Plugin posiciona-se como **bench de avaliação rigorosa de LLM como coder em QDA multimodal** — categoria que não existe no mercado. Pesquisa autoritativa em `docs/_research/icr-multimodal-heterogeneous-units.md` (395 linhas, 30+ refs); síntese user-facing em `docs/ICR-MULTIMODAL-METHODOLOGY.md`. Detalhe operacional em §"Framework Unificado ICR + LLM" abaixo.
 
@@ -133,7 +133,7 @@ Sem ordem imposta — agrupamento temático pra varredura. Decisões de execuç�
 | Área | O que tem aberto |
 |------|------------------|
 | **[Coding Management](#2-coding-management)** | Tier 1 ✅ FEITO 2026-04-28 · Tier 2 ✅ FEITO 2026-04-28 · Tier 3 ✅ FEITO 2026-05-04 |
-| **[Analytics](#3-analytics--melhorias)** | — |
+| **[Analytics](#3-analytics--melhorias)** | Routledge Tier 1/2/3 + redesign UI pesado. Atacar **depois** de LLM (ver Frente 3 acima) |
 | **[Margin Panel](#4-margin-panel--melhorias)** | Customization · Resize Handle. **Bloqueado** por decisão em plugin externo |
 
 ---
@@ -143,7 +143,7 @@ Sem ordem imposta — agrupamento temático pra varredura. Decisões de execuç�
 Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 
 - ~~**Parquet/CSV lazy loading**~~ ✅ **FEITO 2026-05-04** — todas as 7 fases entregues. Stack final: DuckDB-Wasm + OPFS + AG Grid Infinite. Doc autoritativo `docs/parquet-lazy-design.md` preservado como referência arquitetural / post-mortem. Estendido em 2026-05-07 com tabular virtual cols (release 0.4.0) + 2026-05-08 com Code Explorer perf + Export multi-file fallback
-- **[LLM-assisted coding](#llm-assisted-coding)** — **pesquisa de mercado profunda concluída** (`docs/_study/llm-coding/`, 41 arquivos: 40 tools + 5 patterns + síntese cross-tool + qualia-fit). 5 escolas filosóficas mapeadas. Decisão pendente: posicionamento (qual escola). Sem isso, design não rola
+- **[LLM-assisted coding](#llm-assisted-coding)** — decisões fundacionais cravadas (ver Frente 2 acima + `LLM-MATERIA-2026-05-08.md §2 + §4` + virada 2026-05-13). Posicionamento = bench rigoroso de LLM como coder em QDA multimodal. "Qual escola filosófica" virou não-decisão. Próximo passo prático = brainstorm dedicado pra cravar ordem das operações + manifestação UI + operacionalização Camada 2 BHM. Pesquisa de mercado em `docs/_study/llm-coding/` (40 tools + 5 patterns) preservada como repertório.
 - **[Infra compartilhada — ICR + merge + multi-coder + handoff](#intercoder-reliability--material-de-repertório-pra-discussão-epistemológica)** — **rename de "Intercoder Reliability" pra refletir alcance real (2026-05-09).** Não é feature de nicho de ICR — é base estrutural compartilhada que destrava simultaneamente ICR multi-coder, merge de projetos (caso bottom-up), multi-coder live no mesmo vault, handoff com procedência por coder, audit estruturado. Diferenciador real do mercado: deep research 2026-05-09 confirmou que **nenhuma das 4 grandes** (NVivo, MAXQDA, ATLAS.ti, Dedoose) tem UI de negotiated agreement, hash de integridade de corpus, ou ICR multimodal completo — gaps universais.
 
   **Decisões cravadas (sessão 2026-05-09):**
@@ -303,10 +303,10 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [x] **P0 (Slice 3) entregue:** funções puras extract/merge + cross-vault remap + codebookVersion hash + plugin API
   - [x] **P1 — UX layer FEITO (2026-05-10):** ItemView único `qc-icr-import` (rail + 3 chips: Visão geral / Lado a lado / Por código). Divergence resolution inline na Visão geral (codebook + sources com Manter local / Aceitar / Skip por item). Lado a lado com nav ←/→ + filter chips (todos/sobrepondo/novos) + filterCodeId. Por código com batch actions (Accept all / Skip all / Revisar 1-a-1 →). Trigger import = ribbon `git-pull-request`. Trigger export = botão no Compare Coders View toolbar + comando palette pra ambos. Motor estendido com `options: { dryRun, overrides }`. Bug pré-existente fixado: motor agora emite `source_not_found` pra fileIds órfãos do payload.sources. **+72 testes** (3150 → 3222). Spec/plan arquivados em `obsidian-qualia-coding/plugin-docs/archive/claude_sources/{specs,plans}/20260510-*`.
 
-  **Possibilidade complementar (não-prioridade):**
-  - [ ] Campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — atende usuários com pipeline R/Python próprio
-  - [ ] Markdown overlap exato no chip Lado a lado (atualmente degradado: requer fetch async de sourceText pra reativar predicate `extractMarkdownRange + computeOverlap`). PDF + CSV funcionam normalmente.
-  - [ ] Range overlap exato no chip Por código (atualmente aproximação `min(local, incoming)` por codeId compartilhado)
+  **Possibilidade complementar (todos entregues 2026-05-12):**
+  - [x] Campo `coder` no schema do Tabular ZIP + snippet de Kappa no README — ✅ **FEITO 2026-05-12 (Slice D, commit d223885)** — `coders.csv` standalone + coluna `coder` em `segments.csv` + snippets R (irr) + Python (sklearn).
+  - [x] Markdown overlap exato no chip Lado a lado — ✅ **FEITO 2026-05-12 (commit 9afebc3)** — `prefetchSourceTexts` via `vault.cachedRead`.
+  - [x] Range overlap exato no chip Por código — ✅ **FEITO 2026-05-12 (commit 9afebc3)** — `collectByCodeContext` itera `findOverlappingLocalMarkers` per marker.
 
   **Resumo cumulativo 2026-05-09 → 2026-05-12:** **13 slices entregues** (1-6 motor + E1 + E2 UI + E3a reconciliação P2 + E3b workflow queue + E4 saved comparisons + E5a IcrMarkerOps cross-engine + E5b bbox spatial reconciliação) + Fase C P1 UX layer + coder picker live + CSV cross-coder isolation. +640 testes ICR (2814 → 3450). Compare Coders View completa pra workflow real de reconciliação multi-coder: matriz/tabela/heatmap, drill-down Cards (P2) com tag de divergência, drill-down Workflow Queue (P3) com 4 colunas (em discussão / resolvidos / divergência aceita / inativos), Saved Comparisons hub (ribbon + atalho contextual no codebook), κ pré/pós consensus, export relatório clipboard. IcrMarkerOps cobre 8 das 8 engines (markdown + pdf-text + pdfShape + csvSegment + csvRow + audio + video + image). `attachSourceHashSnapshot` wired em todos os 5 engine models.
 
@@ -319,9 +319,9 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
   - [[Deep Research Report - ICR Qualitative]] — pesquisa GPT 2026-05-09 com 6 gaps preenchidos
   - Companions de design originais: ICR-MATERIA, ICR-DESIGN-SKETCH, ICR-PRACTICE-WORKFLOW, ICR-WORKFLOWS-LANDSCAPE, RELACOES-ICR-LLM (todos 2026-05-08)
 
-  **Permanece como repertório histórico (2026-05-04):** material de 2 conversas externas com 2 ângulos (A: ICR clássico Kappa/α; B: auditabilidade interpretativa via Friese/B&C). Convivência A+B é a postura cravada — não é decisão exclusiva.
+  **Repertório histórico (2026-05-04) — postura SUBSTITUÍDA:** material de 2 conversas externas com 2 ângulos (A: ICR clássico Kappa/α; B: auditabilidade interpretativa via Friese/B&C). Convivência A+B era postura de 2026-05-04. **Substituída em 2026-05-13** pelo Framework Unificado ICR + LLM — plugin = bench rigoroso de LLM como coder em QDA multimodal, com BHM/G-theory como matemática unificada. Ver `docs/ICR-MULTIMODAL-METHODOLOGY.md`.
 
-- **Sync e colaboração multi-coder** — discussão em aberto, possibilidade não cravada. Pesquisa local 2026-05-09 mapeou 4 caminhos de infraestrutura (Obsidian Sync, Google Drive/Dropbox, GitHub, transferência ad-hoc) com tradeoffs por tipo de corpus, custo, isolamento e barreira de entrada. **Sync independe do design do plugin** — escolha do pesquisador conforme corpus e equipe — mas afeta como Export/Import é usado na prática (input do corpus, output da contribuição). Doc: [[Sync — Caminhos de infraestrutura]]. Conexão direta com a frente ICR P2 transport (caminho A do design ICR cravado).
+- **Sync e colaboração multi-coder** — Fase C P0 (transport puro) ✅ FEITO 2026-05-09 (Slice 3). Fase C P1 (UX layer) ✅ FEITO 2026-05-10 (ItemView `qc-icr-import` + rail + 3 chips + cherry-pick + conflict resolution). Pesquisa local 2026-05-09 mapeou 4 caminhos de infraestrutura (Obsidian Sync, Google Drive/Dropbox, GitHub, transferência ad-hoc) com tradeoffs por tipo de corpus — escolha do pesquisador, fora do plugin. Doc: [[Sync — Caminhos de infraestrutura]] em `plugin-docs/research/`.
 - **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização
 - ~~**Research Board Enhancements**~~ — ✅ todos 6 sub-items resolvidos (4 feitos + 2 won't-do)
 - ~~**Tabular round-trip (import)**~~ — fechado 2026-04-30, ver "Decisões fechadas sem implementar"
@@ -686,39 +686,17 @@ Trecho da conversa de 2026-04-28 com claude_ai sobre as views Analytics:
 
 ### Research Board Enhancements
 
-3 dos 5 sub-items originais já feitos. Restam 3 abertos (1 incerto, 2 não-feitos):
+✅ **Todos 4 sub-items feitos.** Frase "3 abertos" era stale.
 
 | Feature | Status |
 |---------|--------|
 | ~~**Sync com registry**~~ | ✅ FEITO — `boardReconciler.ts` (cor/nome/contagens em real time) |
 | ~~**Context menu "Refresh"**~~ | ✅ FEITO — `reconcileBoard()` exposto via "Refresh on open" |
 | ~~**Export board (PNG/SVG)**~~ | ✅ FEITO — `boardExport.ts` (PNG + SVG + bbox scene-coord) |
-| ~~**Drag do Code Explorer pro board**~~ | ✅ FEITO 2026-04-29 — `handleDrop` em `boardView.ts:536` estendido pra aceitar raw codeId além de JSON payload da Frequency. Async reconcile preenche count/sources após drop. Fix DnD: `effectAllowed='copyMove'` (era 'move' — bloqueava o drop com `dropEffect='copy'` do board) |
+| ~~**Drag do Code Explorer pro board**~~ | ✅ FEITO 2026-04-29 — `handleDrop` em `boardView.ts:536` estendido pra aceitar raw codeId. Async reconcile preenche count/sources após drop. |
 
-> **Export PDF dispensado** em #20 (2026-04-24) — SVG cobre o caso vetorial melhor sem adicionar dependência externa. Ver registro em "Implementados".
-> **Templates pré-definidos** (2x2, timeline, etc.) movido pra "Decisões fechadas sem implementar" em 2026-04-29 — board é canvas livre, user recria qualquer layout em <1min, manter biblioteca é overhead.
-
-#### Drag do Code Explorer pro board — escopo (1 sessão / 6-10h)
-
-**Comportamento:** user arrasta um Code da árvore do codebook (sidepanel) → solta no canvas do Research Board (workspace) → aparece um `CodeCard` node na posição do drop. Permite duplicatas (drop 3x = 3 cards).
-
-**Estado atual:**
-- ✅ Drag SOURCE — `codebookDragDrop.ts:157` faz `setData('text/plain', draggedCodeId)`, `row.draggable = true` em `codebookTreeRenderer.ts`
-- ❌ Drop TARGET — zero handlers em `src/analytics/board/`
-
-**Implementação:**
-
-| Etapa | LOC | Tempo |
-|---|---|---|
-| Handlers `dragover` + `drop` no canvas wrapper do board | ~30-50 | 1-2h |
-| Coord conversion mouse → Fabric scene coord (considerando viewportTransform — pattern já resolvido em `boardExport`) | ~20-30 | 1-2h |
-| Criar `CodeCard` node ao drop (factory `createCodeCardNode` já existe em `nodes/`) | ~10-20 | 30min-1h |
-| Persistir no boardState | ~10-20 | 30min |
-| Edge cases (drop fora da área, sobre objeto existente, dataTransfer com payload inválido) | ~20-30 | 1h |
-| Tests (drop sem zoom, com zoom 2x, com pan, codeId inválido) | ~80-150 | 2-3h |
-| Smoke manual no workbench | — | 30min |
-
-**Risco:** coord conversion no Fabric. Pattern já resolvido em `boardExport.ts` — reuso.
+> **Export PDF dispensado** em #20 (2026-04-24) — SVG cobre o caso vetorial melhor sem adicionar dependência externa.
+> **Templates pré-definidos** movido pra "Decisões fechadas sem implementar" em 2026-04-29 — board é canvas livre.
 
 ### Analytical Memos
 
