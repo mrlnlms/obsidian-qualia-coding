@@ -22,7 +22,10 @@ Sem nenhum sintoma aberto no momento. Quando aparecer, capturar `data.json` + sc
 
 ## 🪶 Polish curto
 
-**Sem itens em aberto.** Image engine + canvas refresh cor cross-engine + cross-cutting `!important` — tudo zerado 2026-05-13 (release 0.7.0). Detalhe historiográfico em **[BACKLOG-HISTORY.md](BACKLOG-HISTORY.md)** + **[ROADMAP-HISTORY.md](ROADMAP-HISTORY.md)**.
+- [x] **[Smart Code Phase 2] Invalidação granular em field updates** — Modelos de PDF, Image, CSV e Media agora emitem `MarkerMutationEvent` no `updateMarkerFields`.
+- [x] **[Smart Code Phase 2] Suporte em Analytics Stats** — `calculateDocumentCodeMatrix`, `calculateSourceComparison`, `calculateOverlap` e `calculateTextStats` atualizados para suportar Smart Codes.
+- [x] **[Smart Code Phase 2] Suporte em Analytics Views** — Integrado em `dashboard`, `doc-matrix`, `source-comparison`, `overlap`, `text-retrieval`, `word-cloud` e `text-stats`.
+- [ ] **[Smart Code Phase 2] Dimensionality Reduction Stats** — Estender `calculateChiSquare`, `calculateACM`, etc. para Smart Codes (prioridade baixa).
 
 ---
 

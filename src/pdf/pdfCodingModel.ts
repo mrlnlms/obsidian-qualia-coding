@@ -164,6 +164,36 @@ export class PdfCodingModel {
 
 	// ── Marker operations ──
 
+	updateMarkerFields(markerId: string, fields: { memo?: any; colorOverride?: string }): void {
+		const marker = this.findMarkerById(markerId);
+		if (marker) {
+			if ('memo' in fields) marker.memo = fields.memo;
+			if ('colorOverride' in fields) marker.colorOverride = fields.colorOverride;
+			marker.updatedAt = Date.now();
+			const codeIds = marker.codes.map(c => c.codeId);
+			this.emitMarkerMutation({
+				fileId: marker.fileId, markerId,
+				prevCodeIds: codeIds, nextCodeIds: codeIds,
+				codeIds: [], marker,
+			});
+			this.notify();
+			return;
+		}
+		const shape = this.findShapeById(markerId);
+		if (shape) {
+			if ('memo' in fields) shape.memo = fields.memo;
+			if ('colorOverride' in fields) shape.colorOverride = fields.colorOverride;
+			shape.updatedAt = Date.now();
+			const codeIds = shape.codes.map(c => c.codeId);
+			this.emitMarkerMutation({
+				fileId: shape.fileId, markerId,
+				prevCodeIds: codeIds, nextCodeIds: codeIds,
+				codeIds: [], marker: shape,
+			});
+			this.notify();
+		}
+	}
+
 	/** Find an existing marker without creating one (for read-only checks). */
 	findExistingMarker(file: string, page: number, beginIndex: number, beginOffset: number, endIndex: number, endOffset: number): PdfMarker | undefined {
 		return this.markers.find(m =>

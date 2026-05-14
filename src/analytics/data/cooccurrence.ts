@@ -174,7 +174,9 @@ function rangesOverlap(a: { start: number; end: number }, b: { start: number; en
 export function calculateOverlap(
   data: ConsolidatedData,
   filters: FilterConfig,
-): OverlapResult {
+  smartCodes?: SmartCodeAccess,
+  caseVarsRegistry?: CaseVariablesRegistry,
+): OverlapResult & { isSmart?: boolean[] } {
   const markers = applyFilters(data, filters);
   const codeById = new Map(data.codes.map((c) => [c.id, c]));
 
@@ -187,17 +189,43 @@ export function calculateOverlap(
     }
   }
 
-  const idsKept: string[] = [];
+  interface CodeEntry { id: string; name: string; color: string; isSmart?: boolean }
+  const eligible: CodeEntry[] = [];
+
   for (const [codeId, count] of codeFreq) {
     if (count < filters.minFrequency) continue;
-    idsKept.push(codeId);
+    const def = codeById.get(codeId);
+    eligible.push({
+      id: codeId,
+      name: def?.name ?? codeId,
+      color: def?.color ?? "#6200EE",
+    });
   }
-  idsKept.sort((a, b) => (codeById.get(a)?.name ?? a).localeCompare(codeById.get(b)?.name ?? b));
-  const codes: string[] = idsKept.map((id) => codeById.get(id)?.name ?? id);
-  const sortedColors: string[] = idsKept.map((id) => codeById.get(id)?.color ?? "#6200EE");
 
-  const n = idsKept.length;
-  const codeIndex = new Map(idsKept.map((id, i) => [id, i]));
+  // Pre-compute marker -> smartCodeIds mapping
+  const markerToScIds = new Map<string, string[]>();
+  if (smartCodes) {
+    const scViews = getSmartCodeViews(data, smartCodes.cache, smartCodes.registry, filters, caseVarsRegistry);
+    for (const sc of scViews) {
+      if (!smartCodePassesCodesFilter(sc.id, filters)) continue;
+      if (sc.matches.length < filters.minFrequency) continue;
+      eligible.push({ id: sc.id, name: sc.name, color: sc.color, isSmart: true });
+      for (const m of sc.matches) {
+        const key = markerKey(m);
+        const list = markerToScIds.get(key) || [];
+        list.push(sc.id);
+        markerToScIds.set(key, list);
+      }
+    }
+  }
+
+  eligible.sort((a, b) => a.name.localeCompare(b.name));
+  const codes: string[] = eligible.map((e) => e.name);
+  const sortedColors: string[] = eligible.map((e) => e.color);
+  const isSmart: boolean[] = eligible.map((e) => !!e.isSmart);
+
+  const n = eligible.length;
+  const codeIndex = new Map(eligible.map((e, i) => [e.id, i]));
   const matrix: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
 
   const skippedSet = new Set<SourceType>();
@@ -214,13 +242,39 @@ export function calculateOverlap(
     list.push(m);
   }
 
+  // Also include markers that only match Smart Codes (might not have regular codes passing filter)
+  if (smartCodes) {
+    for (const fileId of data.markers.map(m => m.fileId)) { // naive but fileSet is small
+       // actually getSmartCodeViews already filtered matches by source/etc.
+    }
+    // Better: iterate scViews matches and add to byFile if not already there
+    const scViews = getSmartCodeViews(data, smartCodes.cache, smartCodes.registry, filters, caseVarsRegistry);
+    for (const sc of scViews) {
+      if (!smartCodePassesCodesFilter(sc.id, filters)) continue;
+      for (const m of sc.matches) {
+        if (!markerHasPosition(m)) continue;
+        let list = byFile.get(m.fileId);
+        if (!list) { list = []; byFile.set(m.fileId, list); }
+        if (!list.some(existing => existing.id === m.id && existing.source === m.source)) {
+          list.push(m);
+        }
+      }
+    }
+  }
+
   for (const [, fileMarkers] of byFile) {
     const ranges: ({ start: number; end: number } | null)[] = fileMarkers.map(markerToRange);
 
     for (let a = 0; a < fileMarkers.length; a++) {
       const rA = ranges[a];
       if (!rA) continue;
-      for (const cA of fileMarkers[a]!.codes) {
+      const mKeyA = markerKey(fileMarkers[a]!);
+      const codesA = [
+        ...fileMarkers[a]!.codes.filter(c => codeIndex.has(c)),
+        ...(markerToScIds.get(mKeyA) || [])
+      ];
+
+      for (const cA of codesA) {
         const iA = codeIndex.get(cA);
         if (iA != null) matrix[iA]![iA]!++;
       }
@@ -231,15 +285,20 @@ export function calculateOverlap(
         totalPairsChecked++;
 
         if (rangesOverlap(rA, rB)) {
-          const codesA = fileMarkers[a]!.codes.filter((c) => codeIndex.has(c));
-          const codesB = fileMarkers[b]!.codes.filter((c) => codeIndex.has(c));
+          const mKeyB = markerKey(fileMarkers[b]!);
+          const codesB = [
+            ...fileMarkers[b]!.codes.filter(c => codeIndex.has(c)),
+            ...(markerToScIds.get(mKeyB) || [])
+          ];
           for (const cA of codesA) {
             for (const cB of codesB) {
               if (cA === cB) continue;
-              const iA = codeIndex.get(cA)!;
-              const iB = codeIndex.get(cB)!;
-              matrix[iA]![iB]!++;
-              matrix[iB]![iA]!++;
+              const iA = codeIndex.get(cA);
+              const iB = codeIndex.get(cB);
+              if (iA != null && iB != null) {
+                matrix[iA]![iB]!++;
+                matrix[iB]![iA]!++;
+              }
             }
           }
         }
@@ -262,5 +321,5 @@ export function calculateOverlap(
     }
   }
 
-  return { codes, colors: sortedColors, matrix, maxValue, totalPairsChecked, skippedSources: Array.from(skippedSet) };
+  return { codes, colors: sortedColors, matrix, maxValue, totalPairsChecked, skippedSources: Array.from(skippedSet), isSmart };
 }

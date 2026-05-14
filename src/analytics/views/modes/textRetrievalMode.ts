@@ -3,6 +3,7 @@ import { setIcon, Notice, MarkdownView } from "obsidian";
 import type { FilterConfig, UnifiedMarker } from "../../data/dataTypes";
 import { TextExtractor, type ExtractedSegment } from "../../data/textExtractor";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
+import { getSmartCodeViews, smartCodePassesCodesFilter } from "../../data/smartCodeAnalytics";
 
 export function renderTextRetrieval(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
@@ -41,10 +42,33 @@ export function renderTextRetrieval(ctx: AnalyticsViewContext, filters: FilterCo
   const contentEl = container.createDiv({ cls: "codemarker-tr-content" });
 
   // Filter markers per current filters (+ optional marker ID filter from other modes)
-  let filtered = ctx.data.markers.filter((m) =>
+  // Regular markers
+  const regularFiltered = ctx.data.markers.filter((m) =>
     filters.sources.includes(m.source) &&
     m.codes.some((c) => !filters.excludeCodes.includes(c))
   );
+
+  // Smart Code matches
+  const scViews = getSmartCodeViews(ctx.data, ctx.plugin.smartCodeCache, ctx.plugin.smartCodeRegistry, filters, ctx.plugin.caseVariablesRegistry);
+  const scMarkers: UnifiedMarker[] = [];
+  for (const sc of scViews) {
+    if (smartCodePassesCodesFilter(sc.id, filters)) {
+      scMarkers.push(...sc.matches);
+    }
+  }
+
+  // Combine and dedup
+  const combined = [...regularFiltered];
+  const seenIds = new Set(combined.map(m => `${m.source}:${m.fileId}:${m.id}`));
+  for (const m of scMarkers) {
+    const key = `${m.source}:${m.fileId}:${m.id}`;
+    if (!seenIds.has(key)) {
+      combined.push(m);
+      seenIds.add(key);
+    }
+  }
+
+  let filtered = combined;
   if (ctx.trMarkerFilter) {
     filtered = filtered.filter((m) => ctx.trMarkerFilter!.has(m.id));
   }
@@ -106,11 +130,16 @@ function renderSegments(ctx: AnalyticsViewContext, container: HTMLElement, segme
 
   // Apply search filter
   const query = ctx.trSearch.toLowerCase();
+  const filters = ctx.buildFilterConfig();
+  const scViews = ctx.data ? getSmartCodeViews(ctx.data, ctx.plugin.smartCodeCache, ctx.plugin.smartCodeRegistry, filters, ctx.plugin.caseVariablesRegistry) : [];
+  const activeSCs = scViews.filter(sc => smartCodePassesCodesFilter(sc.id, filters));
+
   const filtered = query
     ? segments.filter((s) =>
         s.codes.some((c) => c.toLowerCase().includes(query)) ||
         s.text.toLowerCase().includes(query) ||
-        s.fileId.toLowerCase().includes(query)
+        s.fileId.toLowerCase().includes(query) ||
+        activeSCs.some(sc => sc.name.toLowerCase().includes(query) && sc.matches.some(m => m.id === s.markerId))
       )
     : segments;
 
@@ -130,21 +159,39 @@ function renderSegments(ctx: AnalyticsViewContext, container: HTMLElement, segme
       codeColorMap.set(c.id, c.color);
       codeNameMap.set(c.id, c.name);
     }
+    // Also include Smart Codes in maps for display names/colors
+    for (const sc of activeSCs) {
+      codeColorMap.set(sc.id, sc.color);
+      codeNameMap.set(sc.id, sc.name);
+    }
   }
 
   if (ctx.trGroupBy === "code") {
     // Group by code (key=codeId)
     const byCode = new Map<string, ExtractedSegment[]>();
     for (const seg of filtered) {
+      // Regular codes
       for (const code of seg.codes) {
+        if (filters.excludeCodes.includes(code)) continue;
         const list = byCode.get(code) || [];
         list.push(seg);
         byCode.set(code, list);
       }
+      // Smart Codes
+      for (const sc of activeSCs) {
+        if (sc.matches.some(m => m.id === seg.markerId && m.source === seg.source)) {
+          const list = byCode.get(sc.id) || [];
+          if (!list.includes(seg)) {
+            list.push(seg);
+            byCode.set(sc.id, list);
+          }
+        }
+      }
     }
     const sortedCodeIds = Array.from(byCode.keys()).sort((a, b) => (codeNameMap.get(a) ?? a).localeCompare(codeNameMap.get(b) ?? b));
     for (const codeId of sortedCodeIds) {
-      renderCodeGroup(ctx, container, codeId, codeNameMap.get(codeId) ?? codeId, byCode.get(codeId)!, codeColorMap, codeNameMap);
+      const isSmart = codeId.startsWith('sc_');
+      renderCodeGroup(ctx, container, codeId, codeNameMap.get(codeId) ?? codeId, byCode.get(codeId)!, codeColorMap, codeNameMap, isSmart);
     }
   } else {
     // Group by file
@@ -169,8 +216,9 @@ function renderCodeGroup(
   segments: ExtractedSegment[],
   codeColorMap: Map<string, string>,
   codeNameMap: Map<string, string>,
+  isSmart = false,
 ): void {
-  const section = container.createDiv({ cls: "codemarker-tr-section" });
+  const section = container.createDiv({ cls: "codemarker-tr-section" + (isSmart ? " is-smart-code" : "") });
   const header = section.createDiv({ cls: "codemarker-tr-section-header" });
   const isCollapsed = ctx.trCollapsed.has("code:" + codeId);
 
@@ -180,7 +228,7 @@ function renderCodeGroup(
   const swatch = header.createDiv({ cls: "codemarker-tr-swatch" });
   swatch.style.backgroundColor = codeColorMap.get(codeId) ?? "#6200EE";
 
-  header.createDiv({ cls: "codemarker-tr-section-title", text: displayName });
+  header.createDiv({ cls: "codemarker-tr-section-title", text: (isSmart ? "⚡ " : "") + displayName });
   header.createDiv({ cls: "codemarker-tr-section-count", text: `(${segments.length})` });
 
   const body = section.createDiv({ cls: "codemarker-tr-section-body" });

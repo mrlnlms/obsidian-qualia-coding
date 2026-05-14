@@ -166,7 +166,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 
 **Implementação:** schema completo (PredicateNode AST com 10 leaves: hasCode, caseVarEquals, caseVarRange, magnitudeGte/Lte, inFolder, inGroup, engineType, relationExists, smartCode nesting), evaluator puro com short-circuit + cycle detection (`src/core/smartCodes/evaluator.ts`), SmartCodeCache singleton com invalidação granular + computePreview + chunked compute (`cache.ts` + `matcher.ts`), SmartCodeApi CRUD + autoRewriteOnMerge + diffPredicateLeaves + rewriteCodeRef (`smartCodeRegistryApi.ts`), builder modal row-based linear com preview live <300ms + Smart Code Detail + List hub modal acessível via command palette (`Smart Codes: Open hub` + `Smart Codes: New`), audit log estendido com `entity?: 'code' | 'smartCode'` discriminator + 5 sc_* event types com coalescing (60s text edits + Set union pra predicate edits), ⚡ icon na Codebook Timeline, export QDPX bloco `<qualia:SmartCodes>` namespace custom + import 2-pass (alocar IDs → resolver refs incl. nesting), CSV tabular `smart_codes.csv` com `predicate_json` + README R/Python snippets condicionais. **Stress:** 10k markers + 100 smart codes em <1s.
 
-**Pendente (Phase 2, não bloqueante):** integração em Analytics modes (frequency/cooccurrence/etc) + sidebar adapters por engine + emit granular `qualia:markers-changed` em modelos pra invalidação cirúrgica do cache. Funcionalidade core está acessível via SmartCodeListModal sem essas integrações.
+**Phase 2 Polish:** ver `BACKLOG.md` (§Polish curto) para integração em Analytics + technical debt de cache. Funcionalidade core está acessível via SmartCodeListModal sem essas integrações.
 
 ### 3. Analytics — melhorias
 

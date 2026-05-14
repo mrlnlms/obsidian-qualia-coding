@@ -68,8 +68,8 @@ export class MediaSidebarAdapter<
 		this.model.saveMarkers();
 	}
 
-	protected override notifyAfterFieldUpdate(): void {
-		this.model.notify();
+	override updateMarkerFields(markerId: string, fields: { memo?: import('../core/memoTypes').MemoRecord; colorOverride?: string }): void {
+		this.model.updateMarkerFields(markerId, fields);
 	}
 
 	updateDecorations(_fileId: string): void {

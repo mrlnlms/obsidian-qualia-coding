@@ -99,10 +99,10 @@ function paintOverlapMatrix(
   canvasCtx.textBaseline = "middle";
   for (let i = 0; i < n; i++) {
     const y = labelSpace + i * cellSize + cellSize / 2;
-    const label = asCooc.codes[i]!.length > 15
-      ? asCooc.codes[i]!.slice(0, 14) + "…"
-      : asCooc.codes[i];
-    canvasCtx.fillText(label!, labelSpace - 6, y);
+    let label = asCooc.codes[i]!;
+    if (asCooc.isSmart?.[i]) label = `⚡ ${label}`;
+    if (label.length > 15) label = label.slice(0, 14) + "…";
+    canvasCtx.fillText(label, labelSpace - 6, y);
   }
 
   // Top labels (rotated)
@@ -114,10 +114,10 @@ function paintOverlapMatrix(
     canvasCtx.save();
     canvasCtx.translate(x, labelSpace - 6);
     canvasCtx.rotate(-Math.PI / 4);
-    const label = asCooc.codes[j]!.length > 15
-      ? asCooc.codes[j]!.slice(0, 14) + "…"
-      : asCooc.codes[j];
-    canvasCtx.fillText(label!, 0, 0);
+    let label = asCooc.codes[j]!;
+    if (asCooc.isSmart?.[j]) label = `⚡ ${label}`;
+    if (label.length > 15) label = label.slice(0, 14) + "…";
+    canvasCtx.fillText(label, 0, 0);
     canvasCtx.restore();
   }
   canvasCtx.restore();
@@ -137,13 +137,16 @@ function paintOverlapMatrix(
       const val = asCooc.matrix[row]![col]!;
       const dispVal = displayMatrix[row]![col]!;
       const suffix = ctx.displayMode === "percentage" && row !== col ? "%" : "";
+      const codeRow = asCooc.isSmart?.[row] ? `⚡ ${asCooc.codes[row]}` : asCooc.codes[row];
+      const codeCol = asCooc.isSmart?.[col] ? `⚡ ${asCooc.codes[col]}` : asCooc.codes[col];
+
       let dispText: string;
       if (row === col) {
-        dispText = `${asCooc.codes[row]}: ${val} markers`;
+        dispText = `${codeRow}: ${val} markers`;
       } else if (isNormalized) {
-        dispText = `${asCooc.codes[row]} ∩ ${asCooc.codes[col]}: ${dispVal!.toFixed(2)} overlap`;
+        dispText = `${codeRow} ∩ ${codeCol}: ${dispVal!.toFixed(2)} overlap`;
       } else {
-        dispText = `${asCooc.codes[row]} ∩ ${asCooc.codes[col]}: ${dispVal}${suffix} overlaps`;
+        dispText = `${codeRow} ∩ ${codeCol}: ${dispVal}${suffix} overlaps`;
       }
       tooltip.textContent = dispText;
       tooltip.style.display = "";
@@ -162,7 +165,10 @@ function paintOverlapMatrix(
 export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 
-  const result = calculateOverlap(ctx.data, filters);
+  const result = calculateOverlap(ctx.data, filters, {
+    cache: ctx.plugin.smartCodeCache,
+    registry: ctx.plugin.smartCodeRegistry,
+  }, ctx.plugin.caseVariablesRegistry);
 
   if (result.codes.length < 2) {
     ctx.chartContainer.createDiv({
@@ -179,6 +185,7 @@ export function renderOverlapMatrix(ctx: AnalyticsViewContext, filters: FilterCo
     colors: [...result.colors],
     matrix: result.matrix.map((r) => [...r]),
     maxValue: result.maxValue,
+    isSmart: result.isSmart,
   };
 
   // Fast path: alpha/frequency são instantâneos

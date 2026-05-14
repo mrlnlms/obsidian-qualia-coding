@@ -8,19 +8,39 @@ import { downloadCsv } from "../shared/chartHelpers";
 export function renderTextStats(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 
-  const filtered = ctx.data.markers.filter((m) =>
+  // Regular markers
+  const regularFiltered = ctx.data.markers.filter((m) =>
     filters.sources.includes(m.source) &&
     m.codes.some((c) => !filters.excludeCodes.includes(c))
   );
 
-  if (filtered.length === 0) {
+  // Smart Code matches
+  const scViews = getSmartCodeViews(ctx.data, ctx.plugin.smartCodeCache, ctx.plugin.smartCodeRegistry, filters, ctx.plugin.caseVariablesRegistry);
+  const scMarkers: UnifiedMarker[] = [];
+  const activeSCs = scViews.filter(sc => smartCodePassesCodesFilter(sc.id, filters));
+  for (const sc of activeSCs) {
+    scMarkers.push(...sc.matches);
+  }
+
+  // Combine and dedup
+  const combined = [...regularFiltered];
+  const seenIds = new Set(combined.map(m => `${m.source}:${m.fileId}:${m.id}`));
+  for (const m of scMarkers) {
+    const key = `${m.source}:${m.fileId}:${m.id}`;
+    if (!seenIds.has(key)) {
+      combined.push(m);
+      seenIds.add(key);
+    }
+  }
+
+  if (combined.length === 0) {
     ctx.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "No data matches current filters." });
     return;
   }
 
   const generation = ctx.renderGeneration;
   const loadingEl = ctx.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "Extracting text..." });
-  loadAndRenderTextStats(ctx, filtered, loadingEl, generation);
+  loadAndRenderTextStats(ctx, combined, loadingEl, generation);
 }
 
 export async function loadAndRenderTextStats(
@@ -36,15 +56,11 @@ export async function loadAndRenderTextStats(
   if (generation !== undefined && !ctx.isRenderCurrent(generation)) return;
   loadingEl.remove();
 
-  // Filter segment codes to only include enabled codes (multi-code segments may carry excluded codes)
-  const enabledCodes = ctx.enabledCodes;
-  const filteredSegments = segments.map(s => ({
-    ...s,
-    codes: s.codes.filter(c => enabledCodes.has(c)),
-  })).filter(s => s.codes.length > 0);
-
-  const codeDisplay = new Map(ctx.data.codes.map((c) => [c.id, { name: c.name, color: c.color }]));
-  const result = calculateTextStats(filteredSegments, codeDisplay);
+  const filters = ctx.buildFilterConfig();
+  const result = calculateTextStats(ctx.data, filters, segments, {
+    cache: ctx.plugin.smartCodeCache,
+    registry: ctx.plugin.smartCodeRegistry,
+  }, ctx.plugin.caseVariablesRegistry);
 
   if (result.codes.length === 0) {
     ctx.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "No text data available." });
@@ -118,7 +134,7 @@ export async function loadAndRenderTextStats(
     swatch.style.backgroundColor = entry.color;
     swatch.style.display = "inline-block";
     swatch.style.marginRight = "6px";
-    tdCode.createSpan({ text: entry.code });
+    tdCode.createSpan({ text: (entry.isSmart ? "⚡ " : "") + entry.code });
 
     tr.createEl("td", { text: String(entry.segmentCount), cls: "codemarker-ts-num" });
     tr.createEl("td", { text: String(entry.totalWords), cls: "codemarker-ts-num" });

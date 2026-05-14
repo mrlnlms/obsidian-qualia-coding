@@ -37,6 +37,16 @@ function createMockModel() {
 		saveMarkers: vi.fn(),
 		notifyAndSave: vi.fn(),
 
+		updateMarkerFields: vi.fn(function(this: any, markerId, fields) {
+			const m = markers.find(x => x.id === markerId);
+			if (m) {
+				if ('memo' in fields) m.memo = fields.memo;
+				if ('colorOverride' in fields) m.colorOverride = fields.colorOverride;
+				m.updatedAt = Date.now();
+				this.notifyAndSave();
+			}
+		}),
+
 		getMarkerLabel: vi.fn((m: CsvMarker) => `Row ${m.sourceRowId}, ${m.column}`),
 		getMarkerText: vi.fn((m: CsvMarker) => 'from' in m ? 'segment text' : null),
 

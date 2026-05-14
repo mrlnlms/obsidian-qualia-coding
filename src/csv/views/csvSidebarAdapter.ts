@@ -65,8 +65,8 @@ export class CsvSidebarAdapter extends BaseSidebarAdapter {
 		this.model.saveMarkers();
 	}
 
-	protected override notifyAfterFieldUpdate(): void {
-		this.model.notifyAndSave();
+	override updateMarkerFields(markerId: string, fields: { memo?: MemoRecord; colorOverride?: string }): void {
+		this.model.updateMarkerFields(markerId, fields);
 	}
 
 	updateDecorations(_fileId: string): void {

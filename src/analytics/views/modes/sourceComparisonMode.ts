@@ -47,7 +47,10 @@ export function renderSourceComparisonOptionsSection(ctx: AnalyticsViewContext):
 
 export function renderSourceComparison(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
-  const result = calculateSourceComparison(ctx.data, filters);
+  const result = calculateSourceComparison(ctx.data, filters, {
+    cache: ctx.plugin.smartCodeCache,
+    registry: ctx.plugin.smartCodeRegistry,
+  }, ctx.plugin.caseVariablesRegistry);
 
   if (result.entries.length === 0) {
     ctx.chartContainer.createDiv({
@@ -131,7 +134,9 @@ export function renderSourceComparisonChart(ctx: AnalyticsViewContext, result: S
     canvasCtx.font = "11px sans-serif";
     canvasCtx.textAlign = "right";
     canvasCtx.textBaseline = "middle";
-    const label = e!.code.length > 14 ? e!.code.slice(0, 13) + "\u2026" : e!.code;
+    let label = e!.code;
+    if (e!.isSmart) label = `⚡ ${label}`;
+    if (label.length > 14) label = label.slice(0, 13) + "\u2026";
     canvasCtx.fillText(label, labelSpace - 8, baseY + barGroupHeight / 2);
 
     // Swatch
@@ -224,7 +229,7 @@ export function renderSourceComparisonTable(ctx: AnalyticsViewContext, result: S
     const codeCellInner = codeCell.createDiv({ cls: "codemarker-ts-code-cell" });
     const swatch = codeCellInner.createSpan({ cls: "codemarker-ts-swatch" });
     swatch.style.backgroundColor = e.color;
-    codeCellInner.createSpan({ text: e.code });
+    codeCellInner.createSpan({ text: (e.isSmart ? "⚡ " : "") + e.code });
 
     // Total
     tr.createEl("td", { cls: "codemarker-ts-num", text: String(e.total) });

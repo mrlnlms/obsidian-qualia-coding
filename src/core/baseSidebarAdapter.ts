@@ -25,6 +25,7 @@ export interface AdapterModel {
 	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty?: boolean): void;
 	removeMarker(id: string): boolean;
 	findMarkerById(id: string): { memo?: MemoRecord; colorOverride?: string; updatedAt: number } | undefined | null;
+	updateMarkerFields(markerId: string, fields: { memo?: MemoRecord; colorOverride?: string }): void;
 }
 
 export abstract class BaseSidebarAdapter implements SidebarModelInterface {

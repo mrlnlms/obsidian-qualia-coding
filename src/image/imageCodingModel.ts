@@ -120,6 +120,21 @@ export class ImageCodingModel {
 		return this.markers.find((m) => m.id === id);
 	}
 
+	updateMarkerFields(markerId: string, fields: { memo?: any; colorOverride?: string }): void {
+		const marker = this.findMarkerById(markerId);
+		if (!marker) return;
+		if ('memo' in fields) marker.memo = fields.memo;
+		if ('colorOverride' in fields) marker.colorOverride = fields.colorOverride;
+		marker.updatedAt = Date.now();
+		const codeIds = marker.codes.map(c => c.codeId);
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId,
+			prevCodeIds: codeIds, nextCodeIds: codeIds,
+			codeIds: [], marker,
+		});
+		this.notify();
+	}
+
 	createMarker(
 		fileId: string,
 		shape: RegionShape,

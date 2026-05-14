@@ -37,6 +37,16 @@ function createMockModel() {
 		saveMarkers: vi.fn(),
 		notify: vi.fn(),
 
+		updateMarkerFields: vi.fn(function(this: any, markerId, fields) {
+			const m = markers.find(x => x.id === markerId);
+			if (m) {
+				if ('memo' in fields) m.memo = fields.memo;
+				if ('colorOverride' in fields) m.colorOverride = fields.colorOverride;
+				m.updatedAt = Date.now();
+				this.notify();
+			}
+		}),
+
 		getMarkerLabel: vi.fn((m: ImageMarker) => `${m.shape} region`),
 
 		_markers: markers,

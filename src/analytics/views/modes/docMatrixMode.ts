@@ -35,7 +35,10 @@ export function renderMatrixSortSection(ctx: AnalyticsViewContext): void {
 export function buildDocMatrixRows(ctx: AnalyticsViewContext): string[][] | null {
   if (!ctx.data) return null;
   const filters = ctx.buildFilterConfig();
-  const result = calculateDocumentCodeMatrix(ctx.data, filters);
+  const result = calculateDocumentCodeMatrix(ctx.data, filters, {
+    cache: ctx.plugin.smartCodeCache,
+    registry: ctx.plugin.smartCodeRegistry,
+  }, ctx.plugin.caseVariablesRegistry);
 
   const rows: string[][] = [["file", ...result.codes]];
   for (let fi = 0; fi < result.files.length; fi++) {
@@ -53,7 +56,10 @@ export function exportDocMatrixCSV(ctx: AnalyticsViewContext, date: string): voi
 export function renderDocCodeMatrix(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 
-  const result = calculateDocumentCodeMatrix(ctx.data, filters);
+  const result = calculateDocumentCodeMatrix(ctx.data, filters, {
+    cache: ctx.plugin.smartCodeCache,
+    registry: ctx.plugin.smartCodeRegistry,
+  }, ctx.plugin.caseVariablesRegistry);
 
   if (result.files.length === 0 || result.codes.length === 0) {
     ctx.chartContainer.createDiv({
@@ -147,11 +153,12 @@ export function renderDocCodeMatrix(ctx: AnalyticsViewContext, filters: FilterCo
     c2d.save();
     c2d.translate(x, labelSpaceTop - 6);
     c2d.rotate(-Math.PI / 4);
-    const label = result.codes[ci]!.length > 15
-      ? result.codes[ci]!.slice(0, 14) + "\u2026"
-      : result.codes[ci];
+    let label = result.codes[ci]!;
+    if (result.isSmart?.[ci]) label = `⚡ ${label}`;
+    if (label.length > 15) label = label.slice(0, 14) + "\u2026";
+    
     c2d.fillStyle = result.colors[ci]!;
-    c2d.fillText(label!, 0, 0);
+    c2d.fillText(label, 0, 0);
     c2d.restore();
   }
   c2d.restore();
@@ -171,7 +178,8 @@ export function renderDocCodeMatrix(ctx: AnalyticsViewContext, filters: FilterCo
       const fileIdx = fileOrder[row]!;
       const val = result.matrix[fileIdx]![col]!;
       const basename = result.files[fileIdx]!.split("/").pop() ?? result.files[fileIdx]!;
-      tooltip.textContent = `${basename} \u00d7 ${result.codes[col]}: ${val} marker${val !== 1 ? "s" : ""}`;
+      const codeName = result.isSmart?.[col] ? `⚡ ${result.codes[col]}` : result.codes[col];
+      tooltip.textContent = `${basename} \u00d7 ${codeName}: ${val} marker${val !== 1 ? "s" : ""}`;
       tooltip.style.display = "";
       tooltip.style.left = `${mx + 12}px`;
       tooltip.style.top = `${my + 12}px`;

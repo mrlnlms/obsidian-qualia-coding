@@ -23,6 +23,9 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
 
   // ── KPIs ──
   const enabledCodes = ctx.enabledCodes;
+  const scAccess = { cache: ctx.plugin.smartCodeCache, registry: ctx.plugin.smartCodeRegistry };
+  
+  // Regular markers filtered
   const filtered = ctx.data.markers.filter((m) =>
     filters.sources.includes(m.source) &&
     m.codes.some((c) => enabledCodes.has(c))
@@ -30,11 +33,15 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
     ...m,
     codes: m.codes.filter(c => enabledCodes.has(c)),
   }));
-  const freq = calculateFrequency(ctx.data, filters);
+
+  const freq = calculateFrequency(ctx.data, filters, scAccess, ctx.plugin.caseVariablesRegistry);
   freq.sort((a, b) => b.total - a.total);
 
   const totalMarkers = filtered.length;
-  const totalCodes = ctx.data.codes.filter(c => enabledCodes.has(c.id)).length;
+  const regularCodesCount = ctx.data.codes.filter(c => enabledCodes.has(c.id)).length;
+  const smartCodesCount = freq.filter(r => r.isSmart).length;
+  const totalCodes = regularCodesCount + smartCodesCount;
+  
   const totalFiles = new Set(filtered.map((m) => m.fileId)).size;
   const enabledSources = ctx.enabledSources;
   const sourceEntries: [string[], boolean][] = [
@@ -47,8 +54,14 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
   ];
   const activeSources = sourceEntries.filter(([keys, has]) => has && keys.some(k => enabledSources.has(k as any))).length;
   const mostUsedCode = freq.length > 0 ? freq[0]!.code : "\u2014";
+  
+  // Avg codes per marker includes Smart Code matches
+  let totalApplications = filtered.reduce((s, m) => s + m.codes.length, 0);
+  for (const r of freq) {
+    if (r.isSmart) totalApplications += r.total;
+  }
   const avgCodesPerMarker = filtered.length > 0
-    ? (filtered.reduce((s, m) => s + m.codes.length, 0) / filtered.length).toFixed(1)
+    ? (totalApplications / filtered.length).toFixed(1)
     : "0";
 
   const kpiGrid = dashboard.createDiv({ cls: "codemarker-kpi-grid" });
@@ -57,7 +70,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
     { value: String(totalCodes), label: "Total Codes", accent: "#6200EE" },
     { value: String(totalFiles), label: "Total Files", accent: "#66BB6A" },
     { value: String(activeSources), label: "Active Sources", accent: "#FFA726" },
-    { value: mostUsedCode, label: "Most Used Code", accent: "#EF5350" },
+    { value: (freq.length > 0 && freq[0]!.isSmart ? "⚡ " : "") + mostUsedCode, label: "Most Used Code", accent: "#EF5350" },
     { value: avgCodesPerMarker, label: "Avg Codes/Marker", accent: "#AB47BC" },
   ];
 
@@ -88,7 +101,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
       mode: "cooccurrence",
       title: "Co-occurrence Matrix",
       render: (c) => {
-        const cooc = calculateCooccurrence(ctx.data!, filters);
+        const cooc = calculateCooccurrence(ctx.data!, filters, scAccess, ctx.plugin.caseVariablesRegistry);
         renderMiniCooccurrence(c, cooc);
       },
     },
@@ -96,7 +109,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
       mode: "graph",
       title: "Network Graph",
       render: (c) => {
-        const cooc = calculateCooccurrence(ctx.data!, filters);
+        const cooc = calculateCooccurrence(ctx.data!, filters, scAccess, ctx.plugin.caseVariablesRegistry);
         renderMiniNetwork(c, cooc, freq);
       },
     },
@@ -104,7 +117,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
       mode: "doc-matrix",
       title: "Document-Code Matrix",
       render: (c) => {
-        const dm = calculateDocumentCodeMatrix(ctx.data!, filters);
+        const dm = calculateDocumentCodeMatrix(ctx.data!, filters, scAccess, ctx.plugin.caseVariablesRegistry);
         renderMiniDocMatrix(c, dm);
       },
     },
@@ -112,7 +125,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
       mode: "evolution",
       title: "Code Evolution",
       render: (c) => {
-        const evo = calculateEvolution(ctx.data!, filters);
+        const evo = calculateEvolution(ctx.data!, filters, scAccess, ctx.plugin.caseVariablesRegistry);
         renderMiniEvolution(c, evo);
       },
     },
@@ -135,7 +148,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
       mode: "temporal",
       title: "Temporal Analysis",
       render: (c) => {
-        const temporal = calculateTemporal(ctx.data!, filters);
+        const temporal = calculateTemporal(ctx.data!, filters, scAccess, ctx.plugin.caseVariablesRegistry);
         renderMiniTemporal(c, temporal);
       },
     },
@@ -153,7 +166,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
       mode: "lag-sequential",
       title: "Lag Sequential",
       render: (c) => {
-        const lag = calculateLagSequential(ctx.data!, filters, 1);
+        const lag = calculateLagSequential(ctx.data!, filters, 1, scAccess, ctx.plugin.caseVariablesRegistry);
         renderMiniLag(c, lag);
       },
     },
@@ -181,7 +194,7 @@ export function renderDashboard(ctx: AnalyticsViewContext, filters: FilterConfig
       mode: "code-overlap",
       title: "Code Overlap",
       render: (c) => {
-        const overlap = calculateOverlap(ctx.data!, filters);
+        const overlap = calculateOverlap(ctx.data!, filters, scAccess, ctx.plugin.caseVariablesRegistry);
         renderMiniMatrix(ctx, c, overlap.codes, overlap.colors, overlap.matrix, overlap.maxValue);
       },
     },

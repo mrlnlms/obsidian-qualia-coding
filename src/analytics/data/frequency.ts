@@ -92,7 +92,9 @@ export function calculateFrequency(
 
 export function calculateDocumentCodeMatrix(
   data: ConsolidatedData,
-  filters: FilterConfig
+  filters: FilterConfig,
+  smartCodes?: SmartCodeAccess,
+  caseVarsRegistry?: CaseVariablesRegistry,
 ): DocCodeMatrixResult {
   const markers = applyFilters(data, filters);
   const codeById = new Map(data.codes.map((c) => [c.id, c]));
@@ -106,31 +108,78 @@ export function calculateDocumentCodeMatrix(
     }
   }
 
-  // Build (id, name) pairs to sort by display name; output uses display names for backward compat with chart labels.
-  const idsKept = [...codeFreq.entries()].filter(([, count]) => count >= filters.minFrequency).map(([id]) => id);
-  idsKept.sort((a, b) => (codeById.get(a)?.name ?? a).localeCompare(codeById.get(b)?.name ?? b));
-  const codes: string[] = idsKept.map((id) => codeById.get(id)?.name ?? id);
-  const colors: string[] = idsKept.map((id) => codeById.get(id)?.color ?? "#6200EE");
+  interface CodeEntry { id: string; name: string; color: string; isSmart?: boolean; matches?: UnifiedMarker[] }
+  const eligible: CodeEntry[] = [];
+
+  // Regular codes
+  for (const [id, count] of codeFreq.entries()) {
+    if (count < filters.minFrequency) continue;
+    const def = codeById.get(id);
+    eligible.push({
+      id,
+      name: def?.name ?? id,
+      color: def?.color ?? "#6200EE",
+    });
+  }
+
+  // Smart Codes
+  if (smartCodes) {
+    const scViews = getSmartCodeViews(data, smartCodes.cache, smartCodes.registry, filters, caseVarsRegistry);
+    for (const sc of scViews) {
+      if (!smartCodePassesCodesFilter(sc.id, filters)) continue;
+      if (sc.matches.length < filters.minFrequency) continue;
+      eligible.push({
+        id: sc.id,
+        name: sc.name,
+        color: sc.color,
+        isSmart: true,
+        matches: sc.matches,
+      });
+    }
+  }
+
+  eligible.sort((a, b) => a.name.localeCompare(b.name));
+
+  const codes: string[] = eligible.map((e) => e.name);
+  const colors: string[] = eligible.map((e) => e.color);
+  const isSmart: boolean[] = eligible.map((e) => !!e.isSmart);
 
   const fileSet = new Set<string>();
-  const idsKeptSet = new Set(idsKept);
+  const regularIdsSet = new Set(eligible.filter(e => !e.isSmart).map(e => e.id));
+  
+  // Files with regular code matches
   for (const m of markers) {
-    if (m.codes.some((c) => idsKeptSet.has(c))) {
+    if (m.codes.some((c) => regularIdsSet.has(c))) {
       fileSet.add(m.fileId);
     }
   }
-  const files = Array.from(fileSet).sort();
+  // Files with smart code matches
+  if (smartCodes) {
+    for (const e of eligible) {
+      if (e.isSmart && e.matches) {
+        for (const m of e.matches) fileSet.add(m.fileId);
+      }
+    }
+  }
 
-  const codeIndex = new Map(idsKept.map((id, i) => [id, i]));
+  const files = Array.from(fileSet).sort();
   const fileIndex = new Map(files.map((f, i) => [f, i]));
   const matrix: number[][] = Array.from({ length: files.length }, () => new Array(codes.length).fill(0));
 
-  for (const m of markers) {
-    const fi = fileIndex.get(m.fileId);
-    if (fi == null) continue;
-    for (const codeId of m.codes) {
-      const ci = codeIndex.get(codeId);
-      if (ci != null) matrix[fi]![ci]!++;
+  for (let ci = 0; ci < eligible.length; ci++) {
+    const e = eligible[ci]!;
+    if (e.isSmart && e.matches) {
+      for (const m of e.matches) {
+        const fi = fileIndex.get(m.fileId);
+        if (fi != null) matrix[fi]![ci]!++;
+      }
+    } else {
+      for (const m of markers) {
+        if (m.codes.includes(e.id)) {
+          const fi = fileIndex.get(m.fileId);
+          if (fi != null) matrix[fi]![ci]!++;
+        }
+      }
     }
   }
 
@@ -141,12 +190,14 @@ export function calculateDocumentCodeMatrix(
     }
   }
 
-  return { files, codes, colors, matrix, maxValue };
+  return { files, codes, colors, matrix, maxValue, isSmart };
 }
 
 export function calculateSourceComparison(
   data: ConsolidatedData,
   filters: FilterConfig,
+  smartCodes?: SmartCodeAccess,
+  caseVarsRegistry?: CaseVariablesRegistry,
 ): SourceComparisonResult {
   const markers = applyFilters(data, filters);
   const codeById = new Map(data.codes.map((c) => [c.id, c]));
@@ -199,6 +250,38 @@ export function calculateSourceComparison(
       bySourcePctOfCode: pctOfCode,
       bySourcePctOfSrc: pctOfSrc,
     });
+  }
+
+  // Smart Codes pass
+  if (smartCodes) {
+    const scViews = getSmartCodeViews(data, smartCodes.cache, smartCodes.registry, filters, caseVarsRegistry);
+    for (const sc of scViews) {
+      if (!smartCodePassesCodesFilter(sc.id, filters)) continue;
+      if (sc.matches.length < filters.minFrequency) continue;
+      
+      const bySource = emptyBySource();
+      for (const m of sc.matches) bySource[m.source]++;
+
+      const pctOfCode = emptyBySource();
+      const pctOfSrc = emptyBySource();
+      const total = sc.matches.length;
+      for (const s of allSources) {
+        pctOfCode[s] = total > 0 ? Math.round((bySource[s] / total) * 1000) / 10 : 0;
+        pctOfSrc[s] = sourceTotals[s] > 0 ? Math.round((bySource[s] / sourceTotals[s]) * 1000) / 10 : 0;
+      }
+
+      codes.push(sc.name);
+      colors.push(sc.color);
+      entries.push({
+        code: sc.name,
+        color: sc.color,
+        total,
+        bySource,
+        bySourcePctOfCode: pctOfCode,
+        bySourcePctOfSrc: pctOfSrc,
+        isSmart: true,
+      });
+    }
   }
 
   entries.sort((a, b) => b.total - a.total);

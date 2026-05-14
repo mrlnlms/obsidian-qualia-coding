@@ -56,8 +56,8 @@ export class ImageSidebarAdapter extends BaseSidebarAdapter {
 		this.model.saveMarkers();
 	}
 
-	protected override notifyAfterFieldUpdate(): void {
-		this.model.notify();
+	override updateMarkerFields(markerId: string, fields: { memo?: MemoRecord; colorOverride?: string }): void {
+		this.model.updateMarkerFields(markerId, fields);
 	}
 
 	updateDecorations(_fileId: string): void {

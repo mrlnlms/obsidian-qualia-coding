@@ -1,9 +1,10 @@
 import { Notice } from "obsidian";
 import type { FilterConfig, UnifiedMarker, FrequencyResult } from "../../data/dataTypes";
-import { TextExtractor } from "../../data/textExtractor";
+import { TextExtractor, type ExtractedSegment } from "../../data/textExtractor";
 import { calculateWordFrequencies, type WordFrequencyResult } from "../../data/wordFrequency";
 import type { AnalyticsViewContext } from "../analyticsViewContext";
 import type { TooltipItem } from "chart.js";
+import { getSmartCodeViews, smartCodePassesCodesFilter } from "../../data/smartCodeAnalytics";
 // Force chartjs-chart-wordcloud module augmentation (registers 'wordCloud' in ChartTypeRegistry)
 import type {} from "chartjs-chart-wordcloud";
 import { downloadCsv } from "../shared/chartHelpers";
@@ -62,19 +63,40 @@ export function renderWordCloudOptionsSection(ctx: AnalyticsViewContext): void {
 export function renderWordCloud(ctx: AnalyticsViewContext, filters: FilterConfig): void {
   if (!ctx.chartContainer || !ctx.data) return;
 
-  const filtered = ctx.data.markers.filter((m) =>
+  // Regular markers
+  const regularFiltered = ctx.data.markers.filter((m) =>
     filters.sources.includes(m.source) &&
     m.codes.some((c) => !filters.excludeCodes.includes(c))
   );
 
-  if (filtered.length === 0) {
+  // Smart Code matches
+  const hasSCAccess = ctx.plugin.smartCodeCache && ctx.plugin.smartCodeRegistry;
+  const scViews = (hasSCAccess && ctx.data) ? getSmartCodeViews(ctx.data, ctx.plugin.smartCodeCache, ctx.plugin.smartCodeRegistry, filters, ctx.plugin.caseVariablesRegistry) : [];
+  const scMarkers: UnifiedMarker[] = [];
+  const activeSCs = scViews.filter(sc => smartCodePassesCodesFilter(sc.id, filters));
+  for (const sc of activeSCs) {
+    scMarkers.push(...sc.matches);
+  }
+
+  // Combine and dedup
+  const combined = [...regularFiltered];
+  const seenIds = new Set(combined.map(m => `${m.source}:${m.fileId}:${m.id}`));
+  for (const m of scMarkers) {
+    const key = `${m.source}:${m.fileId}:${m.id}`;
+    if (!seenIds.has(key)) {
+      combined.push(m);
+      seenIds.add(key);
+    }
+  }
+
+  if (combined.length === 0) {
     ctx.chartContainer.createDiv({ cls: "codemarker-analytics-empty", text: "No data matches current filters." });
     return;
   }
 
   const loadingEl = ctx.chartContainer.createDiv({ cls: "codemarker-wc-loading", text: "Extracting text..." });
   const gen = ctx.renderGeneration;
-  loadAndRenderWordCloud(ctx, filtered, loadingEl, gen);
+  loadAndRenderWordCloud(ctx, combined, loadingEl, gen);
 }
 
 async function loadAndRenderWordCloud(
@@ -89,6 +111,20 @@ async function loadAndRenderWordCloud(
   const segments = await extractor.extractBatch(markers);
   if (!ctx.isRenderCurrent(generation)) return;
   loadingEl.remove();
+
+  // Inject Smart Code IDs into segments for correct frequency attribution
+  const filters = ctx.buildFilterConfig();
+  const hasSCAccess = ctx.plugin.smartCodeCache && ctx.plugin.smartCodeRegistry;
+  const scViews = (hasSCAccess && ctx.data) ? getSmartCodeViews(ctx.data, ctx.plugin.smartCodeCache, ctx.plugin.smartCodeRegistry, filters, ctx.plugin.caseVariablesRegistry) : [];
+  const activeSCs = scViews.filter(sc => smartCodePassesCodesFilter(sc.id, filters));
+
+  for (const seg of segments) {
+    for (const sc of activeSCs) {
+      if (sc.matches.some(m => m.id === seg.markerId && m.source === seg.source)) {
+        if (!seg.codes.includes(sc.id)) seg.codes.push(sc.id);
+      }
+    }
+  }
 
   const results = calculateWordFrequencies(segments, {
     stopWordsLang: ctx.wcStopWordsLang,
@@ -123,8 +159,20 @@ async function renderWordCloudChart(ctx: AnalyticsViewContext, results: WordFreq
 
   // Map code id → color (segment.codes carries codeIds post Phase C)
   const codeColorMap = new Map<string, string>();
+  const codeNameMap = new Map<string, string>();
   if (ctx.data) {
-    for (const c of ctx.data.codes) codeColorMap.set(c.id, c.color);
+    for (const c of ctx.data.codes) {
+      codeColorMap.set(c.id, c.color);
+      codeNameMap.set(c.id, c.name);
+    }
+    // Also include Smart Codes in maps
+    const filters = ctx.buildFilterConfig();
+    const hasSCAccess = ctx.plugin.smartCodeCache && ctx.plugin.smartCodeRegistry;
+    const scViews = (hasSCAccess && ctx.data) ? getSmartCodeViews(ctx.data, ctx.plugin.smartCodeCache, ctx.plugin.smartCodeRegistry, filters, ctx.plugin.caseVariablesRegistry) : [];
+    for (const sc of scViews) {
+      codeColorMap.set(sc.id, sc.color);
+      codeNameMap.set(sc.id, sc.name);
+    }
   }
 
   // Color each word by its most frequent code
@@ -158,7 +206,11 @@ async function renderWordCloudChart(ctx: AnalyticsViewContext, results: WordFreq
             label: (tooltipCtx: TooltipItem<'wordCloud'>) => {
               const idx = tooltipCtx.dataIndex;
               const r = results[idx];
-              return `${r!.word}: ${r!.count} (${r!.codes.slice(0, 3).join(", ")})`;
+              const displayCodes = r!.codes.slice(0, 3).map(id => {
+                const name = codeNameMap.get(id) ?? id;
+                return id.startsWith('sc_') ? `⚡ ${name}` : name;
+              });
+              return `${r!.word}: ${r!.count} (${displayCodes.join(", ")})`;
             },
           },
         },

@@ -92,6 +92,8 @@ export interface DocCodeMatrixResult {
   colors: string[];
   matrix: number[][];
   maxValue: number;
+  /** Parallel array with codes — true when the index is a Smart Code. */
+  isSmart?: boolean[];
 }
 
 export interface EvolutionResult {
@@ -118,6 +120,8 @@ export interface TextStatsCodeEntry {
   avgWordsPerSegment: number;
   ttr: number;
   avgCharsPerSegment: number;
+  /** True quando entry é Smart Code. UI mostra ⚡. */
+  isSmart?: boolean;
 }
 
 export interface TextStatsResult {
@@ -185,6 +189,8 @@ export interface SourceComparisonEntry {
   bySource: Record<SourceType, number>;
   bySourcePctOfCode: Record<SourceType, number>;
   bySourcePctOfSrc: Record<SourceType, number>;
+  /** True quando entry é Smart Code. */
+  isSmart?: boolean;
 }
 
 export interface SourceComparisonResult {

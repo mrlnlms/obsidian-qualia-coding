@@ -47,6 +47,24 @@ function createMockModel() {
 		save: vi.fn(),
 		notify: vi.fn(),
 
+		updateMarkerFields: vi.fn(function(this: any, markerId, fields) {
+			const m = textMarkers.find(x => x.id === markerId);
+			if (m) {
+				if ('memo' in fields) m.memo = fields.memo;
+				if ('colorOverride' in fields) m.colorOverride = fields.colorOverride;
+				m.updatedAt = Date.now();
+				this.notify();
+				return;
+			}
+			const s = shapeMarkers.find(x => x.id === markerId);
+			if (s) {
+				if ('memo' in fields) s.memo = fields.memo;
+				if ('colorOverride' in fields) s.colorOverride = fields.colorOverride;
+				s.updatedAt = Date.now();
+				this.notify();
+			}
+		}),
+
 		// helpers to push test data
 		_textMarkers: textMarkers,
 		_shapeMarkers: shapeMarkers,

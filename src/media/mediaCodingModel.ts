@@ -220,6 +220,21 @@ export class MediaCodingModel<
 		return this.files.filter(f => f.markers.length > 0).map(f => f.path);
 	}
 
+	updateMarkerFields(markerId: string, fields: { memo?: any; colorOverride?: string }): void {
+		const marker = this.findMarkerById(markerId);
+		if (!marker) return;
+		if ('memo' in fields) marker.memo = fields.memo;
+		if ('colorOverride' in fields) marker.colorOverride = fields.colorOverride;
+		marker.updatedAt = Date.now();
+		const codeIds = marker.codes.map(c => c.codeId);
+		this.emitMarkerMutation({
+			fileId: marker.fileId, markerId,
+			prevCodeIds: codeIds, nextCodeIds: codeIds,
+			codeIds: [], marker,
+		});
+		this.notify();
+	}
+
 	updateMarkerBounds(markerId: string, from: number, to: number): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
