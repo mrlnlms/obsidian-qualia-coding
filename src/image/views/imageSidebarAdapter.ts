@@ -2,10 +2,11 @@
  * ImageSidebarAdapter — wraps ImageCodingModel into the SidebarModelInterface.
  */
 
-import type { BaseMarker } from '../../core/types';
+import type { BaseMarker, SidebarModelInterface } from '../../core/types';
 import type { ImageCodingModel } from '../imageCodingModel';
 import type { ImageMarker } from '../imageCodingTypes';
 import { BaseSidebarAdapter } from '../../core/baseSidebarAdapter';
+import type { MemoRecord } from '../../core/memoTypes';
 
 export interface ImageBaseMarker extends BaseMarker {
 	shape: string;
@@ -28,6 +29,7 @@ function markerToBase(m: ImageMarker, model: ImageCodingModel): ImageBaseMarker 
 }
 
 export class ImageSidebarAdapter extends BaseSidebarAdapter implements SidebarModelInterface {
+
 	protected declare readonly model: ImageCodingModel;
 
 	constructor(model: ImageCodingModel) {
