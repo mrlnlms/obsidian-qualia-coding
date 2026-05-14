@@ -241,7 +241,7 @@ Docs operacionais (repo — usados no trabalho diario):
 - `docs/ARCHITECTURE.md` — arquitetura detalhada
 - `docs/TECHNICAL-PATTERNS.md` — padroes recorrentes
 - `docs/DEVELOPMENT.md` — guia de desenvolvimento
-- `docs/ROADMAP.md` — features planejadas por prioridade (com secao "⚡ Status atual" no topo — leitura obrigatoria pra proxima sessao)
+- `docs/ROADMAP.md` — features planejadas por prioridade (com secao "🔜 Próximo passo" no topo — leitura obrigatoria pra proxima sessao; §📅 Contexto do release vigente abaixo guarda conquistas, não consultar pra "o que tem pra trabalhar")
 - `docs/BACKLOG.md` — divida tecnica e oportunidades de refactor
 
 Docs de methodology user-facing (audiência: pesquisador citando o plugin em paper):
@@ -293,7 +293,7 @@ Docs narrativos/historicos (fora do repo, em `obsidian-qualia-coding/plugin-docs
 Patterns genéricos: `~/.claude/CLAUDE.md` §Manutenção de docs vivos vs históricos + §Onde cada regra vive (sistema 4 níveis).
 
 **Específico Qualia Coding:**
-- Início de sessão: ler `ROADMAP.md §⚡ Status atual` — obrigatório
+- Início de sessão: ler `ROADMAP.md §🔜 Próximo passo` — obrigatório. NÃO trazer §📅 Contexto do release vigente pra resposta de "o que tem pra trabalhar"
 - Trigger cleanup: `ROADMAP.md` > 400 linhas OU `BACKLOG.md` > 150 linhas
 - Archives separados: `ROADMAP-HISTORY.md` (narrativa) + `BACKLOG-HISTORY.md` (one-liners por mês) + `CHANGELOG.md` (por release)
 - BACKLOG.md tem §📌 Memória técnica no fim (won't-fix + permanente) — não consultar pra planejar
