@@ -379,6 +379,46 @@ Docs narrativos/historicos (fora do repo, em `obsidian-qualia-coding/plugin-docs
 - Padrao tecnico novo isolado → 3
 - Novo modulo/arquivo → 2, 6
 
+### Manutenção de docs vivos vs históricos (cravado 2026-05-13 após cleanup)
+
+**Papel de cada doc (sem sobreposição):**
+
+| Doc | Conteúdo | Audiência | Quando atualizar |
+|---|---|---|---|
+| `ROADMAP.md` | Estado vivo: status atual + frentes ativas + decisões cravadas + won't-fix + permanente | Próxima sessão / LLMs | Decisão de produto muda · frente fecha |
+| `BACKLOG.md` | Itens em aberto + cross-cutting + won't-fix + permanente | Próxima sessão / LLMs | Bug descoberto · dívida nova · item resolvido (move pra HISTORY) |
+| `ROADMAP-HISTORY.md` | Arqueologia: decisões substituídas, slices entregues em detalhe, brainstorms passados, design docs anteriores | Busca específica | Algo sai do ROADMAP vivo |
+| `BACKLOG-HISTORY.md` | One-liners cronológicos de débitos resolvidos, por mês | Idem | Dívida resolvida sai do BACKLOG vivo |
+| `CHANGELOG.md` | Narrativa por release (Added/Changed/Fixed) | Público externo + devs | Cada release bump |
+
+Os 3 docs históricos têm papéis distintos: CHANGELOG é narrativo por release, BACKLOG-HISTORY é arqueologia granular de dívida, ROADMAP-HISTORY é arqueologia narrativa de decisões.
+
+**Regras de processo:**
+
+**Quando feature/dívida é ENTREGUE:**
+1. Marca ✅ + data + commit no doc atual (ROADMAP ou BACKLOG)
+2. Adiciona entry em `CHANGELOG.md [Unreleased]` ou release vigente
+3. Após release bump OU após 5+ ✅ acumulados no doc atual: mover ✅ pra HISTORY correspondente como one-liner condensado
+4. Não acumular ✅ no doc atual além de 1 ciclo — doc atual = só estado vivo
+
+**Quando DECISÃO DE PRODUTO muda:**
+1. Atualiza `ROADMAP.md` (versão nova substitui versão anterior)
+2. Versão anterior NÃO fica bannerizada permanentemente — vai pra `ROADMAP-HISTORY.md` com data + razão da substituição
+3. Bannerizar é solução temporária durante migração, não permanente
+
+**Quando descobre DRIFT entre docs:**
+1. Para. Identifica fonte canônica (BACKLOG = granular pra dívida; ROADMAP = decisão de produto)
+2. Pareare antes de qualquer cleanup
+3. Tag git antes de mover conteúdo grande
+
+**Início de sessão:**
+1. Ler `ROADMAP.md §"Status atual"` — leitura obrigatória
+2. Se trabalhar em item do BACKLOG, marca progresso ali
+3. Cada commit relevante atualiza `CHANGELOG.md [Unreleased]`
+
+**Cleanup periódico:**
+Quando `ROADMAP.md` > 400 linhas OU `BACKLOG.md` > 150 linhas OU sessão detectar drift em 2+ lugares: aciona limpeza pra preservar contexto enxuto. Não esperar acumular.
+
 ## Consultar base de interacoes AI (cross-projeto)
 
 Quando o Marlon pedir "procura conversa sobre X", "o que falamos sobre Y", "tem discussao anterior sobre Z" — qualquer historico que possa estar em ChatGPT, Claude.ai, Gemini, NotebookLM, Claude Code, Codex, Gemini CLI, Qwen, DeepSeek ou Perplexity — consultar a base unified do projeto analise.
