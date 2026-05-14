@@ -69,8 +69,3 @@ export class ImageSidebarAdapter extends BaseSidebarAdapter implements SidebarMo
 	}
 
 }
-Marker(markerId: string): boolean {
-		return this.model.removeMarker(markerId);
-	}
-
-}
