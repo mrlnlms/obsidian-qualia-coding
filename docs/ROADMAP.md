@@ -829,11 +829,7 @@ Como demanda é sintética, fazer como **spike**, não feature de catálogo:
 
 ## Items permanentes (ineliminaveis)
 
-| Item | Razão |
-|------|-------|
-| 3 `as any` PDF viewer | API interna Obsidian não exporta tipos |
-| 3 `as any` dataManager deepMerge | Type gymnastics genérica |
-| fflate bundled (~8KB gzip) | Dependência do QDPX export — sem alternativa nativa |
+Lista canônica em **[BACKLOG.md §"⚓ Permanente (ineliminável)"](BACKLOG.md#⚓-permanente-ineliminável)** — 8 itens atualizados 2026-05-13 (`as any` PDF/memo, `@ts-ignore` wavesurfer, `@ts-expect-error` DuckDB, `!important` cursor body + handles SVG, inline styles, fflate). Esta seção do ROADMAP era duplicação stale com números errados.
 
 ---
 
