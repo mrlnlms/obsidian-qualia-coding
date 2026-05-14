@@ -104,7 +104,7 @@ export abstract class BaseSidebarAdapter implements SidebarModelInterface {
 	// ── Shared implementations (override for engine-specific behavior) ──
 
 	/** Notification after field update. Override per engine (notify, notifyAndSave, etc.) */
-	protected abstract notifyAfterFieldUpdate(): void;
+	protected notifyAfterFieldUpdate(): void {}
 
 	/** Update memo/colorOverride on a marker. PDF overrides for dual text/shape lookup. */
 	updateMarkerFields(markerId: string, fields: { memo?: MemoRecord; colorOverride?: string }): void {
