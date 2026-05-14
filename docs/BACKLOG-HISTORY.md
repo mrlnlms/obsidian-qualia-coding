@@ -3,6 +3,12 @@
 > Histórico cronológico das dívidas técnicas eliminadas. Detalhes condensados — git log + commits + CHANGELOG têm a história completa.
 > Separado do `BACKLOG.md` (que mantém só aberto + won't-fix + permanente) pra reduzir overhead em sessões LLM. Este arquivo **não precisa ser lido por agentes** salvo quando a pergunta for "já resolvemos X?" ou similar.
 > Última atualização: 2026-05-12.
+>
+> **Pareamento com ROADMAP-HISTORY.md (2026-05-13):**
+> - **BACKLOG-HISTORY.md (este)** = one-liners cronológicos de débitos resolvidos, por mês. Granular pra dívida específica (data + raiz + commit). Pergunta típica: "esse bug já foi resolvido? quando?"
+> - **ROADMAP-HISTORY.md** = arqueologia narrativa de decisões/slices/design docs. Pergunta típica: "qual era a discussão Ângulo A vs B antes do framework unificado?"
+> - **CHANGELOG.md** = mudanças por release, público externo. Pergunta típica: "o que mudou na release 0.7.0?"
+> - Os 3 são complementares, não sobrepostos.
 
 ---
 
