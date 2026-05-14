@@ -483,6 +483,8 @@ Mitigação atual (size guard #28, 2026-04-28) já cobre crash via banner "Load 
 
 ### LLM-assisted coding
 
+> **⚠️ STATUS REAL (2026-05-13):** decisões fundacionais cravadas — ver **Frente 2 acima (linhas 47-73)** e `obsidian-qualia-coding/plugin-docs/research/LLM-MATERIA-2026-05-08.md §2 + §4`. Esta seção abaixo é **repertório histórico** da pesquisa de mercado 2026-05-01 + 5 perguntas brainstorm da §9 `qualia-fit.md`. Preservada pra arqueologia de como chegamos nas decisões cravadas; **não é mais lista de decisões abertas**. Em particular: "qual das 5 escolas filosóficas" virou não-decisão (operações primitivas substituem), use case = texto+tabular, provider strategy = sem default + config aberta, granularidade revisão = user escolhe, onde no fluxo = 5 operações primitivas com `generateCodebook` primeiro.
+>
 > **📄 Atualizado 2026-05-13:** ordem invertida + Camada 2 ICR não-negociável (ver §"Framework Unificado ICR + LLM"). Primeiro item LLM = **gerador de código/segmento** (era último). Pesquisa 2026-05-08 abaixo preservada como repertório, mas escolha de "escola filosófica" agora subordinada à decisão de framework.
 >
 > **📄 Atualizado 2026-05-08 (fragmentado, EM MOVIMENTO):** entry point cirúrgico em `plugin-docs/research/LLM-MATERIA-2026-05-08.md` — **LLM-assisted coding NÃO está cravado**, releitura gera ideias novas, não tratar como fechado. Pra detalhe denso ver `CONSOLIDACAO-PRODUTO-2026-05-08.md` §2.2, §3.1 (5 escolas vs operações primitivas), §3.2 (5 operações de coding + 8 adjacentes), §3.5 (multi-LLM literatura). Pesquisa de mercado original (`docs/_study/llm-coding/`) preservada como base.
@@ -543,6 +545,8 @@ Mitigação atual (size guard #28, 2026-04-28) já cobre crash via banner "Load 
 
 ### Intercoder Reliability — material de repertório pra discussão epistemológica
 
+> **⚠️ STATUS REAL (2026-05-13):** ICR fechado arquiteturalmente — release 0.6.0 (B4 Camada 1) + 0.7.0 (4 gaps intra-modality). Framework Unificado ICR + LLM cravado: heterogeneidade de modalidade ≡ heterogeneidade de coder. Posicionamento = bench rigoroso de LLM como coder em QDA multimodal. Camada 2 BHM não-negociável pra LLM. Detalhes operacionais cravados em `docs/ICR-MULTIMODAL-METHODOLOGY.md` (user-facing) + `docs/_research/icr-multimodal-heterogeneous-units.md` (autoritativa, 30+ refs). A discussão Ângulo A vs Ângulo B abaixo é **repertório de como chegamos ao framework unificado**, não decisão epistemológica em aberto.
+>
 > **📄 Atualizado 2026-05-08 (fragmentado):** entry point cirúrgico em `plugin-docs/research/ICR-MATERIA-2026-05-08.md` (caminhos materializados). Companion: `ICR-DESIGN-SKETCH-2026-05-08.md` (esboço arquitetural com `codedBy` unificado), `ICR-PRACTICE-WORKFLOW-2026-05-08.md` (workflow real de equipes), `ICR-WORKFLOWS-LANDSCAPE-2026-05-08.md` (landscape de mercado). Pra detalhe denso ver `CONSOLIDACAO-PRODUTO-2026-05-08.md` §2.1 + §3.4. Conteúdo desta seção (2026-05-04) preservado como repertório anterior — discussão evoluiu, ler ICR-MATERIA primeiro.
 
 **2026-05-04 — registro pra brainstorm futuro.** Material acumulado em duas conversas externas (`claude_ai 2026-04-26 "Intercoder reliability em ferramentas QDA"` + `2026-04-28 "Status dos projetos em andamento"`) traz ângulos que vale ter lado a lado **quando a decisão for atacada**. Nenhuma das perspectivas abaixo está cravada como caminho — são repertório pra a discussão ser rica, não conclusões. Uma não anula a outra.
@@ -622,6 +626,8 @@ Brainstorm dedicado (1 sessão de produto, sem código) cobrindo:
 - ATLAS.ti / MAXQDA / NVivo / Dedoose docs — implementações concretas pra olhar UX
 
 ### Q-mode / P-mode analytics — próxima frente engatilhada
+
+> **⚠️ STATUS REAL (2026-05-13):** Q-mode gaps S0+S1+S2+S3 ✅ entregues 2026-05-04 (Files Dendrogram, MDS Files, File Similarity, Source Comparison). P-mode 100% coberto (Temporal + Evolution + Codebook Timeline). **Q-mode/P-mode NÃO é mais frente #1.** A ordem cravada hoje é ICR ✅ → LLM (Frente 2) → Analytics (Frente 3). Analytics restantes (Routledge Tier 1/2/3 + redesign UI) atacam depois de LLM. Conteúdo abaixo é repertório de quando Q-mode era frente #1 em 2026-05-04.
 
 **Promovida 2026-05-04 a frente #1** (ver §Status atual). Trabalho concreto pra atacar:
 - Dendrograma de Files (cluster hierárquico de docs por similaridade de coding) — hoje dendrogram só faz códigos
@@ -715,6 +721,8 @@ Trecho da conversa de 2026-04-28 com claude_ai sobre as views Analytics:
 **Risco:** coord conversion no Fabric. Pattern já resolvido em `boardExport.ts` — reuso.
 
 ### Analytical Memos
+
+> **⚠️ STATUS REAL (2026-05-13):** **Tudo entregue.** Phase 1 (#33 Code, 2026-04-30) + Phase 2 (#34 Group, #35 Marker, #36 Relation, 2026-04-30) + Phase 3 ("Materialize all memos" command, 2026-04-30). Design D (Hybrid) cravado e implementado. Conteúdo abaixo é repertório histórico do design A/B/C/D + custos + audiência. Sem item em aberto aqui.
 
 **Mostly done.** O conceito original (memos em códigos, grupos, relações; view dedicada) foi entregue em #25 (Memos em todas entidades) + Analytic Memo View (2026-04-27) + #33 Convert memo to note Phase 1 (2026-04-30 — Code only).
 
