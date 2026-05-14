@@ -56,7 +56,7 @@ export function injectHeaderButtons(wrapper: HTMLElement, ctx: HeaderInjectionCo
 						e.stopPropagation();
 						const sourceColumn = colId.replace(/_cod-frow$/, '');
 						if (ctx.gridApi && ctx.filePath) {
-							void openBatchCodingPopover(btn, ctx.csvModel, ctx.filePath, sourceColumn, ctx.gridApi, ctx.app, ctx.getFilteredSourceRowIds);
+							void openBatchCodingPopover(e, ctx.csvModel, ctx.filePath, sourceColumn, ctx.gridApi, ctx.app, ctx.getFilteredSourceRowIds);
 						}
 					});
 				}

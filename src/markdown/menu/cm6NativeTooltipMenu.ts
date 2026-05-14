@@ -1,9 +1,9 @@
 /**
- * CM6 Tooltip Menu — hosts the shared codingPopover inside a CM6 tooltip container.
+ * Markdown coding popover config — adapter + options for openCodingPopover.
  *
- * The shared popover handles all UX (search, toggles, memo, browse).
- * This file only provides: CM6 event blocking, adapter glue, and the
- * "Add New Code" button with markdown-specific behavior (selection preview).
+ * Markdown engine usa o mesmo popover floating (createPopover/positionAndClamp)
+ * que image/pdf/media — sem CM6 native tooltip. Posicionamento é no cursor
+ * do mouse (selection mode) ou nas coords do char (command/ribbon/right-click).
  */
 
 import { Notice } from 'obsidian';
@@ -13,41 +13,38 @@ import { SelectionSnapshot } from './menuTypes';
 import { getMemoContent, setMemoContent } from '../../core/memoHelpers';
 import {
 	addCodeAction,
-	addCodeWithDetailsAction,
 	removeCodeAction,
 	removeAllCodesAction,
 	getCodesAtSelection,
 } from './menuActions';
-import { CodeFormModal } from '../../core/codeFormModal';
 import { setSelectionPreviewEffect } from '../cm6/markerStateField';
-import {
-	openCodingPopover,
-	type CodingPopoverAdapter,
+import type {
+	CodingPopoverAdapter,
+	CodingPopoverOptions,
 } from '../../core/codingPopover';
 import { findCodeApplication, setMagnitude } from '../../core/codeApplicationHelpers';
 
-export function buildNativeTooltipMenuDOM(
+export interface MarkdownPopoverConfig {
+	adapter: CodingPopoverAdapter;
+	baseOptions: Omit<CodingPopoverOptions, 'anchor' | 'onClose' | 'onRebuild' | 'onModalClose'>;
+	isHoverMode: boolean;
+	cleanupOnClose: () => void;
+}
+
+/**
+ * Builds the adapter + base options for the markdown coding popover.
+ * Caller (menuController) supplies pos, onClose, onRebuild, onModalClose.
+ */
+export function buildMarkdownPopoverConfig(
 	view: EditorView,
 	model: CodeMarkerModel,
 	snapshot: SelectionSnapshot,
-	onClose: () => void,
-	onRecreate: () => void,
-): HTMLElement {
-	const container = document.createElement('div');
-	container.className = 'menu codemarker-popover';
-
-	// Block CM6 event propagation (prevents selection clearing on click)
-	container.addEventListener('mousedown', (e) => {
-		e.stopPropagation();
-		e.preventDefault();
-	});
-
+): MarkdownPopoverConfig {
 	const existingMarker = snapshot.hoverMarkerId
 		? model.getMarkerById(snapshot.hoverMarkerId)
 		: model.findMarkerAtExactRange(snapshot);
 	const isHoverMode = !!snapshot.hoverMarkerId && !!existingMarker;
 
-	// ── Adapter: translates shared popover callbacks to markdown model ──
 	const adapter: CodingPopoverAdapter = {
 		registry: model.registry,
 		getActiveCodes: () => getCodesAtSelection(model, snapshot),
@@ -112,26 +109,21 @@ export function buildNativeTooltipMenuDOM(
 		},
 	};
 
-	// ── Open shared popover into our CM6-managed container ──
-	openCodingPopover(adapter, {
-		pos: { x: 0, y: 0 }, // CM6 handles positioning
+	const baseOptions: MarkdownPopoverConfig['baseOptions'] = {
 		app: model.plugin.app,
 		isHoverMode,
 		showMagnitudeSection: model.plugin.dataManager.section('general').showMagnitudeInPopover,
 		showRelationsSection: model.plugin.dataManager.section('general').showRelationsInPopover,
-		externalContainer: container,
 		className: 'codemarker-popover',
 		autoFocus: !isHoverMode,
-		onClose,
-		onRebuild: onRecreate,
 		onBeforeModal: () => {
-			// Markdown-specific: show selection preview while modal is open
+			// Markdown-specific: re-aplica selection preview decoration antes do modal
+			// (foco vai pro modal e selection nativa some, mas a decoração mantém o visual).
 			view.dispatch({
 				effects: setSelectionPreviewEffect.of({ from: snapshot.from, to: snapshot.to }),
 			});
 		},
 		modalDefaultColor: model.getSettings().defaultColor,
-		onModalClose: onRecreate,
 		deleteAction: isHoverMode ? {
 			label: 'Delete Marker',
 			icon: 'trash',
@@ -140,7 +132,17 @@ export function buildNativeTooltipMenuDOM(
 				new Notice('Codes removed');
 			},
 		} : undefined,
-	});
+	};
 
-	return container;
+	// Cleanup ao fechar — limpa selection preview + empty marker em hover mode.
+	const cleanupOnClose = () => {
+		view.dispatch({
+			effects: setSelectionPreviewEffect.of(null),
+		});
+		if (snapshot.hoverMarkerId) {
+			model.cleanupEmptyMarker(snapshot.hoverMarkerId);
+		}
+	};
+
+	return { adapter, baseOptions, isHoverMode, cleanupOnClose };
 }

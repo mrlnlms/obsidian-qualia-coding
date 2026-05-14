@@ -1,5 +1,7 @@
 # Qualia Coding — Roadmap
 
+> **Estado vivo = §⚡ Status atual + frentes ativas + §Decisões de produto abertas.** §⛔ Decisões fechadas + §Frentes encerradas + §Riscos = referência cravada, não apresentar ao responder "como tá o roadmap?".
+>
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
 > Última atualização: 2026-05-13 (release **0.7.0** — bloco Image engine fechado por inteiro + Gap #1c/1d (SourceSizeProvider PDF + CSV segment) + 3 UX gaps ICR + cluster.worker async (cooccurrence/overlap/dendrogram) + canvas refresh cor cross-engine + colorOverride cross-engine + audit log defensive fix + `!important` podado 68 → 46 (18 AG Grid cells + 2 SVG stroke + 2 isolados removidos via especificidade; 7 cursor body + 39 handles SVG transparency reclassificados como Permanente). Polish ICR/Image/cross-engine zerados. Próxima frente prática = **LLM coding + ICR Camada 2 BHM** como par natural — precede brainstorm dedicado).
 
@@ -76,13 +78,9 @@ Pesquisa de mercado em `docs/_study/llm-coding/` (40 ferramentas + 5 patterns an
 
 Cobertura atual = **25 modes ativos** em `src/analytics/views/modes/` (frequência, cooccurrence, code evolution, temporal, lag sequential, MCA biplot, dendrogram códigos, files dendrogram, file similarity, MDS files, source comparison, code × metadata, codebook timeline, memo view, doc-code matrix, network graph, chi-square, decision tree, overlap, polar, relations network, text retrieval, text stats, word cloud, dashboard KPI). Q-mode 100% coberto. **Gap aberto:** Routledge Tier 1/2/3 (catalogado em `CONSOLIDACAO-PRODUTO-2026-05-08.md §2.3, §6.2, §6.3`) + redesign UI pesado. Atacar **depois** de LLM coding (que vai exercitar Analytics como consumer de markers gerados — Text Retrieval mode em particular vira casa do retrieval semântico).
 
-### Submissão Community Plugins PR
-
-Re-encaixada na sequência: ICR fechado, faz sentido **antes ou em paralelo a LLM coding**. Release 0.7.0 tem o artefato robusto. Falta PR no `obsidianmd/obsidian-releases` com README + screenshots. Bundle 14MB cabe mas pode receber pushback no review. User cravou explicitamente que **não vai publicar antes de Camada 2** (ver `docs/ICR-MULTIMODAL-METHODOLOGY.md`) pra positioning inicial não comoditizar como "QDA tool com AI".
-
 ### Outras frentes em decisão de produto
 
-- **Projects + Workspace** — provavelmente reinventa Workspaces nativo. User cravou "reavaliar antes de implementar" — provavelmente passar.
+- **Projects** — isolar determinados arquivos do vault como escopo de análise (não vault inteiro). Em pensamento, precisa brainstorm antes — ver §Projects nos detalhes.
 - **Margin Panel customization** — bloqueado por decisão em plugin externo.
 
 **Frentes encerradas recentemente:** Coding Management Tier 1+2 ✅ (2026-04-28) · Tier 3 Smart Codes ✅ (2026-05-04) · Analytics enhancements ✅ · Research Board Enhancements ✅ (2026-04-29) · Memos Phase 1+2+3 ✅ (2026-04-30) · **Parquet-lazy Fases 0-6 ✅ (2026-05-03/04)** · **Q-mode gaps S0+S1+S2+S3 ✅ (2026-05-04)** · **ICR Slices 1-6 motor κ multimodal ✅ (2026-05-09)** · **ICR Slices E1+E2+E3a+E3b+E4+E5a+E5b ✅ (2026-05-10/11)** · **Fase C P1 UX layer ✅ (2026-05-10)** · **Coder picker live ✅ (2026-05-11)** · **CSV cross-coder ✅ (2026-05-12)** · **ICR mecânico (A1-A4 + B1-B3 + D + dedup motor) ✅ (2026-05-12)** · **Smart Codes leaf `textContains` ✅ (2026-05-12)** · **Refactor C set-valued labels ✅ release 0.5.0 (2026-05-13)** · **B4 Camada 1 per-modality enforcement ✅ release 0.6.0 (2026-05-13)**.
@@ -107,7 +105,6 @@ Sem ordem imposta — agrupamento temático pra varredura. Decisões de execuç�
 
 | Área | O que tem aberto |
 |------|------------------|
-| **[Coding Management](#2-coding-management)** | Tier 1 ✅ FEITO 2026-04-28 · Tier 2 ✅ FEITO 2026-04-28 · Tier 3 ✅ FEITO 2026-05-04 |
 | **[Analytics](#3-analytics--melhorias)** | Routledge Tier 1/2/3 + redesign UI pesado. Atacar **depois** de LLM (ver Frente 3 acima) |
 | **[Margin Panel](#4-margin-panel--melhorias)** | Customization · Resize Handle. **Bloqueado** por decisão em plugin externo |
 
@@ -121,7 +118,7 @@ Sem ordem — precisam validar **se** e **como** existem antes de virar sessão.
 - **[LLM-assisted coding](#llm-assisted-coding)** — decisões fundacionais cravadas (ver Frente 2 acima + `LLM-MATERIA-2026-05-08.md §2 + §4` + virada 2026-05-13). Posicionamento = bench rigoroso de LLM como coder em QDA multimodal. "Qual escola filosófica" virou não-decisão. Próximo passo prático = brainstorm dedicado pra cravar ordem das operações + manifestação UI + operacionalização Camada 2 BHM. Pesquisa de mercado em `docs/_study/llm-coding/` (40 tools + 5 patterns) preservada como repertório.
 - ~~**Infra compartilhada — ICR + merge + multi-coder + handoff**~~ ✅ **TODOS ENTREGUES 2026-05-09 → 2026-05-13.** 13 slices: motor κ multimodal (Slices 1-6), Compare Coders UI (Slices E1-E5b), Fase C P0/P1 transport remoto + UX, coder picker live, CSV cross-coder, set-valued labels (Refactor C), Camada 1 per-modality (B4). 8 das 8 engines cobertas. 3580 tests verde. Detalhe completo das 13 slices + decisões cravadas em **[ROADMAP-HISTORY.md](ROADMAP-HISTORY.md)**.
 - ~~**Sync e colaboração multi-coder**~~ ✅ **ENTREGUE 2026-05-10** — Fase C P0 (transport puro, Slice 3) + Fase C P1 (UX layer com ItemView `qc-icr-import`). Pesquisa de infraestrutura (Obsidian Sync, GDrive, GitHub, ad-hoc) fora do plugin — escolha do pesquisador. Doc: `plugin-docs/research/Sync — Caminhos de infraestrutura.md`.
-- **[Projects + Workspace](#projects--workspace)** — reinventa gerência de projetos dentro de app de organização. **Provavelmente passar** (Obsidian Workspaces nativo cobre).
+- **[Projects](#projects)** — isolar **determinados arquivos do vault** como escopo de análise (não vault inteiro). Em pensamento, não cravado — vault pessoal pode misturar journals/notas com parte analítica.
 - ~~**Research Board Enhancements**~~ ✅ todos 4 sub-items resolvidos (Sync com registry, Refresh, Export PNG/SVG, Drag do Code Explorer).
 - ~~**Tabular round-trip (import)**~~ ✅ fechado 2026-04-30, ver "Decisões fechadas sem implementar".
 - ~~**Convert memo to note**~~ ✅ **TUDO ENTREGUE 2026-04-30** — Phase 1 (Code) + Phase 2 (Group + Marker + Relation) + Phase 3 (command "Materialize all memos"). 4/4 tipos materializam memo.
@@ -236,14 +233,19 @@ Seções condensadas em **[ROADMAP-HISTORY.md](ROADMAP-HISTORY.md)** após clean
 
 ---
 
-### Projects + Workspace
+### Projects
 
-**Reflexão (2026-03-19)**: o data model proposto reinventa gerenciamento de projetos dentro de um plugin que vive dentro de um app de organização. Obsidian já tem o core plugin **Workspaces** (salva/restaura layout de panes). Alternativas nativas:
-- 1 vault = 1 projeto
-- Scoping por pasta (plugin lê só arquivos dentro de uma pasta selecionada)
-- Integrar com core plugin Workspaces
+**Em pensamento — não atacar sem brainstorm.**
 
-**Reavaliar antes de implementar.** Se virar concreto, o data model original (workspace global + projects scoped, códigos compartilhados por ID, frontmatter pra `documentVariables`, file structure com `projects/<name>/` separadas) está preservado em commits antigos do roadmap pra referência.
+Pergunta motriz: faz sentido isolar **determinados arquivos do vault** como escopo de análise (vs vault inteiro)? Hoje o plugin opera sobre vault inteiro — todos arquivos compatíveis viram fonte potencial. O vault do pesquisador pode ter notas pessoais / journals / refs de leitura misturadas com a parte sob análise.
+
+**A verificar antes de virar feature:**
+- Como exports (QDPX, Tabular CSV) lidam com escopo hoje — vault inteiro ou aceitam seleção?
+- Code Explorer "Filter by file" + Analytics filters já chegam perto disso sem schema novo?
+- Scoping por pasta resolve se o pesquisador organizar análise em subfolder?
+- Vale schema explícito (`projects/<name>/`, frontmatter, codes compartilhados por ID) ou é redundância com o que já existe?
+
+Não claro se faz sentido como feature explícita ou se a arquitetura atual já cobre.
 
 ### Research Board Enhancements
 
@@ -278,12 +280,6 @@ Seções condensadas em **[ROADMAP-HISTORY.md](ROADMAP-HISTORY.md)** após clean
 | `vault.adapter` vs `loadData` | Concurrency/caching race conditions | Single source of truth via DataManager |
 | Leaf view DOM without framework | UI verbose, hard to maintain | Obsidian não oferece reactive components nativamente — avaliar lit-html ou similar |
 | "Escopo cresce pra ATLAS.ti" | Months of work, feature creep | Incremental phases — cada item standalone, shippable |
-
----
-
-## Items permanentes (ineliminaveis)
-
-Lista canônica em **[BACKLOG.md §"⚓ Permanente (ineliminável)"](BACKLOG.md#⚓-permanente-ineliminável)** — 8 itens atualizados 2026-05-13 (`as any` PDF/memo, `@ts-ignore` wavesurfer, `@ts-expect-error` DuckDB, `!important` cursor body + handles SVG, inline styles, fflate). Esta seção do ROADMAP era duplicação stale com números errados.
 
 ---
 

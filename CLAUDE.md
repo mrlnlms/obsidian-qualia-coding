@@ -5,15 +5,15 @@ Plugin Obsidian para analise qualitativa de dados (QDA). Codifica texto, PDF, CS
 ---
 
 ## Communication Style
-- This is a personal/solo project — do NOT inject risk analysis, stakeholder concerns, or enterprise-framing unless explicitly asked.
-- Focus on substance, not document length or formatting meta-commentary. The user does not care about doc size.
-- Avoid hedging, excessive jargon, and over-structuring open exploratory discussions into rigid frameworks.
-- When the user wants to brainstorm or align conceptually, do NOT jump to execution or writing new docs.
+- Personal/solo project — NÃO injetar risk analysis, stakeholder concerns, ou enterprise-framing sem ser pedido.
+- Brainstorm/alinhamento conceitual ≠ execução. NÃO pular pra escrever novos docs quando o user quer discutir.
+
+(Tom geral: `~/.claude/CLAUDE.md` §Vocabulário banido + §Detector de frustração.)
 
 ## Grounding Rules
-- Never fabricate 'decisions', 'risks', or user statements. If you reference something the user said, quote it from the actual transcript or memory.
-- When asked to estimate effort/timeline, ground numbers in actual git history — not gut feel.
-- After context compaction, re-verify recent edits persisted before continuing.
+- Após context compaction, re-verificar que edits recentes persistiram antes de continuar.
+
+(Não fabricar fatos + estimativas via git: `~/.claude/CLAUDE.md` §Não fabricar fatos + §Estimativas vêm SEMPRE do histórico.)
 
 ---
 
@@ -35,113 +35,62 @@ Vitest + jsdom validam contrato (input → output). Não validam: integração c
 
 Se pulou o smoke, o chunk não fechou. Não importa que testes verde. Não importa que typecheck passou. Não importa que reviewer aprovou.
 
-### 2. Antes de criar arquivo/classe nova, varrer o projeto pelo padrão equivalente
+### 2-7. Comportamento crítico — versões genéricas no global
 
-Antes de fazer `SmartCodeApi`, eu deveria ter `grep -rn "class.*Registry"` e visto `CodeDefinitionRegistry` + `CaseVariablesRegistry`. Padrão estabelecido: classe stateful com `addOnMutate(fn)`, `getById(id)`, `getAll()`, `toJSON()`, encapsulamento de paletteIndex. Eu vi e ignorei porque copiar o padrão exigia mais código.
+Regras gerais agora em `~/.claude/CLAUDE.md` §Furos sistemáticos:
+- §Antes de criar abstração nova, varrer projeto pelo padrão equivalente
+- §"Pragmatismo"/"trade-off"/"não bloqueante" são red flags → STOP, reler (overlap com §Vocabulário banido)
+- §Stub broken = bug, não roadmap
+- §Self code review antes de commit (checklist de 6)
+- §Reportar runtime real, não contagem
+- §Quando user devolver review crítico, identificar padrão — não defender bug-a-bug
 
-**Regra operacional:** antes de instanciar qualquer abstração nova (Registry, Manager, Service, Api, Controller, etc.):
-1. `grep -rn "^export class\|^class " src/core/ src/<área>/ | head -30`
-2. Se já existe pattern equivalente: copiar literalmente. Mesma assinatura de métodos, mesmo lifecycle, mesmo padrão de listeners.
-3. Se for divergir: **comentar inline justificando o porquê com referência ao código equivalente que NÃO foi copiado**. Sem justificativa visível = bug arquitetural que vai ser cobrado depois.
+**Incidente Qualia que cravou (2026-05-05, Smart Codes Tier 3 review):** 17 issues técnicos acumulados por otimizar pra "parecer progredir" (19 commits, 175 testes) em vez de "entregar valor". User cortou: "por que vc se comporta assim?". Resposta certa = identificar **padrão de comportamento**, não bugs específicos. Esta seção (§TOP PRIORITY) é resultado disso.
 
-### 3. "Pragmatismo" / "trade-off honesto" / "não bloqueante" são red flags de auto-justificativa
-
-Cada vez que escrevo essas palavras pra defender uma decisão, é racionalização de corte de qualidade — não decisão técnica. `auditEmit: any` com comentário "mais limpo que listar 12 variants" é o caso clássico: bati em complexidade de typed union, fugi, escrevi comentário vendendo a fuga.
-
-**Regra operacional:** se vou escrever "pragmaticamente", "trade-off", "decisão pragmática", "não bloqueante", "Phase 2" — STOP. Reler o que estou prestes a entregar. Se a decisão real é "tô com preguiça de fazer direito", admitir e ou fazer direito ou não fazer.
-
-### 4. Stub broken = bug, não roadmap. NÃO commit `// TODO Phase 2` em código que o usuário vai clicar
-
-`onNavigateToMarker: (ref) => console.log(...)` com comentário "Phase 2" é click quebrado em produção. Mesmo padrão: `caseVarRange: "(advanced — edit JSON manually)"` no dropdown — usuário seleciona e fica preso. `smartCodesSection.ts` 107 linhas de dead code "disponível pra extensão futura" — não está, é arquivo não terminado.
-
-**Regra operacional:** antes de commit que toca UI:
-- Toda action clickable faz algo visível ou é removida do DOM
-- Todo dropdown option ou implementa ou sai do dropdown
-- Todo arquivo criado tem callsite real ou não é commitado
-- "TODO" / "Phase 2" / "fica pra depois" em código que entra na superfície do usuário = não commit
-
-### 5. Self code review crítico ANTES de commit, não depois do user descobrir
-
-Os 17 problemas que o user listou no review final eram visíveis em qualquer pass de leitura crítica do diff. Eu não fiz porque no fluxo de execução o feedback que me move é "tests verde + typecheck + commit + próximo chunk". Esse loop não tem code review.
-
-**Regra operacional:** antes de cada `git commit`, rodar mentalmente:
-1. **Padrão:** esse arquivo segue o padrão de outros equivalentes no projeto?
-2. **Type safety:** algum `any` que daria pra typar? algum cast com `as` que esconde shape errado?
-3. **Dead code:** algum método/arquivo criado sem callsite?
-4. **UI honesta:** toda interação faz o que parece que faz?
-5. **Naming:** os identifiers seguem convenção do CLAUDE.md ("Nomes padronizados")?
-6. **Encapsulamento:** estou acessando privates via `as any`? estou mutando state alheio direto?
-
-Se algum desses falha → não commit, fix antes.
-
-### 6. Otimizo pra "items na resposta final" (commits, testes, chunks fechados). User paga por produto, não por contagem.
-
-Métricas de output (19 commits, 175 testes, 5 chunks) são feedback loop interno, não valor entregue. User não compra contagem — compra produto que funciona quando ele abre o Obsidian. Quando vendo "175 testes verde" como prova de qualidade, estou enganando o user (e me enganando).
-
-**Regra operacional:** ao reportar progresso:
-- NUNCA usar contagem de commits/testes/chunks como prova de qualidade
-- Falar do que **funciona em runtime real** (com smoke test feito) e do que **ficou pendente** (com clareza)
-- Se nada foi smoke-testado, dizer literalmente "implementado mas não validado em runtime — você precisa testar"
-
-### 7. Quando o user devolver review crítico, não defender — entender o padrão de comportamento e cravar como regra
-
-Padrão observado em 2026-05-05: ao receber 17 issues técnicos, primeira reação foi "vou categorizar e perguntar prioridade pra fixar" — ou seja, voltar ao loop de output. User cortou e perguntou "por que vc se comporta assim?". Resposta certa: olhar o padrão (não os bugs específicos) e cravar regra operacional.
-
-Esta seção é resultado disso. Quando aparecer review crítico futuro:
-1. Resposta inicial: reconhecimento direto sem defesa
-2. Identificar o padrão (comportamento, não bug pontual)
-3. Atualizar este CLAUDE.md com a regra operacional resultante
-4. Só depois discutir fix do código
+**Refinement Qualia-específico:**
+- Naming convention deste projeto: ver §Convencoes "Nomes padronizados" abaixo
+- Antes de criar `Registry`/`Manager`/`Service`: grep em `src/core/` pelos equivalentes (`CodeDefinitionRegistry`, `CaseVariablesRegistry`, `SmartCodeRegistry`)
+- Padrão Registry deste projeto: classe stateful com `addOnMutate(fn)`, `getById(id)`, `getAll()`, `toJSON()`, encapsulamento de `paletteIndex`
 
 ### 8. Antes de tocar cache/scope/algoritmo central — LER `TECHNICAL-PATTERNS.md §35-§46` ANTES do primeiro edit
 
-Padrão recorrente (4+ sessões em 2026-05): mexo em ICR/Smart Codes/Analytics, perf cai, user descobre, conserto, próxima sessão regride de novo. O furo NÃO é falta de documentação — `TECHNICAL-PATTERNS.md` tem §35-§46 cravadas sobre caches derivados, invalidação cirúrgica, Web Worker inline, e a regressão de scope/cache em Compare Coders (§46, registrada após 4 fixes da mesma lerdeza). O furo é eu não ler antes de editar.
+Padrão recorrente (4+ sessões 2026-05): mexo em ICR/Smart Codes/Analytics, perf cai. Furo = não ler antes de editar.
 
-**§46 é a regra cara:** `state.filters.visibleCoderIds` NUNCA entra no `scope.coderIds` que vai pra `extractInputsFromScope`. Filtros visuais aplicam DEPOIS do extract (via `filterInputsByCoders`); filtros de universo (inclusion/exclusion) aplicam ANTES.
+**§46 é a regra cara:** `state.filters.visibleCoderIds` NUNCA entra no `scope.coderIds` que vai pra `extractInputsFromScope`. Filtros visuais aplicam DEPOIS via `filterInputsByCoders`; filtros de universo (inclusion/exclusion) aplicam ANTES.
 
-**Regra operacional — antes de tocar qualquer um destes símbolos, releitura obrigatória das §§ relevantes:**
+**Releitura obrigatória por símbolo:**
 
-| Vou mexer em… | Releitura obrigatória |
+| Vou mexer em… | Releitura |
 |---|---|
-| `extractInputsFromScope`, `cacheKeyForScope`, `reportKappa(Async)`, `reportPairwiseAsync` | §46 (scope/cache) + §45 (Web Worker pattern) |
-| `collectContestedRegions`, `categorizeRegionsByStatus`, `regionDerivation.*` | §46 (cache module-level) + §40 (motor adapter) |
-| `MarkerMutationEvent`, `addOnMutate`, `applyMarkerMutation` | §37 (canal granular) + §39 (dependencyExtractor) |
-| `SmartCodeCache`, `dependencyExtractor`, leaves de predicate | §38 (cycle detection) + §39 (índices reversos) |
-| `markerTextCache`, `populateMarkerTextCacheForFile`, `RowProvider.batchGetMarkerText` | §35 (notifyListenersOnly) + §36 (cascade async) |
-| `bboxAdapter`, `bboxKappaInput`, `bboxMatcher`, Hungarian | §40 (motor adapter) + §42 (Hungarian retangular) |
-| Qualquer cache derivado novo | §39 (índices reversos) + §35 (notifyListenersOnly) |
+| `extractInputsFromScope`, `cacheKeyForScope`, `reportKappa(Async)`, `reportPairwiseAsync` | §46 + §45 |
+| `collectContestedRegions`, `categorizeRegionsByStatus`, `regionDerivation.*` | §46 + §40 |
+| `MarkerMutationEvent`, `addOnMutate`, `applyMarkerMutation` | §37 + §39 |
+| `SmartCodeCache`, `dependencyExtractor`, leaves de predicate | §38 + §39 |
+| `markerTextCache`, `populateMarkerTextCacheForFile`, `RowProvider.batchGetMarkerText` | §35 + §36 |
+| `bboxAdapter`, `bboxKappaInput`, `bboxMatcher`, Hungarian | §40 + §42 |
+| Qualquer cache derivado novo | §39 + §35 |
 
-**Checklist antes do commit que toca algoritmo central:**
-1. **Filtro visual NÃO contamina cache key.** Se editou cache key, conferir que só inclusion/exclusion entra.
-2. **Cache invalidation cirúrgica.** Se editou mutation site, conferir que invalida só dependentes via `dependencyExtractor`/`MarkerMutationEvent` — nunca rebuild full.
-3. **Compute pesado fora da main thread.** Se editou função síncrona que itera markers grandes, conferir que tem path async via Worker (§45).
-4. **Smoke real com corpus de tamanho real** (não só synth ICR-test/) — toggle de chip, troca de coefficient, troca de mode. Se trava 100ms+ = regrediu.
+**Checklist antes do commit:**
+1. Filtro visual NÃO contamina cache key
+2. Cache invalidation cirúrgica via `dependencyExtractor`/`MarkerMutationEvent` — nunca rebuild full
+3. Compute pesado tem path async via Worker (§45)
+4. Smoke real com corpus de tamanho real — trava 100ms+ = regrediu
 
-**Sintoma de recaída:** "vou só meter este filtro aqui pra deixar mais limpo" — STOP, é EXATAMENTE o caminho da regressão §46.
+**Sintoma:** "vou só meter este filtro aqui pra deixar mais limpo" — STOP, regressão §46.
 
 ---
 
 ## STATUS: EM DESENVOLVIMENTO — ZERO USUÁRIOS
 
-**Plugin NÃO está publicado. ZERO usuários reais. ZERO produção.** Não existe "vault existente de usuário", "backcompat", "migration path pra data.json salvo", nem "não quebrar quem já usa". Quando eu mudar um default, muda e pronto. Quando renomear um campo, renomeia e pronto. Sem migration code inline, sem fallback defensivo pra data antiga. Se o vault workbench precisa ser atualizado, migração one-shot e deleta o código.
+**Plugin NÃO publicado, zero usuários, zero produção.** Sem backcompat, sem migration path, sem "não quebrar quem já usa" — não existem. Mudar default = muda direto. Renomear campo = renomeia direto. Migração one-shot e deleta o código. Se eu perguntar "e os vaults existentes?", errei a premissa.
 
-Pensar em backcompat aqui é ruído que enviesa decisão de design. Se eu me pegar perguntando "e os vaults existentes?" — é sinal de que errei. A resposta é sempre: não existem.
+**Vault de teste real:** `/Users/mosx/Desktop/obsidian-plugins-workbench/`. `data.json` em `.obsidian/plugins/obsidian-qualia-coding/data.json` (Obsidian usa o nome da pasta, não o `id` do manifest). NÃO usar `demo/` — é vault de demonstração.
 
-**Vault de teste real:** `/Users/mosx/Desktop/obsidian-plugins-workbench/` (o vault que contém este repo). `data.json` em `.obsidian/plugins/obsidian-qualia-coding/data.json` (Obsidian usa o nome da pasta do plugin, que é `obsidian-qualia-coding`, não o `id` do manifest). NÃO usar `demo/` como fonte de verdade — é vault de demonstração com dados sintéticos.
-
-**Raiz do vault vs repo do plugin:**
-- Vault (o que o usuário abre no Obsidian): `/Users/mosx/Desktop/obsidian-plugins-workbench/`
-- Repo do plugin (subpasta): `/Users/mosx/Desktop/obsidian-plugins-workbench/.obsidian/plugins/obsidian-qualia-coding/`
-
-Arquivos de teste/notas pro usuário ver no Obsidian vão na **raiz do vault**, nunca dentro do repo.
+**Repo do plugin:** `.obsidian/plugins/obsidian-qualia-coding/` (dentro do vault). Arquivos de teste pro usuário ver no Obsidian vão na **raiz do vault**, nunca dentro do repo.
 
 ## Workflow: no git worktrees
 
-**Nunca** criar git worktree neste projeto (nem project-local, nem global). Trabalhar sempre direto no working dir atual, em branch normal (`git checkout -b ...`).
-
-Motivo: o plugin é desenvolvido de dentro do vault `obsidian-plugins-workbench`. Worktree project-local duplica o repo dentro de `.obsidian/` (Obsidian indexa e quebra); worktree global quebra o hot-reload que depende do artefato `main.js` ficar em `.obsidian/plugins/qualia-coding/`.
-
-Skills que normalmente exigem worktree (`superpowers:subagent-driven-development`, `superpowers:executing-plans`, `superpowers:brainstorming` Phase 4) ficam overridden por este CLAUDE.md. Quando algum skill pedir worktree, pular o setup e criar branch direto.
+Movido pro vault Obsidian (aplica a todos plugins). Ver `obsidian-plugins-workbench/.claude/CLAUDE.md` §Workflow: no git worktrees.
 
 ## Estrutura do código
 
@@ -172,64 +121,35 @@ Origem da regra: sessão 2026-05-13 emitiu release 0.6.1 sem perguntar (user hav
 
 ### Tags pra rollback de fase grande (não-release)
 
-Quando fechar uma fase substancial (Fase 6 do parquet-lazy foi a primeira), criar **par de tags** marcando antes/depois pra facilitar rollback ou comparação. Nome `pre-<fase>-baseline` / `post-<fase>-checkpoint`.
+Pattern: `pre-<fase>-baseline` (commit estável antes da fase) + `post-<fase>-checkpoint` (commit final). Vida útil curta — release tags futuras cobrem o intervalo.
 
 ```bash
-# Antes de começar a fase: marca o último commit estável
-git tag pre-fase6-baseline 4885d3e -m "Estado antes da Fase 6"
+# Início: marca último commit estável
+git tag pre-<fase>-baseline <sha> -m "Estado antes da <fase>"
 
-# Ao fechar a fase: marca o commit mais recente
-git tag post-fase6-checkpoint HEAD -m "Fase 6 completa"
+# Fim: marca commit atual
+git tag post-<fase>-checkpoint HEAD -m "<fase> completa"
 
 # Push das duas
-git push origin pre-fase6-baseline post-fase6-checkpoint
+git push origin pre-<fase>-baseline post-<fase>-checkpoint
 
-# Se fizer commit adicional na mesma fase depois (docs polish, etc),
-# move a tag pra HEAD com -f e re-push com --force:
-git tag -f post-fase6-checkpoint HEAD
-git push --force origin post-fase6-checkpoint
+# Commit extra depois (docs polish, fix): move tag final e re-push
+git tag -f post-<fase>-checkpoint HEAD
+git push --force origin post-<fase>-checkpoint
+
+# Rollback não-destrutivo
+git revert --no-edit pre-<fase>-baseline..post-<fase>-checkpoint
+
+# Ver baseline sem mexer em main
+git checkout pre-<fase>-baseline
+
+# Limpar tags antigas (após release cobrir o intervalo)
+git tag -d <tag> && git push origin :refs/tags/<tag>
 ```
 
-**Comandos de rollback:**
-```bash
-# Ver como tava antes (sem mexer em main)
-git checkout pre-fase6-baseline
+### Versionamento (semver)
 
-# Desfazer fase inteira preservando histórico (NÃO destrutivo)
-git revert --no-edit pre-fase6-baseline..post-fase6-checkpoint
-
-# Voltar pro checkpoint depois de explorar baseline
-git checkout main
-```
-
-**Tags atuais ativas:**
-- `pre-fase6-baseline` → `4885d3e` (estado antes do parquet-lazy Slice A)
-- `post-fase6-checkpoint` → `aee2e3c` (Fase 6 completa + docs redondo)
-
-**Quando remover:** quando o próximo release tagear (ex: `0.2.0` ou `0.3.0`) cobrir esse intervalo confortavelmente, pode deletar — release tags são o ponto de rollback canônico. Tags de fase são "redes de segurança" temporárias enquanto a fase ainda é recente.
-
-### Conferir estado git ao começar sessão nova
-
-Pra evitar dúvida sobre "tudo foi commit/push?":
-```bash
-git status                          # working tree clean + "up to date with origin/main"
-git log --oneline -5                # últimos 5 commits
-git ls-remote --tags origin | grep <fase>  # tags no remote
-```
-
-Se o output bater (working clean + branch alinhada com origin), nada está pendente. Working tree dirty ou "ahead by N commits" = falta commit ou push.
-
-### Convenção de versionamento (semver)
-
-- **Patch (X.Y.Z+1)**: bugfix, polish, refinement de feature existente. Ex: 0.1.0 → 0.1.1 (Convert memo to note Phase 1+2).
-- **Minor (X.Y+1.0)**: feature nova (capability ou módulo novo). Ex: LLM-assisted coding entraria como minor.
-- **Major (X+1.0.0)**: marca "pronto pra produção" ou breaking interface visível pro usuário. Só atacar quando tiver feedback de alpha real.
-
-### Estado atual e próximos releases
-
-- **Latest**: `0.1.1` (pre-release, 2026-04-30) — Convert memo to note Phase 1 + Phase 2 completa (Code, Group, Marker, Relation).
-- **Próximo planejado**: `0.1.2` se Phase 3 (Materialize all memos) for a única mudança. Sobe pra `0.2.0` se entrar combinada com feature substancial (LLM coding, etc.) ou com submissão à Community Plugins + onboarding docs (decisão de marketing — pode até virar `1.0.0` se for "lançamento oficial").
-- Manter sempre **pre-release flag** até feedback de alpha real chegar.
+Patch = bugfix/polish · Minor = feature nova · Major = pronto pra produção (só com alpha feedback). Detalhes: `docs/DEVELOPMENT.md` §9.
 
 ## Demo vault
 
@@ -313,18 +233,7 @@ Evita regenerar dados sintéticos toda vez. Quando o plugin gera `.bak` novo dur
 
 ## Skills Obsidian
 
-### Consulta (antes de implementar)
-
-- Antes de mexer em CM6 (StateField, decorations, widgets, DOM do editor) → consultar `obsidian-cm6`
-- Antes de mexer em CSS do editor ou layout → consultar `obsidian-design`
-- Antes de mexer em events, lifecycle, vault, metadataCache → consultar `obsidian-core`
-- Antes de mexer em settings UI → consultar `obsidian-settings`
-
-### Atualizacao (depois de implementar)
-
-- Padrao novo descoberto → adicionar DIRETAMENTE ao skill relevante (cm6, core, settings, design)
-- Anti-pattern descoberto → adicionar na secao "Armadilhas Comuns" do skill relevante
-- Cada pattern tem UMA casa (o skill mais relevante). Nunca duplicar entre skills
+Pattern de consulta e atualização movido pro vault Obsidian (aplica a todos plugins do vault). Ver `obsidian-plugins-workbench/.claude/CLAUDE.md` §Skills Obsidian.
 
 ## Docs
 
@@ -379,45 +288,15 @@ Docs narrativos/historicos (fora do repo, em `obsidian-qualia-coding/plugin-docs
 - Padrao tecnico novo isolado → 3
 - Novo modulo/arquivo → 2, 6
 
-### Manutenção de docs vivos vs históricos (cravado 2026-05-13 após cleanup)
+### Manutenção de docs vivos + Onde cada regra vive
 
-**Papel de cada doc (sem sobreposição):**
+Patterns genéricos: `~/.claude/CLAUDE.md` §Manutenção de docs vivos vs históricos + §Onde cada regra vive (sistema 4 níveis).
 
-| Doc | Conteúdo | Audiência | Quando atualizar |
-|---|---|---|---|
-| `ROADMAP.md` | Estado vivo: status atual + frentes ativas + decisões cravadas + won't-fix + permanente | Próxima sessão / LLMs | Decisão de produto muda · frente fecha |
-| `BACKLOG.md` | Itens em aberto + cross-cutting + won't-fix + permanente | Próxima sessão / LLMs | Bug descoberto · dívida nova · item resolvido (move pra HISTORY) |
-| `ROADMAP-HISTORY.md` | Arqueologia: decisões substituídas, slices entregues em detalhe, brainstorms passados, design docs anteriores | Busca específica | Algo sai do ROADMAP vivo |
-| `BACKLOG-HISTORY.md` | One-liners cronológicos de débitos resolvidos, por mês | Idem | Dívida resolvida sai do BACKLOG vivo |
-| `CHANGELOG.md` | Narrativa por release (Added/Changed/Fixed) | Público externo + devs | Cada release bump |
-
-Os 3 docs históricos têm papéis distintos: CHANGELOG é narrativo por release, BACKLOG-HISTORY é arqueologia granular de dívida, ROADMAP-HISTORY é arqueologia narrativa de decisões.
-
-**Regras de processo:**
-
-**Quando feature/dívida é ENTREGUE:**
-1. Marca ✅ + data + commit no doc atual (ROADMAP ou BACKLOG)
-2. Adiciona entry em `CHANGELOG.md [Unreleased]` ou release vigente
-3. Após release bump OU após 5+ ✅ acumulados no doc atual: mover ✅ pra HISTORY correspondente como one-liner condensado
-4. Não acumular ✅ no doc atual além de 1 ciclo — doc atual = só estado vivo
-
-**Quando DECISÃO DE PRODUTO muda:**
-1. Atualiza `ROADMAP.md` (versão nova substitui versão anterior)
-2. Versão anterior NÃO fica bannerizada permanentemente — vai pra `ROADMAP-HISTORY.md` com data + razão da substituição
-3. Bannerizar é solução temporária durante migração, não permanente
-
-**Quando descobre DRIFT entre docs:**
-1. Para. Identifica fonte canônica (BACKLOG = granular pra dívida; ROADMAP = decisão de produto)
-2. Pareare antes de qualquer cleanup
-3. Tag git antes de mover conteúdo grande
-
-**Início de sessão:**
-1. Ler `ROADMAP.md §"Status atual"` — leitura obrigatória
-2. Se trabalhar em item do BACKLOG, marca progresso ali
-3. Cada commit relevante atualiza `CHANGELOG.md [Unreleased]`
-
-**Cleanup periódico:**
-Quando `ROADMAP.md` > 400 linhas OU `BACKLOG.md` > 150 linhas OU sessão detectar drift em 2+ lugares: aciona limpeza pra preservar contexto enxuto. Não esperar acumular.
+**Específico Qualia Coding:**
+- Início de sessão: ler `ROADMAP.md §⚡ Status atual` — obrigatório
+- Trigger cleanup: `ROADMAP.md` > 400 linhas OU `BACKLOG.md` > 150 linhas
+- Archives separados: `ROADMAP-HISTORY.md` (narrativa) + `BACKLOG-HISTORY.md` (one-liners por mês) + `CHANGELOG.md` (por release)
+- BACKLOG.md tem §📌 Memória técnica no fim (won't-fix + permanente) — não consultar pra planejar
 
 ## Consultar base de interacoes AI (cross-projeto)
 
@@ -470,9 +349,4 @@ $PY $SCRIPT --schema
 
 ## Plugins paralelos / spike / PoC
 
-Se uma sessao neste projeto gerar necessidade de criar um plugin Obsidian separado (PoC de viabilidade, spike, plugin novo), e o trabalho estiver no vault `obsidian-plugins-workbench` (bancada local), o layout segue regra fixa:
-
-- **Codigo** -> `.obsidian/plugins/<plugin-id>/` (com `.git` proprio, repo `mrlnlms/<plugin-id>` no GitHub)
-- **Docs / history / research / notas de teste** -> `obsidian-plugins-workbench/<plugin-id>/` (parte do vault, fora do repo do plugin)
-
-Detalhes: ver `obsidian-plugins-workbench/.claude/CLAUDE.md` (CLAUDE.md do vault).
+Quando sessão gerar necessidade de plugin novo no vault — ver `obsidian-plugins-workbench/.claude/CLAUDE.md` §Layout de plugins.

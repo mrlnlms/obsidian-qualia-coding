@@ -17,6 +17,7 @@ export function openAudioCodingPopover(
 	onDismissEmpty: () => void,
 	app: App,
 	savedPos?: { x: number; y: number },
+	anchorEl?: HTMLElement,
 ): void {
-	openMediaCodingPopover(mouseEvent, model, filePath, regionStart, regionEnd, regionRenderer, onDismissEmpty, app, savedPos);
+	openMediaCodingPopover(mouseEvent, model, filePath, regionStart, regionEnd, regionRenderer, onDismissEmpty, app, savedPos, anchorEl);
 }

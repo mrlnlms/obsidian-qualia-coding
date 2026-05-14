@@ -6,7 +6,7 @@ import type { EngineRegistration } from '../core/types';
 import { CodeMarkerModel } from './models/codeMarkerModel';
 import { EditorView } from '@codemirror/view';
 import { createMarkerStateField, updateFileMarkersEffect, setFileIdEffect, setSelectionPreviewEffect } from './cm6/markerStateField';
-import { createSelectionMenuField, showCodingMenuEffect } from './cm6/selectionMenuField';
+import { createSelectionMenuField } from './cm6/selectionMenuField';
 import { createMarkerViewPlugin, SELECTION_EVENT, SelectionEventDetail } from './cm6/markerViewPlugin';
 import { createHoverMenuExtension } from './cm6/hoverMenuExtension';
 import { createMarginPanelExtension } from './cm6/marginPanelExtension';
@@ -44,9 +44,9 @@ export function registerMarkdownEngine(plugin: QualiaCodingPlugin): EngineRegist
 	// markerViewPlugin handles fileId detection (replaces the old fileIdSync listener)
 	plugin.registerEditorExtension([
 		createMarkerStateField(model),
-		createSelectionMenuField(model),
+		createSelectionMenuField(menuController),
 		createMarkerViewPlugin(model),
-		createHoverMenuExtension(model),
+		createHoverMenuExtension(model, menuController),
 		createMarginPanelExtension(model),
 		createHoverBridge(model),
 	]);

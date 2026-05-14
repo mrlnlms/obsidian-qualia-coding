@@ -1,8 +1,9 @@
 # Backlog — Qualia Coding
 
+> **Estado vivo = §🟢 Estado atual + §🪶 Polish curto + §🔍 Sintomas.** §📌 Memória técnica no fim (won't-fix + permanente) é consulta direcionada — não apresentar ao responder "como tá o backlog?".
+>
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
-> Won't-fix mantém razão pra não reabrir.
 > Última atualização: 2026-05-13 (release **0.7.0** — bloco Image engine fechado + Gap #1c/1d + 3 UX gaps + cluster.worker async + canvas refresh cor cross-engine + colorOverride cross-engine + audit log defensive fix + `!important` podado 68 → 46: 7 cursor overrides + 39 handles SVG = Permanente; 18 AG Grid cells + 2 SVG stroke + 2 isolados removidos via especificidade). Bloco ICR + Image + canvas refresh cor zerados antes da próxima frente prática (LLM coding + Camada 2 BHM).
 
 ---
@@ -10,10 +11,6 @@
 ## 🟢 Estado atual
 
 **Bloco ICR fechado por inteiro** (release 0.6.0 arquitetura + 0.7.0 gaps intra-modality, 2026-05-13). Camadas 2 e 3 do framework multifaceta viraram peças do bloco LLM (ver `ROADMAP.md §"Framework Unificado ICR + LLM"`).
-
-**Único bloqueador legado:** §11 E3 (REFI-QDA, won't-fix documentado).
-
-**Cross-cutting:** `!important` podado de 68 → 46 (2026-05-13). Restantes 46 são defesa legítima documentada em §Permanente.
 
 **Próxima frente prática:** LLM-assisted coding com Camada 2 BHM como par natural. Precede brainstorm dedicado — ver `ROADMAP.md §"Frente 2"` + `docs/ICR-MULTIMODAL-METHODOLOGY.md`.
 
@@ -29,23 +26,27 @@ Sem nenhum sintoma aberto no momento. Quando aparecer, capturar `data.json` + sc
 
 ---
 
-## 🔒 Won't-fix (não reabrir)
+## 📌 Memória técnica — não consultar pra planejar
+
+> Consultar SÓ pra pergunta direta ("isso foi decidido?", "tem invariante em X?"). Não trazer pra resposta sobre status/backlog vivo.
+
+### 🔒 Won't-fix (não reabrir)
 
 Lista canônica de decisões registradas. Cada uma tem razão explícita pra não voltar a virar tarefa.
 
-### §4 C6 — `marginPanelExtension.ts` 548 LOC sem refactor
+#### §4 C6 — `marginPanelExtension.ts` 548 LOC sem refactor
 Layout algorithm já foi extraído em `marginPanelLayout.ts` (puro, testável). O restante do arquivo grande não tem bug associado — refactor seria estética sem ganho de manutenibilidade. Reabrir só se aparecer bug específico.
 
-### §8b CB3 — Search só por nome de código (não busca pasta)
+#### §8b CB3 — Search só por nome de código (não busca pasta)
 `hierarchyHelpers.buildFlatTree` busca só nomes de códigos. **Decisão correta**: pastas são organizacionais (sem significado analítico, confirmado em CLAUDE.md). Usuário conhece suas pastas e navega direto; quando um código casa, a pasta que o contém já é auto-revelada e expandida. Buscar por nome de pasta resolveria problema inexistente.
 
-### §10b — Magnitude popover sem empty state
+#### §10b — Magnitude popover sem empty state
 Seção de magnitude some inteiramente quando nenhum código aplicado tem magnitude configurada. **Decisão UX intencional** — não exibir mensagem é mais limpo que poluir o popover com placeholder.
 
-### §11 E3 — Markers CSV não exportáveis via REFI-QDA
+#### §11 E3 — Markers CSV não exportáveis via REFI-QDA
 Limitação do **formato REFI-QDA**, não do plugin: o spec não comporta segmentos de célula tabular. Documentado no disclaimer do modal de export. Workaround pro usuário: usar Tabular CSV zip (#19) que cobre o caso analítico.
 
-### §11 E5 — HEIC / TIFF / HEIF não suportados
+#### §11 E5 — HEIC / TIFF / HEIF não suportados
 Electron não decodifica esses formatos nativamente. **Tentativas rejeitadas:**
 - `heic2any`/libheif em runtime — intercept falho + artefatos de decode + memory leak do WASM + 1.3MB de bundle
 - Command one-shot de conversão — quebra o fluxo natural "abre e codifica"
@@ -54,19 +55,19 @@ Electron não decodifica esses formatos nativamente. **Tentativas rejeitadas:**
 
 **Reabrir se:** aparecer demanda consistente em produção. Avaliar decoder via worker thread separado.
 
-### §15 — Case Variables multi-popover racing
+#### §15 — Case Variables multi-popover racing
 Arquitetura atual só permite um popover por vez (single `activePopoverClose` field). Race condition entre dois popovers simultâneos não é problema porque é arquiteturalmente impossível hoje. Revisar **só se** um dia decidir suportar multi-popover.
 
-### Delay ms em virtual cells durante filter (parquet/CSV lazy)
+#### Delay ms em virtual cells durante filter (parquet/CSV lazy)
 
 Cells virtuais (cod-frow/cod-seg/comment) têm delay ms-pequeno no swap visual após filter no lazy mode — efeito direto do mecanismo `refreshInfiniteCache` que mantém DOM visível durante re-fetch (vs `purgeInfiniteCache` que limpa sync e causava o flash branco). Cells reais atualizam imediato porque o value muda (parquet entrega dado novo); cells virtuais usam cellRenderer custom + `field` apontando pra coluna inexistente no parquet, então só atualizam após `refreshCells({ force: true })` no listener `modelUpdated`. **Trade aceito** em 0.4.2 sobre voltar a `purgeInfiniteCache`. Reabrir só se AG Grid Community ganhar mecanismo render-while-fetch nativo. Documentado no CHANGELOG 0.4.2.
 
-### §17 — Memo View virtual scroll
+#### §17 — Memo View virtual scroll
 Suspeita inicial: >500 marker memos visíveis trava scroll por peso de DOM. **Morto em 2026-04-27** pelo click-to-edit refactor (commit `18676b4`): cada memo agora é `<p>` simples e só vira `<textarea>` quando clicado. Validação empírica em corpus de 50 codes + 527 markers + ~500 memos: fluido em by-file e by-code com `markerLimit="all"`. Corpus preservado via `scripts/seed-memo-corpus.mjs` se precisar re-medir.
 
 ---
 
-## ⚓ Permanente (ineliminável)
+### ⚓ Permanente (ineliminável)
 
 | Item | Razão |
 |------|-------|

@@ -32,6 +32,10 @@ export class MediaViewCore {
   private lastKnownScroll = 0;
   private videoElement: HTMLVideoElement | null = null;
   private waveformEl: HTMLElement | null = null;
+  // Última posição do mouse no waveform — wavesurfer não fornece MouseEvent no
+  // evento 'region-created', então capturamos via mousedown/mousemove pra ancorar
+  // o popover na altura do clique do user.
+  private lastWaveformMousePos: { x: number; y: number } | null = null;
   private playBtn: HTMLElement | null = null;
   private timeEl: HTMLElement | null = null;
   private zoomSlider: HTMLInputElement | null = null;
@@ -104,6 +108,12 @@ export class MediaViewCore {
 
     // Waveform container
     this.waveformEl = contentEl.createDiv({ cls: `${prefix}-waveform` });
+    // Captura coords do mouse pra usar no anchor do popover (region-created não
+    // entrega MouseEvent). mousedown é mais confiável que mousemove pra "última
+    // posição de clique" — region só nasce depois de um mousedown.
+    this.waveformEl.addEventListener('mousedown', (e: MouseEvent) => {
+      this.lastWaveformMousePos = { x: e.clientX, y: e.clientY };
+    }, true);
 
     // Loading indicator
     const loadingEl = this.waveformEl.createDiv({ cls: `${prefix}-loading`, text: `Loading ${this.config.displayLabel.toLowerCase()}...` });
@@ -272,15 +282,22 @@ export class MediaViewCore {
         if (this.regionRenderer?.isRestoring) return;
         if (this.regionRenderer?.getMarkerIdForRegion(region.id)) return;
 
+        // Prefere coords do último mousedown no waveform (clique real do user).
+        // Fallback pro center do waveform quando region nasce via API/programático.
         const waveformRect = this.waveformEl?.getBoundingClientRect();
         const fakeEvent = {
-          clientX: waveformRect ? waveformRect.left + waveformRect.width / 2 : 400,
-          clientY: waveformRect ? waveformRect.top + 20 : 200,
+          clientX: this.lastWaveformMousePos?.x
+            ?? (waveformRect ? waveformRect.left + waveformRect.width / 2 : 400),
+          clientY: this.lastWaveformMousePos?.y
+            ?? (waveformRect ? waveformRect.top + 20 : 200),
         } as MouseEvent;
 
+        // Anchor no DOM da própria region — popover ancora no marker visual no
+        // waveform/timeline, não no center fake do waveform.
         this.config.openPopover(
           fakeEvent, this.model, file.path, region.start, region.end,
           this.regionRenderer!, () => { region.remove(); }, this.app,
+          undefined, region.element as HTMLElement | undefined,
         );
       });
 
@@ -318,6 +335,7 @@ export class MediaViewCore {
         this.config.openPopover(
           e, this.model, file.path, marker.from, marker.to,
           this.regionRenderer!, () => {}, this.app,
+          undefined, region.element as HTMLElement | undefined,
         );
       });
     }

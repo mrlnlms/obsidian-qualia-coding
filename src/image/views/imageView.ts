@@ -323,30 +323,39 @@ export class ImageCodingView extends FileView {
 	): void {
 		if (!this.regionManager || !this.fabricState) return;
 
-		const shape = this.regionManager.getShapeForMarker(markerId);
+		const regionManager = this.regionManager;
+		const fabricState = this.fabricState;
+
+		const shape = regionManager.getShapeForMarker(markerId);
 		if (!shape) return;
 
-		let rawX: number;
-		let rawY: number;
-		if (mousePos) {
-			// Anchor at the actual cursor — matches CM6/markdown popover UX.
-			rawX = mousePos.x;
-			rawY = mousePos.y + 8;
-		} else {
-			// Programmatic selection (no MouseEvent) — fall back to bottom-center of shape.
-			// getBoundingRect() is canvas-relative; add canvas offset in the document.
-			const bound = shape.getBoundingRect();
-			const canvasRect = this.fabricState.canvas.upperCanvasEl.getBoundingClientRect();
-			rawX = canvasRect.left + bound.left + bound.width / 2;
-			rawY = canvasRect.top + bound.top + bound.height + 8;
-		}
-		// Clamp to viewport so menu doesn't open offscreen when click is at edge.
-		const ESTIMATED_MENU_W = 280;
-		const ESTIMATED_MENU_H = 320;
-		const x = Math.max(8, Math.min(rawX, window.innerWidth - ESTIMATED_MENU_W));
-		const y = Math.max(8, Math.min(rawY, window.innerHeight - ESTIMATED_MENU_H));
+		// Anchor: bbox da shape no document (canvas-relative + canvas offset).
+		// Tracker recomputa em scroll/resize do leaf — popover acompanha a shape
+		// e fecha se a shape sair de view.
+		const computeRect = () => {
+			const s = regionManager.getShapeForMarker(markerId);
+			if (!s) return null;
+			const bound = s.getBoundingRect();
+			const canvasRect = fabricState.canvas.upperCanvasEl.getBoundingClientRect();
+			return {
+				top: canvasRect.top + bound.top,
+				bottom: canvasRect.top + bound.top + bound.height,
+				left: canvasRect.left + bound.left,
+				right: canvasRect.left + bound.left + bound.width,
+			};
+		};
 
-		this.codingMenu?.open(markerId, x, y, isNew);
+		// Initial rect prefere o cursor (próximo do clique). Tracker depois recalcula
+		// pela shape — primeira mudança de scroll já ancora no conteúdo subjacente.
+		const initialRect = mousePos
+			? { top: mousePos.y, bottom: mousePos.y, left: mousePos.x, right: mousePos.x }
+			: computeRect();
+		if (!initialRect) return;
+
+		this.codingMenu?.open(markerId, {
+			rect: initialRect,
+			tracker: { scrollEl: this.containerEl, computeRect },
+		}, isNew);
 	}
 
 	highlightRegion(markerId: string): void {

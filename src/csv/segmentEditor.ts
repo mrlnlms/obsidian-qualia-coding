@@ -7,6 +7,7 @@ import { createMarkerViewPlugin } from '../markdown/cm6/markerViewPlugin';
 import { createSelectionMenuField } from '../markdown/cm6/selectionMenuField';
 import { createHoverMenuExtension } from '../markdown/cm6/hoverMenuExtension';
 import { createMarginPanelExtension } from '../markdown/cm6/marginPanelExtension';
+import { MenuController } from '../markdown/menu/menuController';
 import { registerStandaloneEditor, unregisterStandaloneEditor } from '../markdown/cm6/utils/viewLookupUtils';
 import type { Marker, CodeMarkerModel } from '../markdown/models/codeMarkerModel';
 import type { SegmentMarker } from './csvCodingTypes';
@@ -96,6 +97,10 @@ export class SegmentEditor {
 		const segmentMarkers = this.host.csvModel.getSegmentMarkersForCell(file, sourceRowId, column);
 		this.populateMarkersFromSegments(virtualFileId, segmentMarkers, cellText);
 
+		// Menu controller dedicado pro segment editor (popover floating vive em document.body,
+		// independente do menuController principal do markdown view).
+		const menuController = new MenuController(mdModel);
+
 		this.editorView = new EditorView({
 			state: EditorState.create({
 				doc: cellText,
@@ -106,8 +111,8 @@ export class SegmentEditor {
 					tooltips({ parent: document.body }),
 					createMarkerStateField(mdModel),
 					createMarkerViewPlugin(mdModel),
-					createSelectionMenuField(mdModel),
-					createHoverMenuExtension(mdModel),
+					createSelectionMenuField(menuController),
+					createHoverMenuExtension(mdModel, menuController),
 					createMarginPanelExtension(mdModel),
 					EditorView.theme({
 						'&': {

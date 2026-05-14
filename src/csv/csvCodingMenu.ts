@@ -15,22 +15,37 @@ import {
 	type CodingPopoverAdapter,
 	type CodingPopoverOptions,
 } from '../core/codingPopover';
+import type { AnchorRect } from '../core/baseCodingMenu';
+
+function domRectToAnchor(r: DOMRect): AnchorRect {
+	return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+}
+
+/** AG Grid body viewport — re-position popover em scroll vertical/horizontal da grid. */
+function getGridScrollEl(gridApi: GridApi): HTMLElement | null {
+	// AG Grid 30+: gridApi.getRootGuiContainer? viewport via DOM query.
+	const root = (gridApi as unknown as { getRootGuiContainer?: () => HTMLElement }).getRootGuiContainer?.();
+	const viewport = root?.querySelector<HTMLElement>('.ag-body-viewport');
+	return viewport ?? null;
+}
 
 /**
  * Opens a coding popover for a single CSV cell.
+ * Posicionamento no cursor (consistente com image/pdf/media).
  */
 export function openCsvCodingPopover(
-	anchorEl: HTMLElement,
+	mouseEvent: MouseEvent,
 	model: CsvCodingModel,
 	file: string,
 	sourceRowId: number,
 	column: string,
 	gridApi: GridApi,
 	app: App,
-	anchorRect?: DOMRect,
 ): void {
-	const savedRect = anchorRect ?? anchorEl.getBoundingClientRect();
-	const pos = { x: savedRect.left, y: savedRect.bottom + 4 };
+	const anchorEl = mouseEvent.currentTarget as HTMLElement | null;
+	const anchorRect = anchorEl
+		? domRectToAnchor(anchorEl.getBoundingClientRect())
+		: { top: mouseEvent.clientY, bottom: mouseEvent.clientY, left: mouseEvent.clientX, right: mouseEvent.clientX };
 
 	const getMarker = () => model.findOrCreateRowMarker(file, sourceRowId, column);
 	const existingMarker = model.getRowMarkerForActiveCoder(file, sourceRowId, column);
@@ -96,7 +111,16 @@ export function openCsvCodingPopover(
 	};
 
 	const options: CodingPopoverOptions = {
-		pos,
+		anchor: {
+			rect: anchorRect,
+			tracker: anchorEl ? {
+				scrollEl: getGridScrollEl(gridApi) ?? document.body,
+				computeRect: () => {
+					if (!anchorEl.isConnected) return null;
+					return domRectToAnchor(anchorEl.getBoundingClientRect());
+				},
+			} : undefined,
+		},
 		app,
 		isHoverMode,
 		showMagnitudeSection: model.dm.section('general').showMagnitudeInPopover,
@@ -106,7 +130,7 @@ export function openCsvCodingPopover(
 			gridApi.refreshCells({ force: true });
 		},
 		onRebuild: () => {
-			openCsvCodingPopover(anchorEl, model, file, sourceRowId, column, gridApi, app, savedRect);
+			openCsvCodingPopover(mouseEvent, model, file, sourceRowId, column, gridApi, app);
 		},
 		deleteAction: isHoverMode ? {
 			label: 'Remove All Codes',
@@ -134,17 +158,18 @@ export function openCsvCodingPopover(
  * `WHERE` in lazy mode). The popover itself is mode-agnostic.
  */
 export async function openBatchCodingPopover(
-	anchorEl: HTMLElement,
+	mouseEvent: MouseEvent,
 	model: CsvCodingModel,
 	file: string,
 	column: string,
 	gridApi: GridApi,
 	app: App,
 	getFilteredSourceRowIds: () => Promise<number[]>,
-	anchorRect?: DOMRect,
 ): Promise<void> {
-	const savedRect = anchorRect ?? anchorEl.getBoundingClientRect();
-	const pos = { x: savedRect.left, y: savedRect.bottom + 4 };
+	const anchorEl = mouseEvent.currentTarget as HTMLElement | null;
+	const anchorRect = anchorEl
+		? domRectToAnchor(anchorEl.getBoundingClientRect())
+		: { top: mouseEvent.clientY, bottom: mouseEvent.clientY, left: mouseEvent.clientX, right: mouseEvent.clientX };
 
 	const filteredSourceRowIds = await getFilteredSourceRowIds();
 
@@ -188,13 +213,22 @@ export async function openBatchCodingPopover(
 	};
 
 	const options: CodingPopoverOptions = {
-		pos,
+		anchor: {
+			rect: anchorRect,
+			tracker: anchorEl ? {
+				scrollEl: getGridScrollEl(gridApi) ?? document.body,
+				computeRect: () => {
+					if (!anchorEl.isConnected) return null;
+					return domRectToAnchor(anchorEl.getBoundingClientRect());
+				},
+			} : undefined,
+		},
 		app,
 		isHoverMode: false,
 		badge: `Apply to ${filteredSourceRowIds.length.toLocaleString()} visible row${filteredSourceRowIds.length !== 1 ? 's' : ''}`,
 		className: 'codemarker-popover',
 		onRebuild: () => {
-			void openBatchCodingPopover(anchorEl, model, file, column, gridApi, app, getFilteredSourceRowIds, savedRect);
+			void openBatchCodingPopover(mouseEvent, model, file, column, gridApi, app, getFilteredSourceRowIds);
 		},
 		deleteAction: {
 			label: 'Remove All Codes',

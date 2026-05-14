@@ -30,8 +30,10 @@ import {
 	renderMagnitudeSection,
 	renderRelationsSection,
 	renderEnterHint,
-	positionAndClamp,
+	placeFloating,
+	placeFloatingNextFrame,
 	applyThemeColors,
+	type AnchorRect,
 	type MemoHandle,
 	type MagnitudeHandle,
 	type RelationsHandle,
@@ -71,9 +73,30 @@ export interface CodingPopoverAdapter {
 	setRelationsForCode?(codeId: string, relations: Array<{ label: string; target: string; directed: boolean }>): void;
 }
 
+/**
+ * Anchor especifica onde o popover ancora — pode ser um ponto (cursor) ou rect
+ * de conteúdo (char range, célula, shape). Tracker opcional re-posiciona o
+ * popover em scroll do anchor (e fecha o popover se anchor sair de view).
+ */
+export interface AnchorSpec {
+	/** Rect inicial (ou ponto: top===bottom, left===right) */
+	rect: AnchorRect;
+	/**
+	 * Lado preferido pra ancorar. Default 'below'. Engines passam 'above' quando
+	 * o cursor está no topo da seleção (seleção bottom-up) pra popover não cobrir.
+	 * Se não cabe, placement faz flip 4-way.
+	 */
+	preferredSide?: 'below' | 'above' | 'right' | 'left';
+	/** Tracker opt-in: re-position em scroll, fecha popover se computeRect retorna null */
+	tracker?: {
+		scrollEl: HTMLElement;
+		computeRect: () => AnchorRect | null;
+	};
+}
+
 export interface CodingPopoverOptions {
-	/** Position to show the popover */
-	pos: { x: number; y: number };
+	/** Where to anchor the popover (point or rect, with optional scroll tracker) */
+	anchor: AnchorSpec;
 	/** Obsidian App instance (needed for CodeFormModal, Browse) */
 	app?: App;
 	/** Hover mode (existing target) vs selection mode (new target) */
@@ -99,12 +122,6 @@ export interface CodingPopoverOptions {
 	};
 	/** Override auto-focus behavior (defaults: true for selection, false for hover) */
 	autoFocus?: boolean;
-	/**
-	 * External container to render into (opt-in).
-	 * When provided, skips createPopover() — caller owns the container lifecycle.
-	 * Used by CM6 tooltip to host popover content inside a tooltip-managed element.
-	 */
-	externalContainer?: HTMLElement;
 	/** Called before opening CodeFormModal (e.g. dispatch selection preview effect) */
 	onBeforeModal?: () => void;
 	/** Override default color for CodeFormModal (defaults to registry.peekNextPaletteColor()) */
@@ -120,6 +137,8 @@ export interface CodingPopoverOptions {
 export interface CodingPopoverHandle {
 	/** Close the popover and clean up all listeners */
 	close: () => void;
+	/** Container DOM element (engines may attach mouseenter/mouseleave handlers for hover grace) */
+	container: HTMLElement;
 }
 
 // ── Main function ──
@@ -128,24 +147,18 @@ export function openCodingPopover(
 	adapter: CodingPopoverAdapter,
 	options: CodingPopoverOptions,
 ): CodingPopoverHandle {
-	let container: HTMLElement;
-	let rawClose: () => void;
+	let teardownTracker: () => void = () => {};
 
-	if (options.externalContainer) {
-		// External mode: caller owns the container, we just render content into it
-		container = options.externalContainer;
-		applyThemeColors(container);
-		rawClose = () => { container.empty(); };
-	} else {
-		// Standard mode: create floating popover attached to document.body
-		// onClose is passed to createPopover so ALL close paths (ESC, click-outside, replace) call it
-		const popover = createPopover(
-			options.className ?? 'codemarker-popover',
-			() => options.onClose?.(),
-		);
-		container = popover.container;
-		rawClose = popover.close;
-	}
+	// onClose roda em qualquer caminho de fechamento (ESC, click-outside, replace)
+	const popover = createPopover(
+		options.className ?? 'codemarker-popover',
+		() => {
+			teardownTracker();
+			options.onClose?.();
+		},
+	);
+	const container = popover.container;
+	const rawClose = popover.close;
 
 	const close = () => {
 		rawClose();
@@ -401,9 +414,36 @@ export function openCodingPopover(
 		);
 	}
 
-	// ── Position and show (skip for external container — caller handles positioning) ──
-	if (!options.externalContainer) {
-		positionAndClamp(container, options.pos.x, options.pos.y);
+	// ── Position + scroll tracker ──
+	placeFloatingNextFrame(container, options.anchor.rect, 8, options.anchor.preferredSide);
+
+	if (options.anchor.tracker) {
+		const { scrollEl, computeRect } = options.anchor.tracker;
+		let rafId: number | null = null;
+		const onScroll = () => {
+			if (rafId !== null) return;
+			rafId = requestAnimationFrame(() => {
+				rafId = null;
+				const newRect = computeRect();
+				if (!newRect) {
+					// Anchor saiu de view (linha rolada pra fora, célula desmontada, etc.)
+					close();
+					return;
+				}
+				placeFloating(container, newRect, 8, options.anchor.preferredSide);
+			});
+		};
+		scrollEl.addEventListener('scroll', onScroll, { passive: true });
+		// Captura scroll de ancestrais também (nested scroll containers)
+		window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+		window.addEventListener('resize', onScroll, { passive: true });
+
+		teardownTracker = () => {
+			scrollEl.removeEventListener('scroll', onScroll);
+			window.removeEventListener('scroll', onScroll, true);
+			window.removeEventListener('resize', onScroll);
+			if (rafId !== null) cancelAnimationFrame(rafId);
+		};
 	}
 
 	// Auto-focus (selection mode by default, overridable)
@@ -412,5 +452,5 @@ export function openCodingPopover(
 		setTimeout(() => textComponent.inputEl.focus(), 50);
 	}
 
-	return { close };
+	return { close, container };
 }

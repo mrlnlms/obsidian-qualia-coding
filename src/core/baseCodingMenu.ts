@@ -730,22 +730,115 @@ export function applyInputTheme(input: HTMLInputElement): void {
 	input.style.borderColor = s.getPropertyValue('--background-modifier-border').trim();
 }
 
-// ── Position & clamp ─────────────────────────────────────────
+// ── Placement engine ─────────────────────────────────────────
+
+export interface AnchorRect {
+	top: number;
+	bottom: number;
+	left: number;
+	right: number;
+}
+
+const VIEWPORT_MARGIN = 8;
 
 /**
- * Positions a popover container near (x, y), clamping to viewport edges.
+ * Positions a floating element relative to an anchor rect.
+ * 4-way flip: below → above → right → left. Escolhe o lado onde cabe; se
+ * nenhum cabe, escolhe o lado com mais espaço e clamp pro viewport. Nunca
+ * cobre o anchor a não ser que viewport seja menor que o popover.
+ *
+ * Comportamento idêntico cross-engine — markdown, pdf, csv, image, media.
  */
-export function positionAndClamp(container: HTMLElement, x: number, y: number): void {
-	container.style.top = `${y + 4}px`;
-	container.style.left = `${x}px`;
+export type PlacementSide = 'below' | 'above' | 'right' | 'left';
 
-	requestAnimationFrame(() => {
-		const cr = container.getBoundingClientRect();
-		if (cr.right > window.innerWidth) {
-			container.style.left = `${window.innerWidth - cr.width - 8}px`;
-		}
-		if (cr.bottom > window.innerHeight) {
-			container.style.top = `${y - cr.height - 4}px`;
-		}
-	});
+export function placeFloating(
+	container: HTMLElement,
+	anchor: AnchorRect,
+	offset = 8,
+	preferredSide: PlacementSide = 'below',
+): void {
+	const cr = container.getBoundingClientRect();
+	const vw = window.innerWidth;
+	const vh = window.innerHeight;
+
+	const space = {
+		below: vh - anchor.bottom - offset - VIEWPORT_MARGIN,
+		above: anchor.top - offset - VIEWPORT_MARGIN,
+		right: vw - anchor.right - offset - VIEWPORT_MARGIN,
+		left: anchor.left - offset - VIEWPORT_MARGIN,
+	};
+
+	// Ordem de fallback: preferred → oposto vertical/horizontal → outros lados.
+	const oppositeOf: Record<PlacementSide, PlacementSide> = {
+		below: 'above', above: 'below', right: 'left', left: 'right',
+	};
+	const otherAxis: Record<PlacementSide, PlacementSide[]> = {
+		below: ['right', 'left'], above: ['right', 'left'],
+		right: ['below', 'above'], left: ['below', 'above'],
+	};
+	const fallbackOrder: PlacementSide[] = [
+		preferredSide,
+		oppositeOf[preferredSide],
+		...otherAxis[preferredSide],
+	];
+
+	const needed = (s: PlacementSide) => (s === 'below' || s === 'above') ? cr.height : cr.width;
+
+	let side: PlacementSide | null = null;
+	for (const candidate of fallbackOrder) {
+		if (space[candidate] >= needed(candidate)) { side = candidate; break; }
+	}
+	if (!side) {
+		// Nada cabe — escolhe o lado com mais espaço relativo ao tamanho do popover.
+		const fitRatio: Array<[PlacementSide, number]> = [
+			['below', space.below / cr.height],
+			['above', space.above / cr.height],
+			['right', space.right / cr.width],
+			['left', space.left / cr.width],
+		];
+		fitRatio.sort((a, b) => b[1] - a[1]);
+		side = fitRatio[0]![0];
+	}
+
+	let top: number;
+	let left: number;
+	if (side === 'below') {
+		top = anchor.bottom + offset;
+		left = anchor.left;
+	} else if (side === 'above') {
+		top = anchor.top - cr.height - offset;
+		left = anchor.left;
+	} else if (side === 'right') {
+		top = anchor.top;
+		left = anchor.right + offset;
+	} else {
+		top = anchor.top;
+		left = anchor.left - cr.width - offset;
+	}
+
+	// Clamp ao viewport — direção cross-axis tem mais flexibilidade
+	// (popover pode deslizar lateralmente quando ancorado below/above).
+	if (left + cr.width > vw - VIEWPORT_MARGIN) left = vw - cr.width - VIEWPORT_MARGIN;
+	if (left < VIEWPORT_MARGIN) left = VIEWPORT_MARGIN;
+	if (top + cr.height > vh - VIEWPORT_MARGIN) top = vh - cr.height - VIEWPORT_MARGIN;
+	if (top < VIEWPORT_MARGIN) top = VIEWPORT_MARGIN;
+
+	container.style.top = `${top}px`;
+	container.style.left = `${left}px`;
+}
+
+/**
+ * Wraps placeFloating in requestAnimationFrame — use right after appendChild
+ * when the container's height isn't known yet.
+ */
+export function placeFloatingNextFrame(
+	container: HTMLElement,
+	anchor: AnchorRect,
+	offset = 8,
+	preferredSide: PlacementSide = 'below',
+): void {
+	// Placement inicial fora-da-tela enquanto mede (evita flash em posição errada).
+	container.style.top = '-9999px';
+	container.style.left = '-9999px';
+	requestAnimationFrame(() => placeFloating(container, anchor, offset, preferredSide));
 }

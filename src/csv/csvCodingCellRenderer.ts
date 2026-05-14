@@ -124,7 +124,7 @@ export function codingCellRenderer(params: any): HTMLElement {
 		btn.addEventListener('click', (e) => {
 			e.stopPropagation();
 			if (model && gridApi && app) {
-				openCsvCodingPopover(btn, model, file, sourceRowId, sourceColumn, gridApi, app);
+				openCsvCodingPopover(e, model, file, sourceRowId, sourceColumn, gridApi, app);
 			}
 		});
 		wrapper.appendChild(btn);

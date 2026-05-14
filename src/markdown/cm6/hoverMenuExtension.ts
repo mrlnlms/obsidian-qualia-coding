@@ -1,8 +1,8 @@
 import { ViewPlugin, EditorView, PluginValue, ViewUpdate } from "@codemirror/view";
 import { CodeMarkerModel } from "../models/codeMarkerModel";
-import { showCodingMenuEffect } from "./selectionMenuField";
 import { setFileIdEffect } from "./markerStateField";
 import { SelectionSnapshot } from "../menu/menuTypes";
+import type { MenuController } from "../menu/menuController";
 import { findFileIdForEditorView, getViewForFile } from "./utils/viewLookupUtils";
 import { findSmallestMarkerAtPos, classifyMarkersAtPos } from "./utils/markerPositionUtils";
 
@@ -12,7 +12,7 @@ const CLOSE_DELAY = 200;
 const TOOLTIP_ENTER_EVENT = 'codemarker-tooltip-mouseenter';
 const TOOLTIP_LEAVE_EVENT = 'codemarker-tooltip-mouseleave';
 
-export const createHoverMenuExtension = (model: CodeMarkerModel) => {
+export const createHoverMenuExtension = (model: CodeMarkerModel, menuController: MenuController) => {
 	return ViewPlugin.fromClass(
 		class implements PluginValue {
 			hoverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -105,9 +105,8 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 				const sel = this.view.state.selection.main;
 				if (sel.from !== sel.to) return;
 
-				// Guard: don't open if tooltip already visible
-				const existing = this.view.dom.ownerDocument.querySelector('.codemarker-popover');
-				if (existing) return;
+				// Guard: don't open if popover already visible
+				if (menuController.isOpen()) return;
 
 				// Guard: drag in progress
 				if (document.body.classList.contains('codemarker-dragging')) return;
@@ -127,18 +126,6 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 
 				const text = this.view.state.sliceDoc(startOffset, endOffset);
 
-				// Anchor tooltip near the mouse position (clamped to marker range)
-				let anchorPos = startOffset;
-				if (this.lastMousePos) {
-					const mouseOffset = this.view.posAtCoords({
-						x: this.lastMousePos.x,
-						y: this.lastMousePos.y
-					});
-					if (mouseOffset !== null && mouseOffset >= startOffset && mouseOffset <= endOffset) {
-						anchorPos = mouseOffset;
-					}
-				}
-
 				const snapshot: SelectionSnapshot = {
 					from: startOffset,
 					to: endOffset,
@@ -147,15 +134,8 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 					hoverMarkerId: markerId,
 				};
 
-				this.view.dispatch({
-					effects: [
-						showCodingMenuEffect.of({
-							pos: anchorPos,
-							end: endOffset,
-							snapshot
-						}),
-					]
-				});
+				const mousePos = this.lastMousePos ?? { x: 0, y: 0 };
+				menuController.openMenu(this.view, snapshot, mousePos);
 
 				this.isMenuOpen = true;
 				this.currentHoverMarkerId = markerId;
@@ -167,11 +147,7 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 			closeHoverMenu() {
 				if (!this.isMenuOpen) return;
 
-				this.view.dispatch({
-					effects: [
-						showCodingMenuEffect.of(null),
-					]
-				});
+				menuController.closeMenu(this.view);
 
 				this.isMenuOpen = false;
 				this.currentHoverMarkerId = null;
@@ -200,21 +176,14 @@ export const createHoverMenuExtension = (model: CodeMarkerModel) => {
 					}
 				}
 
-				// Detect external tooltip close (e.g. modal's onClose, command palette)
+				// Detect external close (e.g. modal's onClose, command palette)
 				// and reset hover state so future hovers aren't blocked.
-				if (this.isMenuOpen) {
-					for (const tr of update.transactions) {
-						for (const effect of tr.effects) {
-							if (effect.is(showCodingMenuEffect) && effect.value === null) {
-								this.isMenuOpen = false;
-								this.currentHoverMarkerId = null;
-								this.cancelAll();
-								document.removeEventListener(TOOLTIP_ENTER_EVENT, this.boundTooltipEnter);
-								document.removeEventListener(TOOLTIP_LEAVE_EVENT, this.boundTooltipLeave);
-								return;
-							}
-						}
-					}
+				if (this.isMenuOpen && !menuController.isOpen()) {
+					this.isMenuOpen = false;
+					this.currentHoverMarkerId = null;
+					this.cancelAll();
+					document.removeEventListener(TOOLTIP_ENTER_EVENT, this.boundTooltipEnter);
+					document.removeEventListener(TOOLTIP_LEAVE_EVENT, this.boundTooltipLeave);
 				}
 			}
 

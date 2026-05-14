@@ -39,8 +39,19 @@ export function openMediaCodingPopover(
 	onDismissEmpty: () => void,
 	app: App,
 	savedPos?: { x: number; y: number },
+	anchorEl?: HTMLElement,
 ): void {
 	const pos = savedPos ?? { x: mouseEvent.clientX, y: mouseEvent.clientY };
+	// Anchor híbrido: Y do mouse (próximo do clique, como outros engines), X do
+	// elemento da região (lateral da região no waveform/timeline). Region.element
+	// cobre o waveform inteiro verticalmente — usar top do element jogaria o
+	// popover muito acima do cursor.
+	const anchorRect = anchorEl
+		? (() => {
+			const r = anchorEl.getBoundingClientRect();
+			return { top: pos.y, bottom: pos.y, left: r.left, right: r.right };
+		})()
+		: { top: pos.y, bottom: pos.y, left: pos.x, right: pos.x };
 
 	const getMarker = () => model.findOrCreateMarker(filePath, regionStart, regionEnd);
 	const existingMarker = model.findExistingMarker(filePath, regionStart, regionEnd);
@@ -121,8 +132,20 @@ export function openMediaCodingPopover(
 		},
 	};
 
+	const initialMouseY = pos.y;
 	const options: CodingPopoverOptions = {
-		pos,
+		anchor: {
+			rect: anchorRect,
+			tracker: anchorEl ? {
+				scrollEl: document.body,
+				computeRect: () => {
+					if (!anchorEl.isConnected) return null;
+					const r = anchorEl.getBoundingClientRect();
+					// Y fica fixo no mouse inicial; X acompanha o region.element.
+					return { top: initialMouseY, bottom: initialMouseY, left: r.left, right: r.right };
+				},
+			} : undefined,
+		},
 		app,
 		isHoverMode,
 		showMagnitudeSection: model.dm.section('general').showMagnitudeInPopover,

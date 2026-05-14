@@ -9,6 +9,7 @@ import { findCodeApplication, setMagnitude } from '../core/codeApplicationHelper
 import { getMemoContent, setMemoContent } from '../core/memoHelpers';
 import {
 	openCodingPopover,
+	type AnchorSpec,
 	type CodingPopoverAdapter,
 	type CodingPopoverOptions,
 	type CodingPopoverHandle,
@@ -41,15 +42,15 @@ export class CodingMenu {
 		return this.handle !== null;
 	}
 
-	private scheduleRebuild(markerId: string, x: number, y: number, isNew: boolean): void {
+	private scheduleRebuild(markerId: string, anchor: AnchorSpec, isNew: boolean): void {
 		if (this.rebuildRafId !== null) return;
 		this.rebuildRafId = requestAnimationFrame(() => {
 			this.rebuildRafId = null;
-			this.open(markerId, x, y, isNew);
+			this.open(markerId, anchor, isNew);
 		});
 	}
 
-	open(markerId: string, x: number, y: number, isNew = false): void {
+	open(markerId: string, anchor: AnchorSpec, isNew = false): void {
 		const marker = this.model.findMarkerById(markerId);
 		if (!marker) return;
 
@@ -128,7 +129,7 @@ export class CodingMenu {
 		};
 
 		const options: CodingPopoverOptions = {
-			pos: { x, y },
+			anchor,
 			app: this.app,
 			isHoverMode: true,
 			// Image popovers always come from intentional clicks (shape-created or selection),
@@ -155,13 +156,13 @@ export class CodingMenu {
 					this.callbacks.onRegionDeleted(markerId);
 				}
 			},
-			onRebuild: () => this.scheduleRebuild(markerId, x, y, isNew),
+			onRebuild: () => this.scheduleRebuild(markerId, anchor, isNew),
 			onBeforeModal: () => { this.openingModal = true; },
 			onModalClose: () => {
 				this.openingModal = false;
 				// Reopen popover so user sees the new code already applied
 				// (Add New Code calls adapter.addCode on submit before this fires).
-				this.scheduleRebuild(markerId, x, y, isNew);
+				this.scheduleRebuild(markerId, anchor, isNew);
 			},
 		};
 

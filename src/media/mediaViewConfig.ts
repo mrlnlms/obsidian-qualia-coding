@@ -25,5 +25,7 @@ export interface MediaViewConfig {
     regionRenderer: MediaRegionRenderer,
     onCancel: () => void,
     app: App,
+    savedPos?: { x: number; y: number },
+    anchorEl?: HTMLElement,
   ) => void;
 }

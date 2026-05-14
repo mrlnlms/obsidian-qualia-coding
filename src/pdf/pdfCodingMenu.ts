@@ -39,6 +39,25 @@ export function openPdfCodingPopover(
 ): void {
 	const results = Array.isArray(selectionResults) ? selectionResults : [selectionResults];
 	const pos = savedPos ?? (mouseEvent ? { x: mouseEvent.clientX, y: mouseEvent.clientY } : { x: 0, y: 0 });
+	// PDF: anchor point sem tracker — re-cálculo de rect via pdfjs page transform
+	// requer mais cirurgia (page.viewport + textLayer span lookup). Placement engine
+	// faz flip above/below; popover não acompanha scroll do pdfjs viewer ainda.
+	const anchorRect = { top: pos.y, bottom: pos.y, left: pos.x, right: pos.x };
+
+	// Direção da seleção: comparar mouseY com bbox do range do browser. Se mouseY
+	// está no terço superior do bbox → cursor no topo (seleção bottom-up) → above.
+	// Hover mode (sem range live) usa default below.
+	let preferredSide: 'above' | 'below' = 'below';
+	if (mouseEvent && !hoverMarkerId) {
+		const browserSel = window.getSelection();
+		if (browserSel && browserSel.rangeCount > 0) {
+			const selRect = browserSel.getRangeAt(0).getBoundingClientRect();
+			if (selRect.height > 0) {
+				const center = (selRect.top + selRect.bottom) / 2;
+				if (mouseEvent.clientY < center) preferredSide = 'above';
+			}
+		}
+	}
 
 	// Lazy marker resolution (created on first code add)
 	const getMarkers = (): PdfMarker[] =>
@@ -157,7 +176,7 @@ export function openPdfCodingPopover(
 	};
 
 	const options: CodingPopoverOptions = {
-		pos,
+		anchor: { rect: anchorRect, preferredSide },
 		app,
 		isHoverMode,
 		showMagnitudeSection: model.dataManager.section('general').showMagnitudeInPopover,
@@ -267,7 +286,7 @@ export function openShapeCodingPopover(
 	};
 
 	const options: CodingPopoverOptions = {
-		pos,
+		anchor: { rect: { top: pos.y, bottom: pos.y, left: pos.x, right: pos.x } },
 		app,
 		isHoverMode: true,
 		showMagnitudeSection: model.dataManager.section('general').showMagnitudeInPopover,
