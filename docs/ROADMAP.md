@@ -46,16 +46,35 @@ Motor κ multimodal (6 engines × geometria de overlap), Reconciliação UI (P2 
 
 ### Frente 2 — LLM-assisted coding ▶ PRÓXIMA PRIORIDADE (com ICR Camada 2 como par natural)
 
-Pesquisa de mercado profunda em `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados, 41 arquivos). 5 escolas filosóficas mapeadas. **Pesquisa metodológica complementar** em `docs/_research/icr-multimodal-heterogeneous-units.md` (2026-05-13, 30+ refs) cravou que LLM como coder = problema de heterogeneidade de coder, idêntico estruturalmente à heterogeneidade de modalidade — Bayesian annotation model (Dawid-Skene 1979 / MACE / Paun et al. 2018) é a tradição matemática que resolve.
+Pesquisa de mercado em `docs/_study/llm-coding/` (40 ferramentas + 5 patterns analisados). **Pesquisa metodológica complementar** em `docs/_research/icr-multimodal-heterogeneous-units.md` (2026-05-13, 30+ refs) cravou LLM como coder = problema de heterogeneidade de coder, estruturalmente idêntico à heterogeneidade de modalidade — Bayesian annotation model (Dawid-Skene 1979 / MACE / Paun et al. 2018) é a tradição matemática que resolve. **Doc autoritativo de design:** `obsidian-qualia-coding/plugin-docs/research/LLM-MATERIA-2026-05-08.md` (caminhos materializados) — releitura gera ideias novas (em movimento), mas decisões abaixo cravadas.
 
-**Decisões cravadas (2026-05-13):**
-- **Ordem invertida:** gerador de código/segmento = primeiro item (era último). Feature mais transversal, exercita motor de coding em texto/PDF/CSV/audio, gera massa real pra Camada 2.
-- **Camada 2 ICR (Bayesian annotation model) não-negociável:** LLM coding não entra no plugin sem Camada 2. Sem fundamento Bayesiano, LLM vira "auto-code button" comoditizado.
-- **Restantes 5 decisões de produto** (qual escola filosófica, use case primário, provider strategy, onde no fluxo, granularidade de revisão humana) ficam pra brainstorm dedicado — pesquisa de mercado em `qualia-fit.md` informa, mas decisão precede design.
+**Decisões cravadas (LLM-MATERIA §2 + §4 + ICR-MULTIMODAL-METHODOLOGY 2026-05-13):**
+- **Posicionamento:** plugin = bench de avaliação rigorosa de LLM como coder em QDA multimodal. Categoria nova (não existe no mercado). "Qual das 5 escolas filosóficas" é **não-decisão** — operações primitivas substituem framework de escolas (pesquisador intercambia escolas mid-workflow). Não competir com NVivo/ATLAS.ti via "tem AI também".
+- **Camada 2 BHM não-negociável.** LLM coding não entra sem fundamento Bayesiano.
+- **Plugin não embute LLM.** Config aberta do user. Sem default. Plugin funciona sem provider — features AI invisíveis sem config.
+- **Use case primário:** texto fluido (markdown + PDF) + tabular (CSV/Parquet) em paralelo. Mídias (image/audio/video) V2.
+- **Provider strategy generalizada (3 canais):** LLM provider (Ollama/OpenAI/Anthropic) + Qualia Core (backend Python local) + Whisper/sentiment. Pattern uniforme: detect via settings.
+- **Granularidade revisão humana:** opções na UI (per-segment / per-batch / per-run) — user escolhe.
+- **Schema:** `codedBy` unificado já existe (do ICR). `coderId` display + `coderRun` config completa no audit. Sem schema novo.
+- **Memo-as-prompt:** consequência arquitetural do schema #25 (description + memo em todas entidades). Sem feature nova.
+- **Verbatim verification:** não-negociável. Pure helper `verifyQuoteInSource(quote, fileId, engine)` reusando `pdfPlainText` + `vault.read`. Defesa contra hallucination.
+- **5 operações primitivas de coding cravadas:** `suggestCode` (segment + contexto → 1-3 sugestões inline), `generateCodebook` (corpus → codes + segments + memos bottom-up), `applyBatch` (codebook + corpus → CodeApplication[] em staging), `searchSemantic` (NL query → embedding → segments, sem LLM no caminho de resposta), `searchAndSuggest` (RAG: pergunta NL → segments + codes na mesma resposta).
+- **Ordem invertida:** gerador (`generateCodebook`) primeiro (era último). Exercita motor end-to-end + gera massa pra Camada 2.
+- **Text Retrieval = casa do retrieval semântico.** View Analytics atual ganha toggle `Literal | Semântico | Q&A`. Smart Codes vira ponte entre predicate AST (determinístico) e retrieval (semântico).
+- **AI Lab Nível 1 (multi-LLM compare):** pesquisador roda Gemini + GPT + Claude sobre mesmo corpus, compara via indicadores (cosine + Fleiss + pairwise + self-consistency). Reusa P1 do ICR. Nível 2 (LLM-as-judge) + Nível 3 (LLM orquestrador) = especulação registrada, não cravado.
+
+**Ainda em aberto (não bloqueia início):**
+- Quais das 5 operações entram primeiro (decisão editorial — ordem cravou `generateCodebook` primeiro, mas sequência das outras é discutível)
+- Como cada operação se manifesta na UI (Margin Panel inline vs Text Retrieval expandido vs comando palette)
+- Visibilidade de AI features sem provider (invisível / grayed out com tooltip / híbrido)
+- Operacionalização da Camada 2 BHM (qual modelo Bayesiano específico, qual lib JS, computação onde — main thread / worker / Qualia Core)
+- Forma concreta do AI Lab Nível 1 (view dedicada? extensão do Compare Coders?)
+
+**Brainstorm dedicado precede spec.** Pesquisa de mercado em `qualia-fit.md` informa; LLM-MATERIA tem os caminhos materializados; brainstorm cravas as ordens e UX antes de virar plano de implementação.
 
 ### Frente 3 — Analytics (extensões + redesign)
 
-Cobertura atual = 16 modes existentes (Code × File, Cooccurrence, Code Evolution, Temporal, Lag Sequential, MCA, Files Dendrogram, File Similarity, MDS Files, Source Comparison, Code × Metadata, Codebook Timeline, Code Stability Timeline, Memo View, frequency, codeMetadata). Q-mode 100% coberto. **Gap aberto:** Routledge Tier 1/2/3 (catalogado em `CONSOLIDACAO-PRODUTO-2026-05-08.md §2.3, §6.2, §6.3`) + redesign UI pesado. Atacar **depois** de LLM coding (que vai exercitar Analytics como consumer de markers gerados).
+Cobertura atual = **25 modes ativos** em `src/analytics/views/modes/` (frequência, cooccurrence, code evolution, temporal, lag sequential, MCA biplot, dendrogram códigos, files dendrogram, file similarity, MDS files, source comparison, code × metadata, codebook timeline, memo view, doc-code matrix, network graph, chi-square, decision tree, overlap, polar, relations network, text retrieval, text stats, word cloud, dashboard KPI). Q-mode 100% coberto. **Gap aberto:** Routledge Tier 1/2/3 (catalogado em `CONSOLIDACAO-PRODUTO-2026-05-08.md §2.3, §6.2, §6.3`) + redesign UI pesado. Atacar **depois** de LLM coding (que vai exercitar Analytics como consumer de markers gerados — Text Retrieval mode em particular vira casa do retrieval semântico).
 
 ### Submissão Community Plugins PR
 
