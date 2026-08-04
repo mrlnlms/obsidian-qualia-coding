@@ -301,18 +301,22 @@ export class MediaViewCore {
         );
       });
 
-      regionsPlugin.on('region-mouseenter', (region: any) => {
+      const onRuntimeRegionEvent = (event: string, callback: (...args: any[]) => void) => {
+        (regionsPlugin as any).on(event, callback);
+      };
+
+      onRuntimeRegionEvent('region-mouseenter', (region: any) => {
         const markerId = this.regionRenderer?.getMarkerIdForRegion(region.id);
         if (!markerId) return;
         const marker = this.model.findMarkerById(markerId);
         const firstCodeName = marker?.codes[0] ? (this.model.registry.getById(marker.codes[0].codeId)?.name ?? null) : null;
         this.model.setHoverState(markerId, firstCodeName);
       });
-      regionsPlugin.on('region-mouseleave', () => {
+      onRuntimeRegionEvent('region-mouseleave', () => {
         this.model.setHoverState(null, null);
       });
 
-      regionsPlugin.on('region-update-end', (region: any) => {
+      onRuntimeRegionEvent('region-update-end', (region: any) => {
         const markerId = this.regionRenderer?.getMarkerIdForRegion(region.id);
         if (!markerId) return;
         this.model.updateMarkerBounds(markerId, region.start, region.end);
