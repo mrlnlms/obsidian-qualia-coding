@@ -15,7 +15,7 @@ import { renderHighlightsForPage, clearHighlightsForPage, updateHighlightRectsFo
 import { renderMarginPanelForPage, clearMarginPanelForPage, applyHoverToMarginPanel } from './marginPanelRenderer';
 import { renderDrawLayerForPage, clearDrawLayerForPage, applyHoverToDrawLayer, type DrawLayerCallbacks } from './drawLayer';
 import { attachDragHandles } from './dragHandles';
-import { isMarkerPending, resolvePendingIndices } from './resolvePendingIndices';
+import { diagnosePendingTextSearch, isMarkerPending, resolvePendingIndicesWithDiagnostics, type PendingResolutionDiagnostics } from './resolvePendingIndices';
 import { visibilityEventBus } from '../core/visibilityEventBus';
 
 export interface PageObserverCallbacks {
@@ -27,6 +27,39 @@ export interface PageObserverCallbacks {
 	onShapeHoverPopover: (shape: import('./pdfCodingTypes').PdfShapeMarker, anchorEl: SVGElement) => void;
 }
 
+interface PendingResolveFailureSample {
+	filePath?: string;
+	page?: number;
+	markerId: string;
+	reason: PendingResolutionDiagnostics['reason'];
+	searchTextLength: number;
+	searchTextPreview: string;
+	pageTextLength: number;
+	textLayerNodeCount: number;
+	bestPrefixKeyLength?: number;
+	bestWindowKeyLength?: number;
+	bestWindowTextPreview?: string;
+	prevPageBestPrefixKeyLength?: number;
+	prevPageBestWindowKeyLength?: number;
+	nextPageBestPrefixKeyLength?: number;
+	nextPageBestWindowKeyLength?: number;
+}
+
+interface PendingResolveDiagnosticRow {
+	filePath: string;
+	page: number;
+	attempted: number;
+	resolved: number;
+	resolvedOnNeighbor: number;
+	pending: number;
+	pageTextLength: number;
+	textLayerNodeCount: number;
+	failureReasons: string;
+}
+
+const MAX_PENDING_TEXT_LAYER_RETRIES = 5;
+const NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH = 96;
+
 export class PdfPageObserver {
 	private child: PDFViewerChild;
 	private model: PdfCodingModel;
@@ -37,6 +70,11 @@ export class PdfPageObserver {
 	private textLayerRenderedHandler: ((data: any) => void) | null = null;
 	private pageRenderedHandler: ((data: any) => void) | null = null;
 	private pageRenderTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
+	private reportedPendingResolveDiagnostics = new Set<string>();
+	private pendingResolveDiagnosticRows = new Map<string, PendingResolveDiagnosticRow>();
+	private pendingResolveDiagnosticSamples: PendingResolveFailureSample[] = [];
+	private pendingResolveDiagnosticFlushTimer: ReturnType<typeof setTimeout> | null = null;
+	private pendingTextLayerRetryCounts = new Map<string, number>();
 	private started = false;
 	private unsubscribeVisibility: (() => void) | null = null;
 
@@ -142,6 +180,11 @@ export class PdfPageObserver {
 			clearTimeout(id);
 		}
 		this.pageRenderTimeouts.clear();
+		if (this.pendingResolveDiagnosticFlushTimer) {
+			clearTimeout(this.pendingResolveDiagnosticFlushTimer);
+			this.pendingResolveDiagnosticFlushTimer = null;
+		}
+		this.pendingTextLayerRetryCounts.clear();
 
 		// Clear all highlight layers + overlay
 		this.clearAll();
@@ -185,24 +228,92 @@ export class PdfPageObserver {
 		if (!pageView.div.dataset.loaded) return;
 
 		const markers = this.model.getMarkersForPage(filePath, pageNumber);
+		const hasPendingTextMarkers = markers.some((m) => isMarkerPending(m) && m.text);
+		if (hasPendingTextMarkers && !this.hasTextLayerNodes(pageView.div)) {
+			this.schedulePendingTextLayerRetry(filePath, pageNumber);
+			return;
+		}
+		this.pendingTextLayerRetryCounts.delete(`${filePath}::${pageNumber}`);
 
 		// Resolve placeholder indices on imported markers (indices = 0,0,0,0)
 		// via DOM text-search. Once resolved, the normal render path paints them.
 		let resolvedAny = false;
+		let pendingAttempts = 0;
+		let resolvedCount = 0;
+		let resolvedOnNeighborCount = 0;
+		let stillPendingCount = 0;
+		let pageTextLength = 0;
+		let textLayerNodeCount = 0;
+		const failureReasons = new Map<PendingResolutionDiagnostics['reason'], number>();
+		const failureSamples: PendingResolveFailureSample[] = [];
+		const movedMarkerPages = new Set<number>();
 		for (const m of markers) {
 			if (isMarkerPending(m) && m.text) {
-				const resolved = resolvePendingIndices(pageView.div, m.text);
+				pendingAttempts++;
+				let targetPageNumber = pageNumber;
+				let { resolved, diagnostics } = resolvePendingIndicesWithDiagnostics(pageView.div, m.text);
+				if (!resolved) {
+					const neighbor = this.resolveOnNeighborPage(pageNumber, m.text);
+					if (neighbor) {
+						targetPageNumber = neighbor.pageNumber;
+						resolved = neighbor.resolved;
+					}
+				}
+				pageTextLength = diagnostics.pageTextLength;
+				textLayerNodeCount = diagnostics.textLayerNodeCount;
 				if (resolved) {
-					m.beginIndex = resolved.beginIndex;
-					m.beginOffset = resolved.beginOffset;
-					m.endIndex = resolved.endIndex;
-					m.endOffset = resolved.endOffset;
-					m.updatedAt = Date.now();
+					this.model.updateMarkerRangeSilent(m.id, {
+						page: targetPageNumber,
+						beginIndex: resolved.beginIndex,
+						beginOffset: resolved.beginOffset,
+						endIndex: resolved.endIndex,
+						endOffset: resolved.endOffset,
+					});
+					if (targetPageNumber !== pageNumber) {
+						movedMarkerPages.add(targetPageNumber);
+						resolvedOnNeighborCount++;
+					}
 					resolvedAny = true;
+					resolvedCount++;
+				} else {
+					stillPendingCount++;
+					failureReasons.set(diagnostics.reason, (failureReasons.get(diagnostics.reason) ?? 0) + 1);
+					if (failureSamples.length < 5) {
+						failureSamples.push({
+							markerId: m.id,
+							reason: diagnostics.reason,
+							searchTextLength: diagnostics.searchTextLength,
+							searchTextPreview: diagnostics.searchTextPreview,
+							pageTextLength: diagnostics.pageTextLength,
+							textLayerNodeCount: diagnostics.textLayerNodeCount,
+							bestPrefixKeyLength: diagnostics.bestPrefixKeyLength,
+							bestWindowKeyLength: diagnostics.bestWindowKeyLength,
+							bestWindowTextPreview: diagnostics.bestWindowTextPreview,
+							...this.diagnoseNeighborPages(pageNumber, m.text),
+						});
+					}
 				}
 			}
 		}
+		this.reportPendingResolveDiagnostics({
+			filePath,
+			pageNumber,
+			pendingAttempts,
+			resolvedCount,
+			resolvedOnNeighborCount,
+			stillPendingCount,
+			pageTextLength,
+			textLayerNodeCount,
+			failureReasons,
+			failureSamples,
+		});
 		if (resolvedAny) this.model.save();
+		for (const movedPage of movedMarkerPages) {
+			setTimeout(() => this.renderPage(movedPage), 0);
+		}
+		const adoptedAny = this.resolveAdjacentPendingMarkersOnPage(filePath, pageNumber, pageView);
+		if (adoptedAny) this.model.save();
+		const renderMarkers = markers.filter((m) => m.page === pageNumber);
 
 		const highlightCallbacks: HighlightCallbacks = {
 			onClick: this.callbacks.onMarkerClick,
@@ -213,7 +324,7 @@ export class PdfPageObserver {
 
 		const renderInfos = renderHighlightsForPage(
 			pageView,
-			markers,
+			renderMarkers,
 			this.model.registry,
 			highlightCallbacks,
 			this.state,
@@ -258,7 +369,7 @@ export class PdfPageObserver {
 
 		renderMarginPanelForPage(
 			pageView,
-			markers,
+			renderMarkers,
 			this.model.registry,
 			{
 				onLabelClick: this.callbacks.onMarkerClick,
@@ -274,6 +385,155 @@ export class PdfPageObserver {
 		}
 
 		this.updateViewerPadding();
+	}
+
+	private hasTextLayerNodes(pageEl: HTMLElement): boolean {
+		return pageEl.querySelector('.textLayerNode') !== null;
+	}
+
+	private schedulePendingTextLayerRetry(filePath: string, pageNumber: number): void {
+		const key = `${filePath}::${pageNumber}`;
+		const count = this.pendingTextLayerRetryCounts.get(key) ?? 0;
+		if (count >= MAX_PENDING_TEXT_LAYER_RETRIES) return;
+
+		this.pendingTextLayerRetryCounts.set(key, count + 1);
+		const delay = 150 * (count + 1);
+		const prev = this.pageRenderTimeouts.get(pageNumber);
+		if (prev) clearTimeout(prev);
+		const id = setTimeout(() => {
+			this.pageRenderTimeouts.delete(pageNumber);
+			this.renderPage(pageNumber);
+		}, delay);
+		this.pageRenderTimeouts.set(pageNumber, id);
+	}
+
+	private resolveOnNeighborPage(pageNumber: number, text: string): { pageNumber: number; resolved: NonNullable<ReturnType<typeof resolvePendingIndicesWithDiagnostics>['resolved']> } | null {
+		for (const candidatePage of [pageNumber - 1, pageNumber + 1]) {
+			const pageView = this.getPageView(candidatePage);
+			if (!pageView?.div?.dataset.loaded || !this.hasTextLayerNodes(pageView.div)) continue;
+
+			const d = diagnosePendingTextSearch(pageView.div, text);
+			const strongEnough = (d.bestPrefixKeyLength ?? 0) >= NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH
+				|| (d.bestWindowKeyLength ?? 0) >= NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH;
+			if (!strongEnough) continue;
+
+			const { resolved } = resolvePendingIndicesWithDiagnostics(pageView.div, text);
+			if (resolved) return { pageNumber: candidatePage, resolved };
+		}
+		return null;
+	}
+
+	private resolveAdjacentPendingMarkersOnPage(filePath: string, pageNumber: number, pageView: PDFPageView): boolean {
+		let resolvedAny = false;
+		for (const sourcePage of [pageNumber - 1, pageNumber + 1]) {
+			const candidates = this.model.getMarkersForPage(filePath, sourcePage);
+			for (const marker of candidates) {
+				if (!isMarkerPending(marker) || !marker.text) continue;
+
+				const d = diagnosePendingTextSearch(pageView.div, marker.text);
+				const strongEnough = (d.bestPrefixKeyLength ?? 0) >= NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH
+					|| (d.bestWindowKeyLength ?? 0) >= NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH;
+				if (!strongEnough) continue;
+
+				const { resolved } = resolvePendingIndicesWithDiagnostics(pageView.div, marker.text);
+				if (!resolved) continue;
+				this.model.updateMarkerRangeSilent(marker.id, {
+					page: pageNumber,
+					beginIndex: resolved.beginIndex,
+					beginOffset: resolved.beginOffset,
+					endIndex: resolved.endIndex,
+					endOffset: resolved.endOffset,
+				});
+				resolvedAny = true;
+			}
+		}
+		return resolvedAny;
+	}
+
+	private diagnoseNeighborPages(pageNumber: number, text: string): Partial<PendingResolveFailureSample> {
+		const out: Partial<PendingResolveFailureSample> = {};
+		const prev = this.getPageView(pageNumber - 1);
+		if (prev?.div?.dataset.loaded && this.hasTextLayerNodes(prev.div)) {
+			const d = diagnosePendingTextSearch(prev.div, text);
+			out.prevPageBestPrefixKeyLength = d.bestPrefixKeyLength;
+			out.prevPageBestWindowKeyLength = d.bestWindowKeyLength;
+		}
+
+		const next = this.getPageView(pageNumber + 1);
+		if (next?.div?.dataset.loaded && this.hasTextLayerNodes(next.div)) {
+			const d = diagnosePendingTextSearch(next.div, text);
+			out.nextPageBestPrefixKeyLength = d.bestPrefixKeyLength;
+			out.nextPageBestWindowKeyLength = d.bestWindowKeyLength;
+		}
+		return out;
+	}
+
+	private reportPendingResolveDiagnostics(args: {
+		filePath: string;
+		pageNumber: number;
+		pendingAttempts: number;
+		resolvedCount: number;
+		resolvedOnNeighborCount: number;
+		stillPendingCount: number;
+		pageTextLength: number;
+		textLayerNodeCount: number;
+		failureReasons: Map<PendingResolutionDiagnostics['reason'], number>;
+		failureSamples: PendingResolveFailureSample[];
+	}): void {
+		if (args.pendingAttempts === 0) return;
+
+		const key = `${args.filePath}::${args.pageNumber}`;
+		if (this.reportedPendingResolveDiagnostics.has(key)) return;
+		this.reportedPendingResolveDiagnostics.add(key);
+
+		const failureReasons = Array.from(args.failureReasons.entries())
+			.map(([reason, count]) => `${reason}:${count}`)
+			.join(', ');
+		this.pendingResolveDiagnosticRows.set(key, {
+			filePath: args.filePath,
+			page: args.pageNumber,
+			attempted: args.pendingAttempts,
+			resolved: args.resolvedCount,
+			resolvedOnNeighbor: args.resolvedOnNeighborCount,
+			pending: args.stillPendingCount,
+			pageTextLength: args.pageTextLength,
+			textLayerNodeCount: args.textLayerNodeCount,
+			failureReasons,
+		});
+
+		for (const sample of args.failureSamples) {
+			if (this.pendingResolveDiagnosticSamples.length >= 20) break;
+			this.pendingResolveDiagnosticSamples.push({
+				filePath: args.filePath,
+				page: args.pageNumber,
+				...sample,
+			});
+		}
+
+		if (this.pendingResolveDiagnosticFlushTimer) {
+			clearTimeout(this.pendingResolveDiagnosticFlushTimer);
+		}
+		this.pendingResolveDiagnosticFlushTimer = setTimeout(() => {
+			this.pendingResolveDiagnosticFlushTimer = null;
+			this.flushPendingResolveDiagnostics();
+		}, 750);
+	}
+
+	private flushPendingResolveDiagnostics(): void {
+		if (this.pendingResolveDiagnosticRows.size === 0) return;
+
+		const rows = Array.from(this.pendingResolveDiagnosticRows.values())
+			.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.page - b.page);
+		const samples = this.pendingResolveDiagnosticSamples.slice();
+
+		console.groupCollapsed(`[qualia-coding] PDF pending marker re-anchor diagnostics (${rows.length} rendered pages)`);
+		console.table(rows);
+		if (samples.length > 0) {
+			console.table(samples);
+		}
+		console.groupEnd();
+		this.pendingResolveDiagnosticRows.clear();
+		this.pendingResolveDiagnosticSamples = [];
 	}
 
 	private clearAll(): void {

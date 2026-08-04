@@ -293,7 +293,7 @@ export class PdfCodingModel {
 	// ── Range update (drag resize) ──
 
 	updateMarkerRange(markerId: string, changes: Partial<Pick<PdfMarker,
-		'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
+		'page' | 'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 		Object.assign(marker, changes);
@@ -306,7 +306,7 @@ export class PdfCodingModel {
 	 * Used during drag for flicker-free preview — final commit via updateMarkerRange().
 	 */
 	updateMarkerRangeSilent(markerId: string, changes: Partial<Pick<PdfMarker,
-		'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
+		'page' | 'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
 		const marker = this.findMarkerById(markerId);
 		if (!marker) return;
 		Object.assign(marker, changes);

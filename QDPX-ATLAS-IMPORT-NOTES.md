@@ -55,19 +55,39 @@ Isso ate poderia desenhar uma regiao visual aproximada, mas muda a semantica do 
 
 ## Proximo passo tecnico recomendado
 
-Antes de alterar o algoritmo, instrumentar diagnostico:
+Status apos checkpoint de 2026-08-04:
+
+- Diagnostico agregado foi adicionado no runtime real do PDF viewer.
+- Smoke no Obsidian confirmou corrida de text layer (`no-text-layer-nodes`) e depois falhas reais de `not-found`.
+- Fallbacks textuais implementados:
+  - busca literal;
+  - busca com whitespace normalizado;
+  - chave textual limpa (`NFKC`, alfanumerica, sem `�`/soft hyphen/pontuacao);
+  - prefixo limpo unico;
+  - re-anchor em pagina vizinha quando a pagina anterior/proxima carregada apresenta match textual forte.
+- Resultado observado no fixture principal apos rolar os PDFs no Obsidian: `167/203` `PdfMarker` textuais resolvidos, `36` pendentes, `0` `PdfShapeMarker`.
+- O maior ganho veio de page-shift local confirmado por texto: muitos markers de D1/D2/D4-D9 ancoravam corretamente em `page + 1`, mas nao e seguro aplicar `+1` global no import porque o QDE mostra padroes variados por documento. A solucao atual move para pagina vizinha somente quando ha match textual forte.
+
+Antes de alterar mais o algoritmo, manter/usar diagnostico:
 
 - quando `resolvePendingIndices()` falhar, registrar arquivo, pagina, marker id, tamanho do texto procurado, inicio do texto procurado e tamanho do texto da pagina;
 - expor contagem de markers resolvidos vs pendentes por arquivo;
 - evitar spam no console com logs agregados por pagina/arquivo.
+- registrar `bestPrefixKeyLength`, `bestWindowKeyLength` e scores em paginas vizinhas para separar page-shift de divergencia textual real.
 
-Depois implementar fallback de matching aproximado, preferencialmente page-aware:
+Proxima tentativa recomendada para os `36` pendentes restantes:
+
+Usar as coordenadas do `PDFSelection` apenas como restricao de busca textual page-aware, nao como marker shape. A ideia e buscar/ordenar os `.textLayerNode` dentro ou proximos da regiao visual do Atlas.ti e entao gerar indices reais de `PdfMarker` textual. Isso preserva semantica textual e evita transformar quotations em retangulos.
+
+Pipeline atual/futuro:
 
 1. Buscar direto.
 2. Buscar com whitespace normalizado.
 3. Buscar por prefixo limpo quando o Atlas truncou com reticencias.
-4. Buscar fuzzy com tolerancia controlada.
-5. Gravar indices reais somente quando houver match suficientemente confiavel.
+4. Buscar em pagina vizinha se houver match textual forte.
+5. Usar bbox do `PDFSelection` como filtro de candidatos textuais, nao como shape.
+6. Buscar fuzzy com tolerancia controlada.
+7. Gravar indices reais somente quando houver match suficientemente confiavel.
 
 O smoke real precisa abrir PDFs importados no Obsidian, nao apenas rodar Vitest.
 
