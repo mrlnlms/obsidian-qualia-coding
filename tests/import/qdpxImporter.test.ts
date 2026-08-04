@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { parseXml } from '../../src/import/xmlParser';
 import {
   parseSources,
@@ -6,9 +6,22 @@ import {
   parseLinks,
   applyLinks,
   resolveInternalPath,
+  createPdfMarker,
+  resolveImportedPdfText,
   type ParsedLink,
 } from '../../src/import/qdpxImporter';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import { DataManager } from '../../src/core/dataManager';
+import type { Plugin } from 'obsidian';
+import { isMarkerPending } from '../../src/pdf/resolvePendingIndices';
+
+function createMockPlugin() {
+  let stored: any = null;
+  return {
+    loadData: vi.fn(async () => stored),
+    saveData: vi.fn(async (data: any) => { stored = data; }),
+  } as unknown as Plugin;
+}
 
 describe('parseSources', () => {
   it('parses TextSource with PlainTextSelection', () => {
@@ -109,6 +122,30 @@ describe('parseSources', () => {
     expect(sources[0]!.selections[1]!.page).toBe(0);
   });
 
+  it('parses PlainTextSelection nested inside PDF Representation', () => {
+    const xml = `<Project><Sources>
+      <PDFSource guid="pdf1" name="paper.pdf" path="internal://pdf1.pdf">
+        <PDFSelection guid="pdfs1" page="5" firstX="10" firstY="20" secondX="30" secondY="40">
+          <Coding guid="c1"><CodeRef targetGUID="cg1"/></Coding>
+        </PDFSelection>
+        <Representation guid="repr1" plainTextPath="internal://repr1.txt">
+          <PlainTextSelection guid="pdfs1" startPosition="42" endPosition="98">
+            <Coding guid="c2"><CodeRef targetGUID="cg1"/></Coding>
+          </PlainTextSelection>
+        </Representation>
+      </PDFSource>
+    </Sources></Project>`;
+    const doc = parseXml(xml);
+    const sources = parseSources(doc);
+    expect(sources).toHaveLength(1);
+    expect(sources[0]!.plainTextPath).toBe('internal://repr1.txt');
+    expect(sources[0]!.selections).toHaveLength(2);
+    expect(sources[0]!.selections.map(sel => sel.type)).toEqual(['PlainTextSelection', 'PDFSelection']);
+    expect(sources[0]!.selections[0]!.guid).toBe('pdfs1');
+    expect(sources[0]!.selections[0]!.startPosition).toBe(42);
+    expect(sources[0]!.selections[1]!.page).toBe(5);
+  });
+
   it('parses multiple codings per selection', () => {
     const xml = `<Project><Sources>
       <TextSource guid="s1" name="t.txt" plainTextPath="internal://s1.txt">
@@ -121,6 +158,184 @@ describe('parseSources', () => {
     const doc = parseXml(xml);
     const sources = parseSources(doc);
     expect(sources[0]!.selections[0]!.codeGuids).toEqual(['g1', 'g2']);
+  });
+});
+
+describe('createPdfMarker', () => {
+  let dm: DataManager;
+
+  beforeEach(async () => {
+    dm = new DataManager(createMockPlugin());
+    await dm.load();
+  });
+
+  it('prefers visual PDFSelection page when offsets come from Representation without formfeeds', () => {
+    const sel = {
+      guid: 'pdf-guid-1',
+      type: 'PDFSelection',
+      codeGuids: [],
+      noteGuids: [],
+      page: 5,
+      startPosition: 10,
+      endPosition: 16,
+    } as const;
+    const result = {
+      codesCreated: 0,
+      codesMerged: 0,
+      sourcesImported: 0,
+      segmentsCreated: 0,
+      memosImported: 0,
+      relationsImported: 0,
+      warnings: [] as string[],
+    };
+
+    const count = createPdfMarker(
+      sel,
+      'docs/paper.pdf',
+      [{ codeId: 'c1' }],
+      undefined,
+      0,
+      dm,
+      result,
+      '0123456789abcdef',
+      [0],
+      null,
+    );
+
+    expect(count).toBe(1);
+    const markers = dm.section('pdf').markers;
+    expect(markers).toHaveLength(1);
+    expect(markers[0]!.page).toBe(5);
+    expect(markers[0]!.text).toBe('abcdef');
+    expect(markers[0]!.codes).toEqual([{ codeId: 'c1' }]);
+    expect(isMarkerPending(markers[0] as any)).toBe(true);
+  });
+
+  it('uses selection name as anchor when Atlas.ti offsets are drifted', () => {
+    const sel = {
+      guid: 'pdf-guid-2',
+      type: 'PDFSelection',
+      name: 'The development tools for the virtual  team were not unified',
+      codeGuids: [],
+      noteGuids: [],
+      page: 5,
+      startPosition: 88,
+      endPosition: 148,
+    } as const;
+    const result = {
+      codesCreated: 0,
+      codesMerged: 0,
+      sourcesImported: 0,
+      segmentsCreated: 0,
+      memosImported: 0,
+      relationsImported: 0,
+      warnings: [] as string[],
+    };
+    const plainText = 'prefix text The development tools for the virtual  team were not unified suffix text';
+
+    const count = createPdfMarker(
+      sel,
+      'docs/paper.pdf',
+      [{ codeId: 'c1' }],
+      undefined,
+      0,
+      dm,
+      result,
+      plainText,
+      [0],
+      null,
+    );
+
+    expect(count).toBe(1);
+    const markers = dm.section('pdf').markers;
+    expect(markers).toHaveLength(1);
+    expect(markers[0]!.text).toBe('The development tools for the virtual  team were not unified');
+  });
+
+  it('does not fall back to shape for named PDFSelection when text cannot be reconstructed', () => {
+    const sel = {
+      guid: 'pdf-guid-3',
+      type: 'PDFSelection',
+      name: 'Atlas text quotation',
+      codeGuids: [],
+      noteGuids: [],
+      page: 5,
+      firstX: 10,
+      firstY: 20,
+      secondX: 30,
+      secondY: 40,
+    } as const;
+    const result = {
+      codesCreated: 0,
+      codesMerged: 0,
+      sourcesImported: 0,
+      segmentsCreated: 0,
+      memosImported: 0,
+      relationsImported: 0,
+      warnings: [] as string[],
+    };
+
+    const count = createPdfMarker(
+      sel,
+      'docs/paper.pdf',
+      [{ codeId: 'c1' }],
+      undefined,
+      0,
+      dm,
+      result,
+      'plain text without the quotation',
+      [0],
+      { 5: { width: 612, height: 792 } },
+    );
+
+    expect(count).toBe(0);
+    expect(dm.section('pdf').markers).toHaveLength(0);
+    expect(dm.section('pdf').shapes).toHaveLength(0);
+  });
+});
+
+describe('resolveImportedPdfText', () => {
+  it('reanchors when Atlas.ti offsets drift away from the actual text start', () => {
+    const sel = {
+      guid: 'atlas-d12',
+      type: 'PDFSelection',
+      name: 'The development tools for the virtual  team were not unified',
+      codeGuids: [],
+      noteGuids: [],
+      page: 5,
+      startPosition: 34364,
+      endPosition: 34424,
+    } as const;
+    const plainText = 'prefix The development tools for the virtual  team were not unified suffix tform was used for  requirement development while design-sha';
+
+    const resolution = resolveImportedPdfText(sel, plainText);
+    expect(resolution.strategy).toBe('name+length');
+    expect(resolution.text).toBe('The development tools for the virtual  team were not unified');
+  });
+
+  it('recovers the D1 multi-column quotation from the selection name instead of the broken offset slice', () => {
+    const sel = {
+      guid: 'atlas-d1-multicolumn',
+      type: 'PDFSelection',
+      name: '- Evangelization and mentoring on DevOps practices for pro�moting culture values, such as communicat…',
+      codeGuids: [],
+      noteGuids: [],
+      page: 5,
+      startPosition: 35186,
+      endPosition: 35330,
+    } as const;
+    const plainText = [
+      'ture (e.g., cloud infrastructure, virtualization or  containerization, etc.) to implement best practices, such  as continuous integration, continuous testing, continuous  delivery and deployment, infrastructure as code, and con�tinuous monitoring.',
+      '- Evangelization and mentoring on DevOps practices for pro�moting culture values, such as communication, transparency,  and knowledge sharing.',
+      '- Rotary human resources, i.e., horizontal teams may facilitate  and provide product teams with human resources when  these teams lack speciffc skills to undertake and accomplish  their work and implement best practices.',
+      ' culture values, such as communication, transparency,  and knowledge sharing.\n- Rotary human resources, i.e., horizontal teams may facilitate  a',
+    ].join('\n');
+
+    const resolution = resolveImportedPdfText(sel, plainText);
+    expect(resolution.strategy).toBe('name+length');
+    expect(resolution.text).toContain('Evangelization and mentoring on DevOps practices');
+    expect(resolution.text).toContain('knowledge sharing');
+    expect(resolution.text).not.toBe(' culture values, such as communication, transparency,  and knowledge sharing.\n- Rotary human resources, i.e., horizontal teams may facilitate  a');
   });
 });
 

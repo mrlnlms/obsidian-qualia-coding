@@ -16,7 +16,6 @@ import type { VideoFile } from '../video/videoCodingTypes';
 import { parseXml, getChildElements, getAttr, getNumAttr, getTextContent, getAllElements } from './xmlParser';
 import { offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from './coordConverters';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
-import { extractAnchorFromPlainText } from '../pdf/extractAnchorFromPlainText';
 import { loadPdfExportData } from '../pdf/pdfExportData';
 
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
@@ -37,6 +36,7 @@ export interface ParsedCase {
 export interface ParsedSelection {
   guid: string;
   type: 'PlainTextSelection' | 'PDFSelection' | 'PictureSelection' | 'AudioSelection' | 'VideoSelection' | 'qualia:CellSelection';
+  name?: string;
   codeGuids: string[];
   noteGuids: string[];
   createdAt?: string;
@@ -57,6 +57,11 @@ export interface ParsedSelection {
   column?: string;
   cellFrom?: number;
   cellTo?: number;
+}
+
+export interface ImportedPdfTextResolution {
+  text: string | null;
+  strategy: 'offset' | 'name+length' | 'name+prefix' | 'unresolved';
 }
 
 export interface ParsedSource {
@@ -147,11 +152,16 @@ export function parseSources(doc: Document): ParsedSource[] {
         variables: [],
       };
 
-      // For PDF, capture Representation plainTextPath
+      // ATLAS.ti may nest PlainTextSelection under Representation instead of
+      // directly under PDFSource. Keep those selections so text anchors can be
+      // merged with the visual PDFSelection below.
       if (type === 'pdf') {
         const repr = getChildElements(el, 'Representation')[0];
         if (repr) {
           src.plainTextPath = getAttr(repr, 'plainTextPath');
+          for (const selEl of getChildElements(repr, 'PlainTextSelection')) {
+            src.selections.push(parseSelection(selEl, 'PlainTextSelection'));
+          }
         }
       }
 
@@ -200,6 +210,7 @@ function parseSelection(el: Element, type: ParsedSelection['type']): ParsedSelec
   return {
     guid: getAttr(el, 'guid') ?? '',
     type,
+    name: getAttr(el, 'name'),
     codeGuids,
     noteGuids,
     createdAt: getAttr(el, 'creationDateTime'),
@@ -335,8 +346,11 @@ export function previewQdpx(
   registry: CodeDefinitionRegistry,
 ): ImportPreview {
   const files = unzipSync(new Uint8Array(zipData));
-  const qdeData = files['project.qde'];
-  if (!qdeData) throw new Error('Invalid QDPX: no project.qde found');
+
+  const qdeKey = files['project.qde'] ? 'project.qde' : Object.keys(files).find(k => k.endsWith('.qde'));
+  if (!qdeKey) throw new Error('Invalid QDPX: no .qde file found');
+  const qdeData = files[qdeKey]!;
+  if (!qdeData) throw new Error('Invalid QDPX: .qde entry is empty');
 
   const xml = strFromU8(qdeData);
   const doc = parseXml(xml);
@@ -385,8 +399,10 @@ export async function importQdpx(
 
   // 1. Unzip
   const files = unzipSync(new Uint8Array(zipData));
-  const qdeData = files['project.qde'];
-  if (!qdeData) throw new Error('Invalid QDPX: no project.qde found');
+  const qdeKey = files['project.qde'] ? 'project.qde' : Object.keys(files).find(k => k.endsWith('.qde'));
+  if (!qdeKey) throw new Error('Invalid QDPX: no .qde file found');
+  const qdeData = files[qdeKey]!;
+  if (!qdeData) throw new Error('Invalid QDPX: .qde entry is empty');
 
   const xml = strFromU8(qdeData);
   const doc = parseXml(xml);
@@ -530,7 +546,9 @@ async function extractSource(
   keepOriginal: boolean,
   sourceHashRegistry?: import('../core/icr/sourceHashRegistry').SourceHashRegistry,
 ): Promise<string | null> {
-  const destPath = `${importDir}/${src.name}`;
+  const baseName = src.name.replace(/\.\w+$/, '');
+  const ext = src.path?.match(/\.(\w+)$/)?.[1] ?? '';
+  const destPath = ext ? `${importDir}/${baseName}.${ext}` : `${importDir}/${baseName}`;
 
   if (src.type === 'text') {
     // TextSource → .md. Write the plainText as-is so QDPX offsets map 1:1 to the vault file.
@@ -651,6 +669,7 @@ async function createMarkersForSource(
   let pdfPlainText: string | null = null;
   let pdfPageStartOffsets: number[] | null = null;
   let pdfDims: Record<number, { width: number; height: number }> | null = null;
+
   if (src.type === 'pdf') {
     const reprPath = resolveInternalPath(src.plainTextPath);
     const reprData = reprPath ? zipFiles[reprPath] : undefined;
@@ -669,7 +688,42 @@ async function createMarkersForSource(
     }
   }
 
-  for (const sel of src.selections) {
+  // Correlate PDFSelection + PlainTextSelection by GUID (ATLAS.ti pattern)
+  let selectionsToProcess = src.selections;
+  if (src.type === 'pdf') {
+    const byGuid = new Map<string, { pdf?: ParsedSelection; text?: ParsedSelection }>();
+
+    for (const sel of src.selections) {
+      if (!sel.guid) continue;
+      const entry = byGuid.get(sel.guid) ?? { pdf: undefined, text: undefined };
+      if (sel.type === 'PDFSelection') entry.pdf = sel;
+      else if (sel.type === 'PlainTextSelection') entry.text = sel;
+      byGuid.set(sel.guid, entry);
+    }
+
+    selectionsToProcess = [];
+    for (const [, pair] of byGuid.entries()) {
+      if (pair.pdf && pair.text) {
+        selectionsToProcess.push({
+          ...pair.pdf,
+          startPosition: pair.text.startPosition,
+          endPosition: pair.text.endPosition,
+          name: (!pair.pdf.name || pair.pdf.name.length < (pair.text.name?.length ?? 0)) && pair.text.name
+            ? pair.text.name
+            : pair.pdf.name,
+          codeGuids: [...new Set([...(pair.pdf.codeGuids ?? []), ...(pair.text.codeGuids ?? [])])],
+          noteGuids: [...new Set([...(pair.pdf.noteGuids ?? []), ...(pair.text.noteGuids ?? [])])],
+        });
+      } else if (pair.pdf) {
+        selectionsToProcess.push(pair.pdf);
+      } else if (pair.text) {
+        // Fallback: process as plain text selection if no PDFSelection exists
+        selectionsToProcess.push(pair.text);
+      }
+    }
+  }
+
+  for (const sel of selectionsToProcess) {
     try {
       const codes = resolveCodeApplications(sel, resolver, notes);
       if (codes.length === 0) continue;
@@ -712,82 +766,224 @@ async function createMarkersForSource(
 }
 
 export function createPdfMarker(
-  sel: ParsedSelection,
-  filePath: string,
-  codes: CodeApplication[],
-  memo: string | undefined,
-  ts: number,
-  dataManager: DataManager,
-  result: ImportResult,
-  pdfPlainText: string | null,
-  pdfPageStartOffsets: number[] | null,
-  pdfDims: Record<number, { width: number; height: number }> | null,
+	sel: ParsedSelection,
+	filePath: string,
+	codes: CodeApplication[],
+	memo: string | undefined,
+	ts: number,
+	dataManager: DataManager,
+	result: ImportResult,
+	pdfPlainText: string | null,
+	pdfPageStartOffsets: number[] | null,
+	pdfDims: Record<number, { width: number; height: number }> | null,
 ): number {
-  const pdfData = dataManager.section('pdf');
+	const pdfData = dataManager.section('pdf');
 
-  if (sel.type === 'PlainTextSelection') {
-    if (sel.startPosition === undefined || sel.endPosition === undefined) return 0;
-    if (!pdfPlainText || !pdfPageStartOffsets) {
-      result.warnings.push(`PDF text selection ${sel.guid}: no Representation plain text in QDPX — skip`);
-      return 0;
-    }
-    const extracted = extractAnchorFromPlainText(pdfPlainText, pdfPageStartOffsets, sel.startPosition, sel.endPosition);
-    if (!extracted) {
-      result.warnings.push(`PDF text selection ${sel.guid}: offset ${sel.startPosition}-${sel.endPosition} out of plain text bounds`);
-      return 0;
-    }
-    // Imported marker: text preserved; indices will be resolved when the PDF
-    // opens (via a runtime text-search hook). Until then, indices are zero
-    // placeholders — the marker won't render highlights but the code/memo are
-    // attached and visible in the sidebar.
-    const marker: PdfMarker = {
-      markerType: 'pdf',
-      id: `import_${sel.guid}`,
-      fileId: filePath,
-      page: extracted.page,
-      beginIndex: 0,
-      beginOffset: 0,
-      endIndex: 0,
-      endOffset: 0,
-      text: extracted.text,
-      codes,
-      memo: memo ? { content: memo } : undefined,
-      createdAt: ts,
-      updatedAt: ts,
-    };
-    pdfData.markers.push(marker);
-    dataManager.setSection('pdf', pdfData);
-    return 1;
-  }
+	// Prefer a text marker when offsets or a quoted name are available. Imported
+	// markers keep placeholder DOM indices; the PDF view resolves them on open.
+	if ((sel.startPosition !== undefined && sel.endPosition !== undefined) || sel.name) {
+		if (!pdfPlainText) {
+			result.warnings.push(`PDF text selection ${sel.guid}: no Representation plain text in QDPX — skip text version`);
+		} else {
+			const resolution = resolveImportedPdfText(sel, pdfPlainText);
+			if (resolution.text === null) {
+				result.warnings.push(`PDF text selection ${sel.guid}: could not reconstruct text from Representation`);
+			} else {
+				const page = resolveImportedPdfPage(sel, pdfPageStartOffsets);
+				if (page === null) {
+					result.warnings.push(`PDF text selection ${sel.guid}: could not resolve page number`);
+				} else {
+					const marker: PdfMarker = {
+						markerType: 'pdf',
+						id: `import_${sel.guid}`,
+						fileId: filePath,
+						page,
+						beginIndex: 0,
+						beginOffset: 0,
+						endIndex: 0,
+						endOffset: 0,
+						text: resolution.text,
+						codes,
+						memo: memo ? { content: memo } : undefined,
+						createdAt: ts,
+						updatedAt: ts,
+					};
+					pdfData.markers.push(marker);
+					dataManager.setSection('pdf', pdfData);
+					return 1;
+				}
+			}
+		}
+	}
 
-  if (sel.type === 'PDFSelection') {
-    if (sel.firstX === undefined || sel.firstY === undefined ||
-        sel.secondX === undefined || sel.secondY === undefined || sel.page === undefined) {
-      return 0;
-    }
-    // Use real page dims loaded from the PDF when available; fall back to
-    // US Letter 612x792 if dims couldn't be loaded for this page.
-    const pageDim = pdfDims?.[sel.page];
-    const pageWidth = pageDim?.width ?? 612;
-    const pageHeight = pageDim?.height ?? 792;
-    const coords = pdfRectToNormalized(sel.firstX, sel.firstY, sel.secondX, sel.secondY, pageWidth, pageHeight);
-    const marker: PdfShapeMarker = {
-      markerType: 'pdf',
-      id: `import_${sel.guid}`,
-      fileId: filePath,
-      codes,
-      shape: 'rect',
-      coords,
-      page: sel.page,
-      memo: memo ? { content: memo } : undefined,
-      createdAt: ts,
-      updatedAt: ts,
-    };
-    pdfData.shapes.push(marker);
-    dataManager.setSection('pdf', pdfData);
-    return 1;
-  }
-  return 0;
+	// Prioridade 2: shape fallback only for shape-like selections.
+	// Atlas.ti text quotations arrive as PDFSelection with a `name`, not as real shapes.
+	if (sel.firstX !== undefined && sel.firstY !== undefined &&
+		sel.secondX !== undefined && sel.secondY !== undefined && sel.page !== undefined &&
+		!sel.name) {
+
+		const pageDim = pdfDims?.[sel.page];
+		const pageWidth = pageDim?.width ?? 612;
+		const pageHeight = pageDim?.height ?? 792;
+
+		const coords = pdfRectToNormalized(sel.firstX, sel.firstY, sel.secondX, sel.secondY, pageWidth, pageHeight);
+
+		const marker: PdfShapeMarker = {
+			markerType: 'pdf',
+			id: `import_${sel.guid}`,
+			fileId: filePath,
+			codes,
+			shape: 'rect',
+			coords,
+			page: sel.page,
+			memo: memo ? { content: memo } : undefined,
+			createdAt: ts,
+			updatedAt: ts,
+		};
+		pdfData.shapes.push(marker);
+		dataManager.setSection('pdf', pdfData);
+		return 1;
+	}
+
+	return 0;
+}
+
+function extractTextFromPlainText(
+	plainText: string,
+	startPosition: number,
+	endPosition: number,
+): string | null {
+	if (startPosition < 0 || endPosition > plainText.length || startPosition >= endPosition) {
+		return null;
+	}
+	return plainText.slice(startPosition, endPosition);
+}
+
+function normalizeSelectionName(name: string | undefined): string | null {
+	if (!name) return null;
+	const trimmed = name
+		.replace(/\u2026|\.\.\.$/g, '')
+		.replace(/\uFFFD/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+	return trimmed.length > 0 ? trimmed : null;
+}
+
+function candidateNeedles(name: string): string[] {
+	const needles = [name];
+	if (name.length > 120) needles.push(name.slice(0, 120).trim());
+	if (name.length > 80) needles.push(name.slice(0, 80).trim());
+	if (name.length > 48) needles.push(name.slice(0, 48).trim());
+	if (name.length > 32) needles.push(name.slice(0, 32).trim());
+	return [...new Set(needles.filter(Boolean))];
+}
+
+function findNeedleNearHint(haystack: string, needle: string, hint: number | undefined): number {
+	if (hint === undefined) return -1;
+	const radius = 500;
+	const from = Math.max(0, hint - radius);
+	const to = Math.min(haystack.length, hint + radius + needle.length);
+	const window = haystack.slice(from, to);
+	const local = window.indexOf(needle);
+	return local >= 0 ? from + local : -1;
+}
+
+function buildCanonicalMap(src: string): { canonical: string; map: number[] } {
+	const canonicalChars: string[] = [];
+	const map: number[] = [];
+	let lastWasSpace = false;
+
+	for (let i = 0; i < src.length; i++) {
+		const ch = src[i]!;
+		if (ch === '\uFFFD') continue;
+		if (/\s/.test(ch)) {
+			if (lastWasSpace) continue;
+			canonicalChars.push(' ');
+			map.push(i);
+			lastWasSpace = true;
+			continue;
+		}
+		canonicalChars.push(ch.toLowerCase());
+		map.push(i);
+		lastWasSpace = false;
+	}
+
+	map.push(src.length);
+	return { canonical: canonicalChars.join(''), map };
+}
+
+function findCanonicalNeedle(haystack: string, needle: string): { start: number; end: number } | null {
+	const hay = buildCanonicalMap(haystack);
+	const ndl = buildCanonicalMap(needle);
+	if (!ndl.canonical) return null;
+	const idx = hay.canonical.indexOf(ndl.canonical);
+	if (idx < 0) return null;
+	const start = hay.map[idx];
+	const end = hay.map[Math.min(idx + ndl.canonical.length, hay.map.length - 1)];
+	if (start === undefined || end === undefined) return null;
+	return { start, end };
+}
+
+function hasUsableOffsetSlice(sel: ParsedSelection, rawSlice: string | null, normalizedName: string | null): boolean {
+	if (!rawSlice) return false;
+	if (!normalizedName) return true;
+	const normalizedSlice = rawSlice.replace(/\uFFFD/g, '').replace(/\s+/g, ' ').trim();
+	if (!normalizedSlice) return false;
+	return normalizedSlice.includes(normalizedName.slice(0, Math.min(normalizedName.length, 24)));
+}
+
+export function resolveImportedPdfText(sel: ParsedSelection, plainText: string): ImportedPdfTextResolution {
+	const rawSlice = sel.startPosition !== undefined && sel.endPosition !== undefined
+		? extractTextFromPlainText(plainText, sel.startPosition, sel.endPosition)
+		: null;
+	const normalizedName = normalizeSelectionName(sel.name);
+	if (!normalizedName) return { text: rawSlice, strategy: rawSlice === null ? 'unresolved' : 'offset' };
+
+	if (hasUsableOffsetSlice(sel, rawSlice, normalizedName)) {
+		return { text: rawSlice, strategy: 'offset' };
+	}
+
+	const expectedLen = sel.startPosition !== undefined && sel.endPosition !== undefined
+		? sel.endPosition - sel.startPosition
+		: undefined;
+
+	for (const needle of candidateNeedles(normalizedName)) {
+		let idx = findNeedleNearHint(plainText, needle, sel.startPosition);
+		if (idx < 0) idx = plainText.indexOf(needle);
+		if (idx < 0) {
+			const canonical = findCanonicalNeedle(plainText, needle);
+			if (canonical) {
+				if (expectedLen !== undefined && canonical.start + expectedLen <= plainText.length) {
+					return { text: plainText.slice(canonical.start, canonical.start + expectedLen), strategy: 'name+length' };
+				}
+				return { text: plainText.slice(canonical.start, canonical.end), strategy: 'name+prefix' };
+			}
+			continue;
+		}
+
+		if (expectedLen !== undefined && idx + expectedLen <= plainText.length) {
+			return { text: plainText.slice(idx, idx + expectedLen), strategy: 'name+length' };
+		}
+		return { text: plainText.slice(idx, Math.min(plainText.length, idx + needle.length)), strategy: 'name+prefix' };
+	}
+
+	return { text: null, strategy: 'unresolved' };
+}
+
+export function resolveImportedPdfPage(
+	sel: ParsedSelection,
+	pageStartOffsets: number[] | null,
+): number | null {
+	// Visual PDFSelection page is the strongest signal for Atlas.ti-style exports.
+	if (sel.page !== undefined) return sel.page;
+	if (sel.startPosition === undefined || !pageStartOffsets) return null;
+
+	let pageIdx = 0;
+	for (let i = 0; i < pageStartOffsets.length; i++) {
+		if (pageStartOffsets[i]! <= sel.startPosition) pageIdx = i;
+		else break;
+	}
+	return pageIdx + 1;
 }
 
 /** Count offsets where each page (delimited by \f) begins. */
@@ -954,6 +1150,7 @@ export async function createTextMarkers(
   let count = 0;
 
   const textSources = sources.filter(s => s.type === 'text');
+
   for (const src of textSources) {
     const filePath = resolver.sources.get(src.guid);
     if (!filePath) continue;
@@ -1003,7 +1200,6 @@ export async function createTextMarkers(
     }
     dataManager.setSection('markdown', mdData);
   }
-
   return { count, warnings };
 }
 
@@ -1398,4 +1594,3 @@ function remapPredicateRefs(node: PredicateNode, resolver: GuidResolver, warning
       return node;
   }
 }
-
