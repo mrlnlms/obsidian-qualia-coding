@@ -16,6 +16,32 @@ export interface PdfAnchor {
 	occurrenceIndex: number;
 }
 
+export interface PdfSelectionBBoxHint {
+	source: 'qdpx-pdf-selection';
+	page: number;
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+}
+
+export interface ImportedPdfTextContext {
+	source: 'qdpx-plain-text-selection';
+	startPosition?: number;
+	endPosition?: number;
+	before: string;
+	exact: string;
+	after: string;
+	resolutionStrategy: 'offset' | 'name+length' | 'name+prefix' | 'unresolved';
+}
+
+export interface QdpxContinuedByHint {
+	source: 'qdpx-continued-by';
+	role: 'origin' | 'target' | 'both';
+	linkIds: string[];
+	relatedSelectionGuids: string[];
+}
+
 export interface PdfMarker {
 	markerType: 'pdf';
 	id: string;
@@ -31,6 +57,9 @@ export interface PdfMarker {
 	colorOverride?: string;
 	codedBy?: CoderId;
 	sourceHashAtCoding?: string;
+	importedPdfSelectionBBox?: PdfSelectionBBoxHint;
+	importedPdfTextContext?: ImportedPdfTextContext;
+	importedQdpxContinuedBy?: QdpxContinuedByHint;
 	createdAt: number;
 	updatedAt: number;
 }

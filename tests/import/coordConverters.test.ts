@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from '../../src/import/coordConverters';
+import { atlasPdfTextRectToNormalized, offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from '../../src/import/coordConverters';
 
 describe('offsetToLineCh', () => {
   const content = 'line 0\nline 1\nline 2 has content';
@@ -39,6 +39,18 @@ describe('pdfRectToNormalized', () => {
     const result = pdfRectToNormalized(61.2, 633.6, 244.8, 316.8, 612, 792);
     expect(result.x).toBeCloseTo(10, 4);
     expect(result.y).toBeCloseTo(20, 4);
+    expect(result.w).toBeCloseTo(30, 4);
+    expect(result.h).toBeCloseTo(40, 4);
+  });
+});
+
+describe('atlasPdfTextRectToNormalized', () => {
+  it('converts Atlas text selection page coords (top-left origin) to percent coords', () => {
+    // Atlas text selections in the real QDE commonly have firstY < secondY.
+    // This must stay a text re-anchoring hint, not a PdfShapeMarker.
+    const result = atlasPdfTextRectToNormalized(61.2, 316.8, 244.8, 633.6, 612, 792);
+    expect(result.x).toBeCloseTo(10, 4);
+    expect(result.y).toBeCloseTo(40, 4);
     expect(result.w).toBeCloseTo(30, 4);
     expect(result.h).toBeCloseTo(40, 4);
   });

@@ -5,6 +5,7 @@ import {
   parseNotes,
   parseLinks,
   applyLinks,
+  collectQdpxPdfContinuedByDiagnostics,
   resolveInternalPath,
   createPdfMarker,
   resolveImportedPdfText,
@@ -252,6 +253,65 @@ describe('createPdfMarker', () => {
     expect(markers[0]!.text).toBe('The development tools for the virtual  team were not unified');
   });
 
+  it('preserves PDFSelection bbox as a hint on named text markers without creating a shape', () => {
+    const sel = {
+      guid: 'pdf-guid-bbox',
+      type: 'PDFSelection',
+      name: 'Atlas text quotation',
+      codeGuids: [],
+      noteGuids: [],
+      page: 5,
+      startPosition: 7,
+      endPosition: 27,
+      firstX: 61.2,
+      firstY: 316.8,
+      secondX: 244.8,
+      secondY: 633.6,
+    } as const;
+    const result = {
+      codesCreated: 0,
+      codesMerged: 0,
+      sourcesImported: 0,
+      segmentsCreated: 0,
+      memosImported: 0,
+      relationsImported: 0,
+      warnings: [] as string[],
+    };
+
+    const count = createPdfMarker(
+      sel,
+      'docs/paper.pdf',
+      [{ codeId: 'c1' }],
+      undefined,
+      0,
+      dm,
+      result,
+      'prefix Atlas text quotation suffix',
+      [0],
+      { 5: { width: 612, height: 792 } },
+    );
+
+    expect(count).toBe(1);
+    const pdf = dm.section('pdf');
+    expect(pdf.shapes).toHaveLength(0);
+    const bbox = pdf.markers[0]!.importedPdfSelectionBBox!;
+    expect(bbox).toMatchObject({
+      source: 'qdpx-pdf-selection',
+      page: 5,
+    });
+    expect(bbox.x).toBeCloseTo(10);
+    expect(bbox.y).toBeCloseTo(40);
+    expect(bbox.w).toBeCloseTo(30);
+    expect(bbox.h).toBeCloseTo(40);
+    expect(pdf.markers[0]!.importedPdfTextContext).toMatchObject({
+      source: 'qdpx-plain-text-selection',
+      startPosition: 7,
+      endPosition: 27,
+      exact: 'Atlas text quotation',
+      resolutionStrategy: 'offset',
+    });
+  });
+
   it('does not fall back to shape for named PDFSelection when text cannot be reconstructed', () => {
     const sel = {
       guid: 'pdf-guid-3',
@@ -406,6 +466,90 @@ describe('parseLinks', () => {
     const doc = parseXml(xml);
     const links = parseLinks(doc);
     expect(links[0]!.memo).toBeUndefined();
+  });
+
+  it('summarizes PDF continued-by links against imported markers', () => {
+    const sources = [{
+      guid: 'src1',
+      name: 'paper.pdf',
+      type: 'pdf' as const,
+      selections: [
+        { guid: 'sel1', type: 'PDFSelection' as const, name: 'first fragment', page: 1, firstX: 10, firstY: 20, secondX: 30, secondY: 40, codeGuids: [], noteGuids: [] },
+        { guid: 'sel2', type: 'PDFSelection' as const, name: 'second fragment', page: 1, firstX: 40, firstY: 20, secondX: 80, secondY: 40, codeGuids: [], noteGuids: [] },
+        { guid: 'sel1', type: 'PlainTextSelection' as const, startPosition: 0, endPosition: 14, codeGuids: [], noteGuids: [] },
+        { guid: 'sel2', type: 'PlainTextSelection' as const, startPosition: 15, endPosition: 30, codeGuids: [], noteGuids: [] },
+      ],
+      variables: [],
+    }];
+    const links: ParsedLink[] = [
+      { guid: 'link1', label: 'continued by', directed: true, originGuid: 'sel1', targetGuid: 'sel2' },
+      { guid: 'link2', label: 'causes', directed: true, originGuid: 'sel1', targetGuid: 'sel2' },
+    ];
+    const resolver = {
+      codes: new Map<string, string>(),
+      sources: new Map<string, string>([['src1', 'imports/paper.pdf']]),
+      selections: new Map<string, string>([['sel1', 'import_sel1'], ['sel2', 'import_sel2']]),
+      smartCodes: new Map<string, string>(),
+    };
+    const markers = [
+      {
+        markerType: 'pdf' as const,
+        id: 'import_sel1',
+        fileId: 'imports/paper.pdf',
+        page: 1,
+        beginIndex: 0,
+        beginOffset: 0,
+        endIndex: 0,
+        endOffset: 0,
+        text: 'first fragment',
+        codes: [],
+        createdAt: 1,
+        updatedAt: 1,
+        importedPdfSelectionBBox: { source: 'qdpx-pdf-selection' as const, page: 1, x: 0.1, y: 0.1, w: 0.1, h: 0.1 },
+      },
+      {
+        markerType: 'pdf' as const,
+        id: 'import_sel2',
+        fileId: 'imports/paper.pdf',
+        page: 1,
+        beginIndex: 5,
+        beginOffset: 0,
+        endIndex: 5,
+        endOffset: 10,
+        text: 'second fragment',
+        codes: [],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+
+    const diagnostics = collectQdpxPdfContinuedByDiagnostics(sources, links, resolver, markers);
+
+    expect(diagnostics.rows).toHaveLength(1);
+    expect(diagnostics.rows[0]).toMatchObject({
+      source: 'paper.pdf',
+      filePath: 'imports/paper.pdf',
+      pdfSelections: 2,
+      plainTextSelections: 2,
+      pairedSelections: 2,
+      continuedByLinks: 1,
+      continuedBySelectionEndpoints: 2,
+      continuedByMappedMarkers: 2,
+      continuedByPendingMarkers: 1,
+      continuedByShortTextMarkersLt64: 2,
+      continuedByPendingShortTextMarkersLt64: 1,
+      continuedByMarkersWithBBox: 1,
+      continuedByPendingMarkersWithBBox: 1,
+      continuedByUnmappedEndpoints: 0,
+    });
+    expect(diagnostics.samples).toHaveLength(1);
+    expect(diagnostics.samples[0]).toMatchObject({
+      linkId: 'link1',
+      originMarkerId: 'import_sel1',
+      targetMarkerId: 'import_sel2',
+      originPending: true,
+      targetPending: false,
+    });
   });
 });
 

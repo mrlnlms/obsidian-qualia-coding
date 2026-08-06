@@ -16,6 +16,7 @@ import { renderMarginPanelForPage, clearMarginPanelForPage, applyHoverToMarginPa
 import { renderDrawLayerForPage, clearDrawLayerForPage, applyHoverToDrawLayer, type DrawLayerCallbacks } from './drawLayer';
 import { attachDragHandles } from './dragHandles';
 import { diagnosePendingTextSearch, isMarkerPending, resolvePendingIndicesWithDiagnostics, type PendingResolutionDiagnostics } from './resolvePendingIndices';
+import { getTextLayerInfo } from './pdfViewerAccess';
 import { visibilityEventBus } from '../core/visibilityEventBus';
 
 export interface PageObserverCallbacks {
@@ -25,17 +26,36 @@ export interface PageObserverCallbacks {
 	onShapeClick: (shapeId: string, codeName: string) => void;
 	onShapeDoubleClick: (shape: import('./pdfCodingTypes').PdfShapeMarker, anchorEl: SVGElement) => void;
 	onShapeHoverPopover: (shape: import('./pdfCodingTypes').PdfShapeMarker, anchorEl: SVGElement) => void;
+	onPdfMarkerCurrentStatus?: (snapshot: PdfMarkerCurrentStatusSnapshot) => void | Promise<void>;
+	onPdfMarkerCoverageAudit?: (snapshot: PdfMarkerCoverageAuditSnapshot) => void | Promise<void>;
 }
 
 interface PendingResolveFailureSample {
 	filePath?: string;
 	page?: number;
 	markerId: string;
+	hasContinuedBy?: boolean;
+	continuedByRole?: string;
+	continuedByLinkCount?: number;
+	continuedByRelatedSelectionGuids?: string;
+	shortTextLt64?: boolean;
 	reason: PendingResolutionDiagnostics['reason'];
 	searchTextLength: number;
 	searchTextPreview: string;
 	pageTextLength: number;
 	textLayerNodeCount: number;
+	bboxTextLayerNodeCount?: number;
+	hasBBox?: boolean;
+	bboxAttempted?: boolean;
+	bboxIgnoredPageMismatch?: boolean;
+	bboxTextPreview?: string;
+	bboxBestPrefixKeyLength?: number;
+	bboxBestWindowKeyLength?: number;
+	bboxBestWindowTextPreview?: string;
+	plainTextContextAttempted?: boolean;
+	plainTextContextBestWindowKeyLength?: number;
+	plainTextContextWindowTextPreview?: string;
+	resolvedBy?: PendingResolutionDiagnostics['resolvedBy'];
 	bestPrefixKeyLength?: number;
 	bestWindowKeyLength?: number;
 	bestWindowTextPreview?: string;
@@ -51,14 +71,115 @@ interface PendingResolveDiagnosticRow {
 	attempted: number;
 	resolved: number;
 	resolvedOnNeighbor: number;
+	withBBox: number;
+	withContinuedBy: number;
+	continuedByPending: number;
+	continuedByShortTextPendingLt64: number;
+	bboxAttempted: number;
+	bboxIgnoredPageMismatch: number;
+	resolvedByPageText: number;
+	resolvedByBBoxText: number;
+	resolvedByPlainTextContext: number;
 	pending: number;
 	pageTextLength: number;
 	textLayerNodeCount: number;
+	bboxTextLayerNodeCount: number;
 	failureReasons: string;
 }
 
+interface PdfMarkerCurrentStatusRow {
+	filePath: string;
+	textMarkers: number;
+	resolvedTextMarkers: number;
+	pendingTextMarkers: number;
+	pendingPages: string;
+	textMarkersWithBBox: number;
+	pendingTextMarkersWithBBox: number;
+	continuedByMarkers: number;
+	continuedByPendingMarkers: number;
+	continuedByPendingShortTextLt64: number;
+	pendingShortTextLt64: number;
+	shapeMarkers: number;
+}
+
+interface PdfMarkerCurrentStatusSample {
+	filePath: string;
+	page: number;
+	markerId: string;
+	textLength: number;
+	shortTextLt64?: boolean;
+	hasBBox?: boolean;
+	hasContinuedBy?: boolean;
+	continuedByRole?: string;
+	continuedByLinkCount?: number;
+	reason?: PendingResolutionDiagnostics['reason'];
+	bboxAttempted?: boolean;
+	bboxTextPreview?: string;
+	bboxBestPrefixKeyLength?: number;
+	bboxBestWindowKeyLength?: number;
+	plainTextContextAttempted?: boolean;
+	plainTextContextBestWindowKeyLength?: number;
+	plainTextContextWindowTextPreview?: string;
+	bestPrefixKeyLength?: number;
+	bestWindowKeyLength?: number;
+	prevPageBestPrefixKeyLength?: number;
+	prevPageBestWindowKeyLength?: number;
+	nextPageBestPrefixKeyLength?: number;
+	nextPageBestWindowKeyLength?: number;
+	textPreview: string;
+}
+
+interface PdfMarkerCurrentStatusTotals {
+	pdfFiles: number;
+	textMarkers: number;
+	resolvedTextMarkers: number;
+	pendingTextMarkers: number;
+	pendingShortTextLt64: number;
+	continuedByPendingMarkers: number;
+	shapeMarkers: number;
+}
+
+interface PdfMarkerCurrentStatusSnapshot {
+	generatedAt: string;
+	totals: PdfMarkerCurrentStatusTotals;
+	rows: PdfMarkerCurrentStatusRow[];
+	samples: PdfMarkerCurrentStatusSample[];
+}
+
+interface PdfMarkerCoverageAuditRow {
+	filePath: string;
+	page: number;
+	markerId: string;
+	range: string;
+	qdpxPage?: number;
+	textLength: number;
+	coveredTextLength: number;
+	expectedKeyLength: number;
+	coveredKeyLength: number;
+	coverageRatio: number;
+	matches: boolean;
+	coverageClass: 'match' | 'covered-prefix' | 'covered-inside-expected' | 'covered-includes-expected-start' | 'wrong-range-or-page' | 'empty-covered-text';
+	continuedBy?: boolean;
+	codeCount: number;
+	expectedPreview: string;
+	coveredPreview: string;
+}
+
+interface PdfMarkerCoverageAuditSnapshot {
+	generatedAt: string;
+	totals: {
+		markers: number;
+		auditedMarkers: number;
+		matchingMarkers: number;
+		mismatchingMarkers: number;
+		unauditedMarkers: number;
+	};
+	rows: PdfMarkerCoverageAuditRow[];
+	mismatches: PdfMarkerCoverageAuditRow[];
+}
+
 const MAX_PENDING_TEXT_LAYER_RETRIES = 5;
-const NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH = 96;
+const NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH = 48;
 
 export class PdfPageObserver {
 	private child: PDFViewerChild;
@@ -73,7 +194,10 @@ export class PdfPageObserver {
 	private reportedPendingResolveDiagnostics = new Set<string>();
 	private pendingResolveDiagnosticRows = new Map<string, PendingResolveDiagnosticRow>();
 	private pendingResolveDiagnosticSamples: PendingResolveFailureSample[] = [];
+	private pendingResolveDiagnosticSamplesByMarker = new Map<string, PendingResolveFailureSample>();
 	private pendingResolveDiagnosticFlushTimer: ReturnType<typeof setTimeout> | null = null;
+	private coverageAuditRowsByMarker = new Map<string, PdfMarkerCoverageAuditRow>();
+	private coverageAuditFlushTimer: ReturnType<typeof setTimeout> | null = null;
 	private pendingTextLayerRetryCounts = new Map<string, number>();
 	private started = false;
 	private unsubscribeVisibility: (() => void) | null = null;
@@ -241,26 +365,52 @@ export class PdfPageObserver {
 		let pendingAttempts = 0;
 		let resolvedCount = 0;
 		let resolvedOnNeighborCount = 0;
+		let withBBoxCount = 0;
+		let withContinuedByCount = 0;
+		let continuedByPendingCount = 0;
+		let continuedByShortTextPendingLt64Count = 0;
+		let bboxAttemptedCount = 0;
+		let bboxIgnoredPageMismatchCount = 0;
+		let resolvedByPageTextCount = 0;
+		let resolvedByBBoxTextCount = 0;
+		let resolvedByPlainTextContextCount = 0;
 		let stillPendingCount = 0;
 		let pageTextLength = 0;
 		let textLayerNodeCount = 0;
+		let bboxTextLayerNodeCount = 0;
 		const failureReasons = new Map<PendingResolutionDiagnostics['reason'], number>();
 		const failureSamples: PendingResolveFailureSample[] = [];
 		const movedMarkerPages = new Set<number>();
 		for (const m of markers) {
 			if (isMarkerPending(m) && m.text) {
 				pendingAttempts++;
+				if (m.importedPdfSelectionBBox) withBBoxCount++;
+				if (m.importedQdpxContinuedBy) withContinuedByCount++;
 				let targetPageNumber = pageNumber;
-				let { resolved, diagnostics } = resolvePendingIndicesWithDiagnostics(pageView.div, m.text);
+				let { resolved, diagnostics } = resolvePendingIndicesWithDiagnostics(pageView.div, m.text, {
+					bboxHint: m.importedPdfSelectionBBox,
+					plainTextContext: m.importedPdfTextContext,
+					pageNumber,
+				});
+				let markerBBoxAttempted = !!diagnostics.bboxAttempted;
+				let markerBBoxIgnoredPageMismatch = !!diagnostics.bboxIgnoredPageMismatch;
+				let markerBBoxTextLayerNodeCount = diagnostics.bboxTextLayerNodeCount ?? 0;
 				if (!resolved) {
-					const neighbor = this.resolveOnNeighborPage(pageNumber, m.text);
+					const neighbor = this.resolveOnNeighborPage(pageNumber, m);
 					if (neighbor) {
 						targetPageNumber = neighbor.pageNumber;
 						resolved = neighbor.resolved;
+						diagnostics = neighbor.diagnostics;
+						markerBBoxAttempted = markerBBoxAttempted || !!neighbor.diagnostics.bboxAttempted;
+						markerBBoxIgnoredPageMismatch = markerBBoxIgnoredPageMismatch || !!neighbor.diagnostics.bboxIgnoredPageMismatch;
+						markerBBoxTextLayerNodeCount += neighbor.diagnostics.bboxTextLayerNodeCount ?? 0;
 					}
 				}
 				pageTextLength = diagnostics.pageTextLength;
 				textLayerNodeCount = diagnostics.textLayerNodeCount;
+				bboxTextLayerNodeCount += markerBBoxTextLayerNodeCount;
+				if (markerBBoxAttempted) bboxAttemptedCount++;
+				if (markerBBoxIgnoredPageMismatch) bboxIgnoredPageMismatchCount++;
 				if (resolved) {
 					this.model.updateMarkerRangeSilent(m.id, {
 						page: targetPageNumber,
@@ -275,23 +425,45 @@ export class PdfPageObserver {
 					}
 					resolvedAny = true;
 					resolvedCount++;
+					if (diagnostics.resolvedBy === 'bbox-text') resolvedByBBoxTextCount++;
+					else if (diagnostics.resolvedBy === 'plain-text-context') resolvedByPlainTextContextCount++;
+					else resolvedByPageTextCount++;
 				} else {
 					stillPendingCount++;
-					failureReasons.set(diagnostics.reason, (failureReasons.get(diagnostics.reason) ?? 0) + 1);
-					if (failureSamples.length < 5) {
-						failureSamples.push({
-							markerId: m.id,
-							reason: diagnostics.reason,
-							searchTextLength: diagnostics.searchTextLength,
-							searchTextPreview: diagnostics.searchTextPreview,
-							pageTextLength: diagnostics.pageTextLength,
-							textLayerNodeCount: diagnostics.textLayerNodeCount,
-							bestPrefixKeyLength: diagnostics.bestPrefixKeyLength,
-							bestWindowKeyLength: diagnostics.bestWindowKeyLength,
-							bestWindowTextPreview: diagnostics.bestWindowTextPreview,
-							...this.diagnoseNeighborPages(pageNumber, m.text),
-						});
+					if (m.importedQdpxContinuedBy) {
+						continuedByPendingCount++;
+						if ((m.text?.length ?? 0) < 64) continuedByShortTextPendingLt64Count++;
 					}
+					failureReasons.set(diagnostics.reason, (failureReasons.get(diagnostics.reason) ?? 0) + 1);
+					failureSamples.push({
+						markerId: m.id,
+						hasContinuedBy: !!m.importedQdpxContinuedBy || undefined,
+						continuedByRole: m.importedQdpxContinuedBy?.role,
+						continuedByLinkCount: m.importedQdpxContinuedBy?.linkIds.length,
+						continuedByRelatedSelectionGuids: m.importedQdpxContinuedBy?.relatedSelectionGuids.join(', '),
+						shortTextLt64: (m.text?.length ?? 0) < 64 || undefined,
+						reason: diagnostics.reason,
+						searchTextLength: diagnostics.searchTextLength,
+						searchTextPreview: diagnostics.searchTextPreview,
+						pageTextLength: diagnostics.pageTextLength,
+						textLayerNodeCount: diagnostics.textLayerNodeCount,
+						bboxTextLayerNodeCount: markerBBoxTextLayerNodeCount || undefined,
+						hasBBox: !!m.importedPdfSelectionBBox,
+						bboxAttempted: markerBBoxAttempted || undefined,
+						bboxIgnoredPageMismatch: markerBBoxIgnoredPageMismatch || undefined,
+						bboxTextPreview: diagnostics.bboxTextPreview,
+						bboxBestPrefixKeyLength: diagnostics.bboxBestPrefixKeyLength,
+						bboxBestWindowKeyLength: diagnostics.bboxBestWindowKeyLength,
+						bboxBestWindowTextPreview: diagnostics.bboxBestWindowTextPreview,
+						plainTextContextAttempted: diagnostics.plainTextContextAttempted || undefined,
+						plainTextContextBestWindowKeyLength: diagnostics.plainTextContextBestWindowKeyLength,
+						plainTextContextWindowTextPreview: diagnostics.plainTextContextWindowTextPreview,
+						resolvedBy: diagnostics.resolvedBy,
+						bestPrefixKeyLength: diagnostics.bestPrefixKeyLength,
+						bestWindowKeyLength: diagnostics.bestWindowKeyLength,
+						bestWindowTextPreview: diagnostics.bestWindowTextPreview,
+						...this.diagnoseNeighborPages(pageNumber, m),
+					});
 				}
 			}
 		}
@@ -301,9 +473,19 @@ export class PdfPageObserver {
 			pendingAttempts,
 			resolvedCount,
 			resolvedOnNeighborCount,
+			withBBoxCount,
+			withContinuedByCount,
+			continuedByPendingCount,
+			continuedByShortTextPendingLt64Count,
+			bboxAttemptedCount,
+			bboxIgnoredPageMismatchCount,
+			resolvedByPageTextCount,
+			resolvedByBBoxTextCount,
+			resolvedByPlainTextContextCount,
 			stillPendingCount,
 			pageTextLength,
 			textLayerNodeCount,
+			bboxTextLayerNodeCount,
 			failureReasons,
 			failureSamples,
 		});
@@ -330,6 +512,7 @@ export class PdfPageObserver {
 			this.state,
 			filePath,
 		);
+		this.auditMarkerCoverageForPage(filePath, pageNumber, pageView, renderMarkers);
 
 		// Attach drag handles to each rendered marker
 		for (const info of renderInfos) {
@@ -407,18 +590,24 @@ export class PdfPageObserver {
 		this.pageRenderTimeouts.set(pageNumber, id);
 	}
 
-	private resolveOnNeighborPage(pageNumber: number, text: string): { pageNumber: number; resolved: NonNullable<ReturnType<typeof resolvePendingIndicesWithDiagnostics>['resolved']> } | null {
+	private resolveOnNeighborPage(pageNumber: number, marker: PdfMarker): { pageNumber: number; resolved: NonNullable<ReturnType<typeof resolvePendingIndicesWithDiagnostics>['resolved']>; diagnostics: PendingResolutionDiagnostics } | null {
 		for (const candidatePage of [pageNumber - 1, pageNumber + 1]) {
 			const pageView = this.getPageView(candidatePage);
 			if (!pageView?.div?.dataset.loaded || !this.hasTextLayerNodes(pageView.div)) continue;
 
-			const d = diagnosePendingTextSearch(pageView.div, text);
+			const d = diagnosePendingTextSearch(pageView.div, marker.text);
 			const strongEnough = (d.bestPrefixKeyLength ?? 0) >= NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH
 				|| (d.bestWindowKeyLength ?? 0) >= NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH;
-			if (!strongEnough) continue;
+			if (!strongEnough && !marker.importedPdfTextContext) continue;
 
-			const { resolved } = resolvePendingIndicesWithDiagnostics(pageView.div, text);
-			if (resolved) return { pageNumber: candidatePage, resolved };
+			const { resolved, diagnostics } = resolvePendingIndicesWithDiagnostics(pageView.div, marker.text, {
+				bboxHint: marker.importedPdfSelectionBBox,
+				plainTextContext: marker.importedPdfTextContext,
+				pageNumber: candidatePage,
+				allowWindowFallback: true,
+				minWindowKeyLength: NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH,
+			});
+			if (resolved) return { pageNumber: candidatePage, resolved, diagnostics };
 		}
 		return null;
 	}
@@ -433,9 +622,15 @@ export class PdfPageObserver {
 				const d = diagnosePendingTextSearch(pageView.div, marker.text);
 				const strongEnough = (d.bestPrefixKeyLength ?? 0) >= NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH
 					|| (d.bestWindowKeyLength ?? 0) >= NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH;
-				if (!strongEnough) continue;
+				if (!strongEnough && !marker.importedPdfTextContext) continue;
 
-				const { resolved } = resolvePendingIndicesWithDiagnostics(pageView.div, marker.text);
+				const { resolved } = resolvePendingIndicesWithDiagnostics(pageView.div, marker.text, {
+					bboxHint: marker.importedPdfSelectionBBox,
+					plainTextContext: marker.importedPdfTextContext,
+					pageNumber,
+					allowWindowFallback: true,
+					minWindowKeyLength: NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH,
+				});
 				if (!resolved) continue;
 				this.model.updateMarkerRangeSilent(marker.id, {
 					page: pageNumber,
@@ -450,22 +645,127 @@ export class PdfPageObserver {
 		return resolvedAny;
 	}
 
-	private diagnoseNeighborPages(pageNumber: number, text: string): Partial<PendingResolveFailureSample> {
+	private diagnoseNeighborPages(pageNumber: number, marker: PdfMarker): Partial<PendingResolveFailureSample> {
 		const out: Partial<PendingResolveFailureSample> = {};
 		const prev = this.getPageView(pageNumber - 1);
 		if (prev?.div?.dataset.loaded && this.hasTextLayerNodes(prev.div)) {
-			const d = diagnosePendingTextSearch(prev.div, text);
+			const d = diagnosePendingTextSearch(prev.div, marker.text);
 			out.prevPageBestPrefixKeyLength = d.bestPrefixKeyLength;
 			out.prevPageBestWindowKeyLength = d.bestWindowKeyLength;
 		}
 
 		const next = this.getPageView(pageNumber + 1);
 		if (next?.div?.dataset.loaded && this.hasTextLayerNodes(next.div)) {
-			const d = diagnosePendingTextSearch(next.div, text);
+			const d = diagnosePendingTextSearch(next.div, marker.text);
 			out.nextPageBestPrefixKeyLength = d.bestPrefixKeyLength;
 			out.nextPageBestWindowKeyLength = d.bestWindowKeyLength;
 		}
 		return out;
+	}
+
+	private auditMarkerCoverageForPage(filePath: string, pageNumber: number, pageView: PDFPageView, markers: PdfMarker[]): void {
+		const textLayerInfo = getTextLayerInfo(pageView);
+		if (!textLayerInfo) return;
+
+		for (const marker of markers) {
+			const coveredText = this.extractCoveredTextFromTextLayer(textLayerInfo.textContentItems, marker);
+			const expectedKey = this.normalizeAuditKey(marker.text);
+			const coveredKey = this.normalizeAuditKey(coveredText);
+			const matches = expectedKey === coveredKey;
+			const row: PdfMarkerCoverageAuditRow = {
+				filePath,
+				page: pageNumber,
+				markerId: marker.id,
+				range: `${marker.beginIndex}:${marker.beginOffset}-${marker.endIndex}:${marker.endOffset}`,
+				qdpxPage: marker.importedPdfSelectionBBox?.page,
+				textLength: marker.text.length,
+				coveredTextLength: coveredText.length,
+				expectedKeyLength: expectedKey.length,
+				coveredKeyLength: coveredKey.length,
+				coverageRatio: expectedKey.length > 0 ? Number((coveredKey.length / expectedKey.length).toFixed(3)) : 0,
+				matches,
+				coverageClass: this.classifyCoverage(expectedKey, coveredKey),
+				continuedBy: !!marker.importedQdpxContinuedBy || undefined,
+				codeCount: marker.codes.length,
+				expectedPreview: this.previewText(marker.text, 240),
+				coveredPreview: this.previewText(coveredText, 240),
+			};
+			this.coverageAuditRowsByMarker.set(marker.id, row);
+		}
+
+		if (this.coverageAuditFlushTimer) clearTimeout(this.coverageAuditFlushTimer);
+		this.coverageAuditFlushTimer = setTimeout(() => {
+			this.coverageAuditFlushTimer = null;
+			this.flushMarkerCoverageAudit();
+		}, 750);
+	}
+
+	private extractCoveredTextFromTextLayer(textContentItems: Array<{ str?: string }>, marker: PdfMarker): string {
+		let endIndex = marker.endIndex;
+		let endOffset = marker.endOffset;
+		if (endOffset === 0 && endIndex > marker.beginIndex) {
+			endIndex--;
+			endOffset = textContentItems[endIndex]?.str?.length ?? 0;
+		}
+
+		const parts: string[] = [];
+		for (let index = marker.beginIndex; index <= endIndex; index++) {
+			const text = textContentItems[index]?.str ?? '';
+			if (!text) continue;
+			const start = index === marker.beginIndex ? marker.beginOffset : 0;
+			const end = index === endIndex ? Math.min(endOffset, text.length) : text.length;
+			parts.push(text.slice(start, end));
+		}
+		return parts.join(' ');
+	}
+
+	private classifyCoverage(expectedKey: string, coveredKey: string): PdfMarkerCoverageAuditRow['coverageClass'] {
+		if (expectedKey === coveredKey) return 'match';
+		if (coveredKey.length === 0) return 'empty-covered-text';
+		if (expectedKey.startsWith(coveredKey)) return 'covered-prefix';
+		if (expectedKey.includes(coveredKey)) return 'covered-inside-expected';
+		if (coveredKey.includes(expectedKey.slice(0, Math.min(48, expectedKey.length)))) return 'covered-includes-expected-start';
+		return 'wrong-range-or-page';
+	}
+
+	private normalizeAuditKey(text: string): string {
+		const out: string[] = [];
+		for (let i = 0; i < text.length;) {
+			const cp = text.codePointAt(i);
+			if (cp === undefined) break;
+			const raw = String.fromCodePoint(cp);
+			i += raw.length;
+			if (raw === '\uFFFD' || raw === '\u00AD') continue;
+			for (const ch of raw.normalize('NFKC').toLocaleLowerCase()) {
+				if (/[\p{L}\p{N}]/u.test(ch)) out.push(ch);
+			}
+		}
+		return out.join('');
+	}
+
+	private flushMarkerCoverageAudit(): void {
+		const rows = [...this.coverageAuditRowsByMarker.values()]
+			.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.page - b.page || a.range.localeCompare(b.range));
+		if (rows.length === 0) return;
+
+		const markerCount = this.model.getAllMarkers().length;
+		const matchingMarkers = rows.filter((row) => row.matches).length;
+		const mismatches = rows.filter((row) => !row.matches);
+		const snapshot: PdfMarkerCoverageAuditSnapshot = {
+			generatedAt: new Date().toISOString(),
+			totals: {
+				markers: markerCount,
+				auditedMarkers: rows.length,
+				matchingMarkers,
+				mismatchingMarkers: mismatches.length,
+				unauditedMarkers: Math.max(0, markerCount - rows.length),
+			},
+			rows,
+			mismatches,
+		};
+		console.log('[qualia-coding] PDF marker coverage audit', snapshot.totals);
+		if (mismatches.length > 0) console.table(mismatches);
+		void this.callbacks.onPdfMarkerCoverageAudit?.(snapshot);
 	}
 
 	private reportPendingResolveDiagnostics(args: {
@@ -474,9 +774,19 @@ export class PdfPageObserver {
 		pendingAttempts: number;
 		resolvedCount: number;
 		resolvedOnNeighborCount: number;
+		withBBoxCount: number;
+		withContinuedByCount: number;
+		continuedByPendingCount: number;
+		continuedByShortTextPendingLt64Count: number;
+		bboxAttemptedCount: number;
+		bboxIgnoredPageMismatchCount: number;
+		resolvedByPageTextCount: number;
+		resolvedByBBoxTextCount: number;
+		resolvedByPlainTextContextCount: number;
 		stillPendingCount: number;
 		pageTextLength: number;
 		textLayerNodeCount: number;
+		bboxTextLayerNodeCount: number;
 		failureReasons: Map<PendingResolutionDiagnostics['reason'], number>;
 		failureSamples: PendingResolveFailureSample[];
 	}): void {
@@ -495,19 +805,32 @@ export class PdfPageObserver {
 			attempted: args.pendingAttempts,
 			resolved: args.resolvedCount,
 			resolvedOnNeighbor: args.resolvedOnNeighborCount,
+			withBBox: args.withBBoxCount,
+			withContinuedBy: args.withContinuedByCount,
+			continuedByPending: args.continuedByPendingCount,
+			continuedByShortTextPendingLt64: args.continuedByShortTextPendingLt64Count,
+			bboxAttempted: args.bboxAttemptedCount,
+			bboxIgnoredPageMismatch: args.bboxIgnoredPageMismatchCount,
+			resolvedByPageText: args.resolvedByPageTextCount,
+			resolvedByBBoxText: args.resolvedByBBoxTextCount,
+			resolvedByPlainTextContext: args.resolvedByPlainTextContextCount,
 			pending: args.stillPendingCount,
 			pageTextLength: args.pageTextLength,
 			textLayerNodeCount: args.textLayerNodeCount,
+			bboxTextLayerNodeCount: args.bboxTextLayerNodeCount,
 			failureReasons,
 		});
 
 		for (const sample of args.failureSamples) {
-			if (this.pendingResolveDiagnosticSamples.length >= 20) break;
-			this.pendingResolveDiagnosticSamples.push({
+			const enrichedSample = {
 				filePath: args.filePath,
 				page: args.pageNumber,
 				...sample,
-			});
+			};
+			if (this.pendingResolveDiagnosticSamples.length < 50) {
+				this.pendingResolveDiagnosticSamples.push(enrichedSample);
+			}
+			this.pendingResolveDiagnosticSamplesByMarker.set(sample.markerId, enrichedSample);
 		}
 
 		if (this.pendingResolveDiagnosticFlushTimer) {
@@ -532,8 +855,109 @@ export class PdfPageObserver {
 			console.table(samples);
 		}
 		console.groupEnd();
+		this.flushPdfMarkerCurrentStatus(rows.map((row) => row.filePath));
 		this.pendingResolveDiagnosticRows.clear();
 		this.pendingResolveDiagnosticSamples = [];
+	}
+
+	private flushPdfMarkerCurrentStatus(_filePaths: string[]): void {
+		const uniqueFilePaths = [...new Set(this.model.getAllMarkers().map((marker) => marker.fileId))].sort();
+		const samples: PdfMarkerCurrentStatusSample[] = [];
+		const rows: PdfMarkerCurrentStatusRow[] = uniqueFilePaths.map((filePath) => {
+			const markers = this.model.getMarkersForFile(filePath);
+			const shapes = this.model.getShapesForFile(filePath);
+			const pending = markers.filter(isMarkerPending);
+			const continuedByMarkers = markers.filter((marker) => !!marker.importedQdpxContinuedBy);
+			const continuedByPending = pending.filter((marker) => !!marker.importedQdpxContinuedBy);
+			const pendingPages = [...new Set(pending.map((marker) => marker.page))].sort((a, b) => a - b);
+			for (const marker of pending) {
+				const failure = this.pendingResolveDiagnosticSamplesByMarker.get(marker.id);
+				samples.push({
+					filePath,
+					page: marker.page,
+					markerId: marker.id,
+					textLength: marker.text?.length ?? 0,
+					shortTextLt64: (marker.text?.length ?? 0) < 64 || undefined,
+					hasBBox: !!marker.importedPdfSelectionBBox || undefined,
+					hasContinuedBy: !!marker.importedQdpxContinuedBy || undefined,
+					continuedByRole: marker.importedQdpxContinuedBy?.role,
+					continuedByLinkCount: marker.importedQdpxContinuedBy?.linkIds.length,
+					...(failure ? {
+						reason: failure.reason,
+						bboxAttempted: failure.bboxAttempted,
+						bboxTextPreview: failure.bboxTextPreview,
+						bboxBestPrefixKeyLength: failure.bboxBestPrefixKeyLength,
+						bboxBestWindowKeyLength: failure.bboxBestWindowKeyLength,
+						plainTextContextAttempted: failure.plainTextContextAttempted,
+						plainTextContextBestWindowKeyLength: failure.plainTextContextBestWindowKeyLength,
+						plainTextContextWindowTextPreview: failure.plainTextContextWindowTextPreview,
+						bestPrefixKeyLength: failure.bestPrefixKeyLength,
+						bestWindowKeyLength: failure.bestWindowKeyLength,
+						prevPageBestPrefixKeyLength: failure.prevPageBestPrefixKeyLength,
+						prevPageBestWindowKeyLength: failure.prevPageBestWindowKeyLength,
+						nextPageBestPrefixKeyLength: failure.nextPageBestPrefixKeyLength,
+						nextPageBestWindowKeyLength: failure.nextPageBestWindowKeyLength,
+					} : {}),
+					textPreview: this.previewText(marker.text),
+				});
+			}
+			return {
+				filePath,
+				textMarkers: markers.length,
+				resolvedTextMarkers: markers.length - pending.length,
+				pendingTextMarkers: pending.length,
+				pendingPages: pendingPages.join(', '),
+				textMarkersWithBBox: markers.filter((marker) => !!marker.importedPdfSelectionBBox).length,
+				pendingTextMarkersWithBBox: pending.filter((marker) => !!marker.importedPdfSelectionBBox).length,
+				continuedByMarkers: continuedByMarkers.length,
+				continuedByPendingMarkers: continuedByPending.length,
+				continuedByPendingShortTextLt64: continuedByPending.filter((marker) => (marker.text?.length ?? 0) < 64).length,
+				pendingShortTextLt64: pending.filter((marker) => (marker.text?.length ?? 0) < 64).length,
+				shapeMarkers: shapes.length,
+			};
+		});
+		if (rows.length === 0) return;
+		const totals = this.getPdfMarkerCurrentStatusTotals(rows);
+		const snapshot: PdfMarkerCurrentStatusSnapshot = {
+			generatedAt: new Date().toISOString(),
+			totals,
+			rows,
+			samples,
+		};
+		console.log(`[qualia-coding] PDF marker current status (${rows.length} PDF files)`, totals);
+		console.table(rows);
+		if (samples.length > 0) {
+			console.log(`[qualia-coding] PDF marker current pending samples (${samples.length} markers)`);
+			console.table(samples);
+		}
+		void this.callbacks.onPdfMarkerCurrentStatus?.(snapshot);
+	}
+
+	private getPdfMarkerCurrentStatusTotals(rows: PdfMarkerCurrentStatusRow[]): PdfMarkerCurrentStatusTotals {
+		return rows.reduce<PdfMarkerCurrentStatusTotals>((acc, row) => {
+			acc.pdfFiles++;
+			acc.textMarkers += row.textMarkers;
+			acc.resolvedTextMarkers += row.resolvedTextMarkers;
+			acc.pendingTextMarkers += row.pendingTextMarkers;
+			acc.pendingShortTextLt64 += row.pendingShortTextLt64;
+			acc.continuedByPendingMarkers += row.continuedByPendingMarkers;
+			acc.shapeMarkers += row.shapeMarkers;
+			return acc;
+		}, {
+			pdfFiles: 0,
+			textMarkers: 0,
+			resolvedTextMarkers: 0,
+			pendingTextMarkers: 0,
+			pendingShortTextLt64: 0,
+			continuedByPendingMarkers: 0,
+			shapeMarkers: 0,
+		});
+	}
+
+	private previewText(text: string | undefined, maxLength = 120): string {
+		const normalized = (text ?? '').replace(/\s+/g, ' ').trim();
+		if (normalized.length <= maxLength) return normalized;
+		return `${normalized.slice(0, maxLength - 1)}…`;
 	}
 
 	private clearAll(): void {

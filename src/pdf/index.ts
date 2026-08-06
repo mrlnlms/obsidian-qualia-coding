@@ -15,6 +15,9 @@ import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
 import { getPdfViewState, destroyPdfViewState, type PdfViewState } from './pdfViewState';
 import { performToggleCommand } from '../core/mediaToggleButton';
 
+const PDF_MARKER_STATUS_LOG_PATH = 'imports/_qualia-pdf-marker-current-status.json';
+const PDF_MARKER_COVERAGE_AUDIT_LOG_PATH = 'imports/_qualia-pdf-marker-coverage-audit.json';
+
 export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistration<PdfCodingModel> {
 	// Use shared registry from plugin (single instance for all engines)
 	const registry = plugin.sharedRegistry;
@@ -157,6 +160,12 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 						plugin.app,
 						pdfState,
 					);
+				},
+				onPdfMarkerCurrentStatus: (snapshot) => {
+					void writePdfMarkerStatusLog(plugin, snapshot);
+				},
+				onPdfMarkerCoverageAudit: (snapshot) => {
+					void writePdfMarkerCoverageAuditLog(plugin, snapshot);
 				},
 			}, pdfState);
 			observer.start();
@@ -483,4 +492,20 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 		},
 		model,
 	};
+}
+
+async function writePdfMarkerStatusLog(plugin: QualiaCodingPlugin, snapshot: unknown): Promise<void> {
+	const adapter = plugin.app.vault.adapter;
+	if (!(await adapter.exists('imports'))) {
+		await adapter.mkdir('imports');
+	}
+	await adapter.write(PDF_MARKER_STATUS_LOG_PATH, JSON.stringify(snapshot, null, 2));
+}
+
+async function writePdfMarkerCoverageAuditLog(plugin: QualiaCodingPlugin, snapshot: unknown): Promise<void> {
+	const adapter = plugin.app.vault.adapter;
+	if (!(await adapter.exists('imports'))) {
+		await adapter.mkdir('imports');
+	}
+	await adapter.write(PDF_MARKER_COVERAGE_AUDIT_LOG_PATH, JSON.stringify(snapshot, null, 2));
 }

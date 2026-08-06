@@ -17,6 +17,20 @@ function makePage(nodes: string[]): HTMLElement {
 	return page;
 }
 
+function rect(left: number, top: number, width: number, height: number): DOMRect {
+	return {
+		x: left,
+		y: top,
+		left,
+		top,
+		width,
+		height,
+		right: left + width,
+		bottom: top + height,
+		toJSON: () => ({}),
+	} as DOMRect;
+}
+
 describe('isMarkerPending', () => {
 	it('true quando todos indices são 0', () => {
 		expect(isMarkerPending({ beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 0 } as any)).toBe(true);
@@ -125,5 +139,192 @@ describe('resolvePendingIndices', () => {
 		expect(d.bestPrefixKeyLength).toBe(0);
 		expect(d.bestWindowKeyLength).toBeGreaterThanOrEqual(48);
 		expect(d.bestWindowTextPreview).toContain('middle quotation segment');
+	});
+
+	it('resolve por janela textual única somente quando o fallback está habilitado', () => {
+		const page = makePage(['middle quotation segment appears here with enough lexical content to identify the page']);
+		const text = 'prefix from another extraction order middle quotation segment appears here with enough lexical content suffix';
+
+		expect(resolvePendingIndicesWithDiagnostics(page, text).resolved).toBeNull();
+
+		const r = resolvePendingIndicesWithDiagnostics(page, text, {
+			allowWindowFallback: true,
+			minWindowKeyLength: 48,
+		});
+		expect(r.resolved).toEqual({ beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 63 });
+		expect(r.diagnostics.resolvedBy).toBe('window-text');
+		expect(r.diagnostics.bestWindowKeyLength).toBeGreaterThanOrEqual(48);
+	});
+
+	it('não resolve janela textual ambígua mesmo com fallback habilitado', () => {
+		const page = makePage([
+			'middle quotation segment appears here with enough lexical content',
+			'middle quotation segment appears here with enough lexical content',
+		]);
+		const text = 'prefix from another extraction order middle quotation segment appears here with enough lexical content suffix';
+		const r = resolvePendingIndicesWithDiagnostics(page, text, {
+			allowWindowFallback: true,
+			minWindowKeyLength: 48,
+		});
+
+		expect(r.resolved).toBeNull();
+		expect(r.diagnostics.reason).toBe('not-found');
+	});
+
+	it('resolve fragmento curto por contexto de PlainTextSelection exportado', () => {
+		const page = makePage([
+			'Collaboration and communications among team members can considerably increase by establishing cross-functional teams',
+		]);
+		const r = resolvePendingIndicesWithDiagnostics(page, 'communica�tions', {
+			plainTextContext: {
+				source: 'qdpx-plain-text-selection',
+				startPosition: 100,
+				endPosition: 114,
+				before: 'delivery to give the signoff. Collaboration and commun',
+				exact: 'ications among',
+				after: 'team members can considerably increase by establishing cross-functional teams',
+				resolutionStrategy: 'name+length',
+			},
+		});
+
+		expect(r.resolved).toEqual({ beginIndex: 0, beginOffset: 18, endIndex: 0, endOffset: 32 });
+		expect(r.diagnostics.resolvedBy).toBe('plain-text-context');
+		expect(r.diagnostics.plainTextContextBestWindowKeyLength).toBeGreaterThanOrEqual(48);
+	});
+
+	it('não resolve fragmento curto por contexto quando a janela contextual é ambígua', () => {
+		const text = 'Collaboration and communications among team members can considerably increase';
+		const page = makePage([text, text]);
+		const r = resolvePendingIndicesWithDiagnostics(page, 'communica�tions', {
+			plainTextContext: {
+				source: 'qdpx-plain-text-selection',
+				before: 'Collaboration and commun',
+				exact: 'ications among',
+				after: 'team members can considerably increase',
+				resolutionStrategy: 'offset',
+			},
+		});
+
+		expect(r.resolved).toBeNull();
+		expect(r.diagnostics.plainTextContextAttempted).toBe(true);
+	});
+
+	it('usa bbox como pista textual local quando fallback global por chave é ambíguo', () => {
+		const page = makePage([
+			'Alpha beta gamma delta epsilon zeta eta',
+			'unrelated middle text',
+			'Alpha beta gamma delta epsilon zeta eta',
+		]);
+		page.getBoundingClientRect = () => rect(0, 0, 1000, 1000);
+		const nodes = Array.from(page.querySelectorAll<HTMLElement>('.textLayerNode'));
+		nodes[0]!.getBoundingClientRect = () => rect(100, 100, 200, 20);
+		nodes[1]!.getBoundingClientRect = () => rect(100, 300, 200, 20);
+		nodes[2]!.getBoundingClientRect = () => rect(100, 500, 200, 20);
+
+		const r = resolvePendingIndicesWithDiagnostics(page, 'Alpha beta gamma, delta epsilon zeta eta.', {
+			pageNumber: 1,
+			bboxHint: {
+				source: 'qdpx-pdf-selection',
+				page: 1,
+				x: 9,
+				y: 49,
+				w: 25,
+				h: 4,
+			},
+		});
+
+		expect(r.resolved).toEqual({ beginIndex: 2, beginOffset: 0, endIndex: 2, endOffset: 39 });
+		expect(r.diagnostics.resolvedBy).toBe('bbox-text');
+		expect(r.diagnostics.bboxTextLayerNodeCount).toBe(1);
+	});
+
+	it('permite prefixo único menor dentro da bbox restrita', () => {
+		const page = makePage([
+			'Infra as development collaborator Not-high table fragment',
+			'unrelated middle text',
+			'Infra as development collaborator Not-high table fragment',
+		]);
+		page.getBoundingClientRect = () => rect(0, 0, 1000, 1000);
+		const nodes = Array.from(page.querySelectorAll<HTMLElement>('.textLayerNode'));
+		nodes[0]!.getBoundingClientRect = () => rect(100, 100, 300, 20);
+		nodes[1]!.getBoundingClientRect = () => rect(100, 300, 200, 20);
+		nodes[2]!.getBoundingClientRect = () => rect(100, 500, 300, 20);
+
+		const r = resolvePendingIndicesWithDiagnostics(page, 'Infra as development collaborator. The infrastructure team supports products.', {
+			pageNumber: 1,
+			bboxHint: {
+				source: 'qdpx-pdf-selection',
+				page: 1,
+				x: 9,
+				y: 49,
+				w: 35,
+				h: 4,
+			},
+		});
+
+		expect(r.resolved).toEqual({ beginIndex: 2, beginOffset: 0, endIndex: 2, endOffset: 30 });
+		expect(r.diagnostics.resolvedBy).toBe('bbox-text');
+		expect(r.diagnostics.bboxBestPrefixKeyLength).toBeGreaterThanOrEqual(24);
+	});
+
+	it('ignora bbox quando a página do hint não corresponde à página resolvida', () => {
+		const page = makePage([
+			'Alpha beta gamma delta epsilon zeta eta',
+			'unrelated middle text',
+			'Alpha beta gamma delta epsilon zeta eta',
+		]);
+		page.getBoundingClientRect = () => rect(0, 0, 1000, 1000);
+		const nodes = Array.from(page.querySelectorAll<HTMLElement>('.textLayerNode'));
+		nodes[0]!.getBoundingClientRect = () => rect(100, 100, 200, 20);
+		nodes[1]!.getBoundingClientRect = () => rect(100, 300, 200, 20);
+		nodes[2]!.getBoundingClientRect = () => rect(100, 500, 200, 20);
+
+		const r = resolvePendingIndicesWithDiagnostics(page, 'Alpha beta gamma, delta epsilon zeta eta.', {
+			pageNumber: 2,
+			bboxHint: {
+				source: 'qdpx-pdf-selection',
+				page: 1,
+				x: 9,
+				y: 49,
+				w: 25,
+				h: 4,
+			},
+		});
+
+		expect(r.resolved).toBeNull();
+		expect(r.diagnostics.resolvedBy).toBeUndefined();
+		expect(r.diagnostics.bboxTextLayerNodeCount).toBeUndefined();
+	});
+
+	it('diagnostica o texto local da bbox quando a busca na região falha', () => {
+		const page = makePage([
+			'wrong local text in the hinted rectangle',
+			'Alpha beta gamma delta epsilon zeta eta',
+			'Alpha beta gamma delta epsilon zeta eta',
+		]);
+		page.getBoundingClientRect = () => rect(0, 0, 1000, 1000);
+		const nodes = Array.from(page.querySelectorAll<HTMLElement>('.textLayerNode'));
+		nodes[0]!.getBoundingClientRect = () => rect(100, 100, 200, 20);
+		nodes[1]!.getBoundingClientRect = () => rect(100, 300, 200, 20);
+		nodes[2]!.getBoundingClientRect = () => rect(100, 500, 200, 20);
+
+		const r = resolvePendingIndicesWithDiagnostics(page, 'Alpha beta gamma, delta epsilon zeta eta.', {
+			pageNumber: 1,
+			bboxHint: {
+				source: 'qdpx-pdf-selection',
+				page: 1,
+				x: 9,
+				y: 9,
+				w: 25,
+				h: 4,
+			},
+		});
+
+		expect(r.resolved).toBeNull();
+		expect(r.diagnostics.bboxAttempted).toBe(true);
+		expect(r.diagnostics.bboxTextLayerNodeCount).toBe(1);
+		expect(r.diagnostics.bboxTextPreview).toContain('wrong local text');
+		expect(r.diagnostics.bboxBestPrefixKeyLength).toBe(0);
+		expect(r.diagnostics.bboxBestWindowKeyLength).toBe(0);
 	});
 });

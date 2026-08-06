@@ -9,12 +9,12 @@ import { getImageDimensions } from '../core/imageDimensions';
 import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { MediaMarker } from '../media/mediaTypes';
 import type { ImageMarker } from '../image/imageCodingTypes';
-import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
+import type { ImportedPdfTextContext, PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
 import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
 import type { AudioFile } from '../audio/audioCodingTypes';
 import type { VideoFile } from '../video/videoCodingTypes';
 import { parseXml, getChildElements, getAttr, getNumAttr, getTextContent, getAllElements } from './xmlParser';
-import { offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from './coordConverters';
+import { atlasPdfTextRectToNormalized, offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from './coordConverters';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
 import { loadPdfExportData } from '../pdf/pdfExportData';
 
@@ -506,6 +506,7 @@ export async function importQdpx(
 
   // 8. Import relations (Links)
   result.relationsImported = applyLinks(links, resolver, registry, dataManager);
+  annotatePdfMarkersWithContinuedBy(links, resolver, dataManager);
 
   // 8b. Import Smart Codes (Tier 3) — após sets/cases pra resolver refs corretamente
   const scResult = parseSmartCodes(xml, resolver);
@@ -523,11 +524,322 @@ export async function importQdpx(
   }
   result.warnings.push(...scResult.warnings);
 
+  reportQdpxPdfImportDiagnostics(sources, links, resolver, dataManager);
+
   // 9. Flush
   dataManager.markDirty();
   await dataManager.flush();
 
   return result;
+}
+
+function hasPdfSelectionBBox(sel: ParsedSelection): boolean {
+	return sel.firstX !== undefined && sel.firstY !== undefined
+		&& sel.secondX !== undefined && sel.secondY !== undefined;
+}
+
+function collectPairedPdfSelectionStats(src: ParsedSource): {
+	pdfSelections: number;
+	pdfSelectionsWithBBox: number;
+	plainTextSelections: number;
+	pairedSelections: number;
+	pairedSelectionsWithBBox: number;
+} {
+	const byGuid = new Map<string, { pdf?: ParsedSelection; text?: ParsedSelection }>();
+	let pdfSelections = 0;
+	let pdfSelectionsWithBBox = 0;
+	let plainTextSelections = 0;
+
+	for (const sel of src.selections) {
+		if (!sel.guid) continue;
+		const entry = byGuid.get(sel.guid) ?? {};
+		if (sel.type === 'PDFSelection') {
+			pdfSelections++;
+			if (hasPdfSelectionBBox(sel)) pdfSelectionsWithBBox++;
+			entry.pdf = sel;
+		} else if (sel.type === 'PlainTextSelection') {
+			plainTextSelections++;
+			entry.text = sel;
+		}
+		byGuid.set(sel.guid, entry);
+	}
+
+	let pairedSelections = 0;
+	let pairedSelectionsWithBBox = 0;
+	for (const pair of byGuid.values()) {
+		if (!pair.pdf || !pair.text) continue;
+		pairedSelections++;
+		if (hasPdfSelectionBBox(pair.pdf)) pairedSelectionsWithBBox++;
+	}
+
+	return { pdfSelections, pdfSelectionsWithBBox, plainTextSelections, pairedSelections, pairedSelectionsWithBBox };
+}
+
+function reportQdpxPdfImportDiagnostics(
+	sources: ParsedSource[],
+	links: ParsedLink[],
+	resolver: GuidResolver,
+	dataManager: DataManager,
+): void {
+	const pdfSources = sources.filter((src) => src.type === 'pdf');
+	if (pdfSources.length === 0) return;
+
+	const markers = dataManager.section('pdf').markers as PdfMarker[];
+	const rows = pdfSources.map((src) => {
+		const filePath = resolver.sources.get(src.guid) ?? '';
+		const sourceMarkers = markers.filter((m) => m.fileId === filePath);
+		const pending = sourceMarkers.filter((m) => m.beginIndex === 0 && m.beginOffset === 0 && m.endIndex === 0 && m.endOffset === 0);
+		const stats = collectPairedPdfSelectionStats(src);
+		return {
+			source: src.name,
+			filePath,
+			pdfSelections: stats.pdfSelections,
+			pdfSelectionsWithBBox: stats.pdfSelectionsWithBBox,
+			plainTextSelections: stats.plainTextSelections,
+			pairedSelections: stats.pairedSelections,
+			pairedSelectionsWithBBox: stats.pairedSelectionsWithBBox,
+			textMarkers: sourceMarkers.length,
+			textMarkersWithBBox: sourceMarkers.filter((m) => !!m.importedPdfSelectionBBox).length,
+			pendingTextMarkers: pending.length,
+			pendingTextMarkersWithBBox: pending.filter((m) => !!m.importedPdfSelectionBBox).length,
+		};
+	});
+
+	const samples = markers
+		.filter((m) => m.id.startsWith('import_') && !m.importedPdfSelectionBBox)
+		.slice(0, 20)
+		.map((m) => ({
+			filePath: m.fileId,
+			page: m.page,
+			markerId: m.id,
+			textLength: m.text?.length ?? 0,
+			textPreview: (m.text ?? '').replace(/\s+/g, ' ').slice(0, 120),
+		}));
+
+	console.groupCollapsed(`[qualia-coding] QDPX PDF import bbox diagnostics (${rows.length} PDF sources)`);
+	console.table(rows);
+	if (samples.length > 0) {
+		console.table(samples);
+	}
+	console.groupEnd();
+
+	reportQdpxPdfContinuedByDiagnostics(sources, links, resolver, markers);
+}
+
+function annotatePdfMarkersWithContinuedBy(
+	links: ParsedLink[],
+	resolver: GuidResolver,
+	dataManager: DataManager,
+): void {
+	const continuedByLinks = links.filter((link) => link.label.trim().toLowerCase() === 'continued by');
+	if (continuedByLinks.length === 0) return;
+
+	const pdfData = dataManager.section('pdf');
+	const markerById = new Map((pdfData.markers as PdfMarker[]).map((marker) => [marker.id, marker]));
+	let changed = false;
+
+	for (const link of continuedByLinks) {
+		const originMarkerId = resolver.selections.get(link.originGuid);
+		const targetMarkerId = resolver.selections.get(link.targetGuid);
+		if (originMarkerId) {
+			const marker = markerById.get(originMarkerId);
+			if (marker) {
+				addContinuedByHint(marker, 'origin', link.guid, link.targetGuid);
+				changed = true;
+			}
+		}
+		if (targetMarkerId) {
+			const marker = markerById.get(targetMarkerId);
+			if (marker) {
+				addContinuedByHint(marker, 'target', link.guid, link.originGuid);
+				changed = true;
+			}
+		}
+	}
+
+	if (changed) dataManager.setSection('pdf', pdfData);
+}
+
+function addContinuedByHint(
+	marker: PdfMarker,
+	role: 'origin' | 'target',
+	linkId: string,
+	relatedSelectionGuid: string,
+): void {
+	const current = marker.importedQdpxContinuedBy;
+	if (!current) {
+		marker.importedQdpxContinuedBy = {
+			source: 'qdpx-continued-by',
+			role,
+			linkIds: [linkId],
+			relatedSelectionGuids: [relatedSelectionGuid],
+		};
+		return;
+	}
+
+	current.role = current.role === role ? current.role : 'both';
+	if (!current.linkIds.includes(linkId)) current.linkIds.push(linkId);
+	if (!current.relatedSelectionGuids.includes(relatedSelectionGuid)) {
+		current.relatedSelectionGuids.push(relatedSelectionGuid);
+	}
+}
+
+interface QdpxPdfContinuedByDiagnostics {
+	rows: Array<{
+		source: string;
+		filePath: string;
+		pdfSelections: number;
+		plainTextSelections: number;
+		pairedSelections: number;
+		continuedByLinks: number;
+		continuedBySelectionEndpoints: number;
+		continuedByMappedMarkers: number;
+		continuedByPendingMarkers: number;
+		continuedByShortTextMarkersLt64: number;
+		continuedByPendingShortTextMarkersLt64: number;
+		continuedByMarkersWithBBox: number;
+		continuedByPendingMarkersWithBBox: number;
+		continuedByUnmappedEndpoints: number;
+	}>;
+	samples: Array<{
+		source: string;
+		filePath: string;
+		linkId: string;
+		originGuid: string;
+		targetGuid: string;
+		originMarkerId: string | undefined;
+		targetMarkerId: string | undefined;
+		originPending: boolean | undefined;
+		targetPending: boolean | undefined;
+		originTextLength: number | undefined;
+		targetTextLength: number | undefined;
+		originTextPreview: string;
+		targetTextPreview: string;
+		originHasBBox: boolean | undefined;
+		targetHasBBox: boolean | undefined;
+	}>;
+}
+
+export function collectQdpxPdfContinuedByDiagnostics(
+	sources: ParsedSource[],
+	links: ParsedLink[],
+	resolver: GuidResolver,
+	markers: PdfMarker[],
+): QdpxPdfContinuedByDiagnostics {
+	const pdfSources = sources.filter((src) => src.type === 'pdf');
+	const selectionToSource = new Map<string, ParsedSource>();
+	const selectionToParsed = new Map<string, ParsedSelection>();
+	const markerById = new Map(markers.map((m) => [m.id, m]));
+	const continuedByLinks = links.filter((link) => link.label.trim().toLowerCase() === 'continued by');
+
+	for (const src of pdfSources) {
+		for (const sel of src.selections) {
+			if (!sel.guid) continue;
+			selectionToSource.set(sel.guid, src);
+			selectionToParsed.set(sel.guid, sel);
+		}
+	}
+
+	const rows = pdfSources.map((src) => {
+		const filePath = resolver.sources.get(src.guid) ?? '';
+		const stats = collectPairedPdfSelectionStats(src);
+		const sourceLinks = continuedByLinks.filter((link) =>
+			selectionToSource.get(link.originGuid) === src || selectionToSource.get(link.targetGuid) === src
+		);
+		const endpointGuids = new Set<string>();
+		for (const link of sourceLinks) {
+			if (selectionToSource.get(link.originGuid) === src) endpointGuids.add(link.originGuid);
+			if (selectionToSource.get(link.targetGuid) === src) endpointGuids.add(link.targetGuid);
+		}
+		const mappedMarkerIds = [...endpointGuids]
+			.map((guid) => resolver.selections.get(guid))
+			.filter((id): id is string => !!id);
+		const mappedMarkers = mappedMarkerIds
+			.map((id) => markerById.get(id))
+			.filter((marker): marker is PdfMarker => !!marker);
+		const pendingMarkers = mappedMarkers.filter(isImportedPdfMarkerPending);
+		const shortTextMarkers = mappedMarkers.filter((m) => (m.text?.length ?? 0) < 64);
+		const pendingShortTextMarkers = shortTextMarkers.filter(isImportedPdfMarkerPending);
+
+		return {
+			source: src.name,
+			filePath,
+			pdfSelections: stats.pdfSelections,
+			plainTextSelections: stats.plainTextSelections,
+			pairedSelections: stats.pairedSelections,
+			continuedByLinks: sourceLinks.length,
+			continuedBySelectionEndpoints: endpointGuids.size,
+			continuedByMappedMarkers: mappedMarkers.length,
+			continuedByPendingMarkers: pendingMarkers.length,
+			continuedByShortTextMarkersLt64: shortTextMarkers.length,
+			continuedByPendingShortTextMarkersLt64: pendingShortTextMarkers.length,
+			continuedByMarkersWithBBox: mappedMarkers.filter((m) => !!m.importedPdfSelectionBBox).length,
+			continuedByPendingMarkersWithBBox: pendingMarkers.filter((m) => !!m.importedPdfSelectionBBox).length,
+			continuedByUnmappedEndpoints: endpointGuids.size - mappedMarkers.length,
+		};
+	}).filter((row) => row.continuedByLinks > 0 || row.continuedByPendingMarkers > 0 || row.continuedByUnmappedEndpoints > 0);
+
+	const samples = continuedByLinks.flatMap((link) => {
+		const originSource = selectionToSource.get(link.originGuid);
+		const targetSource = selectionToSource.get(link.targetGuid);
+		const source = originSource ?? targetSource;
+		if (!source || source.type !== 'pdf') return [];
+
+		const originMarkerId = resolver.selections.get(link.originGuid);
+		const targetMarkerId = resolver.selections.get(link.targetGuid);
+		const originMarker = originMarkerId ? markerById.get(originMarkerId) : undefined;
+		const targetMarker = targetMarkerId ? markerById.get(targetMarkerId) : undefined;
+		const originSelection = selectionToParsed.get(link.originGuid);
+		const targetSelection = selectionToParsed.get(link.targetGuid);
+
+		if (!originMarker && !targetMarker) return [];
+		if (originMarker && targetMarker && !isImportedPdfMarkerPending(originMarker) && !isImportedPdfMarkerPending(targetMarker)) return [];
+
+		return [{
+			source: source.name,
+			filePath: resolver.sources.get(source.guid) ?? '',
+			linkId: link.guid,
+			originGuid: link.originGuid,
+			targetGuid: link.targetGuid,
+			originMarkerId,
+			targetMarkerId,
+			originPending: originMarker ? isImportedPdfMarkerPending(originMarker) : undefined,
+			targetPending: targetMarker ? isImportedPdfMarkerPending(targetMarker) : undefined,
+			originTextLength: originMarker?.text?.length ?? originSelection?.name?.length,
+			targetTextLength: targetMarker?.text?.length ?? targetSelection?.name?.length,
+			originTextPreview: previewDiagnosticText(originMarker?.text ?? originSelection?.name ?? ''),
+			targetTextPreview: previewDiagnosticText(targetMarker?.text ?? targetSelection?.name ?? ''),
+			originHasBBox: originMarker ? !!originMarker.importedPdfSelectionBBox : hasPdfSelectionBBox(originSelection ?? ({} as ParsedSelection)),
+			targetHasBBox: targetMarker ? !!targetMarker.importedPdfSelectionBBox : hasPdfSelectionBBox(targetSelection ?? ({} as ParsedSelection)),
+		}];
+	}).slice(0, 12);
+
+	return { rows, samples };
+}
+
+function reportQdpxPdfContinuedByDiagnostics(
+	sources: ParsedSource[],
+	links: ParsedLink[],
+	resolver: GuidResolver,
+	markers: PdfMarker[],
+): void {
+	const diagnostics = collectQdpxPdfContinuedByDiagnostics(sources, links, resolver, markers);
+	if (diagnostics.rows.length === 0) return;
+
+	console.groupCollapsed(`[qualia-coding] QDPX PDF continued-by diagnostics (${diagnostics.rows.length} PDF sources)`);
+	console.table(diagnostics.rows);
+	if (diagnostics.samples.length > 0) {
+		console.table(diagnostics.samples);
+	}
+	console.groupEnd();
+}
+
+function isImportedPdfMarkerPending(marker: PdfMarker): boolean {
+	return marker.beginIndex === 0 && marker.beginOffset === 0 && marker.endIndex === 0 && marker.endOffset === 0;
+}
+
+function previewDiagnosticText(text: string): string {
+	return text.replace(/\s+/g, ' ').trim().slice(0, 140);
 }
 
 // ─── Source extraction ───
@@ -808,6 +1120,23 @@ export function createPdfMarker(
 						createdAt: ts,
 						updatedAt: ts,
 					};
+					if (sel.firstX !== undefined && sel.firstY !== undefined
+						&& sel.secondX !== undefined && sel.secondY !== undefined) {
+						const pageDim = pdfDims?.[page];
+						const pageWidth = pageDim?.width ?? 612;
+						const pageHeight = pageDim?.height ?? 792;
+						const coords = atlasPdfTextRectToNormalized(sel.firstX, sel.firstY, sel.secondX, sel.secondY, pageWidth, pageHeight);
+						marker.importedPdfSelectionBBox = {
+							source: 'qdpx-pdf-selection',
+							page,
+							x: coords.x,
+							y: coords.y,
+							w: coords.w,
+							h: coords.h,
+						};
+					}
+					const textContext = buildImportedPdfTextContext(sel, pdfPlainText, resolution);
+					if (textContext) marker.importedPdfTextContext = textContext;
 					pdfData.markers.push(marker);
 					dataManager.setSection('pdf', pdfData);
 					return 1;
@@ -857,6 +1186,28 @@ function extractTextFromPlainText(
 		return null;
 	}
 	return plainText.slice(startPosition, endPosition);
+}
+
+function buildImportedPdfTextContext(
+	sel: ParsedSelection,
+	plainText: string,
+	resolution: ImportedPdfTextResolution,
+): ImportedPdfTextContext | undefined {
+	if (sel.startPosition === undefined || sel.endPosition === undefined) return undefined;
+	if (sel.startPosition < 0 || sel.endPosition > plainText.length || sel.startPosition >= sel.endPosition) return undefined;
+
+	const radius = 160;
+	const beforeStart = Math.max(0, sel.startPosition - radius);
+	const afterEnd = Math.min(plainText.length, sel.endPosition + radius);
+	return {
+		source: 'qdpx-plain-text-selection',
+		startPosition: sel.startPosition,
+		endPosition: sel.endPosition,
+		before: plainText.slice(beforeStart, sel.startPosition),
+		exact: plainText.slice(sel.startPosition, sel.endPosition),
+		after: plainText.slice(sel.endPosition, afterEnd),
+		resolutionStrategy: resolution.strategy,
+	};
 }
 
 function normalizeSelectionName(name: string | undefined): string | null {

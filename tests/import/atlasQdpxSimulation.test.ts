@@ -105,6 +105,28 @@ if (!HAS_FIXTURE) {
 			expect(resolution.strategy).toBe('name+length');
 		});
 
+		it('preserves Atlas PDFSelection bbox fields when merging with PlainTextSelection', () => {
+			let paired = 0;
+			let pairedWithBBox = 0;
+			for (const src of sources) {
+				for (const sel of mergePdfSelections(src)) {
+					if (sel.type !== 'PDFSelection' || sel.startPosition === undefined || sel.endPosition === undefined) continue;
+					paired++;
+					if (
+						sel.firstX !== undefined &&
+						sel.firstY !== undefined &&
+						sel.secondX !== undefined &&
+						sel.secondY !== undefined
+					) {
+						pairedWithBBox++;
+					}
+				}
+			}
+
+			expect(paired).toBeGreaterThan(0);
+			expect(pairedWithBBox).toBe(paired);
+		});
+
 		it('covers every coded PDF source with at least one reconstructable text marker', () => {
 			const perSource = sources.map((src) => {
 				const merged = mergePdfSelections(src);

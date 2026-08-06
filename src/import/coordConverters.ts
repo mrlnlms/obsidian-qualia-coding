@@ -52,6 +52,29 @@ export function pdfRectToNormalized(
 }
 
 /**
+ * Atlas.ti PDFSelection text rectangles are page-space hints for visual text,
+ * using a top-left origin. They are not persisted as shapes; they only restrict
+ * text-layer re-anchoring for imported PdfMarker text markers.
+ */
+export function atlasPdfTextRectToNormalized(
+  firstX: number, firstY: number,
+  secondX: number, secondY: number,
+  pageWidth: number, pageHeight: number,
+): { type: 'rect'; x: number; y: number; w: number; h: number } {
+  const left = Math.min(firstX, secondX);
+  const right = Math.max(firstX, secondX);
+  const top = Math.min(firstY, secondY);
+  const bottom = Math.max(firstY, secondY);
+  return {
+    type: 'rect',
+    x: (left / pageWidth) * 100,
+    y: (top / pageHeight) * 100,
+    w: ((right - left) / pageWidth) * 100,
+    h: ((bottom - top) / pageHeight) * 100,
+  };
+}
+
+/**
  * Convert pixel bounding box to normalized 0-1 image coords.
  * Inverse of export's imageToPixels.
  */
