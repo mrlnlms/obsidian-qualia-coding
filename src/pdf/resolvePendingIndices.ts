@@ -211,6 +211,10 @@ function normalizeSearchKey(src: string): string {
 	return normalizeSearchKeyWithMap(src).text;
 }
 
+function normalizeAtlasLigatureAliases(key: string): string {
+	return key.replace(/fff/g, 'ffi').replace(/ff/g, 'fi');
+}
+
 function findUniqueSearchKeyRange(
 	pageKey: ReturnType<typeof normalizeSearchKeyWithMap>,
 	textKey: string,
@@ -224,7 +228,10 @@ function findUniqueSearchKeyRange(
 		if (pageKey.text.indexOf(prefix, idx + 1) >= 0) continue;
 
 		const start = pageKey.startIndex[idx];
-		const end = pageKey.endIndex[idx + prefix.length - 1];
+		const pageSlice = pageKey.text.slice(idx, idx + textKey.length);
+		const fullKeyFitsAtAnchor = normalizeAtlasLigatureAliases(pageSlice) === normalizeAtlasLigatureAliases(textKey);
+		const keyEnd = idx + (fullKeyFitsAtAnchor ? textKey.length : prefix.length) - 1;
+		const end = pageKey.endIndex[keyEnd];
 		if (start === undefined || end === undefined) return null;
 		return { start, end };
 	}

@@ -206,21 +206,27 @@ def qdpx_text(sel: SelectionPair, marker: dict | None) -> str:
     return max(candidates, key=len)
 
 
-def load_coverage_rows(coverage_path: Path | None) -> dict[str, dict]:
+def load_coverage_rows(coverage_path: Path | None) -> tuple[dict[str, dict], dict[str, int]]:
     if coverage_path is None or not coverage_path.exists():
-        return {}
+        return {}, {}
     data = json.loads(coverage_path.read_text(encoding="utf-8"))
-    return {
+    rows = {
         row["markerId"]: row
         for row in data.get("rows", [])
         if row.get("markerId")
+    }
+    totals = data.get("totals", {})
+    return rows, {
+        "markers": int(totals.get("markers", len(rows))),
+        "auditedMarkers": int(totals.get("auditedMarkers", len(rows))),
+        "unauditedMarkers": int(totals.get("unauditedMarkers", 0)),
     }
 
 
 def generate_report(qdpx_path: Path, data_path: Path, coverage_path: Path | None, output_path: Path, text_limit: int | None) -> None:
     selections, users, codes = parse_qdpx(qdpx_path)
     markers = load_qualia_markers(data_path)
-    coverage = load_coverage_rows(coverage_path)
+    coverage, coverage_totals = load_coverage_rows(coverage_path)
 
     rows = []
     for sel in selections:
@@ -276,8 +282,12 @@ def generate_report(qdpx_path: Path, data_path: Path, coverage_path: Path | None
             coverage_class = row.get("coverageClass") or ("match" if row.get("matches") else "unclassified")
             coverage_classes[coverage_class] = coverage_classes.get(coverage_class, 0) + 1
         lines.append(f"- Coverage audit: `{coverage_path}`")
-        lines.append(f"- Coverage matches: `{coverage_matches}/{len(coverage)}`")
-        lines.append(f"- Coverage mismatches: `{len(coverage) - coverage_matches}`")
+        audited_total = coverage_totals.get("auditedMarkers", len(coverage))
+        marker_total = coverage_totals.get("markers", total)
+        unaudited_total = coverage_totals.get("unauditedMarkers", max(marker_total - audited_total, 0))
+        lines.append(f"- Coverage audit: `{audited_total}/{marker_total}` markers observados; `{unaudited_total}` sem observacao")
+        lines.append(f"- Coverage matches: `{coverage_matches}/{audited_total}`")
+        lines.append(f"- Coverage mismatches: `{len(coverage) - coverage_matches}/{audited_total}`")
         lines.append("- Coverage classes: " + ", ".join(f"`{name}={count}`" for name, count in sorted(coverage_classes.items())))
     elif coverage_path is not None:
         lines.append(f"- Coverage audit: nao encontrado em `{coverage_path}`")

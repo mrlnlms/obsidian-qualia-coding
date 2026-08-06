@@ -10,10 +10,20 @@ Estado mais recente validado em smoke real no Obsidian:
 - import final: `203` `PdfMarker` textuais, `0` `PdfShapeMarker`;
 - apos `plain-text-context`: `203/203` resolvidos, `0/203` pendentes;
 - todos os `23` markers com `continued by` foram resolvidos;
-- auditoria de cobertura visual inicial: `112/203` matches e `91/203` mismatches;
-- classificacao dos `91` mismatches iniciais: `85` eram `covered-prefix`, ou seja, range truncado no comeco correto;
+- auditoria estrutural final apos o ultimo ciclo: `203/203` resolvidos, `0` pendentes e `0` shapes;
+- cobertura visual observada no ultimo snapshot: `172/203` markers auditados, `153` matches e `19` mismatches;
+- os `31` restantes ficaram `unaudited` no snapshot, portanto nao ha evidencia visual global fechada;
+- entre os auditados, os mismatches sao `16` `covered-prefix` e `3` `covered-inside-expected`;
 - snapshot runtime fica em `imports/_qualia-pdf-marker-current-status.json`.
 - coverage runtime fica em `imports/_qualia-pdf-marker-coverage-audit.json`.
+
+## Ultima avaliacao - 2026-08-06
+
+O ciclo manual de reimport e abertura dos PDFs confirmou o contrato estrutural do import: `203/203` `PdfMarker` textuais resolvidos, `0` pendentes, `0` `PdfShapeMarker` e `23/23` markers com `continued by` resolvidos. Isso indica que a reancoragem e a preservacao dos markers continuam funcionando.
+
+O snapshot de cobertura foi gerado em `2026-08-06T23:28:56.451Z`. Ele observou `172/203` markers: `153` matches e `19` mismatches. Os mismatches observados sao majoritariamente `covered-prefix`, isto e, a ancora inicial bate mas o range termina cedo; os outros `3` sao `covered-inside-expected`. Nao apareceu `wrong-range-or-page` neste snapshot.
+
+Conclusao operacional: houve evolucao, mas o resultado visual ainda nao esta fechado para os `203`, porque `31` markers nao foram observados pelo auditor nessa rodada. Os `19` casos auditados devem ser tratados como truncamentos reais ou divergencias de text layer, nao como falha estrutural de import. Nao fazer nova alteracao heuristica com base apenas nesse snapshot parcial.
 
 Regra central:
 
@@ -42,15 +52,62 @@ Ultimas melhorias validadas:
 
 Proximo passo recomendado:
 
-1. User refaz o reload/import e abre/rola D1-D12 para gerar novo coverage audit.
+1. User refaz import limpo/reabre/rola D1-D12 para gerar novo coverage audit.
 2. Rodar `python3 scripts/audit_qdpx_pdf_import.py`.
-3. Comparar `Coverage classes`: manter `203/203` resolvidos como baseline e atacar `covered-prefix` sem remover fallback por prefixo/janela.
+3. Comparar `Coverage classes`: manter `203/203` resolvidos como baseline e atacar primeiro `covered-prefix`/ranges truncados sem remover fallback por prefixo/janela.
 
-## Estado atual - 2026-08-04
+Observacao do smoke limpo:
 
-O objetivo imediato nao e alterar o algoritmo de matching. O trabalho atual e ganhar visibilidade final pos-smoke para entender os pendentes restantes antes de qualquer nova heuristica.
+- `data.json` confirmou `203` markers, `0` pendentes, `0` shapes;
+- `_qualia-pdf-marker-coverage-audit.json` confirmou `203` markers auditados;
+- `_qualia-pdf-marker-current-status.json` ficou intermediario/stale com D12 pendente, gerado antes do coverage posterior; nao usar sozinho para negar o baseline final.
 
-Estado observado no smoke real mais recente:
+## Tentativa revertida 2026-08-06 - expansao conservadora de range apos ancora
+
+Contexto:
+
+- smoke manual pos-reimport confirmou o baseline estrutural: `203/203` resolvidos, `0` pendentes, `0` shapes;
+- coverage runtime desse smoke ficou em `113/203` matches e `90/203` mismatches;
+- `84/90` mismatches eram `covered-prefix`, confirmando range visual truncado no comeco correto.
+
+Mudanca tentada:
+
+- `findUniqueSearchKeyRange()` e `findUniqueWindowSearchKeyRange()` preservavam tambem o offset da ancora na chave normalizada da pagina;
+- depois de encontrar uma ancora unica, `expandSearchKeyRange()` tentava expandir para tras/frente enquanto `pageKey` e `textKey` continuassem iguais;
+- se a expansao acrescentasse menos de `16` caracteres normalizados, ela era descartada para evitar falsos ganhos por coincidencias curtas;
+- o fallback antigo permanecia como default quando a continuacao divergia.
+
+Resultado:
+
+- smoke visual mostrou falso positivo grave: alguns highlights vazaram para regioes/tabelas fora do trecho esperado;
+- a mudanca foi revertida no codigo;
+- manter o aprendizado: expansao por continuidade de chave textual, sozinha, nao e restricao suficiente em PDFs academicos com colunas/tabelas/ordem textual divergente.
+
+Guardrail preservado:
+
+- nenhuma conversao para `PdfShapeMarker`;
+- nenhuma alteracao na semantica de pagina vizinha;
+- nenhuma remocao/reordenacao de fallback por prefixo/janela/contexto.
+
+Validacao local antes da reversao:
+
+- `npm test -- tests/pdf/resolvePendingIndices.test.ts tests/import/qdpxImporter.test.ts` passou (`52` testes);
+- `npm run build` passou;
+- `python3 -m py_compile scripts/audit_qdpx_pdf_import.py` passou.
+
+Reversao:
+
+- codigo voltou a bater com `dd4dd9d` nos arquivos criticos (`src/pdf/resolvePendingIndices.ts`, `src/pdf/pageObserver.ts`, importer e testes focados);
+- validacao apos reversao voltou ao baseline de `50` testes focados;
+- `npm run qdpx:reset` removeu `imports/` e deixou o proximo smoke como reimport limpo.
+
+## Historico - estado de 2026-08-04 antes dos fallbacks finais
+
+Esta secao e historica. O estado atual consolidado esta no resumo executivo acima e no smoke de 2026-08-06: `203/203` resolvidos, `0` pendentes, `0` shapes.
+
+O objetivo naquele momento nao era alterar o algoritmo de matching. O trabalho era ganhar visibilidade final pos-smoke para entender os pendentes restantes antes de qualquer nova heuristica.
+
+Estado observado naquele smoke:
 
 - `203` `PdfMarker` textuais importados;
 - `0` `PdfShapeMarker`;
@@ -70,7 +127,7 @@ Pendentes por PDF:
 - D11: `0`;
 - D12: `1`.
 
-Leitura atual dos pendentes:
+Leitura dos pendentes naquele momento:
 
 - `continued by` explica parte, mas nao tudo;
 - dos `35` pendentes, `12` estao ligados a `continued by`;
@@ -84,9 +141,9 @@ Regra central preservada:
 - o resultado correto continua sendo `PdfMarker` textual com indices reais;
 - shape fallback so vale para selecoes realmente sem texto/nome textual.
 
-## Trabalho em andamento - diagnostico consolidado
+## Historico - trabalho em andamento de diagnostico consolidado
 
-Proximo chunk acordado:
+Proximo chunk acordado naquele momento:
 
 1. Implementar/ajustar um relatorio runtime unico pos-smoke por PDF, calculado a partir do estado atual final dos markers no model.
 2. O relatorio deve incluir, por PDF:
@@ -126,7 +183,7 @@ Implementado nesta retomada:
   - carregar no sample final os detalhes de falha de re-anchor por marker quando disponiveis (`reason`, bbox preview, melhores scores da pagina e paginas vizinhas);
   - manter limite de `50` apenas para a tabela de console do diagnostico de tentativa, nao para o snapshot final.
 
-Ainda falta validar por smoke manual no Obsidian.
+Naquele ponto, ainda faltava validar por smoke manual no Obsidian.
 
 ## Smoke manual 2026-08-04 - snapshot JSON
 
@@ -306,7 +363,7 @@ Leitura tecnica apos o ganho:
   - usar matching curto somente com contexto local forte/adjacencia a fragmento ja resolvido;
   - manter diagnostico para evitar falso positivo em termos comuns como `Collaboration`.
 
-## Validacao manual no Atlas.ti - pendentes atuais
+## Historico - validacao manual no Atlas.ti dos pendentes
 
 Objetivo:
 
@@ -656,7 +713,9 @@ Converter quotations textuais em retangulos/shapes nao e a solucao correta.
 
 Isso ate poderia desenhar uma regiao visual aproximada, mas muda a semantica do dado: a marcacao deixa de ser uma ancora textual e vira uma forma grafica. Para coding de PDF academico, o comportamento esperado e preservar highlights textuais.
 
-## Proximo passo tecnico recomendado
+## Historico - proximo passo tecnico recomendado em 2026-08-04
+
+Esta secao e historica e foi superada pelos fallbacks posteriores (`bbox-text`, `window fallback`, `plain-text-context` e pagina vizinha), que chegaram ao baseline validado de `203/203` resolvidos, `0` pendentes e `0` shapes.
 
 Status apos checkpoint de 2026-08-04:
 
@@ -694,7 +753,7 @@ Pipeline atual/futuro:
 
 O smoke real precisa abrir PDFs importados no Obsidian, nao apenas rodar Vitest.
 
-## Handoff para proxima sessao
+## Historico - handoff de 2026-08-04
 
 Checkpoint base: commit `d4520da` (`fix: reancorar PdfMarkers QDPX por texto`).
 

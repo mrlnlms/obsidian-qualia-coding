@@ -740,7 +740,7 @@ export class PdfPageObserver {
 				if (/[\p{L}\p{N}]/u.test(ch)) out.push(ch);
 			}
 		}
-		return out.join('');
+		return out.join('').replace(/fff/g, 'ffi').replace(/ff/g, 'fi');
 	}
 
 	private flushMarkerCoverageAudit(): void {
