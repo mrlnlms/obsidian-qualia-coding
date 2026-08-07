@@ -50,11 +50,21 @@ Ultimas melhorias validadas:
 - `npm test -- tests/pdf/resolvePendingIndices.test.ts tests/import/qdpxImporter.test.ts` passou;
 - `npm run build` passou.
 
+Erros observados no snapshot final:
+
+- `2` falsos positivos graves no D1: o texto esperado comeca em `Figure 2...`/`3.2.5 Autonomy...`, mas o range cobriu texto de licenca IEEE;
+- `16` `covered-prefix`: a ancora inicial esta correta, mas o highlight termina antes do fim esperado;
+- `3` `covered-inside-expected` fora do D1: o range comeca no meio do trecho esperado;
+- `D11` e `D12` ficaram sem mismatches;
+- nao apareceu `wrong-range-or-page` pela classificacao automatica, embora os `2` casos de licenca do D1 sejam semanticamente ranges errados.
+
 Proximo passo recomendado:
 
-1. User refaz import limpo/reabre/rola D1-D12 para gerar novo coverage audit.
-2. Rodar `python3 scripts/audit_qdpx_pdf_import.py`.
-3. Comparar `Coverage classes`: manter `203/203` resolvidos como baseline e atacar primeiro `covered-prefix`/ranges truncados sem remover fallback por prefixo/janela.
+1. Nao refazer o import: o diagnostico agora cobre `203/203` markers.
+2. Corrigir primeiro os `2` falsos positivos do D1, adicionando uma restricao que rejeite ancoras em boilerplate de licenca/rodape.
+3. Depois analisar `5-10` dos `16` `covered-prefix` e separar truncamento real de divergencia da text layer.
+4. Implementar apenas expansao seletiva apos ancora, limitada por bloco/linha/coluna visual; nunca expansao textual solta.
+5. Preservar em cada smoke `203/203` resolvidos, `0` pendentes e `0` shapes.
 
 Observacao do smoke limpo:
 
