@@ -11,9 +11,9 @@ Estado mais recente validado em smoke real no Obsidian:
 - apos `plain-text-context`: `203/203` resolvidos, `0/203` pendentes;
 - todos os `23` markers com `continued by` foram resolvidos;
 - auditoria estrutural final apos o ultimo ciclo: `203/203` resolvidos, `0` pendentes e `0` shapes;
-- cobertura visual observada no ultimo snapshot: `172/203` markers auditados, `153` matches e `19` mismatches;
-- os `31` restantes ficaram `unaudited` no snapshot, portanto nao ha evidencia visual global fechada;
-- entre os auditados, os mismatches sao `16` `covered-prefix` e `3` `covered-inside-expected`;
+- cobertura visual final apos corrigir o acumulo do auditor: `203/203` markers auditados, `182` matches e `21` mismatches;
+- `0` markers ficaram `unaudited` no snapshot final;
+- entre todos os markers, os mismatches sao `16` `covered-prefix` e `5` `covered-inside-expected`;
 - snapshot runtime fica em `imports/_qualia-pdf-marker-current-status.json`.
 - coverage runtime fica em `imports/_qualia-pdf-marker-coverage-audit.json`.
 
@@ -21,9 +21,9 @@ Estado mais recente validado em smoke real no Obsidian:
 
 O ciclo manual de reimport e abertura dos PDFs confirmou o contrato estrutural do import: `203/203` `PdfMarker` textuais resolvidos, `0` pendentes, `0` `PdfShapeMarker` e `23/23` markers com `continued by` resolvidos. Isso indica que a reancoragem e a preservacao dos markers continuam funcionando.
 
-O snapshot de cobertura foi gerado em `2026-08-06T23:28:56.451Z`. Ele observou `172/203` markers: `153` matches e `19` mismatches. Os mismatches observados sao majoritariamente `covered-prefix`, isto e, a ancora inicial bate mas o range termina cedo; os outros `3` sao `covered-inside-expected`. Nao apareceu `wrong-range-or-page` neste snapshot.
+O snapshot de cobertura final foi gerado em `2026-08-07T00:05:20.981Z`. Ele observou `203/203` markers: `182` matches e `21` mismatches. Os mismatches sao `16` `covered-prefix`, isto e, a ancora inicial bate mas o range termina cedo, e `5` `covered-inside-expected`. Nao apareceu `wrong-range-or-page` neste snapshot.
 
-Conclusao operacional: houve evolucao, mas o resultado visual ainda nao esta fechado para os `203`, porque `31` markers nao foram observados pelo auditor nessa rodada. Os `19` casos auditados devem ser tratados como truncamentos reais ou divergencias de text layer, nao como falha estrutural de import. Nao fazer nova alteracao heuristica com base apenas nesse snapshot parcial.
+Conclusao operacional: o diagnostico agora esta fechado para os `203` markers. O import estrutural esta correto; os `21` casos restantes devem ser tratados como truncamentos ou divergencias da text layer, nao como falha estrutural de import. Nao fazer expansao textual ampla: a tentativa anterior mostrou risco de vazamento para tabelas e rodapes.
 
 Regra central:
 

@@ -146,7 +146,7 @@ interface PdfMarkerCurrentStatusSnapshot {
 	samples: PdfMarkerCurrentStatusSample[];
 }
 
-interface PdfMarkerCoverageAuditRow {
+export interface PdfMarkerCoverageAuditRow {
 	filePath: string;
 	page: number;
 	markerId: string;
@@ -165,7 +165,7 @@ interface PdfMarkerCoverageAuditRow {
 	coveredPreview: string;
 }
 
-interface PdfMarkerCoverageAuditSnapshot {
+export interface PdfMarkerCoverageAuditSnapshot {
 	generatedAt: string;
 	totals: {
 		markers: number;
@@ -307,6 +307,11 @@ export class PdfPageObserver {
 		if (this.pendingResolveDiagnosticFlushTimer) {
 			clearTimeout(this.pendingResolveDiagnosticFlushTimer);
 			this.pendingResolveDiagnosticFlushTimer = null;
+		}
+		if (this.coverageAuditFlushTimer) {
+			clearTimeout(this.coverageAuditFlushTimer);
+			this.coverageAuditFlushTimer = null;
+			this.flushMarkerCoverageAudit();
 		}
 		this.pendingTextLayerRetryCounts.clear();
 

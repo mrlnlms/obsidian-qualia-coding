@@ -4,7 +4,7 @@ import type { EngineRegistration } from '../core/types';
 import { registerFileRename } from '../core/fileInterceptor';
 import { PdfCodingModel } from './pdfCodingModel';
 import { capturePdfSelection, detectCrossPageSelection, captureCrossPageSelection, type PdfSelectionResult } from './selectionCapture';
-import { PdfPageObserver } from './pageObserver';
+import { PdfPageObserver, type PdfMarkerCoverageAuditRow, type PdfMarkerCoverageAuditSnapshot } from './pageObserver';
 import { DrawInteraction } from './drawInteraction';
 import { DrawToolbar } from './drawToolbar';
 import { openPdfCodingPopover, openShapeCodingPopover } from './pdfCodingMenu';
@@ -32,6 +32,8 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	// State tracking
 	const instrumentedViewers = new WeakSet<PDFViewerChild>();
 	const observers = new Map<PDFViewerChild, PdfPageObserver>();
+	const coverageAuditRowsByMarker = new Map<string, PdfMarkerCoverageAuditRow>();
+	let coverageAuditWriteChain = Promise.resolve();
 	const drawInteractions = new Map<PDFViewerChild, DrawInteraction>();
 	const drawToolbars = new Map<PDFViewerChild, DrawToolbar>();
 	const childListeners = new Map<PDFViewerChild, Array<{ el: HTMLElement; type: string; fn: EventListener }>>();
@@ -165,7 +167,23 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 					void writePdfMarkerStatusLog(plugin, snapshot);
 				},
 				onPdfMarkerCoverageAudit: (snapshot) => {
-					void writePdfMarkerCoverageAuditLog(plugin, snapshot);
+					for (const row of snapshot.rows) coverageAuditRowsByMarker.set(row.markerId, row);
+					const rows = [...coverageAuditRowsByMarker.values()]
+						.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.page - b.page || a.range.localeCompare(b.range));
+					const mismatches = rows.filter((row) => !row.matches);
+					const mergedSnapshot: PdfMarkerCoverageAuditSnapshot = {
+						generatedAt: new Date().toISOString(),
+						totals: {
+							markers: snapshot.totals.markers,
+							auditedMarkers: rows.length,
+							matchingMarkers: rows.filter((row) => row.matches).length,
+							mismatchingMarkers: mismatches.length,
+							unauditedMarkers: Math.max(0, snapshot.totals.markers - rows.length),
+						},
+						rows,
+						mismatches,
+					};
+					coverageAuditWriteChain = coverageAuditWriteChain.then(() => writePdfMarkerCoverageAuditLog(plugin, mergedSnapshot));
 				},
 			}, pdfState);
 			observer.start();
