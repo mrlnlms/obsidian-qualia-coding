@@ -36,6 +36,7 @@ export interface PendingResolutionDiagnostics {
 	bestPrefixKeyLength?: number;
 	bestWindowKeyLength?: number;
 	bestWindowTextPreview?: string;
+	candidateRejected?: 'internal-match';
 }
 
 export interface PendingResolutionResult {
@@ -290,6 +291,45 @@ function pageOffsetsToResolvedIndices(
 	};
 }
 
+function nodeArrayPosition(nodes: HTMLElement[], index: number): number {
+	for (let i = 0; i < nodes.length; i++) {
+		const dataIndex = nodes[i]!.getAttribute('data-idx');
+		if ((dataIndex === null ? i : parseInt(dataIndex, 10)) === index) return i;
+	}
+	return -1;
+}
+
+function extractResolvedRangeText(nodes: HTMLElement[], resolved: ResolvedIndices): string {
+	let beginPosition = nodeArrayPosition(nodes, resolved.beginIndex);
+	let endPosition = nodeArrayPosition(nodes, resolved.endIndex);
+	if (beginPosition < 0 || endPosition < 0) return '';
+	if (endPosition < beginPosition) [beginPosition, endPosition] = [endPosition, beginPosition];
+
+	let endOffset = resolved.endOffset;
+	if (endOffset === 0 && endPosition > beginPosition) {
+		endPosition--;
+		endOffset = nodes[endPosition]?.textContent?.length ?? 0;
+	}
+
+	const parts: string[] = [];
+	for (let position = beginPosition; position <= endPosition; position++) {
+		const value = nodes[position]?.textContent ?? '';
+		const start = position === beginPosition ? Math.min(resolved.beginOffset, value.length) : 0;
+		const end = position === endPosition ? Math.min(endOffset, value.length) : value.length;
+		if (end > start) parts.push(value.slice(start, end));
+	}
+	return parts.join(' ');
+}
+
+/** Reject a candidate that found only an internal window of the quotation. */
+function startsAtExpectedText(nodes: HTMLElement[], text: string, resolved: ResolvedIndices): boolean {
+	const expectedKey = normalizeAtlasLigatureAliases(normalizeSearchKey(text));
+	const coveredKey = normalizeAtlasLigatureAliases(normalizeSearchKey(extractResolvedRangeText(nodes, resolved)));
+	const prefixLength = Math.min(32, expectedKey.length, coveredKey.length);
+	return prefixLength >= MIN_PLAIN_TEXT_CONTEXT_KEY_LENGTH
+		&& coveredKey.slice(0, prefixLength) === expectedKey.slice(0, prefixLength);
+}
+
 function resolveInOrderedNodes(nodes: HTMLElement[], text: string, options: { minUniqueKeyLength?: number; allowWindowFallback?: boolean; minWindowKeyLength?: number } = {}): PendingResolutionResult {
 	const { pageText, nodeStarts } = buildPageText(nodes);
 	let windowFallbackMatch: { length: number; textKeyOffset: number } | null = null;
@@ -356,6 +396,19 @@ function resolveInOrderedNodes(nodes: HTMLElement[], text: string, options: { mi
 		return {
 			resolved: null,
 			diagnostics: makeDiagnostics('position-map-failed', text, pageText.length, nodes.length),
+		};
+	}
+	if (!startsAtExpectedText(nodes, text, resolved)) {
+		return {
+			resolved: null,
+			diagnostics: makeDiagnostics('not-found', text, pageText.length, nodes.length, {
+				candidateRejected: 'internal-match',
+				...(windowFallbackMatch ? {
+					bestWindowKeyLength: windowFallbackMatch.length,
+					bestWindowTextPreview: previewWindowFromTextKeyOffset(text, windowFallbackMatch.textKeyOffset),
+					resolvedBy: 'window-text' as const,
+				} : {}),
+			}),
 		};
 	}
 
@@ -445,6 +498,9 @@ function resolveWithPlainTextContext(nodes: HTMLElement[], text: string, context
 						plainTextContextBestWindowKeyLength: len,
 					}),
 				};
+			}
+			if (!startsAtExpectedText(nodes, text, resolved)) {
+				continue;
 			}
 
 			bestWindowPreview = previewWindowFromTextKeyOffset(contextText, windowStart);
