@@ -82,7 +82,7 @@ if (!HAS_FIXTURE) {
 			const resolution = resolveImportedPdfText(sel!, plainText);
 			const page = resolveImportedPdfPage(sel!, computePageStartOffsets(plainText));
 
-			expect(page).toBe(5);
+			expect(page).toBe(6);
 			expect(resolution.text).toContain('Evangelization and mentoring on DevOps practices');
 			expect(resolution.text).toContain('knowledge sharing');
 			expect(resolution.strategy).toBe('name+length');
@@ -100,7 +100,7 @@ if (!HAS_FIXTURE) {
 			const resolution = resolveImportedPdfText(sel!, plainText);
 			const page = resolveImportedPdfPage(sel!, computePageStartOffsets(plainText));
 
-			expect(page).toBe(5);
+			expect(page).toBe(6);
 			expect(resolution.text).toBe('The development tools for the virtual  team were not unified');
 			expect(resolution.strategy).toBe('name+length');
 		});

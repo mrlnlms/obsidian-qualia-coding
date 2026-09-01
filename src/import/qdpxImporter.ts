@@ -539,7 +539,7 @@ function hasPdfSelectionBBox(sel: ParsedSelection): boolean {
 		&& sel.secondX !== undefined && sel.secondY !== undefined;
 }
 
-function buildPdfMultipageFragmentHints(src: ParsedSource): Map<string, QdpxMultipageFragmentHint> {
+export function buildPdfMultipageFragmentHints(src: ParsedSource): Map<string, QdpxMultipageFragmentHint> {
 	const hints = new Map<string, QdpxMultipageFragmentHint>();
 	const textSelectionGuids = new Set(src.selections
 		.filter((sel) => sel.type === 'PlainTextSelection')

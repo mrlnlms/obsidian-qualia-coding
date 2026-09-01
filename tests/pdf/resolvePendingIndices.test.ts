@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { resolvePendingIndices, resolvePendingIndicesWithDiagnostics, diagnosePendingTextSearch, isMarkerPending } from '../../src/pdf/resolvePendingIndices';
+import { resolvePendingIndices, resolvePendingIndicesInTextContentItems, resolvePendingIndicesWithDiagnostics, diagnosePendingTextSearch, isMarkerPending } from '../../src/pdf/resolvePendingIndices';
 
 function makePage(nodes: string[]): HTMLElement {
 	const page = document.createElement('div');
@@ -326,5 +326,71 @@ describe('resolvePendingIndices', () => {
 		expect(r.diagnostics.bboxTextPreview).toContain('wrong local text');
 		expect(r.diagnostics.bboxBestPrefixKeyLength).toBe(0);
 		expect(r.diagnostics.bboxBestWindowKeyLength).toBe(0);
+	});
+});
+
+describe('resolvePendingIndicesInTextContentItems', () => {
+	it('mapeia correspondência exata para índices e offsets dos itens PDF.js', () => {
+		const items = [
+			{ str: 'Header' },
+			{ str: 'The development tools ' },
+			{ str: 'are reliable.' },
+			{ str: 'Footer' },
+		];
+		const result = resolvePendingIndicesInTextContentItems(items, 'The development tools are reliable.');
+
+		expect(result.resolved).toEqual({
+			beginIndex: 1,
+			beginOffset: 0,
+			endIndex: 2,
+			endOffset: items[2]!.str.indexOf('.'),
+		});
+		expect(result.diagnostics).toMatchObject({
+			reason: 'resolved',
+			resolvedBy: 'text-content-items',
+			textContentItemsMatchKind: 'exact',
+			textContentItemsEditDistance: 0,
+		});
+	});
+
+	it('tolera uma diferença mínima de glifo depois de um prefixo único', () => {
+		const items = [{ str: 'The infrastructure team supports a reliable development workflow.' }];
+		const result = resolvePendingIndicesInTextContentItems(
+			items,
+			'The infrastructure team supports a reliable development workfiow.',
+		);
+
+		expect(result.resolved).toEqual({
+			beginIndex: 0,
+			beginOffset: 0,
+			endIndex: 0,
+			endOffset: items[0]!.str.indexOf('.'),
+		});
+		expect(result.diagnostics).toMatchObject({
+			resolvedBy: 'text-content-items',
+			textContentItemsMatchKind: 'bounded-fuzzy',
+			textContentItemsEditDistance: 1,
+		});
+	});
+
+	it('rejeita fallback difuso quando o prefixo aparece mais de uma vez', () => {
+		const repeated = 'The infrastructure team supports a reliable development workflow.';
+		const result = resolvePendingIndicesInTextContentItems(
+			[{ str: repeated }, { str: repeated }],
+			'The infrastructure team supports a reliable development workfiow.',
+		);
+
+		expect(result.resolved).toBeNull();
+		expect(result.diagnostics.reason).toBe('not-found');
+	});
+
+	it('rejeita candidato único que excede a distância de edição permitida', () => {
+		const result = resolvePendingIndicesInTextContentItems(
+			[{ str: 'Unique infrastructure quotation prefix followed by unrelated table data and numeric columns.' }],
+			'Unique infrastructure quotation prefix followed by a completely different narrative conclusion.',
+		);
+
+		expect(result.resolved).toBeNull();
+		expect(result.diagnostics.reason).toBe('not-found');
 	});
 });

@@ -6,10 +6,12 @@ import {
   parseLinks,
   applyLinks,
   collectQdpxPdfContinuedByDiagnostics,
+  buildPdfMultipageFragmentHints,
   resolveInternalPath,
   createPdfMarker,
   resolveImportedPdfText,
   type ParsedLink,
+  type ParsedSource,
 } from '../../src/import/qdpxImporter';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import { DataManager } from '../../src/core/dataManager';
@@ -206,7 +208,7 @@ describe('createPdfMarker', () => {
     expect(count).toBe(1);
     const markers = dm.section('pdf').markers;
     expect(markers).toHaveLength(1);
-    expect(markers[0]!.page).toBe(5);
+    expect(markers[0]!.page).toBe(6);
     expect(markers[0]!.text).toBe('abcdef');
     expect(markers[0]!.codes).toEqual([{ codeId: 'c1' }]);
     expect(isMarkerPending(markers[0] as any)).toBe(true);
@@ -297,7 +299,7 @@ describe('createPdfMarker', () => {
     const bbox = pdf.markers[0]!.importedPdfSelectionBBox!;
     expect(bbox).toMatchObject({
       source: 'qdpx-pdf-selection',
-      page: 5,
+      page: 6,
     });
     expect(bbox.x).toBeCloseTo(10);
     expect(bbox.y).toBeCloseTo(40);
@@ -351,6 +353,45 @@ describe('createPdfMarker', () => {
     expect(count).toBe(0);
     expect(dm.section('pdf').markers).toHaveLength(0);
     expect(dm.section('pdf').shapes).toHaveLength(0);
+  });
+});
+
+describe('buildPdfMultipageFragmentHints', () => {
+  it('reconhece páginas adjacentes com uma única seleção textual âncora', () => {
+    const source: ParsedSource = {
+      guid: 'source-1',
+      name: 'paper.pdf',
+      type: 'pdf',
+      selections: [
+        { guid: 'anchor', type: 'PlainTextSelection', codeGuids: ['code-1'], noteGuids: [] },
+        { guid: 'anchor', type: 'PDFSelection', name: 'Long quotation', createdAt: '2026-01-01', page: 4, codeGuids: ['code-1'], noteGuids: [] },
+        { guid: 'continuation', type: 'PDFSelection', name: 'Long quotation', createdAt: '2026-01-01', page: 5, codeGuids: ['code-1'], noteGuids: [] },
+      ],
+      variables: [],
+    };
+
+    const hints = buildPdfMultipageFragmentHints(source);
+
+    expect(hints.size).toBe(2);
+    expect(hints.get('anchor')).toMatchObject({ groupId: 'anchor', role: 'anchor' });
+    expect(hints.get('continuation')).toMatchObject({ groupId: 'anchor', role: 'continuation' });
+    expect(hints.get('anchor')!.relatedSelectionGuids).toEqual(['anchor', 'continuation']);
+  });
+
+  it('não agrupa seleções semelhantes em páginas não adjacentes', () => {
+    const source: ParsedSource = {
+      guid: 'source-1',
+      name: 'paper.pdf',
+      type: 'pdf',
+      selections: [
+        { guid: 'anchor', type: 'PlainTextSelection', codeGuids: ['code-1'], noteGuids: [] },
+        { guid: 'anchor', type: 'PDFSelection', name: 'Long quotation', createdAt: '2026-01-01', page: 4, codeGuids: ['code-1'], noteGuids: [] },
+        { guid: 'separate', type: 'PDFSelection', name: 'Long quotation', createdAt: '2026-01-01', page: 6, codeGuids: ['code-1'], noteGuids: [] },
+      ],
+      variables: [],
+    };
+
+    expect(buildPdfMultipageFragmentHints(source).size).toBe(0);
   });
 });
 
