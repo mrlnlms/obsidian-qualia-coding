@@ -1,0 +1,450 @@
+# QDPX multicoder — desenho aprovado e tasklist de retomada
+
+> Data: 2026-09-01
+>
+> Branch de partida: `fix/qdpx-atlas-page-anchoring`
+>
+> Estado: desenho aprovado; implementação multicoder ainda não iniciada.
+
+## Como retomar em outra sessão
+
+1. Confirmar que a branch atual parte de `fix/qdpx-atlas-page-anchoring` ou contém
+   seus commits.
+2. Ler este documento inteiro.
+3. Ler os três diagnósticos canônicos referenciados abaixo.
+4. Não usar `data.json` como memória da investigação: o usuário o apaga durante os
+   testes.
+5. Começar pelo **Marco 1 — importação multicoder de uma página**.
+6. Não iniciar multipágina, zebra ou redesign geral da margin panel antes de fechar
+   o Marco 1 e o round-trip simples.
+
+## Documentos canônicos
+
+- [Diagnóstico de ancoragem e multipágina](../../_research/qdpx-atlas-multipage-diagnostic.md)
+  — evidência do QDPX real, inspeção manual e os seis casos multipágina;
+- [Arquitetura atual da margin panel](../../_research/pdf-margin-panel-multipage-architecture.md)
+  — overlay, colunas, rótulos, eventos e tamanho da mudança multipágina;
+- [Autoria, round-trip e decisões multicoder](../../_research/qdpx-atlas-coder-roundtrip-margin-panel.md)
+  — perda atual de Users/Codings, decisão por marker por coder e identidade ativa;
+- `docs/deep-research-ia-qdpx-atlas/` — pesquisas externas usadas como insumo,
+  não como especificação automática do produto;
+- `_MULTIPAGE reference.md`, na raiz do vault de trabalho — inspeção visual do
+  usuário e capturas do Obsidian.
+
+## Baseline que já funciona
+
+O trabalho anterior corrigiu a ancoragem QDPX/Atlas de uma página:
+
+- 203 markers PDF importados caem nas páginas visuais esperadas;
+- os 191 markers que não pertencem aos grupos multipágina foram resolvidos;
+- 182 têm correspondência textual exata;
+- 9 têm apenas diferenças mínimas de glifo, com cobertura entre 98,9% e 100%;
+- os 12 fragmentos restantes pertencem exclusivamente a 6 seleções multipágina;
+- a suíte registrada nesse checkpoint tinha 258 arquivos e 3.637 testes aprovados,
+  além de build aprovado.
+
+Commits da baseline:
+
+- `0c9f4f3` — converter páginas QDPX para a numeração do viewer;
+- `65b06e5` — capturar text items para diagnóstico;
+- `1e82321` — resolver âncoras importadas a partir de text items;
+- `6a50a29` — preservar a página declarada pelo QDPX;
+- `882cbbf` — cobrir a ancoragem Atlas com testes.
+
+Não existe uma nova frente de “terminar os markers simples”. Eles são o baseline
+estável. A próxima perda relevante ocorre antes da ancoragem: o importer descarta
+autoria.
+
+## Problema que o próximo marco resolve
+
+O QDPX real declara Users e registra `creatingUser` em cada Coding. O importer
+atual reduz uma Selection a `codeGuids[]`, elimina a identidade das aplicações e
+cria markers sem `codedBy`.
+
+Isso produz três erros conectados:
+
+1. aplicações iguais de coders diferentes são colapsadas;
+2. o ICR deixa de receber a realidade do projeto Atlas;
+3. uma futura entidade multipágina seria construída sobre dados de autoria já
+   destruídos.
+
+Por isso o próximo trabalho não começa pelo painel nem por `segments[]`. Começa
+pela preservação de Users, Codings e propriedade dos markers.
+
+## Decisões aprovadas
+
+1. Uma Selection Atlas com vários coders vira um marker independente por coder.
+2. Cada marker possui sua própria geometria, códigos, memo e timestamps.
+3. Markers oriundos da mesma Selection guardam procedência comum, não estado
+   compartilhado.
+4. Mover handles de um marker nunca altera markers de outros coders.
+5. Vários códigos do mesmo coder continuam no `codes[]` do marker daquele coder.
+6. Todos os markers ficam visíveis por padrão.
+7. Apenas markers do perfil ativo são editáveis.
+8. A importação começa em **Somente leitura — não interferir no ICR**.
+9. Somente leitura é ausência de coder ativo, não um coder artificial e não
+   `human:default`.
+10. O perfil padrão do vault pode participar como um novo codificador.
+11. Escolher um coder importado define contexto de autoria local; não é
+    autenticação nem segurança.
+12. O popover não ganhará gestão de pessoas. Um marker tem um proprietário.
+13. Remover uma aplicação de código é uma operação individual; alterar a definição
+    do código no codebook continua sendo global.
+14. Uma eventual compactação `×N` será apenas visual e posterior.
+15. Compare Coders/ICR sempre consome os markers individuais.
+
+## Alternativas descartadas para o primeiro marco
+
+### Começar pelo multipágina
+
+Foi descartado porque consolidaria `segments[]` depois de a autoria já ter sido
+colapsada pelo importer. A migração seguinte teria de desfazer o próprio modelo
+recém-criado.
+
+### Começar pela margin panel
+
+Foi descartado porque o painel atual não recebe informação suficiente para saber
+se uma repetição representa outro código, outro coder ou outro fragmento. Melhorar
+o layout antes de corrigir os dados esconderia a perda sem resolvê-la.
+
+### Criar somente o seletor “Quem é você?”
+
+Foi descartado como etapa isolada porque a interface não teria Users nem Codings
+fiéis para operar. O seletor precisa fazer parte de um fluxo vertical que chegue
+até markers per-coder e bloqueio de edição.
+
+### Adotar a quotation compartilhada do Atlas
+
+Foi descartado. O Qualia normalizará o dado externo para seu modelo de marker por
+coder. A identidade da Selection Atlas será preservada apenas como procedência.
+
+## Sequência global
+
+- [x] Estabilizar ancoragem QDPX de uma página.
+- [x] Diagnosticar os seis grupos multipágina no QDPX e no vault real.
+- [x] Mapear a arquitetura atual da margin panel.
+- [x] Definir a semântica multicoder e a política de identidade ativa.
+- [ ] **Marco 1:** importar corretamente autoria multicoder em seleções PDF de uma
+  página.
+- [ ] **Marco 2:** garantir round-trip multicoder para essas seleções simples.
+- [ ] **Marco 3:** criar marker lógico multipágina por coder, com `segments[]`.
+- [ ] **Marco 4:** entregar a margin panel mínima correta para multipágina e
+  autoria.
+- [ ] **Marco 5:** refatorar layout espacial, filtros e compactações visuais.
+
+Cada marco deve funcionar manualmente no vault real antes de os testes daquele
+recorte serem consolidados. Isso não significa acumular toda a cobertura para o
+final do projeto: os testes fecham um marco depois que seu comportamento foi
+compreendido e validado.
+
+## Marco 1 — importação multicoder de uma página
+
+### Objetivo observável
+
+Importar o QDPX Atlas real, visualizar os markers de uma página separados por
+coder e não conseguir alterar nenhum deles enquanto o projeto estiver em modo
+somente leitura.
+
+Ao selecionar um coder, apenas os markers dele podem ser alterados. Ao selecionar
+`human:default`, uma nova aplicação no mesmo intervalo deve criar um marker novo,
+sem reutilizar ou modificar o marker importado de outra pessoa.
+
+### Escopo incluído
+
+- Users do QDPX;
+- Codings individuais e seu `creatingUser`;
+- pareamento `PDFSelection + PlainTextSelection` sem duplicar a mesma aplicação;
+- seleções PDF textuais de uma única página;
+- criação de um marker por Selection × coder;
+- vários códigos do mesmo coder dentro do mesmo marker;
+- procedência da Selection e das aplicações para round-trip futuro;
+- preview com os coders encontrados;
+- escolha de participação na importação;
+- modo somente leitura explícito e pré-selecionado;
+- edição restrita ao proprietário ativo;
+- busca de marker coincidente considerando o coder ativo;
+- visibilidade de todos os markers importados no painel atual;
+- validação manual no QDPX e no vault reais;
+- testes e build depois da validação funcional.
+
+### Fora do escopo
+
+- agrupar os doze fragmentos multipágina;
+- introduzir `segments[]`;
+- desenhar zebra entre páginas;
+- rótulo único multipágina;
+- redesenhar colunas, colisões ou labels da margin panel;
+- compactação `×N`;
+- filtros de visibilidade por coder;
+- modificar a interface de Compare Coders;
+- reconciliar divergências;
+- imitar o versionamento por cópias e merges do Atlas;
+- remover cabeçalhos, rodapés ou tabelas do texto PDF;
+- expandir a mesma mudança a todas as modalidades no primeiro slice.
+
+## Contratos de dados do Marco 1
+
+### Parsing
+
+O modelo intermediário da importação precisa representar, no mínimo:
+
+- User: GUID externo e nome;
+- Coding: GUID, GUID do código, GUID do `creatingUser`, timestamp e referências de
+  nota quando existirem;
+- Selection: GUID, geometria/âncora, lista de Codings e metadados próprios.
+
+`codeGuids[]` não pode continuar sendo a única representação de uma Selection.
+Deduplicação deve reconhecer a identidade da aplicação e o pareamento entre as
+representações visual e textual do PDF; nunca pode usar somente `codeId`.
+
+### Identidade de coder
+
+O GUID externo é a identidade autoritativa do User durante a importação. Nome é
+apresentação, não chave.
+
+- mesmo GUID externo reimportado deve resolver para o mesmo coder local;
+- nomes iguais com GUIDs diferentes não podem ser fundidos silenciosamente;
+- coincidência entre o nome do operador e um User importado não seleciona esse
+  perfil automaticamente;
+- User importado sem aplicações pode ser preservado para round-trip;
+- `human:default` sem contribuição não entra em contagens de ICR apenas por existir
+  no registry.
+
+O registry precisará persistir uma referência externa estável por coder. O formato
+concreto pode ser um campo opcional no Coder ou um mapa de identidades externas,
+desde que suporte mais de uma importação sem usar o nome como chave.
+
+### Procedência de marker e aplicação
+
+O marker precisa guardar o GUID da Selection externa que o originou. Cada aplicação
+de código precisa preservar metadados suficientes para reemitir o Coding,
+especialmente GUID e timestamp quando presentes.
+
+Essa procedência:
+
+- auxilia reimportação e round-trip;
+- permite reconhecer markers irmãos de origem;
+- não autoriza propagação de handles, códigos, memos ou exclusões entre eles.
+
+### Contexto de edição
+
+O estado precisa distinguir três situações:
+
+- dado legado sem escolha persistida: mantém `human:default` como comportamento
+  retrocompatível;
+- coder ativo válido: novas marcações pertencem a ele e apenas seus markers são
+  editáveis;
+- somente leitura explícito: nenhum coder ativo e nenhuma mutação de marker
+  permitida.
+
+Hoje `getActiveCoderId()` sempre retorna `human:default` como fallback. O novo
+desenho não pode representar somente leitura apenas apagando o valor, pois isso
+ativaria o fallback. A implementação deve introduzir um estado explícito e uma API
+que permita consultar “há um coder editável?” sem confundir ausência deliberada
+com dado legado.
+
+O bloqueio deve existir na camada de mutação, não apenas ocultando botões. A UI
+também deve comunicar o estado, mas chamadas indiretas não podem alterar markers
+estrangeiros.
+
+## Fluxo de importação aprovado
+
+Depois que o usuário seleciona um QDPX, o preview mostra as informações existentes
+e acrescenta “Quem é você neste projeto?”.
+
+Ordem das opções:
+
+1. **Somente leitura — não interferir no ICR**, pré-selecionada;
+2. coders importados, identificados pelo nome;
+3. **Perfil padrão deste vault — participar como novo codificador**.
+
+A importação pode prosseguir com a primeira opção. Depois da importação, o seletor
+de perfil existente deve permitir sair de somente leitura e escolher um coder
+importado ou o perfil padrão.
+
+A importação sempre preserva a autoria declarada pelo arquivo. A opção escolhida
+define quem operará o projeto depois da importação; ela não reatribui markers
+importados.
+
+## Tasklist executável do Marco 1
+
+### A. Parser e preview
+
+- [ ] Introduzir tipos intermediários para User e Coding.
+- [ ] Ler `<Users>` e preservar GUID/nome.
+- [ ] Ler cada `<Coding>` com GUID, `creatingUser`, timestamp, CodeRef e NoteRefs.
+- [ ] Correlacionar `PDFSelection` e `PlainTextSelection` sem colapsar coders.
+- [ ] Expor coders e quantidade de aplicações no `ImportPreview`.
+- [ ] Emitir warning para Coding com User ausente ou desconhecido, preservando-o
+  como não editável e fora do ICR até haver atribuição explícita.
+
+### B. Persistência e normalização
+
+- [ ] Adicionar referência externa estável ao CoderRegistry.
+- [ ] Importar Users antes de criar markers.
+- [ ] Adicionar procedência QDPX opcional ao marker e à aplicação de código.
+- [ ] Normalizar cada Selection de uma página em um marker por coder.
+- [ ] Manter os códigos daquele coder no `codes[]` de seu marker.
+- [ ] Garantir IDs locais distintos mesmo quando bounds e códigos coincidirem.
+- [ ] Preservar coders importados sem aplicações.
+
+### C. Participação e somente leitura
+
+- [ ] Representar somente leitura sem criar um coder artificial.
+- [ ] Preservar o fallback `human:default` para vaults legados/não importados.
+- [ ] Mostrar no preview a escolha “Quem é você neste projeto?”.
+- [ ] Deixar “Somente leitura — não interferir no ICR” pré-selecionado.
+- [ ] Persistir a escolha de participação após a importação.
+- [ ] Permitir troca posterior pelo seletor de perfil.
+
+### D. Propriedade e edição PDF
+
+- [ ] Fazer busca de marker em intervalo exato considerar o coder ativo.
+- [ ] Impedir criação de marker em somente leitura.
+- [ ] Impedir resize, remoção de aplicação e exclusão de marker estrangeiro.
+- [ ] Permitir edição normal do marker pertencente ao coder ativo.
+- [ ] Manter todos os markers visíveis independentemente do perfil ativo.
+- [ ] Indicar autoria usando a apresentação mínima que a interface atual comportar,
+  sem iniciar o redesign da margin panel.
+- [ ] Confirmar que operações globais do codebook continuam globais e claramente
+  distintas de remover uma aplicação individual.
+
+### E. Validação funcional antes dos testes
+
+- [ ] Importar o QDPX real com `data.json` limpo.
+- [ ] Confirmar os Users esperados no preview e no registry.
+- [ ] Confirmar que somente leitura vem selecionado e bloqueia mutações.
+- [ ] Inspecionar uma Selection com o mesmo código aplicado por quatro pessoas.
+- [ ] Confirmar quatro markers/proprietários distintos e uma procedência comum.
+- [ ] Selecionar um coder importado e alterar somente seu marker.
+- [ ] Confirmar que os outros três permanecem idênticos.
+- [ ] Selecionar `human:default` e codificar o mesmo intervalo.
+- [ ] Confirmar criação de um novo marker, sem reutilizar qualquer importado.
+- [ ] Trocar novamente para somente leitura e confirmar o bloqueio.
+- [ ] Conferir que o painel atual mostra todos os registros, mesmo congestionado.
+- [ ] Registrar contagens e evidências no documento de diagnóstico, não depender de
+  `data.json` preservado.
+
+### F. Cobertura depois do funcionamento
+
+- [ ] Cobrir parsing de Users e Codings.
+- [ ] Cobrir pareamento PDFSelection/PlainTextSelection sem dupla contagem.
+- [ ] Cobrir marker por coder para bounds e código coincidentes.
+- [ ] Cobrir GUID externo como identidade, inclusive nomes iguais.
+- [ ] Cobrir somente leitura explícito versus fallback legado.
+- [ ] Cobrir busca exata de marker por coder.
+- [ ] Cobrir bloqueios de mutação de marker estrangeiro.
+- [ ] Rodar a suíte completa.
+- [ ] Rodar build.
+
+## Critérios de conclusão do Marco 1
+
+O marco só termina quando todas as condições abaixo forem verdadeiras:
+
+1. nenhum Coding de uma Selection simples é perdido por deduplicação baseada apenas
+   em código;
+2. cada marker importado possui o coder correto ou um estado estrangeiro não
+   editável acompanhado de warning;
+3. todas as marcações permanecem visíveis;
+4. somente leitura realmente impede mutações;
+5. escolher um coder habilita apenas os markers dele;
+6. `human:default` cria contribuição nova e independente;
+7. a ancoragem simples permanece no baseline anterior;
+8. o comportamento foi validado no vault real;
+9. testes do recorte e suíte completa passam;
+10. build passa.
+
+## Arquivos provavelmente envolvidos no Marco 1
+
+Esta lista orienta a retomada; não é autorização para refatorações laterais.
+
+- `src/import/qdpxImporter.ts` — Users, Codings, preview e normalização;
+- `src/import/importModal.ts` — escolha de participação;
+- `src/core/icr/coderTypes.ts` — referência externa e estado compatível;
+- `src/core/icr/coderRegistry.ts` — resolução por identidade externa;
+- `src/core/types.ts` — persistência do contexto e procedência compartilhada;
+- `src/main.ts` — contrato do perfil ativo / somente leitura;
+- `src/pdf/pdfCodingTypes.ts` — procedência da Selection PDF;
+- `src/pdf/pdfCodingModel.ts` — criação, lookup e guardas de propriedade;
+- `src/pdf/pdfCodingMenu.ts` e surfaces de handles/popover — comunicação e bloqueio
+  de edição;
+- testes de importação, modelo PDF e migração de dados correspondentes.
+
+Antes de editar, pesquisar todos os consumidores de `getActiveCoderId()`. A
+mudança para suportar somente leitura tem alcance transversal; o primeiro slice
+deve evitar quebrar a criação normal em Markdown, CSV, imagem, áudio e vídeo.
+
+## Marco 2 — round-trip multicoder simples
+
+Somente depois do Marco 1:
+
+- [ ] exportar Users referenciados;
+- [ ] emitir `creatingUser` em cada Coding;
+- [ ] preservar GUIDs e timestamps quando semanticamente possível;
+- [ ] reagrupar markers irmãos apenas se a geometria continuar compatível;
+- [ ] exportar markers divergentes como Selections independentes;
+- [ ] reimportar o QDPX gerado e comparar Users, autoria, códigos e bounds;
+- [ ] validar primeiro manualmente e então adicionar testes de round-trip.
+
+## Marco 3 — marker multipágina por coder
+
+- [ ] definir `segments[]` como geometria do marker lógico PDF;
+- [ ] migrar cada grupo QDPX por coder, não por Selection compartilhada;
+- [ ] resolver o texto no fluxo concatenado das páginas;
+- [ ] projetar os limites encontrados de volta para segmentos locais;
+- [ ] manter código, memo, autoria e procedência uma única vez por marker do coder;
+- [ ] adaptar consumidores sem contar segmentos como markers independentes;
+- [ ] validar os seis casos reais e os doze markers manuais `marlonnn`;
+- [ ] não remover cabeçalhos, rodapés, tabelas ou legendas do fluxo textual.
+
+## Marco 4 — margin panel mínima correta
+
+- [ ] desenhar uma rail por marker do coder × código;
+- [ ] projetar a rail por todos os segmentos do marker;
+- [ ] reservar lane consistente entre páginas;
+- [ ] atravessar o vão usando o overlay externo já existente;
+- [ ] produzir um rótulo por marker do coder × código;
+- [ ] identificar autoria;
+- [ ] propagar hover e clique para todos os segmentos;
+- [ ] mostrar handles somente para o marker do perfil ativo;
+- [ ] preservar integralmente o comportamento de markers de uma página.
+
+## Marco 5 — redesign posterior da margin panel
+
+Somente após fidelidade de dados, round-trip simples e multipágina funcional:
+
+- [ ] reavaliar o modelo de colunas/tracks;
+- [ ] separar posicionamento de rails e labels;
+- [ ] tratar saturação vertical e limites da página;
+- [ ] avaliar filtros por coder;
+- [ ] avaliar compactação visual `×N` e sua expansão;
+- [ ] decidir a interação entre markers exatamente sobrepostos;
+- [ ] manter qualquer agregação como projeção reversível, nunca fonte de verdade.
+
+## Pontos que continuam abertos
+
+Estes itens não bloqueiam o Marco 1, exceto se aparecerem diretamente durante sua
+implementação:
+
+- forma visual exata do indicador de autoria no painel atual;
+- persistência da identidade ativa por projeto versus por vault;
+- política completa para Codings sem `creatingUser` fora do corpus Atlas real;
+- formato exato da procedência externa no schema persistido;
+- regra detalhada de regroup no exporter após divergência parcial de bounds;
+- interação final entre vários markers exatamente sobrepostos;
+- posição do rótulo de uma rail multipágina quando o centro cai entre páginas.
+
+Se uma dessas decisões alterar a semântica aprovada, parar e discutir antes de
+implementar. Se for apenas escolha interna reversível dentro do Marco 1, registrar
+a decisão no commit correspondente.
+
+## Limites de trabalho
+
+- Não reabrir tentativa e erro no resolver geral.
+- Não alterar markers simples sem evidência de regressão.
+- Não assumir que divergência manual é erro do browser.
+- Não implementar saneamento de cabeçalhos, rodapés ou tabelas.
+- Não usar o comportamento do Atlas como obrigação quando ele conflitar com o
+  modelo individual por coder decidido para o Qualia.
+- Não esconder perda de dados com agregação visual.
+- Não começar o redesign completo da margin panel dentro dos Marcos 1–4.
