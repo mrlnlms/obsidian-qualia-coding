@@ -139,6 +139,14 @@ compreendido e validado.
 
 ## Marco 1 — importação multicoder de uma página
 
+### Condição do primeiro ensaio
+
+O usuário validará este marco em um vault isolado, sem códigos, markers ou coders
+locais prévios além do `human:default` estrutural. Coexistência com um codebook
+local já populado e novas políticas de conflito/merge não fazem parte deste
+marco. A identidade externa por GUID continua necessária para autoria,
+reimportação e round-trip.
+
 ### Objetivo observável
 
 Importar o QDPX Atlas real, visualizar os markers de uma página separados por
