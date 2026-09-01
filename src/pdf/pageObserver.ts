@@ -9,10 +9,15 @@
 
 import type { PDFViewerChild, PDFPageView } from './pdfTypings';
 import type { PdfCodingModel } from './pdfCodingModel';
-import type { PdfMarker } from './pdfCodingTypes';
+import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
 import type { PdfViewState } from './pdfViewState';
 import { renderHighlightsForPage, clearHighlightsForPage, updateHighlightRectsForMarker, applyHoverToHighlights, showHandlesForMarker, type HighlightCallbacks } from './highlightRenderer';
-import { renderMarginPanelForPage, clearMarginPanelForPage, applyHoverToMarginPanel } from './marginPanelRenderer';
+import {
+	renderMarginPanelForPage,
+	clearMarginPanelForPage,
+	applyHoverToMarginPanel,
+	type MarginPanelOwnerLabel,
+} from './marginPanelRenderer';
 import { renderDrawLayerForPage, clearDrawLayerForPage, applyHoverToDrawLayer, type DrawLayerCallbacks } from './drawLayer';
 import { attachDragHandles } from './dragHandles';
 import { diagnosePendingTextSearch, isMarkerPending, resolvePendingIndicesInTextContentItems, resolvePendingIndicesWithDiagnostics, type PendingResolutionDiagnostics } from './resolvePendingIndices';
@@ -588,11 +593,7 @@ export class PdfPageObserver {
 				onHover: (markerId, codeName) => this.model.setHoverState(markerId, codeName),
 			},
 			shapes,
-			(marker) => marker.codedBy
-				? this.model.plugin.coderRegistry.getById(marker.codedBy)?.name ?? marker.codedBy
-				: 'importedQdpxSelection' in marker && marker.importedQdpxSelection?.unattributedOwner
-					? 'Usuário QDPX não identificado'
-					: 'Default',
+			(marker) => this.ownerLabelForMarker(marker),
 		);
 
 		// Tag the panel with page number so we can track it in the overlay
@@ -602,6 +603,18 @@ export class PdfPageObserver {
 		}
 
 		this.updateViewerPadding();
+	}
+
+	private ownerLabelForMarker(marker: PdfMarker | PdfShapeMarker): MarginPanelOwnerLabel {
+		const fullName = marker.codedBy
+			? this.model.plugin.coderRegistry.getById(marker.codedBy)?.name ?? marker.codedBy
+			: 'importedQdpxSelection' in marker && marker.importedQdpxSelection?.unattributedOwner
+				? 'Usuário QDPX não identificado'
+				: 'Default';
+		return {
+			abbreviation: coderInitialism(fullName),
+			fullName,
+		};
 	}
 
 	private hasTextLayerNodes(pageEl: HTMLElement): boolean {
@@ -1205,4 +1218,13 @@ export class PdfPageObserver {
 			return null;
 		}
 	}
+}
+
+function coderInitialism(fullName: string): string {
+	const words = fullName.trim().split(/\s+/).filter(Boolean);
+	if (words.length === 0) return '?';
+	return words
+		.map((word) => Array.from(word)[0] ?? '')
+		.join('')
+		.toLocaleUpperCase();
 }
