@@ -132,6 +132,10 @@ export interface CodingPopoverOptions {
 	showMagnitudeSection?: boolean;
 	/** Whether to show the relations section (from settings) */
 	showRelationsSection?: boolean;
+	/** Render codes and memo without any mutation controls. */
+	readOnly?: boolean;
+	/** Label describing the read-only owner or state. */
+	readOnlyLabel?: string;
 }
 
 export interface CodingPopoverHandle {
@@ -182,6 +186,52 @@ export function openCodingPopover(
 	const activeCodes = adapter.getActiveCodes();
 	const allCodes = adapter.registry.getAll();
 	const { isHoverMode } = options;
+
+	const finishPopover = (focusInput?: HTMLInputElement): CodingPopoverHandle => {
+		placeFloatingNextFrame(container, options.anchor.rect, 8, options.anchor.preferredSide);
+
+		if (options.anchor.tracker) {
+			const { scrollEl, computeRect } = options.anchor.tracker;
+			let rafId: number | null = null;
+			const onScroll = () => {
+				if (rafId !== null) return;
+				rafId = requestAnimationFrame(() => {
+					rafId = null;
+					const newRect = computeRect();
+					if (!newRect) {
+						close();
+						return;
+					}
+					placeFloating(container, newRect, 8, options.anchor.preferredSide);
+				});
+			};
+			scrollEl.addEventListener('scroll', onScroll, { passive: true });
+			window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+			window.addEventListener('resize', onScroll, { passive: true });
+
+			teardownTracker = () => {
+				scrollEl.removeEventListener('scroll', onScroll);
+				window.removeEventListener('scroll', onScroll, true);
+				window.removeEventListener('resize', onScroll);
+				if (rafId !== null) cancelAnimationFrame(rafId);
+			};
+		}
+
+		const shouldFocus = options.autoFocus ?? !isHoverMode;
+		if (shouldFocus && focusInput) setTimeout(() => focusInput.focus(), 50);
+		return { close, container };
+	};
+
+	if (options.readOnly) {
+		const state = container.createDiv({ cls: 'codemarker-popover-readonly' });
+		state.createDiv({ cls: 'codemarker-popover-readonly-owner', text: options.readOnlyLabel ?? 'Somente leitura' });
+		for (const name of activeCodes) {
+			state.createDiv({ cls: 'codemarker-popover-readonly-code', text: name });
+		}
+		const memoText = adapter.getMemo();
+		if (memoText) state.createDiv({ cls: 'codemarker-popover-readonly-memo', text: memoText });
+		return finishPopover();
+	}
 
 	// ── Nav arrow callback ──
 	const onNavClick = adapter.onNavClick
@@ -414,43 +464,5 @@ export function openCodingPopover(
 		);
 	}
 
-	// ── Position + scroll tracker ──
-	placeFloatingNextFrame(container, options.anchor.rect, 8, options.anchor.preferredSide);
-
-	if (options.anchor.tracker) {
-		const { scrollEl, computeRect } = options.anchor.tracker;
-		let rafId: number | null = null;
-		const onScroll = () => {
-			if (rafId !== null) return;
-			rafId = requestAnimationFrame(() => {
-				rafId = null;
-				const newRect = computeRect();
-				if (!newRect) {
-					// Anchor saiu de view (linha rolada pra fora, célula desmontada, etc.)
-					close();
-					return;
-				}
-				placeFloating(container, newRect, 8, options.anchor.preferredSide);
-			});
-		};
-		scrollEl.addEventListener('scroll', onScroll, { passive: true });
-		// Captura scroll de ancestrais também (nested scroll containers)
-		window.addEventListener('scroll', onScroll, { passive: true, capture: true });
-		window.addEventListener('resize', onScroll, { passive: true });
-
-		teardownTracker = () => {
-			scrollEl.removeEventListener('scroll', onScroll);
-			window.removeEventListener('scroll', onScroll, true);
-			window.removeEventListener('resize', onScroll);
-			if (rafId !== null) cancelAnimationFrame(rafId);
-		};
-	}
-
-	// Auto-focus (selection mode by default, overridable)
-	const shouldFocus = options.autoFocus ?? !isHoverMode;
-	if (shouldFocus) {
-		setTimeout(() => textComponent.inputEl.focus(), 50);
-	}
-
-	return { close, container };
+	return finishPopover(textComponent.inputEl);
 }

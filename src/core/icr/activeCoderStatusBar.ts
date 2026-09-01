@@ -19,6 +19,12 @@ export function mountActiveCoderStatusBar(plugin: QualiaCodingPlugin): { unmount
 
 	const render = () => {
 		el.empty();
+		if (plugin.isCodingReadOnly()) {
+			const icon = el.createSpan({ cls: 'qc-active-coder-icon' });
+			setIcon(icon, 'eye');
+			el.createSpan({ cls: 'qc-active-coder-label', text: ' Viewing only' });
+			return;
+		}
 		const active = plugin.coderRegistry.getById(plugin.getActiveCoderId());
 		const icon = el.createSpan({ cls: 'qc-active-coder-icon' });
 		setIcon(icon, 'user');
@@ -28,6 +34,12 @@ export function mountActiveCoderStatusBar(plugin: QualiaCodingPlugin): { unmount
 	const onClick = (event: MouseEvent) => {
 		const menu = new Menu();
 		const activeId = plugin.getActiveCoderId();
+		menu.addItem((item) => item
+			.setTitle('Somente leitura')
+			.setIcon('eye')
+			.setChecked(plugin.isCodingReadOnly())
+			.onClick(() => plugin.setCodingParticipation('read-only')));
+		menu.addSeparator();
 		for (const coder of plugin.coderRegistry.getCodableCoders()) {
 			menu.addItem(item => {
 				item.setTitle(coder.name).setIcon('user')

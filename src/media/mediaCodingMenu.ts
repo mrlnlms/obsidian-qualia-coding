@@ -27,6 +27,7 @@ export interface MediaMenuModel<M extends MediaMarker = MediaMarker> {
 	removeMarker(markerId: string): boolean;
 	notify(): void;
 	save(): void;
+	isCodingReadOnly(): boolean;
 }
 
 export function openMediaCodingPopover(
@@ -41,6 +42,7 @@ export function openMediaCodingPopover(
 	savedPos?: { x: number; y: number },
 	anchorEl?: HTMLElement,
 ): void {
+	if (model.isCodingReadOnly()) return;
 	const pos = savedPos ?? { x: mouseEvent.clientX, y: mouseEvent.clientY };
 	// Anchor híbrido: Y do mouse (próximo do clique, como outros engines), X do
 	// elemento da região (lateral da região no waveform/timeline). Region.element

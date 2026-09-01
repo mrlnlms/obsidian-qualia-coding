@@ -42,6 +42,10 @@ export class ImageCodingModel {
 		if (mutated) this.dataManager.markDirty();
 	}
 
+	isCodingReadOnly(): boolean {
+		return this.plugin.isCodingReadOnly();
+	}
+
 	private get markers(): ImageMarker[] {
 		return this.dataManager.section('image').markers;
 	}

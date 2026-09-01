@@ -51,6 +51,7 @@ export class CodingMenu {
 	}
 
 	open(markerId: string, anchor: AnchorSpec, isNew = false): void {
+		if (this.model.isCodingReadOnly()) return;
 		const marker = this.model.findMarkerById(markerId);
 		if (!marker) return;
 

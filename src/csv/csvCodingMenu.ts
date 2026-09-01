@@ -42,6 +42,7 @@ export function openCsvCodingPopover(
 	gridApi: GridApi,
 	app: App,
 ): void {
+	if (model.isCodingReadOnly()) return;
 	const anchorEl = mouseEvent.currentTarget as HTMLElement | null;
 	const anchorRect = anchorEl
 		? domRectToAnchor(anchorEl.getBoundingClientRect())
@@ -166,6 +167,7 @@ export async function openBatchCodingPopover(
 	app: App,
 	getFilteredSourceRowIds: () => Promise<number[]>,
 ): Promise<void> {
+	if (model.isCodingReadOnly()) return;
 	const anchorEl = mouseEvent.currentTarget as HTMLElement | null;
 	const anchorRect = anchorEl
 		? domRectToAnchor(anchorEl.getBoundingClientRect())

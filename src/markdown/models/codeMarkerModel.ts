@@ -50,6 +50,10 @@ export class CodeMarkerModel implements SidebarModelInterface {
 		this.registry = registry;
 	}
 
+	isCodingReadOnly(): boolean {
+		return this.plugin.isCodingReadOnly();
+	}
+
 	/**
 	 * Load markers from DataManager (synchronous read — data already loaded).
 	 */

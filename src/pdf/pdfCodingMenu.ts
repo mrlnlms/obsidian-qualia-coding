@@ -37,6 +37,7 @@ export function openPdfCodingPopover(
 	onCloseCleanup?: () => void,
 	pdfState?: PdfViewState,
 ): void {
+	if (model.plugin.isCodingReadOnly()) return;
 	const results = Array.isArray(selectionResults) ? selectionResults : [selectionResults];
 	const pos = savedPos ?? (mouseEvent ? { x: mouseEvent.clientX, y: mouseEvent.clientY } : { x: 0, y: 0 });
 	// PDF: anchor point sem tracker — re-cálculo de rect via pdfjs page transform
@@ -219,6 +220,7 @@ export function openShapeCodingPopover(
 	app?: App,
 	pdfState?: PdfViewState,
 ): void {
+	if (model.plugin.isCodingReadOnly()) return;
 	const shape = model.findShapeById(shapeId);
 	if (!shape) return;
 

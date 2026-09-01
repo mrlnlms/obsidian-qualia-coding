@@ -458,7 +458,7 @@ menu.addSeparator();
 
 Coder items continue calling `setActiveCoderId()`, which leaves read-only mode.
 
-- [ ] **Step 5: Add a true read-only path to the shared popover**
+- [ ] **Step 5: Add a query-only path to the shared popover**
 
 Add to `CodingPopoverOptions`:
 
@@ -479,9 +479,9 @@ const memoText = adapter.getMemo();
 if (memoText) state.createDiv({ cls: 'codemarker-popover-readonly-memo', text: memoText });
 ```
 
-Extract the existing placement/tracker block into a local `finishPopover()` helper so both paths use identical cleanup. Do not simulate read-only with CSS over editable controls.
+Extract the existing placement/tracker block into a local `finishPopover()` helper so both paths use identical cleanup. Do not simulate query-only with CSS over editable controls. This path is reserved for an active coder inspecting a foreign marker in Task 6; global read-only does not open a popover.
 
-- [ ] **Step 6: Pass global read-only to every shared popover entry point**
+- [ ] **Step 6: Suppress every shared popover entry point in global read-only mode**
 
 Modify these exact callers:
 
@@ -500,30 +500,22 @@ isCodingReadOnly(): boolean {
 }
 ```
 
-Add the same method to `MediaMenuModel`. Then pass these exact values:
+Add the same method to `MediaMenuModel`. At the first line of every caller, return when its model is read-only:
 
 ```ts
-// Markdown MenuController
-readOnly: this.model.isCodingReadOnly(),
+// Markdown, CSV, Image and Media
+if (model.isCodingReadOnly()) return;
 
-// CSV options, both single-cell and batch
-readOnly: model.isCodingReadOnly(),
-
-// Image CodingMenu
-readOnly: this.model.isCodingReadOnly(),
-
-// Media options
-readOnly: model.isCodingReadOnly(),
-
-// PDF options
-readOnly: model.plugin.isCodingReadOnly(),
+// PDF
+if (model.plugin.isCodingReadOnly()) return;
 ```
 
 Do not read `data.json` directly from menu code.
 
-This prevents new code applications from every shared popover while an imported
-project is explicitly view-only. Do not add per-coder ownership rules to non-PDF
-engines in this Marco; only the global no-mutation state is required there.
+This prevents new code applications and removes the coding popover entirely while
+an imported project is explicitly view-only. Do not add per-coder ownership rules
+to non-PDF engines in this Marco; only the global no-mutation state is required
+there.
 
 - [ ] **Step 7: Compile and commit the participation substrate**
 
@@ -1146,10 +1138,10 @@ Choose a known Selection where Carla, Jessica, Jorge and Isaque applied the same
 While status bar says `Viewing only`, confirm:
 
 - no handles appear;
-- code toggles, memo editors and delete action do not appear;
+- no coding popover opens, so code toggles, memo editors and delete action do not appear;
 - selecting a new interval cannot create a marker;
-- imported markers remain navigable/inspectable;
-- opening another coding modality does not offer a mutating shared popover.
+- imported markers remain visible and navigable through the existing panel/sidebar;
+- opening another coding modality does not open a coding popover.
 
 - [ ] **Step 5: Verify active imported coder edits only their marker**
 

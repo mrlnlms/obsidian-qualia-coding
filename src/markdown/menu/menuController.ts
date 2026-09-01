@@ -44,6 +44,7 @@ export class MenuController {
 		snapshot: SelectionSnapshot,
 		mousePos: { x: number; y: number },
 	): void {
+		if (this.model.isCodingReadOnly()) return;
 		// Re-abrir em cima de outro popover: fecha o anterior primeiro
 		if (this.handle) this.handle.close();
 

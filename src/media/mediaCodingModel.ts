@@ -71,6 +71,10 @@ export class MediaCodingModel<
 		if (mutated) this.save();
 	}
 
+	isCodingReadOnly(): boolean {
+		return this.plugin.isCodingReadOnly();
+	}
+
 	// ── Persistence ──
 
 	save(): void {

@@ -304,6 +304,8 @@ export interface QualiaData {
 	/** ICR Coder picker — coder ativo cuja identidade é stampada em todos os markers criados
 	 *  via popovers/menus. Fallback `DEFAULT_CODER_ID` quando undefined. Persiste cross-session. */
 	activeCoderId?: import('./icr/coderTypes').CoderId;
+	/** Undefined means legacy active mode; explicit read-only survives reload. */
+	codingParticipationMode?: import('./icr/codingPermissions').CodingParticipationMode;
 	/** ICR Slice 2 — hash por source (SHA-256). Lazy compute via SourceHashRegistry.getOrCompute().
 	 *  Optional pra round-trip de data antigo. */
 	sourceHashes?: Record<string, import('./icr/sourceHashTypes').SourceHashEntry>;

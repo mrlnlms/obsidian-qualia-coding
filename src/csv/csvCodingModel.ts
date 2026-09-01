@@ -50,6 +50,10 @@ export class CsvCodingModel {
 		this.loadFromDataManager();
 	}
 
+	isCodingReadOnly(): boolean {
+		return this.plugin.isCodingReadOnly();
+	}
+
 	// ── Persistence ──
 
 	private loadFromDataManager(): void {

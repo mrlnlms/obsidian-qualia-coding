@@ -6,6 +6,12 @@ import { QualiaSettingTab } from './core/settingTab';
 import { CodeDefinitionRegistry } from './core/codeDefinitionRegistry';
 import { CoderRegistry } from './core/icr/coderRegistry';
 import { DEFAULT_CODER_ID, type CoderId } from './core/icr/coderTypes';
+import {
+	canEditOwnedMarker,
+	resolveParticipationMode,
+	resolveStoredActiveCoder,
+	type CodingParticipationMode,
+} from './core/icr/codingPermissions';
 import { SourceHashRegistry } from './core/icr/sourceHashRegistry';
 import { extractCoderContribution } from './core/icr/transport/extractCoderContribution';
 import { mergeCoderContribution } from './core/icr/transport/mergeCoderContribution';
@@ -1074,17 +1080,40 @@ export default class QualiaCodingPlugin extends Plugin {
 	}
 
 	// ─── Coder picker (active coder pra stamping codedBy em markers novos) ─────
+	getCodingParticipationMode(): CodingParticipationMode {
+		return resolveParticipationMode(this.dataManager.getDataRef().codingParticipationMode);
+	}
+
+	isCodingReadOnly(): boolean {
+		return this.getCodingParticipationMode() === 'read-only';
+	}
+
 	getActiveCoderId(): CoderId {
-		const id = this.dataManager.getDataRef().activeCoderId;
-		// Fallback gracioso: data antigo sem campo, ou coder deletado fora — cai pro default.
-		if (!id || !this.coderRegistry.has(id)) return DEFAULT_CODER_ID;
-		return id;
+		return resolveStoredActiveCoder(
+			this.dataManager.getDataRef().activeCoderId,
+			(id) => this.coderRegistry.has(id),
+		);
+	}
+
+	canEditMarker(marker: { codedBy?: CoderId }): boolean {
+		return canEditOwnedMarker(
+			this.getCodingParticipationMode(),
+			this.getActiveCoderId(),
+			marker.codedBy,
+		);
+	}
+
+	setCodingParticipation(mode: CodingParticipationMode, coderId?: CoderId): void {
+		if (mode === 'active') {
+			if (!coderId || !this.coderRegistry.has(coderId)) return;
+			this.dataManager.setSection('activeCoderId', coderId);
+		}
+		this.dataManager.setSection('codingParticipationMode', mode);
+		for (const fn of this.activeCoderListeners) fn();
 	}
 
 	setActiveCoderId(id: CoderId): void {
-		if (!this.coderRegistry.has(id)) return;
-		this.dataManager.setSection('activeCoderId', id);
-		for (const fn of this.activeCoderListeners) fn();
+		this.setCodingParticipation('active', id);
 	}
 
 	onActiveCoderChange(fn: () => void): () => void {
