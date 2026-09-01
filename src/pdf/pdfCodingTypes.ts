@@ -49,6 +49,13 @@ export interface QdpxMultipageFragmentHint {
 	relatedSelectionGuids: string[];
 }
 
+export interface QdpxSelectionProvenance {
+	source: 'refi-qda-selection';
+	selectionGuid: string;
+	/** Missing/unknown creatingUser: never treat as legacy Default ownership. */
+	unattributedOwner?: true;
+}
+
 export interface PdfMarker {
 	markerType: 'pdf';
 	id: string;
@@ -68,6 +75,7 @@ export interface PdfMarker {
 	importedPdfTextContext?: ImportedPdfTextContext;
 	importedQdpxContinuedBy?: QdpxContinuedByHint;
 	importedQdpxMultipageFragment?: QdpxMultipageFragmentHint;
+	importedQdpxSelection?: QdpxSelectionProvenance;
 	createdAt: number;
 	updatedAt: number;
 }

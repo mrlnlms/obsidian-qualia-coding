@@ -4,6 +4,8 @@ import type { App, TFile, Vault } from 'obsidian';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CodeApplication, CodeRelation } from '../core/types';
+import type { CoderId } from '../core/icr/coderTypes';
+import type { CoderRegistry } from '../core/icr/coderRegistry';
 import { GROUP_PALETTE } from '../core/types';
 import { getImageDimensions } from '../core/imageDimensions';
 import type { Marker } from '../markdown/models/codeMarkerModel';
@@ -14,7 +16,14 @@ import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
 import type { AudioFile } from '../audio/audioCodingTypes';
 import type { VideoFile } from '../video/videoCodingTypes';
 import { parseXml, getChildElements, getAttr, getNumAttr, getTextContent, getAllElements } from './xmlParser';
-import { parseQdpxCodings, parseQdpxUsers, type ParsedQdpxCoding, type ParsedQdpxUser } from './qdpxAuthoring';
+import {
+  groupCodingsByUser,
+  mergePairedCodings,
+  parseQdpxCodings,
+  parseQdpxUsers,
+  type ParsedQdpxCoding,
+  type ParsedQdpxUser,
+} from './qdpxAuthoring';
 import { atlasPdfTextRectToNormalized, offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from './coordConverters';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
 import { loadPdfExportData } from '../pdf/pdfExportData';
@@ -116,10 +125,19 @@ export interface GuidResolver {
   codes: Map<string, string>;
   /** QDPX source guid → vault file path */
   sources: Map<string, string>;
-  /** QDPX selection guid → Qualia marker id */
-  selections: Map<string, string>;
+  /** QDPX selection guid → every Qualia marker created from that selection. */
+  selections: Map<string, string[]>;
   /** QDPX smart code guid → Qualia SmartCodeDefinition.id (Tier 3 custom namespace) */
   smartCodes: Map<string, string>;
+}
+
+function addResolvedSelection(resolver: GuidResolver, guid: string, markerId: string): void {
+  const ids = resolver.selections.get(guid) ?? [];
+  if (!ids.includes(markerId)) resolver.selections.set(guid, [...ids, markerId]);
+}
+
+function getResolvedSelections(resolver: GuidResolver, guid: string): string[] {
+  return resolver.selections.get(guid) ?? [];
 }
 
 // ─── Parsing ───
@@ -391,6 +409,7 @@ export async function importQdpx(
   dataManager: DataManager,
   registry: CodeDefinitionRegistry,
   options: ImportOptions,
+  coderRegistry: CoderRegistry,
   caseVariablesRegistry?: CaseVariablesRegistry,
   sourceHashRegistry?: import('../core/icr/sourceHashRegistry').SourceHashRegistry,
 ): Promise<ImportResult> {
@@ -413,8 +432,18 @@ export async function importQdpx(
   // 2. Parse all sections
   const codebook = parseCodebook(doc);
   const sources = parseSources(doc);
+  const parsedUsers = parseQdpxUsers(doc);
   const notes = parseNotes(doc);
   const links = parseLinks(doc);
+
+  const userGuidToCoderId = new Map<string, CoderId>();
+  for (const user of parsedUsers) {
+    const coder = coderRegistry.resolveOrCreateExternalHuman(user.name, {
+      scheme: 'refi-qda-user-guid',
+      value: user.guid,
+    });
+    userGuidToCoderId.set(user.guid, coder.id);
+  }
 
   // 3. Import codes
   const cbResult = applyCodebook(codebook, registry, options.conflictStrategy, notes);
@@ -468,7 +497,7 @@ export async function importQdpx(
 
         // 5. Create markers from selections
         const created = await createMarkersForSource(
-          src, filePath, resolver, notes, app, dataManager, result, files,
+          src, filePath, resolver, notes, userGuidToCoderId, app, dataManager, result, files,
         );
         result.segmentsCreated += created;
       }
@@ -684,16 +713,14 @@ function annotatePdfMarkersWithContinuedBy(
 	let changed = false;
 
 	for (const link of continuedByLinks) {
-		const originMarkerId = resolver.selections.get(link.originGuid);
-		const targetMarkerId = resolver.selections.get(link.targetGuid);
-		if (originMarkerId) {
+		for (const originMarkerId of getResolvedSelections(resolver, link.originGuid)) {
 			const marker = markerById.get(originMarkerId);
 			if (marker) {
 				addContinuedByHint(marker, 'origin', link.guid, link.targetGuid);
 				changed = true;
 			}
 		}
-		if (targetMarkerId) {
+		for (const targetMarkerId of getResolvedSelections(resolver, link.targetGuid)) {
 			const marker = markerById.get(targetMarkerId);
 			if (marker) {
 				addContinuedByHint(marker, 'target', link.guid, link.originGuid);
@@ -797,8 +824,7 @@ export function collectQdpxPdfContinuedByDiagnostics(
 			if (selectionToSource.get(link.targetGuid) === src) endpointGuids.add(link.targetGuid);
 		}
 		const mappedMarkerIds = [...endpointGuids]
-			.map((guid) => resolver.selections.get(guid))
-			.filter((id): id is string => !!id);
+			.flatMap((guid) => getResolvedSelections(resolver, guid));
 		const mappedMarkers = mappedMarkerIds
 			.map((id) => markerById.get(id))
 			.filter((marker): marker is PdfMarker => !!marker);
@@ -830,8 +856,8 @@ export function collectQdpxPdfContinuedByDiagnostics(
 		const source = originSource ?? targetSource;
 		if (!source || source.type !== 'pdf') return [];
 
-		const originMarkerId = resolver.selections.get(link.originGuid);
-		const targetMarkerId = resolver.selections.get(link.targetGuid);
+		const originMarkerId = getResolvedSelections(resolver, link.originGuid)[0];
+		const targetMarkerId = getResolvedSelections(resolver, link.targetGuid)[0];
 		const originMarker = originMarkerId ? markerById.get(originMarkerId) : undefined;
 		const targetMarker = targetMarkerId ? markerById.get(targetMarkerId) : undefined;
 		const originSelection = selectionToParsed.get(link.originGuid);
@@ -998,6 +1024,70 @@ function resolveCodeApplications(
   }).filter((ca): ca is CodeApplication => ca !== null);
 }
 
+interface ResolvedCoderApplications {
+  creatingUserGuid?: string;
+  coderId?: CoderId;
+  codes: CodeApplication[];
+}
+
+function resolveCoderApplications(
+  sel: ParsedSelection,
+  resolver: GuidResolver,
+  notes: Map<string, ParsedNote>,
+  userGuidToCoderId: Map<string, CoderId>,
+  result: ImportResult,
+): ResolvedCoderApplications[] {
+  return groupCodingsByUser(sel.codings).flatMap((group) => {
+    const coderId = group.creatingUserGuid
+      ? userGuidToCoderId.get(group.creatingUserGuid)
+      : undefined;
+    if (!coderId) {
+      result.warnings.push(
+        `Selection ${sel.guid}: Coding owner ${group.creatingUserGuid ?? 'missing'} is unresolved and will remain read-only`,
+      );
+    }
+
+    const byCodeId = new Map<string, CodeApplication>();
+    for (const coding of group.codings) {
+      const codeId = resolver.codes.get(coding.codeGuid);
+      if (!codeId) continue;
+      const current = byCodeId.get(codeId);
+      if (current) {
+        current.qdpx!.sourceCodingGuids = [...new Set([
+          ...current.qdpx!.sourceCodingGuids,
+          ...coding.sourceCodingGuids,
+        ])];
+        continue;
+      }
+
+      const application: CodeApplication = {
+        codeId,
+        qdpx: {
+          source: 'refi-qda-coding',
+          sourceCodingGuids: [...coding.sourceCodingGuids],
+          creatingUserGuid: coding.creatingUserGuid,
+          creationDateTime: coding.createdAt,
+        },
+      };
+      for (const noteGuid of coding.noteGuids) {
+        const note = notes.get(noteGuid);
+        if (note?.magnitude) {
+          application.magnitude = note.magnitude;
+          break;
+        }
+      }
+      byCodeId.set(codeId, application);
+    }
+
+    const codes = [...byCodeId.values()];
+    return codes.length > 0 ? [{
+      creatingUserGuid: group.creatingUserGuid,
+      coderId,
+      codes,
+    }] : [];
+  });
+}
+
 function resolveMemo(sel: ParsedSelection, notes: Map<string, ParsedNote>): string | undefined {
   for (const noteGuid of sel.noteGuids) {
     const note = notes.get(noteGuid);
@@ -1013,6 +1103,7 @@ async function createMarkersForSource(
   filePath: string,
   resolver: GuidResolver,
   notes: Map<string, ParsedNote>,
+  userGuidToCoderId: Map<string, CoderId>,
   app: App,
   dataManager: DataManager,
   result: ImportResult,
@@ -1062,6 +1153,7 @@ async function createMarkersForSource(
     selectionsToProcess = [];
     for (const [, pair] of byGuid.entries()) {
       if (pair.pdf && pair.text) {
+        const codings = mergePairedCodings(pair.pdf.codings, pair.text.codings);
         selectionsToProcess.push({
           ...pair.pdf,
           startPosition: pair.text.startPosition,
@@ -1069,7 +1161,8 @@ async function createMarkersForSource(
           name: (!pair.pdf.name || pair.pdf.name.length < (pair.text.name?.length ?? 0)) && pair.text.name
             ? pair.text.name
             : pair.pdf.name,
-          codeGuids: [...new Set([...(pair.pdf.codeGuids ?? []), ...(pair.text.codeGuids ?? [])])],
+          codings,
+          codeGuids: codings.map((coding) => coding.codeGuid),
           noteGuids: [...new Set([...(pair.pdf.noteGuids ?? []), ...(pair.text.noteGuids ?? [])])],
           qdpxMultipageFragment: multipageFragmentHints.get(pair.pdf.guid),
         });
@@ -1087,37 +1180,62 @@ async function createMarkersForSource(
 
   for (const sel of selectionsToProcess) {
     try {
-      const codes = resolveCodeApplications(sel, resolver, notes);
-      if (codes.length === 0) continue;
-
       const memo = resolveMemo(sel, notes);
       const ts = resolveTimestamp(sel.createdAt);
+
+      if (src.type === 'pdf' && !sel.qdpxMultipageFragment) {
+        const applicationsByCoder = resolveCoderApplications(sel, resolver, notes, userGuidToCoderId, result);
+        for (const applications of applicationsByCoder) {
+          const markerId = importedMarkerId(sel.guid, applications.coderId);
+          const created = createPdfMarker(
+            sel,
+            filePath,
+            applications.codes,
+            memo,
+            ts,
+            dataManager,
+            result,
+            pdfPlainText,
+            pdfPageStartOffsets,
+            pdfDims,
+            applications.coderId,
+            markerId,
+          );
+          count += created;
+          if (created > 0 && sel.guid) addResolvedSelection(resolver, sel.guid, markerId);
+        }
+        if (memo && applicationsByCoder.length > 0) result.memosImported++;
+        continue;
+      }
+
+      const codes = resolveCodeApplications(sel, resolver, notes);
+      if (codes.length === 0) continue;
+      let created = 0;
 
       switch (src.type) {
         // 'text' is handled in a separate batch after sources are extracted
         // (see createTextMarkers below — needs file content for offset→lineCh).
         case 'pdf':
-          count += createPdfMarker(sel, filePath, codes, memo, ts, dataManager, result, pdfPlainText, pdfPageStartOffsets, pdfDims);
+          created = createPdfMarker(sel, filePath, codes, memo, ts, dataManager, result, pdfPlainText, pdfPageStartOffsets, pdfDims);
           break;
         case 'picture':
-          count += await createImageMarker(sel, filePath, codes, memo, ts, app, dataManager, result);
+          created = await createImageMarker(sel, filePath, codes, memo, ts, app, dataManager, result);
           break;
         case 'audio':
-          count += createMediaMarker(sel, filePath, codes, memo, ts, dataManager, 'audio', result);
+          created = createMediaMarker(sel, filePath, codes, memo, ts, dataManager, 'audio', result);
           break;
         case 'video':
-          count += createMediaMarker(sel, filePath, codes, memo, ts, dataManager, 'video', result);
+          created = createMediaMarker(sel, filePath, codes, memo, ts, dataManager, 'video', result);
           break;
         case 'tabular':
-          count += createTabularMarker(sel, filePath, codes, memo, ts, dataManager, result);
+          created = createTabularMarker(sel, filePath, codes, memo, ts, dataManager, result);
           break;
       }
 
+      count += created;
+
       // Map selection GUID for link resolution
-      if (sel.guid) {
-        const markerId = `import_${sel.guid}`;
-        resolver.selections.set(sel.guid, markerId);
-      }
+      if (created > 0 && sel.guid) addResolvedSelection(resolver, sel.guid, `import_${sel.guid}`);
 
       if (memo) result.memosImported++;
     } catch (err) {
@@ -1125,6 +1243,11 @@ async function createMarkersForSource(
     }
   }
   return count;
+}
+
+function importedMarkerId(selectionGuid: string, coderId: CoderId | undefined): string {
+  const owner = (coderId ?? 'unattributed').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `import_${selectionGuid}_${owner}`;
 }
 
 export function createPdfMarker(
@@ -1138,6 +1261,8 @@ export function createPdfMarker(
 	pdfPlainText: string | null,
 	pdfPageStartOffsets: number[] | null,
 	pdfDims: Record<number, { width: number; height: number }> | null,
+	codedBy?: CoderId,
+	markerId = importedMarkerId(sel.guid, codedBy),
 ): number {
 	const pdfData = dataManager.section('pdf');
 
@@ -1157,7 +1282,7 @@ export function createPdfMarker(
 				} else {
 					const marker: PdfMarker = {
 						markerType: 'pdf',
-						id: `import_${sel.guid}`,
+						id: markerId,
 						fileId: filePath,
 						page,
 						beginIndex: 0,
@@ -1167,6 +1292,14 @@ export function createPdfMarker(
 						text: resolution.text,
 						codes,
 						memo: memo ? { content: memo } : undefined,
+						codedBy,
+						...(sel.qdpxMultipageFragment ? {} : {
+							importedQdpxSelection: {
+								source: 'refi-qda-selection' as const,
+								selectionGuid: sel.guid,
+								...(codedBy ? {} : { unattributedOwner: true as const }),
+							},
+						}),
 						createdAt: ts,
 						updatedAt: ts,
 					};
@@ -1211,13 +1344,14 @@ export function createPdfMarker(
 
 		const marker: PdfShapeMarker = {
 			markerType: 'pdf',
-			id: `import_${sel.guid}`,
+			id: markerId,
 			fileId: filePath,
 			codes,
 			shape: 'rect',
 			coords,
 			page,
-			memo: memo ? { content: memo } : undefined,
+		memo: memo ? { content: memo } : undefined,
+		codedBy,
 			createdAt: ts,
 			updatedAt: ts,
 		};
@@ -1598,7 +1732,7 @@ export async function createTextMarkers(
         updatedAt: ts,
       };
       mdData.markers[filePath]!.push(marker);
-      resolver.selections.set(sel.guid, marker.id);
+			addResolvedSelection(resolver, sel.guid, marker.id);
       count++;
     }
     dataManager.setSection('markdown', mdData);
@@ -1621,25 +1755,20 @@ export function applyLinks(
   let applied = 0;
 
   for (const link of links) {
-    // Target can be either a code or a marker (segment). Resolve both namespaces
-    // — whichever hits first wins. Same for origin (code vs marker).
-    const targetId = resolver.codes.get(link.targetGuid) ?? resolver.selections.get(link.targetGuid);
-    if (!targetId) continue;
-
-    const relation: CodeRelation = {
-      label: link.label,
-      target: targetId,
-      directed: link.directed,
-      ...(link.memo ? { memo: { content: link.memo } } : {}),
-    };
+    const targetCodeId = resolver.codes.get(link.targetGuid);
+    const targetMarkerIds = targetCodeId
+      ? [targetCodeId]
+      : getResolvedSelections(resolver, link.targetGuid);
+    if (targetMarkerIds.length === 0) continue;
 
     // Try code-level origin first
     const originCodeId = resolver.codes.get(link.originGuid);
     if (originCodeId) {
       const originDef = registry.getById(originCodeId);
-      if (originDef) {
+      if (originDef) for (const targetId of targetMarkerIds) {
+        const relation = createImportedRelation(link, targetId);
         const existing = originDef.relations ?? [];
-        const dup = existing.some(r => r.label === relation.label && r.target === relation.target);
+        const dup = existing.some((r) => relationMatches(r, relation));
         if (!dup) {
           registry.update(originCodeId, { relations: [...existing, relation] });
           applied++;
@@ -1648,15 +1777,67 @@ export function applyLinks(
       continue;
     }
 
-    // Otherwise, segment-level (marker → code/marker relation)
-    const originMarkerId = resolver.selections.get(link.originGuid);
-    if (originMarkerId) {
-      const markerRelation = applyMarkerRelation(originMarkerId, relation, dataManager);
-      if (markerRelation) applied++;
+    // Otherwise, segment-level (marker → code/marker relation). When both
+    // endpoints are selections, prefer the matching owner but preserve every
+    // target if the counterpart has no marker for that coder.
+    const originMarkerIds = getResolvedSelections(resolver, link.originGuid);
+    for (const originMarkerId of originMarkerIds) {
+      const targets = targetCodeId
+        ? targetMarkerIds
+        : (() => {
+          const owner = findMarkerOwner(originMarkerId, dataManager);
+          const sameOwner = owner
+            ? targetMarkerIds.filter((id) => findMarkerOwner(id, dataManager) === owner)
+            : [];
+          return sameOwner.length > 0 ? sameOwner : targetMarkerIds;
+        })();
+      for (const targetId of targets) {
+        if (applyMarkerRelation(originMarkerId, createImportedRelation(link, targetId), dataManager)) applied++;
+      }
     }
   }
 
   return applied;
+}
+
+function createImportedRelation(link: ParsedLink, target: string): CodeRelation {
+  return {
+    label: link.label,
+    target,
+    directed: link.directed,
+    ...(link.memo ? { memo: { content: link.memo } } : {}),
+  };
+}
+
+function relationMatches(a: CodeRelation, b: CodeRelation): boolean {
+  return a.label === b.label && a.target === b.target && a.directed === b.directed;
+}
+
+function findMarkerOwner(markerId: string, dataManager: DataManager): CoderId | undefined {
+  const markdown = dataManager.section('markdown');
+  for (const markers of Object.values(markdown.markers)) {
+    const marker = markers.find((m) => m.id === markerId);
+    if (marker) return marker.codedBy;
+  }
+
+  const pdf = dataManager.section('pdf');
+  const pdfMarker = [...pdf.markers, ...pdf.shapes].find((marker) => marker.id === markerId);
+  if (pdfMarker) return pdfMarker.codedBy;
+
+  const image = dataManager.section('image').markers.find((marker) => marker.id === markerId);
+  if (image) return image.codedBy;
+
+  const csv = dataManager.section('csv');
+  const csvMarker = [...csv.segmentMarkers, ...csv.rowMarkers].find((marker) => marker.id === markerId);
+  if (csvMarker) return csvMarker.codedBy;
+
+  for (const engine of ['audio', 'video'] as const) {
+    for (const fileEntry of dataManager.section(engine).files) {
+      const marker = fileEntry.markers.find((candidate) => candidate.id === markerId);
+      if (marker) return marker.codedBy;
+    }
+  }
+  return undefined;
 }
 
 function applyMarkerRelation(
@@ -1671,6 +1852,7 @@ function applyMarkerRelation(
     if (marker && marker.codes.length > 0) {
       const ca = marker.codes[0]!;
       const existing = ca.relations ?? [];
+			if (existing.some((candidate) => relationMatches(candidate, relation))) return false;
       ca.relations = [...existing, relation];
       dataManager.setSection('markdown', mdData);
       return true;
@@ -1682,7 +1864,9 @@ function applyMarkerRelation(
   for (const marker of [...pdfData.markers, ...pdfData.shapes]) {
     if (marker.id === markerId && marker.codes.length > 0) {
       const ca = marker.codes[0]!;
-      ca.relations = [...(ca.relations ?? []), relation];
+			const existing = ca.relations ?? [];
+			if (existing.some((candidate) => relationMatches(candidate, relation))) return false;
+      ca.relations = [...existing, relation];
       dataManager.setSection('pdf', pdfData);
       return true;
     }
@@ -1692,7 +1876,9 @@ function applyMarkerRelation(
   const imgData = dataManager.section('image');
   const imgMarker = imgData.markers.find(m => m.id === markerId);
   if (imgMarker && imgMarker.codes.length > 0) {
-    imgMarker.codes[0]!.relations = [...(imgMarker.codes[0]!.relations ?? []), relation];
+		const existing = imgMarker.codes[0]!.relations ?? [];
+		if (existing.some((candidate) => relationMatches(candidate, relation))) return false;
+    imgMarker.codes[0]!.relations = [...existing, relation];
     dataManager.setSection('image', imgData);
     return true;
   }
@@ -1703,7 +1889,9 @@ function applyMarkerRelation(
     for (const fileEntry of data.files) {
       const marker = (fileEntry as any).markers.find((m: any) => m.id === markerId);
       if (marker && marker.codes.length > 0) {
-        marker.codes[0].relations = [...(marker.codes[0].relations ?? []), relation];
+				const existing = marker.codes[0].relations ?? [];
+				if (existing.some((candidate: CodeRelation) => relationMatches(candidate, relation))) return false;
+        marker.codes[0].relations = [...existing, relation];
         dataManager.setSection(engine, data);
         return true;
       }

@@ -148,13 +148,17 @@ export class ImportModal extends Modal {
 
   private async doImport(): Promise<void> {
     if (!this.zipData || !this.preview) return;
+    if (!this.plugin) {
+      new Notice('QDPX import requires the Qualia plugin context');
+      return;
+    }
 
     try {
       const result = await importQdpx(this.zipData, this.app, this.dataManager, this.registry, {
         conflictStrategy: this.conflictStrategy,
         keepOriginalSources: this.keepOriginalSources,
         projectName: this.preview.projectName,
-      } as ImportOptions, this.caseVariablesRegistry, this.plugin?.sourceHashRegistry);
+      } as ImportOptions, this.plugin.coderRegistry, this.caseVariablesRegistry, this.plugin.sourceHashRegistry);
 
       const parts = [
         `${result.codesCreated} codes created`,

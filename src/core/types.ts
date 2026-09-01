@@ -81,6 +81,14 @@ export interface CodeApplication {
 	codeId: string;
 	magnitude?: string;
 	relations?: CodeRelation[];
+	qdpx?: QdpxCodingProvenance;
+}
+
+export interface QdpxCodingProvenance {
+	source: 'refi-qda-coding';
+	sourceCodingGuids: string[];
+	creatingUserGuid?: string;
+	creationDateTime?: string;
 }
 
 export interface BaseMarker {
