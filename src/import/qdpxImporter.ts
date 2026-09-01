@@ -1122,7 +1122,7 @@ export function createPdfMarker(
 					};
 					if (sel.firstX !== undefined && sel.firstY !== undefined
 						&& sel.secondX !== undefined && sel.secondY !== undefined) {
-						const pageDim = pdfDims?.[page];
+						const pageDim = pdfDims?.[page - 1];
 						const pageWidth = pageDim?.width ?? 612;
 						const pageHeight = pageDim?.height ?? 792;
 						const coords = atlasPdfTextRectToNormalized(sel.firstX, sel.firstY, sel.secondX, sel.secondY, pageWidth, pageHeight);
@@ -1150,8 +1150,9 @@ export function createPdfMarker(
 	if (sel.firstX !== undefined && sel.firstY !== undefined &&
 		sel.secondX !== undefined && sel.secondY !== undefined && sel.page !== undefined &&
 		!sel.name) {
+		const page = sel.page + 1;
 
-		const pageDim = pdfDims?.[sel.page];
+		const pageDim = pdfDims?.[page - 1];
 		const pageWidth = pageDim?.width ?? 612;
 		const pageHeight = pageDim?.height ?? 792;
 
@@ -1164,7 +1165,7 @@ export function createPdfMarker(
 			codes,
 			shape: 'rect',
 			coords,
-			page: sel.page,
+			page,
 			memo: memo ? { content: memo } : undefined,
 			createdAt: ts,
 			updatedAt: ts,
@@ -1325,8 +1326,8 @@ export function resolveImportedPdfPage(
 	sel: ParsedSelection,
 	pageStartOffsets: number[] | null,
 ): number | null {
-	// Visual PDFSelection page is the strongest signal for Atlas.ti-style exports.
-	if (sel.page !== undefined) return sel.page;
+	// REFI-QDA PDFSelection pages are zero-based; the PDF viewer is one-based.
+	if (sel.page !== undefined) return sel.page + 1;
 	if (sel.startPosition === undefined || !pageStartOffsets) return null;
 
 	let pageIdx = 0;
