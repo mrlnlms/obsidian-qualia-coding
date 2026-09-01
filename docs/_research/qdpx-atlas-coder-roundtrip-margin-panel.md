@@ -551,3 +551,46 @@ sequência de trabalho recomendada é:
 
 A tasklist operacional e os critérios do primeiro slice estão em
 `../superpowers/specs/2026-09-01-qdpx-multicoder-import-design.md`.
+
+## Marco 1 — validação funcional no vault real (2026-09-01)
+
+O ensaio foi realizado após um import limpo do projeto `UnifiedDevOps Selective
+Coding ITE5 ICA`, começando em modo **Somente leitura**.
+
+- Todos os PDFs foram percorridos em somente leitura; highlights e zebras ficaram
+  visíveis em cinza, sem permitir edição.
+- Ao trocar entre Jessica, Jorge e os demais coders, a leaf aberta atualizou as
+  cores imediatamente, sem precisar ser fechada. O perfil ativo recuperou as
+  cores normais de seus markers; os demais permaneceram neutros.
+- Markers de outros coders abriram apenas a consulta com autoria e códigos, sem
+  controles de edição.
+- Foi possível editar, mover e remover markers quando o perfil correspondente
+  estava ativo.
+- No D1, o perfil padrão criou uma contribuição independente no mesmo trecho
+  (`Product team category emerges as a resu...`) com o código `Codigo de Marlon - Teste`.
+  A contribuição apareceu no Compare Coders e desapareceu ao ser removida.
+- O relatório [`qdpx-import-audit.md`](../../imports/UnifiedDevOps%20Selective%20Coding%20ITE5%20ICA/qdpx-import-audit.md)
+  confirmou quatro coders com aplicações. ATLAS.ti e Marlon foram declarados no
+  QDPX, mas ficaram em `0 / 0`; “sem autoria” permaneceu separado como dado
+  ainda não resolvido dos fragments multipágina.
+
+Esta validação fecha o comportamento funcional do Marco 1. Permanecem fora dele
+as colisões entre markers exatamente sobrepostos, a investigação de regressões
+no renderer PDF, a semântica de “sem autoria” e o tratamento multipágina.
+
+## Checklist de testes automatizados pendentes
+
+Executar depois que a cota permitir, antes de iniciar o round-trip:
+
+- [ ] Parser preserva Users, Codings, GUIDs de autoria e pareamento PDF/texto.
+- [ ] Usuários declarados sem aplicações não entram no seletor nem criam perfis
+  locais vazios; o audit registra essa ausência.
+- [ ] GUID externo resolve o mesmo coder após serialização e reimportação.
+- [ ] Modos legado, ativo e somente leitura respeitam propriedade; markers sem
+  autoria explícita permanecem não editáveis.
+- [ ] Selection com vários coders cria markers independentes, com procedência
+  comum e aplicações individuais.
+- [ ] Lookup, mover, remover código, remover marker e criação respeitam o coder
+  ativo; contribuição `human:default` é independente.
+- [ ] Rodar o conjunto focado do plano (Task 8), depois `npm test`, `npm run build`
+  e `git diff --check`.
