@@ -438,7 +438,7 @@ export class PdfPageObserver {
 				if (markerBBoxAttempted) bboxAttemptedCount++;
 				if (markerBBoxIgnoredPageMismatch) bboxIgnoredPageMismatchCount++;
 				if (resolved) {
-					this.model.updateMarkerRangeSilent(m.id, {
+					this.model.resolveImportedMarkerRange(m.id, {
 						page: targetPageNumber,
 						beginIndex: resolved.beginIndex,
 						beginOffset: resolved.beginOffset,

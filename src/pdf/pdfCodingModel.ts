@@ -327,6 +327,19 @@ export class PdfCodingModel {
 		marker.updatedAt = Date.now();
 	}
 
+	/**
+	 * Applies coordinates discovered by the QDPX import resolver. This is a system
+	 * normalization step, not an interactive edit by the active coder; it must
+	 * therefore work while the project is being viewed read-only.
+	 */
+	resolveImportedMarkerRange(markerId: string, changes: Partial<Pick<PdfMarker,
+		'page' | 'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
+		const marker = this.findMarkerById(markerId);
+		if (!marker || !marker.id.startsWith('import_')) return;
+		Object.assign(marker, changes);
+		marker.updatedAt = Date.now();
+	}
+
 	// ── Lookup helpers ──
 
 	findMarkerById(id: string): PdfMarker | undefined {
