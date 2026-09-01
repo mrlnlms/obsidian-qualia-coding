@@ -35,6 +35,29 @@ describe('CoderRegistry — types', () => {
 });
 
 describe('CoderRegistry', () => {
+	it('resolves external QDPX identities by GUID, not by display name', () => {
+		const a = registry.resolveOrCreateExternalHuman('Alex', {
+			scheme: 'refi-qda-user-guid',
+			value: 'guid-a',
+		});
+		const b = registry.resolveOrCreateExternalHuman('Alex', {
+			scheme: 'refi-qda-user-guid',
+			value: 'guid-b',
+		});
+
+		expect(a.id).not.toBe(b.id);
+		expect(registry.resolveOrCreateExternalHuman('Renamed Alex', {
+			scheme: 'refi-qda-user-guid',
+			value: 'guid-a',
+		}).id).toBe(a.id);
+
+		const restored = CoderRegistry.fromJSON(registry.toJSON());
+		expect(restored.getByExternalIdentity({
+			scheme: 'refi-qda-user-guid',
+			value: 'guid-a',
+		})?.id).toBe(a.id);
+	});
+
 	it('seeds default coder on construct', () => {
 		expect(registry.getById(DEFAULT_CODER_ID)).toBeTruthy();
 		expect(registry.getById(DEFAULT_CODER_ID)?.name).toBe('Default');
