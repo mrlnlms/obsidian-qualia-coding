@@ -418,7 +418,10 @@ export class PdfPageObserver {
 				let markerBBoxAttempted = !!diagnostics.bboxAttempted;
 				let markerBBoxIgnoredPageMismatch = !!diagnostics.bboxIgnoredPageMismatch;
 				let markerBBoxTextLayerNodeCount = diagnostics.bboxTextLayerNodeCount ?? 0;
-				if (!resolved && !m.importedQdpxMultipageFragment) {
+				// QDPX PDFSelection.page is authoritative after import conversion.
+				// Neighbor fallback can otherwise adopt a repeated short label from
+				// the wrong page before its own page has rendered.
+				if (!resolved && !m.importedPdfSelectionBBox && !m.importedQdpxMultipageFragment) {
 					const neighbor = this.resolveOnNeighborPage(pageNumber, m);
 					if (neighbor) {
 						targetPageNumber = neighbor.pageNumber;
@@ -643,7 +646,7 @@ export class PdfPageObserver {
 			const candidates = this.model.getMarkersForPage(filePath, sourcePage);
 			for (const marker of candidates) {
 				if (!isMarkerPending(marker) || !marker.text) continue;
-				if (marker.importedQdpxMultipageFragment) continue;
+				if (marker.importedPdfSelectionBBox || marker.importedQdpxMultipageFragment) continue;
 
 				const d = diagnosePendingTextSearch(pageView.div, marker.text);
 				const strongEnough = (d.bestPrefixKeyLength ?? 0) >= NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH
