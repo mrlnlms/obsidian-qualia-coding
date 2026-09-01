@@ -12,6 +12,7 @@ import type { PdfShapeMarker, PercentShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import { getCodeIds } from '../core/codeApplicationHelpers';
 import type { PdfViewState } from './pdfViewState';
+import { NON_EDITABLE_MARKER_COLOR } from './markerAppearance';
 import {
 	HOVER_OPEN_DELAY,
 	cancelHoverPopover,
@@ -39,6 +40,7 @@ export function renderDrawLayerForPage(
 	registry: CodeDefinitionRegistry,
 	callbacks: DrawLayerCallbacks,
 	state?: PdfViewState,
+	isShapeEditable?: (shape: PdfShapeMarker) => boolean,
 ): void {
 	const pageDiv = pageView.div;
 	clearDrawLayerForPage(pageDiv);
@@ -65,7 +67,9 @@ export function renderDrawLayerForPage(
 	for (const shape of shapes) {
 		// `shape.colorOverride` (per-shape via Marker Detail) tem precedência sobre cor do code.
 		// Pattern espelha image (regionManager.getStyleForMarker) + media (regionRenderer:46).
-		const color = shape.colorOverride
+		const color = isShapeEditable?.(shape) === false
+			? NON_EDITABLE_MARKER_COLOR
+			: shape.colorOverride
 			?? registry.getColorForCodeIds(getCodeIds(shape.codes))
 			?? '#FFEB3B';
 		const el = createShapeSVG(shape.coords, color);

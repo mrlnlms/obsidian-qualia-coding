@@ -544,6 +544,7 @@ export class PdfPageObserver {
 			highlightCallbacks,
 			this.state,
 			filePath,
+			(marker) => this.model.isMarkerEditable(marker),
 		);
 		this.auditMarkerCoverageForPage(filePath, pageNumber, pageView, renderMarkers);
 
@@ -576,7 +577,14 @@ export class PdfPageObserver {
 			onHover: (shapeId, codeName) => this.model.setHoverState(shapeId, codeName),
 			onShapeHoverPopover: this.callbacks.onShapeHoverPopover,
 		};
-		renderDrawLayerForPage(pageView, shapes, this.model.registry, drawCallbacks, this.state);
+		renderDrawLayerForPage(
+			pageView,
+			shapes,
+			this.model.registry,
+			drawCallbacks,
+			this.state,
+			(shape) => this.model.isMarkerEditable(shape),
+		);
 
 		// Clear stale overlay panel for this page before re-rendering
 		if (this.labelScroller) {
@@ -594,6 +602,7 @@ export class PdfPageObserver {
 			},
 			shapes,
 			(marker) => this.ownerLabelForMarker(marker),
+			(marker) => this.model.isMarkerEditable(marker),
 		);
 
 		// Tag the panel with page number so we can track it in the overlay

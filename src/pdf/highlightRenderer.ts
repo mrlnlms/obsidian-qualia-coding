@@ -12,13 +12,20 @@ import type { MergedRect } from './highlightGeometry';
 import { computeMergedHighlightRects } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
 import type { PdfViewState } from './pdfViewState';
+import { NON_EDITABLE_MARKER_COLOR } from './markerAppearance';
 
 const HIGHLIGHT_LAYER_CLASS = 'codemarker-pdf-highlight-layer';
 const HIGHLIGHT_CLASS = 'codemarker-pdf-highlight';
 const BASE_OPACITY = 0.35;
 
 /** Resolve per-code colors for a marker, filtering hidden codes. Returns array of hex colors or empty if all hidden. */
-function resolveCodeColors(marker: PdfMarker, registry: CodeDefinitionRegistry, fileId: string): string[] {
+function resolveCodeColors(
+	marker: PdfMarker,
+	registry: CodeDefinitionRegistry,
+	fileId: string,
+	isEditable = true,
+): string[] {
+	if (!isEditable) return [NON_EDITABLE_MARKER_COLOR];
 	if (marker.colorOverride) return [marker.colorOverride];
 	const colors: string[] = [];
 	for (const ca of marker.codes) {
@@ -132,6 +139,7 @@ export function renderHighlightsForPage(
 	callbacks: HighlightCallbacks,
 	state: PdfViewState,
 	fileId: string,
+	isMarkerEditable?: (marker: PdfMarker) => boolean,
 ): MarkerRenderInfo[] {
 	const pageDiv = pageView.div;
 	clearHighlightsForPage(pageDiv);
@@ -148,7 +156,7 @@ export function renderHighlightsForPage(
 	for (const marker of markers) {
 		if (marker.codes.length === 0) continue;
 
-		const codeColors = resolveCodeColors(marker, registry, fileId);
+		const codeColors = resolveCodeColors(marker, registry, fileId, isMarkerEditable?.(marker) ?? true);
 		if (codeColors.length === 0) continue;
 		const perCodeOpacity = codeColors.length > 1 ? BASE_OPACITY / codeColors.length : undefined;
 

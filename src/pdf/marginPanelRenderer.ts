@@ -11,6 +11,7 @@ import { computeMergedHighlightRects } from './highlightGeometry';
 import { getMarkerVerticalBounds } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
 import { getShapeVerticalBounds } from './drawLayer';
+import { NON_EDITABLE_MARKER_COLOR } from './markerAppearance';
 
 // ── Constants ──
 const LINE_WIDTH = 2;
@@ -68,6 +69,7 @@ export function renderMarginPanelForPage(
 	callbacks: MarginPanelCallbacks,
 	shapes?: PdfShapeMarker[],
 	ownerLabelForMarker?: (marker: PdfMarker | PdfShapeMarker) => MarginPanelOwnerLabel,
+	isMarkerEditable?: (marker: PdfMarker | PdfShapeMarker) => boolean,
 ): void {
 	const pageDiv = pageView.div;
 	clearMarginPanelForPage(pageDiv);
@@ -103,7 +105,9 @@ export function renderMarginPanelForPage(
 				const def = registry.getById(ca.codeId);
 				// `marker.colorOverride` (per-marker via Marker Detail) tem precedência.
 				// Pattern espelha image/media/highlightRenderer.
-				const color = marker.colorOverride ?? def?.color ?? '#FFEB3B';
+				const color = isMarkerEditable?.(marker) === false
+					? NON_EDITABLE_MARKER_COLOR
+					: marker.colorOverride ?? def?.color ?? '#FFEB3B';
 				bars.push({
 					markerId: marker.id,
 					codeName: def?.name ?? ca.codeId,
@@ -127,7 +131,9 @@ export function renderMarginPanelForPage(
 
 			for (const ca of shape.codes) {
 				const def = registry.getById(ca.codeId);
-				const color = shape.colorOverride ?? def?.color ?? '#FFEB3B';
+				const color = isMarkerEditable?.(shape) === false
+					? NON_EDITABLE_MARKER_COLOR
+					: shape.colorOverride ?? def?.color ?? '#FFEB3B';
 				bars.push({
 					markerId: shape.id,
 					codeName: def?.name ?? ca.codeId,
