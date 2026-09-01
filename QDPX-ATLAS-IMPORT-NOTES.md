@@ -25,6 +25,32 @@ O snapshot de cobertura final foi gerado em `2026-08-07T00:05:20.981Z`. Ele obse
 
 Conclusao operacional: o diagnostico agora esta fechado para os `203` markers. O import estrutural esta correto; os `21` casos restantes devem ser tratados como truncamentos ou divergencias da text layer, nao como falha estrutural de import. Nao fazer expansao textual ampla: a tentativa anterior mostrou risco de vazamento para tabelas e rodapes.
 
+## Tentativa rejeitada - validacao de inicio interno em 2026-08-07
+
+Foi testada uma validacao generica que rejeitava qualquer candidato cujo texto coberto nao comecasse pelos primeiros caracteres de `marker.text`. A intencao era eliminar os `2` falsos positivos graves do D1 sem regras especificas por PDF.
+
+Resultado do smoke: regressao estrutural para `165/203` resolvidos, `38` pendentes e `29` markers sem cobertura auditada. A abordagem foi retirada; nao usar esse criterio como filtro obrigatorio. O problema e que varios caminhos de janela/contexto sao necessarios para manter `203/203`, mesmo quando o range inicial nao pode ser validado dessa forma.
+
+Estado para a proxima sessao: o codigo esta de volta ao comportamento estavel anterior ao commit experimental `8ef2f2c`; o snapshot atual do workspace veio da tentativa rejeitada e nao deve ser usado como baseline. E necessario um novo smoke apos o rollback para regenerar `203/203` resolvidos e `203/203` auditados.
+
+## Direcao tecnica registrada para a proxima tentativa
+
+A validacao binaria de inicio (`coveredKey` precisa comecar com os primeiros 32 caracteres de `marker.text`) falhou porque confundiu dois cenarios diferentes:
+
+- candidato realmente errado, como os falsos positivos do D1 em boilerplate de licenca;
+- ancora interna necessaria para PDFs em que ligaturas, hifenizacao, ordem da text layer ou contexto Atlas/PDF.js impedem localizar o inicio literal.
+
+Rejeitar o segundo caso quebrou os caminhos `window`/`plain-text-context` responsaveis por manter `203/203` resolvidos. Nao repetir esse filtro como regra obrigatoria.
+
+Direcao recomendada:
+
+1. manter o baseline estavel antes de qualquer nova heuristica;
+2. fazer cada estrategia produzir um candidato com evidencias (`page-text`, `bbox-text`, `plain-text-context`, `window-text`, prefixo encontrado, offset da janela, contexto e geometria);
+3. pontuar e comparar candidatos, em vez de aceitar/rejeitar por uma condicao unica;
+4. usar proximidade ao bbox, contexto antes/depois, comprimento da correspondencia e continuidade visual como sinais combinados;
+5. quando a confianca for baixa, manter o marker resolvido e registrar `low-confidence`, sem devolve-lo para pendente;
+6. tratar os dois casos graves do D1 com contexto/geometria genericos, nunca por regra de documento ou texto especifico.
+
 Regra central:
 
 - NUNCA converter `PDFSelection` textual do Atlas.ti em `PdfShapeMarker`;

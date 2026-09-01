@@ -20,10 +20,10 @@ Isso valida a camada estrutural:
 - nenhum texto foi degradado para shape;
 - coders/codigos do processo de ICR foram preservados na auditoria cruzada.
 
-Relatorio principal:
+Relatorios principais:
 
-- `QDPX-ATLAS-FINAL-AUDIT.md`
-- `QDPX-ATLAS-FINAL-AUDIT-FULL.md`
+- `QDPX-ATLAS-FINAL-AUDIT-FULL.md`: ultimo relatorio completo salvo antes do novo smoke manual.
+- `QDPX-ATLAS-FINAL-AUDIT.md`: relatorio curto pratico; regenerar depois de reload/import/abertura dos PDFs antes de usar como fonte de linhas.
 
 Script gerador:
 
@@ -66,9 +66,34 @@ Resultado do primeiro coverage audit:
 - `91/203` `Coverage = NO`;
 - `0` nao auditados.
 
-## Distribuicao dos mismatches
+Resultado do smoke limpo manual de 2026-08-06:
 
-Por PDF:
+- `203/203` markers resolvidos;
+- `112/203` `Coverage = yes`;
+- `91/203` `Coverage = NO`;
+- `0` markers pendentes;
+- `0` `PdfShapeMarker`.
+
+Classes desse smoke:
+
+| Classe | Mismatches | Leitura |
+|---|---:|---|
+| `covered-prefix` | 86 | O texto coberto e o comeco correto do trecho esperado, mas termina cedo demais. |
+| `covered-inside-expected` | 3 | O range cai dentro do trecho esperado, mas nao inclui o inicio completo. |
+| `covered-includes-expected-start` | 2 | O range inclui o inicio esperado, mas provavelmente diverge por hifenizacao/quebra de linha ou termina cedo. |
+
+Tentativa seguinte revertida:
+
+- o resolver tentou expandir ranges achados por prefixo/janela quando a continuacao normalizada da text layer batia com o texto esperado;
+- smoke visual mostrou falso positivo grave, com highlight vazando para fora do trecho esperado;
+- a tentativa foi revertida. Proxima abordagem precisa de restricao adicional, provavelmente visual/geometrica ou baseada em coverage rows especificas.
+- nao usar expansao textual solta como caminho principal; primeiro classificar exemplos reais `covered-prefix` do novo JSON limpo.
+
+## Distribuicao dos mismatches iniciais
+
+Os dados abaixo descrevem o primeiro audit (`112` matches, `91` mismatches). Eles continuam uteis para entender a origem do problema, mas nao devem ser usados como baseline depois do novo smoke manual.
+
+Por PDF no primeiro audit:
 
 | PDF | Total | Coverage yes | Coverage NO |
 |---|---:|---:|---:|
@@ -83,7 +108,7 @@ Por PDF:
 | D11 2020 State of DevOps Report | 3 | 3 | 0 |
 | D12 2022 Cross-Company Ethnographic Study | 4 | 4 | 0 |
 
-Por tamanho do texto esperado entre os `91` mismatches:
+Por tamanho do texto esperado entre os `91` mismatches iniciais:
 
 | Tamanho | Mismatches |
 |---|---:|
@@ -108,7 +133,7 @@ Classificacao objetiva dos `91` mismatches do primeiro audit:
 | `covered-includes-expected-start` | 2 | O range inclui o inicio esperado, mas provavelmente diverge por hifenizacao/quebra de linha ou termina cedo. |
 | `wrong-range-or-page` | 2 | O texto coberto nao parece pertencer ao trecho esperado; pode ser pagina/range errado. |
 
-Essa classificacao confirma que o problema dominante e truncamento de range, nao perda de codificacao.
+Essa classificacao confirmou que o problema dominante era truncamento de range, nao perda de codificacao. O smoke manual seguinte manteve `covered-prefix` como a classe mais importante para atacar primeiro.
 
 ## Hipotese tecnica principal
 
@@ -179,7 +204,7 @@ Validacao esperada apos reload completo:
 Hipotese de correcao mais provavel:
 
 - quando a busca encontra prefixo/janela de um texto longo, usar essa posicao como ancora inicial;
-- depois tentar expandir o range para cobrir o restante de `marker.text` por matching sequencial/fuzzy na text layer da mesma pagina;
+- depois tentar expandir o range para cobrir o restante de `marker.text` somente com restricao adicional forte (ex.: geometria/linhas ou outra evidencia runtime), nao apenas por continuidade textual normalizada;
 - se a expansao nao for confiavel, manter o range antigo e deixar o coverage audit apontar o mismatch, em vez de devolver o marker para pendente.
 
 ## Validacao manual sugerida agora

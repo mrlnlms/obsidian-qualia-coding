@@ -18,7 +18,7 @@ Tema: import QDPX do Atlas.ti para PDFs academicos no Qualia Coding.
    - Este e o documento principal para entender `Coverage = NO`, `covered-prefix`, `coverageRatio` etc.
 
 3. `QDPX-ATLAS-FINAL-AUDIT.md`
-   - Usar como tabela pratica apos cada smoke/reload.
+   - Regenerar apos cada smoke/reload antes de usar como tabela pratica.
    - Nao ler tudo por padrao; abrir cabecalho e PDF/linhas especificas que o usuario citar.
 
 4. `QDPX-ATLAS-RESOLVED-12-AUDIT.md`
@@ -27,6 +27,7 @@ Tema: import QDPX do Atlas.ti para PDFs academicos no Qualia Coding.
 5. `QDPX-ATLAS-FINAL-AUDIT-FULL.md`
    - Abrir somente quando precisar do texto completo sem truncamento.
    - Evitar carregar por padrao.
+   - Relatorio completo salvo apos smoke limpo de 2026-08-06: `203/203` resolvidos, `0` pendentes, `0` shapes, `112/203` coverage matches e `91/203` mismatches.
 
 Arquivos auxiliares:
 
@@ -64,6 +65,12 @@ Mudar isso quebrou anchors e gerou falso positivo visual. Se precisar alterar, p
 
 ## Proximo passo tecnico
 
+Estado local antes do proximo smoke:
+
+- codigo dos arquivos criticos conferido contra `dd4dd9d` sem diff;
+- smoke limpo ja foi refeito e `data.json` confirma `203` markers, `0` pendentes, `0` shapes;
+- `_qualia-pdf-marker-current-status.json` pode ficar intermediario/stale; neste smoke ele reportou D12 pendente antes do coverage posterior auditar todos os ranges. Preferir `data.json` + `_qualia-pdf-marker-coverage-audit.json` para baseline final.
+
 1. Apos o usuario fazer reload/import/abrir PDFs no Obsidian, rodar:
 
 ```bash
@@ -79,6 +86,13 @@ python3 scripts/audit_qdpx_pdf_import.py --full-text --output QDPX-ATLAS-FINAL-A
 3. So depois analisar `Coverage = NO`, principalmente `covered-prefix`.
 
 4. Qualquer melhoria futura deve atuar como expansao/ajuste de range apos a ancora, preservando a ancora que ja funciona. Nao remover, endurecer ou reordenar fallback por prefixo/janela/pagina vizinha.
+
+## Tentativa revertida
+
+- A tentativa de expandir automaticamente ranges apos ancora unica foi revertida.
+- Smoke visual mostrou falso positivo grave: highlights vazaram para areas/tabelas fora do trecho esperado.
+- Nao retomar essa abordagem sem uma restricao visual/textual mais forte e dados por linha de coverage.
+- O problema real permanece: `covered-prefix` significa ancora inicial correta, mas range incompleto.
 
 ## Validacao local minima antes de pedir smoke
 

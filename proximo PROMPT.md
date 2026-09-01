@@ -48,6 +48,26 @@ Checkpoint commits:
 
 Nao adicionar nem rodar testes nesta fase exploratoria, salvo pedido explicito. `npm run build` passou apos a correcao do auditor.
 
+## Ultima tentativa rejeitada
+
+Foi testado o commit experimental `8ef2f2c wip: reject internal PDF text candidates`, que rejeitava ranges cujo texto coberto nao comecasse pelo inicio de `marker.text`.
+
+O smoke dessa versao caiu para `165/203` resolvidos, `38` pendentes, `174/203` auditados e `29` `unaudited`. A heuristica foi retirada porque quebrou caminhos de janela/contexto necessarios para o baseline `203/203`.
+
+Nao usar o snapshot gerado em `2026-08-07T00:33:12.934Z` como resultado final. O proximo passo e apenas refazer o smoke com o codigo pos-rollback e confirmar novamente `203/203` resolvidos, `0` pendentes, `0` shapes e `203/203` auditados. Depois disso, qualquer nova heuristica precisa validar candidatos sem transformar incerteza em pendencia.
+
+## Aprendizado sobre a falha da ultima heuristica
+
+A regra "os primeiros 32 caracteres cobertos precisam ser o inicio de `marker.text`" foi rigida demais. Ela eliminou falsos positivos, mas tambem rejeitou anchors internas necessarias em PDFs com ligaturas, hifenizacao, ordem de text layer diferente ou divergencia entre contexto Atlas e PDF.js. O resultado foi `38` pendentes.
+
+Nao repetir validacao binaria apos a resolucao. A proxima implementacao deve:
+
+- gerar candidatos com evidencias e origem (`page-text`, `bbox-text`, `plain-text-context`, `window-text`);
+- registrar offset da janela, contexto, comprimento da correspondencia e sinais geometricos;
+- pontuar candidatos e comparar alternativas;
+- manter o melhor candidato quando nao houver certeza, marcando baixa confianca no diagnostico em vez de criar pendencia;
+- usar geometria e contexto para evitar os falsos positivos do D1, sem regras especificas para IEEE ou para qualquer PDF.
+
   Tema: import QDPX do Atlas.ti para PDFs academicos no Qualia Coding.
 
   Objetivo agora:
