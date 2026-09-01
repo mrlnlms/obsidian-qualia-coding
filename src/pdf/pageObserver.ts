@@ -163,6 +163,8 @@ export interface PdfMarkerCoverageAuditRow {
 	codeCount: number;
 	expectedPreview: string;
 	coveredPreview: string;
+	/** Ordered PDF.js text items, captured only for mismatches for offline replay. */
+	pageTextItems?: string[];
 }
 
 export interface PdfMarkerCoverageAuditSnapshot {
@@ -677,6 +679,7 @@ export class PdfPageObserver {
 			const expectedKey = this.normalizeAuditKey(marker.text);
 			const coveredKey = this.normalizeAuditKey(coveredText);
 			const matches = expectedKey === coveredKey;
+			const coverageClass = this.classifyCoverage(expectedKey, coveredKey);
 			const row: PdfMarkerCoverageAuditRow = {
 				filePath,
 				page: pageNumber,
@@ -689,11 +692,14 @@ export class PdfPageObserver {
 				coveredKeyLength: coveredKey.length,
 				coverageRatio: expectedKey.length > 0 ? Number((coveredKey.length / expectedKey.length).toFixed(3)) : 0,
 				matches,
-				coverageClass: this.classifyCoverage(expectedKey, coveredKey),
+				coverageClass,
 				continuedBy: !!marker.importedQdpxContinuedBy || undefined,
 				codeCount: marker.codes.length,
 				expectedPreview: this.previewText(marker.text, 240),
 				coveredPreview: this.previewText(coveredText, 240),
+				pageTextItems: matches
+					? undefined
+					: textLayerInfo.textContentItems.map((item) => item.str ?? ''),
 			};
 			this.coverageAuditRowsByMarker.set(marker.id, row);
 		}
