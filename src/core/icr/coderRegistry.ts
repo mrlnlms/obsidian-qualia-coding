@@ -8,7 +8,7 @@
  * que não contenha o id (idempotente — não duplica se já existir).
  */
 
-import type { Coder, CoderId } from './coderTypes';
+import type { Coder, CoderId, ExternalCoderIdentity } from './coderTypes';
 import { DEFAULT_CODER_ID } from './coderTypes';
 
 export class CoderRegistry {
@@ -104,6 +104,29 @@ export class CoderRegistry {
 
 	has(id: CoderId): boolean {
 		return this.coders.has(id);
+	}
+
+	getByExternalIdentity(identity: ExternalCoderIdentity): Coder | null {
+		return this.getAll().find((coder) => coder.externalIdentities?.some(
+			(ref) => ref.scheme === identity.scheme && ref.value === identity.value,
+		)) ?? null;
+	}
+
+	resolveOrCreateExternalHuman(name: string, identity: ExternalCoderIdentity): Coder {
+		const existing = this.getByExternalIdentity(identity);
+		if (existing) return existing;
+
+		const safeGuid = identity.value.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+		const coder: Coder = {
+			id: `human:qdpx:${safeGuid}`,
+			name,
+			type: 'human',
+			externalIdentities: [identity],
+			createdAt: Date.now(),
+		};
+		this.coders.set(coder.id, coder);
+		this.emitMutate();
+		return coder;
 	}
 
 	toJSON(): { coders: Coder[] } {

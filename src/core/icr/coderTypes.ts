@@ -12,6 +12,11 @@ export const DEFAULT_CODER_ID: CoderId = 'human:default';
 /** Tipos de coder: humano, LLM, ou consensus (criado via reconciliação Slice E3a). */
 export type CoderKind = 'human' | 'llm' | 'consensus';
 
+export interface ExternalCoderIdentity {
+	scheme: 'refi-qda-user-guid';
+	value: string;
+}
+
 export interface Coder {
 	id: CoderId;
 	name: string;
@@ -20,6 +25,7 @@ export interface Coder {
 	version?: string;
 	temperature?: number;
 	seed?: number;
+	externalIdentities?: ExternalCoderIdentity[];
 	createdAt: number;
 }
 
