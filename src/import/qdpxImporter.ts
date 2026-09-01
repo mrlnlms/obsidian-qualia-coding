@@ -5,7 +5,8 @@ import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CodeApplication, CodeRelation } from '../core/types';
 import type { CoderId } from '../core/icr/coderTypes';
-import type { CoderRegistry } from '../core/icr/coderRegistry';
+import { DEFAULT_CODER_ID } from '../core/icr/coderTypes';
+import type QualiaCodingPlugin from '../main';
 import { GROUP_PALETTE } from '../core/types';
 import { getImageDimensions } from '../core/imageDimensions';
 import type { Marker } from '../markdown/models/codeMarkerModel';
@@ -337,7 +338,13 @@ export interface ImportOptions {
   conflictStrategy: ConflictStrategy;
   keepOriginalSources: boolean;
   projectName: string;
+  participation: ImportParticipation;
 }
+
+export type ImportParticipation =
+  | { mode: 'read-only' }
+  | { mode: 'imported-coder'; userGuid: string }
+  | { mode: 'local-default' };
 
 /** Preview info extracted from a QDPX before full import. */
 export interface ImportPreview {
@@ -409,7 +416,7 @@ export async function importQdpx(
   dataManager: DataManager,
   registry: CodeDefinitionRegistry,
   options: ImportOptions,
-  coderRegistry: CoderRegistry,
+  plugin: Pick<QualiaCodingPlugin, 'coderRegistry' | 'setCodingParticipation'>,
   caseVariablesRegistry?: CaseVariablesRegistry,
   sourceHashRegistry?: import('../core/icr/sourceHashRegistry').SourceHashRegistry,
 ): Promise<ImportResult> {
@@ -438,11 +445,21 @@ export async function importQdpx(
 
   const userGuidToCoderId = new Map<string, CoderId>();
   for (const user of parsedUsers) {
-    const coder = coderRegistry.resolveOrCreateExternalHuman(user.name, {
+    const coder = plugin.coderRegistry.resolveOrCreateExternalHuman(user.name, {
       scheme: 'refi-qda-user-guid',
       value: user.guid,
     });
     userGuidToCoderId.set(user.guid, coder.id);
+  }
+
+  if (options.participation.mode === 'read-only') {
+    plugin.setCodingParticipation('read-only');
+  } else if (options.participation.mode === 'local-default') {
+    plugin.setCodingParticipation('active', DEFAULT_CODER_ID);
+  } else {
+    const coderId = userGuidToCoderId.get(options.participation.userGuid);
+    if (!coderId) throw new Error('Selected QDPX coder was not found in the imported Users registry');
+    plugin.setCodingParticipation('active', coderId);
   }
 
   // 3. Import codes

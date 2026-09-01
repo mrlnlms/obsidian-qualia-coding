@@ -5,7 +5,7 @@ import type { DataManager } from '../core/dataManager';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import type QualiaCodingPlugin from '../main';
-import { previewQdpx, importQdpx, type ImportOptions, type ImportPreview } from './qdpxImporter';
+import { previewQdpx, importQdpx, type ImportOptions, type ImportParticipation, type ImportPreview } from './qdpxImporter';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
 import { parseXml } from './xmlParser';
 
@@ -20,6 +20,7 @@ export class ImportModal extends Modal {
   private preview: ImportPreview | null = null;
   private conflictStrategy: ConflictStrategy = 'merge';
   private keepOriginalSources = false;
+  private participation: ImportParticipation = { mode: 'read-only' };
 
   constructor(
     app: App,
@@ -80,7 +81,7 @@ export class ImportModal extends Modal {
     const info = this.dynamicEl.createDiv({ cls: 'qualia-import-preview' });
     info.createEl('p', { text: `File: ${p.projectName}` });
     if (p.origin) info.createEl('p', { text: `Origin: ${p.origin}` });
-    info.createEl('p', { text: `Found: ${p.codeCount} codes${p.hierarchyCount > 0 ? ` (${p.hierarchyCount} with hierarchy)` : ''}, ${p.selectionCount} segments, ${p.sourceCount} sources, ${p.noteCount} memos${p.linkCount > 0 ? `, ${p.linkCount} relations` : ''}` });
+    info.createEl('p', { text: `Found: ${p.codeCount} codes${p.hierarchyCount > 0 ? ` (${p.hierarchyCount} with hierarchy)` : ''}, ${p.codingCount} codings, ${p.users.length} researchers, ${p.selectionCount} selections, ${p.sourceCount} sources, ${p.noteCount} memos${p.linkCount > 0 ? `, ${p.linkCount} relations` : ''}` });
 
     // Conflicts
     if (p.conflictingCodes.length > 0) {
@@ -104,6 +105,25 @@ export class ImportModal extends Modal {
         .addToggle(t => {
           t.setValue(this.keepOriginalSources);
           t.onChange(v => { this.keepOriginalSources = v; });
+        });
+
+      new Setting(this.dynamicEl)
+        .setName('Quem é você neste projeto?')
+        .addDropdown(dd => {
+          dd.addOption('read-only', 'Somente leitura — não interferir no ICR');
+          for (const user of p.users) dd.addOption(`user:${user.guid}`, user.name);
+          dd.addOption('local-default', 'Perfil padrão deste vault — participar como novo codificador');
+          const selected = this.participation.mode === 'imported-coder'
+            ? `user:${this.participation.userGuid}`
+            : this.participation.mode;
+          dd.setValue(selected);
+          dd.onChange((value) => {
+            this.participation = value === 'read-only'
+              ? { mode: 'read-only' }
+              : value === 'local-default'
+                ? { mode: 'local-default' }
+                : { mode: 'imported-coder', userGuid: value.slice('user:'.length) };
+          });
         });
     }
 
@@ -158,7 +178,8 @@ export class ImportModal extends Modal {
         conflictStrategy: this.conflictStrategy,
         keepOriginalSources: this.keepOriginalSources,
         projectName: this.preview.projectName,
-      } as ImportOptions, this.plugin.coderRegistry, this.caseVariablesRegistry, this.plugin.sourceHashRegistry);
+        participation: this.participation,
+      } satisfies ImportOptions, this.plugin, this.caseVariablesRegistry, this.plugin.sourceHashRegistry);
 
       const parts = [
         `${result.codesCreated} codes created`,
