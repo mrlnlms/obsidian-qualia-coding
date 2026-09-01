@@ -81,7 +81,7 @@ export class ImportModal extends Modal {
     const info = this.dynamicEl.createDiv({ cls: 'qualia-import-preview' });
     info.createEl('p', { text: `File: ${p.projectName}` });
     if (p.origin) info.createEl('p', { text: `Origin: ${p.origin}` });
-    info.createEl('p', { text: `Found: ${p.codeCount} codes${p.hierarchyCount > 0 ? ` (${p.hierarchyCount} with hierarchy)` : ''}, ${p.codingCount} codings, ${p.users.length} researchers, ${p.selectionCount} selections, ${p.sourceCount} sources, ${p.noteCount} memos${p.linkCount > 0 ? `, ${p.linkCount} relations` : ''}` });
+    info.createEl('p', { text: `Found: ${p.codeCount} codes${p.hierarchyCount > 0 ? ` (${p.hierarchyCount} with hierarchy)` : ''}, ${p.codingCount} codings, ${p.participatingUsers.length} researchers with codings (${p.users.length} declared), ${p.selectionCount} selections, ${p.sourceCount} sources, ${p.noteCount} memos${p.linkCount > 0 ? `, ${p.linkCount} relations` : ''}` });
 
     // Conflicts
     if (p.conflictingCodes.length > 0) {
@@ -111,7 +111,7 @@ export class ImportModal extends Modal {
         .setName('Quem é você neste projeto?')
         .addDropdown(dd => {
           dd.addOption('read-only', 'Somente leitura — não interferir no ICR');
-          for (const user of p.users) dd.addOption(`user:${user.guid}`, user.name);
+          for (const user of p.participatingUsers) dd.addOption(`user:${user.guid}`, user.name);
           dd.addOption('local-default', 'Perfil padrão deste vault — participar como novo codificador');
           const selected = this.participation.mode === 'imported-coder'
             ? `user:${this.participation.userGuid}`

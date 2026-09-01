@@ -354,6 +354,8 @@ export interface ImportPreview {
   origin?: string;
   codeCount: number;
   codingCount: number;
+  /** Declared users that authored at least one importable QDPX coding. */
+  participatingUsers: ParsedQdpxUser[];
   users: ParsedQdpxUser[];
   hierarchyCount: number;
   selectionCount: number;
@@ -383,6 +385,8 @@ export function previewQdpx(
   const codebook = parseCodebook(doc);
   const sources = parseSources(doc);
   const users = parseQdpxUsers(doc);
+
+  const participatingUsers = getParticipatingQdpxUsers(users, sources);
   const notes = parseNotes(doc);
   const links = parseLinks(doc);
 
@@ -401,6 +405,7 @@ export function previewQdpx(
     origin,
     codeCount: codebook.codes.length,
     codingCount,
+    participatingUsers,
     users,
     hierarchyCount,
     selectionCount,
@@ -442,11 +447,13 @@ export async function importQdpx(
   const codebook = parseCodebook(doc);
   const sources = parseSources(doc);
   const parsedUsers = parseQdpxUsers(doc);
+
+  const participatingUsers = getParticipatingQdpxUsers(parsedUsers, sources);
   const notes = parseNotes(doc);
   const links = parseLinks(doc);
 
   const userGuidToCoderId = new Map<string, CoderId>();
-  for (const user of parsedUsers) {
+  for (const user of participatingUsers) {
     const coder = plugin.coderRegistry.resolveOrCreateExternalHuman(user.name, {
       scheme: 'refi-qda-user-guid',
       value: user.guid,
@@ -585,6 +592,7 @@ export async function importQdpx(
       options.participation,
       sources,
       parsedUsers,
+      participatingUsers,
       userGuidToCoderId,
       resolver,
       dataManager,
@@ -751,7 +759,8 @@ async function writeQdpxImportAudit(
 	projectName: string,
 	participation: ImportParticipation,
 	sources: ParsedSource[],
-	users: ParsedQdpxUser[],
+	declaredUsers: ParsedQdpxUser[],
+	participatingUsers: ParsedQdpxUser[],
 	userGuidToCoderId: Map<string, CoderId>,
 	resolver: GuidResolver,
 	dataManager: DataManager,
@@ -759,7 +768,7 @@ async function writeQdpxImportAudit(
 	const pdfSources = sources.filter((source) => source.type === 'pdf');
 	const importedMarkers = (dataManager.section('pdf').markers as PdfMarker[])
 		.filter((marker) => marker.id.startsWith('import_'));
-	const userColumns = users.map((user) => ({
+	const userColumns = participatingUsers.map((user) => ({
 		name: user.name,
 		coderId: userGuidToCoderId.get(user.guid),
 	}));
@@ -797,7 +806,10 @@ async function writeQdpxImportAudit(
 	});
 	const cell = (stats: QdpxPdfAuditStats) => `${stats.markers} / ${stats.applications}`;
 	const escapeCell = (value: string) => value.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
-	const participationLabel = describeQdpxImportParticipation(participation, users);
+	const participationLabel = describeQdpxImportParticipation(participation, declaredUsers);
+	const declaredWithoutCodings = declaredUsers.filter((declared) =>
+		!participatingUsers.some((participant) => participant.guid === declared.guid),
+	);
 	const header = ['Documento', ...userColumns.map((user) => escapeCell(user.name)), 'Sem autoria (legado multipágina)'];
 	const separator = header.map(() => '---');
 	const rows = pdfSources.map((source) => {
@@ -833,9 +845,15 @@ async function writeQdpxImportAudit(
 		...rows.map((row) => `| ${row.join(' | ')} |`),
 		`| ${totals.join(' | ')} |`,
 		'',
-		'## Usuários declarados no QDPX',
+		'## Codificadores participantes',
 		'',
-		...users.map((user) => `- ${user.name}`),
+		...participatingUsers.map((user) => `- ${user.name}`),
+		'',
+		'## Usuários declarados sem aplicações',
+		'',
+		...(declaredWithoutCodings.length > 0
+			? declaredWithoutCodings.map((user) => `- ${user.name}`)
+			: ['- Nenhum.']),
 		'',
 		'_Este arquivo é um artefato de auditoria da importação; não é usado pelo plugin durante a codificação._',
 		'',
@@ -843,6 +861,26 @@ async function writeQdpxImportAudit(
 	const auditPath = `${importDir}/qdpx-import-audit.md`;
 	await vault.adapter.write(auditPath, lines.join('\n'));
 	return auditPath;
+}
+
+/**
+ * QDPX may declare application accounts that never coded the exported project
+ * (for example, a product account or the person who only opened the file).
+ * Only people referenced by a Coding element participate in Qualia's ICR UI.
+ */
+function getParticipatingQdpxUsers(
+	users: ParsedQdpxUser[],
+	sources: ParsedSource[],
+): ParsedQdpxUser[] {
+	const authorGuids = new Set<string>();
+	for (const source of sources) {
+		for (const selection of source.selections) {
+			for (const coding of selection.codings) {
+				if (coding.creatingUserGuid) authorGuids.add(coding.creatingUserGuid);
+			}
+		}
+	}
+	return users.filter((user) => authorGuids.has(user.guid));
 }
 
 function describeQdpxImportParticipation(
