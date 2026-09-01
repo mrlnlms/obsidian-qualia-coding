@@ -14,6 +14,7 @@ import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
 import type { AudioFile } from '../audio/audioCodingTypes';
 import type { VideoFile } from '../video/videoCodingTypes';
 import { parseXml, getChildElements, getAttr, getNumAttr, getTextContent, getAllElements } from './xmlParser';
+import { parseQdpxCodings, parseQdpxUsers, type ParsedQdpxCoding, type ParsedQdpxUser } from './qdpxAuthoring';
 import { atlasPdfTextRectToNormalized, offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from './coordConverters';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
 import { loadPdfExportData } from '../pdf/pdfExportData';
@@ -37,6 +38,8 @@ export interface ParsedSelection {
   guid: string;
   type: 'PlainTextSelection' | 'PDFSelection' | 'PictureSelection' | 'AudioSelection' | 'VideoSelection' | 'qualia:CellSelection';
   name?: string;
+  codings: ParsedQdpxCoding[];
+  /** Compatibility projection for non-PDF creators during Marco 1. */
   codeGuids: string[];
   noteGuids: string[];
   createdAt?: string;
@@ -187,20 +190,9 @@ export function parseSources(doc: Document): ParsedSource[] {
 }
 
 function parseSelection(el: Element, type: ParsedSelection['type']): ParsedSelection {
-  const codeGuids: string[] = [];
-  const noteGuids: string[] = [];
-
-  for (const coding of getChildElements(el, 'Coding')) {
-    const codeRef = getChildElements(coding, 'CodeRef')[0];
-    const targetGuid = codeRef ? getAttr(codeRef, 'targetGUID') : undefined;
-    if (targetGuid) codeGuids.push(targetGuid);
-
-    // NoteRef inside Coding (for magnitude)
-    for (const noteRef of getChildElements(coding, 'NoteRef')) {
-      const ng = getAttr(noteRef, 'targetGUID');
-      if (ng) noteGuids.push(ng);
-    }
-  }
+  const codings = parseQdpxCodings(el);
+  const codeGuids = codings.map((coding) => coding.codeGuid);
+  const noteGuids = codings.flatMap((coding) => coding.noteGuids);
 
   // NoteRef directly on selection (for memos)
   for (const noteRef of getChildElements(el, 'NoteRef')) {
@@ -212,6 +204,7 @@ function parseSelection(el: Element, type: ParsedSelection['type']): ParsedSelec
     guid: getAttr(el, 'guid') ?? '',
     type,
     name: getAttr(el, 'name'),
+    codings,
     codeGuids,
     noteGuids,
     createdAt: getAttr(el, 'creationDateTime'),
@@ -333,6 +326,8 @@ export interface ImportPreview {
   projectName: string;
   origin?: string;
   codeCount: number;
+  codingCount: number;
+  users: ParsedQdpxUser[];
   hierarchyCount: number;
   selectionCount: number;
   sourceCount: number;
@@ -360,11 +355,16 @@ export function previewQdpx(
   const projectName = getAttr(doc.documentElement, 'name') ?? 'Imported Project';
   const codebook = parseCodebook(doc);
   const sources = parseSources(doc);
+  const users = parseQdpxUsers(doc);
   const notes = parseNotes(doc);
   const links = parseLinks(doc);
 
   const hierarchyCount = codebook.codes.filter(c => c.parentGuid).length;
   const selectionCount = sources.reduce((sum, s) => sum + s.selections.length, 0);
+  const codingCount = sources.reduce(
+    (total, source) => total + source.selections.reduce((sum, selection) => sum + selection.codings.length, 0),
+    0,
+  );
   const conflictingCodes = codebook.codes
     .filter(c => registry.getByName(c.name) !== undefined)
     .map(c => c.name);
@@ -373,6 +373,8 @@ export function previewQdpx(
     projectName,
     origin,
     codeCount: codebook.codes.length,
+    codingCount,
+    users,
     hierarchyCount,
     selectionCount,
     sourceCount: sources.length,
