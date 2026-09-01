@@ -28,6 +28,19 @@ afterEach(() => {
 // ── load ──────────────────────────────────────────────────────
 
 describe('load', () => {
+	it('persists explicit read-only participation and preserves legacy absence', async () => {
+		const persisted = { ...createDefaultData(), codingParticipationMode: 'read-only' as const };
+		plugin = createMockPlugin(persisted);
+		dm = new DataManager(plugin as unknown as Plugin);
+		await dm.load();
+		expect(dm.getAll().codingParticipationMode).toBe('read-only');
+
+		const legacyPlugin = createMockPlugin(createDefaultData());
+		const legacyManager = new DataManager(legacyPlugin as unknown as Plugin);
+		await legacyManager.load();
+		expect(legacyManager.getAll().codingParticipationMode).toBeUndefined();
+	});
+
 	it('creates defaults when loadData returns null', async () => {
 		await dm.load();
 		const data = dm.getAll();
