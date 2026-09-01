@@ -187,6 +187,7 @@ export class ImportModal extends Modal {
         `${result.sourcesImported} sources`,
         `${result.segmentsCreated} segments`,
         result.relationsImported > 0 ? `${result.relationsImported} relations` : '',
+        result.auditPath ? `audit: ${result.auditPath}` : '',
       ].filter(Boolean);
 
       new Notice(`Import complete: ${parts.join(', ')}`, 8000);

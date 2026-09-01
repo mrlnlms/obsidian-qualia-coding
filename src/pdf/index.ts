@@ -473,6 +473,13 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	};
 	document.addEventListener('qualia:registry-changed', scheduleRefresh);
 	model.onChange(scheduleRefresh);
+	// A troca de perfil não altera os markers, mas altera imediatamente quais
+	// deles podem receber handles e controles de edição. Recria as páginas já
+	// carregadas e fecha um popover que poderia pertencer ao perfil anterior.
+	const unsubscribeActiveCoderChange = plugin.onActiveCoderChange(() => {
+		closeActivePopover('codemarker-popover');
+		scheduleRefresh();
+	});
 
 	// ── Return cleanup function ──
 
@@ -481,6 +488,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			document.removeEventListener('visibilitychange', visibilityHandler);
 			document.removeEventListener('qualia:registry-changed', scheduleRefresh);
 			model.offChange(scheduleRefresh);
+			unsubscribeActiveCoderChange();
 			if (registryChangeRafId !== null) {
 				cancelAnimationFrame(registryChangeRafId);
 				registryChangeRafId = null;

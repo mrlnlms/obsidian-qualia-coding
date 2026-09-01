@@ -113,6 +113,8 @@ export interface ImportResult {
   segmentsCreated: number;
   memosImported: number;
   relationsImported: number;
+  /** Vault-relative audit written alongside the imported source files. */
+  auditPath?: string;
   warnings: string[];
 }
 
@@ -575,6 +577,22 @@ export async function importQdpx(
 
   reportQdpxPdfImportDiagnostics(sources, links, resolver, dataManager);
 
+  try {
+    result.auditPath = await writeQdpxImportAudit(
+      app.vault,
+      importDir,
+      options.projectName,
+      options.participation,
+      sources,
+      parsedUsers,
+      userGuidToCoderId,
+      resolver,
+      dataManager,
+    );
+  } catch (err) {
+    result.warnings.push(`Could not write QDPX import audit: ${(err as Error).message}`);
+  }
+
   // 9. Flush
   dataManager.markDirty();
   await dataManager.flush();
@@ -715,6 +733,126 @@ function reportQdpxPdfImportDiagnostics(
 	console.groupEnd();
 
 	reportQdpxPdfContinuedByDiagnostics(sources, links, resolver, markers);
+}
+
+interface QdpxPdfAuditStats {
+	markers: number;
+	applications: number;
+}
+
+/**
+ * Writes a human-readable snapshot of the imported PDF coding distribution.
+ * It intentionally reports every declared QDPX user, including users with zero
+ * applications, so an absent coder is distinguishable from a failed import.
+ */
+async function writeQdpxImportAudit(
+	vault: Vault,
+	importDir: string,
+	projectName: string,
+	participation: ImportParticipation,
+	sources: ParsedSource[],
+	users: ParsedQdpxUser[],
+	userGuidToCoderId: Map<string, CoderId>,
+	resolver: GuidResolver,
+	dataManager: DataManager,
+): Promise<string> {
+	const pdfSources = sources.filter((source) => source.type === 'pdf');
+	const importedMarkers = (dataManager.section('pdf').markers as PdfMarker[])
+		.filter((marker) => marker.id.startsWith('import_'));
+	const userColumns = users.map((user) => ({
+		name: user.name,
+		coderId: userGuidToCoderId.get(user.guid),
+	}));
+
+	const statsFor = (fileId: string | undefined, coderId?: CoderId): QdpxPdfAuditStats => {
+		if (!coderId) return { markers: 0, applications: 0 };
+		const markers = importedMarkers.filter((marker) =>
+			marker.fileId === fileId && marker.codedBy === coderId,
+		);
+		return {
+			markers: markers.length,
+			applications: markers.reduce((total, marker) => total + marker.codes.length, 0),
+		};
+	};
+	const unattributedStatsFor = (fileId: string | undefined): QdpxPdfAuditStats => {
+		const markers = importedMarkers.filter((marker) =>
+			marker.fileId === fileId && !marker.codedBy,
+		);
+		return {
+			markers: markers.length,
+			applications: markers.reduce((total, marker) => total + marker.codes.length, 0),
+		};
+	};
+	const totalFor = (coderId?: CoderId): QdpxPdfAuditStats => ({
+		markers: coderId ? importedMarkers.filter((marker) => marker.codedBy === coderId).length : 0,
+		applications: importedMarkers
+			.filter((marker) => coderId !== undefined && marker.codedBy === coderId)
+			.reduce((total, marker) => total + marker.codes.length, 0),
+	});
+	const totalUnattributed = (): QdpxPdfAuditStats => ({
+		markers: importedMarkers.filter((marker) => !marker.codedBy).length,
+		applications: importedMarkers
+			.filter((marker) => !marker.codedBy)
+			.reduce((total, marker) => total + marker.codes.length, 0),
+	});
+	const cell = (stats: QdpxPdfAuditStats) => `${stats.markers} / ${stats.applications}`;
+	const escapeCell = (value: string) => value.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+	const participationLabel = describeQdpxImportParticipation(participation, users);
+	const header = ['Documento', ...userColumns.map((user) => escapeCell(user.name)), 'Sem autoria (legado multipágina)'];
+	const separator = header.map(() => '---');
+	const rows = pdfSources.map((source) => {
+		const fileId = resolver.sources.get(source.guid);
+		return [
+			escapeCell(source.name),
+			...userColumns.map((user) => cell(statsFor(fileId, user.coderId))),
+			cell(unattributedStatsFor(fileId)),
+		];
+	});
+	const totals = [
+		'**Total**',
+		...userColumns.map((user) => cell(totalFor(user.coderId))),
+		cell(totalUnattributed()),
+	];
+	const lines = [
+		`# Auditoria da importação QDPX — ${projectName}`,
+		'',
+		`Gerado em: ${new Date().toISOString()}`,
+		`Participação selecionada após a importação: ${participationLabel}`,
+		'',
+		'## Como ler',
+		'',
+		'- Cada célula usa `markers / aplicações de código`.',
+		'- A pessoa selecionada controla apenas quais markers podem ser editados. Todos os markers importados continuam visíveis.',
+		'- Um valor `0 / 0` é uma ausência declarada no arquivo importado, não uma inferência da interface.',
+		'- “Sem autoria” reúne fragments multipágina legados que ainda não recebem atribuição individual.',
+		'',
+		'## PDF por pessoa',
+		'',
+		`| ${header.join(' | ')} |`,
+		`| ${separator.join(' | ')} |`,
+		...rows.map((row) => `| ${row.join(' | ')} |`),
+		`| ${totals.join(' | ')} |`,
+		'',
+		'## Usuários declarados no QDPX',
+		'',
+		...users.map((user) => `- ${user.name}`),
+		'',
+		'_Este arquivo é um artefato de auditoria da importação; não é usado pelo plugin durante a codificação._',
+		'',
+	];
+	const auditPath = `${importDir}/qdpx-import-audit.md`;
+	await vault.adapter.write(auditPath, lines.join('\n'));
+	return auditPath;
+}
+
+function describeQdpxImportParticipation(
+	participation: ImportParticipation,
+	users: ParsedQdpxUser[],
+): string {
+	if (participation.mode === 'read-only') return 'Somente leitura — não interferir no ICR';
+	if (participation.mode === 'local-default') return 'Perfil padrão deste vault — participar como novo codificador';
+	return users.find((user) => user.guid === participation.userGuid)?.name
+		?? 'Codificador importado não identificado';
 }
 
 function annotatePdfMarkersWithContinuedBy(
