@@ -9,7 +9,7 @@ import { getImageDimensions } from '../core/imageDimensions';
 import type { Marker } from '../markdown/models/codeMarkerModel';
 import type { MediaMarker } from '../media/mediaTypes';
 import type { ImageMarker } from '../image/imageCodingTypes';
-import type { ImportedPdfTextContext, PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
+import type { ImportedPdfTextContext, PdfMarker, PdfShapeMarker, QdpxMultipageFragmentHint } from '../pdf/pdfCodingTypes';
 import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
 import type { AudioFile } from '../audio/audioCodingTypes';
 import type { VideoFile } from '../video/videoCodingTypes';
@@ -57,6 +57,7 @@ export interface ParsedSelection {
   column?: string;
   cellFrom?: number;
   cellTo?: number;
+  qdpxMultipageFragment?: QdpxMultipageFragmentHint;
 }
 
 export interface ImportedPdfTextResolution {
@@ -538,6 +539,48 @@ function hasPdfSelectionBBox(sel: ParsedSelection): boolean {
 		&& sel.secondX !== undefined && sel.secondY !== undefined;
 }
 
+function buildPdfMultipageFragmentHints(src: ParsedSource): Map<string, QdpxMultipageFragmentHint> {
+	const hints = new Map<string, QdpxMultipageFragmentHint>();
+	const textSelectionGuids = new Set(src.selections
+		.filter((sel) => sel.type === 'PlainTextSelection')
+		.map((sel) => sel.guid));
+	const groups = new Map<string, ParsedSelection[]>();
+
+	for (const sel of src.selections) {
+		if (sel.type !== 'PDFSelection' || !sel.guid || !sel.name || !sel.createdAt || sel.page === undefined) continue;
+		const normalizedName = sel.name.replace(/\s+/g, ' ').trim();
+		const codeKey = [...sel.codeGuids].sort().join(',');
+		const key = `${normalizedName}\u0000${sel.createdAt}\u0000${codeKey}`;
+		groups.set(key, [...(groups.get(key) ?? []), sel]);
+	}
+
+	for (const group of groups.values()) {
+		if (group.length < 2) continue;
+		const pages = group.map((sel) => sel.page!).sort((a, b) => a - b);
+		const pagesAreUniqueAndAdjacent = new Set(pages).size === pages.length
+			&& pages.every((page, index) => index === 0 || page === pages[index - 1]! + 1);
+		if (!pagesAreUniqueAndAdjacent) continue;
+
+		const anchors = group.filter((sel) => textSelectionGuids.has(sel.guid));
+		if (anchors.length !== 1) continue;
+		const anchor = anchors[0]!;
+		const relatedSelectionGuids = group
+			.map((sel) => sel.guid)
+			.sort((a, b) => (group.find((sel) => sel.guid === a)?.page ?? 0) - (group.find((sel) => sel.guid === b)?.page ?? 0));
+
+		for (const sel of group) {
+			hints.set(sel.guid, {
+				source: 'qdpx-multipage-fragment',
+				groupId: anchor.guid,
+				role: sel.guid === anchor.guid ? 'anchor' : 'continuation',
+				relatedSelectionGuids,
+			});
+		}
+	}
+
+	return hints;
+}
+
 function collectPairedPdfSelectionStats(src: ParsedSource): {
 	pdfSelections: number;
 	pdfSelectionsWithBBox: number;
@@ -1003,6 +1046,7 @@ async function createMarkersForSource(
   // Correlate PDFSelection + PlainTextSelection by GUID (ATLAS.ti pattern)
   let selectionsToProcess = src.selections;
   if (src.type === 'pdf') {
+    const multipageFragmentHints = buildPdfMultipageFragmentHints(src);
     const byGuid = new Map<string, { pdf?: ParsedSelection; text?: ParsedSelection }>();
 
     for (const sel of src.selections) {
@@ -1025,9 +1069,13 @@ async function createMarkersForSource(
             : pair.pdf.name,
           codeGuids: [...new Set([...(pair.pdf.codeGuids ?? []), ...(pair.text.codeGuids ?? [])])],
           noteGuids: [...new Set([...(pair.pdf.noteGuids ?? []), ...(pair.text.noteGuids ?? [])])],
+          qdpxMultipageFragment: multipageFragmentHints.get(pair.pdf.guid),
         });
       } else if (pair.pdf) {
-        selectionsToProcess.push(pair.pdf);
+        selectionsToProcess.push({
+          ...pair.pdf,
+          qdpxMultipageFragment: multipageFragmentHints.get(pair.pdf.guid),
+        });
       } else if (pair.text) {
         // Fallback: process as plain text selection if no PDFSelection exists
         selectionsToProcess.push(pair.text);
@@ -1137,6 +1185,7 @@ export function createPdfMarker(
 					}
 					const textContext = buildImportedPdfTextContext(sel, pdfPlainText, resolution);
 					if (textContext) marker.importedPdfTextContext = textContext;
+					if (sel.qdpxMultipageFragment) marker.importedQdpxMultipageFragment = sel.qdpxMultipageFragment;
 					pdfData.markers.push(marker);
 					dataManager.setSection('pdf', pdfData);
 					return 1;

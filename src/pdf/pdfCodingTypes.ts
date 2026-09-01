@@ -42,6 +42,13 @@ export interface QdpxContinuedByHint {
 	relatedSelectionGuids: string[];
 }
 
+export interface QdpxMultipageFragmentHint {
+	source: 'qdpx-multipage-fragment';
+	groupId: string;
+	role: 'anchor' | 'continuation';
+	relatedSelectionGuids: string[];
+}
+
 export interface PdfMarker {
 	markerType: 'pdf';
 	id: string;
@@ -60,6 +67,7 @@ export interface PdfMarker {
 	importedPdfSelectionBBox?: PdfSelectionBBoxHint;
 	importedPdfTextContext?: ImportedPdfTextContext;
 	importedQdpxContinuedBy?: QdpxContinuedByHint;
+	importedQdpxMultipageFragment?: QdpxMultipageFragmentHint;
 	createdAt: number;
 	updatedAt: number;
 }

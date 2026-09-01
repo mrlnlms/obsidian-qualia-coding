@@ -32,7 +32,10 @@ export interface PendingResolutionDiagnostics {
 	plainTextContextAttempted?: boolean;
 	plainTextContextBestWindowKeyLength?: number;
 	plainTextContextWindowTextPreview?: string;
-	resolvedBy?: 'page-text' | 'bbox-text' | 'window-text' | 'plain-text-context';
+	textContentItemsAttempted?: boolean;
+	textContentItemsMatchKind?: 'exact' | 'bounded-fuzzy';
+	textContentItemsEditDistance?: number;
+	resolvedBy?: 'page-text' | 'bbox-text' | 'window-text' | 'plain-text-context' | 'text-content-items';
 	bestPrefixKeyLength?: number;
 	bestWindowKeyLength?: number;
 	bestWindowTextPreview?: string;
@@ -60,6 +63,8 @@ const WINDOW_KEY_OFFSET_STEP = 16;
 const MIN_BEST_WINDOW_KEY_LENGTH = 24;
 const MIN_PLAIN_TEXT_CONTEXT_KEY_LENGTH = 8;
 const MIN_PLAIN_TEXT_CONTEXT_WINDOW_LENGTH = 48;
+const TEXT_CONTENT_ITEMS_MAX_EDIT_RATIO = 0.015;
+const TEXT_CONTENT_ITEMS_MAX_EDIT_CAP = 16;
 
 /** A marker is "pending" when all indices are zero — the state produced by
  *  qdpxImporter when it lacks DOM info. Selections from the viewer always
@@ -213,6 +218,169 @@ function normalizeSearchKey(src: string): string {
 
 function normalizeAtlasLigatureAliases(key: string): string {
 	return key.replace(/fff/g, 'ffi').replace(/ff/g, 'fi');
+}
+
+interface TextItemPosition {
+	index: number;
+	offset: number;
+}
+
+function normalizeTextContentItemsWithMap(items: Array<{ str?: string }>): {
+	text: string;
+	startPosition: TextItemPosition[];
+	endPosition: TextItemPosition[];
+} {
+	const out: string[] = [];
+	const startPosition: TextItemPosition[] = [];
+	const endPosition: TextItemPosition[] = [];
+
+	for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+		const value = items[itemIndex]?.str ?? '';
+		for (let offset = 0; offset < value.length;) {
+			const cp = value.codePointAt(offset);
+			if (cp === undefined) break;
+			const raw = String.fromCodePoint(cp);
+			const rawStart = offset;
+			const rawEnd = offset + raw.length;
+			offset = rawEnd;
+			if (raw === '\uFFFD' || raw === '\u00AD') continue;
+
+			for (const ch of raw.normalize('NFKC').toLocaleLowerCase()) {
+				if (!isSearchKeyChar(ch)) continue;
+				out.push(ch);
+				startPosition.push({ index: itemIndex, offset: rawStart });
+				endPosition.push({ index: itemIndex, offset: rawEnd });
+			}
+		}
+	}
+
+	return {
+		text: normalizeAtlasLigatureAliases(out.join('')),
+		startPosition,
+		endPosition,
+	};
+}
+
+function boundedEditDistance(a: string, b: string, limit: number): number | null {
+	if (Math.abs(a.length - b.length) > limit) return null;
+	const outsideBand = limit + 1;
+	let previous = new Array<number>(b.length + 1).fill(outsideBand);
+	for (let j = 0; j <= Math.min(b.length, limit); j++) previous[j] = j;
+
+	for (let i = 1; i <= a.length; i++) {
+		const current = new Array<number>(b.length + 1).fill(outsideBand);
+		if (i <= limit) current[0] = i;
+		const start = Math.max(1, i - limit);
+		const end = Math.min(b.length, i + limit);
+		for (let j = start; j <= end; j++) {
+			current[j] = Math.min(
+				previous[j]! + 1,
+				current[j - 1]! + 1,
+				previous[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1),
+			);
+		}
+		previous = current;
+	}
+
+	const distance = previous[b.length]!;
+	return distance <= limit ? distance : null;
+}
+
+function findUniquePrefixIndex(page: string, expected: string): number {
+	const maxLength = Math.min(MAX_ANCHOR_KEY_LENGTH, expected.length);
+	for (let length = maxLength; length >= DEFAULT_MIN_UNIQUE_KEY_LENGTH; length -= KEY_LENGTH_STEP) {
+		const prefix = expected.slice(0, length);
+		const index = page.indexOf(prefix);
+		if (index < 0) continue;
+		if (page.indexOf(prefix, index + 1) >= 0) continue;
+		return index;
+	}
+	return -1;
+}
+
+export function resolvePendingIndicesInTextContentItems(
+	items: Array<{ str?: string }>,
+	text: string,
+): PendingResolutionResult {
+	const rawPageTextLength = items.reduce((total, item) => total + (item.str?.length ?? 0), 0);
+	const page = normalizeTextContentItemsWithMap(items);
+	const expected = normalizeAtlasLigatureAliases(normalizeSearchKey(text));
+	const diagnosticsBase: Partial<PendingResolutionDiagnostics> = { textContentItemsAttempted: true };
+	if (expected.length < MIN_SEARCH_KEY_LENGTH || page.text.length === 0) {
+		return {
+			resolved: null,
+			diagnostics: makeDiagnostics('not-found', text, rawPageTextLength, items.length, diagnosticsBase),
+		};
+	}
+
+	let matchStart = page.text.indexOf(expected);
+	let matchEnd = matchStart >= 0 ? matchStart + expected.length : -1;
+	let matchKind: PendingResolutionDiagnostics['textContentItemsMatchKind'] = 'exact';
+	let editDistance = 0;
+	if (matchStart >= 0 && page.text.indexOf(expected, matchStart + 1) >= 0) {
+		matchStart = -1;
+		matchEnd = -1;
+	}
+
+	if (matchStart < 0) {
+		const prefixIndex = findUniquePrefixIndex(page.text, expected);
+		if (prefixIndex < 0) {
+			return {
+				resolved: null,
+				diagnostics: makeDiagnostics('not-found', text, rawPageTextLength, items.length, diagnosticsBase),
+			};
+		}
+
+		const maxEdits = Math.min(
+			TEXT_CONTENT_ITEMS_MAX_EDIT_CAP,
+			Math.max(2, Math.ceil(expected.length * TEXT_CONTENT_ITEMS_MAX_EDIT_RATIO)),
+		);
+		let best: { end: number; distance: number; lengthDelta: number } | null = null;
+		for (let candidateLength = expected.length - maxEdits; candidateLength <= expected.length + maxEdits; candidateLength++) {
+			if (candidateLength <= 0 || prefixIndex + candidateLength > page.text.length) continue;
+			const candidate = page.text.slice(prefixIndex, prefixIndex + candidateLength);
+			const distance = boundedEditDistance(expected, candidate, maxEdits);
+			if (distance === null) continue;
+			const lengthDelta = Math.abs(candidateLength - expected.length);
+			if (!best || distance < best.distance || (distance === best.distance && lengthDelta < best.lengthDelta)) {
+				best = { end: prefixIndex + candidateLength, distance, lengthDelta };
+			}
+		}
+		if (!best) {
+			return {
+				resolved: null,
+				diagnostics: makeDiagnostics('not-found', text, rawPageTextLength, items.length, diagnosticsBase),
+			};
+		}
+		matchStart = prefixIndex;
+		matchEnd = best.end;
+		matchKind = 'bounded-fuzzy';
+		editDistance = best.distance;
+	}
+
+	const begin = page.startPosition[matchStart];
+	const finish = page.endPosition[matchEnd - 1];
+	if (!begin || !finish) {
+		return {
+			resolved: null,
+			diagnostics: makeDiagnostics('position-map-failed', text, rawPageTextLength, items.length, diagnosticsBase),
+		};
+	}
+
+	return {
+		resolved: {
+			beginIndex: begin.index,
+			beginOffset: begin.offset,
+			endIndex: finish.index,
+			endOffset: finish.offset,
+		},
+		diagnostics: makeDiagnostics('resolved', text, rawPageTextLength, items.length, {
+			...diagnosticsBase,
+			textContentItemsMatchKind: matchKind,
+			textContentItemsEditDistance: editDistance,
+			resolvedBy: 'text-content-items',
+		}),
+	};
 }
 
 function findUniqueSearchKeyRange(

@@ -15,7 +15,7 @@ import { renderHighlightsForPage, clearHighlightsForPage, updateHighlightRectsFo
 import { renderMarginPanelForPage, clearMarginPanelForPage, applyHoverToMarginPanel } from './marginPanelRenderer';
 import { renderDrawLayerForPage, clearDrawLayerForPage, applyHoverToDrawLayer, type DrawLayerCallbacks } from './drawLayer';
 import { attachDragHandles } from './dragHandles';
-import { diagnosePendingTextSearch, isMarkerPending, resolvePendingIndicesWithDiagnostics, type PendingResolutionDiagnostics } from './resolvePendingIndices';
+import { diagnosePendingTextSearch, isMarkerPending, resolvePendingIndicesInTextContentItems, resolvePendingIndicesWithDiagnostics, type PendingResolutionDiagnostics } from './resolvePendingIndices';
 import { getTextLayerInfo } from './pdfViewerAccess';
 import { visibilityEventBus } from '../core/visibilityEventBus';
 
@@ -80,6 +80,7 @@ interface PendingResolveDiagnosticRow {
 	resolvedByPageText: number;
 	resolvedByBBoxText: number;
 	resolvedByPlainTextContext: number;
+	resolvedByTextContentItems: number;
 	pending: number;
 	pageTextLength: number;
 	textLayerNodeCount: number;
@@ -381,6 +382,7 @@ export class PdfPageObserver {
 		let resolvedByPageTextCount = 0;
 		let resolvedByBBoxTextCount = 0;
 		let resolvedByPlainTextContextCount = 0;
+		let resolvedByTextContentItemsCount = 0;
 		let stillPendingCount = 0;
 		let pageTextLength = 0;
 		let textLayerNodeCount = 0;
@@ -388,21 +390,35 @@ export class PdfPageObserver {
 		const failureReasons = new Map<PendingResolutionDiagnostics['reason'], number>();
 		const failureSamples: PendingResolveFailureSample[] = [];
 		const movedMarkerPages = new Set<number>();
+		const textLayerInfo = getTextLayerInfo(pageView);
 		for (const m of markers) {
 			if (isMarkerPending(m) && m.text) {
 				pendingAttempts++;
 				if (m.importedPdfSelectionBBox) withBBoxCount++;
 				if (m.importedQdpxContinuedBy) withContinuedByCount++;
 				let targetPageNumber = pageNumber;
-				let { resolved, diagnostics } = resolvePendingIndicesWithDiagnostics(pageView.div, m.text, {
-					bboxHint: m.importedPdfSelectionBBox,
-					plainTextContext: m.importedPdfTextContext,
-					pageNumber,
-				});
+				const textItemsResult = !m.importedQdpxMultipageFragment && textLayerInfo
+					? resolvePendingIndicesInTextContentItems(textLayerInfo.textContentItems, m.text)
+					: null;
+				let resolved = textItemsResult?.resolved ?? null;
+				let diagnostics = textItemsResult?.diagnostics;
+				if (!resolved) {
+					const domResult = resolvePendingIndicesWithDiagnostics(pageView.div, m.text, {
+						bboxHint: m.importedPdfSelectionBBox,
+						plainTextContext: m.importedPdfTextContext,
+						pageNumber,
+					});
+					resolved = domResult.resolved;
+					diagnostics = {
+						...domResult.diagnostics,
+						textContentItemsAttempted: textItemsResult?.diagnostics.textContentItemsAttempted,
+					};
+				}
+				if (!diagnostics) continue;
 				let markerBBoxAttempted = !!diagnostics.bboxAttempted;
 				let markerBBoxIgnoredPageMismatch = !!diagnostics.bboxIgnoredPageMismatch;
 				let markerBBoxTextLayerNodeCount = diagnostics.bboxTextLayerNodeCount ?? 0;
-				if (!resolved) {
+				if (!resolved && !m.importedQdpxMultipageFragment) {
 					const neighbor = this.resolveOnNeighborPage(pageNumber, m);
 					if (neighbor) {
 						targetPageNumber = neighbor.pageNumber;
@@ -434,6 +450,7 @@ export class PdfPageObserver {
 					resolvedCount++;
 					if (diagnostics.resolvedBy === 'bbox-text') resolvedByBBoxTextCount++;
 					else if (diagnostics.resolvedBy === 'plain-text-context') resolvedByPlainTextContextCount++;
+					else if (diagnostics.resolvedBy === 'text-content-items') resolvedByTextContentItemsCount++;
 					else resolvedByPageTextCount++;
 				} else {
 					stillPendingCount++;
@@ -489,6 +506,7 @@ export class PdfPageObserver {
 			resolvedByPageTextCount,
 			resolvedByBBoxTextCount,
 			resolvedByPlainTextContextCount,
+			resolvedByTextContentItemsCount,
 			stillPendingCount,
 			pageTextLength,
 			textLayerNodeCount,
@@ -625,6 +643,7 @@ export class PdfPageObserver {
 			const candidates = this.model.getMarkersForPage(filePath, sourcePage);
 			for (const marker of candidates) {
 				if (!isMarkerPending(marker) || !marker.text) continue;
+				if (marker.importedQdpxMultipageFragment) continue;
 
 				const d = diagnosePendingTextSearch(pageView.div, marker.text);
 				const strongEnough = (d.bestPrefixKeyLength ?? 0) >= NEIGHBOR_PAGE_REANCHOR_MIN_KEY_LENGTH
@@ -794,6 +813,7 @@ export class PdfPageObserver {
 		resolvedByPageTextCount: number;
 		resolvedByBBoxTextCount: number;
 		resolvedByPlainTextContextCount: number;
+		resolvedByTextContentItemsCount: number;
 		stillPendingCount: number;
 		pageTextLength: number;
 		textLayerNodeCount: number;
@@ -825,6 +845,7 @@ export class PdfPageObserver {
 			resolvedByPageText: args.resolvedByPageTextCount,
 			resolvedByBBoxText: args.resolvedByBBoxTextCount,
 			resolvedByPlainTextContext: args.resolvedByPlainTextContextCount,
+			resolvedByTextContentItems: args.resolvedByTextContentItemsCount,
 			pending: args.stillPendingCount,
 			pageTextLength: args.pageTextLength,
 			textLayerNodeCount: args.textLayerNodeCount,
