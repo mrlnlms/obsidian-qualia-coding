@@ -2,6 +2,7 @@ import type { PdfMarker, PdfShapeMarker, PercentShapeCoords } from './pdfCodingT
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinition, MarkerMutationEvent } from '../core/types';
+import { DEFAULT_CODER_ID, type CoderId } from '../core/icr/coderTypes';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import type QualiaCodingPlugin from '../main';
 import { attachSourceHashSnapshot } from '../core/icr/provenance/attachSourceHashSnapshot';
@@ -165,7 +166,7 @@ export class PdfCodingModel {
 	// ── Marker operations ──
 
 	updateMarkerFields(markerId: string, fields: { memo?: any; colorOverride?: string }): void {
-		const marker = this.findMarkerById(markerId);
+		const marker = this.editableMarkerById(markerId);
 		if (marker) {
 			if ('memo' in fields) marker.memo = fields.memo;
 			if ('colorOverride' in fields) marker.colorOverride = fields.colorOverride;
@@ -179,7 +180,7 @@ export class PdfCodingModel {
 			this.notify();
 			return;
 		}
-		const shape = this.findShapeById(markerId);
+		const shape = this.editableShapeById(markerId);
 		if (shape) {
 			if ('memo' in fields) shape.memo = fields.memo;
 			if ('colorOverride' in fields) shape.colorOverride = fields.colorOverride;
@@ -195,15 +196,28 @@ export class PdfCodingModel {
 	}
 
 	/** Find an existing marker without creating one (for read-only checks). */
-	findExistingMarker(file: string, page: number, beginIndex: number, beginOffset: number, endIndex: number, endOffset: number): PdfMarker | undefined {
+	findExistingMarker(
+		file: string,
+		page: number,
+		beginIndex: number,
+		beginOffset: number,
+		endIndex: number,
+		endOffset: number,
+		coderId: CoderId = this.plugin.getActiveCoderId(),
+	): PdfMarker | undefined {
 		return this.markers.find(m =>
 			m.fileId === file && m.page === page &&
 			m.beginIndex === beginIndex && m.beginOffset === beginOffset &&
-			m.endIndex === endIndex && m.endOffset === endOffset
+			m.endIndex === endIndex && m.endOffset === endOffset &&
+			!m.importedQdpxSelection?.unattributedOwner &&
+			(m.codedBy ?? DEFAULT_CODER_ID) === coderId
 		);
 	}
 
 	findOrCreateMarker(file: string, page: number, beginIndex: number, beginOffset: number, endIndex: number, endOffset: number, text: string): PdfMarker {
+		if (this.plugin.isCodingReadOnly()) {
+			throw new Error('Cannot create PDF marker while coding participation is read-only');
+		}
 		const existing = this.findExistingMarker(file, page, beginIndex, beginOffset, endIndex, endOffset);
 		if (existing) return existing;
 
@@ -238,7 +252,7 @@ export class PdfCodingModel {
 	// ── Code assignment ──
 
 	addCodeToMarker(markerId: string, codeId: string): void {
-		const marker = this.findMarkerById(markerId);
+		const marker = this.editableMarkerById(markerId);
 		if (!marker) return;
 		if (!hasCode(marker.codes, codeId)) {
 			const prevCodeIds = marker.codes.map(c => c.codeId);
@@ -254,7 +268,7 @@ export class PdfCodingModel {
 	}
 
 	removeCodeFromMarker(markerId: string, codeId: string, keepIfEmpty = false): void {
-		const marker = this.findMarkerById(markerId);
+		const marker = this.editableMarkerById(markerId);
 		if (!marker) return;
 
 		const prevCodeIds = marker.codes.map(c => c.codeId);
@@ -276,7 +290,7 @@ export class PdfCodingModel {
 
 	/** Remove all codes from a marker. */
 	removeAllCodesFromMarker(markerId: string): void {
-		const marker = this.findMarkerById(markerId);
+		const marker = this.editableMarkerById(markerId);
 		if (!marker || marker.codes.length === 0) return;
 
 		const prevCodeIds = marker.codes.map(c => c.codeId);
@@ -294,7 +308,7 @@ export class PdfCodingModel {
 
 	updateMarkerRange(markerId: string, changes: Partial<Pick<PdfMarker,
 		'page' | 'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
-		const marker = this.findMarkerById(markerId);
+		const marker = this.editableMarkerById(markerId);
 		if (!marker) return;
 		Object.assign(marker, changes);
 		marker.updatedAt = Date.now();
@@ -307,7 +321,7 @@ export class PdfCodingModel {
 	 */
 	updateMarkerRangeSilent(markerId: string, changes: Partial<Pick<PdfMarker,
 		'page' | 'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
-		const marker = this.findMarkerById(markerId);
+		const marker = this.editableMarkerById(markerId);
 		if (!marker) return;
 		Object.assign(marker, changes);
 		marker.updatedAt = Date.now();
@@ -317,6 +331,16 @@ export class PdfCodingModel {
 
 	findMarkerById(id: string): PdfMarker | undefined {
 		return this.markers.find(m => m.id === id);
+	}
+
+	isMarkerEditable(marker: PdfMarker | PdfShapeMarker): boolean {
+		if ('importedQdpxSelection' in marker && marker.importedQdpxSelection?.unattributedOwner) return false;
+		return this.plugin.canEditMarker(marker);
+	}
+
+	private editableMarkerById(markerId: string): PdfMarker | undefined {
+		const marker = this.findMarkerById(markerId);
+		return marker && this.isMarkerEditable(marker) ? marker : undefined;
 	}
 
 	getAllMarkers(): PdfMarker[] {
@@ -338,6 +362,9 @@ export class PdfCodingModel {
 	// ── Shape operations ──
 
 	createShape(file: string, page: number, coords: PercentShapeCoords): PdfShapeMarker {
+		if (this.plugin.isCodingReadOnly()) {
+			throw new Error('Cannot create PDF marker while coding participation is read-only');
+		}
 		const shape: PdfShapeMarker = {
 			markerType: 'pdf',
 			id: this.generateId(),
@@ -365,7 +392,7 @@ export class PdfCodingModel {
 	}
 
 	updateShapeCoords(shapeId: string, coords: PercentShapeCoords): void {
-		const shape = this.findShapeById(shapeId);
+		const shape = this.editableShapeById(shapeId);
 		if (!shape) return;
 		shape.coords = coords;
 		shape.shape = coords.type;
@@ -374,7 +401,8 @@ export class PdfCodingModel {
 	}
 
 	deleteShape(shapeId: string): void {
-		const target = this.findShapeById(shapeId);
+		const target = this.editableShapeById(shapeId);
+		if (!target) return;
 		this.shapes = this.shapes.filter(s => s.id !== shapeId);
 		if (target) {
 			this.emitMarkerMutation({
@@ -402,8 +430,13 @@ export class PdfCodingModel {
 		return this.shapes.find(s => s.id === id);
 	}
 
-	addCodeToShape(shapeId: string, codeId: string): void {
+	private editableShapeById(shapeId: string): PdfShapeMarker | undefined {
 		const shape = this.findShapeById(shapeId);
+		return shape && this.isMarkerEditable(shape) ? shape : undefined;
+	}
+
+	addCodeToShape(shapeId: string, codeId: string): void {
+		const shape = this.editableShapeById(shapeId);
 		if (!shape) return;
 		if (!hasCode(shape.codes, codeId)) {
 			const prevCodeIds = shape.codes.map(c => c.codeId);
@@ -419,7 +452,7 @@ export class PdfCodingModel {
 	}
 
 	removeCodeFromShape(shapeId: string, codeId: string, keepIfEmpty = false): void {
-		const shape = this.findShapeById(shapeId);
+		const shape = this.editableShapeById(shapeId);
 		if (!shape) return;
 		const prevCodeIds = shape.codes.map(c => c.codeId);
 		shape.codes = removeCodeApplication(shape.codes, codeId);
@@ -438,7 +471,7 @@ export class PdfCodingModel {
 	}
 
 	removeAllCodesFromShape(shapeId: string): void {
-		const shape = this.findShapeById(shapeId);
+		const shape = this.editableShapeById(shapeId);
 		if (!shape || shape.codes.length === 0) return;
 		shape.codes = [];
 		shape.updatedAt = Date.now();
@@ -476,7 +509,8 @@ export class PdfCodingModel {
 	}
 
 	removeMarker(id: string, silent = false): boolean {
-		const target = this.markers.find(m => m.id === id);
+		const target = this.editableMarkerById(id);
+		if (!target) return false;
 		this.markers = this.markers.filter(m => m.id !== id);
 		const removed = target !== undefined;
 		if (removed && !silent) {

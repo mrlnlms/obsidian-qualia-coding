@@ -512,6 +512,22 @@ body.codemarker-pdf-drawing .codemarker-pdf-draw-layer {
   cursor: default;
 }
 
+.codemarker-popover-readonly-owner {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  padding: 6px 10px;
+}
+
+.codemarker-popover-readonly-code,
+.codemarker-popover-readonly-memo {
+  padding: 4px 10px;
+}
+
+.codemarker-popover-readonly-memo {
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
 /* ========================================
    Code Detail View (sidebar)
    ======================================== */

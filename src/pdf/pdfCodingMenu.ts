@@ -37,7 +37,10 @@ export function openPdfCodingPopover(
 	onCloseCleanup?: () => void,
 	pdfState?: PdfViewState,
 ): void {
-	if (model.plugin.isCodingReadOnly()) return;
+	if (model.plugin.isCodingReadOnly()) {
+		onCloseCleanup?.();
+		return;
+	}
 	const results = Array.isArray(selectionResults) ? selectionResults : [selectionResults];
 	const pos = savedPos ?? (mouseEvent ? { x: mouseEvent.clientX, y: mouseEvent.clientY } : { x: 0, y: 0 });
 	// PDF: anchor point sem tracker — re-cálculo de rect via pdfjs page transform
@@ -68,14 +71,22 @@ export function openPdfCodingPopover(
 
 	// Determine hover vs selection mode
 	const firstResult = results[0]!;
-	const existingMarker = hoverMarkerId
-		? model.findMarkerById(hoverMarkerId)
+	const hoveredMarker = hoverMarkerId ? model.findMarkerById(hoverMarkerId) : undefined;
+	const existingMarker = hoveredMarker
+		?? (hoverMarkerId
+			? undefined
 		: model.findExistingMarker(
 			firstResult.file, firstResult.page,
 			firstResult.beginIndex, firstResult.beginOffset,
 			firstResult.endIndex, firstResult.endOffset,
-		);
+		));
 	const isHoverMode = !!hoverMarkerId && !!existingMarker;
+	const readOnly = hoveredMarker ? !model.isMarkerEditable(hoveredMarker) : model.plugin.isCodingReadOnly();
+	const ownerName = hoveredMarker?.codedBy
+		? model.plugin.coderRegistry.getById(hoveredMarker.codedBy)?.name ?? hoveredMarker.codedBy
+		: hoveredMarker?.importedQdpxSelection?.unattributedOwner
+			? 'Usuário QDPX não identificado'
+			: 'Default';
 
 	const adapter: CodingPopoverAdapter = {
 		registry: model.registry,
@@ -180,6 +191,8 @@ export function openPdfCodingPopover(
 		anchor: { rect: anchorRect, preferredSide },
 		app,
 		isHoverMode,
+		readOnly,
+		readOnlyLabel: readOnly ? `${ownerName} · somente leitura` : ownerName,
 		showMagnitudeSection: model.dataManager.section('general').showMagnitudeInPopover,
 		showRelationsSection: model.dataManager.section('general').showRelationsInPopover,
 		badge: results.length > 1 ? `Selection spans ${results.length} pages` : undefined,
@@ -192,7 +205,7 @@ export function openPdfCodingPopover(
 		onRebuild: () => {
 			openPdfCodingPopover(mouseEvent, model, results, onHighlightRefresh, pos, app, hoverMarkerId, undefined, pdfState);
 		},
-		deleteAction: isHoverMode ? {
+		deleteAction: isHoverMode && !readOnly ? {
 			label: 'Delete Marker',
 			icon: 'trash',
 			onDelete: () => {
@@ -223,6 +236,10 @@ export function openShapeCodingPopover(
 	if (model.plugin.isCodingReadOnly()) return;
 	const shape = model.findShapeById(shapeId);
 	if (!shape) return;
+	const readOnly = !model.isMarkerEditable(shape);
+	const ownerName = shape.codedBy
+		? model.plugin.coderRegistry.getById(shape.codedBy)?.name ?? shape.codedBy
+		: 'Default';
 
 	const shapeNames: Record<string, string> = { rect: 'Rectangle', ellipse: 'Ellipse', polygon: 'Polygon' };
 
@@ -291,6 +308,8 @@ export function openShapeCodingPopover(
 		anchor: { rect: { top: pos.y, bottom: pos.y, left: pos.x, right: pos.x } },
 		app,
 		isHoverMode: true,
+		readOnly,
+		readOnlyLabel: readOnly ? `${ownerName} · somente leitura` : ownerName,
 		showMagnitudeSection: model.dataManager.section('general').showMagnitudeInPopover,
 		showRelationsSection: model.dataManager.section('general').showRelationsInPopover,
 		badge: shapeNames[shape.shape] || shape.shape,
@@ -300,14 +319,14 @@ export function openShapeCodingPopover(
 			start: (close: () => void) => startHoverCloseTimer(pdfState, close),
 		} : undefined,
 		onRebuild: () => openShapeCodingPopover(pos, model, shapeId, onRefresh, app, pdfState),
-		deleteAction: {
+		deleteAction: !readOnly ? {
 			label: 'Delete Shape',
 			icon: 'trash',
 			onDelete: () => {
 				model.removeAllCodesFromShape(shapeId);
 				onRefresh();
 			},
-		},
+		} : undefined,
 	};
 
 	openCodingPopover(adapter, options);

@@ -51,7 +51,10 @@ export class CodingMenu {
 	}
 
 	open(markerId: string, anchor: AnchorSpec, isNew = false): void {
-		if (this.model.isCodingReadOnly()) return;
+		if (this.model.isCodingReadOnly()) {
+			if (isNew) this.callbacks.onRegionDeleted(markerId);
+			return;
+		}
 		const marker = this.model.findMarkerById(markerId);
 		if (!marker) return;
 

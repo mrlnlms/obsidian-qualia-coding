@@ -31,6 +31,7 @@ const HOVERED_CLASS = 'codemarker-pdf-margin-hovered';
 interface BarEntry {
 	markerId: string;
 	codeName: string;
+	coderName?: string;
 	color: string;
 	topPct: number;
 	bottomPct: number;
@@ -41,6 +42,7 @@ interface BarEntry {
 interface LabelEntry {
 	markerId: string;
 	codeName: string;
+	coderName?: string;
 	color: string;
 	idealY: number;
 	actualY: number;
@@ -60,6 +62,7 @@ export function renderMarginPanelForPage(
 	registry: CodeDefinitionRegistry,
 	callbacks: MarginPanelCallbacks,
 	shapes?: PdfShapeMarker[],
+	ownerLabelForMarker?: (marker: PdfMarker | PdfShapeMarker) => string,
 ): void {
 	const pageDiv = pageView.div;
 	clearMarginPanelForPage(pageDiv);
@@ -99,6 +102,7 @@ export function renderMarginPanelForPage(
 				bars.push({
 					markerId: marker.id,
 					codeName: def?.name ?? ca.codeId,
+					coderName: ownerLabelForMarker?.(marker),
 					color,
 					topPct: bounds.topPct,
 					bottomPct: bounds.bottomPct,
@@ -122,6 +126,7 @@ export function renderMarginPanelForPage(
 				bars.push({
 					markerId: shape.id,
 					codeName: def?.name ?? ca.codeId,
+					coderName: ownerLabelForMarker?.(shape),
 					color,
 					topPct: bounds.topPct,
 					bottomPct: bounds.bottomPct,
@@ -211,10 +216,13 @@ export function renderMarginPanelForPage(
 		labelEl.className = LABEL_CLASS;
 		labelEl.dataset.markerId = label.markerId;
 		labelEl.dataset.codeName = label.codeName;
+		labelEl.dataset.coderName = label.coderName ?? '';
 		labelEl.style.top = `${label.actualY}%`;
 		labelEl.style.right = `${panelWidth + 2}px`;
 		labelEl.style.color = label.color;
-		labelEl.textContent = label.codeName;
+		labelEl.textContent = label.coderName
+			? `${label.codeName} · ${label.coderName}`
+			: label.codeName;
 		panel.appendChild(labelEl);
 	}
 
@@ -301,6 +309,7 @@ function resolveLabels(bars: BarEntry[]): LabelEntry[] {
 		return {
 			markerId: b.markerId,
 			codeName: b.codeName,
+			coderName: b.coderName,
 			color: b.color,
 			idealY: midY,
 			actualY: midY,

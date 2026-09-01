@@ -544,6 +544,7 @@ export class PdfPageObserver {
 
 		// Attach drag handles to each rendered marker
 		for (const info of renderInfos) {
+			if (!this.model.isMarkerEditable(info.marker)) continue;
 			attachDragHandles(info, pageView, {
 				onRangeUpdate: (markerId, changes) => {
 					this.model.updateMarkerRange(markerId, changes);
@@ -587,6 +588,11 @@ export class PdfPageObserver {
 				onHover: (markerId, codeName) => this.model.setHoverState(markerId, codeName),
 			},
 			shapes,
+			(marker) => marker.codedBy
+				? this.model.plugin.coderRegistry.getById(marker.codedBy)?.name ?? marker.codedBy
+				: 'importedQdpxSelection' in marker && marker.importedQdpxSelection?.unattributedOwner
+					? 'Usuário QDPX não identificado'
+					: 'Default',
 		);
 
 		// Tag the panel with page number so we can track it in the overlay

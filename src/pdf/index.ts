@@ -202,6 +202,7 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 			// Create draw interaction and toolbar
 			const drawInteraction = new DrawInteraction(child, model, {
 				onShapeCreated: (file, page, coords) => {
+					if (plugin.isCodingReadOnly()) return;
 					const shape = model.createShape(file, page, coords);
 					const shapeEls = child.containerEl.querySelectorAll(`[data-shape-id="${shape.id}"]`);
 					const anchorEl = shapeEls[0] as SVGElement | undefined;
