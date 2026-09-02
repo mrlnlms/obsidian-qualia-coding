@@ -20,6 +20,7 @@ import type { DataManager } from '../core/dataManager';
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import { getImageDimensions } from '../core/imageDimensions';
 import { renderVariablesForFile, renderCasesXml } from './caseVariablesXml';
+import type { QdpxAuthoringContext } from './qdpxAuthoring';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -47,18 +48,30 @@ export function ensureGuid(id: string, guidMap: Map<string, string>): string {
 }
 
 /** Build <Coding><CodeRef/></Coding> elements for all codes on a selection. */
-export function buildCodingXml(codes: CodeApplication[], guidMap: Map<string, string>, createdAt?: number, notes?: string[]): string {
-  const dateStr = createdAt ? new Date(createdAt).toISOString() : new Date().toISOString();
+export function buildCodingXml(
+  codes: CodeApplication[],
+  guidMap: Map<string, string>,
+  createdAt?: number,
+  notes?: string[],
+  creatingUserGuid?: string,
+): string {
   return codes.map(ca => {
     const codingGuid = uuidV4();
     const codeGuid = ensureGuid(ca.codeId, guidMap);
+    const importedDate = ca.qdpx?.creationDateTime;
+    const dateStr = importedDate && !Number.isNaN(Date.parse(importedDate))
+      ? new Date(importedDate).toISOString()
+      : createdAt
+        ? new Date(createdAt).toISOString()
+        : new Date().toISOString();
     let noteRef = '';
     if (ca.magnitude && notes) {
       const noteGuid = `mag_${codingGuid}`;
       notes.push(buildNoteXml(noteGuid, 'Magnitude', `[Magnitude: ${ca.magnitude}]`));
       noteRef = `\n${buildNoteRefXml(noteGuid)}`;
     }
-    return `<Coding ${xmlAttr('guid', codingGuid)} ${xmlAttr('creationDateTime', dateStr)}>\n<CodeRef ${xmlAttr('targetGUID', codeGuid)}/>${noteRef}\n</Coding>`;
+    const authorAttr = creatingUserGuid ? ` ${xmlAttr('creatingUser', creatingUserGuid)}` : '';
+    return `<Coding ${xmlAttr('guid', codingGuid)} ${xmlAttr('creationDateTime', dateStr)}${authorAttr}>\n<CodeRef ${xmlAttr('targetGUID', codeGuid)}/>${noteRef}\n</Coding>`;
   }).join('\n');
 }
 
@@ -83,6 +96,7 @@ export function buildTextSourceXml(
   srcGuid?: string,
   txtGuid?: string,
   includeSources?: boolean,
+  authoring?: QdpxAuthoringContext,
 ): string {
   const resolvedSrcGuid = srcGuid || uuidV4();
   const resolvedTxtGuid = txtGuid || uuidV4();
@@ -98,7 +112,7 @@ export function buildTextSourceXml(
       if (start === -1 || end === -1) return '';
 
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes, authoring?.authorGuidFor(m));
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -125,6 +139,7 @@ function buildMediaSourceXml(
   guidMap: Map<string, string>,
   notes: string[],
   includeSources?: boolean,
+  authoring?: QdpxAuthoringContext,
 ): string {
   const srcGuid = uuidV4();
   guidMap.set(`source:${filePath}`, srcGuid);
@@ -137,7 +152,7 @@ function buildMediaSourceXml(
     .filter(m => m.codes.length > 0)
     .map(m => {
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes, authoring?.authorGuidFor(m));
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -155,14 +170,16 @@ function buildMediaSourceXml(
 
 export function buildAudioSourceXml(
   filePath: string, markers: MediaMarker[], guidMap: Map<string, string>, notes: string[], includeSources?: boolean,
+  authoring?: QdpxAuthoringContext,
 ): string {
-  return buildMediaSourceXml('AudioSource', 'AudioSelection', filePath, markers, guidMap, notes, includeSources);
+  return buildMediaSourceXml('AudioSource', 'AudioSelection', filePath, markers, guidMap, notes, includeSources, authoring);
 }
 
 export function buildVideoSourceXml(
   filePath: string, markers: MediaMarker[], guidMap: Map<string, string>, notes: string[], includeSources?: boolean,
+  authoring?: QdpxAuthoringContext,
 ): string {
-  return buildMediaSourceXml('VideoSource', 'VideoSelection', filePath, markers, guidMap, notes, includeSources);
+  return buildMediaSourceXml('VideoSource', 'VideoSelection', filePath, markers, guidMap, notes, includeSources, authoring);
 }
 
 // ── Tabular (CSV / Parquet) ──
@@ -180,6 +197,7 @@ export function buildTabularSourceXml(
   guidMap: Map<string, string>,
   notes: string[],
   includeSources?: boolean,
+  authoring?: QdpxAuthoringContext,
 ): string {
   if (segmentMarkers.length === 0 && rowMarkers.length === 0) return '';
   const srcGuid = uuidV4();
@@ -195,7 +213,7 @@ export function buildTabularSourceXml(
   ): string => {
     if (m.codes.length === 0) return '';
     const selGuid = ensureGuid(m.id, guidMap);
-    const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+    const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes, authoring?.authorGuidFor(m));
     let noteRef = '';
     if (m.memo) {
       const noteGuid = `note_${selGuid}`;
@@ -226,6 +244,7 @@ export function buildImageSourceXml(
   guidMap: Map<string, string>,
   notes: string[],
   includeSources?: boolean,
+  authoring?: QdpxAuthoringContext,
 ): string {
   const srcGuid = uuidV4();
   guidMap.set(`source:${filePath}`, srcGuid);
@@ -240,7 +259,7 @@ export function buildImageSourceXml(
       const px = imageToPixels(m.coords, imgWidth, imgHeight);
       if (!px) return '';
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes, authoring?.authorGuidFor(m));
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -268,6 +287,7 @@ export function buildPdfSourceXml(
   notes: string[],
   includeSources?: boolean,
   plainText?: string,
+  authoring?: QdpxAuthoringContext,
 ): string {
   const srcGuid = uuidV4();
   guidMap.set(`source:${filePath}`, srcGuid);
@@ -290,7 +310,7 @@ export function buildPdfSourceXml(
       const offsets = textOffsets.get(m.id);
       if (!offsets) return '';
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes, authoring?.authorGuidFor(m));
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -309,7 +329,7 @@ export function buildPdfSourceXml(
       const rect = pdfShapeToRect(m.coords, dim.width, dim.height);
       if (!rect) return '';
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes, authoring?.authorGuidFor(m));
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -340,9 +360,10 @@ export function buildPdfSourceXmlWithRepr(
   guidMap: Map<string, string>,
   notes: string[],
   includeSources?: boolean,
+  authoring?: QdpxAuthoringContext,
 ): { xml: string; reprGuid: string } {
   const reprGuid = uuidV4();
-  const xml = buildPdfSourceXmlInternal(filePath, textMarkers, shapeMarkers, pageDimensions, textOffsets, guidMap, notes, includeSources, reprGuid);
+  const xml = buildPdfSourceXmlInternal(filePath, textMarkers, shapeMarkers, pageDimensions, textOffsets, guidMap, notes, includeSources, reprGuid, authoring);
   return { xml, reprGuid };
 }
 
@@ -356,6 +377,7 @@ function buildPdfSourceXmlInternal(
   notes: string[],
   includeSources: boolean | undefined,
   reprGuidOverride: string,
+  authoring?: QdpxAuthoringContext,
 ): string {
   const srcGuid = uuidV4();
   guidMap.set(`source:${filePath}`, srcGuid);
@@ -377,7 +399,7 @@ function buildPdfSourceXmlInternal(
       const offsets = textOffsets.get(m.id);
       if (!offsets) return '';
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes, authoring?.authorGuidFor(m));
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -396,7 +418,7 @@ function buildPdfSourceXmlInternal(
       const rect = pdfShapeToRect(m.coords, dim.width, dim.height);
       if (!rect) return '';
       const selGuid = ensureGuid(m.id, guidMap);
-      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes);
+      const codingsXml = buildCodingXml(m.codes, guidMap, m.createdAt, notes, authoring?.authorGuidFor(m));
       let noteRef = '';
       if (m.memo) {
         const noteGuid = `note_${selGuid}`;
@@ -496,6 +518,7 @@ export function buildProjectXml(
   pluginVersion: string,
   guidMap?: Map<string, string>,
   smartCodes?: SmartCodeDefinition[],
+  usersXml = '',
 ): string {
   const codebook = guidMap
     ? buildCodebookXml(registry, { ensureCodeGuid: (id) => ensureGuid(id, guidMap) })
@@ -506,7 +529,7 @@ export function buildProjectXml(
   const casesSection = casesXml ? `<Cases>\n${casesXml}\n</Cases>` : '';
   const smartCodesSection = smartCodes ? buildSmartCodesXml(smartCodes) : '';
 
-  const sections = [codebook, sourcesSection, notesSection, linksSection, casesSection, smartCodesSection].filter(Boolean).join('\n');
+  const sections = [usersXml, codebook, sourcesSection, notesSection, linksSection, casesSection, smartCodesSection].filter(Boolean).join('\n');
 
   // Declare the qualia: namespace at Project root whenever any section uses it
   // (today: `<qualia:TabularSource>` for CSV/parquet, `<qualia:Set>` for code
@@ -783,4 +806,3 @@ async function addSourceFile(
   const guid = guidMap.get(`source:${filePath}`) || uuidV4();
   sourceFiles.set(`sources/${guid}.${ext}`, new Uint8Array(data));
 }
-

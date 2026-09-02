@@ -47,6 +47,20 @@ describe('buildCodingXml', () => {
     expect(xml).toContain('targetGUID="550e8400-e29b-41d4-a716-446655440001"');
     expect((xml.match(/<Coding /g) || []).length).toBe(2);
   });
+
+  it('emits creatingUser and preserves an imported Coding timestamp', () => {
+    const xml = buildCodingXml([{
+      codeId: '550e8400-e29b-41d4-a716-446655440000',
+      qdpx: {
+        source: 'refi-qda-coding',
+        sourceCodingGuids: [],
+        creationDateTime: '2026-01-02T03:04:05.000Z',
+      },
+    }], new Map(), 1, [], '11111111-1111-4111-8111-111111111111');
+
+    expect(xml).toContain('creatingUser="11111111-1111-4111-8111-111111111111"');
+    expect(xml).toContain('creationDateTime="2026-01-02T03:04:05.000Z"');
+  });
 });
 
 describe('buildNoteXml', () => {
@@ -180,6 +194,30 @@ describe('buildImageSourceXml', () => {
 });
 
 describe('buildPdfSourceXml', () => {
+
+  it('passes the PDF marker owner into its Coding XML', () => {
+    const marker = {
+      id: 'pm-authored', fileId: 'docs/paper.pdf', page: 0,
+      text: 'selected text', contextBefore: '', contextAfter: '', occurrenceIndex: 0,
+      codes: [{ codeId: 'code-1' }], codedBy: 'human:carla',
+      createdAt: Date.now(), updatedAt: Date.now(),
+    } as PdfMarker;
+    const authoring = {
+      authorGuidFor: (candidate: { id: string }) => candidate.id === marker.id
+        ? '11111111-1111-4111-8111-111111111111'
+        : undefined,
+      getUsers: () => [],
+    };
+
+    const xml = buildPdfSourceXml(
+      marker.fileId, [marker], [], null,
+      new Map([[marker.id, { start: 0, end: 13 }]]),
+      new Map(), [], false, undefined, authoring,
+    );
+
+    expect(xml).toContain('creatingUser="11111111-1111-4111-8111-111111111111"');
+  });
+
   it('builds PDFSource with Representation and PlainTextSelection for text markers', () => {
     const textMarkers: PdfMarker[] = [{
       id: 'pm-1', fileId: 'docs/paper.pdf', page: 0,
@@ -280,6 +318,16 @@ describe('buildLinksXml — memo emission', () => {
 });
 
 describe('buildProjectXml', () => {
+
+  it('places Users before the CodeBook', () => {
+    const registry = new CodeDefinitionRegistry();
+    const usersXml = '<Users><User guid="u1" name="Carla"/></Users>';
+    const xml = buildProjectXml(registry, '', '', '', '', 'Vault', '1.0.0', undefined, undefined, usersXml);
+
+    expect(xml.indexOf('<Users>')).toBeGreaterThan(-1);
+    expect(xml.indexOf('<Users>')).toBeLessThan(xml.indexOf('<CodeBook>'));
+  });
+
   it('assembles Project XML with codebook, sources, and notes', () => {
     const registry = new CodeDefinitionRegistry();
     registry.create('Theme A', '#ff0000');
