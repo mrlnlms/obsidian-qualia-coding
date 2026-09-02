@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { zipSync, strToU8, unzipSync } from 'fflate';
 import { parseXml } from '../../src/import/xmlParser';
 import {
   parseSources,
@@ -9,12 +10,15 @@ import {
   buildPdfMultipageFragmentHints,
   resolveInternalPath,
   createPdfMarker,
+  importQdpx,
+  previewQdpx,
   resolveImportedPdfText,
   type ParsedLink,
   type ParsedSource,
 } from '../../src/import/qdpxImporter';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import { DataManager } from '../../src/core/dataManager';
+import { CoderRegistry } from '../../src/core/icr/coderRegistry';
 import type { Plugin } from 'obsidian';
 import { isMarkerPending } from '../../src/pdf/resolvePendingIndices';
 
@@ -24,6 +28,36 @@ function createMockPlugin() {
     loadData: vi.fn(async () => stored),
     saveData: vi.fn(async (data: any) => { stored = data; }),
   } as unknown as Plugin;
+}
+
+function multicoderQdpx(): ArrayBuffer {
+  const project = `<Project name="Multicoder fixture">
+    <Users>
+      <User guid="u-carla" name="Carla" />
+      <User guid="u-joao" name="João" />
+      <User guid="u-observer" name="Observer" />
+    </Users>
+    <CodeBook><Codes><Code guid="code-a" name="Theme A" isCodable="true" /></Codes></CodeBook>
+    <Sources><PDFSource guid="pdf-1" name="paper.pdf" path="internal://paper.pdf">
+      <PDFSelection guid="selection-1" page="0" name="quoted passage" firstX="10" firstY="20" secondX="100" secondY="40">
+        <Coding guid="pdf-carla" creatingUser="u-carla"><CodeRef targetGUID="code-a" /></Coding>
+        <Coding guid="pdf-joao" creatingUser="u-joao"><CodeRef targetGUID="code-a" /></Coding>
+      </PDFSelection>
+      <Representation guid="representation-1" plainTextPath="internal://paper.txt">
+        <PlainTextSelection guid="selection-1" startPosition="0" endPosition="14">
+          <Coding guid="text-carla" creatingUser="u-carla"><CodeRef targetGUID="code-a" /></Coding>
+          <Coding guid="text-joao" creatingUser="u-joao"><CodeRef targetGUID="code-a" /></Coding>
+        </PlainTextSelection>
+      </Representation>
+    </PDFSource></Sources>
+  </Project>`;
+  const toCurrentRealm = (data: Uint8Array) => new Uint8Array(data);
+  const zipped = zipSync({
+    'project.qde': toCurrentRealm(strToU8(project)),
+    'sources/paper.pdf': toCurrentRealm(new Uint8Array([37, 80, 68, 70])),
+    'sources/paper.txt': toCurrentRealm(strToU8('quoted passage')),
+  });
+  return zipped.slice().buffer as ArrayBuffer;
 }
 
 describe('parseSources', () => {
@@ -161,6 +195,69 @@ describe('parseSources', () => {
     const doc = parseXml(xml);
     const sources = parseSources(doc);
     expect(sources[0]!.selections[0]!.codeGuids).toEqual(['g1', 'g2']);
+  });
+});
+
+describe('multicoder QDPX import', () => {
+  it('filters inactive users, creates one paired PDF marker per coder, and audits every declared user', async () => {
+    const zip = multicoderQdpx();
+    const registry = new CodeDefinitionRegistry();
+    expect(Object.keys(unzipSync(new Uint8Array(zip)))).toContain('project.qde');
+    const preview = previewQdpx(zip, registry);
+    expect(preview.users.map((user) => user.guid)).toEqual(['u-carla', 'u-joao', 'u-observer']);
+    expect(preview.participatingUsers.map((user) => user.guid)).toEqual(['u-carla', 'u-joao']);
+    expect(preview.codingCount).toBe(4);
+
+    const writes = new Map<string, string>();
+    const vault = {
+      adapter: {
+        exists: vi.fn(async () => false),
+        mkdir: vi.fn(async () => {}),
+        write: vi.fn(async (path: string, contents: string) => { writes.set(path, contents); }),
+        writeBinary: vi.fn(async () => {}),
+      },
+    };
+    const app = { vault } as any;
+    const dm = new DataManager(createMockPlugin());
+    await dm.load();
+    const coderRegistry = new CoderRegistry();
+    const setCodingParticipation = vi.fn();
+
+    const result = await importQdpx(zip, app, dm, registry, {
+      conflictStrategy: 'merge',
+      keepOriginalSources: false,
+      projectName: 'multicoder-fixture',
+      participation: { mode: 'read-only' },
+    }, {
+      coderRegistry,
+      setCodingParticipation,
+    });
+
+    expect(result.segmentsCreated).toBe(2);
+    expect(setCodingParticipation).toHaveBeenCalledWith('read-only');
+    expect(coderRegistry.getByExternalIdentity({ scheme: 'refi-qda-user-guid', value: 'u-observer' })).toBeNull();
+
+    const markers = dm.section('pdf').markers;
+    expect(markers).toHaveLength(2);
+    expect(markers.map((marker) => marker.id)).toEqual([
+      'import_selection-1_human_qdpx_u-carla',
+      'import_selection-1_human_qdpx_u-joao',
+    ]);
+    expect(markers.map((marker) => marker.codedBy)).toEqual([
+      'human:qdpx:u-carla',
+      'human:qdpx:u-joao',
+    ]);
+    expect(markers.map((marker) => marker.codes[0]!.qdpx?.sourceCodingGuids)).toEqual([
+      ['pdf-carla', 'text-carla'],
+      ['pdf-joao', 'text-joao'],
+    ]);
+    expect(markers.map((marker) => marker.importedQdpxSelection?.selectionGuid)).toEqual(['selection-1', 'selection-1']);
+
+    expect(result.auditPath).toBe('imports/multicoder-fixture/qdpx-import-audit.md');
+    const audit = writes.get(result.auditPath!);
+    expect(audit).toContain('| Carla | João | Sem autoria (legado multipágina) |');
+    expect(audit).toContain('## Usuários declarados sem aplicações');
+    expect(audit).toContain('- Observer');
   });
 });
 
@@ -529,7 +626,7 @@ describe('parseLinks', () => {
     const resolver = {
       codes: new Map<string, string>(),
       sources: new Map<string, string>([['src1', 'imports/paper.pdf']]),
-      selections: new Map<string, string>([['sel1', 'import_sel1'], ['sel2', 'import_sel2']]),
+      selections: new Map<string, string[]>([['sel1', ['import_sel1']], ['sel2', ['import_sel2']]]),
       smartCodes: new Map<string, string>(),
     };
     const markers = [
@@ -654,14 +751,20 @@ describe('applyLinks', () => {
     const resolver = {
       codes: new Map<string, string>([['g2', c2.id]]),
       sources: new Map<string, string>(),
-      selections: new Map<string, string>([['origGuid', markerId]]),
+      selections: new Map<string, string[]>([['origGuid', [markerId]]]),
     };
 
     const mdData = {
       markers: { 'file1.md': [{ id: markerId, codes: [{ codeId: c2.id }] }] },
       settings: {},
     };
-    const sections: Record<string, unknown> = { markdown: mdData };
+    const sections: Record<string, unknown> = {
+      markdown: mdData,
+      pdf: { markers: [], shapes: [] },
+      image: { markers: [] },
+      audio: { files: [] },
+      video: { files: [] },
+    };
     const mockDm = {
       section: (k: string) => sections[k] ?? { markers: {}, shapes: [], files: [] },
       setSection: (k: string, v: unknown) => { sections[k] = v; },

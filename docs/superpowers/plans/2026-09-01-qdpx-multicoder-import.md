@@ -1172,6 +1172,9 @@ git commit -m "docs: record multicoder import validation"
 
 ### Task 8: Freeze the working behavior with automated coverage
 
+> Concluída em 2026-09-02. A regressão focada aprovou 200 testes; a suíte
+> integral, build e `git diff --check` foram executados antes deste checkpoint.
+
 **Files:**
 - Create: `tests/import/qdpxAuthoring.test.ts`
 - Create: `tests/core/icr/codingPermissions.test.ts`
@@ -1184,7 +1187,7 @@ git commit -m "docs: record multicoder import validation"
 - Consumes: final approved interfaces from Tasks 1–7.
 - Produces: regression protection for the complete Marco 1.
 
-- [ ] **Step 1: Cover author parsing and visual/text pairing**
+- [x] **Step 1: Cover author parsing and visual/text pairing**
 
 Create a compact XML fixture containing two Users, one PDFSelection and one same-GUID PlainTextSelection. Each representation has the same code applied by both users with different Coding GUIDs. Assert:
 
@@ -1207,7 +1210,7 @@ npx vitest run tests/import/qdpxAuthoring.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 2: Cover external coder identity**
+- [x] **Step 2: Cover external coder identity**
 
 Add cases proving:
 
@@ -1221,7 +1224,7 @@ expect(CoderRegistry.fromJSON(registry.toJSON()).getByExternalIdentity({ scheme:
 
 Run the coder registry file and expect PASS.
 
-- [ ] **Step 3: Cover legacy versus explicit read-only**
+- [x] **Step 3: Cover legacy versus explicit read-only**
 
 In `codingPermissions.test.ts`, assert:
 
@@ -1236,7 +1239,7 @@ expect(canEditOwnedMarker('active', 'human:default', undefined)).toBe(true);
 
 Add a DataManager round-trip case where `codingParticipationMode: 'read-only'` survives load/save and missing mode remains missing/legacy-active.
 
-- [ ] **Step 4: Cover per-coder marker creation**
+- [x] **Step 4: Cover per-coder marker creation**
 
 Extend the importer test fixture so one same-GUID PDF/text pair contains two users applying the same code. Assert two PDF markers, distinct IDs, distinct `codedBy`, common Selection provenance and one CodeApplication per coder with paired source GUIDs.
 
@@ -1248,7 +1251,7 @@ npx vitest run tests/import/qdpxImporter.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Cover PDF lookup and mutation authorization**
+- [x] **Step 5: Cover PDF lookup and mutation authorization**
 
 In `pdfCodingModel.test.ts`, make the plugin mock expose `isCodingReadOnly()` and `canEditMarker()`. Add cases proving:
 
@@ -1269,7 +1272,7 @@ npx vitest run tests/engine-models/pdfCodingModel.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 6: Run the focused regression set**
+- [x] **Step 6: Run the focused regression set**
 
 ```bash
 npx vitest run tests/import/qdpxAuthoring.test.ts tests/import/qdpxImporter.test.ts tests/core/icr/coderRegistry.test.ts tests/core/icr/codingPermissions.test.ts tests/core/dataManager.test.ts tests/engine-models/pdfCodingModel.test.ts tests/pdf/resolvePendingIndices.test.ts
@@ -1277,7 +1280,7 @@ npx vitest run tests/import/qdpxAuthoring.test.ts tests/import/qdpxImporter.test
 
 Expected: PASS.
 
-- [ ] **Step 7: Run full suite and build**
+- [x] **Step 7: Run full suite and build**
 
 ```bash
 npm test
@@ -1287,7 +1290,7 @@ git diff --check
 
 Expected: full suite PASS, build PASS and no whitespace errors.
 
-- [ ] **Step 8: Commit the coverage**
+- [x] **Step 8: Commit the coverage**
 
 ```bash
 git add tests/import/qdpxAuthoring.test.ts tests/core/icr/codingPermissions.test.ts tests/import/qdpxImporter.test.ts tests/core/icr/coderRegistry.test.ts tests/core/dataManager.test.ts tests/engine-models/pdfCodingModel.test.ts
@@ -1298,6 +1301,9 @@ git commit -m "test(import): cover QDPX multicoder ownership"
 
 ### Task 9: Final audit and handoff to the round-trip milestone
 
+> Concluída em 2026-09-02. A auditoria confirmou ausência de implementação de
+> round-trip, multipágina, agregação `×N` ou redesign geral do margin panel.
+
 **Files:**
 - Modify: `docs/superpowers/specs/2026-09-01-qdpx-multicoder-import-design.md`
 - Modify: `docs/superpowers/plans/2026-09-01-qdpx-multicoder-import.md`
@@ -1306,7 +1312,7 @@ git commit -m "test(import): cover QDPX multicoder ownership"
 - Consumes: every previous task.
 - Produces: clean completion checkpoint; no exporter or multipage implementation.
 
-- [ ] **Step 1: Audit scope**
+- [x] **Step 1: Audit scope**
 
 Run:
 
@@ -1318,7 +1324,7 @@ rg -n "segments\[\]|×N|continued by|assignColumns" src
 
 Inspect the diff and confirm no implementation of multipágina, aggregation or general lane refactor entered the branch. Existing references to those terms are allowed; new behavior is not.
 
-- [ ] **Step 2: Re-run final verification**
+- [x] **Step 2: Re-run final verification**
 
 ```bash
 npm test
@@ -1329,17 +1335,17 @@ git status --short --branch
 
 Expected: tests/build/check PASS and worktree clean.
 
-- [ ] **Step 3: Mark only completed checkboxes and update the spec status**
+- [x] **Step 3: Mark only completed checkboxes and update the spec status**
 
 Change the spec state to “Marco 1 concluído” only if every criterion in its “Critérios de conclusão do Marco 1” section is satisfied. Leave Marcos 2–5 unchecked.
 
-- [ ] **Step 4: Commit documentation state if it changed**
+- [x] **Step 4: Commit documentation state if it changed**
 
 ```bash
 git add docs/superpowers/specs/2026-09-01-qdpx-multicoder-import-design.md docs/superpowers/plans/2026-09-01-qdpx-multicoder-import.md
 git commit -m "docs: close QDPX multicoder import milestone"
 ```
 
-- [ ] **Step 5: Stop before Marco 2**
+- [x] **Step 5: Stop before Marco 2**
 
 Report commits, manual evidence, test totals and remaining open decisions. Do not start exporter round-trip, multipage model or margin-panel redesign without a new review checkpoint.

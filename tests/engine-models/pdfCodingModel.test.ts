@@ -41,19 +41,26 @@ function createMarkerVia(model: PdfCodingModel, file = 'doc.pdf', page = 1, text
 let model: PdfCodingModel;
 let registry: CodeDefinitionRegistry;
 let dm: ReturnType<typeof createMockDm>;
+let activeCoderId: string;
+let codingReadOnly: boolean;
 
 function createTestPlugin() {
 	return {
 		dataManager: dm,
-		getActiveCoderId: () => 'human:default',
-		isCodingReadOnly: () => false,
-		canEditMarker: (marker: { codedBy?: string }) => (marker.codedBy ?? 'human:default') === 'human:default',
+		getActiveCoderId: () => activeCoderId,
+		isCodingReadOnly: () => codingReadOnly,
+		canEditMarker: (marker: { codedBy?: string; importedQdpxSelection?: { unattributedOwner?: boolean } }) =>
+			!codingReadOnly
+			&& !marker.importedQdpxSelection?.unattributedOwner
+			&& (marker.codedBy ?? 'human:default') === activeCoderId,
 	};
 }
 
 beforeEach(() => {
 	registry = new CodeDefinitionRegistry();
 	dm = createMockDm();
+	activeCoderId = 'human:default';
+	codingReadOnly = false;
 	model = new PdfCodingModel(createTestPlugin() as any, registry);
 });
 
@@ -110,6 +117,80 @@ describe('findExistingMarker', () => {
 	it('returns undefined when page differs', () => {
 		model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'hello');
 		expect(model.findExistingMarker('doc.pdf', 2, 0, 0, 0, 10)).toBeUndefined();
+	});
+
+	it('looks up identical bounds only for the active coder', () => {
+		activeCoderId = 'human:carla';
+		const carla = createMarkerVia(model);
+		activeCoderId = 'human:joao';
+		const joao = createMarkerVia(model);
+
+		expect(carla.id).not.toBe(joao.id);
+		expect(model.findExistingMarker('doc.pdf', 1, 0, 0, 0, 10)).toBe(joao);
+		activeCoderId = 'human:carla';
+		expect(model.findExistingMarker('doc.pdf', 1, 0, 0, 0, 10)).toBe(carla);
+	});
+
+	it('treats missing legacy ownership as Default-only and excludes unattributed imports', () => {
+		const legacy = { ...createMarkerVia(model), id: 'legacy', codedBy: undefined };
+		const unattributed = {
+			...createMarkerVia(model, 'unattributed.pdf'),
+			id: 'unattributed',
+			importedQdpxSelection: { source: 'refi-qda-selection' as const, selectionGuid: 's1', unattributedOwner: true as const },
+		};
+		dm.section('pdf').markers = [legacy, unattributed];
+		model.load();
+
+		expect(model.findExistingMarker('doc.pdf', 1, 0, 0, 0, 10)).toBe(legacy);
+		expect(model.findExistingMarker('unattributed.pdf', 1, 0, 0, 0, 10)).toBeUndefined();
+		activeCoderId = 'human:carla';
+		expect(model.findExistingMarker('doc.pdf', 1, 0, 0, 0, 10)).toBeUndefined();
+	});
+});
+
+describe('multicoder mutation authorization', () => {
+	it('blocks foreign resize, code removal, and deletion until its owner becomes active', () => {
+		activeCoderId = 'human:carla';
+		const carla = createMarkerVia(model);
+		const code = cid('Theme A');
+		model.addCodeToMarker(carla.id, code);
+		activeCoderId = 'human:joao';
+		const joao = createMarkerVia(model);
+		model.addCodeToMarker(joao.id, code);
+
+		activeCoderId = 'human:carla';
+		model.updateMarkerRange(joao.id, { endOffset: 99 });
+		model.removeCodeFromMarker(joao.id, code);
+		expect(model.removeMarker(joao.id)).toBe(false);
+		expect(joao.endOffset).toBe(10);
+		expect(joao.codes).toEqual(ca(code));
+		expect(model.findMarkerById(joao.id)).toBe(joao);
+
+		activeCoderId = 'human:joao';
+		model.updateMarkerRange(joao.id, { endOffset: 99 });
+		expect(joao.endOffset).toBe(99);
+		model.removeCodeFromMarker(joao.id, code, true);
+		expect(joao.codes).toEqual([]);
+		expect(model.removeMarker(joao.id)).toBe(true);
+		expect(model.findMarkerById(joao.id)).toBeUndefined();
+	});
+
+	it('rejects creation in read-only mode and never makes an unattributed import editable', () => {
+		codingReadOnly = true;
+		expect(() => createMarkerVia(model)).toThrow('read-only');
+
+		codingReadOnly = false;
+		const imported = {
+			...createMarkerVia(model),
+			id: 'unattributed-import',
+			codes: ca(cid('Imported')),
+			importedQdpxSelection: { source: 'refi-qda-selection' as const, selectionGuid: 's1', unattributedOwner: true as const },
+		};
+		dm.section('pdf').markers = [imported];
+		model.load();
+		model.removeAllCodesFromMarker(imported.id);
+		expect(model.findMarkerById(imported.id)).toBe(imported);
+		expect(imported.codes).toHaveLength(1);
 	});
 });
 

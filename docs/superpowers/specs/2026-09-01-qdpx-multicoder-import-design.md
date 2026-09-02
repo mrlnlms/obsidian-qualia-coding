@@ -4,7 +4,7 @@
 >
 > Branch de partida: `fix/qdpx-atlas-page-anchoring`
 >
-> Estado: desenho aprovado; implementação multicoder ainda não iniciada.
+> Estado: Marco 1 concluído em 2026-09-02; Marcos 2–5 permanecem abertos.
 
 ## Como retomar em outra sessão
 
@@ -124,7 +124,7 @@ coder. A identidade da Selection Atlas será preservada apenas como procedência
 - [x] Diagnosticar os seis grupos multipágina no QDPX e no vault real.
 - [x] Mapear a arquitetura atual da margin panel.
 - [x] Definir a semântica multicoder e a política de identidade ativa.
-- [ ] **Marco 1:** importar corretamente autoria multicoder em seleções PDF de uma
+- [x] **Marco 1:** importar corretamente autoria multicoder em seleções PDF de uma
   página.
 - [ ] **Marco 2:** garantir round-trip multicoder para essas seleções simples.
 - [ ] **Marco 3:** criar marker lógico multipágina por coder, com `segments[]`.
@@ -278,72 +278,72 @@ importados.
 
 ### A. Parser e preview
 
-- [ ] Introduzir tipos intermediários para User e Coding.
-- [ ] Ler `<Users>` e preservar GUID/nome.
-- [ ] Ler cada `<Coding>` com GUID, `creatingUser`, timestamp, CodeRef e NoteRefs.
-- [ ] Correlacionar `PDFSelection` e `PlainTextSelection` sem colapsar coders.
-- [ ] Expor coders e quantidade de aplicações no `ImportPreview`.
-- [ ] Emitir warning para Coding com User ausente ou desconhecido, preservando-o
+- [x] Introduzir tipos intermediários para User e Coding.
+- [x] Ler `<Users>` e preservar GUID/nome.
+- [x] Ler cada `<Coding>` com GUID, `creatingUser`, timestamp, CodeRef e NoteRefs.
+- [x] Correlacionar `PDFSelection` e `PlainTextSelection` sem colapsar coders.
+- [x] Expor coders e quantidade de aplicações no `ImportPreview`.
+- [x] Emitir warning para Coding com User ausente ou desconhecido, preservando-o
   como não editável e fora do ICR até haver atribuição explícita.
 
 ### B. Persistência e normalização
 
-- [ ] Adicionar referência externa estável ao CoderRegistry.
-- [ ] Importar Users antes de criar markers.
-- [ ] Adicionar procedência QDPX opcional ao marker e à aplicação de código.
-- [ ] Normalizar cada Selection de uma página em um marker por coder.
-- [ ] Manter os códigos daquele coder no `codes[]` de seu marker.
-- [ ] Garantir IDs locais distintos mesmo quando bounds e códigos coincidirem.
-- [ ] Preservar coders importados sem aplicações.
+- [x] Adicionar referência externa estável ao CoderRegistry.
+- [x] Importar Users antes de criar markers.
+- [x] Adicionar procedência QDPX opcional ao marker e à aplicação de código.
+- [x] Normalizar cada Selection de uma página em um marker por coder.
+- [x] Manter os códigos daquele coder no `codes[]` de seu marker.
+- [x] Garantir IDs locais distintos mesmo quando bounds e códigos coincidirem.
+- [x] Preservar coders importados sem aplicações.
 
 ### C. Participação e somente leitura
 
-- [ ] Representar somente leitura sem criar um coder artificial.
-- [ ] Preservar o fallback `human:default` para vaults legados/não importados.
-- [ ] Mostrar no preview a escolha “Quem é você neste projeto?”.
-- [ ] Deixar “Somente leitura — não interferir no ICR” pré-selecionado.
-- [ ] Persistir a escolha de participação após a importação.
-- [ ] Permitir troca posterior pelo seletor de perfil.
+- [x] Representar somente leitura sem criar um coder artificial.
+- [x] Preservar o fallback `human:default` para vaults legados/não importados.
+- [x] Mostrar no preview a escolha “Quem é você neste projeto?”.
+- [x] Deixar “Somente leitura — não interferir no ICR” pré-selecionado.
+- [x] Persistir a escolha de participação após a importação.
+- [x] Permitir troca posterior pelo seletor de perfil.
 
 ### D. Propriedade e edição PDF
 
-- [ ] Fazer busca de marker em intervalo exato considerar o coder ativo.
-- [ ] Impedir criação de marker em somente leitura.
-- [ ] Impedir resize, remoção de aplicação e exclusão de marker estrangeiro.
-- [ ] Permitir edição normal do marker pertencente ao coder ativo.
-- [ ] Manter todos os markers visíveis independentemente do perfil ativo.
-- [ ] Indicar autoria usando a apresentação mínima que a interface atual comportar,
+- [x] Fazer busca de marker em intervalo exato considerar o coder ativo.
+- [x] Impedir criação de marker em somente leitura.
+- [x] Impedir resize, remoção de aplicação e exclusão de marker estrangeiro.
+- [x] Permitir edição normal do marker pertencente ao coder ativo.
+- [x] Manter todos os markers visíveis independentemente do perfil ativo.
+- [x] Indicar autoria usando a apresentação mínima que a interface atual comportar,
   sem iniciar o redesign da margin panel.
-- [ ] Confirmar que operações globais do codebook continuam globais e claramente
+- [x] Confirmar que operações globais do codebook continuam globais e claramente
   distintas de remover uma aplicação individual.
 
 ### E. Validação funcional antes dos testes
 
-- [ ] Importar o QDPX real com `data.json` limpo.
-- [ ] Confirmar os Users esperados no preview e no registry.
-- [ ] Confirmar que somente leitura vem selecionado e bloqueia mutações.
-- [ ] Inspecionar uma Selection com o mesmo código aplicado por quatro pessoas.
-- [ ] Confirmar quatro markers/proprietários distintos e uma procedência comum.
-- [ ] Selecionar um coder importado e alterar somente seu marker.
-- [ ] Confirmar que os outros três permanecem idênticos.
-- [ ] Selecionar `human:default` e codificar o mesmo intervalo.
-- [ ] Confirmar criação de um novo marker, sem reutilizar qualquer importado.
-- [ ] Trocar novamente para somente leitura e confirmar o bloqueio.
-- [ ] Conferir que o painel atual mostra todos os registros, mesmo congestionado.
-- [ ] Registrar contagens e evidências no documento de diagnóstico, não depender de
+- [x] Importar o QDPX real com `data.json` limpo.
+- [x] Confirmar os Users esperados no preview e no registry.
+- [x] Confirmar que somente leitura vem selecionado e bloqueia mutações.
+- [x] Inspecionar uma Selection com o mesmo código aplicado por quatro pessoas.
+- [x] Confirmar quatro markers/proprietários distintos e uma procedência comum.
+- [x] Selecionar um coder importado e alterar somente seu marker.
+- [x] Confirmar que os outros três permanecem idênticos.
+- [x] Selecionar `human:default` e codificar o mesmo intervalo.
+- [x] Confirmar criação de um novo marker, sem reutilizar qualquer importado.
+- [x] Trocar novamente para somente leitura e confirmar o bloqueio.
+- [x] Conferir que o painel atual mostra todos os registros, mesmo congestionado.
+- [x] Registrar contagens e evidências no documento de diagnóstico, não depender de
   `data.json` preservado.
 
 ### F. Cobertura depois do funcionamento
 
-- [ ] Cobrir parsing de Users e Codings.
-- [ ] Cobrir pareamento PDFSelection/PlainTextSelection sem dupla contagem.
-- [ ] Cobrir marker por coder para bounds e código coincidentes.
-- [ ] Cobrir GUID externo como identidade, inclusive nomes iguais.
-- [ ] Cobrir somente leitura explícito versus fallback legado.
-- [ ] Cobrir busca exata de marker por coder.
-- [ ] Cobrir bloqueios de mutação de marker estrangeiro.
-- [ ] Rodar a suíte completa.
-- [ ] Rodar build.
+- [x] Cobrir parsing de Users e Codings.
+- [x] Cobrir pareamento PDFSelection/PlainTextSelection sem dupla contagem.
+- [x] Cobrir marker por coder para bounds e código coincidentes.
+- [x] Cobrir GUID externo como identidade, inclusive nomes iguais.
+- [x] Cobrir somente leitura explícito versus fallback legado.
+- [x] Cobrir busca exata de marker por coder.
+- [x] Cobrir bloqueios de mutação de marker estrangeiro.
+- [x] Rodar a suíte completa.
+- [x] Rodar build.
 
 ## Critérios de conclusão do Marco 1
 
