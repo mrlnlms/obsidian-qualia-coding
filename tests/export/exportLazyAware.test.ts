@@ -20,6 +20,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { DataManager } from '../../src/core/dataManager';
 import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
+import { CoderRegistry } from '../../src/core/icr/coderRegistry';
 import { CsvCodingModel } from '../../src/csv/csvCodingModel';
 import { CaseVariablesRegistry } from '../../src/core/caseVariables/caseVariablesRegistry';
 import { exportTabular } from '../../src/export/tabular/tabularExporter';
@@ -103,6 +104,7 @@ let dm: DataManager;
 let reg: CodeDefinitionRegistry;
 let csvModel: CsvCodingModel;
 let caseVars: CaseVariablesRegistry;
+let coderRegistry: CoderRegistry;
 
 beforeEach(async () => {
 	dm = new DataManager(mockObsidianPlugin());
@@ -110,6 +112,7 @@ beforeEach(async () => {
 	reg = new CodeDefinitionRegistry();
 	csvModel = new CsvCodingModel({ dataManager: dm, getActiveCoderId: () => "human:default" } as any, reg);
 	caseVars = new CaseVariablesRegistry();
+	coderRegistry = new CoderRegistry();
 });
 
 describe('Fase 6 Slice B — exports lazy-aware', () => {
@@ -207,7 +210,7 @@ describe('Fase 6 Slice B — exports lazy-aware', () => {
 			csvModel.reload();
 
 			const plugin = mockPlugin(dm, csvModel, { parquet: { 'data.parquet': parquetBytes } });
-			const result = await exportProject(plugin.app as any, dm, reg, {
+			const result = await exportProject(plugin.app as any, dm, reg, coderRegistry, {
 				format: 'qdpx',
 				includeSources: true,
 				fileName: 'out.qdpx',
@@ -246,7 +249,7 @@ describe('Fase 6 Slice B — exports lazy-aware', () => {
 			csvModel.reload();
 
 			const plugin = mockPlugin(dm, csvModel, { parquet: { 'data.parquet': parquetBytes } });
-			const result = await exportProject(plugin.app as any, dm, reg, {
+			const result = await exportProject(plugin.app as any, dm, reg, coderRegistry, {
 				format: 'qdpx',
 				includeSources: false,
 				fileName: 'out.qdpx',
@@ -277,7 +280,7 @@ describe('Fase 6 Slice B — exports lazy-aware', () => {
 			csvModel.reload();
 
 			const plugin = mockPlugin(dm, csvModel, { parquet: { 'data.parquet': parquetBytes } });
-			const result = await exportProject(plugin.app as any, dm, reg, {
+			const result = await exportProject(plugin.app as any, dm, reg, coderRegistry, {
 				format: 'qdpx',
 				includeSources: true,
 				fileName: 'out.qdpx',
@@ -323,7 +326,7 @@ describe('Fase 6 Slice B — exports lazy-aware', () => {
 			csvModel.reload();
 
 			const plugin = mockPlugin(dm, csvModel, { parquet: { 'data.parquet': parquetBytes } });
-			const result = await exportProject(plugin.app as any, dm, reg, {
+			const result = await exportProject(plugin.app as any, dm, reg, coderRegistry, {
 				format: 'qdpx',
 				includeSources: true,
 				fileName: 'out.qdpx',

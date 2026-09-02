@@ -192,7 +192,7 @@ export class ExportModal extends Modal {
         return;
       }
 
-      const result = await exportProject(this.app, this.dataManager, this.registry, {
+      const result = await exportProject(this.app, this.dataManager, this.registry, this.plugin.coderRegistry, {
         format: this.format,
         includeSources: this.format === 'qdpx' ? this.includeSources : false,
         fileName: this.fileName,

@@ -20,7 +20,8 @@ import type { DataManager } from '../core/dataManager';
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import { getImageDimensions } from '../core/imageDimensions';
 import { renderVariablesForFile, renderCasesXml } from './caseVariablesXml';
-import type { QdpxAuthoringContext } from './qdpxAuthoring';
+import { buildUsersXml, createQdpxAuthoringContext, type QdpxAuthoringContext } from './qdpxAuthoring';
+import type { CoderRegistry } from '../core/icr/coderRegistry';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -591,6 +592,7 @@ export async function exportProject(
   app: App,
   dataManager: DataManager,
   registry: CodeDefinitionRegistry,
+  coderRegistry: CoderRegistry,
   options: ExportOptions,
   caseVariablesRegistry: CaseVariablesRegistry,
 ): Promise<ExportResult> {
@@ -603,6 +605,7 @@ export async function exportProject(
   const sourceFiles = new Map<string, Uint8Array>();
   const allSourcesXml: string[] = [];
   const warnings: string[] = [];
+  const authoring = createQdpxAuthoringContext(coderRegistry, warnings, uuidV4);
   const sourceGuidByFileId = new Map<string, string>();
 
   // --- Markdown ---
@@ -617,7 +620,7 @@ export async function exportProject(
     const content = await app.vault.cachedRead(file as TFile);
     const srcGuid = uuidV4();
     const txtGuid = uuidV4();
-    const xml = buildTextSourceXml(fileId, markers, content, guidMap, notes, srcGuid, txtGuid, options.includeSources);
+    const xml = buildTextSourceXml(fileId, markers, content, guidMap, notes, srcGuid, txtGuid, options.includeSources, authoring);
     if (xml) {
       const variablesXml = renderVariablesForFile(fileId, caseVariablesRegistry);
       allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
@@ -657,7 +660,7 @@ export async function exportProject(
       textOffsets.set(m.id, { start: offsets.start, end: offsets.end });
     }
 
-    const { xml, reprGuid } = buildPdfSourceXmlWithRepr(fileId, textMarkers, shapeMarkers, pageDims, textOffsets, guidMap, notes, options.includeSources);
+    const { xml, reprGuid } = buildPdfSourceXmlWithRepr(fileId, textMarkers, shapeMarkers, pageDims, textOffsets, guidMap, notes, options.includeSources, authoring);
     if (xml) {
       const variablesXml = renderVariablesForFile(fileId, caseVariablesRegistry);
       allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
@@ -681,7 +684,7 @@ export async function exportProject(
       warnings.push(`Cannot read dimensions: ${fileId}`);
       continue;
     }
-    const xml = buildImageSourceXml(fileId, markers, dims.width, dims.height, guidMap, notes, options.includeSources);
+    const xml = buildImageSourceXml(fileId, markers, dims.width, dims.height, guidMap, notes, options.includeSources, authoring);
     if (xml) {
       const variablesXml = renderVariablesForFile(fileId, caseVariablesRegistry);
       allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
@@ -697,7 +700,7 @@ export async function exportProject(
   const audioData = dataManager.section('audio');
   for (const audioFile of audioData.files) {
     if (audioFile.markers.length === 0) continue;
-    const xml = buildAudioSourceXml(audioFile.path, audioFile.markers, guidMap, notes, options.includeSources);
+    const xml = buildAudioSourceXml(audioFile.path, audioFile.markers, guidMap, notes, options.includeSources, authoring);
     if (xml) {
       const variablesXml = renderVariablesForFile(audioFile.path, caseVariablesRegistry);
       allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
@@ -713,7 +716,7 @@ export async function exportProject(
   const videoData = dataManager.section('video');
   for (const videoFile of videoData.files) {
     if (videoFile.markers.length === 0) continue;
-    const xml = buildVideoSourceXml(videoFile.path, videoFile.markers, guidMap, notes, options.includeSources);
+    const xml = buildVideoSourceXml(videoFile.path, videoFile.markers, guidMap, notes, options.includeSources, authoring);
     if (xml) {
       const variablesXml = renderVariablesForFile(videoFile.path, caseVariablesRegistry);
       allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
@@ -733,7 +736,7 @@ export async function exportProject(
   for (const fileId of csvFileIds) {
     const segs = csvSegByFile.get(fileId) ?? [];
     const rows = csvRowByFile.get(fileId) ?? [];
-    const xml = buildTabularSourceXml(fileId, segs, rows, guidMap, notes, options.includeSources);
+    const xml = buildTabularSourceXml(fileId, segs, rows, guidMap, notes, options.includeSources, authoring);
     if (xml) {
       const variablesXml = renderVariablesForFile(fileId, caseVariablesRegistry);
       allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
@@ -764,7 +767,8 @@ export async function exportProject(
   const smartCodesList: SmartCodeDefinition[] = smartCodesSection?.definitions
     ? Object.values(smartCodesSection.definitions) as SmartCodeDefinition[]
     : [];
-  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, casesXml, options.vaultName, options.pluginVersion, guidMap, smartCodesList);
+  const usersXml = buildUsersXml(authoring.getUsers());
+  const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, casesXml, options.vaultName, options.pluginVersion, guidMap, smartCodesList, usersXml);
   const zipData = createQdpxZip(projectXml, sourceFiles);
 
   return { data: zipData, fileName: options.fileName, warnings };
