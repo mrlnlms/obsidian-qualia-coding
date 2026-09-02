@@ -207,3 +207,49 @@ histórica e não deve ser interpretada como a próxima tasklist ativa:
 
 A sequência ativa está em
 `../superpowers/specs/2026-09-01-qdpx-multicoder-import-design.md`.
+
+## Validação manual do Marco 3 — 2026-09-02
+
+Foi executada uma importação limpa do corpus real em modo somente leitura, sem
+usar `data.json` ou seu backup como memória canônica. O artefato regenerado pelo
+importador ficou em
+`imports/UnifiedDevOps Selective Coding ITE5 ICA/qdpx-import-audit.md`.
+
+O primeiro passe revelou um deslocamento sistemático dos offsets Atlas: o começo
+perdia alguns caracteres e o fim avançava a mesma distância para o próximo
+trecho. Por exemplo, `Figure 2` chegava como `e 2` e incluía parte de `MEMO`,
+enquanto `People downstream` chegava como `e downstream` e incluía `3. A`. O
+resolver foi corrigido para reancorar dinamicamente pelo nome exportado, sem
+hardcode de documento, página ou frase. Apenas um token final cortado pelo drift
+é removido; o fluxo linear intermediário permanece integral.
+
+Depois da correção e de nova importação, os seis casos foram aceitos visualmente:
+
+| Caso | Páginas | Resultado |
+| --- | --- | --- |
+| D1 — Figure 2 | 6–7 | passou; cobertura completa |
+| D1 — Autonomy | 8–9 | passou; cobertura completa |
+| D2 — infra background | 8–9 | passou; cobertura completa |
+| D5 — Which approach | 2–3 | passou; cobertura completa |
+| D8 — operational responsibilities | 5–6 | passou; cobertura completa |
+| D8 — People downstream | 6–7 | passou; cobertura completa |
+
+Também foram confirmados manualmente:
+
+- modo somente leitura bloqueia mutações;
+- com Jessica ativa, apenas markers de Jessica podem ser alterados;
+- seleção manual cross-page cria uma única unidade lógica;
+- exclusão lógica remove os destaques das duas páginas;
+- sidebar apresenta uma unidade, não uma entrada por segmento;
+- marker multipágina não oferece handles;
+- marker simples preserva os dois handles.
+
+O audit registrou 615 markers PDF, 633 segmentos e 1.189 aplicações no corpus
+completo. Dentro disso, os seis grupos deste diagnóstico correspondem a 18
+markers lógicos, 36 segmentos e 35 aplicações semânticas.
+
+Cabeçalhos, rodapés, tabelas e demais elementos que o próprio fluxo linear do
+Atlas/PDF inclui entre os endpoints continuam presentes por decisão explícita.
+Isso pode produzir uma faixa do margin panel cobrindo quase toda a página. A
+duplicação de rótulo/projeção no margin panel também permanece neste marco; sua
+consolidação visual pertence ao Marco 4.
