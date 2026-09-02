@@ -422,6 +422,16 @@ alegação de cobertura PDF completa antes do Marco 6.
 
 ## Marco 3 — conteúdo completo e marker multipágina por coder
 
+Desenho detalhado aprovado em
+[`2026-09-02-qdpx-multipage-marker-design.md`](2026-09-02-qdpx-multipage-marker-design.md).
+
+Decisão explícita sobre handles: o Marco 3 não implementa resize multipágina.
+Markers multipágina permanecem selecionáveis e editáveis em código/memo/exclusão
+quando pertencem ao coder ativo, mas seus handles de resize ficam desabilitados.
+A direção futura é expor apenas o início do primeiro segmento e o fim do último;
+atravessar, criar ou remover páginas durante drag exige um desenho de interação
+separado. Markers de uma página preservam o comportamento atual.
+
 - [ ] resolver cada citação no fluxo concatenado das páginas do grupo;
 - [ ] projetar início e fim para todos os fragmentos locais, eliminando o corte
   legado de aproximadamente 160 caracteres;
