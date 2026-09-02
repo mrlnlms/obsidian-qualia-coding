@@ -133,7 +133,7 @@ coder. A identidade da Selection Atlas será preservada apenas como procedência
   página.
 - [x] **Marco 2:** garantir round-trip isolado de autoria Qualia↔Qualia, sem
   prometer ainda interoperabilidade PDF com o Atlas.
-- [ ] **Marco 3:** completar os fragmentos Atlas e criar marker lógico multipágina
+- [x] **Marco 3:** completar os fragmentos Atlas e criar marker lógico multipágina
   por coder, com `segments[]`.
 - [ ] **Marco 4:** entregar a margin panel mínima correta para multipágina e
   autoria.
@@ -432,15 +432,21 @@ A direção futura é expor apenas o início do primeiro segmento e o fim do úl
 atravessar, criar ou remover páginas durante drag exige um desenho de interação
 separado. Markers de uma página preservam o comportamento atual.
 
-- [ ] resolver cada citação no fluxo concatenado das páginas do grupo;
-- [ ] projetar início e fim para todos os fragmentos locais, eliminando o corte
+- [x] resolver cada citação no fluxo concatenado das páginas do grupo;
+- [x] projetar início e fim para todos os fragmentos locais, eliminando o corte
   legado de aproximadamente 160 caracteres;
-- [ ] definir `segments[]` como geometria do marker lógico PDF;
-- [ ] migrar cada grupo QDPX por coder, não por Selection compartilhada;
-- [ ] manter código, memo, autoria e procedência uma única vez por marker do coder;
-- [ ] adaptar consumidores sem contar segmentos como markers independentes;
-- [ ] validar os seis casos reais e os doze markers manuais `marlonnn`;
-- [ ] não remover cabeçalhos, rodapés, tabelas ou legendas do fluxo textual.
+- [x] definir `segments[]` como geometria do marker lógico PDF;
+- [x] migrar cada grupo QDPX por coder, não por Selection compartilhada;
+- [x] manter código, memo, autoria e procedência uma única vez por marker do coder;
+- [x] adaptar consumidores sem contar segmentos como markers independentes;
+- [x] validar os seis casos reais e os doze markers manuais `marlonnn`;
+- [x] não remover cabeçalhos, rodapés, tabelas ou legendas do fluxo textual.
+
+Fechado em 2026-09-02: 456 testes focados em 21 arquivos, suíte completa com
+3.708 testes em 266 arquivos e build de produção aprovados. O corpus confirmou 6
+grupos, 18 markers lógicos, 36 segmentos e 35 aplicações. Resize multipágina
+permanece deliberadamente adiado; margin panel é Marco 4, exporter é Marco 6 e
+interoperabilidade Atlas é Marco 7.
 
 ## Marco 4 — margin panel mínima correta
 

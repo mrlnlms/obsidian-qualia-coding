@@ -6,7 +6,7 @@
 >
 > Baseline: `c1fc744`
 >
-> Estado: desenho aprovado em conversa; implementação ainda não iniciada.
+> Estado: Marco 3 concluído e validado em 2026-09-02.
 
 ## Contexto
 
@@ -321,36 +321,50 @@ regredir.
 
 ### Cobertura automatizada
 
-- detecção positiva dos seis padrões e rejeição de falsos grupos;
-- prova de que links `continued by` não formam grupos;
-- localização global e projeção para dois ou mais segmentos;
-- início e fim completos sem corte em 160 caracteres;
-- tolerância às diferenças de whitespace, ligaturas e glifos já observadas;
-- leitura de marker simples como segmento implícito;
-- lookup e criação manual por lista completa de segmentos e coder ativo;
-- criação de um único marker manual cross-page;
-- código, memo, magnitude, relações e exclusão atômicos;
-- bloqueio de resize multipágina, preservando resize simples;
-- propriedade independente entre markers irmãos;
-- sidebar, analytics, transporte e ICR sem dupla contagem;
-- corpus Atlas com 6 grupos, 18 markers, 36 segmentos e 35 aplicações;
-- regressão do baseline simples;
-- suíte completa, build e `git diff --check`.
+- [x] detecção positiva dos seis padrões e rejeição de falsos grupos;
+- [x] prova de que links `continued by` não formam grupos;
+- [x] localização global e projeção para dois ou mais segmentos;
+- [x] início e fim completos sem corte em 160 caracteres;
+- [x] tolerância às diferenças de whitespace, ligaturas e glifos já observadas;
+- [x] leitura de marker simples como segmento implícito;
+- [x] lookup e criação manual por lista completa de segmentos e coder ativo;
+- [x] criação de um único marker manual cross-page;
+- [x] código, memo, magnitude, relações e exclusão atômicos;
+- [x] bloqueio de resize multipágina, preservando resize simples;
+- [x] propriedade independente entre markers irmãos;
+- [x] sidebar, analytics, transporte e ICR sem dupla contagem;
+- [x] corpus Atlas com 6 grupos, 18 markers, 36 segmentos e 35 aplicações;
+- [x] regressão do baseline simples;
+- [x] suíte completa, build e `git diff --check`.
 
 ### Validação manual
 
-1. fazer importação limpa do QDPX real em modo somente leitura;
-2. percorrer os seis casos e confirmar os dois segmentos completos;
-3. comparar visualmente cada caso com o par `marlonnn` correspondente;
-4. confirmar preservação intencional de cabeçalhos/tabelas no fluxo textual;
-5. confirmar um registro por coder em sidebar, analytics e Compare Coders;
-6. selecionar um coder e alterar código/memo apenas em seu marker;
-7. confirmar que resize multipágina não é oferecido e que resize simples continua
+- [x] fazer importação limpa do QDPX real em modo somente leitura;
+- [x] percorrer os seis casos e confirmar os dois segmentos completos;
+- [x] comparar visualmente cada caso com o par `marlonnn` correspondente;
+- [x] confirmar preservação intencional de cabeçalhos/tabelas no fluxo textual;
+- [x] confirmar um registro lógico por coder na sidebar; analytics e ICR cobertos
+  pelos testes de contrato;
+- [x] selecionar um coder e alterar código/memo apenas em seu marker;
+- [x] confirmar que resize multipágina não é oferecido e que resize simples continua
    funcionando;
-8. criar uma nova seleção manual cross-page e confirmar um marker com dois
+- [x] criar uma nova seleção manual cross-page e confirmar um marker com dois
    segmentos;
-9. apagar esse marker e confirmar remoção lógica única;
-10. registrar contagens e observações em audit/diagnóstico, não em `data.json`.
+- [x] apagar esse marker e confirmar remoção lógica única;
+- [x] registrar contagens e observações em audit/diagnóstico, não em `data.json`.
+
+### Evidência de fechamento
+
+- testes focados: 456 aprovados em 21 arquivos;
+- suíte completa: 3.708 aprovados em 266 arquivos;
+- corpus privado: 6 grupos, 18 markers lógicos, 36 segmentos e 35 aplicações;
+- build de produção e `git diff --check`: aprovados;
+- validação manual: seis casos aprovados depois da reancoragem dinâmica dos
+  offsets Atlas;
+- resize multipágina: intencionalmente adiado;
+- margin panel: permanece no Marco 4;
+- exporter: permanece no Marco 6;
+- interoperabilidade Atlas: permanece no Marco 7.
 
 ## Critérios de conclusão
 

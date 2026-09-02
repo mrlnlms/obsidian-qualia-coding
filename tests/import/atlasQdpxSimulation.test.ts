@@ -9,6 +9,8 @@ import {
 	type ParsedSource,
 } from '../../src/import/qdpxImporter';
 import { parseXml } from '../../src/import/xmlParser';
+import { mergeQdpxRepresentationCodings } from '../../src/import/qdpxAuthoring';
+import { detectQdpxPdfMultipageGroups } from '../../src/import/qdpxMultipage';
 
 const DEFAULT_FIXTURE_DIR = resolve(
 	process.cwd(),
@@ -69,6 +71,50 @@ if (!HAS_FIXTURE) {
 		const xml = readFileSync(XML_PATH, 'utf8');
 		const doc = parseXml(xml);
 		const sources = parseSources(doc).filter((src) => src.type === 'pdf');
+
+		it('covers the complete logical multipage corpus through production grouping APIs', () => {
+			const groups = sources.flatMap((source) =>
+				detectQdpxPdfMultipageGroups(source.selections).map((group) => {
+					const codings = mergeQdpxRepresentationCodings([
+						...group.fragments,
+						group.plainTextSelection,
+					]);
+					return { source: source.name, group, codings };
+				}),
+			);
+
+			expect(groups).toHaveLength(6);
+			expect(groups.reduce((total, entry) =>
+				total + new Set(entry.codings.map(coding => coding.creatingUserGuid)).size, 0,
+			)).toBe(18);
+			expect(groups.reduce((total, entry) => {
+				const coders = new Set(entry.codings.map(coding => coding.creatingUserGuid)).size;
+				return total + entry.group.fragments.length * coders;
+			}, 0)).toBe(36);
+			expect(groups.reduce((total, entry) => total + entry.codings.length, 0)).toBe(35);
+
+			for (const entry of groups) {
+				expect(entry.group.fragments).toHaveLength(2);
+				for (const coding of entry.codings) {
+					expect(new Set(coding.sourceCodingGuids).size).toBe(3);
+				}
+			}
+
+			const distribution = groups.map((entry) => ({
+				source: entry.source,
+				name: entry.group.name,
+				coders: new Set(entry.codings.map(coding => coding.creatingUserGuid)).size,
+				applications: entry.codings.length,
+			}));
+			expect(distribution).toEqual(expect.arrayContaining([
+				expect.objectContaining({ source: 'D1 2021 UPM Paper', name: expect.stringContaining('Figure 2'), coders: 4, applications: 11 }),
+				expect.objectContaining({ source: 'D1 2021 UPM Paper', name: expect.stringContaining('Autonomy'), coders: 4, applications: 8 }),
+				expect.objectContaining({ source: 'D2 2021 USP Paper', name: expect.stringContaining('infra background'), coders: 4, applications: 6 }),
+				expect.objectContaining({ source: 'D5 2016 Nybon Paper', name: expect.stringContaining('Which approach'), coders: 2, applications: 4 }),
+				expect.objectContaining({ source: 'D8 2011 Humble', name: expect.stringContaining('operational responsibilities'), coders: 2, applications: 4 }),
+				expect.objectContaining({ source: 'D8 2011 Humble', name: expect.stringContaining('People downstream'), coders: 2, applications: 2 }),
+			]));
+		});
 
 		it('reconstructs the D1 multi-column quotation as text on the expected page', () => {
 			const src = sources.find((s) => s.name === 'D1 2021 UPM Paper');
