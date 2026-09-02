@@ -474,7 +474,7 @@ Módulo `src/export/` implementa export nos formatos QDC (codebook) e QDPX (proj
 - **importCommands.ts**: `import-qdpx`, `import-qdc` na palette + botão analytics
 - **Magnitude round-trip**: Export codifica `CodeApplication.magnitude` como Note `[Magnitude: X]` via `buildCodingXml(codes, guidMap, createdAt, notes)`. Import detecta prefixo e reconstrói magnitude no `CodeApplication`
 
-**PDF text round-trip** (2026-04-23):
+**PDF text transport baseline** (2026-04-23; cobertura completa ainda pendente):
 
 O PDF tem um desafio específico: runtime usa `beginIndex/beginOffset/endIndex/endOffset` alinhados com `.textLayerNode` do viewer (que são DOM-specific), mas QDPX espera `startPosition/endPosition` em codepoints no PlainText consolidado. Solução em 3 módulos novos (export) + 2 (import):
 
@@ -492,7 +492,17 @@ Import pipeline (`extractAnchorFromPlainText` → placeholder + runtime resolve)
 
 **Convenção de shape coords**: `PercentShapeCoords` (0-100), match do viewBox SVG `0 0 100 100`. `pdfShapeToRect`/`pdfRectToNormalized` dividem/multiplicam por 100 antes de converter pra PDF points — XML sai dentro da spec REFI-QDA. Renomeado de `NormalizedShapeCoords` em 2026-04-24 pra não induzir erro (o nome mentia — a convenção sempre foi 0-100).
 
-**Why:** Caminho runtime (render/capture/drag) permanece index-based e intocado. Anchor em text só vive no lado export/import — permite round-trip robusto sem mudar o schema do marker. Ver `memory/feedback_dont_refactor_working_code.md`.
+**Why:** Caminho runtime (render/capture/drag) permanece index-based e intocado.
+Anchor em text só vive no lado export/import, estruturando o transporte sem mudar
+o schema do marker.
+
+**Estado real em 2026-09-02:** Users, `Coding.creatingUser` e identidade externa
+estável já fazem round-trip Qualia↔Qualia. A resolução PDF do exporter ainda
+descarta markers quando o texto canônico diverge por hifenização, ligaturas,
+pontuação espaçada ou caracteres de substituição; no D1 real, 33 de 113 markers
+foram emitidos no checkpoint. O Marco 6 fecha paridade PDF simples/multipágina
+entre vaults Qualia. Somente o Marco 7 valida abertura, edição e retorno pelo
+Atlas. Ver `docs/superpowers/specs/2026-09-01-qdpx-multicoder-import-design.md`.
 
 ### 5.10 Tabular export (CSV zip pra análise externa)
 

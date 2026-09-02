@@ -296,4 +296,4 @@ Ask the user to export Carla, João, and Default contributions from the isolated
 
 - [x] **Step 6: Close only Marco 2 after approval**
 
-Set the new spec state to `Marco 2 concluído; interoperabilidade Atlas pendente para o Marco 6`; check only Marco 2 globally; leave Marcos 3–6 unchecked; mark completed plan steps; run `git diff --check`; commit `docs: close QDPX authorship round-trip milestone`.
+Set the new spec state to `Marco 2 concluído; round-trip PDF Qualia↔Qualia pendente para o Marco 6; interoperabilidade Atlas pendente para o Marco 7`; check only Marco 2 globally; leave Marcos 3–7 unchecked; mark completed plan steps; run `git diff --check`; commit `docs: close QDPX authorship round-trip milestone`.

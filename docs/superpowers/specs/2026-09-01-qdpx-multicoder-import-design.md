@@ -4,7 +4,7 @@
 >
 > Branch de partida: `fix/qdpx-atlas-page-anchoring`
 >
-> Estado: Marcos 1–2 concluídos em 2026-09-02; Marcos 3–6 permanecem abertos.
+> Estado: Marcos 1–2 concluídos em 2026-09-02; Marcos 3–7 permanecem abertos.
 
 ## Como retomar em outra sessão
 
@@ -14,9 +14,10 @@
 3. Ler os três diagnósticos canônicos referenciados abaixo.
 4. Não usar `data.json` como memória da investigação: o usuário o apaga durante os
    testes.
-5. Começar pelo **Marco 1 — importação multicoder de uma página**.
+5. Começar pelo **Marco 3 — conteúdo completo e marker multipágina por coder**.
 6. Não iniciar zebra ou redesign geral da margin panel antes de fechar a autoria e
-   o marker lógico multipágina; o round-trip PDF completo fica para o Marco 6.
+   o marker lógico multipágina; o round-trip PDF Qualia↔Qualia fica para o Marco
+   6 e a interoperabilidade Atlas para o Marco 7.
 
 ## Documentos canônicos
 
@@ -25,7 +26,11 @@
 - [Arquitetura atual da margin panel](../../_research/pdf-margin-panel-multipage-architecture.md)
   — overlay, colunas, rótulos, eventos e tamanho da mudança multipágina;
 - [Autoria, round-trip e decisões multicoder](../../_research/qdpx-atlas-coder-roundtrip-margin-panel.md)
-  — perda atual de Users/Codings, decisão por marker por coder e identidade ativa;
+  — diagnóstico original da perda de Users/Codings, decisão por marker por coder
+  e identidade ativa;
+- [Round-trip isolado de autoria](2026-09-02-qdpx-authorship-roundtrip-design.md)
+  — contrato Qualia↔Qualia concluído no Marco 2 e fronteira explícita com os
+  round-trips PDF interno e Atlas;
 - `docs/deep-research-ia-qdpx-atlas/` — pesquisas externas usadas como insumo,
   não como especificação automática do produto;
 - `_MULTIPAGE reference.md`, na raiz do vault de trabalho — inspeção visual do
@@ -134,7 +139,9 @@ coder. A identidade da Selection Atlas será preservada apenas como procedência
   autoria.
 - [ ] **Marco 5:** refatorar layout espacial, filtros e compactações visuais.
 - [ ] **Marco 6:** exportar PDF simples e multipágina e validar o round-trip
-  completo em uma única rodada no Atlas.
+  completo entre vaults Qualia/Obsidian.
+- [ ] **Marco 7:** validar a interoperabilidade Atlas em uma rodada externa
+  separada, incluindo edição no Atlas e retorno ao Qualia.
 
 Cada marco deve funcionar manualmente no vault real antes de os testes daquele
 recorte serem consolidados. Isso não significa acumular toda a cobertura para o
@@ -449,7 +456,7 @@ Somente após fidelidade de dados e multipágina funcional no Qualia:
 - [ ] decidir a interação entre markers exatamente sobrepostos;
 - [ ] manter qualquer agregação como projeção reversível, nunca fonte de verdade.
 
-## Marco 6 — round-trip PDF completo e validação Atlas
+## Marco 6 — round-trip PDF completo Qualia↔Qualia
 
 - [ ] tornar a resolução do exporter tolerante à hifenização, ligaturas,
   pontuação espaçada e caracteres de substituição, reutilizando a provenance de
@@ -463,12 +470,30 @@ Somente após fidelidade de dados e multipágina funcional no Qualia:
 - [ ] reagrupar markers irmãos somente quando a geometria continuar compatível;
 - [ ] exportar markers divergentes como Selections independentes;
 - [ ] reimportar o pacote e comparar Users, autoria, códigos, bounds e segmentos;
+- [ ] validar colaboração entre pessoas usando apenas vaults Obsidian, sem
+  depender de software ou conta externa.
+
+O Marco 6 fecha o contrato de produto local-first. Ele só termina quando um
+pacote produzido pelo Qualia pode ser importado em outro vault Qualia sem perda
+de markers, autoria, códigos ou geometria. Aceitação por ferramentas externas não
+é critério de conclusão deste marco.
+
+## Marco 7 — interoperabilidade Atlas
+
+- [ ] abrir no Atlas um pacote que já passou integralmente pelo Marco 6;
+- [ ] validar no Atlas seleções PDF simples e multipágina;
+- [ ] adaptar particularidades externas de `PDFSelection + PlainTextSelection`,
+  GUIDs duplicados e relações `continued by` sem enfraquecer o contrato interno;
 - [ ] usar uma única janela de acesso ao Atlas para validar simples e multipágina;
 - [ ] editar no Atlas, exportar de volta e confirmar o ciclo no Qualia.
 
+Falhas descobertas aqui são incompatibilidades externas e formam iterações do
+Marco 7. Elas não reabrem automaticamente a paridade Qualia↔Qualia já aprovada no
+Marco 6, salvo quando revelarem perda real no formato interno compartilhado.
+
 ## Pontos que continuam abertos
 
-Estes itens não bloqueiam o Marco 1, exceto se aparecerem diretamente durante sua
+Estes itens não bloqueiam o Marco 3, exceto se aparecerem diretamente durante sua
 implementação:
 
 - forma visual exata do indicador de autoria no painel atual;
@@ -481,7 +506,7 @@ implementação:
 - posição do rótulo de uma rail multipágina quando o centro cai entre páginas.
 
 Se uma dessas decisões alterar a semântica aprovada, parar e discutir antes de
-implementar. Se for apenas escolha interna reversível dentro do Marco 1, registrar
+implementar. Se for apenas escolha interna reversível dentro do Marco 3, registrar
 a decisão no commit correspondente.
 
 ## Limites de trabalho
@@ -494,4 +519,4 @@ a decisão no commit correspondente.
   modelo individual por coder decidido para o Qualia.
 - Não esconder perda de dados com agregação visual.
 - Não começar o redesign completo da margin panel dentro dos Marcos 1–4.
-- Não declarar interoperabilidade Atlas concluída antes do Marco 6.
+- Não declarar interoperabilidade Atlas concluída antes do Marco 7.

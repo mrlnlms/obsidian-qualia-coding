@@ -12,7 +12,7 @@
 
 **Audiências reais (3 públicos distintos).**
 
-1. **QDA acadêmico tradicional** — pesquisador de mixed methods, content analysis, behavioral observation, conversation analysis. Quer alternativa local-first e open source a NVivo ($600/ano), ATLAS.ti, MAXQDA. Plugin atende isso com 16+ analytics modes nativos, REFI-QDA round-trip verificado, e ICR rigoroso.
+1. **QDA acadêmico tradicional** — pesquisador de mixed methods, content analysis, behavioral observation, conversation analysis. Quer alternativa local-first e open source a NVivo ($600/ano), ATLAS.ti, MAXQDA. Plugin atende isso com 16+ analytics modes nativos, transporte REFI-QDA em evolução e ICR rigoroso.
 
 2. **UX research / product research** — quem analisa export de Hotjar, comments de usuários, categorização de problemas em CSV. Audiência **3-4× maior em volume** que QDA acadêmico. Dor concreta: Excel/Sheets exigem one-hot encoding manual pra códigos múltiplos por row; ferramenta especializada local não existe (Dovetail é SaaS caro, NVivo/ATLAS.ti tratam tabular mal). Plugin com `codes per cell` + Smart Codes (saved queries com AST) + analytics próprios cobre essa dor desatendida.
 
@@ -25,7 +25,9 @@
 - Citation-anchoring nativo em todos os formatos (offsets/markers persistentes)
 - Vault-as-git (versionamento, audit trail, privacy local)
 - Parquet/DuckDB-Wasm em escala (297MB load instantâneo) — único CAQDAS com isso
-- REFI-QDA round-trip verificado (não só export, importa de volta de NVivo/ATLAS.ti/MAXQDA/Dedoose)
+- REFI-QDA com import/export estrutural e round-trip de autoria Qualia↔Qualia
+  verificados; paridade PDF completa entre vaults está no Marco 6 e
+  interoperabilidade Atlas no Marco 7
 - Memo (reflexão analítica processual) cross-entidade — base pra "memo-as-prompt" quando LLM coding entrar
 
 ---

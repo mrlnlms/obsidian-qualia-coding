@@ -2,7 +2,8 @@
 
 > Data: 2026-09-02
 >
-> Estado: Marco 2 concluído; interoperabilidade Atlas pendente para o Marco 6.
+> Estado: Marco 2 concluído; round-trip PDF Qualia↔Qualia pendente para o Marco 6
+> e interoperabilidade Atlas pendente para o Marco 7.
 
 ## Objetivo
 
@@ -28,8 +29,10 @@ A nova sequência é:
 3. criar o marker lógico por coder com `segments[]`;
 4. entregar a margin panel multipágina mínima correta;
 5. realizar melhorias visuais posteriores no Qualia;
-6. implementar exportação PDF simples e multipágina e usar uma única rodada no
-   Atlas para validar o ciclo completo.
+6. implementar e validar o round-trip PDF simples e multipágina entre vaults
+   Qualia/Obsidian;
+7. usar uma rodada externa separada no Atlas para validar interoperabilidade,
+   edição e retorno ao Qualia.
 
 ## Escopo incluído
 
@@ -137,8 +140,9 @@ O usuário precisa apenas:
 6. confirmar que os três perfis e suas contribuições continuam separados no
    Compare Coders.
 
-Esse checkpoint valida o contrato Qualia↔Qualia. A aceitação pelo Atlas permanece
-explicitamente pendente até o round-trip PDF completo.
+Esse checkpoint valida o contrato isolado de autoria Qualia↔Qualia. A cobertura
+PDF completa entre vaults pertence ao Marco 6; a aceitação pelo Atlas permanece
+explicitamente separada e pendente para o Marco 7.
 
 ### Resultado observado em 2026-09-02
 

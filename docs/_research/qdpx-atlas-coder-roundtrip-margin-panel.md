@@ -1,5 +1,9 @@
 # QDPX Atlas, autoria multicoder e margin panel — levantamento e decisões
 
+> Atualização de sequência em 2026-09-02: autoria Qualia↔Qualia foi concluída no
+> Marco 2. O round-trip PDF completo entre vaults Qualia é um contrato autônomo
+> do Marco 6; interoperabilidade e edição no Atlas formam o Marco 7 separado.
+
 > Levantamento factual e checkpoint de decisões em 2026-09-01. Este documento
 > estende os diagnósticos
 > `qdpx-atlas-multipage-diagnostic.md` e
@@ -428,7 +432,19 @@ qual deles receberá hover, clique ou handles será um problema explícito de
 interação e layout. A margin panel pode ajudar mostrando a autoria de cada entrada,
 mas não deve resolver a ambiguidade fundindo os markers.
 
-## Round-trip alvo Atlas → Qualia → Atlas
+## Separação dos contratos de round-trip
+
+O ciclo interno Qualia → QDPX → Qualia é requisito de colaboração local-first e
+não depende do comportamento de uma ferramenta externa. Ele deve atingir
+paridade de markers, autoria, códigos, bounds e segmentos no Marco 6 antes de
+qualquer pacote ser usado como fixture de aceitação externa.
+
+O ciclo Atlas → Qualia → Atlas continua sendo o alvo de interoperabilidade, mas
+passa a ser validado separadamente no Marco 7. Particularidades descobertas no
+Atlas podem exigir adaptações do serializer externo sem bloquear o uso do QDPX
+entre pessoas que trabalham somente em vaults Obsidian.
+
+## Contrato externo futuro — Atlas → Qualia → Atlas
 
 ### Entrada
 
@@ -527,10 +543,13 @@ não condições para preservar corretamente os dados.
 
 ## Conclusão factual
 
-Autoria multicoder não é um caso futuro: ela domina o QDPX real em análise. O
-Qualia hoje perde essa informação na importação e na exportação, e as seis
-continuações multipágina expõem acidentalmente parte dessa perda como rótulos
-duplicados.
+Autoria multicoder não é um caso futuro: ela domina o QDPX real em análise. Na
+data original deste levantamento, o Qualia perdia essa informação na importação
+e na exportação, e as seis continuações multipágina expunham acidentalmente parte
+dessa perda como rótulos duplicados. Os Marcos 1 e 2 corrigiram depois o contrato
+de autoria para seleções emitidas: marker por coder na entrada, Users e
+`creatingUser` na saída e identidade externa estável. Permanecem pendentes o
+marker lógico multipágina e a paridade de cobertura PDF do exporter.
 
 Por isso o refactor do margin panel não deve começar pelo algoritmo geométrico. A
 sequência de trabalho recomendada é:
@@ -545,7 +564,10 @@ sequência de trabalho recomendada é:
    perfil ativo editável, autoria identificável e zebra multipágina;
 6. somente depois redesenhar em profundidade o layout, os filtros e eventuais
    agregações visuais;
-7. consolidar testes de cada recorte após o comportamento funcionar no vault real,
+7. fechar o round-trip PDF completo entre dois vaults Qualia, com paridade de
+   cobertura e sem descarte silencioso;
+8. validar Atlas em uma iteração externa posterior, incluindo edição e retorno;
+9. consolidar testes de cada recorte após o comportamento funcionar no vault real,
    conforme a
    estratégia acordada para esta frente.
 
