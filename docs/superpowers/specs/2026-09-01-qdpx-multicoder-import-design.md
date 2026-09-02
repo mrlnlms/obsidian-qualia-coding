@@ -137,11 +137,14 @@ coder. A identidade da Selection Atlas será preservada apenas como procedência
   por coder, com `segments[]`.
 - [x] **Marco 4:** entregar a margin panel mínima correta para multipágina e
   autoria.
-- [ ] **Marco 5:** refatorar layout espacial, filtros e compactações visuais.
+- [ ] **Marco 5:** completar handles e resize PDF simples/multipágina, incluindo
+  feedback contínuo da margin panel.
 - [ ] **Marco 6:** exportar PDF simples e multipágina e validar o round-trip
   completo entre vaults Qualia/Obsidian.
 - [ ] **Marco 7:** validar a interoperabilidade Atlas em uma rodada externa
   separada, incluindo edição no Atlas e retorno ao Qualia.
+- [ ] **Melhoria posterior:** refinar layout espacial, filtros e compactações da
+  margin panel como frente isolada de usabilidade.
 
 Cada marco deve funcionar manualmente no vault real antes de os testes daquele
 recorte serem consolidados. Isso não significa acumular toda a cobertura para o
@@ -474,17 +477,20 @@ de scroll e da invalidação por resize/sidebar; a revisão corretiva não encon
 novos problemas. Resize/handles multipágina continuam fora do escopo. Nenhuma
 mudança de redesign, exporter ou integração Atlas entrou no diff.
 
-## Marco 5 — redesign posterior da margin panel
+## Marco 5 — handles e resize PDF simples/multipágina
 
-Somente após fidelidade de dados e multipágina funcional no Qualia:
+Desenho detalhado aprovado em
+[`2026-09-02-pdf-multipage-handle-resize-design.md`](2026-09-02-pdf-multipage-handle-resize-design.md).
 
-- [ ] reavaliar o modelo de colunas/tracks;
-- [ ] separar posicionamento de rails e labels;
-- [ ] tratar saturação vertical e limites da página;
-- [ ] avaliar filtros por coder;
-- [ ] avaliar compactação visual `×N` e sua expansão;
-- [ ] decidir a interação entre markers exatamente sobrepostos;
-- [ ] manter qualquer agregação como projeção reversível, nunca fonte de verdade.
+- [ ] corrigir o resize simples para confirmar a última posição válida no
+  `mouseup`;
+- [ ] atualizar highlight, handles e margin rail durante o drag;
+- [ ] mostrar somente o handle inicial do primeiro segmento e o final do último;
+- [ ] permitir que ambos os endpoints atravessem páginas;
+- [ ] derivar `segments[]` automaticamente entre os endpoints;
+- [ ] converter marker simples em multipágina e multipágina em simples;
+- [ ] preservar ownership, read-only e persistência única ao soltar;
+- [ ] não iniciar exporter, Atlas ou redesign da margin panel.
 
 ## Marco 6 — round-trip PDF completo Qualia↔Qualia
 
@@ -521,6 +527,18 @@ Falhas descobertas aqui são incompatibilidades externas e formam iterações do
 Marco 7. Elas não reabrem automaticamente a paridade Qualia↔Qualia já aprovada no
 Marco 6, salvo quando revelarem perda real no formato interno compartilhado.
 
+## Melhoria posterior — redesign da margin panel
+
+Depois dos Marcos 5–7, tratar como frente isolada de usabilidade:
+
+- [ ] reavaliar o modelo de colunas/tracks;
+- [ ] separar posicionamento de rails e labels;
+- [ ] tratar saturação vertical e limites da página;
+- [ ] avaliar filtros por coder;
+- [ ] avaliar compactação visual `×N` e sua expansão;
+- [ ] decidir a interação entre markers exatamente sobrepostos;
+- [ ] manter qualquer agregação como projeção reversível, nunca fonte de verdade.
+
 ## Pontos que continuam abertos
 
 Estes itens não bloqueiam o Marco 3, exceto se aparecerem diretamente durante sua
@@ -548,5 +566,5 @@ a decisão no commit correspondente.
 - Não usar o comportamento do Atlas como obrigação quando ele conflitar com o
   modelo individual por coder decidido para o Qualia.
 - Não esconder perda de dados com agregação visual.
-- Não começar o redesign completo da margin panel dentro dos Marcos 1–4.
+- Não misturar o redesign completo da margin panel aos Marcos funcionais 5–7.
 - Não declarar interoperabilidade Atlas concluída antes do Marco 7.
