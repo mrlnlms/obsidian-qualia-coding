@@ -333,6 +333,7 @@ export const createMarginPanelExtension = (model: CodeMarkerModel) => {
 
 						brackets.push({
 							marker,
+							codeId: codeApp.codeId,
 							codeName,
 							color,
 							top: topPx + contentTop,

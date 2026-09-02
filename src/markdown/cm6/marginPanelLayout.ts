@@ -5,6 +5,7 @@
  */
 
 import type { Marker } from "../models/codeMarkerModel";
+import { layoutMarginRails } from '../../core/marginPanelLayout';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,7 @@ export const PANEL_LEFT_MARGIN = 20;
 
 export interface ResolvedBracket {
 	marker: Marker;
+	codeId: string;
 	codeName: string;
 	color: string;
 	top: number;
@@ -49,35 +51,28 @@ export interface LabelInfo {
  * Allocate each bar to the rightmost free column at its range.
  */
 export function assignColumns(brackets: ResolvedBracket[]): void {
-	brackets.sort((a, b) => {
-		const spanA = a.bottom - a.top;
-		const spanB = b.bottom - b.top;
-		if (spanB !== spanA) return spanB - spanA; // larger first
-		return a.top - b.top; // tiebreak: earlier start first
+	const bracketByKey = new Map<string, ResolvedBracket>();
+	const inputs = brackets.map((bracket, index) => {
+		const key = `${index}:${bracket.marker.id}:${bracket.codeId}`;
+		bracketByKey.set(key, bracket);
+		return {
+			key,
+			markerId: bracket.marker.id,
+			codeId: bracket.codeId,
+			codeName: bracket.codeName,
+			color: bracket.color,
+			editable: true,
+			top: bracket.top,
+			bottom: bracket.bottom,
+		};
 	});
 
-	// columnRanges[col] = occupied vertical ranges in that column
-	const columnRanges: Array<Array<{ top: number; bottom: number }>> = [];
-
-	for (const bracket of brackets) {
-		let assigned = false;
-		for (let col = 0; col < columnRanges.length; col++) {
-			const ranges = columnRanges[col]!;
-			const overlaps = ranges.some(
-				r => bracket.top < r.bottom && bracket.bottom > r.top
-			);
-			if (!overlaps) {
-				bracket.column = col;
-				ranges.push({ top: bracket.top, bottom: bracket.bottom });
-				assigned = true;
-				break;
-			}
-		}
-		if (!assigned) {
-			bracket.column = columnRanges.length;
-			columnRanges.push([{ top: bracket.top, bottom: bracket.bottom }]);
-		}
-	}
+	const layout = layoutMarginRails(inputs);
+	brackets.splice(0, brackets.length, ...layout.map((rail) => {
+		const bracket = bracketByKey.get(rail.key)!;
+		bracket.column = rail.lane;
+		return bracket;
+	}));
 }
 
 /**
