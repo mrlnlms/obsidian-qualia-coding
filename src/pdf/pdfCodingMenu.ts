@@ -18,6 +18,7 @@ import { cancelHoverCloseTimer, startHoverCloseTimer } from './highlightRenderer
 import { findCodeApplication, setMagnitude } from '../core/codeApplicationHelpers';
 import { openCodingPopover, type CodingPopoverAdapter, type CodingPopoverOptions } from '../core/codingPopover';
 import type { PdfViewState } from './pdfViewState';
+import { selectionResultToSegment } from './pdfCodingModel';
 
 /**
  * Opens a coding popover for PDF text selections.
@@ -63,23 +64,22 @@ export function openPdfCodingPopover(
 		}
 	}
 
-	// Lazy marker resolution (created on first code add)
-	const getMarkers = (): PdfMarker[] =>
-		results.map(r =>
-			model.findOrCreateMarker(r.file, r.page, r.beginIndex, r.beginOffset, r.endIndex, r.endOffset, r.text),
-		);
-
 	// Determine hover vs selection mode
 	const firstResult = results[0]!;
+	const selectionSegments = results.map(selectionResultToSegment);
+	const findCurrentMarker = (): PdfMarker | undefined => hoverMarkerId
+		? model.findMarkerById(hoverMarkerId)
+		: model.findExistingMarkerBySegments(firstResult.file, selectionSegments);
+	// Lazy marker resolution (created on first mutation in selection mode).
+	const getMarker = (): PdfMarker => {
+		const current = findCurrentMarker();
+		if (current) return current;
+		if (hoverMarkerId) throw new Error(`PDF marker ${hoverMarkerId} no longer exists`);
+		return model.findOrCreateMarkerFromSegments(firstResult.file, results);
+	};
 	const hoveredMarker = hoverMarkerId ? model.findMarkerById(hoverMarkerId) : undefined;
 	const existingMarker = hoveredMarker
-		?? (hoverMarkerId
-			? undefined
-		: model.findExistingMarker(
-			firstResult.file, firstResult.page,
-			firstResult.beginIndex, firstResult.beginOffset,
-			firstResult.endIndex, firstResult.endOffset,
-		));
+		?? (hoverMarkerId ? undefined : model.findExistingMarkerBySegments(firstResult.file, selectionSegments));
 	const isHoverMode = !!hoverMarkerId && !!existingMarker;
 	const readOnly = hoveredMarker ? !model.isMarkerEditable(hoveredMarker) : model.plugin.isCodingReadOnly();
 	const ownerName = hoveredMarker?.codedBy
@@ -91,13 +91,7 @@ export function openPdfCodingPopover(
 	const adapter: CodingPopoverAdapter = {
 		registry: model.registry,
 		getActiveCodes: () => {
-			const current = hoverMarkerId
-				? model.findMarkerById(hoverMarkerId)
-				: model.findExistingMarker(
-					firstResult.file, firstResult.page,
-					firstResult.beginIndex, firstResult.beginOffset,
-					firstResult.endIndex, firstResult.endOffset,
-				);
+			const current = findCurrentMarker();
 			if (!current) return [];
 			return current.codes
 				.map(c => model.registry.getById(c.codeId)?.name)
@@ -106,69 +100,42 @@ export function openPdfCodingPopover(
 		addCode: (name) => {
 			let def = model.registry.getByName(name);
 			if (!def) def = model.registry.create(name);
-			for (const m of getMarkers()) model.addCodeToMarker(m.id, def.id);
+			model.addCodeToMarker(getMarker().id, def.id);
 		},
 		removeCode: (name) => {
 			const def = model.registry.getByName(name);
 			if (!def) return;
-			for (const m of getMarkers()) model.removeCodeFromMarker(m.id, def.id, true);
+			model.removeCodeFromMarker(getMarker().id, def.id, true);
 		},
-		getMemo: () => {
-			const m = hoverMarkerId
-				? model.findMarkerById(hoverMarkerId)
-				: model.findExistingMarker(
-					firstResult.file, firstResult.page,
-					firstResult.beginIndex, firstResult.beginOffset,
-					firstResult.endIndex, firstResult.endOffset,
-				);
-			return getMemoContent(m?.memo);
-		},
+		getMemo: () => getMemoContent(findCurrentMarker()?.memo),
 		setMemo: (value) => {
 			// Re-query marker — it may have been lazily created after addCode
-			const markers = getMarkers();
-			for (const m of markers) {
-				m.memo = setMemoContent(m.memo, value);
-				m.updatedAt = Date.now();
-			}
+			const marker = getMarker();
+			marker.memo = setMemoContent(marker.memo, value);
+			marker.updatedAt = Date.now();
 			model.notify();
 		},
 		getMagnitudeForCode: (codeId) => {
-			const m = hoverMarkerId
-				? model.findMarkerById(hoverMarkerId)
-				: model.findExistingMarker(
-					firstResult.file, firstResult.page,
-					firstResult.beginIndex, firstResult.beginOffset,
-					firstResult.endIndex, firstResult.endOffset,
-				);
+			const m = findCurrentMarker();
 			if (!m) return undefined;
 			return findCodeApplication(m.codes, codeId)?.magnitude;
 		},
 		setMagnitudeForCode: (codeId, value) => {
-			const markers = getMarkers();
-			for (const m of markers) {
-				m.codes = setMagnitude(m.codes, codeId, value);
-				m.updatedAt = Date.now();
-			}
+			const marker = getMarker();
+			marker.codes = setMagnitude(marker.codes, codeId, value);
+			marker.updatedAt = Date.now();
 			model.notify();
 		},
 		getRelationsForCode: (codeId) => {
-			const m = hoverMarkerId
-				? model.findMarkerById(hoverMarkerId)
-				: model.findExistingMarker(
-					firstResult.file, firstResult.page,
-					firstResult.beginIndex, firstResult.beginOffset,
-					firstResult.endIndex, firstResult.endOffset,
-				);
+			const m = findCurrentMarker();
 			return findCodeApplication(m?.codes ?? [], codeId)?.relations ?? [];
 		},
 		setRelationsForCode: (codeId, relations) => {
-			const markers = getMarkers();
-			for (const m of markers) {
-				const ca = findCodeApplication(m.codes, codeId);
-				if (ca) {
-					ca.relations = relations.length > 0 ? relations : undefined;
-					m.updatedAt = Date.now();
-				}
+			const marker = getMarker();
+			const ca = findCodeApplication(marker.codes, codeId);
+			if (ca) {
+				ca.relations = relations.length > 0 ? relations : undefined;
+				marker.updatedAt = Date.now();
 			}
 			model.notify();
 		},
@@ -209,10 +176,8 @@ export function openPdfCodingPopover(
 			label: 'Delete Marker',
 			icon: 'trash',
 			onDelete: () => {
-				for (const r of results) {
-					const existing = model.findExistingMarker(r.file, r.page, r.beginIndex, r.beginOffset, r.endIndex, r.endOffset);
-					if (existing) model.removeAllCodesFromMarker(existing.id);
-				}
+				const current = findCurrentMarker();
+				if (current) model.removeAllCodesFromMarker(current.id);
 				onHighlightRefresh();
 			},
 		} : undefined,

@@ -588,7 +588,7 @@ export class PdfPageObserver {
 
 		// Attach drag handles to each rendered marker
 		for (const info of renderInfos) {
-			if (!this.model.isMarkerEditable(info.marker)) continue;
+			if (!this.model.canResizeMarker(info.marker)) continue;
 			attachDragHandles(info, pageView, {
 				onRangeUpdate: (markerId, changes) => {
 					this.model.updateMarkerRange(markerId, changes);

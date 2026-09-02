@@ -14,6 +14,7 @@ import type { PDFViewerChild } from './pdfTypings';
 import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
 import { getPdfViewState, destroyPdfViewState, type PdfViewState } from './pdfViewState';
 import { performToggleCommand } from '../core/mediaToggleButton';
+import { getPdfMarkerSegments } from './pdfMarkerSegments';
 
 const PDF_MARKER_STATUS_LOG_PATH = 'imports/_qualia-pdf-marker-current-status.json';
 const PDF_MARKER_COVERAGE_AUDIT_LOG_PATH = 'imports/_qualia-pdf-marker-coverage-audit.json';
@@ -41,18 +42,18 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 	// ── Helper functions ──
 
 	function openPopoverForMarkerAtElement(marker: PdfMarker, anchorEl: HTMLElement, onRefresh: () => void, state?: PdfViewState) {
-		const selectionResult: PdfSelectionResult = {
+		const selectionResults: PdfSelectionResult[] = getPdfMarkerSegments(marker).map((segment) => ({
 			file: marker.fileId,
-			page: marker.page,
-			beginIndex: marker.beginIndex,
-			beginOffset: marker.beginOffset,
-			endIndex: marker.endIndex,
-			endOffset: marker.endOffset,
-			text: marker.text,
-		};
+			page: segment.page,
+			beginIndex: segment.beginIndex,
+			beginOffset: segment.beginOffset,
+			endIndex: segment.endIndex,
+			endOffset: segment.endOffset,
+			text: segment.text,
+		}));
 		const rect = anchorEl.getBoundingClientRect();
 		const pos = { x: rect.left, y: rect.bottom };
-		openPdfCodingPopover(null, model, selectionResult, onRefresh, pos, plugin.app, marker.id, undefined, state);
+		openPdfCodingPopover(null, model, selectionResults, onRefresh, pos, plugin.app, marker.id, undefined, state);
 	}
 
 	function deinstrumentPdfView(view: any) {

@@ -95,6 +95,54 @@ describe('findOrCreateMarker', () => {
 		const m2 = model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 20, 'b');
 		expect(m1.id).not.toBe(m2.id);
 	});
+
+	it('keeps ordinary one-page markers in the legacy scalar shape', () => {
+		const marker = model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'hello');
+		expect(marker.segments).toBeUndefined();
+	});
+});
+
+describe('findOrCreateMarkerFromSegments', () => {
+	const crossPageResults = [
+		{ file: 'doc.pdf', page: 6, beginIndex: 10, beginOffset: 2, endIndex: 30, endOffset: 4, text: 'first' },
+		{ file: 'doc.pdf', page: 7, beginIndex: 0, beginOffset: 0, endIndex: 5, endOffset: 6, text: 'second' },
+	];
+
+	it('creates and reuses one logical marker for the complete segment list', () => {
+		const marker = model.findOrCreateMarkerFromSegments('doc.pdf', crossPageResults);
+		const again = model.findOrCreateMarkerFromSegments('doc.pdf', crossPageResults.map((result) => ({ ...result })));
+
+		expect(again).toBe(marker);
+		expect(model.getAllMarkers()).toHaveLength(1);
+		expect(marker.segments).toHaveLength(2);
+		expect(marker.text).toBe('first\fsecond');
+		expect(marker).toMatchObject({
+			page: 6,
+			beginIndex: 10,
+			beginOffset: 2,
+			endIndex: 30,
+			endOffset: 4,
+		});
+	});
+
+	it('creates independent logical markers for different active coders', () => {
+		activeCoderId = 'human:carla';
+		const carla = model.findOrCreateMarkerFromSegments('doc.pdf', crossPageResults);
+		activeCoderId = 'human:joao';
+		const joao = model.findOrCreateMarkerFromSegments('doc.pdf', crossPageResults);
+
+		expect(carla.id).not.toBe(joao.id);
+		expect(carla.segments).not.toBe(joao.segments);
+		expect(model.getAllMarkers()).toHaveLength(2);
+	});
+
+	it('rejects empty or mixed-file segment lists', () => {
+		expect(() => model.findOrCreateMarkerFromSegments('doc.pdf', [])).toThrow('non-empty');
+		expect(() => model.findOrCreateMarkerFromSegments('doc.pdf', [
+			crossPageResults[0]!,
+			{ ...crossPageResults[1]!, file: 'other.pdf' },
+		])).toThrow('same file');
+	});
 });
 
 describe('findExistingMarker', () => {
@@ -480,6 +528,21 @@ describe('updateMarkerRange', () => {
 	it('does nothing for unknown marker', () => {
 		model.updateMarkerRange('nonexistent', { beginIndex: 5 });
 		// Should not throw
+	});
+
+	it('blocks scalar resize for logical multipage markers', () => {
+		const marker = model.findOrCreateMarkerFromSegments('doc.pdf', [
+			{ file: 'doc.pdf', page: 6, beginIndex: 1, beginOffset: 2, endIndex: 3, endOffset: 4, text: 'first' },
+			{ file: 'doc.pdf', page: 7, beginIndex: 5, beginOffset: 6, endIndex: 7, endOffset: 8, text: 'second' },
+		]);
+		const before = structuredClone(marker.segments);
+		model.updateMarkerRange(marker.id, { endOffset: 99, text: 'wrong' });
+		model.updateMarkerRangeSilent(marker.id, { endOffset: 88 });
+
+		expect(marker.segments).toEqual(before);
+		expect(marker.endOffset).toBe(before![0]!.endOffset);
+		expect(marker.text).toBe('first\fsecond');
+		expect(model.canResizeMarker(marker)).toBe(false);
 	});
 });
 

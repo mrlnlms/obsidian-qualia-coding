@@ -1,4 +1,4 @@
-import type { PdfMarker, PdfMarkerPageProjection, PdfMarkerRangeChanges, PdfShapeMarker, PercentShapeCoords } from './pdfCodingTypes';
+import type { PdfMarker, PdfMarkerPageProjection, PdfMarkerRangeChanges, PdfMarkerSegment, PdfShapeMarker, PercentShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinition, MarkerMutationEvent } from '../core/types';
@@ -7,10 +7,26 @@ import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplic
 import type QualiaCodingPlugin from '../main';
 import { attachSourceHashSnapshot } from '../core/icr/provenance/attachSourceHashSnapshot';
 import {
+	getPdfMarkerSegments,
+	isMultipagePdfMarker,
 	joinPdfMarkerSegmentText,
 	projectPdfMarkerToPage,
+	samePdfMarkerSegments,
 	syncPdfMarkerFirstSegmentProjection,
 } from './pdfMarkerSegments';
+import type { PdfSelectionResult } from './selectionCapture';
+
+export function selectionResultToSegment(result: PdfSelectionResult): PdfMarkerSegment {
+	return {
+		page: result.page,
+		beginIndex: result.beginIndex,
+		beginOffset: result.beginOffset,
+		endIndex: result.endIndex,
+		endOffset: result.endOffset,
+		text: result.text,
+		resolution: 'resolved' as const,
+	};
+}
 
 // ── PdfCodingModel ──
 type ChangeListener = () => void;
@@ -220,19 +236,54 @@ export class PdfCodingModel {
 	}
 
 	findOrCreateMarker(file: string, page: number, beginIndex: number, beginOffset: number, endIndex: number, endOffset: number, text: string): PdfMarker {
+		return this.findOrCreateMarkerFromSegments(file, [{
+			file,
+			page,
+			beginIndex,
+			beginOffset,
+			endIndex,
+			endOffset,
+			text,
+		}]);
+	}
+
+	findExistingMarkerBySegments(
+		file: string,
+		segments: readonly PdfMarkerSegment[],
+		coderId: CoderId = this.plugin.getActiveCoderId(),
+	): PdfMarker | undefined {
+		return this.markers.find((marker) =>
+			marker.fileId === file
+			&& !marker.importedQdpxSelection?.unattributedOwner
+			&& (marker.codedBy ?? DEFAULT_CODER_ID) === coderId
+			&& samePdfMarkerSegments(getPdfMarkerSegments(marker), segments),
+		);
+	}
+
+	findOrCreateMarkerFromSegments(file: string, results: PdfSelectionResult[]): PdfMarker {
 		if (this.plugin.isCodingReadOnly()) {
 			throw new Error('Cannot create PDF marker while coding participation is read-only');
 		}
-		const existing = this.findExistingMarker(file, page, beginIndex, beginOffset, endIndex, endOffset);
+		if (results.length === 0 || results.some((result) => result.file !== file)) {
+			throw new Error('PDF marker segments must be non-empty and belong to the same file');
+		}
+		const segments = results.map(selectionResultToSegment);
+		const existing = this.findExistingMarkerBySegments(file, segments);
 		if (existing) return existing;
 
+		const first = segments[0]!;
+		const isLogical = segments.length > 1;
 		const marker: PdfMarker = {
 			markerType: 'pdf',
 			id: this.generateId(),
-			fileId: file, page,
-			beginIndex, beginOffset,
-			endIndex, endOffset,
-			text,
+			fileId: file,
+			page: first.page,
+			beginIndex: first.beginIndex,
+			beginOffset: first.beginOffset,
+			endIndex: first.endIndex,
+			endOffset: first.endOffset,
+			text: isLogical ? joinPdfMarkerSegmentText(segments) : first.text,
+			...(isLogical ? { segments } : {}),
 			codes: [],
 			codedBy: this.plugin.getActiveCoderId(),
 			createdAt: Date.now(),
@@ -320,7 +371,7 @@ export class PdfCodingModel {
 	updateMarkerRange(markerId: string, changes: Partial<Pick<PdfMarker,
 		'page' | 'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
 		const marker = this.editableMarkerById(markerId);
-		if (!marker) return;
+		if (!marker || isMultipagePdfMarker(marker)) return;
 		Object.assign(marker, changes);
 		marker.updatedAt = Date.now();
 		this.notify();
@@ -333,7 +384,7 @@ export class PdfCodingModel {
 	updateMarkerRangeSilent(markerId: string, changes: Partial<Pick<PdfMarker,
 		'page' | 'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'>>): void {
 		const marker = this.editableMarkerById(markerId);
-		if (!marker) return;
+		if (!marker || isMultipagePdfMarker(marker)) return;
 		Object.assign(marker, changes);
 		marker.updatedAt = Date.now();
 	}
@@ -377,6 +428,10 @@ export class PdfCodingModel {
 	isMarkerEditable(marker: PdfMarker | PdfShapeMarker): boolean {
 		if ('importedQdpxSelection' in marker && marker.importedQdpxSelection?.unattributedOwner) return false;
 		return this.plugin.canEditMarker(marker);
+	}
+
+	canResizeMarker(marker: PdfMarker): boolean {
+		return this.isMarkerEditable(marker) && !isMultipagePdfMarker(marker);
 	}
 
 	private editableMarkerById(markerId: string): PdfMarker | undefined {
