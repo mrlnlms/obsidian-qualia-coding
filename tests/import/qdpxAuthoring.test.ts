@@ -3,6 +3,7 @@ import { parseXml } from '../../src/import/xmlParser';
 import {
 	groupCodingsByUser,
 	mergePairedCodings,
+	mergeQdpxRepresentationCodings,
 	parseQdpxCodings,
 	parseQdpxUsers,
 } from '../../src/import/qdpxAuthoring';
@@ -45,6 +46,38 @@ describe('QDPX authoring metadata', () => {
 		expect(merged).toEqual(expect.arrayContaining([
 			expect.objectContaining({ creatingUserGuid: 'u1', sourceCodingGuids: ['pdf-c1', 'text-c1'] }),
 			expect.objectContaining({ creatingUserGuid: 'u2', sourceCodingGuids: ['pdf-c2', 'text-c2'] }),
+		]));
+	});
+
+	it('merges three representations in order without merging different coders', () => {
+		const merged = mergeQdpxRepresentationCodings([
+			{ codings: [
+				{ guid: 'pdf-anchor-a', codeGuid: 'code-a', creatingUserGuid: 'u1', createdAt: '2026-01-03T00:00:00Z', noteGuids: ['n1'], sourceCodingGuids: ['pdf-anchor-a'] },
+				{ guid: 'pdf-anchor-b', codeGuid: 'code-a', creatingUserGuid: 'u2', noteGuids: [], sourceCodingGuids: ['pdf-anchor-b'] },
+			] },
+			{ codings: [
+				{ guid: 'plain-a', codeGuid: 'code-a', creatingUserGuid: 'u1', createdAt: '2026-01-01T00:00:00Z', noteGuids: ['n2'], sourceCodingGuids: ['plain-a'] },
+				{ guid: 'plain-b', codeGuid: 'code-a', creatingUserGuid: 'u2', noteGuids: [], sourceCodingGuids: ['plain-b'] },
+			] },
+			{ codings: [
+				{ guid: 'pdf-continuation-a', codeGuid: 'code-a', creatingUserGuid: 'u1', createdAt: '2026-01-02T00:00:00Z', noteGuids: ['n1'], sourceCodingGuids: ['pdf-continuation-a'] },
+				{ guid: 'pdf-continuation-b', codeGuid: 'code-a', creatingUserGuid: 'u2', noteGuids: [], sourceCodingGuids: ['pdf-continuation-b'] },
+			] },
+		]);
+
+		expect(merged).toHaveLength(2);
+		expect(merged).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				guid: 'pdf-anchor-a',
+				creatingUserGuid: 'u1',
+				createdAt: '2026-01-01T00:00:00Z',
+				noteGuids: ['n1', 'n2'],
+				sourceCodingGuids: ['pdf-anchor-a', 'plain-a', 'pdf-continuation-a'],
+			}),
+			expect.objectContaining({
+				creatingUserGuid: 'u2',
+				sourceCodingGuids: ['pdf-anchor-b', 'plain-b', 'pdf-continuation-b'],
+			}),
 		]));
 	});
 });

@@ -140,4 +140,16 @@ describe('PDF marker segments', () => {
 		});
 		expect(logical.segments![1]!.text).toBe('second');
 	});
+
+	it('preserves logical text while unresolved segment text is still empty', () => {
+		const logical = marker({
+			text: 'complete logical quotation',
+			segments: [
+				{ ...segment(6, 0, 0, 0, 0, ''), resolution: 'pending' },
+				{ ...segment(7, 0, 0, 0, 0, ''), resolution: 'pending' },
+			],
+		});
+		syncPdfMarkerFirstSegmentProjection(logical);
+		expect(logical.text).toBe('complete logical quotation');
+	});
 });

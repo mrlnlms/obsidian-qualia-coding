@@ -20,6 +20,7 @@ import { parseXml, getChildElements, getAttr, getNumAttr, getTextContent, getAll
 import {
   groupCodingsByUser,
   mergePairedCodings,
+  mergeQdpxRepresentationCodings,
   parseQdpxCodings,
   parseQdpxUsers,
   type ParsedQdpxCoding,
@@ -27,8 +28,14 @@ import {
 } from './qdpxAuthoring';
 import { atlasPdfTextRectToNormalized, offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from './coordConverters';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
-import { loadPdfExportData } from '../pdf/pdfExportData';
-import { detectQdpxPdfMultipageGroups } from './qdpxMultipage';
+import { loadPdfExportData, type PdfExportData } from '../pdf/pdfExportData';
+import {
+  detectQdpxPdfMultipageGroups,
+  resolveQdpxMultipageRange,
+  type QdpxMultipageResolution,
+  type QdpxPdfMultipageGroup,
+} from './qdpxMultipage';
+import { syncPdfMarkerFirstSegmentProjection } from '../pdf/pdfMarkerSegments';
 
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import type { VariableValue } from '../core/caseVariables/caseVariablesTypes';
@@ -721,6 +728,7 @@ function reportQdpxPdfImportDiagnostics(
 interface QdpxPdfAuditStats {
 	markers: number;
 	applications: number;
+	segments: number;
 }
 
 /**
@@ -749,13 +757,14 @@ async function writeQdpxImportAudit(
 	}));
 
 	const statsFor = (fileId: string | undefined, coderId?: CoderId): QdpxPdfAuditStats => {
-		if (!coderId) return { markers: 0, applications: 0 };
+		if (!coderId) return { markers: 0, applications: 0, segments: 0 };
 		const markers = importedMarkers.filter((marker) =>
 			marker.fileId === fileId && marker.codedBy === coderId,
 		);
 		return {
 			markers: markers.length,
 			applications: markers.reduce((total, marker) => total + marker.codes.length, 0),
+			segments: markers.reduce((total, marker) => total + (marker.segments?.length ?? 1), 0),
 		};
 	};
 	const unattributedStatsFor = (fileId: string | undefined): QdpxPdfAuditStats => {
@@ -765,6 +774,7 @@ async function writeQdpxImportAudit(
 		return {
 			markers: markers.length,
 			applications: markers.reduce((total, marker) => total + marker.codes.length, 0),
+			segments: markers.reduce((total, marker) => total + (marker.segments?.length ?? 1), 0),
 		};
 	};
 	const totalFor = (coderId?: CoderId): QdpxPdfAuditStats => ({
@@ -772,20 +782,28 @@ async function writeQdpxImportAudit(
 		applications: importedMarkers
 			.filter((marker) => coderId !== undefined && marker.codedBy === coderId)
 			.reduce((total, marker) => total + marker.codes.length, 0),
+		segments: coderId
+			? importedMarkers
+				.filter((marker) => marker.codedBy === coderId)
+				.reduce((total, marker) => total + (marker.segments?.length ?? 1), 0)
+			: 0,
 	});
 	const totalUnattributed = (): QdpxPdfAuditStats => ({
 		markers: importedMarkers.filter((marker) => !marker.codedBy).length,
 		applications: importedMarkers
 			.filter((marker) => !marker.codedBy)
 			.reduce((total, marker) => total + marker.codes.length, 0),
+		segments: importedMarkers
+			.filter((marker) => !marker.codedBy)
+			.reduce((total, marker) => total + (marker.segments?.length ?? 1), 0),
 	});
-	const cell = (stats: QdpxPdfAuditStats) => `${stats.markers} / ${stats.applications}`;
+	const cell = (stats: QdpxPdfAuditStats) => `${stats.markers} / ${stats.applications} / ${stats.segments}`;
 	const escapeCell = (value: string) => value.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 	const participationLabel = describeQdpxImportParticipation(participation, declaredUsers);
 	const declaredWithoutCodings = declaredUsers.filter((declared) =>
 		!participatingUsers.some((participant) => participant.guid === declared.guid),
 	);
-	const header = ['Documento', ...userColumns.map((user) => escapeCell(user.name)), 'Sem autoria (legado multipágina)'];
+	const header = ['Documento', ...userColumns.map((user) => escapeCell(user.name)), 'Sem autoria'];
 	const separator = header.map(() => '---');
 	const rows = pdfSources.map((source) => {
 		const fileId = resolver.sources.get(source.guid);
@@ -808,10 +826,10 @@ async function writeQdpxImportAudit(
 		'',
 		'## Como ler',
 		'',
-		'- Cada célula usa `markers / aplicações de código`.',
+		'- Cada célula usa `markers / aplicações de código / segmentos PDF`.',
 		'- A pessoa selecionada controla apenas quais markers podem ser editados. Todos os markers importados continuam visíveis.',
-		'- Um valor `0 / 0` é uma ausência declarada no arquivo importado, não uma inferência da interface.',
-		'- “Sem autoria” reúne fragments multipágina legados que ainda não recebem atribuição individual.',
+		'- Um valor `0 / 0 / 0` é uma ausência declarada no arquivo importado, não uma inferência da interface.',
+		'- “Sem autoria” reúne aplicações cujo proprietário não pôde ser resolvido; esses markers permanecem somente leitura.',
 		'',
 		'## PDF por pessoa',
 		'',
@@ -1279,27 +1297,27 @@ async function createMarkersForSource(
 ): Promise<number> {
   let count = 0;
 
-  // Pre-load PDF plain text (from the Representation file in the zip) if this
-  // is a PDF source with any text markers. Shapes need real page dims — load
-  // them via pdfjs from the vault file when any PDFSelection is present.
-  let pdfPlainText: string | null = null;
-  let pdfPageStartOffsets: number[] | null = null;
+  // Keep QDPX Representation text separate from PDF.js text. Ordinary imports
+  // use the former; logical multipage imports compare both textual universes.
+  let qdpxRepresentationText: string | null = null;
+  let qdpxRepresentationPageStartOffsets: number[] | null = null;
+  let pdfJsData: PdfExportData | null = null;
   let pdfDims: Record<number, { width: number; height: number }> | null = null;
 
   if (src.type === 'pdf') {
     const reprPath = resolveInternalPath(src.plainTextPath);
     const reprData = reprPath ? zipFiles[reprPath] : undefined;
     if (reprData) {
-      pdfPlainText = strFromU8(reprData);
-      pdfPageStartOffsets = computePageStartOffsets(pdfPlainText);
+      qdpxRepresentationText = strFromU8(reprData);
+      qdpxRepresentationPageStartOffsets = computePageStartOffsets(qdpxRepresentationText);
     }
-    const hasShapes = src.selections.some(s => s.type === 'PDFSelection');
-    if (hasShapes) {
+    const hasPdfSelections = src.selections.some(s => s.type === 'PDFSelection');
+    if (hasPdfSelections) {
       try {
-        const data = await loadPdfExportData(app, filePath);
-        pdfDims = data.pageDims;
+        pdfJsData = await loadPdfExportData(app, filePath);
+        pdfDims = pdfJsData.pageDims;
       } catch (err) {
-        result.warnings.push(`PDF ${filePath}: failed to load page dims for shape markers, using US Letter default (${(err as Error).message})`);
+        result.warnings.push(`PDF ${filePath}: failed to load PDF.js text/dimensions; multipage ranges remain pending and shapes use US Letter defaults (${(err as Error).message})`);
       }
     }
   }
@@ -1307,10 +1325,35 @@ async function createMarkersForSource(
   // Correlate PDFSelection + PlainTextSelection by GUID (ATLAS.ti pattern)
   let selectionsToProcess = src.selections;
   if (src.type === 'pdf') {
-    const multipageFragmentHints = buildPdfMultipageFragmentHints(src);
+    const multipageGroups = detectQdpxPdfMultipageGroups(src.selections);
+    const consumedSelections = new Set<ParsedSelection>();
+    for (const group of multipageGroups) {
+      group.fragments.forEach((fragment) => consumedSelections.add(fragment));
+      consumedSelections.add(group.plainTextSelection);
+      const resolution = resolveQdpxMultipageRange({
+        group,
+        qdpxPlainText: qdpxRepresentationText,
+        pdfPlainText: pdfJsData?.plainText ?? null,
+        pdfPageStartOffsets: pdfJsData?.pageStartOffsets ?? null,
+        pdfPageTextItems: pdfJsData?.pageTextItems ?? null,
+      });
+      count += createPdfMultipageMarkers({
+        group,
+        resolution,
+        filePath,
+        resolver,
+        notes,
+        userGuidToCoderId,
+        dataManager,
+        result,
+        pdfDims,
+      });
+    }
+
     const byGuid = new Map<string, { pdf?: ParsedSelection; text?: ParsedSelection }>();
 
     for (const sel of src.selections) {
+      if (consumedSelections.has(sel)) continue;
       if (!sel.guid) continue;
       const entry = byGuid.get(sel.guid) ?? { pdf: undefined, text: undefined };
       if (sel.type === 'PDFSelection') entry.pdf = sel;
@@ -1332,13 +1375,9 @@ async function createMarkersForSource(
           codings,
           codeGuids: codings.map((coding) => coding.codeGuid),
           noteGuids: [...new Set([...(pair.pdf.noteGuids ?? []), ...(pair.text.noteGuids ?? [])])],
-          qdpxMultipageFragment: multipageFragmentHints.get(pair.pdf.guid),
         });
       } else if (pair.pdf) {
-        selectionsToProcess.push({
-          ...pair.pdf,
-          qdpxMultipageFragment: multipageFragmentHints.get(pair.pdf.guid),
-        });
+        selectionsToProcess.push(pair.pdf);
       } else if (pair.text) {
         // Fallback: process as plain text selection if no PDFSelection exists
         selectionsToProcess.push(pair.text);
@@ -1363,8 +1402,8 @@ async function createMarkersForSource(
             ts,
             dataManager,
             result,
-            pdfPlainText,
-            pdfPageStartOffsets,
+            qdpxRepresentationText,
+            qdpxRepresentationPageStartOffsets,
             pdfDims,
             applications.coderId,
             markerId,
@@ -1384,7 +1423,7 @@ async function createMarkersForSource(
         // 'text' is handled in a separate batch after sources are extracted
         // (see createTextMarkers below — needs file content for offset→lineCh).
         case 'pdf':
-          created = createPdfMarker(sel, filePath, codes, memo, ts, dataManager, result, pdfPlainText, pdfPageStartOffsets, pdfDims);
+          created = createPdfMarker(sel, filePath, codes, memo, ts, dataManager, result, qdpxRepresentationText, qdpxRepresentationPageStartOffsets, pdfDims);
           break;
         case 'picture':
           created = await createImageMarker(sel, filePath, codes, memo, ts, app, dataManager, result);
@@ -1416,6 +1455,138 @@ async function createMarkersForSource(
 function importedMarkerId(selectionGuid: string, coderId: CoderId | undefined): string {
   const owner = (coderId ?? 'unattributed').replace(/[^a-zA-Z0-9_-]/g, '_');
   return `import_${selectionGuid}_${owner}`;
+}
+
+interface CreatePdfMultipageMarkersArgs {
+  group: QdpxPdfMultipageGroup;
+  resolution: QdpxMultipageResolution;
+  filePath: string;
+  resolver: GuidResolver;
+  notes: Map<string, ParsedNote>;
+  userGuidToCoderId: Map<string, CoderId>;
+  dataManager: DataManager;
+  result: ImportResult;
+  pdfDims: Record<number, { width: number; height: number }> | null;
+}
+
+function importedSegmentBBox(
+  fragment: ParsedSelection,
+  pdfDims: Record<number, { width: number; height: number }> | null,
+) {
+  if (fragment.page === undefined
+    || fragment.firstX === undefined
+    || fragment.firstY === undefined
+    || fragment.secondX === undefined
+    || fragment.secondY === undefined) return undefined;
+  const viewerPage = fragment.page + 1;
+  const pageDim = pdfDims?.[fragment.page];
+  const coords = atlasPdfTextRectToNormalized(
+    fragment.firstX,
+    fragment.firstY,
+    fragment.secondX,
+    fragment.secondY,
+    pageDim?.width ?? 612,
+    pageDim?.height ?? 792,
+  );
+  return {
+    source: 'qdpx-pdf-selection' as const,
+    page: viewerPage,
+    x: coords.x,
+    y: coords.y,
+    w: coords.w,
+    h: coords.h,
+  };
+}
+
+/** Persist one independent logical multipage marker for each Coding owner. */
+export function createPdfMultipageMarkers(args: CreatePdfMultipageMarkersArgs): number {
+  const anchor = args.group.fragments.find((fragment) => fragment.guid === args.group.anchorGuid)
+    ?? args.group.fragments[0]!;
+  const representations = [
+    anchor,
+    args.group.plainTextSelection,
+    ...args.group.fragments.filter((fragment) => fragment !== anchor),
+  ];
+  const codings = mergeQdpxRepresentationCodings(representations);
+  const noteGuids = [...new Set(representations.flatMap((selection) => selection.noteGuids))];
+  const semanticSelection: ParsedSelection = {
+    ...anchor,
+    guid: args.group.groupId,
+    codings,
+    codeGuids: codings.map((coding) => coding.codeGuid),
+    noteGuids,
+  };
+  const applicationsByCoder = resolveCoderApplications(
+    semanticSelection,
+    args.resolver,
+    args.notes,
+    args.userGuidToCoderId,
+    args.result,
+  );
+  if (applicationsByCoder.length === 0) return 0;
+
+  const memo = resolveMemo(semanticSelection, args.notes);
+  const timestamp = resolveTimestamp(anchor.createdAt);
+  const fragmentsByGuid = new Map(args.group.fragments.map((fragment) => [fragment.guid, fragment]));
+  const baseSegments = args.resolution.segments.map((segment) => {
+    const fragment = segment.importedSelectionGuid
+      ? fragmentsByGuid.get(segment.importedSelectionGuid)
+      : undefined;
+    return {
+      ...segment,
+      importedPdfSelectionBBox: fragment ? importedSegmentBBox(fragment, args.pdfDims) : undefined,
+    };
+  });
+  const pdfData = args.dataManager.section('pdf');
+
+  for (const applications of applicationsByCoder) {
+    const segments = baseSegments.map((segment) => ({
+      ...segment,
+      importedPdfSelectionBBox: segment.importedPdfSelectionBBox
+        ? { ...segment.importedPdfSelectionBBox }
+        : undefined,
+    }));
+    const first = segments[0]!;
+    const markerId = importedMarkerId(args.group.groupId, applications.coderId);
+    const marker: PdfMarker = {
+      markerType: 'pdf',
+      id: markerId,
+      fileId: args.filePath,
+      page: first.page,
+      beginIndex: first.beginIndex,
+      beginOffset: first.beginOffset,
+      endIndex: first.endIndex,
+      endOffset: first.endOffset,
+      text: args.resolution.text,
+      segments,
+      codes: applications.codes,
+      memo: memo ? { content: memo } : undefined,
+      codedBy: applications.coderId,
+      importedPdfSelectionBBox: first.importedPdfSelectionBBox,
+      importedQdpxSelection: {
+        source: 'refi-qda-selection',
+        selectionGuid: args.group.anchorGuid,
+        selectionGuids: [...args.group.selectionGuids],
+        ...(applications.coderId ? {} : { unattributedOwner: true as const }),
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    syncPdfMarkerFirstSegmentProjection(marker);
+    pdfData.markers.push(marker);
+    for (const selectionGuid of args.group.selectionGuids) {
+      addResolvedSelection(args.resolver, selectionGuid, markerId);
+    }
+  }
+
+  args.dataManager.setSection('pdf', pdfData);
+  if (memo) args.result.memosImported++;
+  if (args.resolution.strategy === 'pending') {
+    args.result.warnings.push(
+      `Multipage PDF selection ${args.group.groupId}: ${args.resolution.reason ?? 'range remains pending'}`,
+    );
+  }
+  return applicationsByCoder.length;
 }
 
 export function createPdfMarker(

@@ -52,28 +52,49 @@ function semanticCodingKey(coding: ParsedQdpxCoding): string {
 	return `${coding.creatingUserGuid ?? ''}\u0000${coding.codeGuid}`;
 }
 
+function earliestCreationDate(current: string | undefined, candidate: string | undefined): string | undefined {
+	if (!current) return candidate;
+	if (!candidate) return current;
+	const currentTime = new Date(current).getTime();
+	const candidateTime = new Date(candidate).getTime();
+	if (Number.isNaN(currentTime)) return Number.isNaN(candidateTime) ? current : candidate;
+	if (Number.isNaN(candidateTime)) return current;
+	return candidateTime < currentTime ? candidate : current;
+}
+
+export function mergeQdpxRepresentationCodings(
+	selections: ReadonlyArray<{ codings: ParsedQdpxCoding[] }>,
+): ParsedQdpxCoding[] {
+	const merged = new Map<string, ParsedQdpxCoding>();
+	for (const selection of selections) {
+		for (const coding of selection.codings) {
+			const key = semanticCodingKey(coding);
+			const current = merged.get(key);
+			if (!current) {
+				merged.set(key, {
+					...coding,
+					noteGuids: [...coding.noteGuids],
+					sourceCodingGuids: [...coding.sourceCodingGuids],
+				});
+				continue;
+			}
+			current.sourceCodingGuids = [...new Set([...current.sourceCodingGuids, ...coding.sourceCodingGuids])];
+			current.noteGuids = [...new Set([...current.noteGuids, ...coding.noteGuids])];
+			current.createdAt = earliestCreationDate(current.createdAt, coding.createdAt);
+			current.guid ??= coding.guid;
+		}
+	}
+	return [...merged.values()];
+}
+
 export function mergePairedCodings(
 	pdfCodings: ParsedQdpxCoding[],
 	textCodings: ParsedQdpxCoding[],
 ): ParsedQdpxCoding[] {
-	const merged = new Map<string, ParsedQdpxCoding>();
-	for (const coding of [...pdfCodings, ...textCodings]) {
-		const key = semanticCodingKey(coding);
-		const current = merged.get(key);
-		if (!current) {
-			merged.set(key, {
-				...coding,
-				noteGuids: [...coding.noteGuids],
-				sourceCodingGuids: [...coding.sourceCodingGuids],
-			});
-			continue;
-		}
-		current.sourceCodingGuids = [...new Set([...current.sourceCodingGuids, ...coding.sourceCodingGuids])];
-		current.noteGuids = [...new Set([...current.noteGuids, ...coding.noteGuids])];
-		current.createdAt ??= coding.createdAt;
-		current.guid ??= coding.guid;
-	}
-	return [...merged.values()];
+	return mergeQdpxRepresentationCodings([
+		{ codings: pdfCodings },
+		{ codings: textCodings },
+	]);
 }
 
 export function groupCodingsByUser(codings: ParsedQdpxCoding[]): ParsedQdpxCoderGroup[] {

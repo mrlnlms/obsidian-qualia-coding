@@ -8,6 +8,7 @@ import {
   applyLinks,
   collectQdpxPdfContinuedByDiagnostics,
   buildPdfMultipageFragmentHints,
+  createPdfMultipageMarkers,
   resolveInternalPath,
   createPdfMarker,
   importQdpx,
@@ -21,6 +22,7 @@ import { DataManager } from '../../src/core/dataManager';
 import { CoderRegistry } from '../../src/core/icr/coderRegistry';
 import type { Plugin } from 'obsidian';
 import { isMarkerPending } from '../../src/pdf/resolvePendingIndices';
+import { detectQdpxPdfMultipageGroups } from '../../src/import/qdpxMultipage';
 
 function createMockPlugin() {
   let stored: any = null;
@@ -56,6 +58,39 @@ function multicoderQdpx(): ArrayBuffer {
     'project.qde': toCurrentRealm(strToU8(project)),
     'sources/paper.pdf': toCurrentRealm(new Uint8Array([37, 80, 68, 70])),
     'sources/paper.txt': toCurrentRealm(strToU8('quoted passage')),
+  });
+  return zipped.slice().buffer as ArrayBuffer;
+}
+
+function multipageMulticoderQdpx(): ArrayBuffer {
+  const logical = 'The quotation begins on the first page and continues on the second page until its complete ending.';
+  const project = `<Project name="Multipage fixture">
+    <Users>
+      <User guid="u-carla" name="Carla" />
+      <User guid="u-joao" name="João" />
+    </Users>
+    <CodeBook><Codes><Code guid="code-a" name="Theme A" isCodable="true" /></Codes></CodeBook>
+    <Sources><PDFSource guid="pdf-1" name="paper.pdf" path="internal://paper.pdf">
+      <PDFSelection guid="anchor" page="0" name="${logical}" creationDateTime="2026-01-02T00:00:00Z" firstX="10" firstY="20" secondX="100" secondY="40">
+        <Coding guid="pdf-anchor-carla" creatingUser="u-carla"><CodeRef targetGUID="code-a" /></Coding>
+        <Coding guid="pdf-anchor-joao" creatingUser="u-joao"><CodeRef targetGUID="code-a" /></Coding>
+      </PDFSelection>
+      <PDFSelection guid="continuation" page="1" name="${logical}" creationDateTime="2026-01-02T00:00:00Z" firstX="12" firstY="22" secondX="102" secondY="42">
+        <Coding guid="pdf-cont-carla" creatingUser="u-carla"><CodeRef targetGUID="code-a" /></Coding>
+        <Coding guid="pdf-cont-joao" creatingUser="u-joao"><CodeRef targetGUID="code-a" /></Coding>
+      </PDFSelection>
+      <Representation guid="representation-1" plainTextPath="internal://paper.txt">
+        <PlainTextSelection guid="anchor" startPosition="0" endPosition="${logical.length}">
+          <Coding guid="plain-carla" creatingUser="u-carla"><CodeRef targetGUID="code-a" /></Coding>
+          <Coding guid="plain-joao" creatingUser="u-joao"><CodeRef targetGUID="code-a" /></Coding>
+        </PlainTextSelection>
+      </Representation>
+    </PDFSource></Sources>
+  </Project>`;
+  const zipped = zipSync({
+    'project.qde': new Uint8Array(strToU8(project)),
+    'sources/paper.pdf': new Uint8Array([37, 80, 68, 70]),
+    'sources/paper.txt': new Uint8Array(strToU8(logical)),
   });
   return zipped.slice().buffer as ArrayBuffer;
 }
@@ -255,9 +290,68 @@ describe('multicoder QDPX import', () => {
 
     expect(result.auditPath).toBe('imports/multicoder-fixture/qdpx-import-audit.md');
     const audit = writes.get(result.auditPath!);
-    expect(audit).toContain('| Carla | João | Sem autoria (legado multipágina) |');
+    expect(audit).toContain('| Carla | João | Sem autoria |');
+    expect(audit).toContain('markers / aplicações de código / segmentos PDF');
     expect(audit).toContain('## Usuários declarados sem aplicações');
     expect(audit).toContain('- Observer');
+  });
+
+  it('creates one independent logical multipage marker per coder', async () => {
+    delete (window as Window & { pdfjsLib?: unknown }).pdfjsLib;
+    const writes = new Map<string, string>();
+    const vault = {
+      adapter: {
+        exists: vi.fn(async () => false),
+        mkdir: vi.fn(async () => {}),
+        write: vi.fn(async (path: string, contents: string) => { writes.set(path, contents); }),
+        writeBinary: vi.fn(async () => {}),
+      },
+    };
+    const dm = new DataManager(createMockPlugin());
+    await dm.load();
+
+    const result = await importQdpx(
+      multipageMulticoderQdpx(),
+      { vault } as any,
+      dm,
+      new CodeDefinitionRegistry(),
+      {
+        conflictStrategy: 'merge',
+        keepOriginalSources: false,
+        projectName: 'multipage-fixture',
+        participation: { mode: 'read-only' },
+      },
+      { coderRegistry: new CoderRegistry(), setCodingParticipation: vi.fn() },
+    );
+
+    expect(result.segmentsCreated).toBe(2);
+    const markers = dm.section('pdf').markers;
+    expect(markers).toHaveLength(2);
+    expect(markers.map((marker) => marker.codedBy)).toEqual([
+      'human:qdpx:u-carla',
+      'human:qdpx:u-joao',
+    ]);
+    for (const marker of markers) {
+      expect(marker.segments).toHaveLength(2);
+      expect(marker.segments!.map((segment) => segment.page)).toEqual([1, 2]);
+      expect(marker.segments!.every((segment) => segment.resolution === 'pending')).toBe(true);
+      expect(marker.importedQdpxSelection).toMatchObject({
+        selectionGuid: 'anchor',
+        selectionGuids: ['anchor', 'continuation'],
+      });
+      expect(marker.codes[0]!.qdpx?.sourceCodingGuids).toHaveLength(3);
+    }
+    expect(markers[0]!.codes[0]!.qdpx?.sourceCodingGuids).toEqual([
+      'pdf-anchor-carla',
+      'plain-carla',
+      'pdf-cont-carla',
+    ]);
+    expect(markers[0]!.segments).not.toBe(markers[1]!.segments);
+    markers[0]!.segments![0]!.endOffset = 99;
+    expect(markers[1]!.segments![0]!.endOffset).toBe(0);
+
+    const audit = writes.get(result.auditPath!)!;
+    expect(audit).toContain('| paper.pdf | 1 / 1 / 2 | 1 / 1 / 2 | 0 / 0 / 0 |');
   });
 });
 
@@ -450,6 +544,68 @@ describe('createPdfMarker', () => {
     expect(count).toBe(0);
     expect(dm.section('pdf').markers).toHaveLength(0);
     expect(dm.section('pdf').shapes).toHaveLength(0);
+  });
+});
+
+describe('createPdfMultipageMarkers', () => {
+  it('preserves one unresolved owner as an unattributed read-only logical marker', async () => {
+    const dm = new DataManager(createMockPlugin());
+    await dm.load();
+    const qdpxCoding = (guid: string) => ({
+      guid,
+      codeGuid: 'code-a',
+      creatingUserGuid: 'missing-user',
+      noteGuids: [],
+      sourceCodingGuids: [guid],
+    });
+    const selections: ParsedSource['selections'] = [
+      { guid: 'anchor', type: 'PDFSelection', page: 0, name: 'Logical quote', createdAt: '2026-01-01', codings: [qdpxCoding('pdf-a')], codeGuids: ['code-a'], noteGuids: [] },
+      { guid: 'continuation', type: 'PDFSelection', page: 1, name: 'Logical quote', createdAt: '2026-01-01', codings: [qdpxCoding('pdf-b')], codeGuids: ['code-a'], noteGuids: [] },
+      { guid: 'anchor', type: 'PlainTextSelection', startPosition: 0, endPosition: 13, codings: [qdpxCoding('plain-a')], codeGuids: ['code-a'], noteGuids: [] },
+    ];
+    const group = detectQdpxPdfMultipageGroups(selections)[0]!;
+    const result = {
+      codesCreated: 0,
+      codesMerged: 0,
+      sourcesImported: 0,
+      segmentsCreated: 0,
+      memosImported: 0,
+      relationsImported: 0,
+      warnings: [] as string[],
+    };
+
+    const count = createPdfMultipageMarkers({
+      group,
+      resolution: {
+        strategy: 'resolved',
+        text: 'first\fsecond',
+        segments: [
+          { page: 1, beginIndex: 1, beginOffset: 0, endIndex: 2, endOffset: 1, text: 'first', importedSelectionGuid: 'anchor', resolution: 'resolved' },
+          { page: 2, beginIndex: 3, beginOffset: 0, endIndex: 4, endOffset: 1, text: 'second', importedSelectionGuid: 'continuation', resolution: 'resolved' },
+        ],
+      },
+      filePath: 'paper.pdf',
+      resolver: {
+        codes: new Map([['code-a', 'local-code']]),
+        sources: new Map(),
+        selections: new Map(),
+        smartCodes: new Map(),
+      },
+      notes: new Map(),
+      userGuidToCoderId: new Map(),
+      dataManager: dm,
+      result,
+      pdfDims: null,
+    });
+
+    expect(count).toBe(1);
+    expect(dm.section('pdf').markers[0]).toMatchObject({
+      codedBy: undefined,
+      importedQdpxSelection: { unattributedOwner: true },
+    });
+    expect(result.warnings).toEqual([
+      'Selection anchor: Coding owner missing-user is unresolved and will remain read-only',
+    ]);
   });
 });
 

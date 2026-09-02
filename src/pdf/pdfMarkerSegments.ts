@@ -61,14 +61,17 @@ export function samePdfMarkerSegments(
 
 /** Keep legacy scalar fields as a read-compatible projection of segment zero. */
 export function syncPdfMarkerFirstSegmentProjection(marker: PdfMarker): void {
-	const first = marker.segments?.[0];
+	const segments = marker.segments;
+	const first = segments?.[0];
 	if (!first) return;
 	marker.page = first.page;
 	marker.beginIndex = first.beginIndex;
 	marker.beginOffset = first.beginOffset;
 	marker.endIndex = first.endIndex;
 	marker.endOffset = first.endOffset;
-	marker.text = joinPdfMarkerSegmentText(marker.segments!);
+	if (segments.every((segment) => segment.text.length > 0)) {
+		marker.text = joinPdfMarkerSegmentText(segments);
+	}
 	marker.importedPdfSelectionBBox = first.importedPdfSelectionBBox;
 }
 
