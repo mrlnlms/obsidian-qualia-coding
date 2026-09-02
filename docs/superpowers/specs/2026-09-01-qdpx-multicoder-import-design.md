@@ -4,7 +4,7 @@
 >
 > Branch de partida: `fix/qdpx-atlas-page-anchoring`
 >
-> Estado: Marco 1 concluído em 2026-09-02; Marcos 2–5 permanecem abertos.
+> Estado: Marco 1 concluído em 2026-09-02; Marcos 2–6 permanecem abertos.
 
 ## Como retomar em outra sessão
 
@@ -15,8 +15,8 @@
 4. Não usar `data.json` como memória da investigação: o usuário o apaga durante os
    testes.
 5. Começar pelo **Marco 1 — importação multicoder de uma página**.
-6. Não iniciar multipágina, zebra ou redesign geral da margin panel antes de fechar
-   o Marco 1 e o round-trip simples.
+6. Não iniciar zebra ou redesign geral da margin panel antes de fechar a autoria e
+   o marker lógico multipágina; o round-trip PDF completo fica para o Marco 6.
 
 ## Documentos canônicos
 
@@ -126,11 +126,15 @@ coder. A identidade da Selection Atlas será preservada apenas como procedência
 - [x] Definir a semântica multicoder e a política de identidade ativa.
 - [x] **Marco 1:** importar corretamente autoria multicoder em seleções PDF de uma
   página.
-- [ ] **Marco 2:** garantir round-trip multicoder para essas seleções simples.
-- [ ] **Marco 3:** criar marker lógico multipágina por coder, com `segments[]`.
+- [ ] **Marco 2:** garantir round-trip isolado de autoria Qualia↔Qualia, sem
+  prometer ainda interoperabilidade PDF com o Atlas.
+- [ ] **Marco 3:** completar os fragmentos Atlas e criar marker lógico multipágina
+  por coder, com `segments[]`.
 - [ ] **Marco 4:** entregar a margin panel mínima correta para multipágina e
   autoria.
 - [ ] **Marco 5:** refatorar layout espacial, filtros e compactações visuais.
+- [ ] **Marco 6:** exportar PDF simples e multipágina e validar o round-trip
+  completo em uma única rodada no Atlas.
 
 Cada marco deve funcionar manualmente no vault real antes de os testes daquele
 recorte serem consolidados. Isso não significa acumular toda a cobertura para o
@@ -382,24 +386,26 @@ Antes de editar, pesquisar todos os consumidores de `getActiveCoderId()`. A
 mudança para suportar somente leitura tem alcance transversal; o primeiro slice
 deve evitar quebrar a criação normal em Markdown, CSV, imagem, áudio e vídeo.
 
-## Marco 2 — round-trip multicoder simples
+## Marco 2 — round-trip isolado de autoria
 
-Somente depois do Marco 1:
+Este marco implementa apenas o contrato Qualia↔Qualia descrito em
+`2026-09-02-qdpx-authorship-roundtrip-design.md`:
 
 - [ ] exportar Users referenciados;
 - [ ] emitir `creatingUser` em cada Coding;
-- [ ] preservar GUIDs e timestamps quando semanticamente possível;
-- [ ] reagrupar markers irmãos apenas se a geometria continuar compatível;
-- [ ] exportar markers divergentes como Selections independentes;
-- [ ] reimportar o QDPX gerado e comparar Users, autoria, códigos e bounds;
-- [ ] validar primeiro manualmente e então adicionar testes de round-trip.
+- [ ] persistir GUID REFI-QDA estável para coders locais participantes;
+- [ ] preservar a identidade externa dos coders importados;
+- [ ] reimportar o QDPX gerado e comparar Users, autoria e códigos;
+- [ ] validar manualmente no Qualia, sem consumir uma janela de acesso ao Atlas;
+- [ ] não fechar ainda a projeção PDF visual/textual ou multipágina.
 
-## Marco 3 — marker multipágina por coder
+## Marco 3 — conteúdo completo e marker multipágina por coder
 
+- [ ] resolver cada citação no fluxo concatenado das páginas do grupo;
+- [ ] projetar início e fim para todos os fragmentos locais, eliminando o corte
+  legado de aproximadamente 160 caracteres;
 - [ ] definir `segments[]` como geometria do marker lógico PDF;
 - [ ] migrar cada grupo QDPX por coder, não por Selection compartilhada;
-- [ ] resolver o texto no fluxo concatenado das páginas;
-- [ ] projetar os limites encontrados de volta para segmentos locais;
 - [ ] manter código, memo, autoria e procedência uma única vez por marker do coder;
 - [ ] adaptar consumidores sem contar segmentos como markers independentes;
 - [ ] validar os seis casos reais e os doze markers manuais `marlonnn`;
@@ -419,7 +425,7 @@ Somente depois do Marco 1:
 
 ## Marco 5 — redesign posterior da margin panel
 
-Somente após fidelidade de dados, round-trip simples e multipágina funcional:
+Somente após fidelidade de dados e multipágina funcional no Qualia:
 
 - [ ] reavaliar o modelo de colunas/tracks;
 - [ ] separar posicionamento de rails e labels;
@@ -428,6 +434,18 @@ Somente após fidelidade de dados, round-trip simples e multipágina funcional:
 - [ ] avaliar compactação visual `×N` e sua expansão;
 - [ ] decidir a interação entre markers exatamente sobrepostos;
 - [ ] manter qualquer agregação como projeção reversível, nunca fonte de verdade.
+
+## Marco 6 — round-trip PDF completo e validação Atlas
+
+- [ ] reconstruir `PDFSelection + PlainTextSelection` para markers textuais;
+- [ ] preservar ou gerar GUIDs de Coding coerentes para as duas representações;
+- [ ] projetar `segments[]` em fragmentos PDF por página;
+- [ ] emitir relações `continued by` e procedência necessária;
+- [ ] reagrupar markers irmãos somente quando a geometria continuar compatível;
+- [ ] exportar markers divergentes como Selections independentes;
+- [ ] reimportar o pacote e comparar Users, autoria, códigos, bounds e segmentos;
+- [ ] usar uma única janela de acesso ao Atlas para validar simples e multipágina;
+- [ ] editar no Atlas, exportar de volta e confirmar o ciclo no Qualia.
 
 ## Pontos que continuam abertos
 
@@ -438,7 +456,8 @@ implementação:
 - persistência da identidade ativa por projeto versus por vault;
 - política completa para Codings sem `creatingUser` fora do corpus Atlas real;
 - formato exato da procedência externa no schema persistido;
-- regra detalhada de regroup no exporter após divergência parcial de bounds;
+- regra detalhada de regroup no exporter após divergência parcial de bounds, a
+  decidir apenas no Marco 6;
 - interação final entre vários markers exatamente sobrepostos;
 - posição do rótulo de uma rail multipágina quando o centro cai entre páginas.
 
@@ -456,3 +475,4 @@ a decisão no commit correspondente.
   modelo individual por coder decidido para o Qualia.
 - Não esconder perda de dados com agregação visual.
 - Não começar o redesign completo da margin panel dentro dos Marcos 1–4.
+- Não declarar interoperabilidade Atlas concluída antes do Marco 6.
