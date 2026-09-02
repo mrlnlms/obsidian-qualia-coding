@@ -150,7 +150,9 @@ Ele mantém a última posição válida e finaliza sem novo hit-test.
 
 Substitui o bloqueio indiscriminado de multipágina por APIs simétricas de preview
 e commit de geometria. Ambas respeitam `isMarkerEditable`; preview não salva,
-commit atualiza `updatedAt`, salva e notifica uma vez.
+commit atualiza `updatedAt`, salva e notifica uma vez. O restore efêmero pode
+apenas recolocar a geometria original de uma transação já iniciada, mesmo se a
+permissão mudar durante o drag, e nunca salva.
 
 ### `PdfPageObserver`
 
