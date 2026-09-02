@@ -6,7 +6,7 @@
 
 import { setTooltip } from 'obsidian';
 import type { Rect, PDFPageView } from './pdfTypings';
-import type { PdfMarker } from './pdfCodingTypes';
+import type { PdfMarker, PdfMarkerPageProjection } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { MergedRect } from './highlightGeometry';
 import { computeMergedHighlightRects } from './highlightGeometry';
@@ -433,31 +433,57 @@ export function updateHighlightRectsForMarker(
 	registry: CodeDefinitionRegistry,
 	fileId: string,
 ): void {
+	const info = updateHighlightProjectionForMarker(
+		pageView,
+		marker.id,
+		marker as PdfMarkerPageProjection,
+		registry,
+		fileId,
+		true,
+	);
+	if (info) repositionHandlesForMarker(
+		info.firstRectEl.parentElement!,
+		marker.id,
+		info.firstRectEl,
+		info.lastRectEl,
+	);
+}
+
+/** Replace one marker's page-local projection without rebuilding sibling markers. */
+export function updateHighlightProjectionForMarker(
+	pageView: PDFPageView,
+	markerId: string,
+	projection: PdfMarkerPageProjection | null,
+	registry: CodeDefinitionRegistry,
+	fileId: string,
+	isEditable: boolean,
+): MarkerRenderInfo | null {
 	const pageDiv = pageView.div;
 	const layer = pageDiv.querySelector<HTMLElement>(`.${HIGHLIGHT_LAYER_CLASS}`);
-	if (!layer) return;
+	if (!layer) return null;
 
 	// Remove old rects for this marker (but NOT handles)
-	const oldRects = layer.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_CLASS}[data-marker-id="${marker.id}"]`);
+	const oldRects = layer.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_CLASS}[data-marker-id="${markerId}"]`);
 	for (const r of Array.from(oldRects)) r.remove();
+	if (!projection || projection.codes.length === 0) return null;
 
 	const textLayerInfo = getTextLayerInfo(pageView);
-	if (!textLayerInfo) return;
+	if (!textLayerInfo) return null;
 
-	const codeColors = resolveCodeColors(marker, registry, fileId);
-	if (codeColors.length === 0) return;
+	const codeColors = resolveCodeColors(projection, registry, fileId, isEditable);
+	if (codeColors.length === 0) return null;
 	const perCodeOpacity = codeColors.length > 1 ? BASE_OPACITY / codeColors.length : undefined;
 
 	let mergedRects: MergedRect[];
 	try {
 		mergedRects = computeMergedHighlightRects(
 			textLayerInfo,
-			marker.beginIndex, marker.beginOffset,
-			marker.endIndex, marker.endOffset,
+			projection.beginIndex, projection.beginOffset,
+			projection.endIndex, projection.endOffset,
 		);
-	} catch { return; }
+	} catch { return null; }
 
-	if (mergedRects.length === 0) return;
+	if (mergedRects.length === 0) return null;
 
 	let firstRectEl: HTMLElement | null = null;
 	let lastRectEl: HTMLElement | null = null;
@@ -466,7 +492,7 @@ export function updateHighlightRectsForMarker(
 		let lastLayerEl: HTMLElement | null = null;
 		for (const color of codeColors) {
 			const rectEl = placeRectInPage(rect, pageView, layer, HIGHLIGHT_CLASS);
-			rectEl.dataset.markerId = marker.id;
+			rectEl.dataset.markerId = markerId;
 			rectEl.style.backgroundColor = color;
 			if (perCodeOpacity !== undefined) {
 				rectEl.style.opacity = String(perCodeOpacity);
@@ -475,12 +501,33 @@ export function updateHighlightRectsForMarker(
 		}
 		if (!firstRectEl) firstRectEl = lastLayerEl;
 		lastRectEl = lastLayerEl;
+		if (lastLayerEl) {
+			const codeNames = projection.codes
+				.map((application) => registry.getById(application.codeId)?.name ?? application.codeId)
+				.join(', ');
+			setTooltip(lastLayerEl, codeNames);
+		}
 	}
 
-	// Reposition existing handles to match new rects
-	if (firstRectEl && lastRectEl) {
-		repositionHandlesForMarker(layer, marker.id, firstRectEl, lastRectEl);
-	}
+	return firstRectEl && lastRectEl ? {
+		marker: projection,
+		firstRectEl,
+		lastRectEl,
+		mergedRects,
+		color: codeColors[0]!,
+	} : null;
+}
+
+/** Reparent an active logical handle and align it to a fresh page projection. */
+export function moveHandleToRenderInfo(
+	handle: HTMLElement,
+	info: MarkerRenderInfo,
+	type: 'start' | 'end',
+): void {
+	const layer = info.firstRectEl.parentElement;
+	if (!layer) return;
+	if (handle.parentElement !== layer) layer.appendChild(handle);
+	positionExistingHandle(handle, type === 'start' ? info.firstRectEl : info.lastRectEl, type);
 }
 
 /**
@@ -497,20 +544,26 @@ function repositionHandlesForMarker(
 	for (const h of Array.from(handles)) {
 		const type = h.dataset.handleType as 'start' | 'end';
 		const rectEl = type === 'start' ? firstRectEl : lastRectEl;
-		const rectHeight = rectEl.getBoundingClientRect().height || 14;
-		const ballRadius = Math.min(8, Math.max(3, rectHeight * 0.38));
-		const ballSize = ballRadius * 2;
-		const topOffset = rectHeight * 0.15;
-
-		if (type === 'start') {
-			h.style.left = `calc(${rectEl.style.left} - ${ballSize / 2}px)`;
-			h.style.top = `calc(${rectEl.style.top} - ${topOffset}px)`;
-		} else {
-			const rectRight = `calc(${rectEl.style.left} + ${rectEl.style.width})`;
-			h.style.left = `calc(${rectRight} - ${ballSize / 2}px)`;
-			h.style.top = `calc(${rectEl.style.top} - ${topOffset}px)`;
-		}
+		positionExistingHandle(h, rectEl, type);
 	}
+}
+
+function positionExistingHandle(
+	handle: HTMLElement,
+	rectEl: HTMLElement,
+	type: 'start' | 'end',
+): void {
+	const rectHeight = rectEl.getBoundingClientRect().height || 14;
+	const ballRadius = Math.min(8, Math.max(3, rectHeight * 0.38));
+	const ballSize = ballRadius * 2;
+	const topOffset = rectHeight * 0.15;
+	if (type === 'start') {
+		handle.style.left = `calc(${rectEl.style.left} - ${ballSize / 2}px)`;
+	} else {
+		const rectRight = `calc(${rectEl.style.left} + ${rectEl.style.width})`;
+		handle.style.left = `calc(${rectRight} - ${ballSize / 2}px)`;
+	}
+	handle.style.top = `calc(${rectEl.style.top} - ${topOffset}px)`;
 }
 
 /**
