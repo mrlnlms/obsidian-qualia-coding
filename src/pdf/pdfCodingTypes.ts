@@ -52,8 +52,22 @@ export interface QdpxMultipageFragmentHint {
 export interface QdpxSelectionProvenance {
 	source: 'refi-qda-selection';
 	selectionGuid: string;
+	/** Ordered PDFSelection GUIDs belonging to one imported logical marker. */
+	selectionGuids?: string[];
 	/** Missing/unknown creatingUser: never treat as legacy Default ownership. */
 	unattributedOwner?: true;
+}
+
+export interface PdfMarkerSegment {
+	page: number;
+	beginIndex: number;
+	beginOffset: number;
+	endIndex: number;
+	endOffset: number;
+	text: string;
+	importedSelectionGuid?: string;
+	importedPdfSelectionBBox?: PdfSelectionBBoxHint;
+	resolution?: 'resolved' | 'pending';
 }
 
 export interface PdfMarker {
@@ -66,6 +80,8 @@ export interface PdfMarker {
 	endIndex: number;
 	endOffset: number;
 	text: string;
+	/** Authoritative geometry for a logical marker spanning multiple PDF pages. */
+	segments?: PdfMarkerSegment[];
 	codes: CodeApplication[];
 	memo?: MemoRecord;
 	colorOverride?: string;
@@ -79,6 +95,19 @@ export interface PdfMarker {
 	createdAt: number;
 	updatedAt: number;
 }
+
+/** Ephemeral page-local view of a canonical PDF marker segment. */
+export interface PdfMarkerPageProjection extends PdfMarker {
+	renderSegmentIndex: number;
+	renderSegmentCount: number;
+	renderSegmentResolution: 'resolved' | 'pending';
+	logicalText: string;
+}
+
+export type PdfMarkerRangeChanges = Partial<Pick<
+	PdfMarkerSegment,
+	'beginIndex' | 'beginOffset' | 'endIndex' | 'endOffset' | 'text'
+>>;
 
 export interface PdfShapeMarker {
 	markerType: 'pdf';
