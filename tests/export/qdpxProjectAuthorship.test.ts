@@ -5,6 +5,7 @@ import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import { CoderRegistry } from '../../src/core/icr/coderRegistry';
 import { CaseVariablesRegistry } from '../../src/core/caseVariables/caseVariablesRegistry';
 import { exportProject, isValidUuid } from '../../src/export/qdpxExporter';
+import { importQdpx } from '../../src/import/qdpxImporter';
 import type { PdfMarker } from '../../src/pdf/pdfCodingTypes';
 
 vi.mock('../../src/pdf/pdfExportData', () => ({
@@ -72,15 +73,23 @@ describe('full QDPX project authorship', () => {
 		);
 		dataManager.setSection('pdf', pdf);
 
+		const sourceFile = { path: 'paper.pdf', extension: 'pdf', stat: { size: 4, mtime: 0, ctime: 0 } };
+		const exportApp = {
+			vault: {
+				getAbstractFileByPath: vi.fn(() => sourceFile),
+				readBinary: vi.fn(async () => new Uint8Array([1, 2, 3, 4]).buffer),
+			},
+		};
+		const options = {
+			format: 'qdpx' as const, includeSources: true, fileName: 'authors.qdpx',
+			vaultName: 'Authorship', pluginVersion: '1.0.0',
+		};
 		const result = await exportProject(
-			{ vault: {} } as any,
+			exportApp as any,
 			dataManager,
 			codeRegistry,
 			coderRegistry,
-			{
-				format: 'qdpx', includeSources: false, fileName: 'authors.qdpx',
-				vaultName: 'Authorship', pluginVersion: '1.0.0',
-			},
+			options,
 			new CaseVariablesRegistry(),
 		);
 
@@ -98,5 +107,69 @@ describe('full QDPX project authorship', () => {
 		expect(result.warnings).toEqual([
 			'QDPX marker 550e8400-e29b-41d4-a716-446655440013: explicitly unattributed owner — exported without creatingUser',
 		]);
+
+		let identityMutations = 0;
+		coderRegistry.addOnMutate(() => identityMutations++);
+		await exportProject(
+			exportApp as any, dataManager, codeRegistry, coderRegistry,
+			options, new CaseVariablesRegistry(),
+		);
+		expect(identityMutations).toBe(0);
+		expect(coderRegistry.getById('human:default')?.externalIdentities?.[0]?.value).toBe(defaultGuid);
+
+		const importedPlugin = mockPlugin();
+		const importedData = new DataManager(importedPlugin as any);
+		await importedData.load();
+		const importedCodes = new CodeDefinitionRegistry();
+		const importedCoders = new CoderRegistry();
+		const setCodingParticipation = vi.fn();
+		const importedFiles = new Map<string, string | ArrayBuffer>();
+		const importApp = {
+			vault: {
+				adapter: {
+					exists: vi.fn(async () => false),
+					mkdir: vi.fn(async () => undefined),
+					write: vi.fn(async (path: string, content: string) => { importedFiles.set(path, content); }),
+					writeBinary: vi.fn(async (path: string, content: ArrayBuffer) => { importedFiles.set(path, content); }),
+				},
+			},
+		};
+
+		await importQdpx(
+			new Uint8Array(result.data as Uint8Array).buffer,
+			importApp as any,
+			importedData,
+			importedCodes,
+			{
+				conflictStrategy: 'merge', keepOriginalSources: true,
+				projectName: 'Authorship', participation: { mode: 'read-only' },
+			},
+			{ coderRegistry: importedCoders, setCodingParticipation } as any,
+		);
+
+		const importedMarkers = importedData.section('pdf').markers;
+		const authoredMarkers = importedMarkers.filter((candidate) => candidate.codedBy);
+		const ownerlessMarker = importedMarkers.find((candidate) => !candidate.codedBy);
+		const codingGuidByAuthor = new Map(
+			[...xml.matchAll(/<Coding guid="([^"]+)"[^>]*creatingUser="([^"]+)"/g)]
+				.map((match) => [match[2]!, match[1]!] as const),
+		);
+
+		expect(setCodingParticipation).toHaveBeenCalledWith('read-only');
+		expect(importedMarkers).toHaveLength(4);
+		expect(authoredMarkers.map((candidate) => candidate.codedBy)).toEqual([
+			`human:qdpx:${CARLA_GUID}`,
+			`human:qdpx:${JOAO_GUID}`,
+			`human:qdpx:${defaultGuid}`,
+		]);
+		for (const candidate of authoredMarkers) {
+			const authorGuid = candidate.codedBy!.slice('human:qdpx:'.length);
+			expect(candidate.codes[0]?.qdpx?.sourceCodingGuids).toEqual([codingGuidByAuthor.get(authorGuid)]);
+			expect(candidate.codes[0]?.qdpx?.creatingUserGuid).toBe(authorGuid);
+			expect(candidate.codes[0]?.qdpx?.creationDateTime).toBe('2026-01-02T03:04:05.000Z');
+		}
+		expect(ownerlessMarker?.importedQdpxSelection?.unattributedOwner).toBe(true);
+		expect(importedFiles.has('imports/Authorship/paper.pdf')).toBe(true);
+		expect(importedFiles.has('imports/Authorship/qdpx-import-audit.md')).toBe(true);
 	});
 });
