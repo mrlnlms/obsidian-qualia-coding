@@ -6,7 +6,7 @@
 >
 > Baseline: `f70585f`
 >
-> Estado: desenho aprovado; implementação ainda não iniciada.
+> Estado: implementação concluída e aceita em 2026-09-02.
 
 ## Contexto
 
@@ -426,3 +426,43 @@ O Marco 4 termina somente quando:
 8. validação manual, testes focados, suíte completa, build e `git diff --check`
    passam;
 9. nenhuma mudança de redesign, exporter ou Atlas entra no diff.
+
+## Resultado observado
+
+O checkpoint visual foi realizado no corpus que já permanecia importado, sem
+necessidade de uma nova importação. Em D8 `People downstream`, páginas 6–7, a
+captura aprovada confirmou:
+
+- uma rail contínua atravessando o vão real entre as páginas;
+- duas rails independentes para os markers de JD e JEPM, sem compactação;
+- ticks somente nos endpoints globais;
+- um único dot e um único label por rail no centro vertical global;
+- autoria no formato `abreviação · código`.
+
+O usuário considerou o comportamento básico correto e aceitou esse caso
+representativo para fechar o Marco 4. Os outros cinco grupos do corpus não foram
+reinspecionados visualmente nesta rodada; sua geometria de segmentos já havia
+sido validada no Marco 3, mas esta seção não alega uma nova validação visual das
+rails nesses cinco casos. Zoom/sidebar, markers simples, shapes e paridade
+Markdown ficaram cobertos pela suíte automatizada e pelo build, sem relato de
+regressão no checkpoint apresentado.
+
+Antes da aceitação, uma revisão independente encontrou dois defeitos de
+lifecycle: ausência de sincronização imediata quando o overlay nascia com o PDF
+já rolado e ausência de invalidação explícita em resize/sidebar. Ambos foram
+corrigidos; foi adicionada cobertura para scroll inicial, snapshots de shapes,
+múltiplos códigos, autoria, editabilidade e precedência de cor. A revisão do diff
+corretivo não encontrou novos problemas.
+
+Verificação final:
+
+- 131 testes focados em 13 arquivos;
+- 3.727 testes na suíte completa, em 271 arquivos;
+- type-check e bundle de produção aprovados;
+- `git diff --check` aprovado;
+- nenhum diff em importer ou exporter;
+- nenhum trabalho de redesign ou integração Atlas.
+
+Resize e handles cross-page permanecem deliberadamente adiados. Markers simples
+continuam preservando seus handles; markers multipágina continuam sem resize até
+um desenho específico de interação futura.

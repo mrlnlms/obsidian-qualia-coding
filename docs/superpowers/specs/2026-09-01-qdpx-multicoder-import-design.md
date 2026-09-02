@@ -4,7 +4,7 @@
 >
 > Branch de partida: `fix/qdpx-atlas-page-anchoring`
 >
-> Estado: Marcos 1–2 concluídos em 2026-09-02; Marcos 3–7 permanecem abertos.
+> Estado: Marcos 1–4 concluídos em 2026-09-02; Marcos 5–7 permanecem abertos.
 
 ## Como retomar em outra sessão
 
@@ -135,7 +135,7 @@ coder. A identidade da Selection Atlas será preservada apenas como procedência
   prometer ainda interoperabilidade PDF com o Atlas.
 - [x] **Marco 3:** completar os fragmentos Atlas e criar marker lógico multipágina
   por coder, com `segments[]`.
-- [ ] **Marco 4:** entregar a margin panel mínima correta para multipágina e
+- [x] **Marco 4:** entregar a margin panel mínima correta para multipágina e
   autoria.
 - [ ] **Marco 5:** refatorar layout espacial, filtros e compactações visuais.
 - [ ] **Marco 6:** exportar PDF simples e multipágina e validar o round-trip
@@ -450,15 +450,29 @@ interoperabilidade Atlas é Marco 7.
 
 ## Marco 4 — margin panel mínima correta
 
-- [ ] desenhar uma rail por marker do coder × código;
-- [ ] projetar a rail por todos os segmentos do marker;
-- [ ] reservar lane consistente entre páginas;
-- [ ] atravessar o vão usando o overlay externo já existente;
-- [ ] produzir um rótulo por marker do coder × código;
-- [ ] identificar autoria;
-- [ ] propagar hover e clique para todos os segmentos;
-- [ ] mostrar handles somente para o marker do perfil ativo;
-- [ ] preservar integralmente o comportamento de markers de uma página.
+- [x] desenhar uma rail por marker do coder × código;
+- [x] projetar a rail por todos os segmentos do marker;
+- [x] reservar lane consistente entre páginas;
+- [x] atravessar o vão usando o overlay externo já existente;
+- [x] produzir um rótulo por marker do coder × código;
+- [x] identificar autoria;
+- [x] propagar hover e clique para todos os segmentos;
+- [x] preservar handles de markers simples do perfil ativo e manter resize
+  multipágina deliberadamente desabilitado;
+- [x] preservar integralmente o comportamento de markers de uma página.
+
+Fechado em 2026-09-02. O checkpoint visual no corpus já importado confirmou em
+D8 `People downstream`, páginas 6–7, rails independentes para JD e JEPM,
+continuidade pelo vão entre páginas e um único dot/label no centro global. O
+usuário aceitou esse caso representativo como suficiente para o fechamento; os
+outros cinco casos não foram reinspecionados visualmente nesta rodada.
+
+A verificação terminou com 131 testes focados em 13 arquivos, suíte completa com
+3.727 testes em 271 arquivos, type-check, build e `git diff --check` aprovados.
+Uma revisão independente encontrou e levou à correção da sincronização inicial
+de scroll e da invalidação por resize/sidebar; a revisão corretiva não encontrou
+novos problemas. Resize/handles multipágina continuam fora do escopo. Nenhuma
+mudança de redesign, exporter ou integração Atlas entrou no diff.
 
 ## Marco 5 — redesign posterior da margin panel
 
