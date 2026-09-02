@@ -15,6 +15,7 @@ import {
 	syncPdfMarkerFirstSegmentProjection,
 } from './pdfMarkerSegments';
 import type { PdfSelectionResult } from './selectionCapture';
+import type { PdfMarkerGeometry } from './pdfMarkerResize';
 
 export function selectionResultToSegment(result: PdfSelectionResult): PdfMarkerSegment {
 	return {
@@ -389,6 +390,30 @@ export class PdfCodingModel {
 		marker.updatedAt = Date.now();
 	}
 
+	previewMarkerGeometry(markerId: string, geometry: PdfMarkerGeometry): boolean {
+		const marker = this.editableMarkerById(markerId);
+		if (!marker) return false;
+		this.applyMarkerGeometry(marker, geometry);
+		return true;
+	}
+
+	commitMarkerGeometry(markerId: string, geometry: PdfMarkerGeometry): boolean {
+		const marker = this.editableMarkerById(markerId);
+		if (!marker) return false;
+		this.applyMarkerGeometry(marker, geometry);
+		marker.updatedAt = Date.now();
+		this.notify();
+		return true;
+	}
+
+	/** Restore an already-started drag even if ownership changes mid-gesture. */
+	restoreMarkerGeometry(markerId: string, geometry: PdfMarkerGeometry): boolean {
+		const marker = this.findMarkerById(markerId);
+		if (!marker) return false;
+		this.applyMarkerGeometry(marker, geometry);
+		return true;
+	}
+
 	/**
 	 * Applies coordinates discovered by the QDPX import resolver. This is a system
 	 * normalization step, not an interactive edit by the active coder; it must
@@ -431,7 +456,7 @@ export class PdfCodingModel {
 	}
 
 	canResizeMarker(marker: PdfMarker): boolean {
-		return this.isMarkerEditable(marker) && !isMultipagePdfMarker(marker);
+		return this.isMarkerEditable(marker);
 	}
 
 	private editableMarkerById(markerId: string): PdfMarker | undefined {
@@ -633,6 +658,15 @@ export class PdfCodingModel {
 	}
 
 	// ── Private ──
+	private applyMarkerGeometry(marker: PdfMarker, geometry: PdfMarkerGeometry): void {
+		marker.page = geometry.page;
+		marker.beginIndex = geometry.beginIndex;
+		marker.beginOffset = geometry.beginOffset;
+		marker.endIndex = geometry.endIndex;
+		marker.endOffset = geometry.endOffset;
+		marker.text = geometry.text;
+		marker.segments = geometry.segments?.map((segment) => ({ ...segment }));
+	}
 
 	private generateId(): string {
 		return Date.now().toString(36) + Math.random().toString(36).substring(2);
