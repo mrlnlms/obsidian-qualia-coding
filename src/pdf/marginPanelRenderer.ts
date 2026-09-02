@@ -1,19 +1,22 @@
 /**
- * Margin panel renderer for PDF pages.
- * Renders MAXQDA-style colored bars in the left margin showing which codes
- * are applied and where. Adapted from codemarker-v2 marginPanelExtension.ts.
+ * PDF margin-panel measurement and document-level rendering.
+ * Page snapshots remain percentage based; the rendered rails use global pixels.
  */
 
-import type { PDFPageView } from './pdfTypings';
-import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
+import type { MarginRailLayout } from '../core/marginPanelLayout';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
-import { computeMergedHighlightRects } from './highlightGeometry';
-import { getMarkerVerticalBounds } from './highlightGeometry';
+import type { PDFPageView } from './pdfTypings';
+import type { PdfMarker, PdfMarkerPageProjection, PdfShapeMarker } from './pdfCodingTypes';
+import { computeMergedHighlightRects, getMarkerVerticalBounds } from './highlightGeometry';
 import { getTextLayerInfo } from './pdfViewerAccess';
 import { getShapeVerticalBounds } from './drawLayer';
 import { NON_EDITABLE_MARKER_COLOR } from './markerAppearance';
+import {
+	pdfMarginRailKey,
+	type PdfMarginPageSnapshot,
+	type PdfMarginVisualSegment,
+} from './pdfMarginPanelLayout';
 
-// ── Constants ──
 const LINE_WIDTH = 2;
 const COLUMN_WIDTH = 10;
 const DOT_SIZE = 7;
@@ -28,31 +31,9 @@ const LABEL_CLASS = 'codemarker-pdf-margin-label';
 const DOT_CLASS = 'codemarker-pdf-margin-dot';
 const HOVERED_CLASS = 'codemarker-pdf-margin-hovered';
 
-// ── Types ──
 export interface MarginPanelOwnerLabel {
 	abbreviation: string;
 	fullName: string;
-}
-
-interface BarEntry {
-	markerId: string;
-	codeName: string;
-	ownerLabel?: MarginPanelOwnerLabel;
-	color: string;
-	topPct: number;
-	bottomPct: number;
-	span: number;
-	column: number;
-}
-
-interface LabelEntry {
-	markerId: string;
-	codeName: string;
-	ownerLabel?: MarginPanelOwnerLabel;
-	color: string;
-	idealY: number;
-	actualY: number;
-	column: number;
 }
 
 export interface MarginPanelCallbacks {
@@ -60,27 +41,17 @@ export interface MarginPanelCallbacks {
 	onHover: (markerId: string | null, codeName: string | null) => void;
 }
 
-// ── Public API ──
-
-export function renderMarginPanelForPage(
+export function collectMarginPanelPageSnapshot(
 	pageView: PDFPageView,
-	markers: PdfMarker[],
+	markers: PdfMarkerPageProjection[],
 	registry: CodeDefinitionRegistry,
-	callbacks: MarginPanelCallbacks,
 	shapes?: PdfShapeMarker[],
 	ownerLabelForMarker?: (marker: PdfMarker | PdfShapeMarker) => MarginPanelOwnerLabel,
 	isMarkerEditable?: (marker: PdfMarker | PdfShapeMarker) => boolean,
-): void {
-	const pageDiv = pageView.div;
-	clearMarginPanelForPage(pageDiv);
-
-	if (markers.length === 0 && (!shapes || shapes.length === 0)) return;
-
-	// Build bar entries: one per code per marker
-	const bars: BarEntry[] = [];
-
-	// Text markers
+): PdfMarginPageSnapshot {
+	const entries: PdfMarginVisualSegment[] = [];
 	const textLayerInfo = getTextLayerInfo(pageView);
+
 	if (textLayerInfo) {
 		for (const marker of markers) {
 			if (marker.codes.length === 0) continue;
@@ -98,278 +69,235 @@ export function renderMarginPanelForPage(
 				continue;
 			}
 
-			const bounds = getMarkerVerticalBounds(mergedRects, pageView as unknown as { pdfPage: { view: [number, number, number, number] } });
+			const bounds = getMarkerVerticalBounds(
+				mergedRects,
+				pageView as unknown as { pdfPage: { view: [number, number, number, number] } },
+			);
 			if (!bounds) continue;
-
-			for (const ca of marker.codes) {
-				const def = registry.getById(ca.codeId);
-				// `marker.colorOverride` (per-marker via Marker Detail) tem precedência.
-				// Pattern espelha image/media/highlightRenderer.
-				const color = isMarkerEditable?.(marker) === false
-					? NON_EDITABLE_MARKER_COLOR
-					: marker.colorOverride ?? def?.color ?? '#FFEB3B';
-				bars.push({
-					markerId: marker.id,
-					codeName: def?.name ?? ca.codeId,
-					ownerLabel: ownerLabelForMarker?.(marker),
-					color,
-					topPct: bounds.topPct,
-					bottomPct: bounds.bottomPct,
-					span: bounds.bottomPct - bounds.topPct,
-					column: 0,
-				});
-			}
+			appendEntries(
+				entries,
+				marker,
+				pageView.id,
+				marker.renderSegmentIndex,
+				marker.renderSegmentCount,
+				bounds.topPct,
+				bounds.bottomPct,
+				registry,
+				ownerLabelForMarker,
+				isMarkerEditable,
+			);
 		}
 	}
 
-	// Shape markers
-	if (shapes) {
-		for (const shape of shapes) {
-			if (shape.codes.length === 0) continue;
-
-			const bounds = getShapeVerticalBounds(shape.coords);
-
-			for (const ca of shape.codes) {
-				const def = registry.getById(ca.codeId);
-				const color = isMarkerEditable?.(shape) === false
-					? NON_EDITABLE_MARKER_COLOR
-					: shape.colorOverride ?? def?.color ?? '#FFEB3B';
-				bars.push({
-					markerId: shape.id,
-					codeName: def?.name ?? ca.codeId,
-					ownerLabel: ownerLabelForMarker?.(shape),
-					color,
-					topPct: bounds.topPct,
-					bottomPct: bounds.bottomPct,
-					span: bounds.bottomPct - bounds.topPct,
-					column: 0,
-				});
-			}
-		}
+	for (const shape of shapes ?? []) {
+		if (shape.codes.length === 0) continue;
+		const bounds = getShapeVerticalBounds(shape.coords);
+		appendEntries(
+			entries,
+			shape,
+			pageView.id,
+			0,
+			1,
+			bounds.topPct,
+			bounds.bottomPct,
+			registry,
+			ownerLabelForMarker,
+			isMarkerEditable,
+		);
 	}
 
-	if (bars.length === 0) return;
+	return { pageNumber: pageView.id, entries };
+}
 
-	// Assign columns
-	assignColumns(bars);
+export function pdfMarginPanelBarWidth(rails: readonly MarginRailLayout[]): number {
+	if (rails.length === 0) return 0;
+	const maxLane = Math.max(...rails.map((rail) => rail.lane));
+	return (maxLane + 1) * COLUMN_WIDTH + PANEL_PADDING * 2;
+}
 
-	// Resolve label positions
-	const labels = resolveLabels(bars);
+export function renderPdfMarginPanel(
+	container: HTMLElement,
+	rails: readonly MarginRailLayout[],
+	callbacks: MarginPanelCallbacks,
+): number {
+	clearPdfMarginPanel(container);
+	const panelWidth = pdfMarginPanelBarWidth(rails);
+	if (panelWidth === 0) return 0;
 
-	// Compute panel width
-	const maxColumn = Math.max(...bars.map(b => b.column));
-	const panelWidth = (maxColumn + 1) * COLUMN_WIDTH + PANEL_PADDING * 2;
-
-	// Create panel DOM
 	const panel = document.createElement('div');
 	panel.className = PANEL_CLASS;
 	panel.style.width = `${panelWidth}px`;
 
-	// Render bars, ticks, dots
-	for (const bar of bars) {
-		const colCenter = panelWidth - PANEL_PADDING - (bar.column + 1) * COLUMN_WIDTH + COLUMN_WIDTH / 2;
+	for (const rail of rails) {
+		const colCenter = panelWidth - PANEL_PADDING
+			- (rail.lane + 1) * COLUMN_WIDTH
+			+ COLUMN_WIDTH / 2;
 
-		// Vertical line
-		const lineEl = document.createElement('div');
-		lineEl.className = LINE_CLASS;
-		lineEl.dataset.markerId = bar.markerId;
-		lineEl.dataset.codeName = bar.codeName;
-		lineEl.style.top = `${bar.topPct}%`;
-		lineEl.style.height = `${bar.span}%`;
-		lineEl.style.left = `${colCenter - LINE_WIDTH / 2}px`;
-		lineEl.style.width = `${LINE_WIDTH}px`;
-		lineEl.style.backgroundColor = bar.color;
-		panel.appendChild(lineEl);
+		const line = createRailElement('div', LINE_CLASS, rail);
+		line.style.top = `${rail.top}px`;
+		line.style.height = `${rail.bottom - rail.top}px`;
+		line.style.left = `${colCenter - LINE_WIDTH / 2}px`;
+		line.style.width = `${LINE_WIDTH}px`;
+		line.style.backgroundColor = rail.color;
+		panel.appendChild(line);
 
-		// Top tick
-		const topTick = document.createElement('div');
-		topTick.className = TICK_CLASS;
-		topTick.dataset.markerId = bar.markerId;
-		topTick.dataset.codeName = bar.codeName;
-		topTick.style.top = `${bar.topPct}%`;
+		const topTick = createRailElement('div', TICK_CLASS, rail);
+		topTick.style.top = `${rail.top}px`;
 		topTick.style.left = `${colCenter}px`;
 		topTick.style.width = `${TICK_LENGTH}px`;
 		topTick.style.height = `${LINE_WIDTH}px`;
-		topTick.style.backgroundColor = bar.color;
+		topTick.style.backgroundColor = rail.color;
 		panel.appendChild(topTick);
 
-		// Bottom tick
-		const bottomTick = document.createElement('div');
-		bottomTick.className = TICK_CLASS;
-		bottomTick.dataset.markerId = bar.markerId;
-		bottomTick.dataset.codeName = bar.codeName;
-		bottomTick.style.top = `${bar.bottomPct}%`;
+		const bottomTick = createRailElement('div', TICK_CLASS, rail);
+		bottomTick.style.top = `${rail.bottom}px`;
 		bottomTick.style.left = `${colCenter}px`;
 		bottomTick.style.width = `${TICK_LENGTH}px`;
 		bottomTick.style.height = `${LINE_WIDTH}px`;
-		bottomTick.style.backgroundColor = bar.color;
+		bottomTick.style.backgroundColor = rail.color;
 		bottomTick.style.transform = `translateY(-${LINE_WIDTH}px)`;
 		panel.appendChild(bottomTick);
 
-		// Dot at midpoint
-		const dotY = (bar.topPct + bar.bottomPct) / 2;
-		const dotEl = document.createElement('div');
-		dotEl.className = DOT_CLASS;
-		dotEl.dataset.markerId = bar.markerId;
-		dotEl.dataset.codeName = bar.codeName;
-		dotEl.style.top = `${dotY}%`;
-		dotEl.style.left = `${colCenter - DOT_SIZE / 2}px`;
-		dotEl.style.width = `${DOT_SIZE}px`;
-		dotEl.style.height = `${DOT_SIZE}px`;
-		dotEl.style.backgroundColor = bar.color;
-		dotEl.style.transform = `translateY(-${DOT_SIZE / 2}px)`;
-		panel.appendChild(dotEl);
+		const dot = createRailElement('div', DOT_CLASS, rail);
+		dot.style.top = `${rail.center}px`;
+		dot.style.left = `${colCenter - DOT_SIZE / 2}px`;
+		dot.style.width = `${DOT_SIZE}px`;
+		dot.style.height = `${DOT_SIZE}px`;
+		dot.style.backgroundColor = rail.color;
+		dot.style.transform = `translateY(-${DOT_SIZE / 2}px)`;
+		panel.appendChild(dot);
 	}
 
-	// Render labels
-	for (const label of labels) {
-		const labelEl = document.createElement('div');
-		labelEl.className = LABEL_CLASS;
-		labelEl.dataset.markerId = label.markerId;
-		labelEl.dataset.codeName = label.codeName;
-		labelEl.dataset.coderName = label.ownerLabel?.fullName ?? '';
-		labelEl.style.top = `${label.actualY}%`;
+	for (const label of resolveLabelCenters(rails)) {
+		const labelEl = createRailElement('div', LABEL_CLASS, label.rail);
+		labelEl.dataset.coderName = label.rail.ownerName ?? '';
+		labelEl.style.top = `${label.actualCenter}px`;
 		labelEl.style.right = `${panelWidth + 2}px`;
-		labelEl.style.color = label.color;
-		labelEl.title = label.ownerLabel
-			? `${label.ownerLabel.fullName} · ${label.codeName}`
-			: label.codeName;
-		labelEl.textContent = label.ownerLabel
-			? `${label.ownerLabel.abbreviation} · ${label.codeName}`
-			: label.codeName;
+		labelEl.style.color = label.rail.color;
+		labelEl.title = label.rail.ownerName
+			? `${label.rail.ownerName} · ${label.rail.codeName}`
+			: label.rail.codeName;
+		labelEl.textContent = label.rail.ownerAbbreviation
+			? `${label.rail.ownerAbbreviation} · ${label.rail.codeName}`
+			: label.rail.codeName;
 		panel.appendChild(labelEl);
 	}
 
-	// Attach event listeners
 	panel.addEventListener('mouseenter', handlePanelHover(callbacks), true);
 	panel.addEventListener('mouseover', handlePanelHover(callbacks), true);
-	panel.addEventListener('mouseleave', () => {
-		callbacks.onHover(null, null);
-	});
-
-	panel.addEventListener('click', (e) => {
-		const target = (e.target as HTMLElement).closest?.('[data-marker-id]') as HTMLElement | null;
-		if (!target) return;
+	panel.addEventListener('mouseleave', () => callbacks.onHover(null, null));
+	panel.addEventListener('click', (event) => {
+		const target = (event.target as HTMLElement).closest?.('[data-marker-id]') as HTMLElement | null;
+		if (!target?.classList.contains(LABEL_CLASS)) return;
 		const markerId = target.dataset.markerId;
 		const codeName = target.dataset.codeName;
-		if (markerId && codeName && target.classList.contains(LABEL_CLASS)) {
-			e.stopPropagation();
-			callbacks.onLabelClick(markerId, codeName);
-		}
+		if (!markerId || !codeName) return;
+		event.stopPropagation();
+		callbacks.onLabelClick(markerId, codeName);
 	});
 
-	pageDiv.appendChild(panel);
+	container.appendChild(panel);
+	return panelWidth;
 }
 
-export function clearMarginPanelForPage(pageDiv: HTMLElement): void {
-	const existing = pageDiv.querySelector(`.${PANEL_CLASS}`);
-	if (existing) existing.remove();
+export function clearPdfMarginPanel(container: HTMLElement): void {
+	for (const panel of container.querySelectorAll(`.${PANEL_CLASS}`)) panel.remove();
 }
 
 export function applyHoverToMarginPanel(
 	container: HTMLElement,
 	markerId: string | null,
 ): void {
-	const panels = Array.from(container.querySelectorAll<HTMLElement>(`.${PANEL_CLASS}`));
-	for (const panel of panels) {
-		const els = Array.from(panel.querySelectorAll<HTMLElement>('[data-marker-id]'));
-		for (const el of els) {
-			if (markerId && el.dataset.markerId === markerId) {
-				el.classList.add(HOVERED_CLASS);
-			} else {
-				el.classList.remove(HOVERED_CLASS);
-			}
-		}
+	const elements = container.querySelectorAll<HTMLElement>(
+		`.${PANEL_CLASS} [data-marker-id]`,
+	);
+	for (const element of elements) {
+		element.classList.toggle(
+			HOVERED_CLASS,
+			!!markerId && element.dataset.markerId === markerId,
+		);
 	}
 }
 
-// ── Column Allocation ──
-
-function assignColumns(bars: BarEntry[]): void {
-	// Sort by span descending (largest bars get innermost columns)
-	bars.sort((a, b) => {
-		if (b.span !== a.span) return b.span - a.span;
-		return a.topPct - b.topPct;
-	});
-
-	const columnRanges: Array<Array<{ top: number; bottom: number }>> = [];
-
-	for (const bar of bars) {
-		let assigned = false;
-		for (let col = 0; col < columnRanges.length; col++) {
-			const ranges = columnRanges[col]!;
-			const overlaps = ranges.some(
-				r => bar.topPct < r.bottom && bar.bottomPct > r.top,
-			);
-			if (!overlaps) {
-				bar.column = col;
-				ranges.push({ top: bar.topPct, bottom: bar.bottomPct });
-				assigned = true;
-				break;
-			}
-		}
-		if (!assigned) {
-			bar.column = columnRanges.length;
-			columnRanges.push([{ top: bar.topPct, bottom: bar.bottomPct }]);
-		}
+function appendEntries(
+	entries: PdfMarginVisualSegment[],
+	marker: PdfMarker | PdfShapeMarker,
+	pageNumber: number,
+	segmentIndex: number,
+	segmentCount: number,
+	topPct: number,
+	bottomPct: number,
+	registry: CodeDefinitionRegistry,
+	ownerLabelForMarker?: (marker: PdfMarker | PdfShapeMarker) => MarginPanelOwnerLabel,
+	isMarkerEditable?: (marker: PdfMarker | PdfShapeMarker) => boolean,
+): void {
+	const editable = isMarkerEditable?.(marker) !== false;
+	const owner = ownerLabelForMarker?.(marker);
+	for (const codeApplication of marker.codes) {
+		const definition = registry.getById(codeApplication.codeId);
+		entries.push({
+			key: pdfMarginRailKey(marker.id, codeApplication.codeId),
+			markerId: marker.id,
+			codeId: codeApplication.codeId,
+			codeName: definition?.name ?? codeApplication.codeId,
+			color: editable
+				? marker.colorOverride ?? definition?.color ?? '#FFEB3B'
+				: NON_EDITABLE_MARKER_COLOR,
+			ownerAbbreviation: owner?.abbreviation,
+			ownerName: owner?.fullName,
+			editable,
+			pageNumber,
+			segmentIndex,
+			segmentCount,
+			topPct,
+			bottomPct,
+		});
 	}
 }
 
-// ── Label Collision Avoidance ──
+function createRailElement<K extends keyof HTMLElementTagNameMap>(
+	tagName: K,
+	className: string,
+	rail: MarginRailLayout,
+): HTMLElementTagNameMap[K] {
+	const element = document.createElement(tagName);
+	element.className = className;
+	element.dataset.markerId = rail.markerId;
+	element.dataset.codeId = rail.codeId;
+	element.dataset.codeName = rail.codeName;
+	return element;
+}
 
-function resolveLabels(bars: BarEntry[]): LabelEntry[] {
-	const labels: LabelEntry[] = bars.map(b => {
-		const midY = (b.topPct + b.bottomPct) / 2;
-		return {
-			markerId: b.markerId,
-			codeName: b.codeName,
-			ownerLabel: b.ownerLabel,
-			color: b.color,
-			idealY: midY,
-			actualY: midY,
-			column: b.column,
-		};
-	});
-
-	// Outermost columns placed first (higher column = outermost)
-	labels.sort((a, b) => b.column - a.column);
-
-	// LABEL_HEIGHT as % of page: approximate as 1.5% (16px in ~1000px page)
-	const labelHeightPct = 1.5;
-	const placedYs: number[] = [];
+function resolveLabelCenters(rails: readonly MarginRailLayout[]): Array<{
+	rail: MarginRailLayout;
+	actualCenter: number;
+}> {
+	const labels = rails
+		.map((rail) => ({ rail, actualCenter: rail.center }))
+		.sort((a, b) => b.rail.lane - a.rail.lane);
+	const placedCenters: number[] = [];
 
 	for (const label of labels) {
-		let bestY = label.idealY;
-
-		const collides = (y: number) =>
-			placedYs.some(py => Math.abs(y - py) < labelHeightPct);
-
-		if (collides(bestY)) {
-			for (let step = 1; step <= 50; step++) {
-				const yDown = label.idealY + step * labelHeightPct;
-				if (!collides(yDown)) {
-					bestY = yDown;
-					break;
-				}
-			}
+		const collides = (center: number) => placedCenters.some(
+			(placed) => Math.abs(center - placed) < LABEL_HEIGHT,
+		);
+		for (let step = 1; collides(label.actualCenter) && step <= 50; step++) {
+			label.actualCenter = label.rail.center + step * LABEL_HEIGHT;
 		}
-
-		label.actualY = bestY;
-		placedYs.push(bestY);
+		placedCenters.push(label.actualCenter);
 	}
 
 	return labels;
 }
 
-// ── Event Helpers ──
-
 function handlePanelHover(callbacks: MarginPanelCallbacks) {
-	return (e: MouseEvent) => {
-		const target = (e.target as HTMLElement).closest?.('[data-marker-id]') as HTMLElement | null;
+	return (event: MouseEvent) => {
+		const target = (event.target as HTMLElement).closest?.('[data-marker-id]') as HTMLElement | null;
 		if (target) {
-			const markerId = target.dataset.markerId ?? null;
-			const codeName = target.dataset.codeName ?? null;
-			callbacks.onHover(markerId, codeName);
+			callbacks.onHover(
+				target.dataset.markerId ?? null,
+				target.dataset.codeName ?? null,
+			);
 		}
 	};
 }
