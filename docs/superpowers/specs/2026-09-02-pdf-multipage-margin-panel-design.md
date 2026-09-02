@@ -430,8 +430,10 @@ O Marco 4 termina somente quando:
 ## Resultado observado
 
 O checkpoint visual foi realizado no corpus que já permanecia importado, sem
-necessidade de uma nova importação. Em D8 `People downstream`, páginas 6–7, a
-captura aprovada confirmou:
+necessidade de uma nova importação. Foram verificados os seis casos multipágina:
+D1 `Figure 2`, D1 `Autonomy`, D2 `infra background`, D5 `Which approach`, D8
+`operational responsibilities` e D8 `People downstream`. A captura apresentada
+de `People downstream`, páginas 6–7, exemplifica o resultado aprovado:
 
 - uma rail contínua atravessando o vão real entre as páginas;
 - duas rails independentes para os markers de JD e JEPM, sem compactação;
@@ -439,13 +441,10 @@ captura aprovada confirmou:
 - um único dot e um único label por rail no centro vertical global;
 - autoria no formato `abreviação · código`.
 
-O usuário considerou o comportamento básico correto e aceitou esse caso
-representativo para fechar o Marco 4. Os outros cinco grupos do corpus não foram
-reinspecionados visualmente nesta rodada; sua geometria de segmentos já havia
-sido validada no Marco 3, mas esta seção não alega uma nova validação visual das
-rails nesses cinco casos. Zoom/sidebar, markers simples, shapes e paridade
-Markdown ficaram cobertos pela suíte automatizada e pelo build, sem relato de
-regressão no checkpoint apresentado.
+O usuário confirmou o mesmo funcionamento nos outros cinco grupos e aprovou o
+fechamento do Marco 4. Zoom/sidebar, markers simples, shapes e paridade Markdown
+ficaram cobertos pela suíte automatizada e pelo build, sem relato de regressão
+no checkpoint apresentado.
 
 Antes da aceitação, uma revisão independente encontrou dois defeitos de
 lifecycle: ausência de sincronização imediata quando o overlay nascia com o PDF

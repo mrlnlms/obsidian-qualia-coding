@@ -461,11 +461,11 @@ interoperabilidade Atlas é Marco 7.
   multipágina deliberadamente desabilitado;
 - [x] preservar integralmente o comportamento de markers de uma página.
 
-Fechado em 2026-09-02. O checkpoint visual no corpus já importado confirmou em
-D8 `People downstream`, páginas 6–7, rails independentes para JD e JEPM,
-continuidade pelo vão entre páginas e um único dot/label no centro global. O
-usuário aceitou esse caso representativo como suficiente para o fechamento; os
-outros cinco casos não foram reinspecionados visualmente nesta rodada.
+Fechado em 2026-09-02. O checkpoint visual no corpus já importado confirmou os
+seis casos multipágina: D1 `Figure 2`, D1 `Autonomy`, D2 `infra background`, D5
+`Which approach`, D8 `operational responsibilities` e D8 `People downstream`.
+As rails atravessaram corretamente os vãos, mantiveram coders/códigos em lanes
+independentes e exibiram um único dot/label no centro global.
 
 A verificação terminou com 131 testes focados em 13 arquivos, suíte completa com
 3.727 testes em 271 arquivos, type-check, build e `git diff --check` aprovados.
