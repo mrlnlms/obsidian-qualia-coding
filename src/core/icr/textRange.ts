@@ -9,6 +9,7 @@ import type { Marker } from '../../markdown/models/codeMarkerModel';
 import type { PdfMarker } from '../../pdf/pdfCodingTypes';
 import type { SegmentMarker } from '../../csv/csvCodingTypes';
 import type { MediaMarker } from '../../media/mediaTypes';
+import { getPdfMarkerSegments } from '../../pdf/pdfMarkerSegments';
 
 export interface TextRange {
 	fileId: string;
@@ -26,8 +27,18 @@ export function extractMarkdownRange(m: Marker, sourceText: string): TextRange {
 	return { fileId: m.fileId, locator: '', from: fromAbs, to: toAbs };
 }
 
+export function extractPdfRanges(m: PdfMarker): TextRange[] {
+	return getPdfMarkerSegments(m).map(segment => ({
+		fileId: m.fileId,
+		locator: `page:${segment.page}`,
+		from: segment.beginIndex,
+		to: segment.endIndex,
+	}));
+}
+
+/** Compatibility helper for consumers that intentionally use the first page only. */
 export function extractPdfRange(m: PdfMarker): TextRange {
-	return { fileId: m.fileId, locator: `page:${m.page}`, from: m.beginIndex, to: m.endIndex };
+	return extractPdfRanges(m)[0]!;
 }
 
 export function extractCsvSegmentRange(m: SegmentMarker): TextRange {

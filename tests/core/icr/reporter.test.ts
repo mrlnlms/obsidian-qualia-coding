@@ -67,6 +67,26 @@ describe('reportKappa', () => {
 		expect(r.weights.csvSegment).toBe(3);
 	});
 
+	it('weights multipage PDF ranges once per logical marker', () => {
+		const inputs: EngineKappaInput[] = [{
+			engine: 'pdf',
+			kappaInput: {
+				markers: [
+					{ coderId: 'a', range: { fileId: 'f.pdf', locator: 'page:6', from: 10, to: 30 }, codeIds: ['c1'] },
+					{ coderId: 'a', range: { fileId: 'f.pdf', locator: 'page:7', from: 0, to: 5 }, codeIds: ['c1'] },
+				],
+				sources: [
+					{ fileId: 'f.pdf', locator: 'page:6', totalUnits: 30 },
+					{ fileId: 'f.pdf', locator: 'page:7', totalUnits: 5 },
+				],
+				coders: ['a'],
+				logicalMarkerCount: 1,
+			},
+		}];
+
+		expect(reportKappa(inputs).weights.pdf).toBe(1);
+	});
+
 	it('aggregate is vacuous (1) when all engines have 0 markers', () => {
 		const inputs: EngineKappaInput[] = [
 			{

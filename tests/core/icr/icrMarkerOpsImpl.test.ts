@@ -332,6 +332,27 @@ describe('IcrMarkerOpsImpl — pdf (E5a)', () => {
 		});
 		expect(found.map(m => m.markerId)).toEqual(['p1']); // p2 fora do range, p3 página diferente
 	});
+
+	it('findMarkersInRegion matches any segment and returns the logical marker once', () => {
+		const pdfModel = makeFakePdfModel();
+		const opsLocal = new IcrMarkerOpsImpl({ pdfModel, app: {} } as never);
+		pdfModel.store.set('multi', {
+			id: 'multi', fileId: 'doc.pdf', page: 6, beginIndex: 10, endIndex: 30,
+			beginOffset: 0, endOffset: 0, text: 'first\fsecond', codes: [{ codeId: 'x' }],
+			codedBy: 'human:alice', markerType: 'pdf', createdAt: 0, updatedAt: 0,
+			segments: [
+				{ page: 6, beginIndex: 10, beginOffset: 0, endIndex: 30, endOffset: 0, text: 'first' },
+				{ page: 7, beginIndex: 0, beginOffset: 0, endIndex: 5, endOffset: 0, text: 'second' },
+			],
+		} as PdfMarker);
+
+		const found = opsLocal.findMarkersInRegion({
+			fileId: 'doc.pdf', engine: 'pdf',
+			bounds: { kind: 'pdfText', page: 7, from: 2, to: 4 },
+		});
+
+		expect(found.map(marker => marker.markerId)).toEqual(['multi']);
+	});
 });
 
 describe('IcrMarkerOpsImpl — csvSegment (E5a)', () => {

@@ -43,6 +43,27 @@ describe('findOverlappingLocalMarkers (pdf)', () => {
 		const result = findOverlappingLocalMarkers('pdf', incoming, local);
 		expect(result.length).toBe(0);
 	});
+
+	it('matches any pair of logical PDF segments and returns each local once', () => {
+		const incoming = {
+			id: 'i1', fileId: 'f1', page: 6, beginIndex: 10, endIndex: 30,
+			segments: [
+				{ page: 6, beginIndex: 10, endIndex: 30 },
+				{ page: 7, beginIndex: 0, endIndex: 5 },
+			],
+		} as any;
+		const local = [{
+			id: 'l1', fileId: 'f1', page: 6, beginIndex: 40, endIndex: 50,
+			segments: [
+				{ page: 6, beginIndex: 40, endIndex: 50 },
+				{ page: 7, beginIndex: 2, endIndex: 4 },
+			],
+		}] as any[];
+
+		const result = findOverlappingLocalMarkers('pdf', incoming, local);
+
+		expect(result.map(marker => marker.id)).toEqual(['l1']);
+	});
 });
 
 describe('findOverlappingLocalMarkers (csvSegment)', () => {

@@ -10,7 +10,7 @@
  * documentado em spec/plan. PDF e CSV são puros, funcionam sem source.
  */
 
-import { extractMarkdownRange, extractPdfRange, extractCsvSegmentRange } from '../textRange';
+import { extractMarkdownRange, extractPdfRanges, extractCsvSegmentRange } from '../textRange';
 import type { TextRange } from '../textRange';
 import { computeOverlap } from '../overlap';
 
@@ -22,28 +22,27 @@ export function findOverlappingLocalMarkers<M extends { id: string; fileId: stri
 	local: M[],
 	sourceText?: string,
 ): M[] {
-	const incRange = extractRange(engine, incoming, sourceText);
-	if (!incRange) return [];
+	const incRanges = extractRanges(engine, incoming, sourceText);
+	if (!incRanges.length) return [];
 
 	const matches: M[] = [];
 	for (const l of local) {
 		if (l.fileId !== incoming.fileId) continue;
-		const lRange = extractRange(engine, l, sourceText);
-		if (!lRange) continue;
+		const localRanges = extractRanges(engine, l, sourceText);
 		// computeOverlap retorna null se locator difere ou sem overlap (verificado overlap.ts:14)
-		if (computeOverlap(incRange, lRange) !== null) {
+		if (incRanges.some(incRange => localRanges.some(localRange => computeOverlap(incRange, localRange) !== null))) {
 			matches.push(l);
 		}
 	}
 	return matches;
 }
 
-function extractRange(engine: EngineForOverlap, marker: any, sourceText?: string): TextRange | null {
+function extractRanges(engine: EngineForOverlap, marker: any, sourceText?: string): TextRange[] {
 	if (engine === 'markdown') {
-		if (!sourceText) return null; // modo degraded
-		return extractMarkdownRange(marker, sourceText);
+		if (!sourceText) return []; // modo degraded
+		return [extractMarkdownRange(marker, sourceText)];
 	}
-	if (engine === 'pdf') return extractPdfRange(marker);
-	if (engine === 'csvSegment') return extractCsvSegmentRange(marker);
-	return null;
+	if (engine === 'pdf') return extractPdfRanges(marker);
+	if (engine === 'csvSegment') return [extractCsvSegmentRange(marker)];
+	return [];
 }

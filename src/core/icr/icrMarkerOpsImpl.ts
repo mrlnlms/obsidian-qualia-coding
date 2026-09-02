@@ -27,6 +27,7 @@ import type { PdfMarker, PdfShapeMarker } from '../../pdf/pdfCodingTypes';
 import type { MediaMarker } from '../../media/mediaTypes';
 import type { ImageMarker } from '../../image/imageCodingTypes';
 import { aabbOf, aabbOverlaps } from './bboxNormalize';
+import { getPdfMarkerSegments } from '../../pdf/pdfMarkerSegments';
 
 export class IcrMarkerOpsImpl implements IcrMarkerOps {
 	constructor(private plugin: QualiaCodingPlugin) {}
@@ -143,10 +144,15 @@ export class IcrMarkerOpsImpl implements IcrMarkerOps {
 		if (region.engine === 'pdf' && region.bounds.kind === 'pdfText') {
 			const model = this.plugin.pdfModel;
 			if (!model) return [];
-			const all = model.getMarkersForFile(region.fileId).filter(m => m.page === (region.bounds as { page: number }).page);
+			const bounds = region.bounds;
+			const all = model.getMarkersForFile(region.fileId);
 			const out: { markerId: string; codedBy: CoderId; codes: CodeApplication[] }[] = [];
 			for (const m of all) {
-				if (m.codedBy && rangesOverlap1D(m.beginIndex, m.endIndex, region.bounds.from, region.bounds.to)) {
+				const matches = getPdfMarkerSegments(m).some(segment =>
+					segment.page === bounds.page
+					&& rangesOverlap1D(segment.beginIndex, segment.endIndex, bounds.from, bounds.to),
+				);
+				if (m.codedBy && matches) {
 					out.push({ markerId: m.id, codedBy: m.codedBy, codes: m.codes });
 				}
 			}

@@ -3,6 +3,7 @@ import { extractInputsFromScope, bumpInputsCacheGeneration, type EngineModelsFor
 import type { Marker } from '../../../../src/markdown/models/codeMarkerModel';
 import type { RowMarker, SegmentMarker } from '../../../../src/csv/csvCodingTypes';
 import type { MediaMarker } from '../../../../src/media/mediaTypes';
+import type { PdfMarker } from '../../../../src/pdf/pdfCodingTypes';
 
 const noopApp: any = {
 	vault: {
@@ -151,6 +152,32 @@ describe('extractInputsFromScope', () => {
 		expect(row).toBeTruthy();
 		expect((seg!.kappaInput as { markers: unknown[] }).markers).toHaveLength(1);
 		expect((row!.kappaInput as { units: unknown[] }).units).toHaveLength(1);
+	});
+
+	it('projects every PDF segment but counts one logical marker', async () => {
+		const logical: PdfMarker = {
+			markerType: 'pdf', id: 'pdf-multi', fileId: 'doc.pdf', codedBy: 'human:a',
+			page: 6, beginIndex: 10, beginOffset: 0, endIndex: 30, endOffset: 0,
+			text: 'first\fsecond', codes: [{ codeId: 'X' }], createdAt: 0, updatedAt: 0,
+			segments: [
+				{ page: 6, beginIndex: 10, beginOffset: 0, endIndex: 30, endOffset: 0, text: 'first' },
+				{ page: 7, beginIndex: 0, beginOffset: 0, endIndex: 5, endOffset: 0, text: 'second' },
+			],
+		};
+		const models = emptyModels();
+		models.pdf!.getAllMarkers = () => [logical];
+
+		const result = await extractInputsFromScope(
+			{ coderIds: ['human:a'], engineIds: ['pdf'] },
+			{ models, app: noopApp },
+		);
+		const input = result[0]!.kappaInput as {
+			markers: Array<{ range: { locator: string } }>;
+			logicalMarkerCount?: number;
+		};
+
+		expect(input.markers.map(marker => marker.range.locator)).toEqual(['page:6', 'page:7']);
+		expect(input.logicalMarkerCount).toBe(1);
 	});
 
 	it('bbox engines (pdfShape/image) são pulados em E1 mesmo se requisitados', async () => {

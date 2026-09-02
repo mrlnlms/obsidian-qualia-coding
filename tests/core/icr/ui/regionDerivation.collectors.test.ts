@@ -85,6 +85,29 @@ describe('collectPdfTextRegions', () => {
 		const regions = collectContestedRegions(state, { pdf: pdfModel as any });
 		expect(regions[0]!.divergenceKind).toBe('boundary');
 	});
+
+	it('collects page-local regions from every segment without duplicate logical refs', () => {
+		const logical = (id: string, coder: CoderId, codeId: string) => ({
+			id, fileId: 'doc.pdf', page: 6, beginIndex: 10, endIndex: 30,
+			beginOffset: 0, endOffset: 0, text: 'first\fsecond', codes: codes(codeId),
+			codedBy: coder, markerType: 'pdf' as const, createdAt: 0, updatedAt: 0,
+			segments: [
+				{ page: 6, beginIndex: 10, beginOffset: 0, endIndex: 30, endOffset: 0, text: 'first' },
+				{ page: 7, beginIndex: 0, beginOffset: 0, endIndex: 5, endOffset: 0, text: 'second' },
+			],
+		});
+		const pdfModel = { getAllMarkers: () => [logical('m1', A, 'x'), logical('m2', B, 'y')] };
+
+		const regions = collectContestedRegions(createDefaultViewState([A, B]), { pdf: pdfModel as any });
+
+		expect(regions.map(region => region.bounds)).toEqual([
+			{ kind: 'pdfText', page: 6, from: 10, to: 30 },
+			{ kind: 'pdfText', page: 7, from: 0, to: 5 },
+		]);
+		for (const region of regions) {
+			expect(region.markerRefs.map(ref => ref.markerId).sort()).toEqual(['m1', 'm2']);
+		}
+	});
 });
 
 // ─── CSV segment ─────────────────────────────────────────────

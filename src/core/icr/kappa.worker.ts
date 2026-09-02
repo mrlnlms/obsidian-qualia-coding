@@ -18,7 +18,7 @@ import { krippendorffAlphaCategoricalNominal } from './coefficients/krippendorff
 import { alphaBinary } from './coefficients/alphaBinary';
 import { cuAlpha } from './coefficients/cuAlpha';
 import { resolveDistance, type DistanceFunction, type DistanceName } from './distances';
-import type { KappaInput } from './kappaInput';
+import { countLogicalMarkers, type KappaInput } from './kappaInput';
 import type { CategoricalKappaInput } from './categoricalKappaInput';
 import type { CoderId } from './coderTypes';
 import type { EngineId } from './reporter';
@@ -161,7 +161,9 @@ function reportKappaCore(
 	const weights: Partial<Record<EngineId, number>> = {};
 	for (const { engine, kappaInput } of inputs) {
 		byEngine[engine] = computeAll(kappaInput, δ);
-		weights[engine] = isCategorical(kappaInput) ? kappaInput.units.length : kappaInput.markers.length;
+		weights[engine] = isCategorical(kappaInput)
+			? kappaInput.units.length
+			: kappaInput.logicalMarkerCount ?? kappaInput.markers.length;
 	}
 	const aggregate = aggregateReports(byEngine, weights);
 	const aggregateWarnings: string[] = [];
@@ -187,10 +189,14 @@ function filterKappaInputToPair(
 	if (isCategorical(input)) {
 		return { units: input.units.filter((u: { coderId: CoderId }) => u.coderId === a || u.coderId === b), coders: [a, b] };
 	}
+	const markers = input.markers.filter((m: { coderId: CoderId }) => m.coderId === a || m.coderId === b);
 	return {
-		markers: input.markers.filter((m: { coderId: CoderId }) => m.coderId === a || m.coderId === b),
+		markers,
 		sources: input.sources,
 		coders: [a, b],
+		...(input.logicalMarkerCount != null
+			? { logicalMarkerCount: countLogicalMarkers(markers, input.logicalMarkerCount) }
+			: {}),
 	};
 }
 

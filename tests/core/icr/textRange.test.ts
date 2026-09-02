@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	extractMarkdownRange,
 	extractPdfRange,
+	extractPdfRanges,
 	extractCsvSegmentRange,
 	extractMediaRange,
 } from '../../../src/core/icr/textRange';
@@ -71,6 +72,24 @@ describe('extractPdfRange', () => {
 		expect(r.locator).toBe('page:3');
 		expect(r.from).toBe(10);
 		expect(r.to).toBe(25);
+	});
+
+	it('projects every segment of a logical multipage marker', () => {
+		const m: PdfMarker = {
+			markerType: 'pdf', id: 'multi', fileId: 'f1.pdf',
+			page: 6, beginIndex: 10, beginOffset: 0, endIndex: 30, endOffset: 0,
+			text: 'first\fsecond', codes: [], createdAt: 0, updatedAt: 0,
+			segments: [
+				{ page: 6, beginIndex: 10, beginOffset: 0, endIndex: 30, endOffset: 0, text: 'first' },
+				{ page: 7, beginIndex: 0, beginOffset: 0, endIndex: 5, endOffset: 0, text: 'second' },
+			],
+		};
+
+		expect(extractPdfRanges(m)).toEqual([
+			{ fileId: 'f1.pdf', locator: 'page:6', from: 10, to: 30 },
+			{ fileId: 'f1.pdf', locator: 'page:7', from: 0, to: 5 },
+		]);
+		expect(extractPdfRange(m)).toEqual(extractPdfRanges(m)[0]);
 	});
 });
 

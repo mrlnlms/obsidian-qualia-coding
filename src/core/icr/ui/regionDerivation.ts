@@ -24,6 +24,7 @@ import type { Bitmap } from '../bboxRaster';
 import { rasterize } from '../bboxRaster';
 import { iou } from '../bboxIoU';
 import { aabbOf, aabbOverlaps } from '../bboxNormalize';
+import { getPdfMarkerSegments } from '../../../pdf/pdfMarkerSegments';
 
 // ─── Tipos ─────────────────────────────────────────────────────
 
@@ -477,15 +478,17 @@ function collectPdfTextRegions(
 	const inScope: PdfTextMarkerInScope[] = [];
 	for (const m of pdfModel.getAllMarkers()) {
 		if (!m.codedBy || !scopeCoders.has(m.codedBy)) continue;
-		inScope.push({
-			fileId: m.fileId,
-			page: m.page,
-			beginIndex: m.beginIndex,
-			endIndex: m.endIndex,
-			coderId: m.codedBy,
-			markerId: m.id,
-			codes: m.codes,
-		});
+		for (const segment of getPdfMarkerSegments(m)) {
+			inScope.push({
+				fileId: m.fileId,
+				page: segment.page,
+				beginIndex: segment.beginIndex,
+				endIndex: segment.endIndex,
+				coderId: m.codedBy,
+				markerId: m.id,
+				codes: m.codes,
+			});
+		}
 	}
 	// Agrupa por (fileId, page) — markers de páginas diferentes nunca clusterizam.
 	const byKey = new Map<string, PdfTextMarkerInScope[]>();
@@ -526,13 +529,14 @@ function buildPdfTextRegionFromCluster(cluster: PdfTextMarkerInScope[]): Contest
 	let from = first.beginIndex;
 	let to = first.endIndex;
 	const coderIds = new Set<CoderId>();
-	const markerRefs: MarkerRef[] = [];
+	const markerRefsById = new Map<string, MarkerRef>();
 	for (const m of cluster) {
 		if (m.beginIndex < from) from = m.beginIndex;
 		if (m.endIndex > to) to = m.endIndex;
 		coderIds.add(m.coderId);
-		markerRefs.push({ markerId: m.markerId, codedBy: m.coderId, codes: m.codes });
+		markerRefsById.set(m.markerId, { markerId: m.markerId, codedBy: m.coderId, codes: m.codes });
 	}
+	const markerRefs = Array.from(markerRefsById.values());
 	return {
 		fileId: first.fileId,
 		engine: 'pdf',

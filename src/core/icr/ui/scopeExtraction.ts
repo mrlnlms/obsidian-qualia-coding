@@ -17,7 +17,7 @@
 import type { App } from 'obsidian';
 import type { ComparisonScope } from './compareCodersTypes';
 import type { EngineKappaInput, EngineId } from '../reporter';
-import type { CodedMarker, KappaInput, SourceMeta } from '../kappaInput';
+import { countLogicalMarkers, type CodedMarker, type KappaInput, type SourceMeta } from '../kappaInput';
 import type { CategoricalKappaInput } from '../categoricalKappaInput';
 import type { Marker } from '../../../markdown/models/codeMarkerModel';
 import type { PdfMarker, PdfShapeMarker } from '../../../pdf/pdfCodingTypes';
@@ -26,7 +26,7 @@ import type { MediaMarker } from '../../../media/mediaTypes';
 import type { ImageMarker } from '../../../image/imageCodingTypes';
 import {
 	extractMarkdownRange,
-	extractPdfRange,
+	extractPdfRanges,
 	extractCsvSegmentRange,
 	extractMediaRange,
 } from '../textRange';
@@ -97,7 +97,17 @@ export function filterInputsByCoders(
 		} else {
 			const markers = ki.markers.filter(m => set.has(m.coderId));
 			if (markers.length === 0) continue;
-			out.push({ engine: input.engine, kappaInput: { markers, sources: ki.sources, coders: ki.coders.filter(c => set.has(c)) } });
+			out.push({
+				engine: input.engine,
+				kappaInput: {
+					markers,
+					sources: ki.sources,
+					coders: ki.coders.filter(c => set.has(c)),
+					...(ki.logicalMarkerCount != null
+						? { logicalMarkerCount: countLogicalMarkers(markers, ki.logicalMarkerCount) }
+						: {}),
+				},
+			});
 		}
 	}
 	return out;
@@ -290,6 +300,7 @@ async function buildPerCharInput(
 	sourceSizeProvider?: SourceSizeProvider,
 ): Promise<KappaInput> {
 	const codedMarkers: CodedMarker[] = [];
+	let logicalMarkerCount = 0;
 	const sourceTotals = new Map<string, { fileId: string; locator: string; totalUnits: number }>();
 
 	// Markdown precisa source text — pre-carrega per fileId pra evitar re-read.
@@ -302,39 +313,47 @@ async function buildPerCharInput(
 		if (!codedBy) continue;
 
 		try {
-			let range;
+			let ranges;
 			switch (engine) {
 				case 'markdown': {
 					const text = sourceTexts!.get(m.fileId);
 					if (text === undefined) continue;
-					range = extractMarkdownRange(m as Marker, text);
+					ranges = [extractMarkdownRange(m as Marker, text)];
 					updateSourceTotal(sourceTotals, m.fileId, '', text.length);
 					break;
 				}
 				case 'pdf': {
-					range = extractPdfRange(m as PdfMarker);
-					updateSourceTotal(sourceTotals, m.fileId, range.locator, Math.max(getCurrentTotal(sourceTotals, m.fileId, range.locator), range.to));
+					ranges = extractPdfRanges(m as PdfMarker);
+					for (const range of ranges) {
+						updateSourceTotal(sourceTotals, m.fileId, range.locator, Math.max(getCurrentTotal(sourceTotals, m.fileId, range.locator), range.to));
+					}
 					break;
 				}
 				case 'csvSegment': {
-					range = extractCsvSegmentRange(m as SegmentMarker);
+					ranges = [extractCsvSegmentRange(m as SegmentMarker)];
+					const range = ranges[0]!;
 					updateSourceTotal(sourceTotals, m.fileId, range.locator, Math.max(getCurrentTotal(sourceTotals, m.fileId, range.locator), range.to));
 					break;
 				}
 				case 'audio':
 				case 'video': {
-					range = extractMediaRange(m as MediaMarker, temporalResolution);
+					ranges = [extractMediaRange(m as MediaMarker, temporalResolution)];
+					const range = ranges[0]!;
 					updateSourceTotal(sourceTotals, m.fileId, range.locator, Math.max(getCurrentTotal(sourceTotals, m.fileId, range.locator), range.to));
 					break;
 				}
 			}
 
 			const codes = (m as { codes: { codeId: string }[] }).codes;
-			codedMarkers.push({
-				coderId: codedBy,
-				range,
-				codeIds: codes.map(c => c.codeId),
-			});
+			for (const range of ranges) {
+				codedMarkers.push({
+					coderId: codedBy,
+					range,
+					codeIds: codes.map(c => c.codeId),
+					logicalMarkerId: m.id,
+				});
+			}
+			logicalMarkerCount++;
 		} catch {
 			// Marker malformado — pula
 			continue;
@@ -358,7 +377,7 @@ async function buildPerCharInput(
 	}
 
 	const sources: SourceMeta[] = Array.from(sourceTotals.values());
-	return { markers: codedMarkers, sources, coders };
+	return { markers: codedMarkers, sources, coders, logicalMarkerCount };
 }
 
 function buildCategoricalInput(markers: RowMarker[], coders: string[]): CategoricalKappaInput {

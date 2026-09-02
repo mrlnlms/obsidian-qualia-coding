@@ -16,6 +16,8 @@ export interface CodedMarker {
 	coderId: CoderId;
 	range: TextRange;
 	codeIds: string[];
+	/** Shared by page-local projections of the same source marker. */
+	logicalMarkerId?: string;
 }
 
 /** Source com tamanho — necessário pra cu-α/α-binary cobrirem unidades não codificadas (chance agreement).
@@ -31,6 +33,22 @@ export interface KappaInput {
 	markers: CodedMarker[];
 	sources: SourceMeta[];
 	coders: CoderId[];
+	/** Number of source markers before any marker was projected into multiple ranges. */
+	logicalMarkerCount?: number;
+}
+
+export function countLogicalMarkers(
+	markers: readonly CodedMarker[],
+	fallbackWhenUnidentified?: number,
+): number {
+	const ids = new Set<string>();
+	let anonymous = 0;
+	for (const marker of markers) {
+		if (marker.logicalMarkerId) ids.add(marker.logicalMarkerId);
+		else anonymous++;
+	}
+	if (ids.size === 0 && fallbackWhenUnidentified != null) return fallbackWhenUnidentified;
+	return ids.size + anonymous;
 }
 
 /** Char-level explosion: para cada char (fileId, locator, pos), monta map coderId → set codeIds.
