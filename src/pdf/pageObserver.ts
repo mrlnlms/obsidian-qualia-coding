@@ -9,7 +9,7 @@
 
 import type { PDFViewerChild, PDFPageView } from './pdfTypings';
 import type { PdfCodingModel } from './pdfCodingModel';
-import type { PdfMarker, PdfShapeMarker } from './pdfCodingTypes';
+import type { PdfMarker, PdfMarkerPageProjection, PdfMarkerRangeChanges, PdfShapeMarker } from './pdfCodingTypes';
 import type { PdfViewState } from './pdfViewState';
 import { renderHighlightsForPage, clearHighlightsForPage, updateHighlightRectsForMarker, applyHoverToHighlights, showHandlesForMarker, type HighlightCallbacks } from './highlightRenderer';
 import {
@@ -23,6 +23,8 @@ import { attachDragHandles } from './dragHandles';
 import { diagnosePendingTextSearch, isMarkerPending, resolvePendingIndicesInTextContentItems, resolvePendingIndicesWithDiagnostics, type PendingResolutionDiagnostics } from './resolvePendingIndices';
 import { getTextLayerInfo } from './pdfViewerAccess';
 import { visibilityEventBus } from '../core/visibilityEventBus';
+import { isMultipagePdfMarker } from './pdfMarkerSegments';
+import { resolvePendingMultipageProjection } from './resolvePendingMultipage';
 
 export interface PageObserverCallbacks {
 	onMarkerClick: (markerId: string, codeName: string) => void;
@@ -156,6 +158,7 @@ export interface PdfMarkerCoverageAuditRow {
 	filePath: string;
 	page: number;
 	markerId: string;
+	segmentIndex: number;
 	range: string;
 	qdpxPage?: number;
 	textLength: number;
@@ -177,10 +180,15 @@ export interface PdfMarkerCoverageAuditSnapshot {
 	generatedAt: string;
 	totals: {
 		markers: number;
+		segments: number;
 		auditedMarkers: number;
+		auditedSegments: number;
 		matchingMarkers: number;
+		matchingSegments: number;
 		mismatchingMarkers: number;
+		mismatchingSegments: number;
 		unauditedMarkers: number;
+		unauditedSegments: number;
 	};
 	rows: PdfMarkerCoverageAuditRow[];
 	mismatches: PdfMarkerCoverageAuditRow[];
@@ -364,8 +372,11 @@ export class PdfPageObserver {
 		// Only render if the page DOM is loaded
 		if (!pageView.div.dataset.loaded) return;
 
-		const markers = this.model.getMarkersForPage(filePath, pageNumber);
-		const hasPendingTextMarkers = markers.some((m) => isMarkerPending(m) && m.text);
+		let markers = this.model.getMarkerPageProjections(filePath, pageNumber);
+		const hasPendingTextMarkers = markers.some((marker) =>
+			(marker.renderSegmentResolution === 'pending' || isMarkerPending(marker))
+			&& !!(marker.text || marker.logicalText),
+		);
 		if (hasPendingTextMarkers && !this.hasTextLayerNodes(pageView.div)) {
 			this.schedulePendingTextLayerRetry(filePath, pageNumber);
 			return;
@@ -397,17 +408,38 @@ export class PdfPageObserver {
 		const movedMarkerPages = new Set<number>();
 		const textLayerInfo = getTextLayerInfo(pageView);
 		for (const m of markers) {
-			if (isMarkerPending(m) && m.text) {
+			const isLogicalProjection = m.renderSegmentCount > 1;
+			if ((m.renderSegmentResolution === 'pending' || isMarkerPending(m)) && (m.text || m.logicalText)) {
 				pendingAttempts++;
 				if (m.importedPdfSelectionBBox) withBBoxCount++;
 				if (m.importedQdpxContinuedBy) withContinuedByCount++;
 				let targetPageNumber = pageNumber;
-				const textItemsResult = !m.importedQdpxMultipageFragment && textLayerInfo
+				let resolvedText: string | undefined;
+				const boundaryChanges = isLogicalProjection && !m.text
+					? resolvePendingMultipageProjection(pageView.div, m)
+					: null;
+				const textItemsResult = m.text && !m.importedQdpxMultipageFragment && textLayerInfo
 					? resolvePendingIndicesInTextContentItems(textLayerInfo.textContentItems, m.text)
 					: null;
-				let resolved = textItemsResult?.resolved ?? null;
-				let diagnostics = textItemsResult?.diagnostics;
-				if (!resolved) {
+				let resolved = boundaryChanges ? {
+					beginIndex: boundaryChanges.beginIndex!,
+					beginOffset: boundaryChanges.beginOffset!,
+					endIndex: boundaryChanges.endIndex!,
+					endOffset: boundaryChanges.endOffset!,
+				} : textItemsResult?.resolved ?? null;
+				if (boundaryChanges?.text) resolvedText = boundaryChanges.text;
+				const boundaryDiagnostics = diagnosePendingTextSearch(pageView.div, m.logicalText);
+				let diagnostics: PendingResolutionDiagnostics | undefined = boundaryChanges || (isLogicalProjection && !m.text)
+					? {
+						reason: boundaryChanges ? 'resolved' : 'not-found',
+						searchTextLength: m.logicalText.length,
+						searchTextPreview: m.logicalText.replace(/\s+/g, ' ').trim().slice(0, 160),
+						pageTextLength: boundaryDiagnostics.pageTextLength ?? 0,
+						textLayerNodeCount: boundaryDiagnostics.textLayerNodeCount ?? 0,
+						...boundaryDiagnostics,
+					}
+					: textItemsResult?.diagnostics;
+				if (!resolved && m.text) {
 					const domResult = resolvePendingIndicesWithDiagnostics(pageView.div, m.text, {
 						bboxHint: m.importedPdfSelectionBBox,
 						plainTextContext: m.importedPdfTextContext,
@@ -426,7 +458,7 @@ export class PdfPageObserver {
 				// QDPX PDFSelection.page is authoritative after import conversion.
 				// Neighbor fallback can otherwise adopt a repeated short label from
 				// the wrong page before its own page has rendered.
-				if (!resolved && !m.importedPdfSelectionBBox && !m.importedQdpxMultipageFragment) {
+				if (!resolved && !isLogicalProjection && !m.importedPdfSelectionBBox && !m.importedQdpxMultipageFragment) {
 					const neighbor = this.resolveOnNeighborPage(pageNumber, m);
 					if (neighbor) {
 						targetPageNumber = neighbor.pageNumber;
@@ -443,13 +475,18 @@ export class PdfPageObserver {
 				if (markerBBoxAttempted) bboxAttemptedCount++;
 				if (markerBBoxIgnoredPageMismatch) bboxIgnoredPageMismatchCount++;
 				if (resolved) {
-					this.model.resolveImportedMarkerRange(m.id, {
-						page: targetPageNumber,
+					const changes: PdfMarkerRangeChanges = {
 						beginIndex: resolved.beginIndex,
 						beginOffset: resolved.beginOffset,
 						endIndex: resolved.endIndex,
 						endOffset: resolved.endOffset,
-					});
+						...(resolvedText ? { text: resolvedText } : {}),
+					};
+					if (isLogicalProjection) {
+						this.model.resolveImportedMarkerSegmentRange(m.id, m.renderSegmentIndex, changes);
+					} else {
+						this.model.resolveImportedMarkerRange(m.id, { page: targetPageNumber, ...changes });
+					}
 					if (targetPageNumber !== pageNumber) {
 						movedMarkerPages.add(targetPageNumber);
 						resolvedOnNeighborCount++;
@@ -494,7 +531,7 @@ export class PdfPageObserver {
 						bestPrefixKeyLength: diagnostics.bestPrefixKeyLength,
 						bestWindowKeyLength: diagnostics.bestWindowKeyLength,
 						bestWindowTextPreview: diagnostics.bestWindowTextPreview,
-						...this.diagnoseNeighborPages(pageNumber, m),
+						...(isLogicalProjection ? {} : this.diagnoseNeighborPages(pageNumber, m)),
 					});
 				}
 			}
@@ -528,6 +565,7 @@ export class PdfPageObserver {
 		}
 		const adoptedAny = this.resolveAdjacentPendingMarkersOnPage(filePath, pageNumber, pageView);
 		if (adoptedAny) this.model.save();
+		markers = this.model.getMarkerPageProjections(filePath, pageNumber);
 		const renderMarkers = markers.filter((m) => m.page === pageNumber);
 
 		const highlightCallbacks: HighlightCallbacks = {
@@ -673,6 +711,7 @@ export class PdfPageObserver {
 		for (const sourcePage of [pageNumber - 1, pageNumber + 1]) {
 			const candidates = this.model.getMarkersForPage(filePath, sourcePage);
 			for (const marker of candidates) {
+				if (isMultipagePdfMarker(marker)) continue;
 				if (!isMarkerPending(marker) || !marker.text) continue;
 				if (marker.importedPdfSelectionBBox || marker.importedQdpxMultipageFragment) continue;
 
@@ -720,7 +759,7 @@ export class PdfPageObserver {
 		return out;
 	}
 
-	private auditMarkerCoverageForPage(filePath: string, pageNumber: number, pageView: PDFPageView, markers: PdfMarker[]): void {
+	private auditMarkerCoverageForPage(filePath: string, pageNumber: number, pageView: PDFPageView, markers: PdfMarkerPageProjection[]): void {
 		const textLayerInfo = getTextLayerInfo(pageView);
 		if (!textLayerInfo) return;
 
@@ -734,6 +773,7 @@ export class PdfPageObserver {
 				filePath,
 				page: pageNumber,
 				markerId: marker.id,
+				segmentIndex: marker.renderSegmentIndex,
 				range: `${marker.beginIndex}:${marker.beginOffset}-${marker.endIndex}:${marker.endOffset}`,
 				qdpxPage: marker.importedPdfSelectionBBox?.page,
 				textLength: marker.text.length,
@@ -751,7 +791,7 @@ export class PdfPageObserver {
 					? undefined
 					: textLayerInfo.textContentItems.map((item) => item.str ?? ''),
 			};
-			this.coverageAuditRowsByMarker.set(marker.id, row);
+			this.coverageAuditRowsByMarker.set(`${marker.id}:${marker.renderSegmentIndex}`, row);
 		}
 
 		if (this.coverageAuditFlushTimer) clearTimeout(this.coverageAuditFlushTimer);
@@ -809,17 +849,26 @@ export class PdfPageObserver {
 			.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.page - b.page || a.range.localeCompare(b.range));
 		if (rows.length === 0) return;
 
-		const markerCount = this.model.getAllMarkers().length;
-		const matchingMarkers = rows.filter((row) => row.matches).length;
+		const logicalMarkers = this.model.getAllMarkers();
+		const markerCount = logicalMarkers.length;
+		const segmentCount = logicalMarkers.reduce((total, marker) => total + (marker.segments?.length ?? 1), 0);
+		const auditedMarkerIds = new Set(rows.map((row) => row.markerId));
+		const mismatchingMarkerIds = new Set(rows.filter((row) => !row.matches).map((row) => row.markerId));
+		const matchingMarkers = [...auditedMarkerIds].filter((id) => !mismatchingMarkerIds.has(id)).length;
 		const mismatches = rows.filter((row) => !row.matches);
 		const snapshot: PdfMarkerCoverageAuditSnapshot = {
 			generatedAt: new Date().toISOString(),
 			totals: {
 				markers: markerCount,
-				auditedMarkers: rows.length,
+				segments: segmentCount,
+				auditedMarkers: auditedMarkerIds.size,
+				auditedSegments: rows.length,
 				matchingMarkers,
-				mismatchingMarkers: mismatches.length,
-				unauditedMarkers: Math.max(0, markerCount - rows.length),
+				matchingSegments: rows.length - mismatches.length,
+				mismatchingMarkers: mismatchingMarkerIds.size,
+				mismatchingSegments: mismatches.length,
+				unauditedMarkers: Math.max(0, markerCount - auditedMarkerIds.size),
+				unauditedSegments: Math.max(0, segmentCount - rows.length),
 			},
 			rows,
 			mismatches,

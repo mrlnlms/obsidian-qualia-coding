@@ -1,4 +1,4 @@
-import type { PdfMarker, PdfShapeMarker, PercentShapeCoords } from './pdfCodingTypes';
+import type { PdfMarker, PdfMarkerPageProjection, PdfMarkerRangeChanges, PdfShapeMarker, PercentShapeCoords } from './pdfCodingTypes';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { DataManager } from '../core/dataManager';
 import type { CodeDefinition, MarkerMutationEvent } from '../core/types';
@@ -6,6 +6,11 @@ import { DEFAULT_CODER_ID, type CoderId } from '../core/icr/coderTypes';
 import { hasCode, addCodeApplication, removeCodeApplication, normalizeCodeApplications } from '../core/codeApplicationHelpers';
 import type QualiaCodingPlugin from '../main';
 import { attachSourceHashSnapshot } from '../core/icr/provenance/attachSourceHashSnapshot';
+import {
+	joinPdfMarkerSegmentText,
+	projectPdfMarkerToPage,
+	syncPdfMarkerFirstSegmentProjection,
+} from './pdfMarkerSegments';
 
 // ── PdfCodingModel ──
 type ChangeListener = () => void;
@@ -245,6 +250,12 @@ export class PdfCodingModel {
 		return this.markers.filter(m => m.fileId === file && m.page === page);
 	}
 
+	getMarkerPageProjections(file: string, page: number): PdfMarkerPageProjection[] {
+		return this.markers
+			.filter((marker) => marker.fileId === file)
+			.flatMap((marker) => projectPdfMarkerToPage(marker, page));
+	}
+
 	getMarkersForFile(file: string): PdfMarker[] {
 		return this.markers.filter(m => m.fileId === file);
 	}
@@ -337,6 +348,23 @@ export class PdfCodingModel {
 		const marker = this.findMarkerById(markerId);
 		if (!marker || !marker.id.startsWith('import_')) return;
 		Object.assign(marker, changes);
+		marker.updatedAt = Date.now();
+	}
+
+	resolveImportedMarkerSegmentRange(
+		markerId: string,
+		segmentIndex: number,
+		changes: PdfMarkerRangeChanges,
+	): void {
+		const marker = this.findMarkerById(markerId);
+		const segments = marker?.segments;
+		const segment = segments?.[segmentIndex];
+		if (!marker || !segment || !marker.id.startsWith('import_')) return;
+		Object.assign(segment, changes, { resolution: 'resolved' as const });
+		if (segments.every((item) => item.text.length > 0)) {
+			marker.text = joinPdfMarkerSegmentText(segments);
+		}
+		syncPdfMarkerFirstSegmentProjection(marker);
 		marker.updatedAt = Date.now();
 	}
 

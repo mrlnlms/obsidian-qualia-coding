@@ -207,6 +207,93 @@ describe('getMarkersForPage', () => {
 	});
 });
 
+describe('logical marker page projections', () => {
+	it('returns one detached projection per matching page without duplicating the model marker', () => {
+		const logical = {
+			markerType: 'pdf' as const,
+			id: 'import_logical_human_carla',
+			fileId: 'doc.pdf',
+			page: 6,
+			beginIndex: 1,
+			beginOffset: 0,
+			endIndex: 2,
+			endOffset: 3,
+			text: 'first\fsecond',
+			segments: [
+				{ page: 6, beginIndex: 1, beginOffset: 0, endIndex: 2, endOffset: 3, text: 'first', resolution: 'resolved' as const },
+				{ page: 7, beginIndex: 4, beginOffset: 0, endIndex: 5, endOffset: 6, text: 'second', resolution: 'resolved' as const },
+			],
+			codes: [],
+			createdAt: 1,
+			updatedAt: 1,
+		};
+		dm.section('pdf').markers = [logical];
+		model.load();
+
+		expect(model.getAllMarkers()).toHaveLength(1);
+		expect(model.getMarkerPageProjections('doc.pdf', 6)).toHaveLength(1);
+		const projection = model.getMarkerPageProjections('doc.pdf', 7)[0]!;
+		expect(projection).toMatchObject({
+			id: logical.id,
+			page: 7,
+			text: 'second',
+			logicalText: 'first\fsecond',
+			renderSegmentIndex: 1,
+		});
+		projection.endOffset = 99;
+		projection.segments![1]!.endOffset = 88;
+		expect(logical.segments[1]!.endOffset).toBe(6);
+	});
+
+	it('resolves exactly one imported segment and refreshes compatibility fields', () => {
+		const logical = {
+			markerType: 'pdf' as const,
+			id: 'import_logical_human_carla',
+			fileId: 'doc.pdf',
+			page: 6,
+			beginIndex: 0,
+			beginOffset: 0,
+			endIndex: 0,
+			endOffset: 0,
+			text: 'complete logical quotation',
+			segments: [
+				{ page: 6, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 0, text: '', resolution: 'pending' as const },
+				{ page: 7, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 0, text: '', resolution: 'pending' as const },
+			],
+			codes: [],
+			createdAt: 1,
+			updatedAt: 1,
+		};
+		dm.section('pdf').markers = [logical];
+		model.load();
+
+		model.resolveImportedMarkerSegmentRange(logical.id, 1, {
+			beginIndex: 4,
+			beginOffset: 1,
+			endIndex: 8,
+			endOffset: 2,
+			text: 'second',
+		});
+		expect(logical.segments[0]!.resolution).toBe('pending');
+		expect(logical.segments[1]).toMatchObject({
+			beginIndex: 4,
+			endIndex: 8,
+			text: 'second',
+			resolution: 'resolved',
+		});
+		expect(logical.text).toBe('complete logical quotation');
+
+		model.resolveImportedMarkerSegmentRange(logical.id, 0, {
+			beginIndex: 1,
+			endIndex: 3,
+			text: 'first',
+		});
+		expect(logical.text).toBe('first\fsecond');
+		expect(logical.beginIndex).toBe(1);
+		expect(logical.endIndex).toBe(3);
+	});
+});
+
 describe('getMarkersForFile', () => {
 	it('filters by file only', () => {
 		model.findOrCreateMarker('doc.pdf', 1, 0, 0, 0, 10, 'a');

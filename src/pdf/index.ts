@@ -167,18 +167,25 @@ export function registerPdfEngine(plugin: QualiaCodingPlugin): EngineRegistratio
 					void writePdfMarkerStatusLog(plugin, snapshot);
 				},
 				onPdfMarkerCoverageAudit: (snapshot) => {
-					for (const row of snapshot.rows) coverageAuditRowsByMarker.set(row.markerId, row);
+					for (const row of snapshot.rows) coverageAuditRowsByMarker.set(`${row.markerId}:${row.segmentIndex}`, row);
 					const rows = [...coverageAuditRowsByMarker.values()]
 						.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.page - b.page || a.range.localeCompare(b.range));
 					const mismatches = rows.filter((row) => !row.matches);
+					const auditedMarkerIds = new Set(rows.map((row) => row.markerId));
+					const mismatchingMarkerIds = new Set(mismatches.map((row) => row.markerId));
 					const mergedSnapshot: PdfMarkerCoverageAuditSnapshot = {
 						generatedAt: new Date().toISOString(),
 						totals: {
 							markers: snapshot.totals.markers,
-							auditedMarkers: rows.length,
-							matchingMarkers: rows.filter((row) => row.matches).length,
-							mismatchingMarkers: mismatches.length,
-							unauditedMarkers: Math.max(0, snapshot.totals.markers - rows.length),
+							segments: snapshot.totals.segments,
+							auditedMarkers: auditedMarkerIds.size,
+							auditedSegments: rows.length,
+							matchingMarkers: [...auditedMarkerIds].filter((id) => !mismatchingMarkerIds.has(id)).length,
+							matchingSegments: rows.length - mismatches.length,
+							mismatchingMarkers: mismatchingMarkerIds.size,
+							mismatchingSegments: mismatches.length,
+							unauditedMarkers: Math.max(0, snapshot.totals.markers - auditedMarkerIds.size),
+							unauditedSegments: Math.max(0, snapshot.totals.segments - rows.length),
 						},
 						rows,
 						mismatches,
