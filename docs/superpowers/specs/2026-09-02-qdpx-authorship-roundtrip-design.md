@@ -2,8 +2,7 @@
 
 > Data: 2026-09-02
 >
-> Estado: desenho aprovado em conversa; aguardando revisão do documento antes do
-> plano de implementação.
+> Estado: desenho aprovado; plano de implementação preparado.
 
 ## Objetivo
 
