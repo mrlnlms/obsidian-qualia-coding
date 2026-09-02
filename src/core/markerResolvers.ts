@@ -53,6 +53,9 @@ export function getMarkerLabel(marker: BaseMarker, mdModel: CodeMarkerModel | nu
 		if (marker.isShape && marker.shapeLabel) return marker.shapeLabel;
 		const preview = previewText(marker.text, maxLength);
 		if (preview) return preview;
+		if (marker.endPage != null && marker.endPage !== marker.page) {
+			return `Pages ${marker.page}–${marker.endPage}`;
+		}
 		return `Page ${marker.page}`;
 	}
 	if (isImageMarker(marker)) {

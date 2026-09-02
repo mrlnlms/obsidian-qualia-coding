@@ -6,6 +6,7 @@ import {
   isAudioMarker,
   isVideoMarker,
   getMarkerLabel,
+  getMarkerSearchableText,
   previewText,
   shortenPath,
 } from '../../src/core/markerResolvers';
@@ -156,6 +157,11 @@ describe('getMarkerLabel', () => {
   it('returns "Page N" for PDF marker without text', () => {
     const marker = makeBase({ markerType: 'pdf', page: 3, isShape: false, text: '' });
     expect(getMarkerLabel(marker, null)).toBe('Page 3');
+  });
+
+  it('returns the page range for a multipage PDF marker without text', () => {
+    const marker = makeBase({ markerType: 'pdf', page: 6, endPage: 7, isShape: false, text: '' });
+    expect(getMarkerLabel(marker, null)).toBe('Pages 6–7');
   });
 
   it('returns markerText for CSV marker with markerText', () => {
@@ -334,6 +340,20 @@ describe('getMarkerLabel', () => {
     };
     // Editor live retornou só whitespace → cai no snapshot text → cai no Line N se snapshot também vazio.
     expect(getMarkerLabel(marker, mockMdModel as any)).toBe('snapshot fallback');
+  });
+});
+
+describe('getMarkerSearchableText', () => {
+  it('searches the full logical text of a multipage PDF marker', () => {
+    const marker = makeBase({
+      markerType: 'pdf',
+      page: 6,
+      endPage: 7,
+      isShape: false,
+      text: 'end of page six\fstart of page seven',
+    });
+
+    expect(getMarkerSearchableText(marker)).toBe('end of page six\fstart of page seven');
   });
 });
 

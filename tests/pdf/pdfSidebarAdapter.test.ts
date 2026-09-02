@@ -142,6 +142,27 @@ describe('getAllMarkers', () => {
 		});
 	});
 
+	it('exposes one logical row with the full page range for a multipage marker', () => {
+		model._textMarkers.push(mkTextMarker({
+			page: 6,
+			text: 'end of page six\fstart of page seven',
+			segments: [
+				{ page: 6, beginIndex: 4, beginOffset: 2, endIndex: 8, endOffset: 5, text: 'end of page six' },
+				{ page: 7, beginIndex: 0, beginOffset: 0, endIndex: 3, endOffset: 4, text: 'start of page seven' },
+			],
+		}));
+
+		const result = adapter.getAllMarkers();
+
+		expect(result).toHaveLength(1);
+		expect(result[0]).toMatchObject({
+			id: 'tm-1',
+			page: 6,
+			endPage: 7,
+			text: 'end of page six\fstart of page seven',
+		});
+	});
+
 	it('converts shape markers to PdfBaseMarker', () => {
 		model._shapeMarkers.push(mkShapeMarker());
 		const result = adapter.getAllMarkers();

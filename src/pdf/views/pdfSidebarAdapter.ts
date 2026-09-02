@@ -11,16 +11,22 @@ import type { PdfMarker, PdfShapeMarker } from '../pdfCodingTypes';
 import type { MemoRecord } from '../../core/memoTypes';
 import { BaseSidebarAdapter } from '../../core/baseSidebarAdapter';
 import { hasCode } from '../../core/codeApplicationHelpers';
+import { getPdfMarkerSegments } from '../pdfMarkerSegments';
 
 /** Extended BaseMarker carrying PDF-specific metadata for hooks. */
 export interface PdfBaseMarker extends BaseMarker {
 	page: number;
+	/** Last page of a logical text marker; omitted for single-page markers and shapes. */
+	endPage?: number;
 	isShape: boolean;
 	text: string;
 	shapeLabel?: string;
 }
 
 function textMarkerToBase(m: PdfMarker, model: PdfCodingModel): PdfBaseMarker {
+	const segments = getPdfMarkerSegments(m);
+	const firstPage = segments[0]?.page ?? m.page;
+	const lastPage = segments[segments.length - 1]?.page ?? firstPage;
 	return {
 		markerType: 'pdf',
 		id: m.id,
@@ -30,7 +36,8 @@ function textMarkerToBase(m: PdfMarker, model: PdfCodingModel): PdfBaseMarker {
 		memo: m.memo,
 		createdAt: m.createdAt,
 		updatedAt: m.updatedAt,
-		page: m.page,
+		page: firstPage,
+		...(lastPage !== firstPage ? { endPage: lastPage } : {}),
 		isShape: false,
 		text: m.text,
 	};

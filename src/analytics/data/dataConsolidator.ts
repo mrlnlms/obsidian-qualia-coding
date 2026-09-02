@@ -13,6 +13,7 @@ import type { PdfMarker, PdfShapeMarker } from "../../pdf/pdfCodingTypes";
 import type { AudioFile } from "../../audio/audioCodingTypes";
 import type { VideoFile } from "../../video/videoCodingTypes";
 import type { CodeDefinition } from "../../core/types";
+import { getPdfMarkerSegments } from "../../pdf/pdfMarkerSegments";
 
 export interface MarkdownEngineData {
   markers: Record<string, Marker[]>;
@@ -157,15 +158,18 @@ export function consolidatePdf(data: PdfEngineData | null): EngineSlice {
     for (const m of data!.markers) {
       const codes = extractCodes(m.codes);
       if (codes.length === 0) continue;
+      const segments = getPdfMarkerSegments(m);
+      const firstPage = segments[0]?.page ?? m.page;
+      const lastPage = segments[segments.length - 1]?.page ?? firstPage;
       markers.push({
         id: m.id ?? "",
         source: "pdf",
         fileId: m.fileId ?? "",
         codes,
         meta: {
-          page: m.page,
-          fromLine: m.page,
-          toLine: m.page,
+          page: firstPage,
+          fromLine: firstPage,
+          toLine: lastPage,
           pdfText: m.text ?? "",
           ...(m.createdAt != null ? { createdAt: m.createdAt } : {}),
         },

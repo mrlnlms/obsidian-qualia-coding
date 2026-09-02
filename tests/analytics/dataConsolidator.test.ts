@@ -51,6 +51,39 @@ describe('consolidate', () => {
     expect(result.markers[0]!.meta?.pdfText).toBe('highlighted');
   });
 
+  it('consolidates a multipage PDF marker as one logical record', () => {
+    const pdfData = {
+      markers: [{
+        markerType: 'pdf' as const,
+        id: 'p-multipage',
+        fileId: 'doc.pdf',
+        codes: [{ codeId: 'codeB' }],
+        page: 6,
+        beginIndex: 4,
+        beginOffset: 2,
+        endIndex: 8,
+        endOffset: 5,
+        text: 'end of page six\fstart of page seven',
+        segments: [
+          { page: 6, beginIndex: 4, beginOffset: 2, endIndex: 8, endOffset: 5, text: 'end of page six' },
+          { page: 7, beginIndex: 0, beginOffset: 0, endIndex: 3, endOffset: 4, text: 'start of page seven' },
+        ],
+        createdAt: 1,
+        updatedAt: 1,
+      }],
+    };
+
+    const result = consolidate(null, null, null, pdfData);
+
+    expect(result.markers).toHaveLength(1);
+    expect(result.markers[0]!.meta).toMatchObject({
+      page: 6,
+      fromLine: 6,
+      toLine: 7,
+      pdfText: 'end of page six\fstart of page seven',
+    });
+  });
+
   it('consolidates a single CSV segment marker', () => {
     const csvData = {
       segmentMarkers: [

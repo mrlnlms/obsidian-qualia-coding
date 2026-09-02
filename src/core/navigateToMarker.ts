@@ -26,12 +26,17 @@ export async function navigateToMarker(
 	// Type guards narrowem pra adapter view shape (PdfBaseMarker etc) mas em runtime SC cache passa
 	// raw engine markers que não têm os campos view-only (startTime, rowIndex, columnId — esses
 	// só vêm de markerToBase). Fallback pros engine raw fields cobre os 2 caminhos.
-	const raw = marker as { from?: number; sourceRowId?: number; column?: string };
+	const raw = marker as {
+		from?: number;
+		sourceRowId?: number;
+		column?: string;
+		segments?: Array<{ page: number }>;
+	};
 
 	if (isPdfMarker(marker)) {
 		app.workspace.trigger('qualia-pdf:navigate', {
 			file: marker.fileId,
-			page: marker.page,
+			page: raw.segments?.[0]?.page ?? marker.page,
 		});
 		return;
 	}

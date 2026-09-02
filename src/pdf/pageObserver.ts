@@ -23,7 +23,7 @@ import { attachDragHandles } from './dragHandles';
 import { diagnosePendingTextSearch, isMarkerPending, resolvePendingIndicesInTextContentItems, resolvePendingIndicesWithDiagnostics, type PendingResolutionDiagnostics } from './resolvePendingIndices';
 import { getTextLayerInfo } from './pdfViewerAccess';
 import { visibilityEventBus } from '../core/visibilityEventBus';
-import { isMultipagePdfMarker } from './pdfMarkerSegments';
+import { getPdfMarkerSegments, isMultipagePdfMarker } from './pdfMarkerSegments';
 import { resolvePendingMultipageProjection } from './resolvePendingMultipage';
 
 export interface PageObserverCallbacks {
@@ -1262,7 +1262,7 @@ export class PdfPageObserver {
 		const markers = this.model.getMarkersForFile(filePath);
 		for (const m of markers) {
 			if (m.codes.some(app => codeIds.has(app.codeId))) {
-				pages.add(m.page);
+				for (const segment of getPdfMarkerSegments(m)) pages.add(segment.page);
 			}
 		}
 		return pages;
