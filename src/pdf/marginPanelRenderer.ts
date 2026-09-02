@@ -164,7 +164,6 @@ export function renderPdfMarginPanel(
 		dot.style.width = `${DOT_SIZE}px`;
 		dot.style.height = `${DOT_SIZE}px`;
 		dot.style.backgroundColor = rail.color;
-		dot.style.transform = `translateY(-${DOT_SIZE / 2}px)`;
 		panel.appendChild(dot);
 	}
 
@@ -201,7 +200,7 @@ export function renderPdfMarginPanel(
 }
 
 export function clearPdfMarginPanel(container: HTMLElement): void {
-	for (const panel of container.querySelectorAll(`.${PANEL_CLASS}`)) panel.remove();
+	for (const panel of Array.from(container.querySelectorAll(`.${PANEL_CLASS}`))) panel.remove();
 }
 
 export function applyHoverToMarginPanel(
@@ -211,7 +210,7 @@ export function applyHoverToMarginPanel(
 	const elements = container.querySelectorAll<HTMLElement>(
 		`.${PANEL_CLASS} [data-marker-id]`,
 	);
-	for (const element of elements) {
+	for (const element of Array.from(elements)) {
 		element.classList.toggle(
 			HOVERED_CLASS,
 			!!markerId && element.dataset.markerId === markerId,

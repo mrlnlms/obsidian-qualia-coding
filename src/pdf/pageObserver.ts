@@ -2,9 +2,8 @@
  * Manages the lifecycle of highlight rendering across PDF pages.
  * Listens for page render events and model changes to keep highlights in sync.
  *
- * Margin panels are rendered inside page divs (by marginPanelRenderer) and then
- * moved to an external overlay so they remain visible when the scroll container
- * is narrowed to make space for the panel.
+ * PDF pages publish local margin snapshots. The observer projects them into one
+ * document-level panel outside the scroll container, where labels are not clipped.
  */
 
 import type { PDFViewerChild, PDFPageView } from './pdfTypings';
@@ -13,11 +12,18 @@ import type { PdfMarker, PdfMarkerPageProjection, PdfMarkerRangeChanges, PdfShap
 import type { PdfViewState } from './pdfViewState';
 import { renderHighlightsForPage, clearHighlightsForPage, updateHighlightRectsForMarker, applyHoverToHighlights, showHandlesForMarker, type HighlightCallbacks } from './highlightRenderer';
 import {
-	renderMarginPanelForPage,
-	clearMarginPanelForPage,
 	applyHoverToMarginPanel,
+	clearPdfMarginPanel,
+	collectMarginPanelPageSnapshot,
+	pdfMarginPanelBarWidth,
+	renderPdfMarginPanel,
 	type MarginPanelOwnerLabel,
 } from './marginPanelRenderer';
+import {
+	buildPdfMarginPanelLayout,
+	type PdfMarginPagePlacement,
+	type PdfMarginPageSnapshot,
+} from './pdfMarginPanelLayout';
 import { renderDrawLayerForPage, clearDrawLayerForPage, applyHoverToDrawLayer, type DrawLayerCallbacks } from './drawLayer';
 import { attachDragHandles } from './dragHandles';
 import { diagnosePendingTextSearch, isMarkerPending, resolvePendingIndicesInTextContentItems, resolvePendingIndicesWithDiagnostics, type PendingResolutionDiagnostics } from './resolvePendingIndices';
@@ -223,6 +229,7 @@ export class PdfPageObserver {
 	private labelScroller: HTMLElement | null = null;
 	private scrollSyncCleanup: (() => void) | null = null;
 	private lastPaddingTotal = 0;
+	private marginPageSnapshots = new Map<number, PdfMarginPageSnapshot>();
 
 	constructor(
 		child: PDFViewerChild,
@@ -268,9 +275,8 @@ export class PdfPageObserver {
 		// Listen for hover state changes → apply/remove hover class on highlights + margin panel + draw layer + handles
 		this.hoverListener = (markerId) => {
 			applyHoverToHighlights(this.child.containerEl, markerId);
-			applyHoverToMarginPanel(this.child.containerEl, markerId);
 			applyHoverToDrawLayer(this.child.containerEl, markerId);
-			// Panels live in the overlay after being moved — apply hover there too
+			// The document-level margin panel lives only in the external overlay.
 			if (this.labelOverlay) {
 				applyHoverToMarginPanel(this.labelOverlay, markerId);
 			}
@@ -359,7 +365,7 @@ export class PdfPageObserver {
 			}
 		}
 
-		this.updateViewerPadding();
+		this.refreshMarginPanelLayout();
 	}
 
 	private renderPage(pageNumber: number): void {
@@ -624,32 +630,15 @@ export class PdfPageObserver {
 			(shape) => this.model.isMarkerEditable(shape),
 		);
 
-		// Clear stale overlay panel for this page before re-rendering
-		if (this.labelScroller) {
-			const stale = this.labelScroller.querySelector(`[data-page-number="${pageNumber}"]`);
-			if (stale) stale.remove();
-		}
-
-		renderMarginPanelForPage(
+		this.marginPageSnapshots.set(pageNumber, collectMarginPanelPageSnapshot(
 			pageView,
 			renderMarkers,
 			this.model.registry,
-			{
-				onLabelClick: this.callbacks.onMarkerClick,
-				onHover: (markerId, codeName) => this.model.setHoverState(markerId, codeName),
-			},
 			shapes,
 			(marker) => this.ownerLabelForMarker(marker),
 			(marker) => this.model.isMarkerEditable(marker),
-		);
-
-		// Tag the panel with page number so we can track it in the overlay
-		const panel = pageView.div.querySelector('.codemarker-pdf-margin-panel') as HTMLElement | null;
-		if (panel) {
-			panel.dataset.pageNumber = String(pageNumber);
-		}
-
-		this.updateViewerPadding();
+		));
+		this.refreshMarginPanelLayout();
 	}
 
 	private ownerLabelForMarker(marker: PdfMarker | PdfShapeMarker): MarginPanelOwnerLabel {
@@ -1073,22 +1062,20 @@ export class PdfPageObserver {
 	}
 
 	private clearAll(): void {
-		// Clear panels from overlay
-		if (this.labelScroller) {
-			this.labelScroller.innerHTML = '';
-		}
+		this.marginPageSnapshots.clear();
+		if (this.labelScroller) clearPdfMarginPanel(this.labelScroller);
 
 		const pagesCount = this.child.pdfViewer?.pagesCount;
-		if (!pagesCount) return;
-		for (let i = 1; i <= pagesCount; i++) {
-			const pageView = this.getPageView(i);
-			if (pageView) {
-				clearHighlightsForPage(pageView.div);
-				clearDrawLayerForPage(pageView.div);
-				clearMarginPanelForPage(pageView.div);
+		if (pagesCount) {
+			for (let i = 1; i <= pagesCount; i++) {
+				const pageView = this.getPageView(i);
+				if (pageView) {
+					clearHighlightsForPage(pageView.div);
+					clearDrawLayerForPage(pageView.div);
+				}
 			}
 		}
-		this.updateViewerPadding();
+		this.refreshMarginPanelLayout();
 	}
 
 	// ── Overlay Management ──
@@ -1162,77 +1149,58 @@ export class PdfPageObserver {
 		this.lastPaddingTotal = 0;
 	}
 
-	/**
-	 * Measure the widest margin panel, create/update the overlay,
-	 * move panels from page divs into the overlay, and shrink the
-	 * scroll container to make room.
-	 */
-	private updateViewerPadding(): void {
+	private refreshMarginPanelLayout(): void {
 		const dom = this.child.pdfViewer.dom;
 		const scrollContainer = dom?.viewerContainerEl;
-		const viewerEl = dom?.viewerEl;
-		if (!scrollContainer || !viewerEl) return;
+		if (!scrollContainer) return;
 
-		// Measure panel widths from both page divs (just rendered) and overlay (previously moved)
-		const panelsInPages = Array.from(viewerEl.querySelectorAll<HTMLElement>('.codemarker-pdf-margin-panel'));
-		const panelsInOverlay = this.labelScroller
-			? Array.from(this.labelScroller.querySelectorAll<HTMLElement>('.codemarker-pdf-margin-panel'))
-			: [];
-
-		let maxPanelWidth = 0;
-		for (const p of [...panelsInPages, ...panelsInOverlay]) {
-			const w = parseFloat(p.style.width) || 0;
-			if (w > maxPanelWidth) maxPanelWidth = w;
+		const pageViews = this.child.pdfViewer.pdfViewer?._pages ?? [];
+		const loadedPageNumbers = new Set<number>();
+		const placements: PdfMarginPagePlacement[] = [];
+		for (const pageView of pageViews) {
+			if (!pageView.div.dataset.loaded) continue;
+			loadedPageNumbers.add(pageView.id);
+			placements.push({
+				pageNumber: pageView.id,
+				topPx: pageView.div.offsetTop,
+				heightPx: pageView.div.offsetHeight,
+			});
 		}
 
-		// Total space: bars width + label area (120px max-width) + gap
-		const total = maxPanelWidth > 0 ? maxPanelWidth + 130 : 0;
+		for (const pageNumber of this.marginPageSnapshots.keys()) {
+			if (!loadedPageNumbers.has(pageNumber)) this.marginPageSnapshots.delete(pageNumber);
+		}
 
-		if (total > 0) {
-			// 1. Apply margin first so offsetLeft is correct when positioning overlay
-			const layoutChanged = total !== this.lastPaddingTotal;
-			if (layoutChanged) {
-				this.lastPaddingTotal = total;
-				scrollContainer.style.marginLeft = `${total}px`;
-				// Don't set explicit width — let flex/block layout determine it
-				// naturally (accounts for sidebar when thumbnails are open)
-			}
+		const snapshots = [...this.marginPageSnapshots.values()]
+			.sort((a, b) => a.pageNumber - b.pageNumber);
+		placements.sort((a, b) => a.pageNumber - b.pageNumber);
+		const rails = buildPdfMarginPanelLayout(snapshots, placements);
+		const barWidth = pdfMarginPanelBarWidth(rails);
+		const total = barWidth > 0 ? barWidth + 130 : 0;
 
-			// 2. Create/update overlay (reads scrollContainer.offsetLeft)
-			this.ensureLabelOverlay(total);
-
-			// 3. Move newly-rendered panels from page divs into the overlay
-			for (const panel of panelsInPages) {
-				const pageDiv = panel.parentElement;
-				if (!pageDiv) continue;
-				const pageNum = panel.dataset.pageNumber;
-				if (!pageNum) continue;
-
-				// Remove stale overlay panel for this page
-				const stale = this.labelScroller!.querySelector(`[data-page-number="${pageNum}"]`);
-				if (stale && stale !== panel) stale.remove();
-
-				// Reposition for overlay context:
-				// top = page's Y offset within the viewer (scroll-relative)
-				// height = page height
-				// right: 0 = bars flush against the overlay's right edge (adjacent to pages)
-				panel.style.top = `${pageDiv.offsetTop}px`;
-				panel.style.height = `${pageDiv.offsetHeight}px`;
-				panel.style.right = '0';
-
-				this.labelScroller!.appendChild(panel);
-			}
-
-			// 4. Trigger PDF.js resize only when layout changed
-			if (layoutChanged) {
-				window.dispatchEvent(new Event('resize'));
-			}
-		} else if (this.lastPaddingTotal !== 0) {
-			this.lastPaddingTotal = 0;
+		if (total === 0) {
+			const layoutChanged = this.lastPaddingTotal !== 0;
+			if (this.labelScroller) clearPdfMarginPanel(this.labelScroller);
 			this.destroyLabelOverlay();
 			scrollContainer.style.marginLeft = '';
-			window.dispatchEvent(new Event('resize'));
+			this.lastPaddingTotal = 0;
+			if (layoutChanged) window.dispatchEvent(new Event('resize'));
+			return;
 		}
+
+		const layoutChanged = total !== this.lastPaddingTotal;
+		if (layoutChanged) {
+			this.lastPaddingTotal = total;
+			scrollContainer.style.marginLeft = `${total}px`;
+		}
+		this.ensureLabelOverlay(total);
+		if (this.labelScroller) {
+			renderPdfMarginPanel(this.labelScroller, rails, {
+				onLabelClick: this.callbacks.onMarkerClick,
+				onHover: (markerId, codeName) => this.model.setHoverState(markerId, codeName),
+			});
+		}
+		if (layoutChanged) window.dispatchEvent(new Event('resize'));
 	}
 
 	/** Show/hide drag handles across all loaded pages for a given marker ID. */
