@@ -228,6 +228,8 @@ export class PdfPageObserver {
 	private labelOverlay: HTMLElement | null = null;
 	private labelScroller: HTMLElement | null = null;
 	private scrollSyncCleanup: (() => void) | null = null;
+	private viewerResizeHandler: (() => void) | null = null;
+	private layoutResizeObserver: ResizeObserver | null = null;
 	private lastPaddingTotal = 0;
 	private marginPageSnapshots = new Map<number, PdfMarginPageSnapshot>();
 
@@ -288,6 +290,20 @@ export class PdfPageObserver {
 		// Subscribe to visibility changes
 		this.unsubscribeVisibility = visibilityEventBus.subscribe((ids) => this.refreshVisibility(ids));
 
+		this.viewerResizeHandler = () => this.refreshMarginPanelLayout();
+		window.addEventListener('resize', this.viewerResizeHandler);
+		if (typeof ResizeObserver !== 'undefined') {
+			const dom = this.child.pdfViewer.dom;
+			const scrollContainer = dom?.viewerContainerEl;
+			const viewerEl = dom?.viewerEl;
+			this.layoutResizeObserver = new ResizeObserver(() => this.refreshMarginPanelLayout());
+			if (scrollContainer) this.layoutResizeObserver.observe(scrollContainer);
+			if (viewerEl) this.layoutResizeObserver.observe(viewerEl);
+			if (scrollContainer?.parentElement) {
+				this.layoutResizeObserver.observe(scrollContainer.parentElement);
+			}
+		}
+
 		// Render highlights on already-loaded pages
 		this.refreshAll();
 	}
@@ -319,6 +335,14 @@ export class PdfPageObserver {
 		if (this.unsubscribeVisibility) {
 			this.unsubscribeVisibility();
 			this.unsubscribeVisibility = null;
+		}
+		if (this.viewerResizeHandler) {
+			window.removeEventListener('resize', this.viewerResizeHandler);
+			this.viewerResizeHandler = null;
+		}
+		if (this.layoutResizeObserver) {
+			this.layoutResizeObserver.disconnect();
+			this.layoutResizeObserver = null;
 		}
 
 		// Cancel all pending page render timeouts
@@ -1112,6 +1136,7 @@ export class PdfPageObserver {
 				scroller.style.transform = `translateY(${-scrollContainer.scrollTop}px)`;
 			};
 			scrollContainer.addEventListener('scroll', onScroll);
+			onScroll();
 			this.scrollSyncCleanup = () => scrollContainer.removeEventListener('scroll', onScroll);
 
 			this.labelOverlay = overlay;
