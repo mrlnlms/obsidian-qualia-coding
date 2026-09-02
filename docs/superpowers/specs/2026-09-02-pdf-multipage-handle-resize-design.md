@@ -6,7 +6,7 @@
 >
 > Baseline: `26fc151`
 >
-> Estado: desenho aprovado; implementação ainda não iniciada.
+> Estado: concluído e validado em 2026-09-02.
 
 ## Contexto
 
@@ -259,6 +259,36 @@ No viewer real:
 8. confirmar ausência de handles e mutação em marker estrangeiro;
 9. repetir após zoom e scroll;
 10. confirmar que Markdown não mudou.
+
+## Resultado observado
+
+O checkpoint foi executado em um PDF separado dos arquivos importados, com
+marker criado diretamente no Qualia. Isso isolou o contrato dos handles das
+variáveis de importação, autoria externa e resolução QDPX. Após o roteiro de
+resize simples, travessia de páginas, retorno a marker simples, atualização da
+margin rail e persistência, o usuário confirmou que o fluxo funcionou
+corretamente. Nenhum defeito adicional foi observado nessa validação manual.
+
+A implementação mantém dois endpoints lógicos, deriva `segments[]` sem novo
+schema e confirma no `mouseup` a última geometria válida já apresentada. Preview
+não salva nem altera `updatedAt`; commit válido notifica e persiste uma vez;
+retorno à geometria original não cria commit. Blur, teardown ou perda de
+permissão restauram o original.
+
+Uma revisão independente do diff encontrou quatro bordas: cancelamento de drag,
+metadata de segmentos removidos temporariamente, rerender durante o gesto e
+commit de no-op. Depois das correções, a rechecagem revelou ainda interferência
+global entre duas views PDF; o controller de drag e o gate de render foram então
+isolados por observer e cobertos por regressão.
+
+Verificação final:
+
+- 127 testes focados em 14 arquivos;
+- 3.756 testes em 274 arquivos na suíte completa;
+- type-check e build de produção aprovados;
+- `git diff --check` aprovado;
+- nenhum diff em importer, exporter, Markdown ou `styles.css`;
+- nenhuma integração Atlas ou mudança da política visual da margin panel.
 
 ## Ordem do roadmap
 

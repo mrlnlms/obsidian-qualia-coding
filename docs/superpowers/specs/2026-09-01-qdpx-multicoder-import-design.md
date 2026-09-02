@@ -4,7 +4,7 @@
 >
 > Branch de partida: `fix/qdpx-atlas-page-anchoring`
 >
-> Estado: Marcos 1–4 concluídos em 2026-09-02; Marcos 5–7 permanecem abertos.
+> Estado: Marcos 1–5 concluídos em 2026-09-02; Marcos 6–7 permanecem abertos.
 
 ## Como retomar em outra sessão
 
@@ -137,7 +137,7 @@ coder. A identidade da Selection Atlas será preservada apenas como procedência
   por coder, com `segments[]`.
 - [x] **Marco 4:** entregar a margin panel mínima correta para multipágina e
   autoria.
-- [ ] **Marco 5:** completar handles e resize PDF simples/multipágina, incluindo
+- [x] **Marco 5:** completar handles e resize PDF simples/multipágina, incluindo
   feedback contínuo da margin panel.
 - [ ] **Marco 6:** exportar PDF simples e multipágina e validar o round-trip
   completo entre vaults Qualia/Obsidian.
@@ -482,15 +482,30 @@ mudança de redesign, exporter ou integração Atlas entrou no diff.
 Desenho detalhado aprovado em
 [`2026-09-02-pdf-multipage-handle-resize-design.md`](2026-09-02-pdf-multipage-handle-resize-design.md).
 
-- [ ] corrigir o resize simples para confirmar a última posição válida no
+- [x] corrigir o resize simples para confirmar a última posição válida no
   `mouseup`;
-- [ ] atualizar highlight, handles e margin rail durante o drag;
-- [ ] mostrar somente o handle inicial do primeiro segmento e o final do último;
-- [ ] permitir que ambos os endpoints atravessem páginas;
-- [ ] derivar `segments[]` automaticamente entre os endpoints;
-- [ ] converter marker simples em multipágina e multipágina em simples;
-- [ ] preservar ownership, read-only e persistência única ao soltar;
-- [ ] não iniciar exporter, Atlas ou redesign da margin panel.
+- [x] atualizar highlight, handles e margin rail durante o drag;
+- [x] mostrar somente o handle inicial do primeiro segmento e o final do último;
+- [x] permitir que ambos os endpoints atravessem páginas;
+- [x] derivar `segments[]` automaticamente entre os endpoints;
+- [x] converter marker simples em multipágina e multipágina em simples;
+- [x] preservar ownership, read-only e persistência única ao soltar;
+- [x] não iniciar exporter, Atlas ou redesign da margin panel.
+
+O Marco 5 foi validado no viewer real em um PDF separado dos artefatos
+importados, com marker criado diretamente no Qualia. O fluxo de resize e a
+conversão simples↔multipágina, incluindo feedback visual e margin rail, foram
+aprovados pelo usuário sem defeitos adicionais no checkpoint de uso observado.
+Essa escolha isolou deliberadamente a funcionalidade-base de qualquer efeito do
+importer.
+
+A revisão independente encontrou e levou à correção de cancelamento em
+`blur`/unload, preservação de metadata ao encolher e reexpandir no mesmo gesto,
+rerender concorrente do handle, commit de no-op e isolamento entre duas views
+PDF. O fechamento passou em 127 testes focados de 14 arquivos e em 3.756 testes
+da suíte completa de 274 arquivos, além de type-check, build e
+`git diff --check`. O diff não alterou importer, exporter, Markdown, CSS, Atlas
+ou a política visual da margin panel.
 
 ## Marco 6 — round-trip PDF completo Qualia↔Qualia
 
