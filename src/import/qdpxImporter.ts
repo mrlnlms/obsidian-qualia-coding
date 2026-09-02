@@ -28,6 +28,7 @@ import {
 import { atlasPdfTextRectToNormalized, offsetToLineCh, pdfRectToNormalized, pixelsToNormalized, msToSeconds } from './coordConverters';
 import { parseCodebook, applyCodebook, type ConflictStrategy } from './qdcImporter';
 import { loadPdfExportData } from '../pdf/pdfExportData';
+import { detectQdpxPdfMultipageGroups } from './qdpxMultipage';
 
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import type { VariableValue } from '../core/caseVariables/caseVariablesTypes';
@@ -615,39 +616,13 @@ function hasPdfSelectionBBox(sel: ParsedSelection): boolean {
 
 export function buildPdfMultipageFragmentHints(src: ParsedSource): Map<string, QdpxMultipageFragmentHint> {
 	const hints = new Map<string, QdpxMultipageFragmentHint>();
-	const textSelectionGuids = new Set(src.selections
-		.filter((sel) => sel.type === 'PlainTextSelection')
-		.map((sel) => sel.guid));
-	const groups = new Map<string, ParsedSelection[]>();
-
-	for (const sel of src.selections) {
-		if (sel.type !== 'PDFSelection' || !sel.guid || !sel.name || !sel.createdAt || sel.page === undefined) continue;
-		const normalizedName = sel.name.replace(/\s+/g, ' ').trim();
-		const codeKey = [...sel.codeGuids].sort().join(',');
-		const key = `${normalizedName}\u0000${sel.createdAt}\u0000${codeKey}`;
-		groups.set(key, [...(groups.get(key) ?? []), sel]);
-	}
-
-	for (const group of groups.values()) {
-		if (group.length < 2) continue;
-		const pages = group.map((sel) => sel.page!).sort((a, b) => a - b);
-		const pagesAreUniqueAndAdjacent = new Set(pages).size === pages.length
-			&& pages.every((page, index) => index === 0 || page === pages[index - 1]! + 1);
-		if (!pagesAreUniqueAndAdjacent) continue;
-
-		const anchors = group.filter((sel) => textSelectionGuids.has(sel.guid));
-		if (anchors.length !== 1) continue;
-		const anchor = anchors[0]!;
-		const relatedSelectionGuids = group
-			.map((sel) => sel.guid)
-			.sort((a, b) => (group.find((sel) => sel.guid === a)?.page ?? 0) - (group.find((sel) => sel.guid === b)?.page ?? 0));
-
-		for (const sel of group) {
+	for (const group of detectQdpxPdfMultipageGroups(src.selections)) {
+		for (const sel of group.fragments) {
 			hints.set(sel.guid, {
 				source: 'qdpx-multipage-fragment',
-				groupId: anchor.guid,
-				role: sel.guid === anchor.guid ? 'anchor' : 'continuation',
-				relatedSelectionGuids,
+				groupId: group.anchorGuid,
+				role: sel.guid === group.anchorGuid ? 'anchor' : 'continuation',
+				relatedSelectionGuids: group.selectionGuids,
 			});
 		}
 	}

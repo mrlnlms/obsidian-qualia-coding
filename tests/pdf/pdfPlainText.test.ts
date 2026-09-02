@@ -75,4 +75,12 @@ describe('buildPlainText', () => {
 		const { plainText } = await buildPlainText(makeDoc([['hello  world', 'foo']]));
 		expect(plainText).toBe('hello  world foo');
 	});
+
+	it('retém os text items por página no mesmo passe de extração', async () => {
+		const result = await buildPlainText(makeDoc([[' page one '], ['page', 'two']]));
+		expect(result.pageTextItems).toEqual([
+			[{ str: ' page one ' }],
+			[{ str: 'page' }, { str: 'two' }],
+		]);
+	});
 });

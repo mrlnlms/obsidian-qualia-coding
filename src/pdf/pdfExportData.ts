@@ -12,6 +12,7 @@ import { buildPlainText } from './pdfPlainText';
 export interface PdfExportData {
 	plainText: string;
 	pageStartOffsets: number[];
+	pageTextItems: Array<Array<{ str?: string }>>;
 	pageDims: Record<number, { width: number; height: number }>;
 }
 
@@ -65,9 +66,9 @@ export async function loadPdfExportData(
 			pageDims[i - 1] = { width: viewport.width, height: viewport.height };
 		}
 
-		const { plainText, pageStartOffsets } = await buildPlainText(doc);
+		const { plainText, pageStartOffsets, pageTextItems } = await buildPlainText(doc);
 
-		return { plainText, pageStartOffsets, pageDims };
+		return { plainText, pageStartOffsets, pageTextItems, pageDims };
 	} finally {
 		if (typeof doc.destroy === 'function') await doc.destroy();
 	}

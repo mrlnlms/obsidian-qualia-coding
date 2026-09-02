@@ -24,16 +24,20 @@ export interface PlainTextResult {
 	plainText: string;
 	/** Offset (inclusive) where each page begins in plainText. Length === numPages. */
 	pageStartOffsets: number[];
+	/** Raw PDF.js text items, indexed by zero-based PDF page. */
+	pageTextItems: Array<Array<{ str?: string }>>;
 }
 
 export async function buildPlainText(doc: PdfLikeDocument): Promise<PlainTextResult> {
 	const pageStartOffsets: number[] = [];
+	const pageTextItems: Array<Array<{ str?: string }>> = [];
 	let plainText = '';
 
 	for (let i = 1; i <= doc.numPages; i++) {
 		pageStartOffsets.push(plainText.length);
 		const page = await doc.getPage(i);
 		const content = await page.getTextContent();
+		pageTextItems.push(content.items.map((item) => ({ str: item.str })));
 		// Strip leading/trailing whitespace from each item so that items with
 		// embedded padding (e.g. "Language: " + " Evaluating") don't produce
 		// double spaces after join. Matches the Obsidian DOM text layer, which
@@ -46,5 +50,5 @@ export async function buildPlainText(doc: PdfLikeDocument): Promise<PlainTextRes
 		if (i < doc.numPages) plainText += '\f';
 	}
 
-	return { plainText, pageStartOffsets };
+	return { plainText, pageStartOffsets, pageTextItems };
 }
