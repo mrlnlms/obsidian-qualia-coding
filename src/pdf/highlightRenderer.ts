@@ -459,8 +459,9 @@ export function updateHighlightProjectionForMarker(
 	isEditable: boolean,
 ): MarkerRenderInfo | null {
 	const pageDiv = pageView.div;
-	const layer = pageDiv.querySelector<HTMLElement>(`.${HIGHLIGHT_LAYER_CLASS}`);
-	if (!layer) return null;
+	const existingLayer = pageDiv.querySelector<HTMLElement>(`.${HIGHLIGHT_LAYER_CLASS}`);
+	if (!projection && !existingLayer) return null;
+	const layer = existingLayer ?? getOrCreateHighlightLayer(pageDiv);
 
 	// Remove old rects for this marker (but NOT handles)
 	const oldRects = layer.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_CLASS}[data-marker-id="${markerId}"]`);

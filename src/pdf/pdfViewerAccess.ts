@@ -109,3 +109,52 @@ export function getTextLayerInfo(pageView: PDFPageView): TextLayerInfo | null {
 export function getPageNumber(pageEl: HTMLElement): number {
 	return parseInt(pageEl.getAttribute('data-page-number') ?? '0', 10);
 }
+
+export interface PdfTextLayerHit {
+	index: number;
+	offset: number;
+}
+
+/** Convert a client coordinate to a text-layer index/offset on one PDF page. */
+export function hitTestPdfTextLayer(
+	pageView: PDFPageView,
+	clientX: number,
+	clientY: number,
+): PdfTextLayerHit | null {
+	if (!getTextLayerInfo(pageView)) return null;
+
+	let node: Node | null = null;
+	let offsetInNode = 0;
+	if ('caretPositionFromPoint' in document) {
+		const position = (document as Document & {
+			caretPositionFromPoint(x: number, y: number): { offsetNode: Node; offset: number } | null;
+		}).caretPositionFromPoint(clientX, clientY);
+		if (position) {
+			node = position.offsetNode;
+			offsetInNode = position.offset;
+		}
+	} else if ('caretRangeFromPoint' in document) {
+		const range = (document as Document & {
+			caretRangeFromPoint(x: number, y: number): Range | null;
+		}).caretRangeFromPoint(clientX, clientY);
+		if (range) {
+			node = range.startContainer;
+			offsetInNode = range.startOffset;
+		}
+	}
+	if (!node) return null;
+
+	const textLayerNode = getTextLayerNode(pageView.div, node);
+	if (!textLayerNode) return null;
+	const idxAttr = textLayerNode.getAttribute('data-idx');
+	let index = idxAttr === null ? -1 : Number.parseInt(idxAttr, 10);
+	if (idxAttr === null) {
+		const parent = textLayerNode.parentElement;
+		if (!parent) return null;
+		index = Array.from(parent.querySelectorAll('.textLayerNode')).indexOf(textLayerNode);
+	}
+	if (!Number.isInteger(index) || index < 0) return null;
+
+	const offset = getOffsetInTextLayerNode(textLayerNode, node, offsetInNode);
+	return offset === null ? null : { index, offset };
+}

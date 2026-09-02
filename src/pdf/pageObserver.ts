@@ -10,7 +10,7 @@ import type { PDFViewerChild, PDFPageView } from './pdfTypings';
 import type { PdfCodingModel } from './pdfCodingModel';
 import type { PdfMarker, PdfMarkerPageProjection, PdfMarkerRangeChanges, PdfShapeMarker } from './pdfCodingTypes';
 import type { PdfViewState } from './pdfViewState';
-import { renderHighlightsForPage, clearHighlightsForPage, updateHighlightRectsForMarker, applyHoverToHighlights, showHandlesForMarker, type HighlightCallbacks } from './highlightRenderer';
+import { renderHighlightsForPage, clearHighlightsForPage, updateHighlightProjectionForMarker, moveHandleToRenderInfo, applyHoverToHighlights, showHandlesForMarker, type HighlightCallbacks } from './highlightRenderer';
 import {
 	applyHoverToMarginPanel,
 	clearPdfMarginPanel,
@@ -25,12 +25,21 @@ import {
 	type PdfMarginPageSnapshot,
 } from './pdfMarginPanelLayout';
 import { renderDrawLayerForPage, clearDrawLayerForPage, applyHoverToDrawLayer, type DrawLayerCallbacks } from './drawLayer';
-import { attachDragHandles } from './dragHandles';
+import { attachLogicalDragHandles, logicalHandleOptions, type PdfDocumentHit } from './dragHandles';
 import { diagnosePendingTextSearch, isMarkerPending, resolvePendingIndicesInTextContentItems, resolvePendingIndicesWithDiagnostics, type PendingResolutionDiagnostics } from './resolvePendingIndices';
-import { getTextLayerInfo } from './pdfViewerAccess';
+import { getTextLayerInfo, hitTestPdfTextLayer } from './pdfViewerAccess';
 import { visibilityEventBus } from '../core/visibilityEventBus';
-import { getPdfMarkerSegments, isMultipagePdfMarker } from './pdfMarkerSegments';
+import { getPdfMarkerSegments, isMultipagePdfMarker, projectPdfMarkerToPage } from './pdfMarkerSegments';
 import { resolvePendingMultipageProjection } from './resolvePendingMultipage';
+import {
+	buildPdfMarkerGeometry,
+	comparePdfDocumentEndpoints,
+	getPdfMarkerEndpoints,
+	getPdfMarkerGeometry,
+	pdfMarkerGeometryPages,
+	type PdfMarkerGeometry,
+	type PdfResizePageText,
+} from './pdfMarkerResize';
 
 export interface PageObserverCallbacks {
 	onMarkerClick: (markerId: string, codeName: string) => void;
@@ -616,21 +625,19 @@ export class PdfPageObserver {
 		);
 		this.auditMarkerCoverageForPage(filePath, pageNumber, pageView, renderMarkers);
 
-		// Attach drag handles to each rendered marker
+		// Attach the logical start/end handles represented by this page projection.
 		for (const info of renderInfos) {
 			if (!this.model.canResizeMarker(info.marker)) continue;
-			attachDragHandles(info, pageView, {
-				onRangeUpdate: (markerId, changes) => {
-					this.model.updateMarkerRange(markerId, changes);
+			const options = logicalHandleOptions(info.marker as PdfMarkerPageProjection);
+			if (!options.start && !options.end) continue;
+			attachLogicalDragHandles(info, pageView, options, {
+				resolveHit: (clientX, clientY) => this.resolveDocumentHit(clientX, clientY),
+				buildGeometry: (markerId, type, hit) => this.buildDragGeometry(markerId, type, hit),
+				onGeometryPreview: (markerId, geometry, type, handle) => {
+					this.previewDragGeometry(markerId, geometry, type, handle);
 				},
-				onRangePreview: (markerId, changes) => {
-					// Silent update (no save/notify) + partial re-render (rects only, handles preserved)
-					this.model.updateMarkerRangeSilent(markerId, changes);
-					const marker = this.model.findMarkerById(markerId);
-					if (marker) {
-						updateHighlightRectsForMarker(pageView, marker, this.model.registry, filePath);
-					}
-				},
+				onGeometryCommit: (markerId, geometry) => this.commitDragGeometry(markerId, geometry),
+				onGeometryRestore: (markerId, geometry) => this.restoreDragGeometry(markerId, geometry),
 				onHandleHover: (markerId) => {
 					this.model.setHoverState(markerId, null);
 				},
@@ -663,6 +670,112 @@ export class PdfPageObserver {
 			(marker) => this.model.isMarkerEditable(marker),
 		));
 		this.refreshMarginPanelLayout();
+	}
+
+	private resolveDocumentHit(clientX: number, clientY: number): PdfDocumentHit | null {
+		const pages = this.child.pdfViewer.pdfViewer?._pages ?? [];
+		for (const pageView of pages) {
+			if (!pageView.div.dataset.loaded) continue;
+			const bounds = pageView.div.getBoundingClientRect();
+			if (clientX < bounds.left || clientX > bounds.right
+				|| clientY < bounds.top || clientY > bounds.bottom) continue;
+			const hit = hitTestPdfTextLayer(pageView, clientX, clientY);
+			if (!hit) return null;
+			return {
+				endpoint: { page: pageView.id, index: hit.index, offset: hit.offset },
+				pageView,
+			};
+		}
+		return null;
+	}
+
+	private buildDragGeometry(
+		markerId: string,
+		type: 'start' | 'end',
+		hit: PdfDocumentHit,
+	): PdfMarkerGeometry | null {
+		const marker = this.model.findMarkerById(markerId);
+		if (!marker) return null;
+		const current = getPdfMarkerEndpoints(marker);
+		const start = type === 'start' ? hit.endpoint : current.start;
+		const end = type === 'end' ? hit.endpoint : current.end;
+		if (comparePdfDocumentEndpoints(start, end) >= 0) return null;
+
+		const pages: PdfResizePageText[] = [];
+		for (let pageNumber = start.page; pageNumber <= end.page; pageNumber++) {
+			const pageView = this.getPageView(pageNumber);
+			const textLayerInfo = pageView ? getTextLayerInfo(pageView) : null;
+			if (!textLayerInfo) return null;
+			pages.push({ page: pageNumber, items: textLayerInfo.textContentItems });
+		}
+		return buildPdfMarkerGeometry(marker, start, end, pages);
+	}
+
+	private previewDragGeometry(
+		markerId: string,
+		geometry: PdfMarkerGeometry,
+		type: 'start' | 'end',
+		handle: HTMLElement,
+	): void {
+		const marker = this.model.findMarkerById(markerId);
+		const filePath = this.child.file?.path;
+		if (!marker || !filePath) return;
+		const previous = getPdfMarkerGeometry(marker);
+		if (!this.model.previewMarkerGeometry(markerId, geometry)) return;
+
+		const affectedPages = new Set([
+			...pdfMarkerGeometryPages(previous),
+			...pdfMarkerGeometryPages(geometry),
+		]);
+		const endpointPage = type === 'start'
+			? geometry.page
+			: geometry.segments?.[geometry.segments.length - 1]?.page ?? geometry.page;
+		let endpointInfo = null;
+
+		for (const pageNumber of affectedPages) {
+			const pageView = this.getPageView(pageNumber);
+			if (!pageView?.div.dataset.loaded) continue;
+			const projection = projectPdfMarkerToPage(marker, pageNumber)[0] ?? null;
+			const info = updateHighlightProjectionForMarker(
+				pageView,
+				markerId,
+				projection,
+				this.model.registry,
+				filePath,
+				this.model.isMarkerEditable(marker),
+			);
+			if (pageNumber === endpointPage) endpointInfo = info;
+			this.refreshMarginSnapshotForPage(pageNumber);
+		}
+
+		this.refreshMarginPanelLayout();
+		if (endpointInfo) moveHandleToRenderInfo(handle, endpointInfo, type);
+	}
+
+	private commitDragGeometry(markerId: string, geometry: PdfMarkerGeometry): boolean {
+		return this.model.commitMarkerGeometry(markerId, geometry);
+	}
+
+	private restoreDragGeometry(markerId: string, geometry: PdfMarkerGeometry): void {
+		if (!this.model.restoreMarkerGeometry(markerId, geometry)) return;
+		this.refreshAll();
+	}
+
+	private refreshMarginSnapshotForPage(pageNumber: number): void {
+		const filePath = this.child.file?.path;
+		const pageView = this.getPageView(pageNumber);
+		if (!filePath || !pageView?.div.dataset.loaded) return;
+		const markers = this.model.getMarkerPageProjections(filePath, pageNumber)
+			.filter((marker) => marker.page === pageNumber);
+		const shapes = this.model.getShapesForPage(filePath, pageNumber);
+		this.marginPageSnapshots.set(pageNumber, collectMarginPanelPageSnapshot(
+			pageView,
+			markers,
+			this.model.registry,
+			shapes,
+			(marker) => this.ownerLabelForMarker(marker),
+			(marker) => this.model.isMarkerEditable(marker),
+		));
 	}
 
 	private ownerLabelForMarker(marker: PdfMarker | PdfShapeMarker): MarginPanelOwnerLabel {

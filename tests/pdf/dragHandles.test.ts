@@ -126,4 +126,25 @@ describe('logical PDF drag handles', () => {
 		document.dispatchEvent(new MouseEvent('mousemove', { clientX: 30, clientY: 40 }));
 		expect(cb.resolveHit).toHaveBeenCalledTimes(1);
 	});
+
+	it('restores the original geometry when permission changes before commit', () => {
+		const candidate: PdfMarkerGeometry = {
+			page: 1, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 8, text: 'alpha be',
+		};
+		const cb = callbacks({
+			resolveHit: vi.fn().mockReturnValue({
+				endpoint: { page: 1, index: 0, offset: 8 }, pageView: {},
+			}),
+			buildGeometry: vi.fn().mockReturnValue(candidate),
+			onGeometryCommit: vi.fn().mockReturnValue(false),
+		});
+		attachLogicalDragHandles(renderInfo(), {} as any, { start: false, end: true }, cb);
+		const handle = document.querySelector<HTMLElement>('.codemarker-pdf-handle-end')!;
+		handle.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		document.dispatchEvent(new MouseEvent('mousemove'));
+		document.dispatchEvent(new MouseEvent('mouseup'));
+		expect(cb.onGeometryRestore).toHaveBeenCalledWith(
+			'marker-1', expect.objectContaining({ endOffset: 5, text: 'alpha' }),
+		);
+	});
 });
