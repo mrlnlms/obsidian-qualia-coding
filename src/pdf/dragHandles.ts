@@ -8,9 +8,16 @@
  */
 
 import type { PDFPageView } from './pdfTypings';
-import type { PdfMarker } from './pdfCodingTypes';
+import type { PdfMarker, PdfMarkerPageProjection } from './pdfCodingTypes';
 import { getTextLayerInfo, getTextLayerNode, getOffsetInTextLayerNode } from './pdfViewerAccess';
 import type { MarkerRenderInfo } from './highlightRenderer';
+import {
+	acceptPdfMarkerDragGeometry,
+	beginPdfMarkerDrag,
+	finishPdfMarkerDrag,
+	type PdfDocumentEndpoint,
+	type PdfMarkerGeometry,
+} from './pdfMarkerResize';
 
 // ── Proportional sizing (matches markdown ratios) ──
 // Markdown: ballSize = fontSize * 0.75, barW = fontSize * 0.125, barL = lineHeight * 1.1
@@ -40,7 +47,7 @@ const HANDLE_CLASS = 'codemarker-pdf-handle';
 const HANDLE_START_CLASS = 'codemarker-pdf-handle-start';
 const HANDLE_END_CLASS = 'codemarker-pdf-handle-end';
 
-export interface DragHandleCallbacks {
+interface RangeDragHandleCallbacks {
 	onRangeUpdate: (markerId: string, changes: {
 		beginIndex?: number; beginOffset?: number;
 		endIndex?: number; endOffset?: number;
@@ -56,13 +63,42 @@ export interface DragHandleCallbacks {
 	onHandleHover?: (markerId: string | null) => void;
 }
 
+export interface PdfDocumentHit {
+	endpoint: PdfDocumentEndpoint;
+	pageView: PDFPageView;
+}
+
+export interface LogicalHandleOptions {
+	start: boolean;
+	end: boolean;
+}
+
+export interface DragHandleCallbacks {
+	resolveHit: (clientX: number, clientY: number) => PdfDocumentHit | null;
+	buildGeometry: (
+		markerId: string,
+		type: 'start' | 'end',
+		hit: PdfDocumentHit,
+	) => PdfMarkerGeometry | null;
+	onGeometryPreview: (
+		markerId: string,
+		geometry: PdfMarkerGeometry,
+		type: 'start' | 'end',
+		handle: HTMLElement,
+	) => void;
+	onGeometryCommit: (markerId: string, geometry: PdfMarkerGeometry) => void;
+	onGeometryRestore: (markerId: string, geometry: PdfMarkerGeometry) => void;
+	onDragStateChange?: (isDragging: boolean) => void;
+	onHandleHover?: (markerId: string | null) => void;
+}
+
 /**
  * Attach drag handles to a rendered marker's first and last highlight rects.
  */
 export function attachDragHandles(
 	info: MarkerRenderInfo,
 	pageView: PDFPageView,
-	callbacks: DragHandleCallbacks,
+	callbacks: RangeDragHandleCallbacks,
 ): void {
 	const { marker, firstRectEl, lastRectEl } = info;
 	const layer = firstRectEl.parentElement;
@@ -114,6 +150,72 @@ export function attachDragHandles(
 	// Drag interactions
 	setupDrag(startHandle, 'start', marker, pageView, callbacks);
 	setupDrag(endHandle, 'end', marker, pageView, callbacks);
+}
+
+export function logicalHandleOptions(
+	projection: PdfMarkerPageProjection,
+): LogicalHandleOptions {
+	return {
+		start: projection.renderSegmentIndex === 0,
+		end: projection.renderSegmentIndex === projection.renderSegmentCount - 1,
+	};
+}
+
+/** Attach only the logical endpoint roles represented by this page projection. */
+export function attachLogicalDragHandles(
+	info: MarkerRenderInfo,
+	_pageView: PDFPageView,
+	options: LogicalHandleOptions,
+	callbacks: DragHandleCallbacks,
+): void {
+	const { marker, firstRectEl } = info;
+	const layer = firstRectEl.parentElement;
+	if (!layer) return;
+
+	const handles: HTMLElement[] = [];
+	if (options.start) {
+		const handle = createAttachedHandle('start', info, layer);
+		handles.push(handle);
+		setupLogicalDrag(handle, 'start', marker, callbacks);
+	}
+	if (options.end) {
+		const handle = createAttachedHandle('end', info, layer);
+		handles.push(handle);
+		setupLogicalDrag(handle, 'end', marker, callbacks);
+	}
+
+	const keepVisible = () => {
+		for (const handle of Array.from(layer.querySelectorAll<HTMLElement>(
+			`.${HANDLE_CLASS}[data-marker-id="${marker.id}"]`,
+		))) handle.classList.add('codemarker-pdf-handle-visible');
+	};
+	for (const handle of handles) {
+		handle.addEventListener('mouseenter', keepVisible);
+		if (callbacks.onHandleHover) {
+			handle.addEventListener('mouseenter', () => callbacks.onHandleHover!(marker.id));
+			handle.addEventListener('mouseleave', () => {
+				if (!document.body.classList.contains('codemarker-pdf-dragging')) {
+					callbacks.onHandleHover!(null);
+				}
+			});
+		}
+	}
+}
+
+function createAttachedHandle(
+	type: 'start' | 'end',
+	info: MarkerRenderInfo,
+	layer: HTMLElement,
+): HTMLElement {
+	const rect = type === 'start' ? info.firstRectEl : info.lastRectEl;
+	const sizes = computeSizes(rect);
+	const handle = createHandleSvg(type, info.color, sizes);
+	handle.classList.add(HANDLE_CLASS, type === 'start' ? HANDLE_START_CLASS : HANDLE_END_CLASS);
+	handle.dataset.markerId = info.marker.id;
+	handle.dataset.handleType = type;
+	positionHandle(handle, rect, type, sizes);
+	layer.appendChild(handle);
+	return handle;
 }
 
 // ── SVG Handle Creation ──
@@ -209,7 +311,7 @@ function setupDrag(
 	type: 'start' | 'end',
 	marker: PdfMarker,
 	pageView: PDFPageView,
-	callbacks: DragHandleCallbacks,
+	callbacks: RangeDragHandleCallbacks,
 ): void {
 	handle.addEventListener('mousedown', (e) => {
 		e.preventDefault();
@@ -291,6 +393,51 @@ function setupDrag(
 					text: newText ?? marker.text,
 				});
 			}
+		};
+
+		document.addEventListener('mousemove', onMove);
+		document.addEventListener('mouseup', onUp);
+	});
+}
+
+function setupLogicalDrag(
+	handle: HTMLElement,
+	type: 'start' | 'end',
+	marker: PdfMarker,
+	callbacks: DragHandleCallbacks,
+): void {
+	handle.addEventListener('mousedown', (event) => {
+		event.preventDefault();
+		event.stopPropagation();
+
+		const transaction = beginPdfMarkerDrag(marker);
+		document.body.classList.add('codemarker-pdf-dragging');
+		callbacks.onDragStateChange?.(true);
+		let lastMoveTime = 0;
+
+		const onMove = (moveEvent: MouseEvent) => {
+			moveEvent.preventDefault();
+			const now = Date.now();
+			if (now - lastMoveTime < 16) return;
+			lastMoveTime = now;
+
+			const hit = callbacks.resolveHit(moveEvent.clientX, moveEvent.clientY);
+			if (!hit) return;
+			const geometry = callbacks.buildGeometry(marker.id, type, hit);
+			if (!geometry) return;
+			acceptPdfMarkerDragGeometry(transaction, geometry);
+			callbacks.onGeometryPreview(marker.id, geometry, type, handle);
+		};
+
+		const onUp = () => {
+			document.removeEventListener('mousemove', onMove);
+			document.removeEventListener('mouseup', onUp);
+			document.body.classList.remove('codemarker-pdf-dragging');
+			callbacks.onDragStateChange?.(false);
+
+			const geometry = finishPdfMarkerDrag(transaction);
+			if (geometry) callbacks.onGeometryCommit(marker.id, geometry);
+			else callbacks.onGeometryRestore(marker.id, transaction.originalGeometry);
 		};
 
 		document.addEventListener('mousemove', onMove);

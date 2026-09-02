@@ -64,13 +64,14 @@ export function getPdfMarkerEndpoints(marker: PdfMarker): {
 }
 
 export function getPdfMarkerGeometry(marker: PdfMarker): PdfMarkerGeometry {
+	const first = marker.segments?.[0];
 	return {
-		page: marker.page,
-		beginIndex: marker.beginIndex,
-		beginOffset: marker.beginOffset,
-		endIndex: marker.endIndex,
-		endOffset: marker.endOffset,
-		text: marker.text,
+		page: first?.page ?? marker.page,
+		beginIndex: first?.beginIndex ?? marker.beginIndex,
+		beginOffset: first?.beginOffset ?? marker.beginOffset,
+		endIndex: first?.endIndex ?? marker.endIndex,
+		endOffset: first?.endOffset ?? marker.endOffset,
+		text: marker.segments ? joinPdfMarkerSegmentText(marker.segments) : marker.text,
 		segments: marker.segments?.map((segment) => ({ ...segment })),
 	};
 }

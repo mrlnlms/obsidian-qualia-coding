@@ -6,6 +6,7 @@ import {
 	buildPdfMarkerGeometry,
 	comparePdfDocumentEndpoints,
 	finishPdfMarkerDrag,
+	getPdfMarkerGeometry,
 	getPdfMarkerEndpoints,
 	pdfMarkerGeometryPages,
 	type PdfResizePageText,
@@ -149,6 +150,21 @@ describe('PDF marker resize geometry', () => {
 			...logical,
 			segments: logical.segments,
 		})]).toEqual([1, 2]);
+
+		const lastPageProjection = {
+			...logical,
+			page: 2,
+			beginIndex: 0,
+			beginOffset: 0,
+			endIndex: 0,
+			endOffset: 6,
+			text: 'middle',
+		};
+		expect(getPdfMarkerGeometry(lastPageProjection)).toMatchObject({
+			page: 1,
+			beginOffset: 2,
+			text: 'pha beta\fmiddle',
+		});
 	});
 
 	it('commits only a detached last-valid drag geometry', () => {
