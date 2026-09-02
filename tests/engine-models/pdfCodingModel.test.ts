@@ -530,7 +530,7 @@ describe('updateMarkerRange', () => {
 		// Should not throw
 	});
 
-	it('blocks scalar resize for logical multipage markers', () => {
+	it('blocks legacy scalar mutation while allowing logical multipage resize', () => {
 		const marker = model.findOrCreateMarkerFromSegments('doc.pdf', [
 			{ file: 'doc.pdf', page: 6, beginIndex: 1, beginOffset: 2, endIndex: 3, endOffset: 4, text: 'first' },
 			{ file: 'doc.pdf', page: 7, beginIndex: 5, beginOffset: 6, endIndex: 7, endOffset: 8, text: 'second' },
@@ -542,7 +542,7 @@ describe('updateMarkerRange', () => {
 		expect(marker.segments).toEqual(before);
 		expect(marker.endOffset).toBe(before![0]!.endOffset);
 		expect(marker.text).toBe('first\fsecond');
-		expect(model.canResizeMarker(marker)).toBe(false);
+		expect(model.canResizeMarker(marker)).toBe(true);
 	});
 });
 

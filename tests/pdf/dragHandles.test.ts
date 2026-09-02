@@ -58,6 +58,7 @@ function callbacks(overrides: Partial<DragHandleCallbacks> = {}): DragHandleCall
 }
 
 afterEach(() => {
+	window.dispatchEvent(new Event('blur'));
 	document.body.replaceChildren();
 	vi.restoreAllMocks();
 });
@@ -146,5 +147,30 @@ describe('logical PDF drag handles', () => {
 		expect(cb.onGeometryRestore).toHaveBeenCalledWith(
 			'marker-1', expect.objectContaining({ endOffset: 5, text: 'alpha' }),
 		);
+	});
+
+	it('cancels and restores an active preview when the window loses the gesture', () => {
+		const candidate: PdfMarkerGeometry = {
+			page: 1, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 8, text: 'alpha be',
+		};
+		const cb = callbacks({
+			resolveHit: vi.fn().mockReturnValue({
+				endpoint: { page: 1, index: 0, offset: 8 }, pageView: {},
+			}),
+			buildGeometry: vi.fn().mockReturnValue(candidate),
+		});
+		attachLogicalDragHandles(renderInfo(), {} as any, { start: false, end: true }, cb);
+		const handle = document.querySelector<HTMLElement>('.codemarker-pdf-handle-end')!;
+		handle.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		document.dispatchEvent(new MouseEvent('mousemove'));
+		window.dispatchEvent(new Event('blur'));
+
+		expect(cb.onGeometryRestore).toHaveBeenCalledWith(
+			'marker-1', expect.objectContaining({ endOffset: 5, text: 'alpha' }),
+		);
+		expect(cb.onGeometryCommit).not.toHaveBeenCalled();
+		expect(document.body.classList.contains('codemarker-pdf-dragging')).toBe(false);
+		document.dispatchEvent(new MouseEvent('mousemove'));
+		expect(cb.resolveHit).toHaveBeenCalledTimes(1);
 	});
 });

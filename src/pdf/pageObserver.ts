@@ -232,6 +232,7 @@ export class PdfPageObserver {
 	private pendingTextLayerRetryCounts = new Map<string, number>();
 	private started = false;
 	private unsubscribeVisibility: (() => void) | null = null;
+	private activeDragCancel: (() => void) | null = null;
 
 	// Overlay for margin panels (lives outside the scroll container so labels aren't clipped)
 	private labelOverlay: HTMLElement | null = null;
@@ -320,6 +321,8 @@ export class PdfPageObserver {
 	stop(): void {
 		if (!this.started) return;
 		this.started = false;
+		this.activeDragCancel?.();
+		this.activeDragCancel = null;
 
 		if (this.changeListener) {
 			this.model.offChange(this.changeListener);
@@ -402,6 +405,9 @@ export class PdfPageObserver {
 	}
 
 	private renderPage(pageNumber: number): void {
+		// A full render replaces the layer containing the active handle. The commit
+		// or restore at gesture end performs the canonical full refresh instead.
+		if (this.activeDragCancel) return;
 		const filePath = this.child.file?.path;
 		if (!filePath) return;
 
@@ -632,12 +638,16 @@ export class PdfPageObserver {
 			if (!options.start && !options.end) continue;
 			attachLogicalDragHandles(info, pageView, options, {
 				resolveHit: (clientX, clientY) => this.resolveDocumentHit(clientX, clientY),
-				buildGeometry: (markerId, type, hit) => this.buildDragGeometry(markerId, type, hit),
+				buildGeometry: (markerId, type, hit, original) => this.buildDragGeometry(markerId, type, hit, original),
 				onGeometryPreview: (markerId, geometry, type, handle) => {
 					this.previewDragGeometry(markerId, geometry, type, handle);
 				},
 				onGeometryCommit: (markerId, geometry) => this.commitDragGeometry(markerId, geometry),
 				onGeometryRestore: (markerId, geometry) => this.restoreDragGeometry(markerId, geometry),
+				onDragStateChange: (isDragging, cancel) => {
+					if (isDragging) this.activeDragCancel = cancel;
+					else if (this.activeDragCancel === cancel) this.activeDragCancel = null;
+				},
 				onHandleHover: (markerId) => {
 					this.model.setHoverState(markerId, null);
 				},
@@ -693,10 +703,16 @@ export class PdfPageObserver {
 		markerId: string,
 		type: 'start' | 'end',
 		hit: PdfDocumentHit,
+		originalGeometry?: PdfMarkerGeometry,
 	): PdfMarkerGeometry | null {
 		const marker = this.model.findMarkerById(markerId);
 		if (!marker) return null;
-		const current = getPdfMarkerEndpoints(marker);
+		const geometrySource: PdfMarker = originalGeometry ? {
+			...marker,
+			...originalGeometry,
+			segments: originalGeometry.segments?.map((segment) => ({ ...segment })),
+		} : marker;
+		const current = getPdfMarkerEndpoints(geometrySource);
 		const start = type === 'start' ? hit.endpoint : current.start;
 		const end = type === 'end' ? hit.endpoint : current.end;
 		if (comparePdfDocumentEndpoints(start, end) >= 0) return null;
@@ -708,7 +724,7 @@ export class PdfPageObserver {
 			if (!textLayerInfo) return null;
 			pages.push({ page: pageNumber, items: textLayerInfo.textContentItems });
 		}
-		return buildPdfMarkerGeometry(marker, start, end, pages);
+		return buildPdfMarkerGeometry(geometrySource, start, end, pages);
 	}
 
 	private previewDragGeometry(

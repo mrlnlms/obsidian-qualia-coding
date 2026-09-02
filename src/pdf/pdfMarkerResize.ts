@@ -1,6 +1,6 @@
 import type { PdfMarker, PdfMarkerSegment } from './pdfCodingTypes';
 import type { TextContentItem } from './pdfTypings';
-import { getPdfMarkerSegments, joinPdfMarkerSegmentText } from './pdfMarkerSegments';
+import { getPdfMarkerSegments, joinPdfMarkerSegmentText, samePdfMarkerSegments } from './pdfMarkerSegments';
 
 export interface PdfDocumentEndpoint {
 	page: number;
@@ -181,6 +181,18 @@ export function pdfMarkerGeometryPages(geometry: PdfMarkerGeometry): Set<number>
 	return new Set(geometry.segments?.map((segment) => segment.page) ?? [geometry.page]);
 }
 
+export function samePdfMarkerGeometry(a: PdfMarkerGeometry, b: PdfMarkerGeometry): boolean {
+	if (a.page !== b.page
+		|| a.beginIndex !== b.beginIndex
+		|| a.beginOffset !== b.beginOffset
+		|| a.endIndex !== b.endIndex
+		|| a.endOffset !== b.endOffset
+		|| a.text !== b.text) return false;
+	if (!a.segments && !b.segments) return true;
+	if (!a.segments || !b.segments) return false;
+	return samePdfMarkerSegments(a.segments, b.segments);
+}
+
 export function beginPdfMarkerDrag(marker: PdfMarker): PdfMarkerDragTransaction {
 	return {
 		originalGeometry: getPdfMarkerGeometry(marker),
@@ -192,7 +204,10 @@ export function acceptPdfMarkerDragGeometry(
 	transaction: PdfMarkerDragTransaction,
 	geometry: PdfMarkerGeometry,
 ): void {
-	transaction.lastValidGeometry = cloneGeometry(geometry);
+	transaction.lastValidGeometry = samePdfMarkerGeometry(
+		transaction.originalGeometry,
+		geometry,
+	) ? null : cloneGeometry(geometry);
 }
 
 export function finishPdfMarkerDrag(

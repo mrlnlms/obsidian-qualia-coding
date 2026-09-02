@@ -181,4 +181,18 @@ describe('PDF marker resize geometry', () => {
 		expect(finishPdfMarkerDrag(transaction)?.segments?.[0]?.text).toBe('alpha beta');
 		expect(finishPdfMarkerDrag(beginPdfMarkerDrag(marker()))).toBeNull();
 	});
+
+	it('treats a return to the original geometry as a no-op', () => {
+		const original = marker();
+		const transaction = beginPdfMarkerDrag(original);
+		acceptPdfMarkerDragGeometry(transaction, {
+			page: original.page,
+			beginIndex: original.beginIndex,
+			beginOffset: original.beginOffset,
+			endIndex: original.endIndex,
+			endOffset: original.endOffset,
+			text: original.text,
+		});
+		expect(finishPdfMarkerDrag(transaction)).toBeNull();
+	});
 });

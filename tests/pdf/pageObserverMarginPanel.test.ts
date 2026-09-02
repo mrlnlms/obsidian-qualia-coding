@@ -131,4 +131,80 @@ describe('PdfPageObserver margin overlay lifecycle', () => {
 		expect(refreshSnapshot.mock.calls.map((call) => call[0])).toEqual([1, 2]);
 		expect(refreshLayout).toHaveBeenCalledOnce();
 	});
+
+	it('uses the drag-start geometry to preserve a segment restored later in the gesture', () => {
+		const page1 = textPage(1, 'alpha beta', 0);
+		const page2 = textPage(2, 'middle page', 600);
+		const page3 = textPage(3, 'gamma delta', 1200);
+		const originalSegments = [
+			{ page: 1, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 10, text: 'alpha beta' },
+			{ page: 2, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 11, text: 'middle page' },
+			{
+				page: 3, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 5, text: 'gamma',
+				importedSelectionGuid: 'page-3-guid',
+			},
+		];
+		const marker: PdfMarker = {
+			markerType: 'pdf', id: 'marker-1', fileId: 'document.pdf', page: 1,
+			beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 10,
+			text: 'alpha beta\fmiddle page', codes: [], createdAt: 1, updatedAt: 1,
+			// Simulate an earlier preview that temporarily shrank the marker to page 2.
+			segments: originalSegments.slice(0, 2),
+		};
+		const child = {
+			file: { path: 'document.pdf' },
+			getPage: (page: number) => [page1, page2, page3][page - 1],
+			pdfViewer: { pdfViewer: { _pages: [page1, page2, page3] } },
+		};
+		const observer = new PdfPageObserver(
+			child as never,
+			{ findMarkerById: () => marker } as never,
+			{} as never,
+			{} as never,
+		);
+		const original = {
+			page: 1, beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 10,
+			text: 'alpha beta\fmiddle page\fgamma', segments: originalSegments,
+		};
+		const geometry = (observer as any).buildDragGeometry(
+			marker.id,
+			'end',
+			{ endpoint: { page: 3, index: 0, offset: 5 }, pageView: page3 },
+			original,
+		);
+		expect(geometry.segments[2].importedSelectionGuid).toBe('page-3-guid');
+	});
+
+	it('defers full page rerenders while a handle owns the live layer', () => {
+		const getMarkerPageProjections = vi.fn();
+		const observer = new PdfPageObserver(
+			{ file: { path: 'document.pdf' } } as never,
+			{ getMarkerPageProjections } as never,
+			{} as never,
+			{} as never,
+		);
+		(observer as any).activeDragCancel = vi.fn();
+		(observer as any).renderPage(1);
+		expect(getMarkerPageProjections).not.toHaveBeenCalled();
+	});
+
+	it('does not defer another PDF observer while this view is dragging', () => {
+		const page = textPage(1, 'alpha beta', 0);
+		const getMarkerPageProjections = vi.fn().mockReturnValue([]);
+		const child = {
+			file: { path: 'other.pdf' },
+			getPage: () => page,
+			pdfViewer: { dom: null, pdfViewer: { _pages: [page] } },
+		};
+		const model = {
+			registry: {},
+			getMarkerPageProjections,
+			getMarkersForPage: vi.fn().mockReturnValue([]),
+			getShapesForPage: vi.fn().mockReturnValue([]),
+		};
+		const observer = new PdfPageObserver(child as never, model as never, {} as never, {} as never);
+		document.body.classList.add('codemarker-pdf-dragging');
+		(observer as any).renderPage(1);
+		expect(getMarkerPageProjections).toHaveBeenCalledWith('other.pdf', 1);
+	});
 });

@@ -62,6 +62,7 @@ export interface DragHandleCallbacks {
 		markerId: string,
 		type: 'start' | 'end',
 		hit: PdfDocumentHit,
+		originalGeometry: PdfMarkerGeometry,
 	) => PdfMarkerGeometry | null;
 	onGeometryPreview: (
 		markerId: string,
@@ -71,9 +72,11 @@ export interface DragHandleCallbacks {
 	) => void;
 	onGeometryCommit: (markerId: string, geometry: PdfMarkerGeometry) => boolean | void;
 	onGeometryRestore: (markerId: string, geometry: PdfMarkerGeometry) => void;
-	onDragStateChange?: (isDragging: boolean) => void;
+	onDragStateChange?: (isDragging: boolean, cancel: () => void) => void;
 	onHandleHover?: (markerId: string | null) => void;
 }
+
+const activeDragTokens = new Set<() => void>();
 
 export function logicalHandleOptions(
 	projection: PdfMarkerPageProjection,
@@ -238,8 +241,6 @@ function setupLogicalDrag(
 		event.stopPropagation();
 
 		const transaction = beginPdfMarkerDrag(marker);
-		document.body.classList.add('codemarker-pdf-dragging');
-		callbacks.onDragStateChange?.(true);
 		let lastMoveTime = 0;
 
 		const onMove = (moveEvent: MouseEvent) => {
@@ -250,17 +251,39 @@ function setupLogicalDrag(
 
 			const hit = callbacks.resolveHit(moveEvent.clientX, moveEvent.clientY);
 			if (!hit) return;
-			const geometry = callbacks.buildGeometry(marker.id, type, hit);
+			const geometry = callbacks.buildGeometry(
+				marker.id,
+				type,
+				hit,
+				transaction.originalGeometry,
+			);
 			if (!geometry) return;
 			acceptPdfMarkerDragGeometry(transaction, geometry);
 			callbacks.onGeometryPreview(marker.id, geometry, type, handle);
 		};
 
-		const onUp = () => {
+		let ended = false;
+		const cleanup = () => {
+			if (ended) return false;
+			ended = true;
 			document.removeEventListener('mousemove', onMove);
 			document.removeEventListener('mouseup', onUp);
-			document.body.classList.remove('codemarker-pdf-dragging');
-			callbacks.onDragStateChange?.(false);
+			window.removeEventListener('blur', cancel);
+			activeDragTokens.delete(cancel);
+			if (activeDragTokens.size === 0) {
+				document.body.classList.remove('codemarker-pdf-dragging');
+			}
+			callbacks.onDragStateChange?.(false, cancel);
+			return true;
+		};
+
+		const cancel = () => {
+			if (!cleanup()) return;
+			callbacks.onGeometryRestore(marker.id, transaction.originalGeometry);
+		};
+
+		const onUp = () => {
+			if (!cleanup()) return;
 
 			const geometry = finishPdfMarkerDrag(transaction);
 			if (geometry) {
@@ -273,7 +296,11 @@ function setupLogicalDrag(
 			}
 		};
 
+		activeDragTokens.add(cancel);
+		document.body.classList.add('codemarker-pdf-dragging');
+		callbacks.onDragStateChange?.(true, cancel);
 		document.addEventListener('mousemove', onMove);
 		document.addEventListener('mouseup', onUp);
+		window.addEventListener('blur', cancel);
 	});
 }
