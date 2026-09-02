@@ -3,6 +3,7 @@ import type { ParsedQdpxCoding } from '../../src/import/qdpxAuthoring';
 import type { ParsedSelection } from '../../src/import/qdpxImporter';
 import {
 	detectQdpxPdfMultipageGroups,
+	resolveQdpxLogicalText,
 	resolveQdpxMultipageRange,
 } from '../../src/import/qdpxMultipage';
 
@@ -94,6 +95,27 @@ describe('detectQdpxPdfMultipageGroups', () => {
 });
 
 describe('resolveQdpxMultipageRange', () => {
+	it.each([
+		['Figure 2', 5, '\r\nM', 'EMO: next marker'],
+		['3.2.5 Autonomy', 7, ' ', 'For example, next paragraph'],
+		['Developers with infra background', 7, '\r\n', 'No infra background'],
+		['Which approach to use', 1, '\r\nA', 's for Approach 2'],
+		['Giving developers operational responsibilities', 4, '', '8 Many organizations'],
+		['People downstream', 5, '\r\n', '3. Automating all aspects'],
+	])('reanchors the drifted Atlas endpoints for %s', (opening, drift, leakedTail, following) => {
+		const target = `${opening} with enough distinctive content to identify the quotation and its intended final sentence.`;
+		const before = 'unrelated preceding content ';
+		const actualStart = before.length;
+		const qdpxPlainText = `${before}${target}${leakedTail}${following}`;
+		const group = detectQdpxPdfMultipageGroups([
+			pdf('anchor', 0, undefined, `${opening} with enough distinctive content…`),
+			pdf('continuation', 1, undefined, `${opening} with enough distinctive content…`),
+			plain('anchor', actualStart + drift, actualStart + drift + target.length + leakedTail.length),
+		])[0]!;
+
+		expect(resolveQdpxLogicalText(group, qdpxPlainText)).toBe(target);
+	});
+
 	it('projects one complete logical range into DOM-aligned page segments', () => {
 		const first = 'The quotation begins with a sufficiently distinctive sentence and reaches the page ending';
 		const second = 'Running header continuation text remains in native order until the quotation finishes distinctly';

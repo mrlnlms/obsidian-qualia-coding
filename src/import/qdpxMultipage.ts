@@ -186,7 +186,26 @@ function findBoundary(
 	return { status: 'not-found' };
 }
 
-function logicalTextFromQdpx(group: QdpxPdfMultipageGroup, qdpxPlainText: string | null): string {
+function trimLeakedPartialTrailingToken(text: string, following: string): string {
+	if (!text || !following || !/[\p{L}\p{N}]/u.test(text.at(-1) ?? '')
+		|| !/[\p{L}\p{N}]/u.test(following[0] ?? '')) {
+		return text.trimEnd();
+	}
+
+	let cut = text.length;
+	while (cut > 0 && /[\p{L}\p{N}]/u.test(text[cut - 1]!)) cut--;
+	return text.slice(0, cut).trimEnd();
+}
+
+/**
+ * Atlas offsets may drift a few characters while retaining the selection length.
+ * Re-anchor through the exported selection name, then remove only a trailing token
+ * that the shifted length cuts in half. Interior PDF order remains untouched.
+ */
+export function resolveQdpxLogicalText(
+	group: QdpxPdfMultipageGroup,
+	qdpxPlainText: string | null,
+): string {
 	const { startPosition, endPosition } = group.plainTextSelection;
 	if (qdpxPlainText !== null
 		&& startPosition !== undefined
@@ -194,6 +213,20 @@ function logicalTextFromQdpx(group: QdpxPdfMultipageGroup, qdpxPlainText: string
 		&& startPosition >= 0
 		&& startPosition < endPosition
 		&& endPosition <= qdpxPlainText.length) {
+		const declaredLength = endPosition - startPosition;
+		const windowStart = Math.max(0, startPosition - 500);
+		const windowEnd = Math.min(qdpxPlainText.length, startPosition + 500 + group.name.length);
+		const window = qdpxPlainText.slice(windowStart, windowEnd);
+		const nameKey = normalizeMappedText(group.name).text;
+		const anchor = findBoundary(normalizeMappedText(window), nameKey, 'start');
+		if (anchor.status === 'resolved') {
+			const reanchoredStart = windowStart + anchor.rawStart!;
+			const reanchoredEnd = Math.min(qdpxPlainText.length, reanchoredStart + declaredLength);
+			return trimLeakedPartialTrailingToken(
+				qdpxPlainText.slice(reanchoredStart, reanchoredEnd),
+				qdpxPlainText.slice(reanchoredEnd),
+			);
+		}
 		return qdpxPlainText.slice(startPosition, endPosition);
 	}
 	return group.name;
@@ -239,7 +272,7 @@ function pageRawBounds(
 export function resolveQdpxMultipageRange(
 	args: ResolveQdpxMultipageRangeArgs,
 ): QdpxMultipageResolution {
-	const logicalText = logicalTextFromQdpx(args.group, args.qdpxPlainText);
+	const logicalText = resolveQdpxLogicalText(args.group, args.qdpxPlainText);
 	if (!args.pdfPlainText || !args.pdfPageStartOffsets || !args.pdfPageTextItems) {
 		return pendingResolution(args.group, logicalText, 'pdf-unavailable');
 	}
