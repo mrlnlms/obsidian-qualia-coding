@@ -4,7 +4,7 @@
 >
 > Branch de partida: `fix/qdpx-atlas-page-anchoring`
 >
-> Estado: Marco 1 concluído em 2026-09-02; Marcos 2–6 permanecem abertos.
+> Estado: Marcos 1–2 concluídos em 2026-09-02; Marcos 3–6 permanecem abertos.
 
 ## Como retomar em outra sessão
 
@@ -126,7 +126,7 @@ coder. A identidade da Selection Atlas será preservada apenas como procedência
 - [x] Definir a semântica multicoder e a política de identidade ativa.
 - [x] **Marco 1:** importar corretamente autoria multicoder em seleções PDF de uma
   página.
-- [ ] **Marco 2:** garantir round-trip isolado de autoria Qualia↔Qualia, sem
+- [x] **Marco 2:** garantir round-trip isolado de autoria Qualia↔Qualia, sem
   prometer ainda interoperabilidade PDF com o Atlas.
 - [ ] **Marco 3:** completar os fragmentos Atlas e criar marker lógico multipágina
   por coder, com `segments[]`.
@@ -391,13 +391,27 @@ deve evitar quebrar a criação normal em Markdown, CSV, imagem, áudio e vídeo
 Este marco implementa apenas o contrato Qualia↔Qualia descrito em
 `2026-09-02-qdpx-authorship-roundtrip-design.md`:
 
-- [ ] exportar Users referenciados;
-- [ ] emitir `creatingUser` em cada Coding;
-- [ ] persistir GUID REFI-QDA estável para coders locais participantes;
-- [ ] preservar a identidade externa dos coders importados;
-- [ ] reimportar o QDPX gerado e comparar Users, autoria e códigos;
-- [ ] validar manualmente no Qualia, sem consumir uma janela de acesso ao Atlas;
-- [ ] não fechar ainda a projeção PDF visual/textual ou multipágina.
+- [x] exportar Users referenciados;
+- [x] emitir `creatingUser` em cada Coding;
+- [x] persistir GUID REFI-QDA estável para coders locais participantes;
+- [x] preservar a identidade externa dos coders importados;
+- [x] reimportar o QDPX gerado e comparar Users, autoria e códigos;
+- [x] validar manualmente no Qualia, sem consumir uma janela de acesso ao Atlas;
+- [x] não fechar ainda a projeção PDF visual/textual ou multipágina.
+
+Fechado em 2026-09-02. O checkpoint manual exportou uma contribuição local curta
+em `Stable product teams`, reimportou-a em modo somente leitura e confirmou o
+perfil externo `Default - marlon-teste` no trecho esperado e no Compare Coders.
+A validação automatizada terminou com 109 testes focados e 3.660 testes na suíte
+completa, além de build e `git diff --check` aprovados.
+
+O ensaio também tornou mensurável uma limitação já pertencente ao round-trip PDF:
+o D1 tinha 113 markers no estado de origem, mas apenas 33 PlainTextSelections
+foram emitidas. Diferenças de hifenização, ligaturas, espaços ao redor de
+pontuação e caracteres de substituição fazem `resolveMarkerOffsets` pular
+markers que o importer havia ancorado por contexto. Isso não altera a conclusão
+do contrato isolado de autoria para as seleções emitidas, mas impede qualquer
+alegação de cobertura PDF completa antes do Marco 6.
 
 ## Marco 3 — conteúdo completo e marker multipágina por coder
 
@@ -437,6 +451,11 @@ Somente após fidelidade de dados e multipágina funcional no Qualia:
 
 ## Marco 6 — round-trip PDF completo e validação Atlas
 
+- [ ] tornar a resolução do exporter tolerante à hifenização, ligaturas,
+  pontuação espaçada e caracteres de substituição, reutilizando a provenance de
+  contexto quando disponível;
+- [ ] impedir descarte silencioso e comparar contagem/cobertura entre markers de
+  origem e Selections emitidas;
 - [ ] reconstruir `PDFSelection + PlainTextSelection` para markers textuais;
 - [ ] preservar ou gerar GUIDs de Coding coerentes para as duas representações;
 - [ ] projetar `segments[]` em fragmentos PDF por página;

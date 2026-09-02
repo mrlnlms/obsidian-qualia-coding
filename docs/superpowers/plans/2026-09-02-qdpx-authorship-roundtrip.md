@@ -30,7 +30,7 @@
 **Interfaces:**
 - Produces: `setExternalIdentity(coderId: CoderId, identity: ExternalCoderIdentity): Coder`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Test replacement and JSON persistence:
 
@@ -48,13 +48,13 @@ expect(CoderRegistry.fromJSON(registry.toJSON()).getByExternalIdentity({
 
 Also assert that assigning one identity to two coders throws `already belongs`, assigning to `human:missing` throws `Unknown coder`, and repeating the same assignment does not emit another mutation.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run: `npx vitest run tests/core/icr/coderRegistry.test.ts`
 
 Expected: FAIL because `setExternalIdentity` does not exist.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 setExternalIdentity(coderId: CoderId, identity: ExternalCoderIdentity): Coder {
@@ -72,7 +72,7 @@ setExternalIdentity(coderId: CoderId, identity: ExternalCoderIdentity): Coder {
 }
 ```
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `npx vitest run tests/core/icr/coderRegistry.test.ts`
 
@@ -89,7 +89,7 @@ Commit: `feat(icr): persist exporter coder identities`
 **Interfaces:**
 - Produces: `QdpxExportUser`, `QdpxAuthoredMarker`, `QdpxAuthoringContext`, `createQdpxAuthoringContext()`, `buildUsersXml()`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 const importedGuid = '11111111-1111-4111-8111-111111111111';
@@ -106,13 +106,13 @@ expect(context.getUsers().map((user) => user.coderId)).toEqual([carla.id, 'human
 
 Cover unused coder, same name/different GUID, invalid GUID replacement, XML escaping, missing `codedBy`, `unattributedOwner`, and unknown explicit owner. Require one warning per marker.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run: `npx vitest run tests/export/qdpxAuthoring.test.ts`
 
 Expected: FAIL because the module is absent.
 
-- [ ] **Step 3: Implement contracts**
+- [x] **Step 3: Implement contracts**
 
 ```ts
 export interface QdpxExportUser { coderId: CoderId; guid: string; name: string }
@@ -138,7 +138,7 @@ export function buildUsersXml(users: QdpxExportUser[]): string {
 }
 ```
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `npx vitest run tests/export/qdpxAuthoring.test.ts tests/core/icr/coderRegistry.test.ts`
 
@@ -157,7 +157,7 @@ Commit: `feat(export): resolve QDPX coding authors`
 - Extends: every source builder with final `authoring?: QdpxAuthoringContext`.
 - Extends: `buildProjectXml(..., usersXml?: string)`.
 
-- [ ] **Step 1: Write failing serializer tests**
+- [x] **Step 1: Write failing serializer tests**
 
 ```ts
 const xml = buildCodingXml([{
@@ -170,13 +170,13 @@ expect(xml).toContain('creationDateTime="2026-01-02T03:04:05.000Z"');
 
 Add one PDF builder test proving its marker owner reaches Coding XML. Add one project test proving `<Users>` appears before `<CodeBook>`.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run: `npx vitest run tests/export/qdpxExporter.test.ts`
 
 Expected: FAIL on unsupported signatures.
 
-- [ ] **Step 3: Implement Coding serialization**
+- [x] **Step 3: Implement Coding serialization**
 
 ```ts
 export function buildCodingXml(
@@ -187,7 +187,7 @@ export function buildCodingXml(
 
 For each application, prefer a valid `ca.qdpx.creationDateTime`; otherwise use marker `createdAt`. Render `creatingUser` only when supplied. Keep generating Coding GUIDs; do not consume `sourceCodingGuids` yet.
 
-- [ ] **Step 4: Propagate context through builders**
+- [x] **Step 4: Propagate context through builders**
 
 Add the optional final context to Markdown, media, tabular, image, and both PDF builder paths. Only after existing offset/geometry guards pass, call:
 
@@ -195,11 +195,11 @@ Add the optional final context to Markdown, media, tabular, image, and both PDF 
 buildCodingXml(m.codes, guidMap, m.createdAt, notes, authoring?.authorGuidFor(m))
 ```
 
-- [ ] **Step 5: Assemble Users**
+- [x] **Step 5: Assemble Users**
 
 Add final `usersXml = ''` to `buildProjectXml` and assemble `[usersXml, codebook, sourcesSection, notesSection, linksSection, casesSection, smartCodesSection]`.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run: `npx vitest run tests/export/qdpxExporter.test.ts tests/export/qdpxAuthoring.test.ts tests/import/magnitudeRoundTrip.test.ts`
 
@@ -218,19 +218,19 @@ Commit: `feat(export): emit QDPX users and coding authors`
 **Interfaces:**
 - Produces: `exportProject(app, dataManager, registry, coderRegistry, options, caseVariablesRegistry)`.
 
-- [ ] **Step 1: Write a failing project test**
+- [x] **Step 1: Write a failing project test**
 
 Build three same-bounds PDF markers owned by imported Carla, imported João, and Default. Mock PDF export data as `{ plainText: 'quoted passage', pageStartOffsets: [0], pageDims: { 0: { width: 612, height: 792 } } }`. Use `11111111-1111-4111-8111-111111111111` for Carla, `22222222-2222-4222-8222-222222222222` for João, and mock `crypto.randomUUID()` as `33333333-3333-4333-8333-333333333333` for Default.
 
 Export, unzip, and assert exactly three Users, three matching `creatingUser` values, and Default's persisted identity. Add an ownerless fourth marker and assert it has no `creatingUser`, produces one warning, and creates no User.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run: `npx vitest run tests/export/qdpxProjectAuthorship.test.ts`
 
 Expected: FAIL because full export lacks `CoderRegistry`.
 
-- [ ] **Step 3: Wire orchestration**
+- [x] **Step 3: Wire orchestration**
 
 Change the signature:
 
@@ -244,11 +244,11 @@ export async function exportProject(
 
 Create `authoring = createQdpxAuthoringContext(coderRegistry, warnings, uuidV4)`, pass it to every builder, build Users immediately before project assembly, and pass Users to `buildProjectXml`.
 
-- [ ] **Step 4: Update callers**
+- [x] **Step 4: Update callers**
 
 Pass `this.plugin.coderRegistry` from `ExportModal`. Create and pass a `CoderRegistry` in every `exportProject` test call. Keep new ownerless warnings visible.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run: `npx vitest run tests/export/qdpxProjectAuthorship.test.ts tests/export/exportLazyAware.test.ts tests/export/qdpxExporter.test.ts`
 
@@ -268,32 +268,32 @@ Commit: `feat(export): include coder registry in QDPX projects`
 - Consumes: full exported ZIP and existing `importQdpx`.
 - Produces: automated and manual authorship round-trip evidence.
 
-- [ ] **Step 1: Reimport into fresh registries**
+- [x] **Step 1: Reimport into fresh registries**
 
 Use a fresh `DataManager`, code registry, coder registry, and a vault adapter mock implementing async `exists`, `mkdir`, `write`, and `writeBinary`. Import in read-only mode.
 
 Assert four PDF markers: three authored and one explicitly unattributed. Assert authored `codedBy` values resolve to the three `human:qdpx:<guid>` IDs; assert the fourth has `unattributedOwner`. Export a second time from the source registry and prove Default reuses its GUID without another UUID call.
 
-- [ ] **Step 2: Run focused verification**
+- [x] **Step 2: Run focused verification**
 
 Run: `npx vitest run tests/core/icr/coderRegistry.test.ts tests/export/qdpxAuthoring.test.ts tests/export/qdpxExporter.test.ts tests/export/qdpxProjectAuthorship.test.ts tests/export/exportLazyAware.test.ts tests/import/qdpxAuthoring.test.ts tests/import/qdpxImporter.test.ts tests/import/magnitudeRoundTrip.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 3: Run full verification**
+- [x] **Step 3: Run full verification**
 
 Run in order: `npm test`, `npm run build`, `git diff --check`.
 
 Expected: suite PASS, build PASS, no whitespace errors.
 
-- [ ] **Step 4: Commit automated coverage**
+- [x] **Step 4: Commit automated coverage**
 
 Commit: `test(export): prove QDPX authorship round-trip`
 
-- [ ] **Step 5: Pause for manual Qualia↔Qualia validation**
+- [x] **Step 5: Pause for manual Qualia↔Qualia validation**
 
 Ask the user to export Carla, João, and Default contributions from the isolated vault, reset imported test state, reimport read-only, and confirm three independent contributions in Compare Coders. Do not use Atlas and do not mark Marco 2 complete yet.
 
-- [ ] **Step 6: Close only Marco 2 after approval**
+- [x] **Step 6: Close only Marco 2 after approval**
 
 Set the new spec state to `Marco 2 concluído; interoperabilidade Atlas pendente para o Marco 6`; check only Marco 2 globally; leave Marcos 3–6 unchecked; mark completed plan steps; run `git diff --check`; commit `docs: close QDPX authorship round-trip milestone`.

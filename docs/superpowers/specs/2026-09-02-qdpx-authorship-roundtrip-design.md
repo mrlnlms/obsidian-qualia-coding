@@ -2,7 +2,7 @@
 
 > Data: 2026-09-02
 >
-> Estado: desenho aprovado; plano de implementação preparado.
+> Estado: Marco 2 concluído; interoperabilidade Atlas pendente para o Marco 6.
 
 ## Objetivo
 
@@ -139,6 +139,26 @@ O usuário precisa apenas:
 
 Esse checkpoint valida o contrato Qualia↔Qualia. A aceitação pelo Atlas permanece
 explicitamente pendente até o round-trip PDF completo.
+
+### Resultado observado em 2026-09-02
+
+- o pacote declarou cinco Users participantes, incluindo o perfil local Default;
+- o Default recebeu o GUID REFI-QDA estável
+  `0f5d233d-ca4f-4d82-bd22-31cff84ed4ab`;
+- a seleção curta `Stable product teams` foi emitida em `33601–33621`, reimportada
+  em modo somente leitura e associada ao mesmo GUID externo;
+- o marker apareceu no trecho esperado e no Compare Coders como
+  `Default - marlon-teste`, separado dos perfis importados;
+- 109 testes focados e 3.660 testes da suíte completa passaram, junto com build e
+  `git diff --check`.
+
+O corpus real também expôs uma limitação fora deste slice: somente 33 dos 113
+markers do D1 foram serializados porque o resolver atual do exporter aceita
+apenas correspondência exata ou normalização de whitespace. Os markers omitidos
+contêm diferenças de hifenização, ligaturas, pontuação espaçada e caracteres de
+substituição entre o marker e o PlainText canônico. A correção e a paridade de
+cobertura pertencem ao Marco 6; este marco garante autoria para toda Selection
+que efetivamente é emitida, sem declarar round-trip PDF completo.
 
 ## Critérios de conclusão
 
