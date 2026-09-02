@@ -112,6 +112,26 @@ export class CoderRegistry {
 		)) ?? null;
 	}
 
+	setExternalIdentity(coderId: CoderId, identity: ExternalCoderIdentity): Coder {
+		const coder = this.coders.get(coderId);
+		if (!coder) throw new Error(`Unknown coder: ${coderId}`);
+
+		const owner = this.getByExternalIdentity(identity);
+		if (owner && owner.id !== coderId) {
+			throw new Error(`External identity already belongs to ${owner.id}`);
+		}
+		if (coder.externalIdentities?.some(
+			(ref) => ref.scheme === identity.scheme && ref.value === identity.value,
+		)) return coder;
+
+		coder.externalIdentities = [
+			...(coder.externalIdentities ?? []).filter((ref) => ref.scheme !== identity.scheme),
+			identity,
+		];
+		this.emitMutate();
+		return coder;
+	}
+
 	resolveOrCreateExternalHuman(name: string, identity: ExternalCoderIdentity): Coder {
 		const existing = this.getByExternalIdentity(identity);
 		if (existing) return existing;

@@ -35,6 +35,55 @@ describe('CoderRegistry — types', () => {
 });
 
 describe('CoderRegistry', () => {
+	it('sets, replaces, and persists an external identity on an existing coder', () => {
+		const coder = registry.createHuman('Marlon');
+		registry.setExternalIdentity(coder.id, {
+			scheme: 'refi-qda-user-guid',
+			value: '11111111-1111-4111-8111-111111111111',
+		});
+		registry.setExternalIdentity(coder.id, {
+			scheme: 'refi-qda-user-guid',
+			value: '22222222-2222-4222-8222-222222222222',
+		});
+
+		expect(registry.getById(coder.id)?.externalIdentities).toEqual([{
+			scheme: 'refi-qda-user-guid',
+			value: '22222222-2222-4222-8222-222222222222',
+		}]);
+		expect(CoderRegistry.fromJSON(registry.toJSON()).getByExternalIdentity({
+			scheme: 'refi-qda-user-guid',
+			value: '22222222-2222-4222-8222-222222222222',
+		})?.id).toBe(coder.id);
+	});
+
+	it('rejects duplicate external identity ownership and unknown coders', () => {
+		const marlon = registry.createHuman('Marlon');
+		const carla = registry.createHuman('Carla');
+		const identity = {
+			scheme: 'refi-qda-user-guid' as const,
+			value: '11111111-1111-4111-8111-111111111111',
+		};
+		registry.setExternalIdentity(marlon.id, identity);
+
+		expect(() => registry.setExternalIdentity(carla.id, identity)).toThrow('already belongs');
+		expect(() => registry.setExternalIdentity('human:missing', identity)).toThrow('Unknown coder');
+	});
+
+	it('does not emit another mutation for an identical external identity', () => {
+		const coder = registry.createHuman('Marlon');
+		const identity = {
+			scheme: 'refi-qda-user-guid' as const,
+			value: '11111111-1111-4111-8111-111111111111',
+		};
+		registry.setExternalIdentity(coder.id, identity);
+		let count = 0;
+		registry.addOnMutate(() => count++);
+
+		registry.setExternalIdentity(coder.id, identity);
+
+		expect(count).toBe(0);
+	});
+
 	it('resolves external QDPX identities by GUID, not by display name', () => {
 		const a = registry.resolveOrCreateExternalHuman('Alex', {
 			scheme: 'refi-qda-user-guid',
