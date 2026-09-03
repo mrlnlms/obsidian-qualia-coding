@@ -1,5 +1,8 @@
 # PDF Multipage Margin Panel Implementation Plan
 
+> Status: completed in Marco 4. Checkboxes below preserve the original execution
+> recipe and are not the live task tracker; see `docs/ROADMAP.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Render one continuous, document-level margin rail and one centered label for every PDF `marker × code`, including logical markers that cross page gaps, while preserving current Markdown and single-page PDF behavior.

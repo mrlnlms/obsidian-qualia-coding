@@ -1,5 +1,8 @@
 # QDPX Multicoder Single-Page Import Implementation Plan
 
+> Status: completed in Marco 1. Checkboxes below preserve the original execution
+> recipe and are not the live task tracker; see `docs/ROADMAP.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Importar Users e Codings de seleções PDF de uma página como markers independentes por coder, iniciar projetos QDPX em somente leitura por padrão e permitir edição apenas pelo proprietário ativo.

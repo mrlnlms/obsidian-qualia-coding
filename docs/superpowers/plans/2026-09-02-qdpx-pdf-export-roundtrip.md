@@ -1,6 +1,9 @@
 # QDPX PDF Export Round-trip Implementation Plan
 
-> Status: completed on 2026-09-03 for the critical Qualia round-trip scope. Manual Atlas checkpoint intentionally deferred until an Atlas account and installation are available.
+> Status: completed on 2026-09-03 for the critical Qualia round-trip scope.
+> Manual Atlas checkpoint intentionally deferred until an Atlas account and
+> installation are available. The steps below are historical, except the section
+> `Final Atlas checkpoint`, which is tracked as Marco 7 in `docs/ROADMAP.md`.
 >
 > Design source: `docs/superpowers/specs/2026-09-02-qdpx-pdf-export-roundtrip-design.md`.
 
@@ -8,7 +11,7 @@
 
 Export the current Qualia project as platform-neutral QDPX while preserving the logical PDF quotations, authorship, code applications, text ranges, multipage topology, memos, and relations needed for the package to reopen equivalently in Qualia and, at the final external checkpoint, Atlas.ti.
 
-The concrete acceptance corpus is `UnifiedDevOps Selective Coding ITE5 ICA.qdpx`: Atlas → Qualia → QDPX → Qualia must be semantically lossless, and the same Qualia-produced package must subsequently reopen in Atlas like the source Atlas project. This is a semantic comparison, not a byte-for-byte archive comparison.
+The concrete acceptance corpus is `UnifiedDevOps Selective Coding ITE5 ICA.qdpx`: Atlas → Qualia → QDPX → Qualia must be semantically lossless. A fresh package produced by the integrated build must subsequently reopen in Atlas like the source Atlas project. This is a semantic comparison, not a byte-for-byte archive comparison.
 
 ## Non-goals
 
@@ -570,7 +573,8 @@ QDPX.
   diferenças internas;
 - o `Project.xsd` citado pela pesquisa pertencia a um acervo externo que não foi
   versionado e já não está disponível na máquina. Em 2026-09-03 o schema foi
-  recuperado temporariamente da fonte oficial REFI-QDA. A validação do primeiro
+  recuperado da fonte oficial REFI-QDA e mantido no cache local ignorado
+  `.local/refi-qda/project/v1.0/`. A validação do primeiro
   pacote manual revelou bboxes decimais e `qualia:magnitude`; o serializer passou
   a emitir coordenadas inteiras e a definição de magnitude por NoteRef padrão.
   Um XML mínimo gerado pelo exporter com essa NoteRef validou contra o XSD
@@ -614,7 +618,11 @@ This external checkpoint does not block closure of the critical Qualia
 round-trip scope. It remains a separately tracked follow-up to be executed when
 the user has recreated an Atlas account and installed the application.
 
-Use the exact Qualia-produced package that passed the semantic comparator. Open it manually in Atlas.ti and compare it with the Atlas project that produced the original fixture. Success is:
+Generate a fresh package from the current integrated build, validate the complete
+XML against the locally cached official XSD, and run the semantic comparator on
+that same package. Then open it manually in Atlas.ti and compare it with the Atlas
+project that produced the original fixture. Do not reuse the manual package that
+predates the bbox and magnitude fixes. Success is:
 
 - all 10 coded PDFs present unless deliberately removed in Qualia;
 - the 201 logical quotations and 207 visual fragments appear with equivalent selected text and multipage continuity;

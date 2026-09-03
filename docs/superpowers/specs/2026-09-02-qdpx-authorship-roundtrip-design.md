@@ -2,8 +2,8 @@
 
 > Data: 2026-09-02
 >
-> Estado: Marco 2 concluído; round-trip PDF Qualia↔Qualia pendente para o Marco 6
-> e interoperabilidade Atlas pendente para o Marco 7.
+> Estado: Marco 2 concluído; round-trip PDF Qualia↔Qualia concluído no Marco 6 em
+> 2026-09-03; somente a interoperabilidade Atlas permanece pendente no Marco 7.
 
 ## Objetivo
 

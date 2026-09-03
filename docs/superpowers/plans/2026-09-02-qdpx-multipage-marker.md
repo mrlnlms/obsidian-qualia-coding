@@ -1,5 +1,8 @@
 # QDPX Logical Multipage PDF Marker Implementation Plan
 
+> Status: completed in Marco 3. Checkboxes below preserve the original execution
+> recipe and are not the live task tracker; see `docs/ROADMAP.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Import and create cross-page PDF codings as one logical marker per coder with ordered `segments[]`, complete local highlights, and no duplicate analytical units.

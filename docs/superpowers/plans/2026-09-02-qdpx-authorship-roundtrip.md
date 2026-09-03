@@ -1,5 +1,8 @@
 # QDPX Authorship Round-Trip Implementation Plan
 
+> Status: completed in Marco 2. Checkboxes below preserve the original execution
+> recipe and are not the live task tracker; see `docs/ROADMAP.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Export referenced QDPX Users and `Coding.creatingUser`, persist stable REFI-QDA identities for local coders, and prove Qualia → QDPX → Qualia authorship preservation without claiming Atlas PDF interoperability.
@@ -296,4 +299,10 @@ Ask the user to export Carla, João, and Default contributions from the isolated
 
 - [x] **Step 6: Close only Marco 2 after approval**
 
-Set the new spec state to `Marco 2 concluído; round-trip PDF Qualia↔Qualia pendente para o Marco 6; interoperabilidade Atlas pendente para o Marco 7`; check only Marco 2 globally; leave Marcos 3–7 unchecked; mark completed plan steps; run `git diff --check`; commit `docs: close QDPX authorship round-trip milestone`.
+At execution time, set the spec state to `Marco 2 concluído; round-trip PDF
+Qualia↔Qualia pendente para o Marco 6; interoperabilidade Atlas pendente para o
+Marco 7`; check only Marco 2 globally; leave Marcos 3–7 unchecked; mark completed
+plan steps; run `git diff --check`; commit
+`docs: close QDPX authorship round-trip milestone`. This instruction is
+historical: Marcos 3–6 were subsequently completed and the current state is
+recorded in `docs/ROADMAP.md`.

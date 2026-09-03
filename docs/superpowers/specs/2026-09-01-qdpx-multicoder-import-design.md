@@ -1,23 +1,23 @@
-# QDPX multicoder — desenho aprovado e tasklist de retomada
+# QDPX multicoder — desenho aprovado e registro dos marcos
 
 > Data: 2026-09-01
 >
 > Branch de partida: `fix/qdpx-atlas-page-anchoring`
 >
-> Estado: Marcos 1–5 concluídos em 2026-09-02; Marcos 6–7 permanecem abertos.
+> Estado: Marcos 1–6 concluídos e validados em 2026-09-03. Permanecem abertos
+> somente o checkpoint externo do Marco 7 e o redesign opcional da margin panel
+> para alta densidade.
 
 ## Como retomar em outra sessão
 
-1. Confirmar que a branch atual parte de `fix/qdpx-atlas-page-anchoring` ou contém
-   seus commits.
-2. Ler este documento inteiro.
-3. Ler os três diagnósticos canônicos referenciados abaixo.
-4. Não usar `data.json` como memória da investigação: o usuário o apaga durante os
-   testes.
-5. Começar pelo **Marco 3 — conteúdo completo e marker multipágina por coder**.
-6. Não iniciar zebra ou redesign geral da margin panel antes de fechar a autoria e
-   o marker lógico multipágina; o round-trip PDF Qualia↔Qualia fica para o Marco
-   6 e a interoperabilidade Atlas para o Marco 7.
+1. Partir da `main` contendo `38fa32e` ou posterior.
+2. Consultar o `ROADMAP.md` para escolher um dos dois follow-ups ainda abertos.
+3. Para o Marco 7, ler o desenho e o plano do exporter e gerar um pacote novo;
+   não reutilizar o pacote manual anterior aos ajustes XSD.
+4. Para a margin panel densa, tratar esta lista apenas como insumo de um novo
+   brainstorm; a implementação mínima dos Marcos 4–5 não deve ser reaberta.
+5. Não usar `data.json` nem o QDPX original como dependência permanente do
+   exporter: ambos são artefatos de teste, não fonte de verdade do projeto.
 
 ## Documentos canônicos
 
@@ -513,19 +513,20 @@ ou a política visual da margin panel.
 O desenho detalhado e aprovado deste marco está em
 [`2026-09-02-qdpx-pdf-export-roundtrip-design.md`](2026-09-02-qdpx-pdf-export-roundtrip-design.md).
 
-- [ ] tornar a resolução do exporter tolerante à hifenização, ligaturas,
+- [x] tornar a resolução do exporter tolerante à hifenização, ligaturas,
   pontuação espaçada e caracteres de substituição, reutilizando a provenance de
   contexto quando disponível;
-- [ ] impedir descarte silencioso e comparar contagem/cobertura entre markers de
+- [x] impedir descarte silencioso e comparar contagem/cobertura entre markers de
   origem e Selections emitidas;
-- [ ] reconstruir `PDFSelection + PlainTextSelection` para markers textuais;
-- [ ] preservar ou gerar GUIDs de Coding coerentes para as duas representações;
-- [ ] projetar `segments[]` em fragmentos PDF por página;
-- [ ] emitir relações `continued by` e procedência necessária;
-- [ ] reagrupar markers irmãos somente quando a geometria continuar compatível;
-- [ ] exportar markers divergentes como Selections independentes;
-- [ ] reimportar o pacote e comparar Users, autoria, códigos, bounds e segmentos;
-- [ ] validar colaboração entre pessoas usando apenas vaults Obsidian, sem
+- [x] reconstruir `PDFSelection + PlainTextSelection` para markers textuais;
+- [x] preservar ou gerar GUIDs de Coding coerentes para as duas representações;
+- [x] projetar `segments[]` em fragmentos PDF por página;
+- [x] preservar relações analíticas existentes, inclusive as rotuladas
+  `continued by`, sem sintetizá-las como topologia multipágina;
+- [x] reagrupar markers irmãos somente quando a geometria continuar compatível;
+- [x] exportar markers divergentes como Selections independentes;
+- [x] reimportar o pacote e comparar Users, autoria, códigos, bounds e segmentos;
+- [x] validar colaboração entre pessoas usando apenas vaults Obsidian, sem
   depender de software ou conta externa.
 
 O Marco 6 fecha o contrato de produto local-first. Ele só termina quando um
@@ -533,12 +534,20 @@ pacote produzido pelo Qualia pode ser importado em outro vault Qualia sem perda
 de markers, autoria, códigos ou geometria. Aceitação por ferramentas externas não
 é critério de conclusão deste marco.
 
+Concluído em 2026-09-03: o checkpoint manual preservou sete markers lógicos, nove
+segmentos físicos, dois casos multipágina, quatro códigos, dois participantes,
+oito aplicações semânticas, relação, memo, magnitudes, highlights e margin panel.
+A suíte final passou com 279 arquivos e 3.794 testes, além de type-check, build e
+`git diff --check`.
+
 ## Marco 7 — interoperabilidade Atlas
 
-- [ ] abrir no Atlas um pacote que já passou integralmente pelo Marco 6;
+- [ ] gerar na build atual um pacote novo que preserve o contrato do Marco 6,
+  validá-lo integralmente no XSD e então abri-lo no Atlas;
 - [ ] validar no Atlas seleções PDF simples e multipágina;
-- [ ] adaptar particularidades externas de `PDFSelection + PlainTextSelection`,
-  GUIDs duplicados e relações `continued by` sem enfraquecer o contrato interno;
+- [ ] registrar e adaptar somente particularidades comprovadas do dialeto Atlas,
+  sem enfraquecer o contrato interno nem transformar relações analíticas em
+  topologia multipágina;
 - [ ] usar uma única janela de acesso ao Atlas para validar simples e multipágina;
 - [ ] editar no Atlas, exportar de volta e confirmar o ciclo no Qualia.
 
@@ -548,7 +557,8 @@ Marco 6, salvo quando revelarem perda real no formato interno compartilhado.
 
 ## Melhoria posterior — redesign da margin panel
 
-Depois dos Marcos 5–7, tratar como frente isolada de usabilidade:
+Após o fechamento funcional dos Marcos 4–6, tratar como frente isolada de
+usabilidade. Não depende da execução do Marco 7:
 
 - [ ] reavaliar o modelo de colunas/tracks;
 - [ ] separar posicionamento de rails e labels;
@@ -560,21 +570,15 @@ Depois dos Marcos 5–7, tratar como frente isolada de usabilidade:
 
 ## Pontos que continuam abertos
 
-Estes itens não bloqueiam o Marco 3, exceto se aparecerem diretamente durante sua
-implementação:
+Somente duas frentes permanecem neste programa:
 
-- forma visual exata do indicador de autoria no painel atual;
-- persistência da identidade ativa por projeto versus por vault;
-- política completa para Codings sem `creatingUser` fora do corpus Atlas real;
-- formato exato da procedência externa no schema persistido;
-- regra detalhada de regroup no exporter após divergência parcial de bounds, a
-  decidir apenas no Marco 6;
-- interação final entre vários markers exatamente sobrepostos;
-- posição do rótulo de uma rail multipágina quando o centro cai entre páginas.
+1. **Marco 7:** comportamento efetivo do pacote novo no Atlas, incluindo uma
+   edição externa e o retorno ao Qualia;
+2. **margin panel densa:** filtros, compactação reversível, colisões, tracks e
+   posição de labels em documentos com centenas de markers.
 
-Se uma dessas decisões alterar a semântica aprovada, parar e discutir antes de
-implementar. Se for apenas escolha interna reversível dentro do Marco 3, registrar
-a decisão no commit correspondente.
+As demais perguntas desta spec foram resolvidas nos Marcos 1–6. Nenhuma delas
+deve ser reaberta sem uma regressão reproduzível ou nova evidência externa.
 
 ## Limites de trabalho
 

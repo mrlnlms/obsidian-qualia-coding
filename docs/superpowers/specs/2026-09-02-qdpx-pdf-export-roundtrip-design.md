@@ -1,10 +1,11 @@
 # QDPX PDF — export interoperável e round-trip do corpus Atlas
 
 > Data: 2026-09-02  
-> Estado: desenho aprovado; implementação pendente  
+> Estado: Marco 6 implementado e validado em 2026-09-03; checkpoint Atlas
+> adiado como Marco 7 até haver conta e instalação.
 > Marco: 6 — export PDF e round-trip completo antes do checkpoint Atlas
 
-## Contexto
+## Contexto na abertura do Marco 6
 
 Os Marcos 1–5 já entregaram:
 
@@ -15,14 +16,19 @@ Os Marcos 1–5 já entregaram:
 - handles capazes de transformar simples ↔ multipágina;
 - validação visual dos dez PDFs do corpus Atlas.
 
-O exporter PDF ainda não representa esse estado com fidelidade. Text markers são
-redescobertos por busca em uma Representation gerada e, quando resolvidos, saem
-somente como `PlainTextSelection`. Não há `PDFSelection` visual correspondente,
+Na abertura do marco, o exporter PDF ainda não representava esse estado com
+fidelidade. Text markers eram redescobertos por busca em uma Representation
+gerada e, quando resolvidos, saíam
+somente como `PlainTextSelection`. Não havia `PDFSelection` visual correspondente,
 fragmentos multipágina nem Links `continued by`. No D1 real, somente 33 dos 113
 markers chegaram ao XML no checkpoint do Marco 2.
 
-O objetivo agora é exportar o estado atual do Qualia em QDPX REFI-QDA portátil,
-reimportá-lo sem perda e, no Marco 7, abrir exatamente esse pacote no Atlas.
+O objetivo aprovado foi exportar o estado atual do Qualia em QDPX REFI-QDA
+portátil, reimportá-lo sem perda e, no Marco 7, abrir um novo pacote no Atlas.
+
+O contrato Qualia↔Qualia foi concluído. O pacote do Marco 7 deve ser gerado
+novamente pela build atual e validado contra o XSD oficial; o artefato manual
+anterior aos ajustes de bbox e magnitude não é válido para esse checkpoint.
 
 ## Referências
 
@@ -500,8 +506,10 @@ As tarefas serão implementadas inline. Depois do diff funcional completo:
 3. o corpus gera o primeiro pacote;
 4. o usuário valida Qualia → Qualia;
 5. testes e documentação são consolidados;
-6. suíte, build, XSD e comparador fecham o Marco 6;
-7. uma nova exportação da build integrada, após validação XSD, segue para o Atlas.
+6. suíte, build, comparador, testes sensíveis ao schema e um XML mínimo validado
+   no XSD fecham o Marco 6;
+7. uma nova exportação da build integrada é validada integralmente no XSD e segue
+   para o Atlas no Marco 7.
 
 Verificações mínimas acompanham a implementação, mas a bateria final de regressão
 é consolidada depois do checkpoint manual, conforme metodologia aprovada.
@@ -529,8 +537,9 @@ Verificações mínimas acompanham a implementação, mas a bateria final de reg
 7. siblings intactos recompõem a Selection compartilhada;
 8. siblings divergentes permanecem independentes;
 9. Users, Codings, códigos, autoria, memo e relações mantêm semântica;
-10. XML é conferido contra o `Project.xsd` oficial do REFI-QDA; o schema é obtido
-    da fonte oficial e não pressuposto como arquivo versionado local;
+10. caminhos sensíveis ao schema têm cobertura dedicada e um XML mínimo gerado é
+    conferido contra o `Project.xsd` oficial; a validação integral de um pacote
+    novo após os últimos ajustes pertence ao Marco 7;
 11. Vault A → QDPX → Vault B preserva o contrato;
 12. o segundo export não degrada nem multiplica o projeto;
 13. o comparador do corpus reporta as contagens esperadas e zero perda semântica;

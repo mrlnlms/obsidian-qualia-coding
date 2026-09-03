@@ -3,7 +3,10 @@
 > **Estado vivo pra responder "o que tem pra trabalhar?" = §🔜 Próximo passo + §🚦 Frentes (Frente 2 ▶ próxima) + §Decisões de produto abertas.** §📅 Contexto do release vigente + §⛔ Decisões fechadas + §Frentes encerradas + §Riscos = referência cravada — só responder com pergunta explícita ("o que rolou", "status do release", "o que entregamos").
 >
 > Features planejadas por prioridade. Items concluídos ficam no registro ao final.
-> Última atualização: 2026-05-13 (release **0.7.0** — bloco Image engine fechado por inteiro + Gap #1c/1d (SourceSizeProvider PDF + CSV segment) + 3 UX gaps ICR + cluster.worker async (cooccurrence/overlap/dendrogram) + canvas refresh cor cross-engine + colorOverride cross-engine + audit log defensive fix + `!important` podado 68 → 46 (18 AG Grid cells + 2 SVG stroke + 2 isolados removidos via especificidade; 7 cursor body + 39 handles SVG transparency reclassificados como Permanente). Polish ICR/Image/cross-engine zerados. Próxima frente prática = **LLM coding + ICR Camada 2 BHM** como par natural — precede brainstorm dedicado).
+> Última atualização: 2026-09-03 (QDPX Atlas→Qualia e round-trip PDF
+> Qualia↔Qualia fechados; interoperabilidade Atlas e redesign da margin panel
+> densa registrados como follow-ups isolados. A prioridade macro continua sendo
+> **LLM coding + ICR Camada 2 BHM**).
 
 ## 🔜 Próximo passo (próxima sessão lê isso primeiro)
 
@@ -12,6 +15,18 @@
 **Ordem cravada:** ICR ✅ → LLM (+ ICR Camada 2 par natural) → Analytics.
 
 **Bloqueadores no `BACKLOG.md`:** zero.
+
+**Follow-ups QDPX isolados — não alteram a ordem macro:**
+
+- [ ] **Marco 7 — Atlas:** validar no Atlas um pacote novo gerado pela `main`,
+  incluindo XSD do pacote completo, comparação com o projeto de referência,
+  edição no Atlas e retorno ao Qualia. Depende de nova conta e instalação.
+- [ ] **Margin panel densa:** redesenhar a experiência para centenas de markers e
+  múltiplos codificadores. É refinamento de usabilidade; não corrige perda de
+  dados nem bloqueia import, edição, handles, export ou colaboração entre vaults.
+
+O detalhamento canônico desses dois itens está na
+[spec QDPX multicoder](superpowers/specs/2026-09-01-qdpx-multicoder-import-design.md#marco-7--interoperabilidade-atlas).
 
 Detalhes de cada frente abaixo: §Frente 1 (ICR ✅ fechada) · §Frente 2 (LLM ▶ próxima) · §Frente 3 (Analytics depois) · §Outras frentes em decisão de produto.
 
@@ -95,7 +110,9 @@ Cobertura atual = **25 modes ativos** em `src/analytics/views/modes/` (frequênc
 ### Outras frentes em decisão de produto
 
 - **Projects** — isolar determinados arquivos do vault como escopo de análise (não vault inteiro). Em pensamento, precisa brainstorm antes — ver §Projects nos detalhes.
-- **Margin Panel customization** — bloqueado por decisão em plugin externo.
+- **Margin Panel customization/resize** — bloqueado por decisão em plugin externo.
+- **Margin panel densa PDF/multicoder** — follow-up QDPX independente, ainda sem
+  redesign aprovado; ver §4c.
 
 ---
 
@@ -116,7 +133,8 @@ Sem ordem imposta — agrupamento temático pra varredura. Decisões de execuç�
 | Área | O que tem aberto |
 |------|------------------|
 | **[Analytics](#3-analytics--melhorias)** | Routledge Tier 1/2/3 + redesign UI pesado. Atacar **depois** de LLM (ver Frente 3 acima) |
-| **[Margin Panel](#4-margin-panel--melhorias)** | Customization · Resize Handle. **Bloqueado** por decisão em plugin externo |
+| **[Margin Panel](#4-margin-panel--melhorias)** | Customization · Resize Handle (dependência externa) · layout denso PDF/multicoder (follow-up QDPX) |
+| **[QDPX](#qdpx-pdf-e-colaboração-entre-vaults--fechado-2026-09-03)** | Marco 7 Atlas, adiado até haver conta/instalação; Qualia↔Qualia está fechado |
 
 ---
 
@@ -201,6 +219,24 @@ Dois sub-itens com dívida técnica compartilhada (`scrollDOM stacking context` 
 - **Alternativas a considerar**:
   - CSS native `resize: horizontal` no panel
   - Setting numérico no settings tab em vez de drag interativo
+
+#### 4c. Layout denso PDF/multicoder — follow-up QDPX
+
+Frente isolada de UX descoberta no corpus Atlas com centenas de markers. A
+margin panel mínima já representa corretamente markers simples e multipágina,
+acompanha resize e mantém uma rail contínua por `marker × code`; o problema
+restante é legibilidade em alta densidade.
+
+- reavaliar colunas/tracks sem alterar a fonte de verdade;
+- separar posicionamento de rails e labels;
+- tratar saturação vertical e limites entre páginas;
+- avaliar filtros por coder;
+- avaliar compactação visual reversível `×N` e sua expansão;
+- definir a interação de markers exatamente sobrepostos.
+
+Este item não herda o bloqueio por plugin externo dos itens 4a/4b e ainda precisa
+de brainstorm próprio antes de implementação. Detalhe preservado na
+[spec QDPX multicoder](superpowers/specs/2026-09-01-qdpx-multicoder-import-design.md#melhoria-posterior--redesign-da-margin-panel).
 
 ---
 
@@ -317,6 +353,17 @@ de bbox inteiro e magnitude por NoteRef. Esse teste mede o
 dialeto externo do Atlas; não reabre o desenho nem bloqueia colaboração
 Qualia↔Qualia já validada. Ver
 `docs/superpowers/plans/2026-09-02-qdpx-pdf-export-roundtrip.md`.
+
+Checklist do Marco 7:
+
+- [ ] gerar um pacote novo a partir do estado atual do projeto de referência;
+- [ ] validar o XML do pacote completo contra o `Project.xsd` oficial mantido
+  apenas no cache local `.local/refi-qda/project/v1.0/`;
+- [ ] abrir no Atlas e comparar documentos, quotations simples/multipágina,
+  códigos, quatro pesquisadores, magnitudes, memos e relações;
+- [ ] confirmar que contas declaradas sem aplicações não foram reintroduzidas;
+- [ ] fazer uma edição representativa no Atlas, exportar e reabrir no Qualia;
+- [ ] registrar diferenças apenas visuais separadamente de perdas semânticas.
 
 
 ## Fontes

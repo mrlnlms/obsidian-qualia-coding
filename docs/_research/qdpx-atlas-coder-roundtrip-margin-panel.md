@@ -1,8 +1,9 @@
 # QDPX Atlas, autoria multicoder e margin panel — levantamento e decisões
 
-> Atualização de sequência em 2026-09-02: autoria Qualia↔Qualia foi concluída no
-> Marco 2. O round-trip PDF completo entre vaults Qualia é um contrato autônomo
-> do Marco 6; interoperabilidade e edição no Atlas formam o Marco 7 separado.
+> Atualização final em 2026-09-03: autoria e round-trip PDF completo entre vaults
+> Qualia foram concluídos nos Marcos 2 e 6. Interoperabilidade e edição no Atlas
+> permanecem como Marco 7 separado; o redesign da margin panel densa é uma
+> melhoria opcional de UX.
 
 > Levantamento factual e checkpoint de decisões em 2026-09-01. Este documento
 > estende os diagnósticos
@@ -598,7 +599,7 @@ Coding ITE5 ICA`, começando em modo **Somente leitura**.
 - No D1, o perfil padrão criou uma contribuição independente no mesmo trecho
   (`Product team category emerges as a resu...`) com o código `Codigo de Marlon - Teste`.
   A contribuição apareceu no Compare Coders e desapareceu ao ser removida.
-- O relatório [`qdpx-import-audit.md`](../../imports/UnifiedDevOps%20Selective%20Coding%20ITE5%20ICA/qdpx-import-audit.md)
+- O relatório externo `qdpx-import-audit.md`, gerado no diretório do import,
   confirmou quatro coders com aplicações. ATLAS.ti e Marlon foram declarados no
   QDPX, mas ficaram em `0 / 0`; “sem autoria” permaneceu separado como dado
   ainda não resolvido dos fragments multipágina.
@@ -607,19 +608,19 @@ Esta validação fecha o comportamento funcional do Marco 1. Permanecem fora del
 as colisões entre markers exatamente sobrepostos, a investigação de regressões
 no renderer PDF, a semântica de “sem autoria” e o tratamento multipágina.
 
-## Checklist de testes automatizados pendentes
+## Checklist automatizado concluído
 
-Executar depois que a cota permitir, antes de iniciar o round-trip:
+Cobertura consolidada durante os Marcos 1–6:
 
-- [ ] Parser preserva Users, Codings, GUIDs de autoria e pareamento PDF/texto.
-- [ ] Usuários declarados sem aplicações não entram no seletor nem criam perfis
+- [x] Parser preserva Users, Codings, GUIDs de autoria e pareamento PDF/texto.
+- [x] Usuários declarados sem aplicações não entram no seletor nem criam perfis
   locais vazios; o audit registra essa ausência.
-- [ ] GUID externo resolve o mesmo coder após serialização e reimportação.
-- [ ] Modos legado, ativo e somente leitura respeitam propriedade; markers sem
+- [x] GUID externo resolve o mesmo coder após serialização e reimportação.
+- [x] Modos legado, ativo e somente leitura respeitam propriedade; markers sem
   autoria explícita permanecem não editáveis.
-- [ ] Selection com vários coders cria markers independentes, com procedência
+- [x] Selection com vários coders cria markers independentes, com procedência
   comum e aplicações individuais.
-- [ ] Lookup, mover, remover código, remover marker e criação respeitam o coder
+- [x] Lookup, mover, remover código, remover marker e criação respeitam o coder
   ativo; contribuição `human:default` é independente.
-- [ ] Rodar o conjunto focado do plano (Task 8), depois `npm test`, `npm run build`
+- [x] Rodar o conjunto focado do plano (Task 8), depois `npm test`, `npm run build`
   e `git diff --check`.

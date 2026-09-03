@@ -4,7 +4,8 @@
 >
 > Divida tecnica e oportunidades de refactor **abertas**, organizada por tema.
 > Items resolvidos viraram one-liners no fim do arquivo (com data e raiz).
-> Última atualização: 2026-05-13 (release **0.7.0** — bloco Image engine fechado + Gap #1c/1d + 3 UX gaps + cluster.worker async + canvas refresh cor cross-engine + colorOverride cross-engine + audit log defensive fix + `!important` podado 68 → 46: 7 cursor overrides + 39 handles SVG = Permanente; 18 AG Grid cells + 2 SVG stroke + 2 isolados removidos via especificidade). Bloco ICR + Image + canvas refresh cor zerados antes da próxima frente prática (LLM coding + Camada 2 BHM).
+> Última atualização: 2026-09-03. O bloco QDPX crítico está fechado; iniciativas
+> maiores e checkpoints externos ficam no `ROADMAP.md`, não neste backlog.
 
 ---
 
@@ -13,6 +14,10 @@
 **Bloco ICR fechado por inteiro** (release 0.6.0 arquitetura + 0.7.0 gaps intra-modality, 2026-05-13). Camadas 2 e 3 do framework multifaceta viraram peças do bloco LLM (ver `ROADMAP.md §"Framework Unificado ICR + LLM"`).
 
 **Próxima frente prática:** LLM-assisted coding com Camada 2 BHM como par natural. Precede brainstorm dedicado — ver `ROADMAP.md §"Frente 2"` + `docs/ICR-MULTIMODAL-METHODOLOGY.md`.
+
+**QDPX:** nenhum bug funcional confirmado permanece aberto após o round-trip
+Qualia↔Qualia. O Marco 7 Atlas e o redesign da margin panel para alta densidade
+são follow-ups não bloqueantes centralizados em `ROADMAP.md §"🔜 Próximo passo"`.
 
 ### 🔍 Sintomas observados sem repro confiável
 

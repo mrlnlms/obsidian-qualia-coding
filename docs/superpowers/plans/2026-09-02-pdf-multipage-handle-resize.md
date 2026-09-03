@@ -1,5 +1,8 @@
 # PDF Multipage Handle Resize Implementation Plan
 
+> Status: completed in Marco 5. Checkboxes below preserve the original execution
+> recipe and are not the live task tracker; see `docs/ROADMAP.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the existing two-handle PDF resize interaction work reliably for both simple and multipage markers, including live highlight/handle/margin feedback and automatic simple↔multipage conversion.

@@ -418,7 +418,9 @@ sem contribuição como participantes do projeto analítico.
 
 ### Marco 6 — antes do Atlas
 
-1. validar o XML contra o XSD local;
+1. validar no XSD oficial os caminhos sensíveis ao schema e um XML mínimo gerado;
+   a validação integral do pacote novo fica no Marco 7 porque os ajustes finais
+   de bbox e magnitude ocorreram depois do pacote manual;
 2. auditar contagem: todo marker codificado de uma source atual deve aparecer em
    alguma unidade exportada ou em erro explícito;
 3. auditar GUIDs e referências sem duplicação inválida;
@@ -478,12 +480,12 @@ valores aplicados continuam como Notes do Coding. A mesma validação mostrou qu
 as coordenadas de `PDFSelection` são inteiras no schema, levando o serializer a
 arredondar bboxes somente na borda XML.
 
-O importer funcional não precisa ser redesenhado para viabilizar o Marco 6. O
-maior trabalho está no exporter: criar uma projeção explícita, derivar offsets e
-bbox da geometria atual, emitir as representações visual/textual, projetar
-multipágina e medir cobertura sem descarte silencioso.
+O importer funcional não precisou ser redesenhado para viabilizar o Marco 6. O
+trabalho concentrou-se no exporter: projeção explícita, offsets e bbox derivados
+da geometria atual, representações visual/textual, multipágina e auditoria de
+cobertura sem descarte silencioso.
 
 Seguir o Atlas significa adotar sua representação QDPX quando ela é coerente com
 o padrão e com a semântica atual — não condicionar o arquivo à plataforma de
-origem. O resultado esperado é o mesmo pacote poder seguir Qualia → Qualia,
-Qualia → Atlas e Atlas → Qualia → Atlas.
+origem. Qualia → Qualia está comprovado; Qualia → Atlas e Atlas → Qualia → Atlas
+permanecem como o checkpoint externo do Marco 7.
