@@ -43,6 +43,18 @@ describe('buildCodebookXml', () => {
     const xml = buildCodebookXml(registry, { namespace: 'urn:QDA-XML:codebook:1.0' });
     expect(xml).toContain('xmlns="urn:QDA-XML:codebook:1.0"');
   });
+
+  it('links Qualia magnitude configuration through a standard code NoteRef when supplied', () => {
+    const code = registry.create('Intensity', '#ff0000');
+    registry.update(code.id, {
+      magnitude: { type: 'ordinal', values: ['low', 'medium', 'high'] },
+    });
+
+    const xml = buildCodebookXml(registry, { magnitudeNoteGuid: () => 'magnitude-note-guid' });
+
+    expect(xml).toContain('<NoteRef targetGUID="magnitude-note-guid"/>');
+    expect(xml).not.toContain('qualia:magnitude');
+  });
 });
 
 describe('buildQdcFile', () => {

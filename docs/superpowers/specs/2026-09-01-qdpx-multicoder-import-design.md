@@ -139,10 +139,11 @@ coder. A identidade da Selection Atlas será preservada apenas como procedência
   autoria.
 - [x] **Marco 5:** completar handles e resize PDF simples/multipágina, incluindo
   feedback contínuo da margin panel.
-- [ ] **Marco 6:** exportar PDF simples e multipágina e validar o round-trip
+- [x] **Marco 6:** exportar PDF simples e multipágina e validar o round-trip
   completo entre vaults Qualia/Obsidian.
 - [ ] **Marco 7:** validar a interoperabilidade Atlas em uma rodada externa
-  separada, incluindo edição no Atlas e retorno ao Qualia.
+  separada, incluindo edição no Atlas e retorno ao Qualia. Adiado em 2026-09-03
+  até haver nova conta e instalação do Atlas; não bloqueia o Marco 6.
 - [ ] **Melhoria posterior:** refinar layout espacial, filtros e compactações da
   margin panel como frente isolada de usabilidade.
 
@@ -508,6 +509,9 @@ da suíte completa de 274 arquivos, além de type-check, build e
 ou a política visual da margin panel.
 
 ## Marco 6 — round-trip PDF completo Qualia↔Qualia
+
+O desenho detalhado e aprovado deste marco está em
+[`2026-09-02-qdpx-pdf-export-roundtrip-design.md`](2026-09-02-qdpx-pdf-export-roundtrip-design.md).
 
 - [ ] tornar a resolução do exporter tolerante à hifenização, ligaturas,
   pontuação espaçada e caracteres de substituição, reutilizando a provenance de

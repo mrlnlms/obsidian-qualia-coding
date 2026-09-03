@@ -89,7 +89,7 @@ A freeform canvas for synthesis:
 
 ## Interoperability
 
-- **Export QDPX** — full project: sources + segments + memos + case variables + groups. Compatible with ATLAS.ti, NVivo, MAXQDA, Dedoose, and any REFI-QDA tool
+- **Export QDPX** — full project: sources + segments + memos + case variables + groups. PDF simple/multipage round-trip is verified between Qualia vaults; external ATLAS.ti verification is the next interoperability checkpoint
 - **Export QDC** — codebook only (hierarchy, colors, descriptions)
 - **Import QDPX / QDC** — bring projects from other QDA tools. Source files extracted to the vault, codes and segments mapped to Qualia engines
 - **Tabular CSV zip** — relational flat files (segments, code_applications, codes, case_variables, relations, groups, smart_codes, coders) with an embedded README and R/tidyverse + Python/pandas snippets — including a full Cohen κ recipe. For when you want to run stats outside the plugin
@@ -101,11 +101,11 @@ A freeform canvas for synthesis:
 A few technical choices worth knowing about:
 
 - **100% local.** No telemetry, no cloud calls, no API keys required. Works fully offline. Your data never leaves the vault
-- **REFI-QDA 1.0 spec compliant.** QDPX export uses an `xmlns:qualia` extension namespace to preserve Qualia-specific metadata (custom colors, group descriptions) without breaking other tools' parsers
+- **REFI-QDA 1.0 transport.** QDPX export uses standard Notes for marker values and magnitude-scale definitions, plus an `xmlns:qualia` extension namespace where no standard representation exists (such as custom group metadata)
 - **CodeMirror 6 native.** Markdown highlights are real CodeMirror decorations, not DOM overlays. The margin panel is a custom `ViewPlugin` with column-resolved label layout — same UX as MAXQDA's
 - **Per-engine viewers, no shared state.** PDF (pdf.js), Image (Fabric.js), Audio/Video (WaveSurfer.js), CSV/Parquet (AG Grid Community + hyparquet WASM eager / DuckDB-Wasm + OPFS lazy above 50 MB). Each engine is self-contained — adding a format doesn't touch the others
 - **Incremental analytics cache.** Dirty flags per engine; analytics modes recompute only the affected slice. Stays fast on large projects
-- **3,600+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, Smart Codes evaluator/cache, lazy Parquet pipeline, ICR motor κ + reconciliation + transport, source size providers (PDF + CSV segment + media), and analytics consolidators
+- **3,700+ unit tests** (Vitest + jsdom) covering pure helpers, engine models, registry CRUD, REFI-QDA round-trip, tabular export, Smart Codes evaluator/cache, lazy Parquet pipeline, ICR motor κ + reconciliation + transport, source size providers (PDF + CSV segment + media), and analytics consolidators
 - **Two inline Web Workers** keep UI fluid on heavy compute: `kappa.worker` (5 ICR coefficients off-main-thread for any cohort size) and `cluster.worker` (`hierarchicalCluster` for cooccurrence sort, overlap sort, dendrogram and files-dendrogram views — no UI freeze on 100+ codes)
 - **TypeScript strict** end-to-end, with ambient types for Obsidian internals where needed
 - **No build-time secrets, no runtime servers.** The entire plugin is the three files in your `.obsidian/plugins/qualia-coding/` folder

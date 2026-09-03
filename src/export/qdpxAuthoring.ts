@@ -14,11 +14,12 @@ export interface QdpxExportUser {
 export interface QdpxAuthoredMarker {
 	id: string;
 	codedBy?: CoderId;
-	importedQdpxSelection?: { unattributedOwner?: true };
+	importedQdpxSelection?: { unattributedOwner?: true; creatingUserGuid?: string };
 }
 
 export interface QdpxAuthoringContext {
 	authorGuidFor(marker: QdpxAuthoredMarker): string | undefined;
+	selectionAuthorGuidFor?(marker: QdpxAuthoredMarker): string | undefined;
 	getUsers(): QdpxExportUser[];
 }
 
@@ -70,6 +71,15 @@ export function createQdpxAuthoringContext(
 				registry.setExternalIdentity(coder.id, { scheme: REFI_USER_SCHEME, value: guid });
 			}
 
+			if (!users.has(coder.id)) users.set(coder.id, { coderId: coder.id, guid, name: coder.name });
+			return guid;
+		},
+
+		selectionAuthorGuidFor(marker): string | undefined {
+			const guid = marker.importedQdpxSelection?.creatingUserGuid;
+			if (!guid || !UUID_RE.test(guid)) return undefined;
+			const coder = registry.getByExternalIdentity({ scheme: REFI_USER_SCHEME, value: guid });
+			if (!coder) return undefined;
 			if (!users.has(coder.id)) users.set(coder.id, { coderId: coder.id, guid, name: coder.name });
 			return guid;
 		},

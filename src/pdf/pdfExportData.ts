@@ -7,12 +7,12 @@
  */
 
 import type { App, TFile } from 'obsidian';
-import { buildPlainText } from './pdfPlainText';
+import { buildPlainText, type PdfExportTextItem } from './pdfPlainText';
 
 export interface PdfExportData {
 	plainText: string;
 	pageStartOffsets: number[];
-	pageTextItems: Array<Array<{ str?: string }>>;
+	pageTextItems: PdfExportTextItem[][];
 	pageDims: Record<number, { width: number; height: number }>;
 }
 

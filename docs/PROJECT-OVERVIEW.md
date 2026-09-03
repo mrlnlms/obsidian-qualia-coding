@@ -25,9 +25,9 @@
 - Citation-anchoring nativo em todos os formatos (offsets/markers persistentes)
 - Vault-as-git (versionamento, audit trail, privacy local)
 - Parquet/DuckDB-Wasm em escala (297MB load instantâneo) — único CAQDAS com isso
-- REFI-QDA com import/export estrutural e round-trip de autoria Qualia↔Qualia
-  verificados; paridade PDF completa entre vaults está no Marco 6 e
-  interoperabilidade Atlas no Marco 7
+- REFI-QDA com import Atlas multicoder e round-trip PDF simples/multipágina
+  Qualia↔Qualia verificados, incluindo autoria, magnitudes, memo e relações;
+  interoperabilidade externa no Atlas permanece como checkpoint isolado do Marco 7
 - Memo (reflexão analítica processual) cross-entidade — base pra "memo-as-prompt" quando LLM coding entrar
 
 ---

@@ -1,6 +1,12 @@
 import type { PdfMarkerSegment } from '../pdf/pdfCodingTypes';
 import { resolvePendingIndicesInTextContentItems } from '../pdf/resolvePendingIndices';
 import type { ParsedSelection } from './qdpxImporter';
+import {
+	advanceQdpxCodepoints,
+	qdpxCodepointLength,
+	qdpxCodepointToCodeUnit,
+	sliceQdpxCodepoints,
+} from './qdpxTextOffsets';
 
 export interface QdpxPdfMultipageGroup {
 	groupId: string;
@@ -212,22 +218,24 @@ export function resolveQdpxLogicalText(
 		&& endPosition !== undefined
 		&& startPosition >= 0
 		&& startPosition < endPosition
-		&& endPosition <= qdpxPlainText.length) {
+		&& endPosition <= qdpxCodepointLength(qdpxPlainText)) {
 		const declaredLength = endPosition - startPosition;
 		const windowStart = Math.max(0, startPosition - 500);
-		const windowEnd = Math.min(qdpxPlainText.length, startPosition + 500 + group.name.length);
-		const window = qdpxPlainText.slice(windowStart, windowEnd);
+		const windowEnd = Math.min(qdpxCodepointLength(qdpxPlainText), startPosition + 500 + qdpxCodepointLength(group.name));
+		const window = sliceQdpxCodepoints(qdpxPlainText, windowStart, windowEnd) ?? '';
 		const nameKey = normalizeMappedText(group.name).text;
 		const anchor = findBoundary(normalizeMappedText(window), nameKey, 'start');
 		if (anchor.status === 'resolved') {
-			const reanchoredStart = windowStart + anchor.rawStart!;
-			const reanchoredEnd = Math.min(qdpxPlainText.length, reanchoredStart + declaredLength);
+			const windowStartCodeUnit = qdpxCodepointToCodeUnit(qdpxPlainText, windowStart) ?? 0;
+			const reanchoredStart = windowStartCodeUnit + anchor.rawStart!;
+			const reanchoredEnd = advanceQdpxCodepoints(qdpxPlainText, reanchoredStart, declaredLength)
+				?? qdpxPlainText.length;
 			return trimLeakedPartialTrailingToken(
 				qdpxPlainText.slice(reanchoredStart, reanchoredEnd),
 				qdpxPlainText.slice(reanchoredEnd),
 			);
 		}
-		return qdpxPlainText.slice(startPosition, endPosition);
+		return sliceQdpxCodepoints(qdpxPlainText, startPosition, endPosition) ?? group.name;
 	}
 	return group.name;
 }

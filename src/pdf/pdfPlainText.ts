@@ -16,8 +16,19 @@
 export interface PdfLikeDocument {
 	numPages: number;
 	getPage(n: number): Promise<{
-		getTextContent(): Promise<{ items: Array<{ str?: string }> }>;
+		getTextContent(): Promise<{ items: PdfExportTextItem[] }>;
 	}>;
+}
+
+export interface PdfExportTextItem {
+	str?: string;
+	dir?: string;
+	width?: number;
+	height?: number;
+	transform?: number[];
+	fontName?: string;
+	hasEOL?: boolean;
+	chars?: Array<{ c: string; u: string; r: [number, number, number, number] }>;
 }
 
 export interface PlainTextResult {
@@ -25,19 +36,28 @@ export interface PlainTextResult {
 	/** Offset (inclusive) where each page begins in plainText. Length === numPages. */
 	pageStartOffsets: number[];
 	/** Raw PDF.js text items, indexed by zero-based PDF page. */
-	pageTextItems: Array<Array<{ str?: string }>>;
+	pageTextItems: PdfExportTextItem[][];
 }
 
 export async function buildPlainText(doc: PdfLikeDocument): Promise<PlainTextResult> {
 	const pageStartOffsets: number[] = [];
-	const pageTextItems: Array<Array<{ str?: string }>> = [];
+	const pageTextItems: PdfExportTextItem[][] = [];
 	let plainText = '';
 
 	for (let i = 1; i <= doc.numPages; i++) {
 		pageStartOffsets.push(plainText.length);
 		const page = await doc.getPage(i);
 		const content = await page.getTextContent();
-		pageTextItems.push(content.items.map((item) => ({ str: item.str })));
+		pageTextItems.push(content.items.map((item) => ({
+			str: item.str,
+			dir: item.dir,
+			width: item.width,
+			height: item.height,
+			transform: item.transform ? [...item.transform] : undefined,
+			fontName: item.fontName,
+			hasEOL: item.hasEOL,
+			chars: item.chars?.map((char) => ({ ...char, r: [...char.r] as [number, number, number, number] })),
+		})));
 		// Strip leading/trailing whitespace from each item so that items with
 		// embedded padding (e.g. "Language: " + " Evaluating") don't produce
 		// double spaces after join. Matches the Obsidian DOM text layer, which

@@ -472,9 +472,9 @@ Módulo `src/export/` implementa export nos formatos QDC (codebook) e QDPX (proj
 - **qdpxImporter.ts**: `parseSources` (5 tipos), `parseNotes` (com detecção `[Magnitude: X]`), `parseLinks` (com `<MemoText>` opcional), `parseSetsFromXml` (regex-based, parsea `<MemoText>` em `<Set>`), `previewQdpx`, `importQdpx` (ZIP→vault: extrai sources, cria markers por engine, batch de text markers com offset→lineCh, memos standalone como .md, `applyLinks` code-level + marker-level preservando `relation.memo`)
 - **importModal.ts**: File picker, preview com contagem, dropdown conflitos, toggle sources, flows QDC e QDPX separados
 - **importCommands.ts**: `import-qdpx`, `import-qdc` na palette + botão analytics
-- **Magnitude round-trip**: Export codifica `CodeApplication.magnitude` como Note `[Magnitude: X]` via `buildCodingXml(codes, guidMap, createdAt, notes)`. Import detecta prefixo e reconstrói magnitude no `CodeApplication`
+- **Magnitude round-trip**: Export codifica `CodeApplication.magnitude` como Note `[Magnitude: X]` e preserva a definição da escala do código (`type` + `values`) em uma Note padrão `[Qualia Magnitude Definition: {...}]`, referenciada pelo `<Code>` via `<NoteRef>`. Import reconstrói os dois níveis separadamente. A forma com NoteRef evita um atributo custom proibido pelo XSD REFI 1.0.
 
-**PDF text transport baseline** (2026-04-23; cobertura completa ainda pendente):
+**PDF text transport** (baseline em 2026-04-23; paridade entre vaults fechada em 2026-09-03):
 
 O PDF tem um desafio específico: runtime usa `beginIndex/beginOffset/endIndex/endOffset` alinhados com `.textLayerNode` do viewer (que são DOM-specific), mas QDPX espera `startPosition/endPosition` em codepoints no PlainText consolidado. Solução em 3 módulos novos (export) + 2 (import):
 
@@ -496,13 +496,16 @@ Import pipeline (`extractAnchorFromPlainText` → placeholder + runtime resolve)
 Anchor em text só vive no lado export/import, estruturando o transporte sem mudar
 o schema do marker.
 
-**Estado real em 2026-09-02:** Users, `Coding.creatingUser` e identidade externa
-estável já fazem round-trip Qualia↔Qualia. A resolução PDF do exporter ainda
-descarta markers quando o texto canônico diverge por hifenização, ligaturas,
-pontuação espaçada ou caracteres de substituição; no D1 real, 33 de 113 markers
-foram emitidos no checkpoint. O Marco 6 fecha paridade PDF simples/multipágina
-entre vaults Qualia. Somente o Marco 7 valida abertura, edição e retorno pelo
-Atlas. Ver `docs/superpowers/specs/2026-09-01-qdpx-multicoder-import-design.md`.
+**Estado real em 2026-09-03:** o exporter projeta endpoints PDF diretamente para
+offsets Unicode da Representation, deriva bbox da geometria atual e falha de forma
+atômica quando um marker ativo não pode ser coberto. Markers multipágina viram
+fragmentos visuais correlacionados a uma Selection textual; siblings importados
+compatíveis são reagrupados sem colapsar markers nativos coincidentes. Users,
+`Coding.creatingUser`, identidade externa, magnitudes, memos e relações fazem
+round-trip Qualia↔Qualia. O checkpoint manual preservou 7 selections lógicas, 9
+fragmentos PDF, 8 Codings semânticos e 1 relação. Somente o Marco 7, adiado até
+haver conta/instalação, valida abertura, edição e retorno pelo Atlas. Ver
+`docs/superpowers/specs/2026-09-01-qdpx-multicoder-import-design.md`.
 
 ### 5.10 Tabular export (CSV zip pra análise externa)
 

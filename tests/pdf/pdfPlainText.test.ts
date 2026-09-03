@@ -83,4 +83,27 @@ describe('buildPlainText', () => {
 			[{ str: 'page' }, { str: 'two' }],
 		]);
 	});
+
+	it('retém geometria e caracteres necessários para projeção headless', async () => {
+		const result = await buildPlainText({
+			numPages: 1,
+			getPage: async () => ({
+				getTextContent: async () => ({
+					items: [{
+						str: 'word', dir: 'ltr', width: 40, height: 10,
+						transform: [1, 0, 0, 1, 10, 70], hasEOL: false,
+						chars: [{ c: 'w', u: 'w', r: [10, 70, 20, 80] }],
+					}],
+				}),
+			}),
+		});
+
+		expect(result.pageTextItems[0]![0]).toEqual({
+			str: 'word', dir: 'ltr', width: 40, height: 10,
+			transform: [1, 0, 0, 1, 10, 70],
+			fontName: undefined,
+			hasEOL: false,
+			chars: [{ c: 'w', u: 'w', r: [10, 70, 20, 80] }],
+		});
+	});
 });

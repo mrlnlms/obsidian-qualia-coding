@@ -41,7 +41,7 @@ function multicoderQdpx(): ArrayBuffer {
     </Users>
     <CodeBook><Codes><Code guid="code-a" name="Theme A" isCodable="true" /></Codes></CodeBook>
     <Sources><PDFSource guid="pdf-1" name="paper.pdf" path="internal://paper.pdf">
-      <PDFSelection guid="selection-1" page="0" name="quoted passage" firstX="10" firstY="20" secondX="100" secondY="40">
+      <PDFSelection guid="selection-1" page="0" name="quoted passage" creatingUser="u-carla" creationDateTime="2026-01-01T00:00:00Z" firstX="10" firstY="20" secondX="100" secondY="40">
         <Coding guid="pdf-carla" creatingUser="u-carla"><CodeRef targetGUID="code-a" /></Coding>
         <Coding guid="pdf-joao" creatingUser="u-joao"><CodeRef targetGUID="code-a" /></Coding>
       </PDFSelection>
@@ -71,7 +71,7 @@ function multipageMulticoderQdpx(): ArrayBuffer {
     </Users>
     <CodeBook><Codes><Code guid="code-a" name="Theme A" isCodable="true" /></Codes></CodeBook>
     <Sources><PDFSource guid="pdf-1" name="paper.pdf" path="internal://paper.pdf">
-      <PDFSelection guid="anchor" page="0" name="${logical}" creationDateTime="2026-01-02T00:00:00Z" firstX="10" firstY="20" secondX="100" secondY="40">
+      <PDFSelection guid="anchor" page="0" name="${logical}" creatingUser="u-carla" creationDateTime="2026-01-02T00:00:00Z" firstX="10" firstY="20" secondX="100" secondY="40">
         <Coding guid="pdf-anchor-carla" creatingUser="u-carla"><CodeRef targetGUID="code-a" /></Coding>
         <Coding guid="pdf-anchor-joao" creatingUser="u-joao"><CodeRef targetGUID="code-a" /></Coding>
       </PDFSelection>
@@ -176,7 +176,7 @@ describe('parseSources', () => {
     const xml = `<Project><Sources>
       <PDFSource guid="pdf1" name="paper.pdf" path="internal://pdf1.pdf">
         <Representation guid="repr1" plainTextPath="internal://repr1.txt"/>
-        <PlainTextSelection guid="pts1" startPosition="42" endPosition="98">
+        <PlainTextSelection guid="pts1" name="Selected passage" creatingUser="user-1" creationDateTime="2026-01-03T04:05:06Z" startPosition="42" endPosition="98">
           <Coding guid="c1"><CodeRef targetGUID="cg1"/></Coding>
         </PlainTextSelection>
         <PDFSelection guid="pdfs1" page="0" firstX="61.2" firstY="633.6" secondX="244.8" secondY="316.8">
@@ -190,6 +190,11 @@ describe('parseSources', () => {
     expect(sources[0]!.type).toBe('pdf');
     expect(sources[0]!.selections).toHaveLength(2);
     expect(sources[0]!.selections[0]!.type).toBe('PlainTextSelection');
+    expect(sources[0]!.selections[0]).toMatchObject({
+      name: 'Selected passage',
+      creatingUserGuid: 'user-1',
+      createdAt: '2026-01-03T04:05:06Z',
+    });
     expect(sources[0]!.selections[1]!.type).toBe('PDFSelection');
     expect(sources[0]!.selections[1]!.page).toBe(0);
   });
@@ -286,7 +291,22 @@ describe('multicoder QDPX import', () => {
       ['pdf-carla', 'text-carla'],
       ['pdf-joao', 'text-joao'],
     ]);
-    expect(markers.map((marker) => marker.importedQdpxSelection?.selectionGuid)).toEqual(['selection-1', 'selection-1']);
+    expect(markers.map((marker) => marker.importedQdpxSelection)).toEqual([
+      {
+        source: 'refi-qda-selection',
+        selectionGuid: 'selection-1',
+        creatingUserGuid: 'u-carla',
+        name: 'quoted passage',
+        creationDateTime: '2026-01-01T00:00:00Z',
+      },
+      {
+        source: 'refi-qda-selection',
+        selectionGuid: 'selection-1',
+        creatingUserGuid: 'u-carla',
+        name: 'quoted passage',
+        creationDateTime: '2026-01-01T00:00:00Z',
+      },
+    ]);
 
     expect(result.auditPath).toBe('imports/multicoder-fixture/qdpx-import-audit.md');
     const audit = writes.get(result.auditPath!);
@@ -338,6 +358,9 @@ describe('multicoder QDPX import', () => {
       expect(marker.importedQdpxSelection).toMatchObject({
         selectionGuid: 'anchor',
         selectionGuids: ['anchor', 'continuation'],
+        creatingUserGuid: 'u-carla',
+        name: marker.text,
+        creationDateTime: '2026-01-02T00:00:00Z',
       });
       expect(marker.codes[0]!.qdpx?.sourceCodingGuids).toHaveLength(3);
     }
@@ -649,6 +672,15 @@ describe('buildPdfMultipageFragmentHints', () => {
 });
 
 describe('resolveImportedPdfText', () => {
+  it('interprets REFI offsets as Unicode codepoints', () => {
+    const resolution = resolveImportedPdfText({
+      guid: 'unicode', type: 'PDFSelection', name: '😀',
+      startPosition: 1, endPosition: 2, codings: [], codeGuids: [], noteGuids: [],
+    }, 'a😀bc');
+
+    expect(resolution).toEqual({ text: '😀', strategy: 'offset' });
+  });
+
   it('reanchors when Atlas.ti offsets drift away from the actual text start', () => {
     const sel = {
       guid: 'atlas-d12',

@@ -54,6 +54,12 @@ export interface QdpxSelectionProvenance {
 	selectionGuid: string;
 	/** Ordered PDFSelection GUIDs belonging to one imported logical marker. */
 	selectionGuids?: string[];
+	/** Original Selection author, distinct from the authors of its Coding nodes. */
+	creatingUserGuid?: string;
+	/** Original Selection label, retained for a lossless QDPX export. */
+	name?: string;
+	/** Original ISO timestamp on the Selection element. */
+	creationDateTime?: string;
 	/** Missing/unknown creatingUser: never treat as legacy Default ownership. */
 	unattributedOwner?: true;
 }

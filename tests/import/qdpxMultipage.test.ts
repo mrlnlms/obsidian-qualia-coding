@@ -95,6 +95,18 @@ describe('detectQdpxPdfMultipageGroups', () => {
 });
 
 describe('resolveQdpxMultipageRange', () => {
+	it('interprets the logical PlainText range as Unicode codepoints', () => {
+		const target = 'A quotation with enough distinctive content to cross a Unicode boundary correctly';
+		const qdpxPlainText = `x😀${target} z`;
+		const group = detectQdpxPdfMultipageGroups([
+			pdf('anchor', 0, undefined, target),
+			pdf('continuation', 1, undefined, target),
+			plain('anchor', 2, 2 + Array.from(target).length),
+		])[0]!;
+
+		expect(resolveQdpxLogicalText(group, qdpxPlainText)).toBe(target);
+	});
+
 	it.each([
 		['Figure 2', 5, '\r\nM', 'EMO: next marker'],
 		['3.2.5 Autonomy', 7, ' ', 'For example, next paragraph'],

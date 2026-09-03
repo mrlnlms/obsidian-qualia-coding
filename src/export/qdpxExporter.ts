@@ -15,13 +15,17 @@ import type { PdfMarker, PdfShapeMarker } from '../pdf/pdfCodingTypes';
 import type { SegmentMarker, RowMarker } from '../csv/csvCodingTypes';
 import { lineChToOffset, mediaToMs, imageToPixels, pdfShapeToRect } from './coordConverters';
 import { loadPdfExportData } from '../pdf/pdfExportData';
-import { resolveMarkerOffsets } from '../pdf/resolveMarkerOffsets';
+import { getPdfMarkerSegments, isPdfMarkerSegmentPending } from '../pdf/pdfMarkerSegments';
 import type { DataManager } from '../core/dataManager';
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import { getImageDimensions } from '../core/imageDimensions';
 import { renderVariablesForFile, renderCasesXml } from './caseVariablesXml';
 import { buildUsersXml, createQdpxAuthoringContext, type QdpxAuthoringContext } from './qdpxAuthoring';
 import type { CoderRegistry } from '../core/icr/coderRegistry';
+import { buildPdfExportMap, projectPdfMarker, QdpxPdfProjectionError } from './qdpxPdfProjection';
+import { buildQdpxPdfSelectionUnits } from './qdpxPdfGrouping';
+import { serializeQdpxPdfSelectionUnit, type QdpxLinkDefinition } from './qdpxPdfSerializer';
+import { assertQdpxExportAudit, createQdpxExportAudit, type QdpxExportAudit } from './qdpxExportAudit';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -337,7 +341,7 @@ export function buildPdfSourceXml(
         notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, getMemoContent(m.memo)));
         noteRef = `\n${buildNoteRefXml(noteGuid)}`;
       }
-      return `<PDFSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('page', m.page)} ${xmlAttr('firstX', rect.firstX)} ${xmlAttr('firstY', rect.firstY)} ${xmlAttr('secondX', rect.secondX)} ${xmlAttr('secondY', rect.secondY)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PDFSelection>`;
+      return `<PDFSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('page', m.page)} ${xmlAttr('firstX', Math.round(rect.firstX))} ${xmlAttr('firstY', Math.round(rect.firstY))} ${xmlAttr('secondX', Math.round(rect.secondX))} ${xmlAttr('secondY', Math.round(rect.secondY))} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PDFSelection>`;
     })
     .filter(Boolean);
 
@@ -426,7 +430,7 @@ function buildPdfSourceXmlInternal(
         notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(filePath)}`, getMemoContent(m.memo)));
         noteRef = `\n${buildNoteRefXml(noteGuid)}`;
       }
-      return `<PDFSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('page', m.page)} ${xmlAttr('firstX', rect.firstX)} ${xmlAttr('firstY', rect.firstY)} ${xmlAttr('secondX', rect.secondX)} ${xmlAttr('secondY', rect.secondY)} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PDFSelection>`;
+      return `<PDFSelection ${xmlAttr('guid', selGuid)} ${xmlAttr('page', m.page)} ${xmlAttr('firstX', Math.round(rect.firstX))} ${xmlAttr('firstY', Math.round(rect.firstY))} ${xmlAttr('secondX', Math.round(rect.secondX))} ${xmlAttr('secondY', Math.round(rect.secondY))} ${xmlAttr('creationDateTime', new Date(m.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PDFSelection>`;
     })
     .filter(Boolean);
 
@@ -446,23 +450,36 @@ export function buildLinksXml(
   definitions: CodeDefinition[],
   markers: Array<{ id: string; codes: CodeApplication[] }>,
   guidMap: Map<string, string>,
+  selectionGuidByMarkerId?: ReadonlyMap<string, string>,
+  additionalLinks: QdpxLinkDefinition[] = [],
 ): string {
   const links: string[] = [];
+  const seen = new Set<string>();
+
+  const addLink = (
+    name: string,
+    direction: 'OneWay' | 'Associative',
+    originGuid: string,
+    targetGuid: string,
+    memo: string | undefined,
+    guid = uuidV4(),
+  ): void => {
+    const key = JSON.stringify([name, direction, originGuid, targetGuid, memo ?? '']);
+    if (seen.has(key)) return;
+    seen.add(key);
+    const linkAttrs = `${xmlAttr('guid', guid)} ${xmlAttr('name', name)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}`;
+    const memoEl = memo ? `<MemoText>${escapeXml(memo)}</MemoText>` : '';
+    links.push(memoEl ? `<Link ${linkAttrs}>${memoEl}</Link>` : `<Link ${linkAttrs}/>`);
+  };
 
   // Code-level relations: Code → Code
   for (const def of definitions) {
     if (!def.relations) continue;
     for (const rel of def.relations) {
-      const linkGuid = uuidV4();
       const originGuid = ensureGuid(def.id, guidMap);
       const targetGuid = ensureGuid(rel.target, guidMap);
       const direction = rel.directed ? 'OneWay' : 'Associative';
-      const linkAttrs = `${xmlAttr('guid', linkGuid)} ${xmlAttr('name', rel.label)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}`;
-      const memoEl = rel.memo ? `<MemoText>${escapeXml(getMemoContent(rel.memo))}</MemoText>` : '';
-      links.push(memoEl
-        ? `<Link ${linkAttrs}>${memoEl}</Link>`
-        : `<Link ${linkAttrs}/>`,
-      );
+      addLink(rel.label, direction, originGuid, targetGuid, rel.memo ? getMemoContent(rel.memo) : undefined);
     }
   }
 
@@ -471,18 +488,16 @@ export function buildLinksXml(
     for (const ca of marker.codes) {
       if (!ca.relations) continue;
       for (const rel of ca.relations) {
-        const linkGuid = uuidV4();
-        const originGuid = ensureGuid(marker.id, guidMap);
+        const originGuid = selectionGuidByMarkerId?.get(marker.id) ?? ensureGuid(marker.id, guidMap);
         const targetGuid = ensureGuid(rel.target, guidMap);
         const direction = rel.directed ? 'OneWay' : 'Associative';
-        const linkAttrs = `${xmlAttr('guid', linkGuid)} ${xmlAttr('name', rel.label)} ${xmlAttr('direction', direction)} ${xmlAttr('originGUID', originGuid)} ${xmlAttr('targetGUID', targetGuid)}`;
-        const memoEl = rel.memo ? `<MemoText>${escapeXml(getMemoContent(rel.memo))}</MemoText>` : '';
-        links.push(memoEl
-          ? `<Link ${linkAttrs}>${memoEl}</Link>`
-          : `<Link ${linkAttrs}/>`,
-        );
+        addLink(rel.label, direction, originGuid, targetGuid, rel.memo ? getMemoContent(rel.memo) : undefined);
       }
     }
+  }
+
+  for (const link of additionalLinks) {
+    addLink(link.name, link.direction, link.originGuid, link.targetGuid, link.memo, link.guid);
   }
 
   return links.join('\n');
@@ -521,11 +536,29 @@ export function buildProjectXml(
   smartCodes?: SmartCodeDefinition[],
   usersXml = '',
 ): string {
+  const resolvedGuidMap = guidMap ?? new Map<string, string>();
+  const magnitudeNoteGuidByCodeId = new Map<string, string>();
+  const magnitudeNotes = registry.getAll().flatMap((code) => {
+    if (!code.magnitude) return [];
+    const noteGuid = ensureGuid(`code-magnitude:${code.id}`, resolvedGuidMap);
+    magnitudeNoteGuidByCodeId.set(code.id, noteGuid);
+    return [buildNoteXml(
+      noteGuid,
+      'Qualia Magnitude Definition',
+      `[Qualia Magnitude Definition: ${JSON.stringify(code.magnitude)}]`,
+    )];
+  });
   const codebook = guidMap
-    ? buildCodebookXml(registry, { ensureCodeGuid: (id) => ensureGuid(id, guidMap) })
-    : buildCodebookXml(registry);
+    ? buildCodebookXml(registry, {
+      ensureCodeGuid: (id) => ensureGuid(id, resolvedGuidMap),
+      magnitudeNoteGuid: (id) => magnitudeNoteGuidByCodeId.get(id),
+    })
+    : buildCodebookXml(registry, {
+      magnitudeNoteGuid: (id) => magnitudeNoteGuidByCodeId.get(id),
+    });
   const sourcesSection = sourcesXml ? `<Sources>\n${sourcesXml}\n</Sources>` : '';
-  const notesSection = notesXml ? `<Notes>\n${notesXml}\n</Notes>` : '';
+  const combinedNotesXml = [notesXml, ...magnitudeNotes].filter(Boolean).join('\n');
+  const notesSection = combinedNotesXml ? `<Notes>\n${combinedNotesXml}\n</Notes>` : '';
   const linksSection = linksXml ? `<Links>\n${linksXml}\n</Links>` : '';
   const casesSection = casesXml ? `<Cases>\n${casesXml}\n</Cases>` : '';
   const smartCodesSection = smartCodes ? buildSmartCodesXml(smartCodes) : '';
@@ -586,6 +619,7 @@ export interface ExportResult {
   data: Uint8Array | string;
   fileName: string;
   warnings: string[];
+  audit?: QdpxExportAudit;
 }
 
 export async function exportProject(
@@ -607,6 +641,11 @@ export async function exportProject(
   const warnings: string[] = [];
   const authoring = createQdpxAuthoringContext(coderRegistry, warnings, uuidV4);
   const sourceGuidByFileId = new Map<string, string>();
+  const selectionGuidByMarkerId = new Map<string, string>();
+  const additionalLinks: QdpxLinkDefinition[] = [];
+  const exportedPdfMarkerIds = new Set<string>();
+  const audit = createQdpxExportAudit();
+  const physicalCodingGuids = new Set<string>();
 
   // --- Markdown ---
   const mdData = dataManager.section('markdown');
@@ -637,36 +676,142 @@ export async function exportProject(
   for (const [fileId, { textMarkers, shapeMarkers }] of pdfByFile) {
     if (textMarkers.length === 0 && shapeMarkers.length === 0) continue;
 
+    const codedMarkerCount = textMarkers.filter((marker) => marker.codes.length > 0).length
+      + shapeMarkers.filter((marker) => marker.codes.length > 0).length;
+    const sourceFile = app.vault.getAbstractFileByPath(fileId);
+    if (!sourceFile || !('extension' in sourceFile)) {
+      audit.omittedOrphanMarkers += codedMarkerCount;
+      continue;
+    }
+    audit.activePdfSources++;
+
     let exportData;
     try {
       exportData = await loadPdfExportData(app, fileId);
     } catch (err) {
-      warnings.push(`PDF ${fileId}: failed to load for export (${(err as Error).message}) — skip`);
+      audit.issues.push({
+        kind: 'source-load', sourceId: fileId,
+        message: `PDF ${fileId}: failed to load for export (${(err as Error).message})`,
+      });
       continue;
     }
 
-    const { plainText, pageStartOffsets, pageDims } = exportData;
+    const { plainText, pageDims } = exportData;
+    const resolvedTextMarkers = textMarkers.filter((marker) =>
+      marker.codes.length > 0
+      && getPdfMarkerSegments(marker).every((segment) => !isPdfMarkerSegmentPending(segment)),
+    );
+    audit.resolvedPdfMarkers += resolvedTextMarkers.length;
+    const exportMap = buildPdfExportMap(exportData);
+    const projectedMarkers = [];
+    for (const marker of resolvedTextMarkers) {
+      try {
+        projectedMarkers.push(projectPdfMarker(marker, exportMap));
+      } catch (error) {
+        audit.issues.push({
+          kind: 'projection', sourceId: fileId,
+          markerId: error instanceof QdpxPdfProjectionError ? error.markerId : marker.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    if (projectedMarkers.length !== resolvedTextMarkers.length) continue;
 
-    const textOffsets = new Map<string, { start: number; end: number }>();
-    for (const m of textMarkers) {
-      const offsets = resolveMarkerOffsets(plainText, pageStartOffsets, m);
-      if (!offsets) {
-        warnings.push(`PDF marker ${m.id} (${fileId}, page ${m.page}): text "${m.text.slice(0, 40)}…" not found in PDF plain text — skip`);
-        continue;
-      }
-      if (offsets.ambiguous) {
-        warnings.push(`PDF marker ${m.id} (${fileId}, page ${m.page}): text appears multiple times on page — exported first occurrence`);
-      }
-      textOffsets.set(m.id, { start: offsets.start, end: offsets.end });
+    let grouping;
+    try {
+      grouping = await buildQdpxPdfSelectionUnits(fileId, projectedMarkers, {
+        projectKey: `${options.vaultName}:${fileId}`,
+        authorGuidFor: (marker) => authoring.authorGuidFor(marker),
+        selectionAuthorGuidFor: (marker) => authoring.selectionAuthorGuidFor?.(marker),
+      });
+    } catch (error) {
+      audit.issues.push({
+        kind: 'identity', sourceId: fileId,
+        message: `PDF ${fileId}: failed to group selections (${(error as Error).message})`,
+      });
+      continue;
+    }
+    for (const [markerId, selectionGuid] of grouping.selectionGuidByMarkerId) {
+      selectionGuidByMarkerId.set(markerId, selectionGuid);
+      exportedPdfMarkerIds.add(markerId);
     }
 
-    const { xml, reprGuid } = buildPdfSourceXmlWithRepr(fileId, textMarkers, shapeMarkers, pageDims, textOffsets, guidMap, notes, options.includeSources, authoring);
+    const serializedUnits = [];
+    try {
+      for (const unit of grouping.units) {
+        const serialized = await serializeQdpxPdfSelectionUnit(unit, {
+          projectKey: `${options.vaultName}:${fileId}`,
+          sourceName: fileName(fileId),
+          codeGuidFor: (codeId) => ensureGuid(codeId, guidMap),
+        });
+        const codingXml = `${serialized.plainTextSelectionXml}\n${serialized.pdfSelectionsXml}`;
+        for (const match of codingXml.matchAll(/<Coding guid="([^"]+)"/g)) {
+          const guid = match[1]!;
+          if (physicalCodingGuids.has(guid)) {
+            throw new Error(`duplicate physical Coding GUID ${guid}`);
+          }
+          physicalCodingGuids.add(guid);
+        }
+        serializedUnits.push(serialized);
+        notes.push(...serialized.notesXml);
+        additionalLinks.push(...serialized.continuedByLinks);
+      }
+    } catch (error) {
+      audit.issues.push({
+        kind: 'serialization', sourceId: fileId,
+        message: `PDF ${fileId}: failed to serialize selections (${(error as Error).message})`,
+      });
+      continue;
+    }
+    audit.exportedLogicalSelections += grouping.units.length;
+    audit.exportedPdfFragments += grouping.units.reduce((total, unit) => total + unit.fragments.length, 0);
+
+    const srcGuid = uuidV4();
+    const reprGuid = uuidV4();
+    guidMap.set(`source:${fileId}`, srcGuid);
+    const ext = fileId.split('.').pop() || '';
+    const pathAttr = options.includeSources
+      ? xmlAttr('path', `internal://${srcGuid}.${ext}`)
+      : xmlAttr('path', `relative://${fileId}`);
+    const reprPath = options.includeSources
+      ? `internal://${reprGuid}.txt`
+      : `relative://${fileId.replace(/\.pdf$/i, '.txt')}`;
+    const representationXml = serializedUnits.length > 0
+      ? `<Representation ${xmlAttr('guid', reprGuid)} ${xmlAttr('plainTextPath', reprPath)}>\n${serializedUnits.map((item) => item.plainTextSelectionXml).join('\n')}\n</Representation>`
+      : '';
+    const visualTextSelections = serializedUnits.map((item) => item.pdfSelectionsXml);
+    const shapeSelections = shapeMarkers
+      .filter((marker) => marker.codes.length > 0)
+      .map((marker) => {
+        const dim = pageDims[marker.page];
+        if (!dim) {
+          audit.issues.push({ kind: 'geometry', sourceId: fileId, markerId: marker.id, message: `PDF shape ${marker.id}: page ${marker.page} dimensions are unavailable` });
+          return '';
+        }
+        const rect = pdfShapeToRect(marker.coords, dim.width, dim.height);
+        if (!rect) return '';
+        exportedPdfMarkerIds.add(marker.id);
+        const selectionGuid = ensureGuid(marker.id, guidMap);
+        selectionGuidByMarkerId.set(marker.id, selectionGuid);
+        const codingsXml = buildCodingXml(marker.codes, guidMap, marker.createdAt, notes, authoring.authorGuidFor(marker));
+        let noteRef = '';
+        if (marker.memo) {
+          const noteGuid = ensureGuid(`note:${selectionGuid}`, guidMap);
+          notes.push(buildNoteXml(noteGuid, `Memo: ${fileName(fileId)}`, getMemoContent(marker.memo)));
+          noteRef = `\n${buildNoteRefXml(noteGuid)}`;
+        }
+        return `<PDFSelection ${xmlAttr('guid', selectionGuid)} ${xmlAttr('page', marker.page)} ${xmlAttr('firstX', Math.round(rect.firstX))} ${xmlAttr('firstY', Math.round(rect.firstY))} ${xmlAttr('secondX', Math.round(rect.secondX))} ${xmlAttr('secondY', Math.round(rect.secondY))} ${xmlAttr('creationDateTime', new Date(marker.createdAt).toISOString())}>\n${codingsXml}${noteRef}\n</PDFSelection>`;
+      })
+      .filter(Boolean);
+    const inner = [...visualTextSelections, ...shapeSelections, representationXml].filter(Boolean).join('\n');
+    const xml = inner
+      ? `<PDFSource ${xmlAttr('guid', srcGuid)} ${xmlAttr('name', fileName(fileId))} ${pathAttr}>\n${inner}\n</PDFSource>`
+      : '';
     if (xml) {
       const variablesXml = renderVariablesForFile(fileId, caseVariablesRegistry);
       allSourcesXml.push(injectVariablesIntoSource(xml, variablesXml));
-      const srcGuid = guidMap.get(`source:${fileId}`);
-      if (srcGuid) sourceGuidByFileId.set(fileId, srcGuid);
-      if (options.includeSources && textMarkers.length > 0) {
+      sourceGuidByFileId.set(fileId, srcGuid);
+      if (options.includeSources && serializedUnits.length > 0) {
         sourceFiles.set(`sources/${reprGuid}.txt`, strToU8(plainText));
       }
     }
@@ -674,6 +819,8 @@ export async function exportProject(
       await addSourceFile(app.vault, fileId, sourceFiles, guidMap);
     }
   }
+
+  assertQdpxExportAudit(audit);
 
   // --- Image ---
   const imgData = dataManager.section('image');
@@ -751,7 +898,12 @@ export async function exportProject(
   // Collect all markers for link generation
   const allMarkersForLinks: Array<{ id: string; codes: CodeApplication[] }> = [];
   for (const markers of Object.values(mdData.markers)) allMarkersForLinks.push(...markers);
-  for (const { textMarkers, shapeMarkers } of pdfByFile.values()) allMarkersForLinks.push(...textMarkers, ...shapeMarkers);
+  for (const { textMarkers, shapeMarkers } of pdfByFile.values()) {
+    allMarkersForLinks.push(
+      ...textMarkers.filter((marker) => exportedPdfMarkerIds.has(marker.id)),
+      ...shapeMarkers.filter((marker) => exportedPdfMarkerIds.has(marker.id)),
+    );
+  }
   for (const [, markers] of imgByFile) allMarkersForLinks.push(...markers);
   for (const af of audioData.files) allMarkersForLinks.push(...af.markers);
   for (const vf of videoData.files) allMarkersForLinks.push(...vf.markers);
@@ -760,7 +912,7 @@ export async function exportProject(
   const sourcesXml = allSourcesXml.join('\n');
   const notesXml = notes.join('\n');
   const allDefs = registry.getAll();
-  const linksXml = buildLinksXml(allDefs, allMarkersForLinks, guidMap);
+  const linksXml = buildLinksXml(allDefs, allMarkersForLinks, guidMap, selectionGuidByMarkerId, additionalLinks);
   const casesXml = renderCasesXml(caseVariablesRegistry, sourceGuidByFileId);
   // Smart Codes (Tier 3) — só aparece se houver pelo menos 1 smart code
   const smartCodesSection = dataManager.section('smartCodes');
@@ -771,7 +923,7 @@ export async function exportProject(
   const projectXml = buildProjectXml(registry, sourcesXml, notesXml, linksXml, casesXml, options.vaultName, options.pluginVersion, guidMap, smartCodesList, usersXml);
   const zipData = createQdpxZip(projectXml, sourceFiles);
 
-  return { data: zipData, fileName: options.fileName, warnings };
+  return { data: zipData, fileName: options.fileName, warnings, audit };
 }
 
 // ── Helpers ──

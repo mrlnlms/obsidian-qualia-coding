@@ -5,13 +5,19 @@ import { CodeDefinitionRegistry } from '../../src/core/codeDefinitionRegistry';
 import { CoderRegistry } from '../../src/core/icr/coderRegistry';
 import { CaseVariablesRegistry } from '../../src/core/caseVariables/caseVariablesRegistry';
 import { exportProject, isValidUuid } from '../../src/export/qdpxExporter';
+import { QdpxExportValidationError } from '../../src/export/qdpxExportAudit';
 import { importQdpx } from '../../src/import/qdpxImporter';
 import type { PdfMarker } from '../../src/pdf/pdfCodingTypes';
+import { loadPdfExportData } from '../../src/pdf/pdfExportData';
 
 vi.mock('../../src/pdf/pdfExportData', () => ({
 	loadPdfExportData: vi.fn(async () => ({
 		plainText: 'quoted passage',
 		pageStartOffsets: [0],
+		pageTextItems: [[{
+			str: 'quoted passage', dir: 'ltr', width: 140, height: 10,
+			transform: [1, 0, 0, 1, 10, 700],
+		}]],
 		pageDims: { 0: { width: 612, height: 792 } },
 	})),
 }));
@@ -30,7 +36,7 @@ function mockPlugin() {
 function marker(id: string, codeId: string, codedBy?: string, unattributed = false): PdfMarker {
 	return {
 		markerType: 'pdf', id, fileId: 'paper.pdf', page: 1,
-		beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 13,
+		beginIndex: 0, beginOffset: 0, endIndex: 0, endOffset: 14,
 		text: 'quoted passage',
 		codes: [{ codeId }],
 		codedBy,
@@ -100,10 +106,13 @@ describe('full QDPX project authorship', () => {
 
 		expect(userGuids).toHaveLength(3);
 		expect(userGuids).toEqual([CARLA_GUID, JOAO_GUID, defaultGuid]);
-		expect(authorGuids).toEqual([CARLA_GUID, JOAO_GUID, defaultGuid]);
+		expect(authorGuids).toEqual([
+			CARLA_GUID, JOAO_GUID, defaultGuid,
+			CARLA_GUID, JOAO_GUID, defaultGuid,
+		]);
 		expect(defaultGuid && isValidUuid(defaultGuid)).toBe(true);
 		expect(xml).not.toContain('name="Unused"');
-		expect((xml.match(/<Coding /g) ?? [])).toHaveLength(4);
+		expect((xml.match(/<Coding /g) ?? [])).toHaveLength(8);
 		expect(result.warnings).toEqual([
 			'QDPX marker 550e8400-e29b-41d4-a716-446655440013: explicitly unattributed owner — exported without creatingUser',
 		]);
@@ -150,10 +159,12 @@ describe('full QDPX project authorship', () => {
 		const importedMarkers = importedData.section('pdf').markers;
 		const authoredMarkers = importedMarkers.filter((candidate) => candidate.codedBy);
 		const ownerlessMarker = importedMarkers.find((candidate) => !candidate.codedBy);
-		const codingGuidByAuthor = new Map(
+		const codingGuidsByAuthor = new Map<string, string[]>();
+		for (const [guid, author] of
 			[...xml.matchAll(/<Coding guid="([^"]+)"[^>]*creatingUser="([^"]+)"/g)]
-				.map((match) => [match[2]!, match[1]!] as const),
-		);
+				.map((match) => [match[1]!, match[2]!] as const)) {
+			codingGuidsByAuthor.set(author, [...(codingGuidsByAuthor.get(author) ?? []), guid]);
+		}
 
 		expect(setCodingParticipation).toHaveBeenCalledWith('read-only');
 		expect(importedMarkers).toHaveLength(4);
@@ -164,12 +175,48 @@ describe('full QDPX project authorship', () => {
 		]);
 		for (const candidate of authoredMarkers) {
 			const authorGuid = candidate.codedBy!.slice('human:qdpx:'.length);
-			expect(candidate.codes[0]?.qdpx?.sourceCodingGuids).toEqual([codingGuidByAuthor.get(authorGuid)]);
+			expect(candidate.codes[0]?.qdpx?.sourceCodingGuids).toEqual(codingGuidsByAuthor.get(authorGuid));
 			expect(candidate.codes[0]?.qdpx?.creatingUserGuid).toBe(authorGuid);
 			expect(candidate.codes[0]?.qdpx?.creationDateTime).toBe('2026-01-02T03:04:05.000Z');
 		}
 		expect(ownerlessMarker?.importedQdpxSelection?.unattributedOwner).toBe(true);
 		expect(importedFiles.has('imports/Authorship/paper.pdf')).toBe(true);
 		expect(importedFiles.has('imports/Authorship/qdpx-import-audit.md')).toBe(true);
+	});
+
+	it('rejects an active PDF load failure with a structured audit', async () => {
+		const codeId = codeRegistry.create('Theme', '#ff0000').id;
+		const pdf = dataManager.section('pdf');
+		pdf.markers.push(marker('active-marker', codeId, 'human:default'));
+		dataManager.setSection('pdf', pdf);
+		vi.mocked(loadPdfExportData).mockRejectedValueOnce(new Error('broken PDF'));
+		const app = {
+			vault: { getAbstractFileByPath: vi.fn(() => ({ path: 'paper.pdf', extension: 'pdf' })) },
+		};
+
+		await expect(exportProject(
+			app as any, dataManager, codeRegistry, coderRegistry,
+			{ format: 'qdpx', includeSources: false, fileName: 'failed.qdpx', vaultName: 'Audit', pluginVersion: '1.0.0' },
+			new CaseVariablesRegistry(),
+		)).rejects.toMatchObject({
+			name: 'QdpxExportValidationError',
+			audit: { issues: [expect.objectContaining({ kind: 'source-load', sourceId: 'paper.pdf' })] },
+		} satisfies Partial<QdpxExportValidationError>);
+	});
+
+	it('omits markers whose source was removed from the current corpus', async () => {
+		const codeId = codeRegistry.create('Theme', '#ff0000').id;
+		const pdf = dataManager.section('pdf');
+		pdf.markers.push(marker('orphan-marker', codeId, 'human:default'));
+		dataManager.setSection('pdf', pdf);
+		const result = await exportProject(
+			{ vault: { getAbstractFileByPath: vi.fn(() => null) } } as any,
+			dataManager, codeRegistry, coderRegistry,
+			{ format: 'qdpx', includeSources: false, fileName: 'snapshot.qdpx', vaultName: 'Audit', pluginVersion: '1.0.0' },
+			new CaseVariablesRegistry(),
+		);
+		expect(result.audit).toMatchObject({ omittedOrphanMarkers: 1, activePdfSources: 0, issues: [] });
+		const xml = strFromU8(unzipSync(result.data as Uint8Array)['project.qde']!);
+		expect(xml).not.toContain('<PDFSource');
 	});
 });

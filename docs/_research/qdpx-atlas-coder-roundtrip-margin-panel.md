@@ -11,6 +11,13 @@
 > devem sobreviver à troca de sessão; os detalhes ainda abertos não constituem uma
 > spec de implementação.
 
+> A auditoria posterior do padrão REFI, do importer já concluído e da projeção de
+> saída do Marco 6 está em
+> [`qdpx-refi-pdf-export-interoperability.md`](qdpx-refi-pdf-export-interoperability.md).
+> As seções abaixo que descrevem autoria como “ignorada” ou multipágina como
+> fragmentos independentes registram o diagnóstico histórico anterior aos Marcos
+> 1–5; não representam o código atual.
+
 ## Perguntas que motivaram o levantamento
 
 1. O QDPX relaciona uma pessoa à marcação/codificação?

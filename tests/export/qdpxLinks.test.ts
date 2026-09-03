@@ -44,6 +44,22 @@ describe('buildLinksXml', () => {
 		expect(xml).toContain('direction="OneWay"');
 	});
 
+	it('maps grouped sibling markers to one Selection and deduplicates their Link', () => {
+		const markers = [
+			makeMarker('m1', [{ codeId: 'c1', relations: [{ label: 'supports', target: 'c2', directed: true }] }]),
+			makeMarker('m2', [{ codeId: 'c1', relations: [{ label: 'supports', target: 'c2', directed: true }] }]),
+		];
+		const selectionGuid = '11111111-1111-4111-8111-111111111111';
+		const xml = buildLinksXml(
+			[makeDef('c1', 'A'), makeDef('c2', 'B')],
+			markers,
+			new Map(),
+			new Map([['m1', selectionGuid], ['m2', selectionGuid]]),
+		);
+		expect(xml.match(/<Link /g)).toHaveLength(1);
+		expect(xml).toContain(`originGUID="${selectionGuid}"`);
+	});
+
 	it('returns empty string when no relations', () => {
 		const defs = [makeDef('c1', 'A'), makeDef('c2', 'B')];
 		const guidMap = new Map<string, string>();

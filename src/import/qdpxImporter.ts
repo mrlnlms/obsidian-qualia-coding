@@ -39,6 +39,12 @@ import { syncPdfMarkerFirstSegmentProjection } from '../pdf/pdfMarkerSegments';
 
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import type { VariableValue } from '../core/caseVariables/caseVariablesTypes';
+import {
+  advanceQdpxCodepoints,
+  qdpxCodepointLength,
+  qdpxCodepointToCodeUnit,
+  sliceQdpxCodepoints,
+} from './qdpxTextOffsets';
 
 // ─── Parsed types ───
 
@@ -56,6 +62,7 @@ export interface ParsedSelection {
   guid: string;
   type: 'PlainTextSelection' | 'PDFSelection' | 'PictureSelection' | 'AudioSelection' | 'VideoSelection' | 'qualia:CellSelection';
   name?: string;
+  creatingUserGuid?: string;
   codings: ParsedQdpxCoding[];
   /** Compatibility projection for non-PDF creators during Marco 1. */
   codeGuids: string[];
@@ -233,6 +240,7 @@ function parseSelection(el: Element, type: ParsedSelection['type']): ParsedSelec
     guid: getAttr(el, 'guid') ?? '',
     type,
     name: getAttr(el, 'name'),
+    creatingUserGuid: getAttr(el, 'creatingUser'),
     codings,
     codeGuids,
     noteGuids,
@@ -1567,6 +1575,9 @@ export function createPdfMultipageMarkers(args: CreatePdfMultipageMarkersArgs): 
         source: 'refi-qda-selection',
         selectionGuid: args.group.anchorGuid,
         selectionGuids: [...args.group.selectionGuids],
+        ...(anchor.creatingUserGuid ? { creatingUserGuid: anchor.creatingUserGuid } : {}),
+        ...(anchor.name ? { name: anchor.name } : {}),
+        ...(anchor.createdAt ? { creationDateTime: anchor.createdAt } : {}),
         ...(applications.coderId ? {} : { unattributedOwner: true as const }),
       },
       createdAt: timestamp,
@@ -1636,6 +1647,9 @@ export function createPdfMarker(
 							importedQdpxSelection: {
 								source: 'refi-qda-selection' as const,
 								selectionGuid: sel.guid,
+								...(sel.creatingUserGuid ? { creatingUserGuid: sel.creatingUserGuid } : {}),
+								...(sel.name ? { name: sel.name } : {}),
+								...(sel.createdAt ? { creationDateTime: sel.createdAt } : {}),
 								...(codedBy ? {} : { unattributedOwner: true as const }),
 							},
 						}),
@@ -1707,10 +1721,7 @@ function extractTextFromPlainText(
 	startPosition: number,
 	endPosition: number,
 ): string | null {
-	if (startPosition < 0 || endPosition > plainText.length || startPosition >= endPosition) {
-		return null;
-	}
-	return plainText.slice(startPosition, endPosition);
+	return sliceQdpxCodepoints(plainText, startPosition, endPosition);
 }
 
 function buildImportedPdfTextContext(
@@ -1719,18 +1730,18 @@ function buildImportedPdfTextContext(
 	resolution: ImportedPdfTextResolution,
 ): ImportedPdfTextContext | undefined {
 	if (sel.startPosition === undefined || sel.endPosition === undefined) return undefined;
-	if (sel.startPosition < 0 || sel.endPosition > plainText.length || sel.startPosition >= sel.endPosition) return undefined;
+	if (sel.startPosition < 0 || sel.endPosition > qdpxCodepointLength(plainText) || sel.startPosition >= sel.endPosition) return undefined;
 
 	const radius = 160;
 	const beforeStart = Math.max(0, sel.startPosition - radius);
-	const afterEnd = Math.min(plainText.length, sel.endPosition + radius);
+	const afterEnd = Math.min(qdpxCodepointLength(plainText), sel.endPosition + radius);
 	return {
 		source: 'qdpx-plain-text-selection',
 		startPosition: sel.startPosition,
 		endPosition: sel.endPosition,
-		before: plainText.slice(beforeStart, sel.startPosition),
-		exact: plainText.slice(sel.startPosition, sel.endPosition),
-		after: plainText.slice(sel.endPosition, afterEnd),
+		before: sliceQdpxCodepoints(plainText, beforeStart, sel.startPosition) ?? '',
+		exact: sliceQdpxCodepoints(plainText, sel.startPosition, sel.endPosition) ?? '',
+		after: sliceQdpxCodepoints(plainText, sel.endPosition, afterEnd) ?? '',
 		resolutionStrategy: resolution.strategy,
 	};
 }
@@ -1757,8 +1768,10 @@ function candidateNeedles(name: string): string[] {
 function findNeedleNearHint(haystack: string, needle: string, hint: number | undefined): number {
 	if (hint === undefined) return -1;
 	const radius = 500;
-	const from = Math.max(0, hint - radius);
-	const to = Math.min(haystack.length, hint + radius + needle.length);
+	const hintCodeUnit = qdpxCodepointToCodeUnit(haystack, hint);
+	if (hintCodeUnit === null) return -1;
+	const from = Math.max(0, hintCodeUnit - radius);
+	const to = Math.min(haystack.length, hintCodeUnit + radius + needle.length);
 	const window = haystack.slice(from, to);
 	const local = window.indexOf(needle);
 	return local >= 0 ? from + local : -1;
@@ -1829,16 +1842,18 @@ export function resolveImportedPdfText(sel: ParsedSelection, plainText: string):
 		if (idx < 0) {
 			const canonical = findCanonicalNeedle(plainText, needle);
 			if (canonical) {
-				if (expectedLen !== undefined && canonical.start + expectedLen <= plainText.length) {
-					return { text: plainText.slice(canonical.start, canonical.start + expectedLen), strategy: 'name+length' };
+				const canonicalEnd = expectedLen === undefined ? null : advanceQdpxCodepoints(plainText, canonical.start, expectedLen);
+				if (canonicalEnd !== null) {
+					return { text: plainText.slice(canonical.start, canonicalEnd), strategy: 'name+length' };
 				}
 				return { text: plainText.slice(canonical.start, canonical.end), strategy: 'name+prefix' };
 			}
 			continue;
 		}
 
-		if (expectedLen !== undefined && idx + expectedLen <= plainText.length) {
-			return { text: plainText.slice(idx, idx + expectedLen), strategy: 'name+length' };
+		const expectedEnd = expectedLen === undefined ? null : advanceQdpxCodepoints(plainText, idx, expectedLen);
+		if (expectedEnd !== null) {
+			return { text: plainText.slice(idx, expectedEnd), strategy: 'name+length' };
 		}
 		return { text: plainText.slice(idx, Math.min(plainText.length, idx + needle.length)), strategy: 'name+prefix' };
 	}

@@ -1,5 +1,6 @@
 import { getChildElements, getAttr, getTextContent, getAllElements } from './xmlParser';
 import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
+import type { CodeDefinition } from '../core/types';
 import { getMemoContent } from '../core/memoHelpers';
 
 /** Parsed code from REFI-QDA XML. */
@@ -12,6 +13,7 @@ export interface ParsedCode {
   parentGuid?: string;
   childrenGuids: string[];
   noteGuids: string[];
+  magnitude?: CodeDefinition['magnitude'];
 }
 
 export interface ParsedCodebook {
@@ -69,11 +71,50 @@ function parseCodeElement(el: Element, parentGuid: string | undefined, out: Pars
     parentGuid,
     childrenGuids,
     noteGuids,
+    magnitude: parseQualiaMagnitude(getAttr(el, 'qualia:magnitude')),
   });
 
   for (const child of childEls) {
     parseCodeElement(child, guid, out);
   }
+}
+
+function parseQualiaMagnitude(raw: string | undefined): CodeDefinition['magnitude'] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as { type?: unknown; values?: unknown };
+    if (
+      (parsed.type === 'nominal' || parsed.type === 'ordinal' || parsed.type === 'continuous')
+      && Array.isArray(parsed.values)
+      && parsed.values.every(value => typeof value === 'string')
+    ) {
+      return { type: parsed.type, values: [...parsed.values] };
+    }
+  } catch {
+    // Foreign or malformed extension metadata must not block a REFI import.
+  }
+  return undefined;
+}
+
+const QUALIA_MAGNITUDE_DEFINITION_RE = /^\[Qualia Magnitude Definition:\s*(\{[\s\S]*\})\]$/;
+
+function isQualiaMagnitudeDefinition(text: string): boolean {
+  return QUALIA_MAGNITUDE_DEFINITION_RE.test(text);
+}
+
+function resolveCodeMagnitude(
+  code: ParsedCode,
+  notes?: Map<string, { text: string; magnitude?: string }>,
+): CodeDefinition['magnitude'] | undefined {
+  // Read the short-lived attribute representation for backward compatibility.
+  if (code.magnitude) return code.magnitude;
+  if (!notes) return undefined;
+  for (const guid of code.noteGuids) {
+    const match = QUALIA_MAGNITUDE_DEFINITION_RE.exec(notes.get(guid)?.text ?? '');
+    const parsed = parseQualiaMagnitude(match?.[1]);
+    if (parsed) return parsed;
+  }
+  return undefined;
 }
 
 export function applyCodebook(
@@ -89,10 +130,14 @@ export function applyCodebook(
 
   for (const pc of codebook.codes) {
     const existing = registry.getByName(pc.name);
+    const importedMagnitude = resolveCodeMagnitude(pc, notes);
 
     if (existing) {
       if (strategy === 'merge') {
         codeGuidMap.set(pc.guid, existing.id);
+        if (importedMagnitude && !existing.magnitude) {
+          registry.update(existing.id, { magnitude: importedMagnitude });
+        }
         if (pc.memo) {
           const existingContent = getMemoContent(existing.memo);
           const mergedMemo = mergeMemos(existingContent || undefined, pc.memo);
@@ -107,6 +152,7 @@ export function applyCodebook(
       const parentId = pc.parentGuid ? codeGuidMap.get(pc.parentGuid) : undefined;
       const def = registry.create(newName, pc.color, pc.description, parentId);
       if (pc.memo) registry.update(def.id, { memo: pc.memo });
+      if (importedMagnitude) registry.update(def.id, { magnitude: importedMagnitude });
       codeGuidMap.set(pc.guid, def.id);
       created++;
       continue;
@@ -117,6 +163,7 @@ export function applyCodebook(
     const description = mergeDescriptions(pc.description, noteDesc);
     const def = registry.create(pc.name, pc.color, description, parentId);
     if (pc.memo) registry.update(def.id, { memo: pc.memo });
+    if (importedMagnitude) registry.update(def.id, { magnitude: importedMagnitude });
     codeGuidMap.set(pc.guid, def.id);
     created++;
   }
@@ -132,7 +179,7 @@ function resolveCodeNotes(
   const texts: string[] = [];
   for (const guid of noteGuids) {
     const note = notes.get(guid);
-    if (note && !note.magnitude) texts.push(note.text);
+    if (note && !note.magnitude && !isQualiaMagnitudeDefinition(note.text)) texts.push(note.text);
   }
   return texts.length > 0 ? texts.join('\n\n') : undefined;
 }

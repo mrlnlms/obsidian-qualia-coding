@@ -8,6 +8,7 @@ const CODEBOOK_NS = 'urn:QDA-XML:codebook:1.0';
 export interface BuildCodebookOptions {
   namespace?: string;
   ensureCodeGuid?: (codeId: string) => string;
+  magnitudeNoteGuid?: (codeId: string) => string | undefined;
 }
 
 /**
@@ -23,7 +24,7 @@ export function buildCodebookXml(
   const rootCodes = registry.getRootCodes();
   const codesXml = rootCodes.length === 0
     ? '<Codes/>'
-    : `<Codes>\n${rootCodes.map(c => buildCodeElement(c, registry, options?.ensureCodeGuid)).join('\n')}\n</Codes>`;
+    : `<Codes>\n${rootCodes.map(c => buildCodeElement(c, registry, options?.ensureCodeGuid, options?.magnitudeNoteGuid)).join('\n')}\n</Codes>`;
 
   const groups = registry.getAllGroups();
   const setsXml = groups.length === 0
@@ -79,6 +80,7 @@ function buildCodeElement(
   code: CodeDefinition,
   registry: CodeDefinitionRegistry,
   ensureCodeGuid?: (codeId: string) => string,
+  magnitudeNoteGuid?: (codeId: string) => string | undefined,
 ): string {
   const guid = ensureCodeGuid ? ensureCodeGuid(code.id) : code.id;
   const attrs = [
@@ -97,14 +99,19 @@ function buildCodeElement(
     ? `\n<MemoText>${escapeXml(codeMemoText)}</MemoText>`
     : '';
 
-  const children = registry.getChildren(code.id);
-  const childrenXml = children.map(c => buildCodeElement(c, registry, ensureCodeGuid)).join('\n');
+  const magnitudeGuid = magnitudeNoteGuid?.(code.id);
+  const magnitudeNoteRef = magnitudeGuid
+    ? `\n<NoteRef ${xmlAttr('targetGUID', magnitudeGuid)}/>`
+    : '';
 
-  if (!descEl && !memoEl && children.length === 0) {
+  const children = registry.getChildren(code.id);
+  const childrenXml = children.map(c => buildCodeElement(c, registry, ensureCodeGuid, magnitudeNoteGuid)).join('\n');
+
+  if (!descEl && !memoEl && !magnitudeNoteRef && children.length === 0) {
     return `<Code ${attrs}/>`;
   }
 
-  const inner = [descEl, memoEl, childrenXml].filter(Boolean).join('\n');
+  const inner = [descEl, memoEl, magnitudeNoteRef, childrenXml].filter(Boolean).join('\n');
   return `<Code ${attrs}>${inner}\n</Code>`;
 }
 

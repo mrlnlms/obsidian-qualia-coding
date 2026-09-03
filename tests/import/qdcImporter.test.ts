@@ -77,6 +77,27 @@ describe('parseCodebook', () => {
     const result = parseCodebook(doc);
     expect(result.codes).toHaveLength(0);
   });
+
+  it('parses Qualia magnitude configuration without affecting standard codes', () => {
+    const xml = `<CodeBook xmlns:qualia="urn:qualia-coding:extensions:1.0"><Codes>
+      <Code guid="c1" name="Intensity" isCodable="true"
+        qualia:magnitude="{&quot;type&quot;:&quot;nominal&quot;,&quot;values&quot;:[&quot;A&quot;,&quot;B&quot;]}"/>
+    </Codes></CodeBook>`;
+    const doc = parseXml(`<?xml version="1.0"?><Project>${xml}</Project>`);
+
+    expect(parseCodebook(doc).codes[0]!.magnitude).toEqual({
+      type: 'nominal',
+      values: ['A', 'B'],
+    });
+  });
+
+  it('ignores malformed Qualia magnitude metadata', () => {
+    const xml = `<CodeBook xmlns:qualia="urn:qualia-coding:extensions:1.0"><Codes>
+      <Code guid="c1" name="Theme" isCodable="true" qualia:magnitude="not-json"/>
+    </Codes></CodeBook>`;
+    const doc = parseXml(`<?xml version="1.0"?><Project>${xml}</Project>`);
+    expect(parseCodebook(doc).codes[0]!.magnitude).toBeUndefined();
+  });
 });
 
 describe('applyCodebook', () => {
@@ -150,6 +171,39 @@ describe('applyCodebook', () => {
     const qualiaId = result.codeGuidMap.get('qdpx-guid-123');
     expect(qualiaId).toBeDefined();
     expect(registry.getById(qualiaId!)).toBeDefined();
+  });
+
+  it('applies imported magnitude configuration to a new code', () => {
+    const registry = new CodeDefinitionRegistry();
+    const codebook = {
+      codes: [{
+        guid: 'g1', name: 'Intensity', color: '#ff0000', childrenGuids: [], noteGuids: [],
+        magnitude: { type: 'continuous' as const, values: ['1', '2', '3'] },
+      }],
+    };
+
+    applyCodebook(codebook, registry, 'merge');
+
+    expect(registry.getByName('Intensity')!.magnitude).toEqual({
+      type: 'continuous', values: ['1', '2', '3'],
+    });
+  });
+
+  it('applies a magnitude definition carried by a standard code NoteRef', () => {
+    const registry = new CodeDefinitionRegistry();
+    const codebook = {
+      codes: [{ guid: 'g1', name: 'Scale', color: '#ff0000', childrenGuids: [], noteGuids: ['n1'] }],
+    };
+    const notes = new Map([['n1', {
+      text: '[Qualia Magnitude Definition: {"type":"ordinal","values":["low","high"]}]',
+    }]]);
+
+    applyCodebook(codebook, registry, 'merge', notes);
+
+    expect(registry.getByName('Scale')!.magnitude).toEqual({
+      type: 'ordinal', values: ['low', 'high'],
+    });
+    expect(registry.getByName('Scale')!.description).toBeUndefined();
   });
 });
 

@@ -255,7 +255,7 @@ describe('buildPdfSourceXml', () => {
     const xml = buildPdfSourceXml('docs/paper.pdf', [], shapes, pageHeights, new Map(), guidMap, notes);
     expect(xml).toContain('<PDFSelection');
     expect(xml).toContain('page="0"');
-    expect(xml).toContain('firstX="61.2"');
+    expect(xml).toContain('firstX="61"');
   });
 
   it('skips shape markers when page dimensions unavailable', () => {
@@ -347,6 +347,18 @@ describe('buildProjectXml', () => {
     const registry = new CodeDefinitionRegistry();
     const xml = buildProjectXml(registry, '', '', '', '', 'Vault', '1.0.0');
     expect(xml).not.toContain('<Notes>');
+  });
+
+  it('preserves code magnitude definitions through schema-native Notes', () => {
+    const registry = new CodeDefinitionRegistry();
+    const code = registry.create('Scale', '#ff0000');
+    registry.update(code.id, { magnitude: { type: 'nominal', values: ['A', 'B'] } });
+
+    const xml = buildProjectXml(registry, '', '', '', '', 'Vault', '1.0.0', new Map());
+
+    expect(xml).toContain('<NoteRef targetGUID=');
+    expect(xml).toContain('[Qualia Magnitude Definition: {&quot;type&quot;:&quot;nominal&quot;,&quot;values&quot;:[&quot;A&quot;,&quot;B&quot;]}]');
+    expect(xml).not.toContain('qualia:magnitude');
   });
 });
 

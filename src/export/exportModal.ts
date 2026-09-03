@@ -4,6 +4,7 @@ import type { CodeDefinitionRegistry } from '../core/codeDefinitionRegistry';
 import type { CaseVariablesRegistry } from '../core/caseVariables/caseVariablesRegistry';
 import type QualiaCodingPlugin from '../main';
 import { exportProject } from './qdpxExporter';
+import { QdpxExportValidationError } from './qdpxExportAudit';
 import { exportTabular } from './tabular/tabularExporter';
 // `exportParquetEnriched` é dynamic-imported em doExport pra evitar carregar
 // `CsvCodingView` (extends FileView) em contextos de teste onde obsidian é mockado.
@@ -209,7 +210,11 @@ export class ExportModal extends Modal {
       this.notifyResult(result.warnings, result.fileName);
       this.close();
     } catch (err) {
-      new Notice(`Export failed: ${(err as Error).message}`);
+      if (err instanceof QdpxExportValidationError) {
+        new Notice(`Export failed before creating the file: ${err.audit.issues.length} PDF coverage issue(s).\n${err.audit.issues[0]?.message ?? err.message}`, 12000);
+      } else {
+        new Notice(`Export failed: ${(err as Error).message}`);
+      }
       console.error('[Qualia Export]', err);
     }
   }
