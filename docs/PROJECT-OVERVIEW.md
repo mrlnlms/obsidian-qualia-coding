@@ -58,7 +58,7 @@
 
 ## Camada 3 — Implementação real (o que está construído)
 
-**Stack.** TypeScript strict, build via esbuild 0.25, plugin Obsidian (min 1.5.0, desktop only). Vitest + jsdom pra testes unitários (3537+ tests, 252 suites). WebdriverIO + Obsidian real pra e2e (66 tests, 19 specs). DuckDB-Wasm + OPFS pra Parquet lazy. Web Worker inline (bundled via plugin esbuild + Blob URL) pra compute pesado de κ. CodeMirror 6 pra decorations no editor markdown.
+**Stack.** TypeScript strict, build via esbuild 0.25, plugin Obsidian (min 1.7.0, desktop only). Vitest + jsdom pra testes unitários. WebdriverIO + Obsidian real pra e2e (18 specs de comportamento do produto). DuckDB-Wasm + OPFS pra Parquet lazy. Web Worker inline (bundled via plugin esbuild + Blob URL) pra compute pesado de κ. CodeMirror 6 pra decorations no editor markdown.
 
 **Arquitetura (alto nível, detalhe em `docs/ARCHITECTURE.md`).**
 - `src/core/` — motor: registries (CodeDefinitionRegistry, SmartCodeRegistry, comparisonRegistry, sourceHashRegistry), tipos, helpers puros

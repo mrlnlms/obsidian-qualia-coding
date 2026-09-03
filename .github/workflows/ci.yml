@@ -48,6 +48,6 @@ jobs:
           key: obsidian-${{ runner.os }}
 
       - name: E2E full suite (Obsidian + xvfb)
-        # wdio.conf.mts default specs glob covers all 19 spec files (66 tests).
+        # wdio.conf.mts default specs glob covers all 18 product-facing spec files.
         # Smoke alone validated only that Obsidian boots; full suite catches engine regressions.
         run: xvfb-run npx wdio run wdio.conf.mts

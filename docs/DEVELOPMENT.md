@@ -389,7 +389,7 @@ Todos os plugins usam a mesma copia. Se precisar resetar: `rm -rf ~/.cache/obsid
 - Config: `wdio.conf.mts` (usa `obsidian-e2e-visual-test-kit` de `github:mrlnlms/obsidian-e2e-visual-test-kit`)
 - Commands:
   ```bash
-  npm run test:e2e                                          # roda todos os 19 specs
+  npm run test:e2e                                          # roda todos os 18 specs de produto
   npm run test:e2e -- --spec tests/e2e/specs/smoke.e2e.ts  # spec especifico
   npm run test:visual:update                                # regenera baselines
   ```
