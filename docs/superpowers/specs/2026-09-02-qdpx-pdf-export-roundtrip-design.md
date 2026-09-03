@@ -453,8 +453,8 @@ Comparar entre A e B e entre os dois pacotes:
 
 ## Checkpoint Atlas
 
-Depois do Marco 6, abrir exatamente o pacote aprovado no Atlas e comparar com o
-projeto original:
+Depois do Marco 6, gerar novamente o pacote na build integrada, validá-lo contra
+o XSD oficial e abri-lo no Atlas para comparar com o projeto original:
 
 - mesmos documentos;
 - mesmas quotations;
@@ -501,7 +501,7 @@ As tarefas serão implementadas inline. Depois do diff funcional completo:
 4. o usuário valida Qualia → Qualia;
 5. testes e documentação são consolidados;
 6. suíte, build, XSD e comparador fecham o Marco 6;
-7. o mesmo pacote segue para o Atlas.
+7. uma nova exportação da build integrada, após validação XSD, segue para o Atlas.
 
 Verificações mínimas acompanham a implementação, mas a bateria final de regressão
 é consolidada depois do checkpoint manual, conforme metodologia aprovada.

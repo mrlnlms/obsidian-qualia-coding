@@ -310,8 +310,10 @@ atual e reabre o pacote em outro vault Qualia preservando quotations lógicas,
 segmentos, autoria, códigos, magnitudes, memo, relação, highlights e margin panel.
 O checkpoint manual pequeno e 3.794 testes automatizados foram aprovados.
 
-**Follow-up isolado — Marco 7:** criar nova conta, instalar Atlas e abrir o pacote
-Qualia aprovado para comparar com o projeto Atlas de referência. Esse teste mede o
+**Follow-up isolado — Marco 7:** criar nova conta, instalar Atlas e gerar um novo
+pacote com a `main` a partir de `2530368` para comparar com o projeto Atlas de
+referência. Não reutilizar `qualia-novoooooooo.qdpx`, que antecede os ajustes XSD
+de bbox inteiro e magnitude por NoteRef. Esse teste mede o
 dialeto externo do Atlas; não reabre o desenho nem bloqueia colaboração
 Qualia↔Qualia já validada. Ver
 `docs/superpowers/plans/2026-09-02-qdpx-pdf-export-roundtrip.md`.

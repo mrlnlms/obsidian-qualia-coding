@@ -441,7 +441,9 @@ projeto Atlas original
 → Atlas
 ```
 
-1. abrir no Atlas exatamente o pacote aprovado no Marco 6;
+1. gerar um novo pacote na build integrada, validá-lo contra o XSD oficial e
+   abri-lo no Atlas; o pacote manual anterior aos ajustes XSD não é o artefato de
+   handoff;
 2. comparar o resultado com o projeto Atlas que gerou o QDPX de referência;
 3. conferir os mesmos documentos, quotations, páginas, trechos, códigos e coders;
 4. conferir especificamente os seis casos multipágina de duas páginas;
