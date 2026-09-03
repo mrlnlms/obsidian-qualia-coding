@@ -394,12 +394,19 @@ Todos os plugins usam a mesma copia. Se precisar resetar: `rm -rf ~/.cache/obsid
   npm run test:visual:update                                # regenera baselines
   ```
 
+O antigo spec da tela de configurações foi preservado em
+`tests/e2e/reference/settings-tab.reference.ts`, fora do glob do CI. Ele registra
+o DOM anterior ao Obsidian 1.13 e serve de insumo para o futuro trabalho de
+design system; não deve voltar ao gate sem suporte explícito à nova janela de
+Settings e assertions semânticas dos controles do Qualia.
+
 ### Test Vault & Baselines
 - Test vault: `tests/e2e/vaults/visual/` com fixtures (md, csv, pdf, png, mp3, mp4)
 - Baselines: `tests/screenshots/baseline/` (commitados — referencia visual)
 - `tests/screenshots/actual/` e `tests/screenshots/diff/` sao gitignored (artefatos de run)
 - Resolution-dependent — mesma maquina pra baseline e comparacao
-- CI roda so smoke test (Linux rendering difere de macOS)
+- CI roda os 18 specs funcionais; comparação de baselines visuais continua local
+  porque o rendering Linux difere do macOS.
 
 ### Helpers
 
