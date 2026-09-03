@@ -37,6 +37,27 @@ node scripts/seed-icr-lazy.mjs      # gera CSV 120MB + popula 20 markers no CSV 
                                     # eager é exercitado em smoke).
 ```
 
+### Referências locais não versionadas
+
+`.local/` é reservado para ferramentas e materiais de validação privados que não
+devem ser redistribuídos pelo repositório. Para QDPX, a convenção é:
+
+```text
+.local/refi-qda/project/v1.0/
+├── Project.xsd
+└── SOURCE.md
+```
+
+O XSD é obtido pela [página oficial de implementação REFI-QDA](https://www.qdasoftware.org/project-implementation-files).
+`SOURCE.md` registra URL, data e SHA-256 da cópia. Para validar um pacote:
+
+```bash
+unzip -p project.qdpx project.qde > /tmp/project.qde
+xmllint --noout \
+  --schema .local/refi-qda/project/v1.0/Project.xsd \
+  /tmp/project.qde
+```
+
 ### Output
 - `main.js` (~2.17 MB bundled) — single file, todos os engines
 - `styles.css` — CSS consolidado
